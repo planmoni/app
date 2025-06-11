@@ -19,7 +19,8 @@ export default function TabLayout() {
     const channelName = `events-changes-${session.user.id}`;
 
     // Check if a channel with this name already exists and is active
-    const existingChannel = supabase.realtime.getChannelByTopic(channelName);
+    const existingChannels = supabase.getChannels();
+    const existingChannel = existingChannels.find(channel => channel.topic === channelName);
     
     if (existingChannel && (existingChannel.state === 'joined' || existingChannel.state === 'joining')) {
       // Channel already exists and is active, skip subscription
