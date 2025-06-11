@@ -15,12 +15,14 @@ export function useSupabaseAuth() {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session:', session ? 'exists' : 'none');
       setSession(session);
       setIsLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('Auth state changed:', _event, session ? 'session exists' : 'no session');
       setSession(session);
       setIsLoading(false);
     });
@@ -33,6 +35,7 @@ export function useSupabaseAuth() {
       setError(null);
       setIsLoading(true);
       
+      console.log('Signing in with email:', email);
       const { error, data } = await supabase.auth.signInWithPassword({ 
         email: email.toLowerCase().trim(), 
         password 
@@ -51,13 +54,16 @@ export function useSupabaseAuth() {
           errorMessage = 'Too many login attempts. Please try again later.';
         }
         
+        console.error('Sign in error:', errorMessage);
         setError(errorMessage);
         return { success: false, error: errorMessage };
       }
       
+      console.log('Sign in successful');
       return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign in';
+      console.error('Sign in exception:', message);
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -70,6 +76,7 @@ export function useSupabaseAuth() {
       setError(null);
       setIsLoading(true);
       
+      console.log('Signing up with email:', email, 'firstName:', firstName, 'lastName:', lastName);
       const { error: signUpError, data } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
@@ -92,14 +99,17 @@ export function useSupabaseAuth() {
           errorMessage = 'Password is too weak. Please use a stronger password.';
         }
         
+        console.error('Sign up error:', errorMessage);
         setError(errorMessage);
         return { success: false, error: errorMessage };
       }
 
+      console.log('Sign up successful, user data:', data);
       // The trigger will automatically create the profile and wallet
       return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create account';
+      console.error('Sign up exception:', message);
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -111,15 +121,19 @@ export function useSupabaseAuth() {
     try {
       setError(null);
       setIsLoading(true);
+      console.log('Signing out...');
       const { error } = await supabase.auth.signOut();
       if (error) {
         const message = error.message;
+        console.error('Sign out error:', message);
         setError(message);
         return { success: false, error: message };
       }
+      console.log('Sign out successful');
       return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign out';
+      console.error('Sign out exception:', message);
       setError(message);
       return { success: false, error: message };
     } finally {
