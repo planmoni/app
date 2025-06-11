@@ -203,7 +203,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     paddingBottom: responsive.verticalPadding / 2,
   },
   logo: {
-    width: 200,
+    width: 150,
     height: responsive.logoHeight,
   },
   sliderContainer: {
