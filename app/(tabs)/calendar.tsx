@@ -1,9 +1,11 @@
 import Card from '@/components/Card';
 import HorizontalLoader from '@/components/HorizontalLoader';
+import SafeFooter from '@/components/SafeFooter';
 import { router } from 'expo-router';
 import { TriangleAlert as AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, Plus } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCalendarEvents, CalendarEvent } from '@/hooks/useCalendarEvents';
 
@@ -204,7 +206,7 @@ export default function CalendarScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Calendar</Text>
           <View style={styles.headerActions}>
@@ -227,13 +229,14 @@ export default function CalendarScreen() {
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading calendar events...</Text>
         </View>
-      </View>
+        <SafeFooter />
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Calendar</Text>
           <View style={styles.headerActions}>
@@ -258,7 +261,8 @@ export default function CalendarScreen() {
             <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>
         </View>
-      </View>
+        <SafeFooter />
+      </SafeAreaView>
     );
   }
 
@@ -679,7 +683,7 @@ export default function CalendarScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Calendar</Text>
         <View style={styles.headerActions}>
@@ -726,7 +730,8 @@ export default function CalendarScreen() {
         {activeView === 'list' && renderListView()}
       </ScrollView>
       
-    </View>
+      <SafeFooter />
+    </SafeAreaView>
   );
 }
 
@@ -734,7 +739,6 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
-    paddingTop: 50, // Add padding to account for status bar
   },
   header: {
     flexDirection: 'row',

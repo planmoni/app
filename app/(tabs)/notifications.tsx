@@ -1,6 +1,7 @@
 import { TriangleAlert as AlertTriangle, Calendar, Check, Download, Shield, Smartphone, Wallet } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 
 type NotificationType = 'all' | 'payouts' | 'vaults' | 'security';
@@ -116,7 +117,7 @@ export default function NotificationsScreen() {
   const styles = createStyles(colors);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Text style={styles.headerTitle}>Notifications</Text>
@@ -192,7 +193,7 @@ export default function NotificationsScreen() {
           </Pressable>
         ))}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -200,7 +201,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
-    paddingTop: 50, // Add padding to account for status bar
   },
   header: {
     backgroundColor: colors.surface,

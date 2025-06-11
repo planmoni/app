@@ -1,5 +1,6 @@
 import Button from '@/components/Button';
 import InitialsAvatar from '@/components/InitialsAvatar';
+import SafeFooter from '@/components/SafeFooter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
 import LanguageModal from '@/components/LanguageModal';
@@ -132,7 +134,7 @@ export default function SettingsScreen() {
   const styles = createStyles(colors);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Settings</Text>
       </View>
@@ -537,7 +539,8 @@ export default function SettingsScreen() {
         onClose={() => setShowTerms(false)}
       />
       
-    </View>
+      <SafeFooter />
+    </SafeAreaView>
   );
 }
 
@@ -545,7 +548,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
-    paddingTop: 50, // Add padding to account for status bar
   },
   header: {
     paddingHorizontal: 20,

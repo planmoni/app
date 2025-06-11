@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { TrendingUp, TrendingDown, Users, ArrowUpRight, ArrowDownRight, Wallet, Clock, Calendar, Send } from 'lucide-react-native';
 import Card from '@/components/Card';
 import { useMemo } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function InsightsScreen() {
@@ -109,7 +110,7 @@ export default function InsightsScreen() {
   const styles = createStyles(colors);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Insights</Text>
       </View>
@@ -228,7 +229,7 @@ export default function InsightsScreen() {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -236,7 +237,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
-    paddingTop: 50, // Add padding to account for status bar
   },
   header: {
     paddingHorizontal: 16,
