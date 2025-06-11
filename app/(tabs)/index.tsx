@@ -13,12 +13,14 @@ import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance } = useBalance();
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
+  const { transactions, isLoading: transactionsLoading } = useRealtimeTransactions();
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -107,24 +109,23 @@ export default function HomeScreen() {
   };
 
   const handleTransactionPress = (transaction) => {
-    setSelectedTransaction({
-      amount: transaction.amount,
-      status: transaction.type === 'Monthly Payout' ? 'Completed' : 
-             transaction.type === 'Vault Deposit' ? 'Processing' :
-             transaction.type === 'Rent Payment' ? 'Scheduled' : 'Failed',
-      date: transaction.date,
-      time: transaction.time,
-      type: transaction.type,
-      source: transaction.type.includes('Payout') ? 'Monthly Salary Vault' :
-             transaction.type === 'Vault Deposit' ? 'GTBank (****1234)' : 'Available Balance',
-      destination: transaction.type.includes('Payout') ? 'GTBank (****1234)' :
-                  transaction.type === 'Vault Deposit' ? 'Emergency Fund Vault' : 'Rent Vault',
-      transactionId: `TXN-${Math.random().toString(36).substr(2, 8).toUpperCase()}`,
-      planRef: transaction.type.includes('Payout') ? 'PLAN-MNTH-0039' : '',
+    // Format transaction data for the modal
+    const formattedTransaction = {
+      amount: `₦${transaction.amount.toLocaleString()}`,
+      status: transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1),
+      date: new Date(transaction.created_at).toLocaleDateString(),
+      time: new Date(transaction.created_at).toLocaleTimeString(),
+      type: transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1),
+      source: transaction.source,
+      destination: transaction.destination,
+      transactionId: transaction.id,
+      planRef: transaction.payout_plan_id || '',
       paymentMethod: 'Bank Transfer',
-      initiatedBy: transaction.type.includes('scheduled') ? 'Auto-scheduler' : 'You',
-      processingTime: transaction.type.includes('Payout') ? 'Instant' : '2-3 business days',
-    });
+      initiatedBy: 'You',
+      processingTime: transaction.status === 'completed' ? 'Instant' : '2-3 business days',
+    };
+    
+    setSelectedTransaction(formattedTransaction);
     setIsTransactionModalVisible(true);
   };
 
@@ -212,19 +213,8 @@ export default function HomeScreen() {
     });
   };
 
-  // Helper function to calculate days until next payout
-  const getDaysUntilPayout = (dateString: string) => {
-    const payoutDate = new Date(dateString);
-    const today = new Date();
-    
-    // Reset time part for accurate day calculation
-    today.setHours(0, 0, 0, 0);
-    payoutDate.setHours(0, 0, 0, 0);
-    
-    const diffTime = payoutDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
+  // Get recent transactions for display
+  const recentTransactions = transactions.slice(0, 5);
 
   const styles = createStyles(colors, isDark);
 
@@ -508,84 +498,70 @@ export default function HomeScreen() {
               <Text style={styles.viewAllText}>View All</Text>
             </Pressable>
           </View>
-          {[
-            {
-              type: 'Monthly Payout',
-              date: 'Dec 1, 2024',
-              time: '9:15 AM',
-              amount: '+₦500,000.00',
-              positive: true,
-              icon: ArrowUpRight,
-            },
-            {
-              type: 'Vault Deposit',
-              date: 'Nov 28, 2024',
-              time: '3:00 PM',
-              amount: '-₦3,000,000.00',
-              positive: false,
-              icon: ArrowDownRight,
-            },
-            {
-              type: 'Rent Payment',
-              date: 'Nov 25, 2024',
-              time: '3:00 PM',
-              amount: '-₦750,000.00',
-              positive: false,
-              icon: ArrowDown,
-            },
-            {
-              type: 'Investment Return',
-              date: 'Nov 22, 2024',
-              time: '11:30 AM',
-              amount: '+₦1,200,000.00',
-              positive: true,
-              icon: ArrowUpRight,
-            },
-            {
-              type: 'Transfer to Savings',
-              date: 'Nov 20, 2024',
-              time: '2:30 PM',
-              amount: '-₦500,000.00',
-              positive: false,
-              icon: ArrowRight,
-            },
-          ].map((transaction, index) => (
+          
+          {transactionsLoading ? (
+            <View>
+              <HorizontalLoader />
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading transactions...</Text>
+              </View>
+            </View>
+          ) : recentTransactions.length > 0 ? (
+            recentTransactions.map((transaction) => {
+              const isPositive = transaction.type === 'deposit';
+              const Icon = isPositive ? ArrowUpRight : 
+                          transaction.type === 'payout' ? ArrowDownRight : ArrowDown;
+              
+              return (
+                <Pressable 
+                  key={transaction.id} 
+                  onPress={() => handleTransactionPress(transaction)}
+                >
+                  <Card style={styles.transactionCard}>
+                    <View style={styles.transaction}>
+                      <View style={[
+                        styles.transactionIcon,
+                        { backgroundColor: isPositive ? '#DCFCE7' : '#FEE2E2' }
+                      ]}>
+                        <Icon
+                          size={20}
+                          color={isPositive ? '#22C55E' : '#EF4444'}
+                        />
+                      </View>
+                      <View style={styles.transactionInfo}>
+                        <Text style={styles.transactionTitle}>
+                          {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
+                        </Text>
+                        <Text style={styles.transactionDate}>
+                          {new Date(transaction.created_at).toLocaleDateString()}
+                        </Text>
+                      </View>
+                      <Text style={[
+                        styles.transactionAmount,
+                        { color: isPositive ? '#22C55E' : '#EF4444' }
+                      ]}>
+                        {formatBalance(transaction.amount)}
+                      </Text>
+                    </View>
+                  </Card>
+                </Pressable>
+              );
+            })
+          ) : (
+            <View style={styles.emptyTransactionsContainer}>
+              <Text style={styles.emptyTransactionsText}>No transactions yet</Text>
+            </View>
+          )}
+          
+          {recentTransactions.length > 0 && (
             <Pressable 
-              key={index} 
-              onPress={() => handleTransactionPress(transaction)}
+              style={styles.viewAllTransactionsButton}
+              onPress={() => router.push('/transactions')}
             >
-              <Card style={styles.transactionCard}>
-                <View style={styles.transaction}>
-                  <View style={[
-                    styles.transactionIcon,
-                    { backgroundColor: transaction.positive ? '#DCFCE7' : '#FEE2E2' }
-                  ]}>
-                    <transaction.icon
-                      size={20}
-                      color={transaction.positive ? '#22C55E' : '#EF4444'}
-                    />
-                  </View>
-                  <View style={styles.transactionInfo}>
-                    <Text style={styles.transactionTitle}>{transaction.type}</Text>
-                    <Text style={styles.transactionDate}>{transaction.date}</Text>
-                  </View>
-                  <Text style={[
-                    styles.transactionAmount,
-                    { color: transaction.positive ? '#22C55E' : '#EF4444' }
-                  ]}>
-                    {formatBalance(parseFloat(transaction.amount.replace(/[₦,+]/g, '')))}
-                  </Text>
-                </View>
-              </Card>
+              <Text style={styles.viewAllTransactionsText}>View All Transactions</Text>
+              <ChevronRight size={20} color={colors.primary} />
             </Pressable>
-          ))}
-          <Pressable 
-            style={styles.viewAllTransactionsButton}
-            onPress={() => router.push('/transactions')}
-          >
-            <Text style={styles.viewAllTransactionsText}>View All Transactions</Text>
-            <ChevronRight size={20} color={colors.primary} />
-          </Pressable>
+          )}
         </View>
 
         <View style={styles.bottomPadding} />
@@ -985,6 +961,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     marginBottom: 16,
+  },
+  emptyTransactionsContainer: {
+    padding: 40,
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  emptyTransactionsText: {
+    fontSize: 16,
+    color: colors.textSecondary,
   },
   createFirstPayoutButton: {
     flexDirection: 'row',
