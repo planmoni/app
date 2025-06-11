@@ -33,30 +33,27 @@ export default function FloatingButton({
   const animatedBottom = useRef(new Animated.Value(insets.bottom)).current;
   
   useEffect(() => {
-    // Function to handle keyboard show event
     const keyboardWillShow = (event: any) => {
-      const keyboardHeight = event.endCoordinates.height;
-      
-      // Use the keyboard event's duration and easing when available
-      const duration = event.duration || 250;
-      const easing = event.easing ? Easing.bezier(0.17, 0.59, 0.4, 0.77) : Easing.out(Easing.ease);
-      
-      // Animate the button to position above keyboard
+      const keyboardHeight = event.endCoordinates?.height || 0;
+      const duration = event.duration || (Platform.OS === 'ios' ? 250 : 100);
+      const easing = Platform.OS === 'ios'
+        ? Easing.bezier(0.17, 0.59, 0.4, 0.77)
+        : Easing.out(Easing.ease);
+
       Animated.timing(animatedBottom, {
-        toValue: keyboardHeight,
+        toValue: keyboardHeight + insets.bottom,
         duration,
         easing,
         useNativeDriver: false,
       }).start();
     };
-    
-    // Function to handle keyboard hide event
+
     const keyboardWillHide = (event: any) => {
-      // Use the keyboard event's duration and easing when available
-      const duration = event.duration || 250;
-      const easing = event.easing ? Easing.bezier(0.17, 0.59, 0.4, 0.77) : Easing.out(Easing.ease);
-      
-      // Animate the button back to its original position
+      const duration = event.duration || (Platform.OS === 'ios' ? 250 : 100);
+      const easing = Platform.OS === 'ios'
+        ? Easing.bezier(0.17, 0.59, 0.4, 0.77)
+        : Easing.out(Easing.ease);
+
       Animated.timing(animatedBottom, {
         toValue: insets.bottom,
         duration,
@@ -64,29 +61,28 @@ export default function FloatingButton({
         useNativeDriver: false,
       }).start();
     };
-    
-    // Set up keyboard event listeners based on platform
+
     const showListener = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideListener = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    
+
     const keyboardWillShowListener = Keyboard.addListener(showListener, keyboardWillShow);
     const keyboardWillHideListener = Keyboard.addListener(hideListener, keyboardWillHide);
-    
-    // Clean up event listeners
+
     return () => {
       keyboardWillShowListener.remove();
       keyboardWillHideListener.remove();
     };
   }, [insets.bottom]);
-  
+
   const styles = createStyles(colors);
-  
+
   return (
     <Animated.View 
       style={[
         styles.container, 
         { bottom: animatedBottom }
       ]}
+      pointerEvents="box-none"
     >
       <View style={styles.buttonContainer}>
         <Button
@@ -118,11 +114,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   buttonContainer: {
     width: '100%',
-    
   },
   button: {
     width: '100%',
     backgroundColor: colors.primary,
-    
   },
 });
