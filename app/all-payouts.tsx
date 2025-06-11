@@ -1,4 +1,5 @@
 import Card from '@/components/Card';
+import HorizontalLoader from '@/components/HorizontalLoader';
 import { router } from 'expo-router';
 import { ArrowLeft, Calendar, ChevronRight, Clock, Plus, Pause, Play } from 'lucide-react-native';
 import { useState } from 'react';
@@ -87,6 +88,7 @@ export default function AllPayoutsScreen() {
           </Pressable>
           <Text style={styles.headerTitle}>Your Payouts</Text>
         </View>
+        <HorizontalLoader />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading your payout plans...</Text>

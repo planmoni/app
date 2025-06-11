@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ChevronRight, Calendar, Clock, Wallet, Building2, TriangleAlert as AlertTriangle, PencilLine, Pause, Play } from 'lucide-react-native';
 import Button from '@/components/Button';
 import Card from '@/components/Card';
+import HorizontalLoader from '@/components/HorizontalLoader';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -13,7 +14,7 @@ export default function ViewPayoutScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const { id } = useLocalSearchParams();
-  const { payoutPlans, pausePlan, resumePlan } = usePayoutPlans();
+  const { payoutPlans, isLoading, pausePlan, resumePlan } = usePayoutPlans();
   const { showBalances } = useBalance();
   
   const [isEditing, setIsEditing] = useState(false);
@@ -29,6 +30,23 @@ export default function ViewPayoutScreen() {
     }
   }, [plan]);
 
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Payout Details</Text>
+        </View>
+        <HorizontalLoader />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading payout details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!plan) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -40,6 +58,11 @@ export default function ViewPayoutScreen() {
         </View>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Payout plan not found</Text>
+          <Button 
+            title="Go Back" 
+            onPress={() => router.back()} 
+            style={styles.errorButton}
+          />
         </View>
       </SafeAreaView>
     );
@@ -293,14 +316,30 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 20,
+  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   errorText: {
     fontSize: 16,
     color: colors.textSecondary,
+    marginBottom: 20,
+  },
+  errorButton: {
+    minWidth: 120,
   },
   scrollView: {
     flex: 1,

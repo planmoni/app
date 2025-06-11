@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Card from '@/components/Card';
 import TransactionModal from '@/components/TransactionModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
+import HorizontalLoader from '@/components/HorizontalLoader';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
@@ -330,8 +331,11 @@ export default function HomeScreen() {
           </View>
           
           {payoutPlansLoading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading your payout plans...</Text>
+            <View>
+              <HorizontalLoader />
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading your payout plans...</Text>
+              </View>
             </View>
           ) : activePlans.length > 0 ? (
             <ScrollView 
@@ -821,6 +825,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   loadingText: {
     fontSize: 14,
     color: colors.textSecondary,
+    marginTop: 10,
   },
   emptyPayoutsContainer: {
     padding: 40,

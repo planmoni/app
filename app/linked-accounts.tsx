@@ -2,68 +2,64 @@ import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, TriangleAlert as AlertTriangle, Clock, Check, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
+import HorizontalLoader from '@/components/HorizontalLoader';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-
-type BankAccount = {
-  id: string;
-  bankName: string;
-  accountNumber: string;
-  accountName: string;
-  isDefault: boolean;
-  status: 'active' | 'pending' | 'failed';
-  lastUsed?: string;
-  usedIn?: string[];
-};
+import { useBankAccounts } from '@/hooks/useBankAccounts';
+import AddBankAccountModal from '@/components/AddBankAccountModal';
 
 export default function LinkedAccountsScreen() {
   const { colors } = useTheme();
-  const [accounts] = useState<BankAccount[]>([
-    {
-      id: '1',
-      bankName: 'GTBank',
-      accountNumber: '0123456789',
-      accountName: 'John Doe',
-      isDefault: true,
-      status: 'active',
-      lastUsed: 'Just now',
-      usedIn: ['Monthly Salary', 'House Rent'],
-    },
-    {
-      id: '2',
-      bankName: 'First Bank',
-      accountNumber: '9876543210',
-      accountName: 'John Doe',
-      isDefault: false,
-      status: 'pending',
-      lastUsed: '2 days ago',
-      usedIn: ['Car Purchase'],
-    },
-    {
-      id: '3',
-      bankName: 'UBA',
-      accountNumber: '5432109876',
-      accountName: 'John Doe',
-      isDefault: false,
-      status: 'failed',
-    },
-  ]);
+  const [showAddAccount, setShowAddAccount] = useState(false);
+  
+  const { 
+    bankAccounts, 
+    loading, 
+    error, 
+    addBankAccount, 
+    fetchBankAccounts,
+    setDefaultAccount,
+    deleteAccount
+  } = useBankAccounts();
 
-  const handleAddAccount = () => {
-    // Navigate to add account flow
+  const handleAddAccount = async (account: {
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+  }) => {
+    try {
+      await addBankAccount({
+        bank_name: account.bankName,
+        account_number: account.accountNumber,
+        account_name: account.accountName,
+        is_default: bankAccounts.length === 0 // Make first account default
+      });
+      setShowAddAccount(false);
+      await fetchBankAccounts();
+    } catch (error) {
+      console.error('Error adding bank account:', error);
+    }
   };
 
-  const handleRemoveAccount = (accountId: string) => {
-    // Show confirmation dialog and remove account
+  const handleMakeDefault = async (accountId: string) => {
+    try {
+      await setDefaultAccount(accountId);
+    } catch (error) {
+      console.error('Error setting default account:', error);
+    }
   };
 
-  const handleMakeDefault = (accountId: string) => {
-    // Update default account
+  const handleRemoveAccount = async (accountId: string) => {
+    try {
+      await deleteAccount(accountId);
+    } catch (error) {
+      console.error('Error removing account:', error);
+    }
   };
 
   const handleRetryVerification = (accountId: string) => {
-    // Retry account verification
+    // Implement retry verification logic
   };
 
   const styles = createStyles(colors);
@@ -77,108 +73,122 @@ export default function LinkedAccountsScreen() {
         <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
       </View>
 
+      {loading && <HorizontalLoader />}
+
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={styles.subtitle}>
           Manage your linked bank accounts for receiving payouts
         </Text>
 
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
         <View style={styles.accountsList}>
-          {accounts.map((account) => (
-            <View key={account.id} style={styles.accountCard}>
-              <View style={styles.accountHeader}>
-                <View style={styles.bankInfo}>
-                  <View style={styles.bankIcon}>
-                    <Building2 size={24} color="#3B82F6" />
-                  </View>
-                  <View style={styles.bankDetails}>
-                    <Text style={styles.bankName}>{account.bankName}</Text>
-                    <Text style={styles.accountNumber}>•••• {account.accountNumber.slice(-4)}</Text>
-                  </View>
-                </View>
-                {account.status === 'active' && (
-                  <View style={styles.statusTag}>
-                    <Check size={12} color="#22C55E" />
-                    <Text style={styles.statusText}>Verified</Text>
-                  </View>
-                )}
-                {account.status === 'pending' && (
-                  <View style={[styles.statusTag, styles.pendingTag]}>
-                    <Clock size={12} color="#D97706" />
-                    <Text style={[styles.statusText, styles.pendingText]}>Pending</Text>
-                  </View>
-                )}
-                {account.status === 'failed' && (
-                  <View style={[styles.statusTag, styles.failedTag]}>
-                    <AlertTriangle size={12} color="#EF4444" />
-                    <Text style={[styles.statusText, styles.failedText]}>Failed</Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.accountContent}>
-                <Text style={styles.accountName}>{account.accountName}</Text>
-                {account.isDefault && (
-                  <Text style={styles.defaultText}>Default Account</Text>
-                )}
-                {account.lastUsed && (
-                  <Text style={styles.lastUsedText}>Last used {account.lastUsed}</Text>
-                )}
-                {account.usedIn && account.usedIn.length > 0 && (
-                  <View style={styles.usageContainer}>
-                    <Text style={styles.usageText}>Used in: </Text>
-                    {account.usedIn.map((vault, index) => (
-                      <Text key={vault} style={styles.vaultName}>
-                        {vault}{index < account.usedIn!.length - 1 ? ', ' : ''}
-                      </Text>
-                    ))}
-                  </View>
-                )}
-              </View>
-
-              {account.status === 'failed' && (
-                <View style={styles.errorMessage}>
-                  <View style={styles.errorIconContainer}>
-                    <AlertTriangle size={16} color="#EF4444" />
-                  </View>
-                  <Text style={styles.errorText}>
-                    Verification failed. Please check your account details and try again.
-                  </Text>
-                </View>
-              )}
-
-              <View style={styles.accountActions}>
-                {!account.isDefault && account.status === 'active' && (
-                  <Pressable
-                    style={styles.actionButton}
-                    onPress={() => handleMakeDefault(account.id)}
-                  >
-                    <Text style={styles.actionButtonText}>Make Default</Text>
-                  </Pressable>
-                )}
-                {account.status === 'failed' && (
-                  <Pressable
-                    style={[styles.actionButton, styles.retryButton]}
-                    onPress={() => handleRetryVerification(account.id)}
-                  >
-                    <Text style={[styles.actionButtonText, styles.retryButtonText]}>
-                      Retry Verification
-                    </Text>
-                  </Pressable>
-                )}
-                {!account.isDefault && (
-                  <Pressable
-                    style={[styles.actionButton, styles.removeButton]}
-                    onPress={() => handleRemoveAccount(account.id)}
-                  >
-                    <Trash2 size={16} color="#EF4444" />
-                    <Text style={[styles.actionButtonText, styles.removeButtonText]}>
-                      Remove
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading bank accounts...</Text>
             </View>
-          ))}
+          ) : bankAccounts.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No bank accounts found</Text>
+              <Text style={styles.emptySubtext}>Add a bank account to continue</Text>
+            </View>
+          ) : (
+            bankAccounts.map((account) => (
+              <View key={account.id} style={styles.accountCard}>
+                <View style={styles.accountHeader}>
+                  <View style={styles.bankInfo}>
+                    <View style={styles.bankIcon}>
+                      <Building2 size={24} color="#3B82F6" />
+                    </View>
+                    <View style={styles.bankDetails}>
+                      <Text style={styles.bankName}>{account.bank_name}</Text>
+                      <Text style={styles.accountNumber}>•••• {account.account_number.slice(-4)}</Text>
+                    </View>
+                  </View>
+                  {account.status === 'active' && (
+                    <View style={styles.statusTag}>
+                      <Check size={12} color="#22C55E" />
+                      <Text style={styles.statusText}>Verified</Text>
+                    </View>
+                  )}
+                  {account.status === 'pending' && (
+                    <View style={[styles.statusTag, styles.pendingTag]}>
+                      <Clock size={12} color="#D97706" />
+                      <Text style={[styles.statusText, styles.pendingText]}>Pending</Text>
+                    </View>
+                  )}
+                  {account.status === 'failed' && (
+                    <View style={[styles.statusTag, styles.failedTag]}>
+                      <AlertTriangle size={12} color="#EF4444" />
+                      <Text style={[styles.statusText, styles.failedText]}>Failed</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.accountContent}>
+                  <Text style={styles.accountName}>{account.account_name}</Text>
+                  {account.is_default && (
+                    <Text style={styles.defaultText}>Default Account</Text>
+                  )}
+                </View>
+
+                {account.status === 'failed' && (
+                  <View style={styles.errorMessage}>
+                    <View style={styles.errorIconContainer}>
+                      <AlertTriangle size={16} color="#EF4444" />
+                    </View>
+                    <Text style={styles.errorText}>
+                      Verification failed. Please check your account details and try again.
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.accountActions}>
+                  {!account.is_default && account.status === 'active' && (
+                    <Pressable
+                      style={styles.actionButton}
+                      onPress={() => handleMakeDefault(account.id)}
+                    >
+                      <Text style={styles.actionButtonText}>Make Default</Text>
+                    </Pressable>
+                  )}
+                  {account.status === 'failed' && (
+                    <Pressable
+                      style={[styles.actionButton, styles.retryButton]}
+                      onPress={() => handleRetryVerification(account.id)}
+                    >
+                      <Text style={[styles.actionButtonText, styles.retryButtonText]}>
+                        Retry Verification
+                      </Text>
+                    </Pressable>
+                  )}
+                  {!account.is_default && (
+                    <Pressable
+                      style={[styles.actionButton, styles.removeButton]}
+                      onPress={() => handleRemoveAccount(account.id)}
+                    >
+                      <Trash2 size={16} color="#EF4444" />
+                      <Text style={[styles.actionButtonText, styles.removeButtonText]}>
+                        Remove
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+            ))
+          )}
+
+          <Pressable
+            style={styles.addAccountButton}
+            onPress={() => setShowAddAccount(true)}
+          >
+            <Plus size={20} color={colors.primary} />
+            <Text style={styles.addAccountText}>Add New Bank Account</Text>
+          </Pressable>
         </View>
 
         <View style={styles.infoSection}>
@@ -199,11 +209,18 @@ export default function LinkedAccountsScreen() {
       <View style={styles.footer}>
         <Button
           title="Add New Account"
-          onPress={handleAddAccount}
+          onPress={() => setShowAddAccount(true)}
           style={styles.addButton}
           icon={Plus}
         />
       </View>
+
+      <AddBankAccountModal
+        isVisible={showAddAccount}
+        onClose={() => setShowAddAccount(false)}
+        onAdd={handleAddAccount}
+        loading={loading}
+      />
     </SafeAreaView>
   );
 }
@@ -248,6 +265,38 @@ const createStyles = (colors: any) => StyleSheet.create({
   accountsList: {
     gap: 16,
     marginBottom: 32,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  errorContainer: {
+    backgroundColor: '#FEE2E2',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 14,
+  },
+  emptyContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   accountCard: {
     backgroundColor: colors.card,
@@ -327,24 +376,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '500',
     marginBottom: 4,
   },
-  lastUsedText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  usageContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  usageText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  vaultName: {
-    fontSize: 12,
-    color: '#3B82F6',
-    fontWeight: '500',
-  },
   errorMessage: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -360,12 +391,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   errorIconContainer: {
     marginTop: 2,
-  },
-  errorText: {
-    flex: 1,
-    fontSize: 12,
-    color: colors.text,
-    lineHeight: 16,
   },
   accountActions: {
     flexDirection: 'row',
@@ -447,5 +472,22 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   addButton: {
     backgroundColor: '#1E3A8A',
+  },
+  addAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.primary,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundTertiary,
+  },
+  addAccountText: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '500',
   },
 });

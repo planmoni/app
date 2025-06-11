@@ -1,9 +1,10 @@
 import DateRangeModal from '@/components/DateRangeModal';
+import HorizontalLoader from '@/components/HorizontalLoader';
 import TransactionModal from '@/components/TransactionModal';
 import { router } from 'expo-router';
 import { ArrowDownRight, ArrowLeft, ArrowUpRight, Ban as Bank, Calendar, Search, Settings, SlidersHorizontal, Wallet, X } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -22,6 +23,12 @@ export default function TransactionsScreen() {
     start: null,
     end: null,
   });
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  // Simulate initial loading
+  setTimeout(() => {
+    setIsInitialLoading(false);
+  }, 1500);
 
   const handleTransactionPress = (transaction) => {
     setSelectedTransaction({
@@ -186,6 +193,34 @@ export default function TransactionsScreen() {
 
   const styles = createStyles(colors);
 
+  if (isInitialLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <Pressable onPress={() => router.back()} style={styles.backButton}>
+              <ArrowLeft size={24} color={colors.text} />
+            </Pressable>
+            <Text style={styles.headerTitle}>All Transactions</Text>
+            <View style={styles.headerActions}>
+              <Pressable style={styles.iconButton}>
+                <Search size={20} color={colors.text} />
+              </Pressable>
+              <Pressable style={styles.iconButton}>
+                <SlidersHorizontal size={20} color={colors.text} />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+        <HorizontalLoader />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading transactions...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -328,9 +363,14 @@ export default function TransactionsScreen() {
         ))}
 
         <Pressable style={styles.loadMoreButton} onPress={handleLoadMore}>
-          <Text style={styles.loadMoreText}>
-            {loading ? 'Loading...' : 'Load More Transactions'}
-          </Text>
+          {loading ? (
+            <View style={styles.loadingMoreContainer}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.loadMoreText}>Loading...</Text>
+            </View>
+          ) : (
+            <Text style={styles.loadMoreText}>Load More Transactions</Text>
+          )}
         </Pressable>
       </ScrollView>
 
@@ -530,9 +570,24 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
   },
+  loadingMoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   loadMoreText: {
     fontSize: 14,
     color: '#3B82F6',
     fontWeight: '500',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
   },
 });
