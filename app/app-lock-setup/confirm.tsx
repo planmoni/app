@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ShieldCheck } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
-import FloatingButton from '@/components/FloatingButton';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 
@@ -20,7 +19,25 @@ export default function ConfirmPinScreen() {
 
   useEffect(() => {
     setError(null);
-  }, [confirmPin]);
+    
+    // Automatically proceed when PIN is complete and matches
+    if (confirmPin.length === pinLength) {
+      const timer = setTimeout(() => {
+        if (confirmPin === originalPin) {
+          // In a real app, you would save the PIN securely here
+          router.push({
+            pathname: '/app-lock-setup/success',
+            params: { pin: originalPin }
+          });
+        } else {
+          setError('PINs do not match. Please try again.');
+          setConfirmPin('');
+        }
+      }, 300); // Small delay for better UX
+      
+      return () => clearTimeout(timer);
+    }
+  }, [confirmPin, originalPin, pinLength]);
 
   const handlePinChange = (digit: string) => {
     if (confirmPin.length < pinLength) {
@@ -32,25 +49,6 @@ export default function ConfirmPinScreen() {
   const handlePinDelete = () => {
     setConfirmPin(prev => prev.slice(0, -1));
     setError(null);
-  };
-
-  const handleContinue = () => {
-    if (confirmPin.length !== pinLength) {
-      setError(`Please enter a ${pinLength}-digit PIN`);
-      return;
-    }
-    
-    if (confirmPin !== originalPin) {
-      setError('PINs do not match. Please try again.');
-      setConfirmPin('');
-      return;
-    }
-    
-    // In a real app, you would save the PIN securely here
-    router.push({
-      pathname: '/app-lock-setup/success',
-      params: { pin: originalPin }
-    });
   };
 
   const styles = createStyles(colors);
@@ -100,12 +98,6 @@ export default function ConfirmPinScreen() {
           </View>
         </View>
       </KeyboardAvoidingWrapper>
-
-      <FloatingButton 
-        title="Continue"
-        onPress={handleContinue}
-        disabled={confirmPin.length !== pinLength}
-      />
     </SafeAreaView>
   );
 }

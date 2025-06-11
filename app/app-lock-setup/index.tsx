@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Lock } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
-import FloatingButton from '@/components/FloatingButton';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 
@@ -17,7 +16,19 @@ export default function AppLockSetupScreen() {
 
   useEffect(() => {
     setError(null);
-  }, [pin]);
+    
+    // Automatically proceed to confirmation when PIN is complete
+    if (pin.length === pinLength) {
+      const timer = setTimeout(() => {
+        router.push({
+          pathname: '/app-lock-setup/confirm',
+          params: { pin }
+        });
+      }, 300); // Small delay for better UX
+      
+      return () => clearTimeout(timer);
+    }
+  }, [pin, pinLength]);
 
   const handlePinChange = (digit: string) => {
     if (pin.length < pinLength) {
@@ -29,18 +40,6 @@ export default function AppLockSetupScreen() {
   const handlePinDelete = () => {
     setPin(prev => prev.slice(0, -1));
     setError(null);
-  };
-
-  const handleContinue = () => {
-    if (pin.length !== pinLength) {
-      setError(`Please enter a ${pinLength}-digit PIN`);
-      return;
-    }
-    
-    router.push({
-      pathname: '/app-lock-setup/confirm',
-      params: { pin }
-    });
   };
 
   const styles = createStyles(colors);
@@ -92,12 +91,6 @@ export default function AppLockSetupScreen() {
           </View>
         </View>
       </KeyboardAvoidingWrapper>
-
-      <FloatingButton 
-        title="Continue"
-        onPress={handleContinue}
-        disabled={pin.length !== pinLength}
-      />
     </SafeAreaView>
   );
 }
