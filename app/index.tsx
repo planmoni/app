@@ -25,7 +25,7 @@ const SLIDES = [
   },
   {
     id: '2',
-    title: 'Pay Yourself On Time',
+    title: 'Pay Yourself Whenever You Like',
     description: 'Receive payouts weekly, monthly, or however you choose — just like a salary.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     icon: Calendar,
