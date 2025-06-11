@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowRight, User } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -13,6 +13,14 @@ export default function FirstNameScreen() {
   const [firstName, setFirstName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+  const firstNameInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      firstNameInputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     setIsButtonEnabled(firstName.trim().length > 0);
@@ -60,6 +68,7 @@ export default function FirstNameScreen() {
             <View style={styles.inputContainer}>
               <User size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
+                ref={firstNameInputRef}
                 style={styles.input}
                 placeholder="Enter your first name"
                 placeholderTextColor={colors.textTertiary}
@@ -68,7 +77,6 @@ export default function FirstNameScreen() {
                   setFirstName(text);
                   setError(null);
                 }}
-                autoFocus
                 autoCapitalize="words"
                 textContentType="givenName"
               />

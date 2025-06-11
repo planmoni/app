@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowRight, Fingerprint, Lock } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -21,6 +21,10 @@ export default function AppLockScreen() {
   const [pinLength, setPinLength] = useState<4 | 6>(4);
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setError(null);
+  }, [pin]);
 
   const handlePinChange = (value: string) => {
     setPin(value);

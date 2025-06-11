@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -19,6 +19,14 @@ export default function CreatePasswordScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+  const passwordInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      passwordInputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     setIsButtonEnabled(password.length >= 8);
@@ -85,6 +93,7 @@ export default function CreatePasswordScreen() {
             <View style={styles.inputContainer}>
               <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
+                ref={passwordInputRef}
                 style={styles.input}
                 placeholder="Create a password"
                 placeholderTextColor={colors.textTertiary}
@@ -94,7 +103,6 @@ export default function CreatePasswordScreen() {
                   setError(null);
                 }}
                 secureTextEntry={!showPassword}
-                autoFocus
                 textContentType="newPassword"
               />
               <Pressable

@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowRight, CreditCard, Info } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -19,6 +19,14 @@ export default function BVNScreen() {
   const [bvn, setBvn] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+  const bvnInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      bvnInputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     setIsButtonEnabled(bvn.length === 11 || bvn.length === 0);
@@ -84,6 +92,7 @@ export default function BVNScreen() {
             <View style={styles.inputContainer}>
               <CreditCard size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
+                ref={bvnInputRef}
                 style={styles.input}
                 placeholder="Enter your 11-digit BVN"
                 placeholderTextColor={colors.textTertiary}
@@ -97,7 +106,6 @@ export default function BVNScreen() {
                   }
                 }}
                 keyboardType="number-pad"
-                autoFocus
               />
             </View>
             

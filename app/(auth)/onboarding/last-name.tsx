@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowRight, User } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -15,6 +15,14 @@ export default function LastNameScreen() {
   const [lastName, setLastName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+  const lastNameInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      lastNameInputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     setIsButtonEnabled(lastName.trim().length > 0);
@@ -64,6 +72,7 @@ export default function LastNameScreen() {
             <View style={styles.inputContainer}>
               <User size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
+                ref={lastNameInputRef}
                 style={styles.input}
                 placeholder="Enter your last name"
                 placeholderTextColor={colors.textTertiary}
@@ -72,7 +81,6 @@ export default function LastNameScreen() {
                   setLastName(text);
                   setError(null);
                 }}
-                autoFocus
                 autoCapitalize="words"
                 textContentType="familyName"
               />

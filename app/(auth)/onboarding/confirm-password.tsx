@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -20,6 +20,14 @@ export default function ConfirmPasswordScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+  const confirmPasswordInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      confirmPasswordInputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     setIsButtonEnabled(confirmPassword.length >= 8);
@@ -71,6 +79,7 @@ export default function ConfirmPasswordScreen() {
             <View style={styles.inputContainer}>
               <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
+                ref={confirmPasswordInputRef}
                 style={styles.input}
                 placeholder="Confirm your password"
                 placeholderTextColor={colors.textTertiary}
@@ -80,7 +89,6 @@ export default function ConfirmPasswordScreen() {
                   setError(null);
                 }}
                 secureTextEntry={!showPassword}
-                autoFocus
                 textContentType="newPassword"
               />
               <Pressable

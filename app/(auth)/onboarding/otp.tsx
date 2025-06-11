@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowRight, Mail } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -20,12 +20,19 @@ export default function OTPScreen() {
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
   const [timer, setTimer] = useState(60);
   
-  const inputRefs = [
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-  ];
+  const inputRefs = useRef<Array<TextInput | null>>([]);
+
+  // Callback ref for setting inputRefs
+  const setInputRef = useCallback((el: TextInput | null, index: number) => {
+    inputRefs.current[index] = el;
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRefs.current[0]?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     setIsButtonEnabled(otp.every(digit => digit !== ''));
@@ -57,14 +64,14 @@ export default function OTPScreen() {
     
     // Auto-focus next input
     if (text !== '' && index < 3) {
-      inputRefs[index + 1].current?.focus();
+      inputRefs.current[index + 1]?.focus();
     }
   };
 
   const handleKeyPress = (e: any, index: number) => {
     // Handle backspace
     if (e.nativeEvent.key === 'Backspace' && index > 0 && otp[index] === '') {
-      inputRefs[index - 1].current?.focus();
+      inputRefs.current[index - 1]?.focus();
     }
   };
 
@@ -93,7 +100,7 @@ export default function OTPScreen() {
     setTimer(60);
     // Reset OTP fields
     setOtp(['', '', '', '']);
-    inputRefs[0].current?.focus();
+    inputRefs.current[0]?.focus();
   };
 
   const styles = createStyles(colors);
@@ -128,14 +135,13 @@ export default function OTPScreen() {
               {otp.map((digit, index) => (
                 <TextInput
                   key={index}
-                  ref={inputRefs[index]}
+                  ref={(el) => setInputRef(el, index)}
                   style={styles.otpInput}
                   value={digit}
                   onChangeText={(text) => handleOtpChange(text, index)}
                   onKeyPress={(e) => handleKeyPress(e, index)}
                   keyboardType="number-pad"
                   maxLength={1}
-                  autoFocus={index === 0}
                 />
               ))}
             </View>

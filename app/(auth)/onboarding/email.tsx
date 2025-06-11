@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowRight, Mail } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -16,6 +16,14 @@ export default function EmailScreen() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+  const emailInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      emailInputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     setIsButtonEnabled(email.trim().length > 0);
@@ -72,6 +80,7 @@ export default function EmailScreen() {
             <View style={styles.inputContainer}>
               <Mail size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
+                ref={emailInputRef}
                 style={styles.input}
                 placeholder="Enter your email address"
                 placeholderTextColor={colors.textTertiary}
@@ -80,7 +89,6 @@ export default function EmailScreen() {
                   setEmail(text);
                   setError(null);
                 }}
-                autoFocus
                 autoCapitalize="none"
                 keyboardType="email-address"
                 textContentType="emailAddress"

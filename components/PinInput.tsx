@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { View, TextInput, StyleSheet, Pressable } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -17,6 +17,16 @@ export default function PinInput({
 }: PinInputProps) {
   const { colors } = useTheme();
   const inputRefs = useRef<(TextInput | null)[]>([]);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (inputRefs.current[0]) {
+        inputRefs.current[0].focus();
+      }
+    }, 100); // Small delay to ensure component is rendered
+    
+    return () => clearTimeout(timer);
+  }, []);
   
   const handleChangeText = (text: string, index: number) => {
     // Only allow numeric input
