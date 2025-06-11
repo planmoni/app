@@ -6,7 +6,6 @@ import {
   StyleSheet, 
   View,
   Keyboard,
-  TouchableWithoutFeedback,
   KeyboardAvoidingViewProps
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,15 +38,6 @@ export default function KeyboardAvoidingWrapper({
   // Calculate the bottom padding to account for the safe area
   const bottomPadding = Platform.OS === 'ios' ? insets.bottom : 0;
   
-  // Wrap content in TouchableWithoutFeedback to dismiss keyboard on outside tap
-  const content = disableDismissKeyboard ? (
-    children
-  ) : (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      {children}
-    </TouchableWithoutFeedback>
-  );
-  
   // If ScrollView is disabled, just return the KeyboardAvoidingView
   if (disableScrollView) {
     return (
@@ -56,7 +46,7 @@ export default function KeyboardAvoidingWrapper({
         behavior={behavior}
         keyboardVerticalOffset={keyboardVerticalOffset}
       >
-        {content}
+        {children}
       </KeyboardAvoidingView>
     );
   }
@@ -78,7 +68,7 @@ export default function KeyboardAvoidingWrapper({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {content}
+        {children}
       </ScrollView>
     </KeyboardAvoidingView>
   );
