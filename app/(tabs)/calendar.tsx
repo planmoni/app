@@ -1,6 +1,5 @@
 import Card from '@/components/Card';
 import HorizontalLoader from '@/components/HorizontalLoader';
-import SafeFooter from '@/components/SafeFooter';
 import { router } from 'expo-router';
 import { TriangleAlert as AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, Plus } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
@@ -228,7 +227,6 @@ export default function CalendarScreen() {
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading calendar events...</Text>
         </View>
-        <SafeFooter />
       </View>
     );
   }
@@ -260,7 +258,6 @@ export default function CalendarScreen() {
             <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>
         </View>
-        <SafeFooter />
       </View>
     );
   }
@@ -729,7 +726,6 @@ export default function CalendarScreen() {
         {activeView === 'list' && renderListView()}
       </ScrollView>
       
-      <SafeFooter />
     </View>
   );
 }
