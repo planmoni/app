@@ -111,7 +111,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: 136,
+    paddingTop: 36,
     paddingHorizontal: 24,
     paddingBottom: 24,
     zIndex: 1000,
