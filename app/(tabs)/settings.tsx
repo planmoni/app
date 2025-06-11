@@ -25,7 +25,7 @@ import {
   Trash2
 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -58,8 +58,27 @@ export default function SettingsScreen() {
   const [showTerms, setShowTerms] = useState(false);
 
   const handleSignOut = async () => {
-    await signOut();
-    router.replace('/');
+    try {
+      Alert.alert(
+        "Sign Out",
+        "Are you sure you want to sign out?",
+        [
+          {
+            text: "Cancel",
+            style: "cancel"
+          },
+          {
+            text: "Sign Out",
+            onPress: async () => {
+              await signOut();
+              router.replace('/');
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert("Error", "Failed to sign out. Please try again.");
+    }
   };
 
   const handleViewProfile = () => {
@@ -88,6 +107,27 @@ export default function SettingsScreen() {
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to delete your account? This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            // Implement account deletion logic here
+            Alert.alert("Account Deletion", "Please contact support to complete account deletion.");
+          }
+        }
+      ]
+    );
   };
 
   const styles = createStyles(colors);
@@ -453,7 +493,10 @@ export default function SettingsScreen() {
             <Text style={styles.signOutText}>Sign Out</Text>
           </Pressable>
           
-          <Pressable style={styles.deleteAccountButton}>
+          <Pressable 
+            style={styles.deleteAccountButton}
+            onPress={handleDeleteAccount}
+          >
             <Trash2 size={20} color={colors.textTertiary} />
             <Text style={styles.deleteAccountText}>Delete Account</Text>
           </Pressable>
