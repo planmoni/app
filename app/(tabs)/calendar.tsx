@@ -86,10 +86,10 @@ export default function CalendarScreen() {
         icon: '#FFFFFF'
       },
       expiring: {
-        primary: '#EF4444',
-        light: isDark ? '#991B1B' : '#FEF2F2',
-        border: isDark ? '#EF4444' : '#FECACA',
-        text: isDark ? '#FEE2E2' : '#991B1B',
+        primary: '#F97316',
+        light: isDark ? '#9A3412' : '#FFF7ED',
+        border: isDark ? '#F97316' : '#FED7AA',
+        text: isDark ? '#FFEDD5' : '#9A3412',
         icon: '#FFFFFF'
       }
     };
@@ -548,66 +548,106 @@ export default function CalendarScreen() {
   };
 
   const renderListView = () => {
-    const groupedEvents = events.reduce((acc, event) => {
-      const date = event.date === formatDate(new Date()) ? 'Today' :
-                   event.date === formatDate(new Date(Date.now() + 86400000)) ? 'Tomorrow' :
-                   event.date;
-      if (!acc[date]) {
-        acc[date] = [];
+    // Sort events chronologically (earliest to latest) for list view
+    const sortedEvents = [...events].sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    // Group events by date while maintaining chronological order
+    const groupedEvents = sortedEvents.reduce((acc, event) => {
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+      
+      const eventDate = new Date(event.date);
+      
+      let displayDate = event.date;
+      
+      // Check if it's today
+      if (eventDate.toDateString() === today.toDateString()) {
+        displayDate = 'Today';
       }
-      acc[date].push(event);
+      // Check if it's tomorrow
+      else if (eventDate.toDateString() === tomorrow.toDateString()) {
+        displayDate = 'Tomorrow';
+      }
+      
+      if (!acc[displayDate]) {
+        acc[displayDate] = [];
+      }
+      acc[displayDate].push(event);
       return acc;
     }, {} as Record<string, CalendarEvent[]>);
 
+    // Get ordered date keys to maintain chronological order
+    const orderedDateKeys = Object.keys(groupedEvents).sort((a, b) => {
+      // Handle special cases for Today and Tomorrow
+      if (a === 'Today') return -1;
+      if (b === 'Today') return 1;
+      if (a === 'Tomorrow') return -1;
+      if (b === 'Tomorrow') return 1;
+      
+      // For regular dates, sort chronologically
+      const dateA = new Date(a);
+      const dateB = new Date(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+
     return (
       <View style={styles.listViewContainer}>
-        {Object.entries(groupedEvents).map(([date, dateEvents]) => (
-          <View key={date} style={styles.dateGroup}>
-            <View style={styles.dateHeader}>
-              <Text style={styles.dateTitle} numberOfLines={1} adjustsFontSizeToFit>{date}</Text>
-              <View style={styles.eventCount}>
-                <Text style={styles.eventCountText}>{dateEvents.length} events</Text>
+        {orderedDateKeys.map((date) => {
+          const dateEvents = groupedEvents[date];
+          
+          return (
+            <View key={date} style={styles.dateGroup}>
+              <View style={styles.dateHeader}>
+                <Text style={styles.dateTitle} numberOfLines={1} adjustsFontSizeToFit>{date}</Text>
+                <View style={styles.eventCount}>
+                  <Text style={styles.eventCountText}>{dateEvents.length} events</Text>
+                </View>
+              </View>
+              <View style={styles.eventsContainer}>
+                {dateEvents.map((event) => {
+                  const eventColors = getEventColors(event.type);
+                  return (
+                    <Card key={event.id} style={[styles.eventCard, { 
+                      backgroundColor: eventColors.light,
+                      borderColor: eventColors.border,
+                      borderWidth: 1,
+                    }]}>
+                      <Pressable 
+                        style={styles.eventContent}
+                        onPress={() => {
+                          if (event.payout_plan_id) {
+                            router.push({
+                              pathname: '/view-payout',
+                              params: { id: event.payout_plan_id }
+                            });
+                          }
+                        }}
+                      >
+                        <View style={[styles.eventIcon, { backgroundColor: eventColors.primary }]}>
+                          {getEventIcon(event.type)}
+                        </View>
+                        <View style={styles.eventDetails}>
+                          <Text style={[styles.eventTitle, { color: eventColors.text }]} numberOfLines={1}>
+                            {event.title}
+                          </Text>
+                          <Text style={[styles.eventDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+                            {event.description} • {event.time}
+                          </Text>
+                        </View>
+                        <ChevronRight size={20} color={colors.textTertiary} />
+                      </Pressable>
+                    </Card>
+                  );
+                })}
               </View>
             </View>
-            <View style={styles.eventsContainer}>
-              {dateEvents.map((event) => {
-                const eventColors = getEventColors(event.type);
-                return (
-                  <Card key={event.id} style={[styles.eventCard, { 
-                    backgroundColor: eventColors.light,
-                    borderColor: eventColors.border,
-                    borderWidth: 1,
-                  }]}>
-                    <Pressable 
-                      style={styles.eventContent}
-                      onPress={() => {
-                        if (event.payout_plan_id) {
-                          router.push({
-                            pathname: '/view-payout',
-                            params: { id: event.payout_plan_id }
-                          });
-                        }
-                      }}
-                    >
-                      <View style={[styles.eventIcon, { backgroundColor: eventColors.primary }]}>
-                        {getEventIcon(event.type)}
-                      </View>
-                      <View style={styles.eventDetails}>
-                        <Text style={[styles.eventTitle, { color: eventColors.text }]} numberOfLines={1}>
-                          {event.title}
-                        </Text>
-                        <Text style={[styles.eventDescription, { color: colors.textSecondary }]} numberOfLines={2}>
-                          {event.description} • {event.time}
-                        </Text>
-                      </View>
-                      <ChevronRight size={20} color={colors.textTertiary} />
-                    </Pressable>
-                  </Card>
-                );
-              })}
-            </View>
-          </View>
-        ))}
+          );
+        })}
 
         <View style={styles.legend}>
           <Text style={styles.legendTitle}>Event Types</Text>
