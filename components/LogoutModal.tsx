@@ -1,5 +1,5 @@
 import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
-import { LogOut, AlertTriangle } from 'lucide-react-native';
+import { LogOut, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 
