@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
-import { Bell, Mail, PencilLine, Phone, User, Building2, Gift, CircleHelp as HelpCircle, Languages, Link2, Lock, LogOut, MessageSquare, Moon, Shield, FileSliders as Sliders, FileText as Terms, ChevronRight, Eye, Fingerprint, Clock, DollarSign } from 'lucide-react-native';
+import { Bell, Mail, PencilLine, Phone, User, Building2, Gift, CircleHelp as HelpCircle, Languages, Link2, Lock, MessageSquare, Moon, Shield, FileSliders as Sliders, FileText as Terms, ChevronRight, Eye, Fingerprint, Clock, DollarSign } from 'lucide-react-native';
 import { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +17,7 @@ import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
 
 export default function SettingsScreen() {
-  const { session, signOut } = useAuth();
+  const { session } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
   const { theme, setTheme, colors } = useTheme();
   const firstName = session?.user?.user_metadata?.first_name || '';
@@ -65,11 +65,6 @@ export default function SettingsScreen() {
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
-  };
-
-  const handleLogout = async () => {
-    await signOut();
-    router.replace('/');
   };
 
   const styles = createStyles(colors);
@@ -383,13 +378,6 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.footer}>
-          <Button
-            title="Log Out"
-            onPress={handleLogout}
-            variant="outline"
-            style={styles.logoutButton}
-          />
-
           <Pressable 
             style={styles.deleteAccount}
             onPress={() => setShowDeleteAccount(true)}
@@ -567,10 +555,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   footer: {
     padding: 16,
     gap: 16,
-  },
-  logoutButton: {
-    borderColor: '#EF4444',
-    borderWidth: 1,
   },
   deleteAccount: {
     alignItems: 'center',
