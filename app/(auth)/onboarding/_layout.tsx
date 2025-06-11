@@ -19,7 +19,7 @@ export default function OnboardingLayout() {
       <Stack.Screen name="create-password" />
       <Stack.Screen name="confirm-password" />
       <Stack.Screen name="bvn" />
-      <Stack.Screen name="create-pin" />
+      <Stack.Screen name="app-lock" />
       <Stack.Screen name="confirm-pin" />
       <Stack.Screen name="success" />
     </Stack>

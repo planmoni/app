@@ -2,11 +2,13 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, ArrowRight, Shield } from 'lucide-react-native';
+import { ArrowLeft, ShieldCheck } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
-import OnScreenKeypad from '@/components/OnScreenKeypad';
+import PinDisplay from '@/components/PinDisplay';
+import PinKeypad from '@/components/PinKeypad';
 
 export default function ConfirmPinScreen() {
   const { colors } = useTheme();
@@ -16,41 +18,41 @@ export default function ConfirmPinScreen() {
   const email = params.email as string;
   const password = params.password as string;
   const bvn = params.bvn as string;
-  const pin = params.pin as string;
+  const originalPin = params.pin as string;
+  const pinLength = parseInt(params.pinLength as string) as 4 | 6;
   
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [isButtonEnabled, setIsButtonEnabled] = useState(false);
-  const pinLength = pin.length;
 
   useEffect(() => {
-    setIsButtonEnabled(confirmPin.length === pinLength);
-  }, [confirmPin, pinLength]);
+    setError(null);
+  }, [confirmPin]);
 
-  const handleKeyPress = (key: string) => {
+  const handlePinChange = (digit: string) => {
     if (confirmPin.length < pinLength) {
-      setConfirmPin(prev => prev + key);
+      setConfirmPin(prev => prev + digit);
       setError(null);
     }
   };
 
-  const handleDelete = () => {
+  const handlePinDelete = () => {
     setConfirmPin(prev => prev.slice(0, -1));
     setError(null);
   };
 
-  const handleClear = () => {
-    setConfirmPin('');
-    setError(null);
-  };
-
   const handleContinue = () => {
-    if (confirmPin !== pin) {
+    if (confirmPin.length !== pinLength) {
+      setError(`Please enter a ${pinLength}-digit PIN`);
+      return;
+    }
+    
+    if (confirmPin !== originalPin) {
       setError('PINs do not match. Please try again.');
       setConfirmPin('');
       return;
     }
     
+    // In a real app, you would register the user here
     router.push({
       pathname: '/onboarding/success',
       params: { 
@@ -59,7 +61,7 @@ export default function ConfirmPinScreen() {
         email,
         password,
         bvn,
-        pin
+        pin: originalPin
       }
     });
   };
@@ -74,58 +76,49 @@ export default function ConfirmPinScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={8} totalSteps={9} />
+      <OnboardingProgress currentStep={9} totalSteps={9} />
 
-      <View style={styles.content}>
-        <Text style={styles.title}>Confirm your PIN</Text>
-        <Text style={styles.subtitle}>Enter your PIN again to confirm</Text>
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer} disableScrollView={true}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Confirm your PIN</Text>
+          <Text style={styles.subtitle}>Enter your PIN again to confirm</Text>
 
-        <View style={styles.formContainer}>
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
+          <View style={styles.formContainer}>
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+            
+            <View style={styles.pinContainer}>
+              <PinDisplay 
+                length={pinLength}
+                value={confirmPin}
+              />
+              
+              <PinKeypad 
+                onKeyPress={handlePinChange}
+                onDelete={handlePinDelete}
+                disabled={confirmPin.length >= pinLength}
+              />
             </View>
-          )}
-          
-          <View style={styles.pinDisplayContainer}>
-            <View style={styles.pinDotsContainer}>
-              {Array.from({ length: pinLength }).map((_, index) => (
-                <View 
-                  key={index} 
-                  style={[
-                    styles.pinDot,
-                    index < confirmPin.length && styles.pinDotFilled
-                  ]}
-                />
-              ))}
+            
+            <View style={styles.securityInfo}>
+              <View style={styles.securityIconContainer}>
+                <ShieldCheck size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.securityText}>
+                Make sure you remember this PIN. You'll need it to access your account and authorize transactions.
+              </Text>
             </View>
           </View>
-          
-          <View style={styles.securityInfo}>
-            <View style={styles.securityIconContainer}>
-              <Shield size={20} color={colors.primary} />
-            </View>
-            <Text style={styles.securityText}>
-              Make sure your PIN is secure and not easy to guess
-            </Text>
-          </View>
         </View>
+      </KeyboardAvoidingWrapper>
 
-        <View style={styles.buttonContainer}>
-          <FloatingButton 
-            title="Continue"
-            onPress={handleContinue}
-            disabled={!isButtonEnabled}
-            icon={ArrowRight}
-          />
-        </View>
-      </View>
-
-      <OnScreenKeypad
-        onKeyPress={handleKeyPress}
-        onDelete={handleDelete}
-        onClear={handleClear}
-        disabled={confirmPin.length >= pinLength}
+      <FloatingButton 
+        title="Continue"
+        onPress={handleContinue}
+        disabled={confirmPin.length !== pinLength}
       />
     </SafeAreaView>
   );
@@ -148,9 +141,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 20,
   },
+  contentContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+  },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
+    justifyContent: 'flex-start',
     paddingTop: 40,
   },
   title: {
@@ -179,27 +176,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.error,
     fontSize: 14,
   },
-  pinDisplayContainer: {
+  pinContainer: {
     alignItems: 'center',
-    marginBottom: 32,
-  },
-  pinDotsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-    marginTop: 16,
-  },
-  pinDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.backgroundTertiary,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  pinDotFilled: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    marginVertical: 24,
   },
   securityInfo: {
     flexDirection: 'row',
@@ -208,6 +187,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.backgroundTertiary,
     padding: 16,
     borderRadius: 12,
+    marginBottom: 32,
   },
   securityIconContainer: {
     marginTop: 2,
@@ -217,9 +197,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
-  },
-  buttonContainer: {
-    marginTop: 'auto',
-    marginBottom: 16,
   },
 });
