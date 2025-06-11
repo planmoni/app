@@ -1,12 +1,11 @@
-import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Info } from 'lucide-react-native';
 import Button from '@/components/Button';
+import SafeFloatingButton from '@/components/SafeFloatingButton';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
-import FloatingButton from '@/components/FloatingButton';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
@@ -52,51 +51,54 @@ export default function AmountScreen() {
         <Text style={styles.stepText}>Step 1 of 5</Text>
       </View>
 
-      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
-        <View style={styles.content}>
-          <Text style={styles.title}>What is the total amount for this payout?</Text>
-          <Text style={styles.description}>
-            You won't be able to spend from this until your payout date.
-          </Text>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.title}>What is the total amount for this payout?</Text>
+        <Text style={styles.description}>
+          You won't be able to spend from this until your payout date.
+        </Text>
 
-          <View style={styles.amountContainer}>
-            <Text style={styles.currencySymbol}>₦</Text>
-            <TextInput
-              style={styles.amountInput}
-              placeholder="Enter amount"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="numeric"
-              value={amount}
-              onChangeText={handleAmountChange}
-            />
-          </View>
+        <View style={styles.amountContainer}>
+          <Text style={styles.currencySymbol}>₦</Text>
+          <TextInput
+            style={styles.amountInput}
+            placeholder="Enter amount"
+            placeholderTextColor={colors.textTertiary}
+            keyboardType="numeric"
+            value={amount}
+            onChangeText={handleAmountChange}
+          />
+        </View>
 
-          <View style={styles.balanceContainer}>
-            <Text style={styles.balanceLabel}>Available Balance</Text>
-            <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{availableBalance}</Text>
-              <Pressable style={styles.maxButton} onPress={handleMaxPress}>
-                <Text style={styles.maxButtonText}>Max</Text>
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={styles.notice}>
-            <View style={styles.noticeIcon}>
-              <Info size={20} color={colors.primary} />
-            </View>
-            <Text style={styles.noticeText}>
-              This amount will be secured in your vault and cannot be accessed until your scheduled payout dates.
-            </Text>
+        <View style={styles.balanceContainer}>
+          <Text style={styles.balanceLabel}>Available Balance</Text>
+          <View style={styles.balanceRow}>
+            <Text style={styles.balanceAmount}>₦{availableBalance}</Text>
+            <Pressable style={styles.maxButton} onPress={handleMaxPress}>
+              <Text style={styles.maxButtonText}>Max</Text>
+            </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingWrapper>
 
-      <FloatingButton 
-        title="Continue"
-        onPress={handleContinue}
-        disabled={!amount}
-      />
+        <View style={styles.notice}>
+          <View style={styles.noticeIcon}>
+            <Info size={20} color={colors.primary} />
+          </View>
+          <Text style={styles.noticeText}>
+            This amount will be secured in your vault and cannot be accessed until your scheduled payout dates.
+          </Text>
+        </View>
+      </ScrollView>
+
+      <SafeFloatingButton>
+        <View style={styles.footer}>
+          <Button 
+            title="Continue"
+            onPress={handleContinue}
+            style={styles.continueButton}
+            disabled={!amount}
+          />
+        </View>
+      </SafeFloatingButton>
     </SafeAreaView>
   );
 }
@@ -148,12 +150,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 20,
   },
-  scrollContent: {
-    paddingBottom: 100, // Extra padding to account for the floating button
+  scrollView: {
+    flex: 1,
   },
-  content: {
+  scrollContent: {
     padding: 20,
     paddingTop: 0,
+    paddingBottom: 100, // Extra padding for the floating button
   },
   title: {
     fontSize: 24,
@@ -239,13 +242,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     lineHeight: 20,
   },
   footer: {
-    padding: 20,
-    paddingBottom: 50,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
+    width: '100%',
   },
   continueButton: {
     backgroundColor: '#1E3A8A',
+    height: 56,
+    borderRadius: 12,
   },
 });

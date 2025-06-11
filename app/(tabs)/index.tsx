@@ -4,6 +4,7 @@ import TransactionModal from '@/components/TransactionModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import HorizontalLoader from '@/components/HorizontalLoader';
 import CountdownTimer from '@/components/CountdownTimer';
+import SafeFloatingButton from '@/components/SafeFloatingButton';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
@@ -567,27 +568,29 @@ export default function HomeScreen() {
         <View style={styles.bottomPadding} />
       </ScrollView>
 
-      <Animated.View style={[
-        styles.stickyButtons,
-        {
-          opacity: buttonOpacity,
-          transform: [{
-            translateY: buttonOpacity.interpolate({
-              inputRange: [0, 1],
-              outputRange: [100, 0],
-            }),
-          }],
-        },
-      ]}>
-        <Pressable style={styles.createButton} onPress={handleCreatePayout}>
-          <Send size={20} color="#FFFFFF" />
-          <Text style={styles.createButtonText}>Plan</Text>
-        </Pressable>
-        <Pressable style={styles.addFundsButton} onPress={handleAddFunds}>
-          <Wallet size={20} color={colors.text} />
-          <Text style={styles.addFundsText}>Add Funds</Text>
-        </Pressable>
-      </Animated.View>
+      <SafeFloatingButton>
+        <Animated.View style={[
+          styles.stickyButtons,
+          {
+            opacity: buttonOpacity,
+            transform: [{
+              translateY: buttonOpacity.interpolate({
+                inputRange: [0, 1],
+                outputRange: [100, 0],
+              }),
+            }],
+          },
+        ]}>
+          <Pressable style={styles.createButton} onPress={handleCreatePayout}>
+            <Send size={20} color="#FFFFFF" />
+            <Text style={styles.createButtonText}>Plan</Text>
+          </Pressable>
+          <Pressable style={styles.addFundsButton} onPress={handleAddFunds}>
+            <Wallet size={20} color={colors.text} />
+            <Text style={styles.addFundsText}>Add Funds</Text>
+          </Pressable>
+        </Animated.View>
+      </SafeFloatingButton>
 
       {selectedTransaction && (
         <TransactionModal
@@ -1138,16 +1141,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '500',
   },
   stickyButtons: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
-    padding: 16,
     gap: 12,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
   },
   bottomPadding: {
     height: 100,
