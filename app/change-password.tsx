@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-
 import { ArrowLeft, Eye, EyeOff, Shield } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
+import SafeFooter from '@/components/SafeFooter';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -164,6 +165,8 @@ export default function ChangePasswordScreen() {
           style={styles.submitButton}
         />
       </View>
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }

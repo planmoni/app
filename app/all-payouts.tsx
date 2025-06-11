@@ -1,5 +1,6 @@
 import Card from '@/components/Card';
 import HorizontalLoader from '@/components/HorizontalLoader';
+import SafeFooter from '@/components/SafeFooter';
 import { router } from 'expo-router';
 import { ArrowLeft, Calendar, ChevronRight, Clock, Plus, Pause, Play } from 'lucide-react-native';
 import { useState } from 'react';
@@ -93,6 +94,7 @@ export default function AllPayoutsScreen() {
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading your payout plans...</Text>
         </View>
+        <SafeFooter />
       </SafeAreaView>
     );
   }
@@ -128,86 +130,90 @@ export default function AllPayoutsScreen() {
             
             return (
               <Card key={plan.id} style={styles.payoutCard}>
-                <View style={styles.payoutHeader}>
-                  <View style={styles.planInfo}>
-                    <Text style={styles.planName}>{plan.name}</Text>
-                    <View style={[styles.statusTag, { backgroundColor: statusColors.bg }]}>
-                      <Text style={[styles.statusText, { color: statusColors.text }]}>
-                        {plan.status.charAt(0).toUpperCase() + plan.status.slice(1)}
+                <View style={styles.payoutContent}>
+                  <View style={styles.payoutHeader}>
+                    <View style={styles.planInfo}>
+                      <Text style={styles.planName}>{plan.name}</Text>
+                      <View style={[styles.statusTag, { backgroundColor: statusColors.bg }]}>
+                        <Text style={[styles.statusText, { color: statusColors.text }]}>
+                          {plan.status.charAt(0).toUpperCase() + plan.status.slice(1)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.planActions}>
+                      {plan.status === 'active' ? (
+                        <Pressable
+                          style={styles.actionButton}
+                          onPress={() => handlePausePlan(plan.id, plan.name)}
+                        >
+                          <Pause size={16} color="#EF4444" />
+                        </Pressable>
+                      ) : plan.status === 'paused' ? (
+                        <Pressable
+                          style={styles.actionButton}
+                          onPress={() => handleResumePlan(plan.id)}
+                        >
+                          <Play size={16} color="#22C55E" />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  <Text style={styles.amount}>{formatCurrency(plan.total_amount)}</Text>
+
+                  <View style={styles.detailsRow}>
+                    <View style={styles.detail}>
+                      <Calendar size={16} color={colors.textSecondary} />
+                      <Text style={styles.detailText}>
+                        {plan.frequency.charAt(0).toUpperCase() + plan.frequency.slice(1)}
+                      </Text>
+                    </View>
+                    <View style={styles.detail}>
+                      <Clock size={16} color={colors.textSecondary} />
+                      <Text style={styles.detailText}>
+                        {formatCurrency(plan.payout_amount)} per payout
                       </Text>
                     </View>
                   </View>
-                  <View style={styles.planActions}>
-                    {plan.status === 'active' ? (
-                      <Pressable
-                        style={styles.actionButton}
-                        onPress={() => handlePausePlan(plan.id, plan.name)}
-                      >
-                        <Pause size={16} color="#EF4444" />
-                      </Pressable>
-                    ) : plan.status === 'paused' ? (
-                      <Pressable
-                        style={styles.actionButton}
-                        onPress={() => handleResumePlan(plan.id)}
-                      >
-                        <Play size={16} color="#22C55E" />
-                      </Pressable>
-                    ) : null}
+
+                  <View style={styles.progressBar}>
+                    <View style={[styles.progressFill, { width: `${progress}%` }]} />
                   </View>
-                </View>
 
-                <Text style={styles.amount}>{formatCurrency(plan.total_amount)}</Text>
-
-                <View style={styles.detailsRow}>
-                  <View style={styles.detail}>
-                    <Calendar size={16} color={colors.textSecondary} />
-                    <Text style={styles.detailText}>
-                      {plan.frequency.charAt(0).toUpperCase() + plan.frequency.slice(1)}
+                  <View style={styles.progressDetails}>
+                    <Text style={styles.progressText}>
+                      {formatCurrency(plan.completed_payouts * plan.payout_amount)} of {formatCurrency(plan.total_amount)}
+                    </Text>
+                    <Text style={styles.progressCount}>
+                      {plan.completed_payouts}/{plan.duration}
                     </Text>
                   </View>
-                  <View style={styles.detail}>
-                    <Clock size={16} color={colors.textSecondary} />
-                    <Text style={styles.detailText}>
-                      {formatCurrency(plan.payout_amount)} per payout
+
+                  <View style={styles.footer}>
+                    <Text style={styles.nextPayout}>
+                      {plan.next_payout_date 
+                        ? `Next payout: ${new Date(plan.next_payout_date).toLocaleDateString()}`
+                        : plan.status === 'completed' 
+                          ? 'Plan completed'
+                          : 'Plan paused'
+                      }
                     </Text>
+                    <Pressable 
+                      style={styles.viewButton}
+                      onPress={() => handleViewPayout(plan.id)}
+                    >
+                      <Text style={styles.viewButtonText}>View</Text>
+                      <ChevronRight size={16} color="#3B82F6" />
+                    </Pressable>
                   </View>
-                </View>
-
-                <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: `${progress}%` }]} />
-                </View>
-
-                <View style={styles.progressDetails}>
-                  <Text style={styles.progressText}>
-                    {formatCurrency(plan.completed_payouts * plan.payout_amount)} of {formatCurrency(plan.total_amount)}
-                  </Text>
-                  <Text style={styles.progressCount}>
-                    {plan.completed_payouts}/{plan.duration}
-                  </Text>
-                </View>
-
-                <View style={styles.footer}>
-                  <Text style={styles.nextPayout}>
-                    {plan.next_payout_date 
-                      ? `Next payout: ${new Date(plan.next_payout_date).toLocaleDateString()}`
-                      : plan.status === 'completed' 
-                        ? 'Plan completed'
-                        : 'Plan paused'
-                    }
-                  </Text>
-                  <Pressable 
-                    style={styles.viewButton}
-                    onPress={() => handleViewPayout(plan.id)}
-                  >
-                    <Text style={styles.viewButtonText}>View</Text>
-                    <ChevronRight size={16} color="#3B82F6" />
-                  </Pressable>
                 </View>
               </Card>
             );
           })
         )}
       </ScrollView>
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }
@@ -262,6 +268,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   scrollContent: {
     padding: 16,
     gap: 16,
+    paddingBottom: 32,
   },
   emptyState: {
     flex: 1,
@@ -299,6 +306,11 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   payoutCard: {
     padding: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  payoutContent: {
+    padding: 20,
   },
   payoutHeader: {
     flexDirection: 'row',

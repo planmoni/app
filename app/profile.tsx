@@ -1,5 +1,6 @@
 import Button from '@/components/Button';
 import InitialsAvatar from '@/components/InitialsAvatar';
+import SafeFooter from '@/components/SafeFooter';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { ArrowLeft, Mail, User, Shield, CircleCheck as CheckCircle, CircleAlert as AlertCircle, Clock, ChevronRight, LocationEdit as Edit3 } from 'lucide-react-native';
@@ -195,6 +196,8 @@ export default function ProfileScreen() {
           variant="outline"
         />
       </View>
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }

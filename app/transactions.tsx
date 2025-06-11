@@ -1,5 +1,6 @@
 import DateRangeModal from '@/components/DateRangeModal';
 import HorizontalLoader from '@/components/HorizontalLoader';
+import SafeFooter from '@/components/SafeFooter';
 import TransactionModal from '@/components/TransactionModal';
 import { router } from 'expo-router';
 import { ArrowDownRight, ArrowLeft, ArrowUpRight, Ban as Bank, Calendar, Search, Settings, SlidersHorizontal, Wallet, X } from 'lucide-react-native';
@@ -217,6 +218,7 @@ export default function TransactionsScreen() {
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading transactions...</Text>
         </View>
+        <SafeFooter />
       </SafeAreaView>
     );
   }
@@ -389,6 +391,8 @@ export default function TransactionsScreen() {
         initialStartDate={dateRange.start}
         initialEndDate={dateRange.end}
       />
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }

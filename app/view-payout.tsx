@@ -4,6 +4,7 @@ import { ArrowLeft, ChevronRight, Calendar, Clock, Wallet, Building2, TriangleAl
 import Button from '@/components/Button';
 import Card from '@/components/Card';
 import HorizontalLoader from '@/components/HorizontalLoader';
+import SafeFooter from '@/components/SafeFooter';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -43,6 +44,7 @@ export default function ViewPayoutScreen() {
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading payout details...</Text>
         </View>
+        <SafeFooter />
       </SafeAreaView>
     );
   }
@@ -64,6 +66,7 @@ export default function ViewPayoutScreen() {
             style={styles.errorButton}
           />
         </View>
+        <SafeFooter />
       </SafeAreaView>
     );
   }
@@ -286,6 +289,8 @@ export default function ViewPayoutScreen() {
           </Card>
         </View>
       </ScrollView>
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }
@@ -346,6 +351,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+    paddingBottom: 32,
   },
   payoutNameContainer: {
     marginBottom: 24,

@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { ArrowLeft, Shield, ChevronRight, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import { router } from 'expo-router';
+import SafeFooter from '@/components/SafeFooter';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -135,6 +136,8 @@ export default function TransactionLimitsScreen() {
           </View>
         </View>
       </ScrollView>
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }
@@ -170,6 +173,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   contentContainer: {
     padding: 24,
+    paddingBottom: 32,
   },
   currentTierCard: {
     backgroundColor: colors.card,

@@ -3,6 +3,7 @@ import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, TriangleAlert as Aler
 import { router } from 'expo-router';
 import Button from '@/components/Button';
 import HorizontalLoader from '@/components/HorizontalLoader';
+import SafeFooter from '@/components/SafeFooter';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -221,6 +222,8 @@ export default function LinkedAccountsScreen() {
         onAdd={handleAddAccount}
         loading={loading}
       />
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }
@@ -256,6 +259,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   contentContainer: {
     padding: 24,
+    paddingBottom: 32,
   },
   subtitle: {
     fontSize: 16,

@@ -3,6 +3,7 @@ import Card from '@/components/Card';
 import TransactionModal from '@/components/TransactionModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import HorizontalLoader from '@/components/HorizontalLoader';
+import SafeFooter from '@/components/SafeFooter';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
@@ -575,6 +576,8 @@ export default function HomeScreen() {
           transaction={selectedTransaction}
         />
       )}
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }
@@ -1004,7 +1007,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   planProgress: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 8,
   },
   progressCount: {
