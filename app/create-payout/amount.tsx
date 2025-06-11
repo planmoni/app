@@ -152,7 +152,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingBottom: 100, // Extra padding to account for the floating button
   },
   content: {
-    padding: 20,
+    padding: 14,
     paddingTop: 0,
   },
   title: {
