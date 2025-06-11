@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TextInput, Pressable, ScrollView } from 'react-
 import { router, Link } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Check } from 'lucide-react-native';
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Check, ArrowLeft } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -106,6 +106,9 @@ export default function SignUpScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Join Planmoni and start planning your finances</Text>
         </View>
@@ -347,6 +350,17 @@ const createStyles = (colors: any) => StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 32,
+  },
+  backButton: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 20,
   },
   title: {
     fontSize: 32,
