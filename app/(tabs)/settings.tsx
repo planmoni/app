@@ -104,13 +104,6 @@ export default function SettingsScreen() {
       ]
     );
   };
-<View style={styles.footer}>
-        <Button
-          title="Sign Out"
-          onPress={handleSignOut}
-          style={styles.signOutButton}
-          variant="outline"
-          />
 
   const handleDeleteAccount = () => {
     Alert.alert(
