@@ -359,12 +359,12 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                 </View>
-                <Pressable 
+                {/* <Pressable 
                   style={styles.viewAllButton} 
                   onPress={handleViewAllPayouts}
                 >
                   <Text style={styles.viewAllText}>View All</Text>
-                </Pressable>
+                </Pressable> */}
               </View>
               
               <View style={styles.payoutDetails}>
