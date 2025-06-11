@@ -15,17 +15,32 @@ export default function TabLayout() {
   useEffect(() => {
     if (!session?.user?.id) return;
 
+    // Create a unique channel name per user to prevent conflicts
+    const channelName = `events-changes-${session.user.id}`;
+
+    // Check if a channel with this name already exists and is active
+    const existingChannel = supabase.getChannelByTopic(channelName);
+    
+    if (existingChannel && (existingChannel.state === 'joined' || existingChannel.state === 'joining')) {
+      // Channel already exists and is active, skip subscription
+      channelRef.current = existingChannel;
+      fetchUnreadNotificationsCount();
+      return;
+    }
+
     // Clean up any existing channel before creating a new one
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
 
+    // If there's an existing channel that's not active, remove it
+    if (existingChannel) {
+      supabase.removeChannel(existingChannel);
+    }
+
     // Initial fetch of unread notifications count
     fetchUnreadNotificationsCount();
-
-    // Create a unique channel name per user to prevent conflicts
-    const channelName = `events-changes-${session.user.id}`;
 
     // Set up real-time subscription for events table
     const channel = supabase
