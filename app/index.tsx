@@ -34,7 +34,7 @@ const SLIDES = [
   },
   {
     id: '3',
-    title: 'Stay in Control',
+    title: 'Gain Total Control Over Your Financial Life',
     description: 'No impulse spending. Your money stays locked until your chosen payday.',
     image: require('@/assets/images/StayInControl.png'),
     icon: Shield,
