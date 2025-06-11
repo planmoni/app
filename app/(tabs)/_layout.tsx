@@ -2,7 +2,7 @@ import { Tabs } from 'expo-router';
 import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings } from 'lucide-react-native'; //Do not change the Home to Chrome
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -10,16 +10,26 @@ export default function TabLayout() {
   const { colors } = useTheme();
   const { session } = useAuth();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
     if (!session?.user?.id) return;
 
+    // Clean up any existing channel before creating a new one
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
     // Initial fetch of unread notifications count
     fetchUnreadNotificationsCount();
 
+    // Create a unique channel name per user to prevent conflicts
+    const channelName = `events-changes-${session.user.id}`;
+
     // Set up real-time subscription for events table
     const channel = supabase
-      .channel('events-changes')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -38,8 +48,14 @@ export default function TabLayout() {
         console.log('Events subscription status:', status);
       });
 
+    // Store the channel reference
+    channelRef.current = channel;
+
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [session?.user?.id]);
 
