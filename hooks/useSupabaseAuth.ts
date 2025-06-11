@@ -18,6 +18,7 @@ export function useSupabaseAuth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setIsLoading(false);
+      setError(null); // Clear any previous errors when auth state changes
     });
 
     return () => subscription.unsubscribe();
@@ -75,12 +76,24 @@ export function useSupabaseAuth() {
   const signOut = async () => {
     try {
       setError(null);
+      setIsLoading(true);
+      
+      // Clear the session immediately for better UX
+      setSession(null);
+      
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      if (error) {
+        // If sign out fails, we might need to restore the session
+        // But for now, we'll just log the error and continue
+        console.error('Sign out error:', error);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign out';
       setError(message);
-      throw new Error(message);
+      console.error('Sign out error:', err);
+      // Don't throw here - we want to continue with sign out even if there's an error
+    } finally {
+      setIsLoading(false);
     }
   };
 

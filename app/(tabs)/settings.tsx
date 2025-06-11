@@ -85,7 +85,7 @@ export default function SettingsScreen() {
             try {
               setIsSigningOut(true);
               await signOut();
-              // The root layout will handle navigation based on auth state change
+              // The auth state change will trigger navigation in the root layout
             } catch (error) {
               console.error('Sign out error:', error);
               Alert.alert(
@@ -411,25 +411,25 @@ export default function SettingsScreen() {
             <ChevronRight size={20} color={colors.textTertiary} />
           </Pressable>
         </View>
-
-        <View style={styles.footer}>
-          <Button
-            title={isSigningOut ? "Signing Out..." : "Sign Out"}
-            onPress={handleSignOut}
-            style={styles.signOutButton}
-            variant="outline"
-            icon={LogOut}
-            disabled={isSigningOut}
-          />
-
-          <Pressable 
-            style={styles.deleteAccount}
-            onPress={() => setShowDeleteAccount(true)}
-          >
-            <Text style={styles.deleteText}>Delete Account</Text>
-          </Pressable>
-        </View>
       </ScrollView>
+
+      <View style={styles.footer}>
+        <Button
+          title={isSigningOut ? "Signing Out..." : "Sign Out"}
+          onPress={handleSignOut}
+          style={styles.signOutButton}
+          variant="outline"
+          icon={LogOut}
+          disabled={isSigningOut}
+        />
+
+        <Pressable 
+          style={styles.deleteAccount}
+          onPress={() => setShowDeleteAccount(true)}
+        >
+          <Text style={styles.deleteText}>Delete Account</Text>
+        </Pressable>
+      </View>
 
       <AccountStatementModal
         isVisible={showAccountStatement}
