@@ -70,12 +70,10 @@ export default function SettingsScreen() {
   const handleSignOut = async () => {
     try {
       await signOut();
-      // Use replace to ensure we go to the welcome screen and clear the navigation stack
-      router.replace('/');
+      // Don't use router.replace - let the root layout handle navigation
+      // based on the authentication state change
     } catch (error) {
       console.error('Sign out error:', error);
-      // Even if there's an error, try to navigate to welcome screen
-      router.replace('/');
     }
   };
 
