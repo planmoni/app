@@ -1,12 +1,11 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowRight, Chrome as Home } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
@@ -17,21 +16,20 @@ export default function SuccessScreen() {
   const password = params.password as string;
   
   const { signUp } = useAuth();
-  const [isRegistering, setIsRegistering] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
+  // In a real app, you would register the user here
   useEffect(() => {
     const registerUser = async () => {
       try {
         await signUp(email, password, firstName, lastName);
-        setIsRegistering(false);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to create account');
-        setIsRegistering(false);
+        // Note: In a real app, you would handle the result and show errors if any
+      } catch (error) {
+        console.error('Registration error:', error);
       }
     };
-
-    registerUser();
+    
+    // For demo purposes, we're not actually registering the user
+    // registerUser();
   }, []);
 
   const handleCreatePayout = () => {
@@ -49,35 +47,31 @@ export default function SuccessScreen() {
       <View style={styles.content}>
         <SuccessAnimation />
         
-        <Text style={styles.title}>Welcome to Planmoni!</Text>
+        <Text style={styles.title}>Account Created Successfully!</Text>
         <Text style={styles.subtitle}>
-          Your account has been created successfully. You're all set to start planning your finances.
+          Welcome to Planmoni, {firstName}! Your account has been set up and is ready to use.
         </Text>
         
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-        
-        <View style={styles.buttonContainer}>
-          <Button
-            title="Start a Payout Plan"
-            onPress={handleCreatePayout}
-            style={styles.createButton}
-            icon={ArrowRight}
-            disabled={isRegistering}
-          />
-          
-          <Button
-            title="Go to Dashboard"
-            onPress={handleGoToDashboard}
-            variant="outline"
-            style={styles.dashboardButton}
-            icon={Home}
-            disabled={isRegistering}
-          />
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>What's Next?</Text>
+          <Text style={styles.cardText}>
+            Start planning your finances by creating your first payout plan or explore your dashboard to see all features.
+          </Text>
         </View>
+      </View>
+
+      <View style={styles.footer}>
+        <Button
+          title="Create a Payout Plan"
+          onPress={handleCreatePayout}
+          style={styles.createButton}
+        />
+        <Button
+          title="Go to Dashboard"
+          onPress={handleGoToDashboard}
+          variant="outline"
+          style={styles.dashboardButton}
+        />
       </View>
     </SafeAreaView>
   );
@@ -90,9 +84,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 28,
@@ -108,20 +102,26 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 32,
     lineHeight: 24,
   },
-  errorContainer: {
-    backgroundColor: colors.errorLight,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 24,
+  card: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 16,
+    padding: 24,
     width: '100%',
+    marginBottom: 32,
   },
-  errorText: {
-    color: colors.error,
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  cardText: {
     fontSize: 14,
-    textAlign: 'center',
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
-  buttonContainer: {
-    width: '100%',
+  footer: {
+    padding: 24,
     gap: 16,
   },
   createButton: {

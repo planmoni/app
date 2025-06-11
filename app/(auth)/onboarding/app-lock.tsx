@@ -2,8 +2,8 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, ArrowRight, Fingerprint, Lock } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { Lock, Fingerprint } from 'lucide-react-native';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
@@ -24,7 +24,7 @@ export default function AppLockScreen() {
 
   const handlePinChange = (value: string) => {
     setPin(value);
-    setError(null);
+    if (error) setError(null);
   };
 
   const handleContinue = () => {
@@ -33,17 +33,9 @@ export default function AppLockScreen() {
       return;
     }
     
-    // In a real app, you would register the user here
     router.push({
       pathname: '/onboarding/success',
-      params: { 
-        firstName,
-        lastName,
-        email,
-        password,
-        bvn,
-        pin
-      }
+      params: { firstName, lastName, email, password, bvn, pin }
     });
   };
 
@@ -51,85 +43,71 @@ export default function AppLockScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color={colors.text} />
-        </Pressable>
-      </View>
-
-      <OnboardingProgress currentStep={8} totalSteps={8} />
-
-      <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
+      <OnboardingProgress step={8} totalSteps={8} />
+      
+      <KeyboardAvoidingWrapper disableDismissKeyboard={true}>
         <View style={styles.content}>
-          <Text style={styles.title}>Set up app lock</Text>
-          <Text style={styles.subtitle}>Create a PIN to secure your account</Text>
+          <View style={styles.header}>
+            <Text style={styles.title}>Set up app lock</Text>
+            <Text style={styles.subtitle}>Create a PIN to secure your account</Text>
+          </View>
 
-          <View style={styles.formContainer}>
-            <Text style={styles.question}>Choose a PIN length</Text>
-            
-            <View style={styles.pinLengthContainer}>
-              <Pressable 
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          <View style={styles.pinContainer}>
+            <PinInput
+              length={pinLength}
+              value={pin}
+              onChange={handlePinChange}
+              autoFocus
+            />
+          </View>
+
+          <View style={styles.optionsContainer}>
+            <Text style={styles.optionsTitle}>PIN Length</Text>
+            <View style={styles.optionsButtons}>
+              <Pressable
                 style={[
-                  styles.pinLengthOption,
-                  pinLength === 4 && styles.activePinLength
+                  styles.optionButton,
+                  pinLength === 4 && styles.optionButtonActive
                 ]}
                 onPress={() => setPinLength(4)}
               >
                 <Text style={[
-                  styles.pinLengthText,
-                  pinLength === 4 && styles.activePinLengthText
-                ]}>4 digits</Text>
+                  styles.optionButtonText,
+                  pinLength === 4 && styles.optionButtonTextActive
+                ]}>4 Digits</Text>
               </Pressable>
-              
-              <Pressable 
+              <Pressable
                 style={[
-                  styles.pinLengthOption,
-                  pinLength === 6 && styles.activePinLength
+                  styles.optionButton,
+                  pinLength === 6 && styles.optionButtonActive
                 ]}
                 onPress={() => setPinLength(6)}
               >
                 <Text style={[
-                  styles.pinLengthText,
-                  pinLength === 6 && styles.activePinLengthText
-                ]}>6 digits</Text>
+                  styles.optionButtonText,
+                  pinLength === 6 && styles.optionButtonTextActive
+                ]}>6 Digits</Text>
               </Pressable>
             </View>
-            
-            {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-            
-            <View style={styles.pinContainer}>
-              <PinInput 
-                length={pinLength}
-                value={pin}
-                onChange={handlePinChange}
-              />
+          </View>
+
+          <View style={styles.biometricsContainer}>
+            <View style={styles.biometricsHeader}>
+              <Fingerprint size={24} color={colors.primary} />
+              <Text style={styles.biometricsTitle}>Enable Biometric Authentication</Text>
             </View>
-            
-            <View style={styles.securityInfo}>
-              <View style={styles.securityIconContainer}>
-                <Lock size={20} color={colors.primary} />
-              </View>
-              <Text style={styles.securityText}>
-                This PIN will be used to unlock the app and authorize transactions
-              </Text>
-            </View>
-            
-            <View style={styles.biometricsContainer}>
-              <View style={styles.biometricsHeader}>
-                <Fingerprint size={24} color={colors.text} />
-                <Text style={styles.biometricsTitle}>Enable Biometrics</Text>
-              </View>
-              <Text style={styles.biometricsDescription}>
-                You can also use your fingerprint or face ID to unlock the app
-              </Text>
-              <Pressable style={styles.enableBiometricsButton}>
-                <Text style={styles.enableBiometricsText}>Enable Biometrics</Text>
-              </Pressable>
-            </View>
+            <Text style={styles.biometricsDescription}>
+              Use your fingerprint or face recognition to quickly access your account
+            </Text>
+            <Pressable style={styles.biometricsButton}>
+              <Text style={styles.biometricsButtonText}>Enable Biometrics</Text>
+            </Pressable>
           </View>
         </View>
       </KeyboardAvoidingWrapper>
@@ -138,7 +116,6 @@ export default function AppLockScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={pin.length !== pinLength}
-        icon={ArrowRight}
       />
     </SafeAreaView>
   );
@@ -149,78 +126,30 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-  },
-  contentContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-  },
   content: {
     flex: 1,
-    justifyContent: 'flex-start',
-    paddingTop: 40,
+    padding: 24,
+  },
+  header: {
+    marginBottom: 32,
+    alignItems: 'flex-start',
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: 60,
-    textAlign: 'center',
-  },
-  formContainer: {
-    width: '100%',
-  },
-  question: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 24,
-  },
-  pinLengthContainer: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 24,
-  },
-  pinLengthOption: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-  },
-  activePinLength: {
-    borderColor: colors.primary,
-    backgroundColor: colors.backgroundTertiary,
-  },
-  pinLengthText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  activePinLengthText: {
-    color: colors.primary,
+    textAlign: 'left',
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
+    borderWidth: 1,
+    borderColor: colors.error,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
@@ -233,39 +162,55 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
   },
-  securityInfo: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    backgroundColor: colors.backgroundTertiary,
-    padding: 16,
-    borderRadius: 12,
+  optionsContainer: {
     marginBottom: 32,
   },
-  securityIconContainer: {
-    marginTop: 2,
+  optionsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
   },
-  securityText: {
+  optionsButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  optionButton: {
     flex: 1,
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  biometricsContainer: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+  },
+  optionButtonActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.backgroundTertiary,
+  },
+  optionButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  optionButtonTextActive: {
+    color: colors.primary,
+  },
+  biometricsContainer: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
   },
   biometricsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
     marginBottom: 12,
+    gap: 12,
   },
   biometricsTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
   },
@@ -275,16 +220,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 16,
     lineHeight: 20,
   },
-  enableBiometricsButton: {
-    backgroundColor: colors.backgroundTertiary,
+  biometricsButton: {
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
     alignItems: 'center',
   },
-  enableBiometricsText: {
-    fontSize: 14,
+  biometricsButtonText: {
+    fontSize: 16,
     fontWeight: '500',
-    color: colors.primary,
+    color: '#FFFFFF',
   },
 });
