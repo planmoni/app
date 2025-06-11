@@ -298,7 +298,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '600',
   },
   payoutCard: {
-    padding: 20,
+    padding: 1,
   },
   payoutHeader: {
     flexDirection: 'row',
