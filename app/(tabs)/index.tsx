@@ -4,6 +4,7 @@ import TransactionModal from '@/components/TransactionModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import HorizontalLoader from '@/components/HorizontalLoader';
 import CountdownTimer from '@/components/CountdownTimer';
+import PendingActionsSection from '@/components/PendingActionsSection';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
@@ -335,6 +336,9 @@ export default function HomeScreen() {
             )}
           </Pressable>
         </Card>
+
+        {/* Pending Actions Section */}
+        <PendingActionsSection />
 
         {nextPayout && (
           <Card style={styles.payoutCard}>
@@ -897,6 +901,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
+  progressCount: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
   payoutActions: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
@@ -1044,10 +1052,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
     marginBottom: 16,
-  },
-  progressCount: {
-    fontSize: 12,
-    color: colors.textSecondary,
   },
   planViewButton: {
     flexDirection: 'row',
