@@ -53,7 +53,7 @@ export default function LastNameScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Pressable onPress={() => router.push('/login')} style={styles.signInButton}>
-          <Text style={styles.signInText}>Sign In</Text>
+          <Text style={styles.signInText}>Sign in instead</Text>
         </Pressable>
       </View>
 
