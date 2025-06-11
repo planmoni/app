@@ -1,99 +1,114 @@
-import { View, TextInput, StyleSheet } from 'react-native';
-import { useState, useRef, useEffect } from 'react';
+import React from 'react';
+import { View, TextInput, StyleSheet, Pressable } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
-type PinInputProps = {
+interface PinInputProps {
   length: number;
   value: string;
   onChange: (value: string) => void;
-};
+}
 
 export default function PinInput({ length, value, onChange }: PinInputProps) {
   const { colors } = useTheme();
-  const inputRef = useRef<TextInput>(null);
-  const [focused, setFocused] = useState(false);
-
-  useEffect(() => {
-    // Focus the input when the component mounts
-    setTimeout(() => {
-      inputRef.current?.focus();
-    }, 100);
-  }, []);
-
-  const handleChange = (text: string) => {
-    // Only allow numbers and limit to the specified length
+  const inputRefs = React.useRef<(TextInput | null)[]>([]);
+  
+  const handleChangeText = (text: string, index: number) => {
+    // Only allow numeric input
     const numericText = text.replace(/[^0-9]/g, '');
-    if (numericText.length <= length) {
-      onChange(numericText);
+    
+    if (numericText.length > 1) {
+      // Handle paste scenario
+      const pastedValue = numericText.slice(0, length);
+      onChange(pastedValue);
+      
+      // Focus the last filled input or the next empty one
+      const nextIndex = Math.min(pastedValue.length, length - 1);
+      inputRefs.current[nextIndex]?.focus();
+      return;
+    }
+    
+    // Build new value
+    const newValue = value.split('');
+    newValue[index] = numericText;
+    const updatedValue = newValue.join('').slice(0, length);
+    
+    onChange(updatedValue);
+    
+    // Auto-focus next input
+    if (numericText && index < length - 1) {
+      inputRefs.current[index + 1]?.focus();
     }
   };
-
-  const renderPinDots = () => {
-    const dots = [];
-    for (let i = 0; i < length; i++) {
-      dots.push(
-        <View
-          key={i}
-          style={[
-            styles.dot,
-            value.length > i && styles.filledDot,
-            focused && i === value.length && styles.activeDot,
-            { backgroundColor: value.length > i ? colors.primary : colors.backgroundTertiary }
-          ]}
-        />
-      );
+  
+  const handleKeyPress = (key: string, index: number) => {
+    if (key === 'Backspace' && !value[index] && index > 0) {
+      // Focus previous input on backspace if current is empty
+      inputRefs.current[index - 1]?.focus();
     }
-    return dots;
   };
-
+  
+  const handleInputPress = (index: number) => {
+    // Focus the first empty input or the pressed input
+    const firstEmptyIndex = value.length;
+    const targetIndex = Math.min(firstEmptyIndex, index);
+    inputRefs.current[targetIndex]?.focus();
+  };
+  
   const styles = createStyles(colors);
-
+  
   return (
     <View style={styles.container}>
-      <View style={styles.dotsContainer}>{renderPinDots()}</View>
-      <TextInput
-        ref={inputRef}
-        style={styles.hiddenInput}
-        value={value}
-        onChangeText={handleChange}
-        keyboardType="number-pad"
-        maxLength={length}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
+      {Array.from({ length }, (_, index) => (
+        <Pressable
+          key={index}
+          onPress={() => handleInputPress(index)}
+          style={styles.inputWrapper}
+        >
+          <TextInput
+            ref={(ref) => (inputRefs.current[index] = ref)}
+            style={[
+              styles.input,
+              value[index] && styles.inputFilled,
+            ]}
+            value={value[index] || ''}
+            onChangeText={(text) => handleChangeText(text, index)}
+            onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
+            keyboardType="numeric"
+            maxLength={1}
+            selectTextOnFocus
+            textAlign="center"
+            secureTextEntry
+          />
+        </Pressable>
+      ))}
     </View>
   );
 }
 
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
-    alignItems: 'center',
-    width: '100%',
-  },
-  dotsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 16,
-    marginVertical: 24,
+    gap: 12,
   },
-  dot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+  inputWrapper: {
+    width: 50,
+    height: 60,
   },
-  filledDot: {
-    borderColor: colors.primary,
-  },
-  activeDot: {
-    borderColor: colors.primary,
+  input: {
+    width: '100%',
+    height: '100%',
     borderWidth: 2,
+    borderColor: colors.border,
+    borderRadius: 12,
+    fontSize: 24,
+    fontWeight: '600',
+    color: colors.text,
+    backgroundColor: colors.surface,
+    textAlign: 'center',
   },
-  hiddenInput: {
-    position: 'absolute',
-    opacity: 0,
-    height: 0,
-    width: 0,
+  inputFilled: {
+    borderColor: colors.primary,
+    backgroundColor: colors.backgroundTertiary,
   },
 });
