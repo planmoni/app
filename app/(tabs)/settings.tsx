@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
-import { Bell, Mail, PencilLine, Phone, User, Building2, Gift, CircleHelp as HelpCircle, Languages, Link2, Lock, LogOut, MessageSquare, Moon, Shield, FileSliders as Sliders, FileText as Terms, ChevronRight, Eye, Fingerprint, Clock, DollarSign } from 'lucide-react-native';
+import { Bell, Mail, PencilLine, Phone, User, Building2, Gift, CircleHelp as HelpCircle, Languages, Link2, Lock, MessageSquare, Moon, Shield, FileSliders as Sliders, FileText as Terms, ChevronRight, Eye, Fingerprint, Clock, DollarSign } from 'lucide-react-native';
 import { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -67,31 +67,6 @@ export default function SettingsScreen() {
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
-  };
-
-  const handleLogout = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out of your account?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-              router.replace('/');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to log out. Please try again.');
-            }
-          },
-        },
-      ]
-    );
   };
 
   const styles = createStyles(colors);
@@ -403,23 +378,6 @@ export default function SettingsScreen() {
             <ChevronRight size={20} color={colors.textTertiary} />
           </Pressable>
         </View>
-
-        <View style={styles.footer}>
-          <Pressable 
-            style={styles.logoutButton}
-            onPress={handleLogout}
-          >
-            <LogOut size={20} color="#EF4444" />
-            <Text style={styles.logoutText}>Log Out</Text>
-          </Pressable>
-
-          <Pressable 
-            style={styles.deleteAccount}
-            onPress={() => setShowDeleteAccount(true)}
-          >
-            <Text style={styles.deleteText}>Delete Account</Text>
-          </Pressable>
-        </View>
       </ScrollView>
 
       <AccountStatementModal
@@ -591,30 +549,5 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   activeThemeOptionText: {
     color: '#FFFFFF',
-  },
-  footer: {
-    padding: 16,
-    gap: 16,
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FEF2F2',
-    padding: 12,
-    borderRadius: 8,
-    gap: 8,
-  },
-  logoutText: {
-    color: '#EF4444',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  deleteAccount: {
-    alignItems: 'center',
-  },
-  deleteText: {
-    color: colors.textTertiary,
-    fontSize: 14,
   },
 });
