@@ -37,45 +37,8 @@ export default function NotificationsScreen() {
   useEffect(() => {
     if (!session?.user?.id) return;
 
-    // Initial fetch
+    // Initial fetch only - subscription is handled elsewhere
     fetchNotifications();
-
-    // Set up real-time subscription
-    const channel = supabase
-      .channel('events-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'events',
-          filter: `user_id=eq.${session.user.id}`,
-        },
-        (payload) => {
-          console.log('Events change received:', payload);
-          
-          if (payload.eventType === 'INSERT' && payload.new) {
-            // Add new notification to the list
-            const newEvent = payload.new;
-            const formattedNotification = formatNotification(newEvent);
-            setNotifications(prev => [formattedNotification, ...prev]);
-          } else if (payload.eventType === 'UPDATE' && payload.new) {
-            // Update existing notification
-            setNotifications(prev => 
-              prev.map(notification => 
-                notification.id === payload.new.id ? formatNotification(payload.new) : notification
-              )
-            );
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('Events subscription status:', status);
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [session?.user?.id]);
 
   const fetchNotifications = async () => {
