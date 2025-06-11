@@ -17,7 +17,7 @@ const SLIDES = [
   {
     id: '1',
     title: 'Stabilize Your Cashflow',
-    description: 'Put some money aside, get paid on a schedule. Perfect for managing irregular inflows and making timely payments like salaries, rent, and more',
+    description: 'Say goodbye to irregular inflow. Put some money aside, get paid on a schedule.',
     image: require('@/assets/images/SmartSavings.png'),
     icon: Wallet,
     color: '#EFF6FF',
