@@ -6,8 +6,7 @@ import {
   StyleSheet, 
   View,
   Keyboard,
-  KeyboardAvoidingViewProps,
-  TouchableWithoutFeedback
+  KeyboardAvoidingViewProps
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -53,34 +52,24 @@ export default function KeyboardAvoidingWrapper({
   }
   
   // Default implementation with ScrollView
-  const content = (
-    <ScrollView
-      style={styles.scrollView}
-      contentContainerStyle={[
-        styles.contentContainer, 
-        { paddingBottom: 20 + bottomPadding },
-        contentContainerStyle
-      ]}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-    >
-      {children}
-    </ScrollView>
-  );
-  
   return (
     <KeyboardAvoidingView
       style={[styles.container, avoidingViewStyle]}
       behavior={behavior}
       keyboardVerticalOffset={keyboardVerticalOffset}
     >
-      {disableDismissKeyboard ? (
-        content
-      ) : (
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          {content}
-        </TouchableWithoutFeedback>
-      )}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.contentContainer, 
+          { paddingBottom: 20 + bottomPadding },
+          contentContainerStyle
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {children}
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
