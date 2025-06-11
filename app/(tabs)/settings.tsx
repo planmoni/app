@@ -11,14 +11,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
 import LanguageModal from '@/components/LanguageModal';
-import LogoutModal from '@/components/LogoutModal';
 import NotificationSettingsModal from '@/components/NotificationSettingsModal';
 import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
 
 export default function SettingsScreen() {
-  const { session } = useAuth();
+  const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
   const { theme, setTheme, colors } = useTheme();
   const firstName = session?.user?.user_metadata?.first_name || '';
@@ -38,7 +37,6 @@ export default function SettingsScreen() {
   const [showSupport, setShowSupport] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
-  const [showLogout, setShowLogout] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
 
   const handleViewProfile = () => {
@@ -67,6 +65,11 @@ export default function SettingsScreen() {
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    router.replace('/');
   };
 
   const styles = createStyles(colors);
@@ -380,13 +383,12 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.footer}>
-          <Pressable 
+          <Button
+            title="Log Out"
+            onPress={handleLogout}
+            variant="outline"
             style={styles.logoutButton}
-            onPress={() => setShowLogout(true)}
-          >
-            <LogOut size={20} color="#EF4444" />
-            <Text style={styles.logoutText}>Log Out</Text>
-          </Pressable>
+          />
 
           <Pressable 
             style={styles.deleteAccount}
@@ -430,11 +432,6 @@ export default function SettingsScreen() {
       <TermsModal
         isVisible={showTerms}
         onClose={() => setShowTerms(false)}
-      />
-
-      <LogoutModal
-        isVisible={showLogout}
-        onClose={() => setShowLogout(false)}
       />
     </SafeAreaView>
   );
@@ -572,18 +569,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 16,
   },
   logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FEF2F2',
-    padding: 12,
-    borderRadius: 8,
-    gap: 8,
-  },
-  logoutText: {
-    color: '#EF4444',
-    fontSize: 16,
-    fontWeight: '600',
+    borderColor: '#EF4444',
+    borderWidth: 1,
   },
   deleteAccount: {
     alignItems: 'center',
