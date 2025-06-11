@@ -391,10 +391,10 @@ export default function HomeScreen() {
                   </View>
                   <View style={styles.progressStats}>
                     <Text style={styles.progressText}>
-                      {nextPayout.completed_payouts}/{nextPayout.duration} payouts
+                      {formatBalance(nextPayout.completed_payouts * nextPayout.payout_amount)}/{formatBalance(nextPayout.total_amount)}
                     </Text>
                     <Text style={styles.progressAmount}>
-                      {formatBalance(nextPayout.completed_payouts * nextPayout.payout_amount)}/{formatBalance(nextPayout.total_amount)}
+                      {nextPayout.completed_payouts}/{nextPayout.duration}
                     </Text>
                   </View>
                 </View>
@@ -469,12 +469,13 @@ export default function HomeScreen() {
                     </View>
                     
                     {plan.next_payout_date && (
-                      <CountdownTimer 
-                        targetDate={plan.next_payout_date}
-                        style={styles.nextPayoutTimer}
-                        textStyle={styles.nextPayoutTimerText}
-                        iconSize={14}
-                      />
+                      <Text style={styles.nextPayoutDate}>
+                        Next: {new Date(plan.next_payout_date).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </Text>
                     )}
                     
                     <Pressable 
@@ -1061,12 +1062,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  nextPayoutTimer: {
+  nextPayoutDate: {
+    fontSize: 14,
+    color: colors.primary,
     marginBottom: 16,
-    alignSelf: 'flex-start',
-  },
-  nextPayoutTimerText: {
-    fontSize: 12,
   },
   progressCount: {
     fontSize: 12,
