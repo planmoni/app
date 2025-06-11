@@ -3,7 +3,6 @@ import Card from '@/components/Card';
 import TransactionModal from '@/components/TransactionModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import HorizontalLoader from '@/components/HorizontalLoader';
-import SafeFooter from '@/components/SafeFooter';
 import CountdownTimer from '@/components/CountdownTimer';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -622,7 +621,6 @@ export default function HomeScreen() {
         />
       )}
       
-      <SafeFooter />
     </SafeAreaView>
   );
 }
