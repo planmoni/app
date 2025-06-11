@@ -53,7 +53,7 @@ const SLIDES = [
 ];
 
 export default function WelcomeScreen() {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
   const scrollX = useSharedValue(0);
@@ -81,15 +81,27 @@ export default function WelcomeScreen() {
     router.push('/(auth)/login');
   };
 
-  const styles = createStyles(colors, isDark);
+  // Calculate responsive dimensions
+  const isSmallScreen = height < 700;
+  const logoHeight = isSmallScreen ? 50 : 80;
+  const imageHeight = Math.min(height * 0.3, 280);
+  const verticalPadding = isSmallScreen ? 20 : 40;
+  const buttonHeight = isSmallScreen ? 44 : 56;
+  const titleSize = isSmallScreen ? 22 : 28;
+  const descriptionSize = isSmallScreen ? 14 : 16;
+
+  const styles = createStyles(colors, isDark, {
+    logoHeight,
+    imageHeight,
+    verticalPadding,
+    buttonHeight,
+    titleSize,
+    descriptionSize,
+    height,
+  });
 
   return (
-    <ScrollView 
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      bounces={false}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={styles.container}>
       <View style={styles.logoContainer}>
         <Image
           source={isDark 
@@ -174,33 +186,29 @@ export default function WelcomeScreen() {
           variant="outline"
           style={styles.signInButton}
         />
-
-        
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  contentContainer: {
-    flexGrow: 1,
+    justifyContent: 'space-between',
   },
   logoContainer: {
     alignItems: 'center',
-    paddingTop: 60,
-    paddingBottom: 40,
+    paddingTop: responsive.verticalPadding,
+    paddingBottom: responsive.verticalPadding / 2,
   },
   logo: {
     width: 200,
-    height: 80,
+    height: responsive.logoHeight,
   },
   sliderContainer: {
     flex: 1,
-    minHeight: 400,
+    justifyContent: 'center',
   },
   slider: {
     flex: 1,
@@ -209,31 +217,32 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingHorizontal: 40,
+    justifyContent: 'center',
   },
   slideImage: {
     width: '100%',
-    height: 280,
-    marginBottom: 32,
+    height: responsive.imageHeight,
+    marginBottom: responsive.verticalPadding / 2,
   },
   slideTitle: {
-    fontSize: 28,
+    fontSize: responsive.titleSize,
     fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   slideDescription: {
-    fontSize: 16,
+    fontSize: responsive.descriptionSize,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: responsive.descriptionSize * 1.5,
   },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 32,
+    paddingVertical: responsive.verticalPadding / 2,
   },
   dot: {
     height: 8,
@@ -241,37 +250,17 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 4,
   },
   footer: {
-    padding: 24,
-    paddingBottom: 40,
+    padding: responsive.verticalPadding / 2,
+    paddingBottom: responsive.verticalPadding,
   },
   getStartedButton: {
     backgroundColor: colors.primary,
     marginBottom: 12,
+    height: responsive.buttonHeight,
   },
   signInButton: {
     borderColor: colors.border,
-    marginBottom: 32,
-  },
-  regulatoryInfo: {
-    alignItems: 'flex-start',
-  },
-  regulatoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  ndicLogo: {
-    width: 60,
-    height: 24,
-    opacity: isDark ? 0.8 : 1,
-  },
-  cbnLogo: {
-    width: 24,
-    height: 24,
-    opacity: isDark ? 0.8 : 1,
-  },
-  regulatoryText: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    marginBottom: 0,
+    height: responsive.buttonHeight,
   },
 });
