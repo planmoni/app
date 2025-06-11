@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { View, TextInput, StyleSheet, Pressable } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -6,11 +6,17 @@ interface PinInputProps {
   length: number;
   value: string;
   onChange: (value: string) => void;
+  secureTextEntry?: boolean;
 }
 
-export default function PinInput({ length, value, onChange }: PinInputProps) {
+export default function PinInput({ 
+  length, 
+  value, 
+  onChange, 
+  secureTextEntry = true 
+}: PinInputProps) {
   const { colors } = useTheme();
-  const inputRefs = React.useRef<(TextInput | null)[]>([]);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
   
   const handleChangeText = (text: string, index: number) => {
     // Only allow numeric input
@@ -40,10 +46,17 @@ export default function PinInput({ length, value, onChange }: PinInputProps) {
     }
   };
   
-  const handleKeyPress = (key: string, index: number) => {
-    if (key === 'Backspace' && !value[index] && index > 0) {
+  const handleKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !value[index] && index > 0) {
       // Focus previous input on backspace if current is empty
       inputRefs.current[index - 1]?.focus();
+      
+      // Update the value to remove the previous digit
+      if (index > 0) {
+        const newValue = value.split('');
+        newValue[index - 1] = '';
+        onChange(newValue.join(''));
+      }
     }
   };
   
@@ -72,12 +85,11 @@ export default function PinInput({ length, value, onChange }: PinInputProps) {
             ]}
             value={value[index] || ''}
             onChangeText={(text) => handleChangeText(text, index)}
-            onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
+            onKeyPress={(e) => handleKeyPress(e, index)}
             keyboardType="numeric"
             maxLength={1}
             selectTextOnFocus
-            textAlign="center"
-            secureTextEntry
+            secureTextEntry={secureTextEntry}
           />
         </Pressable>
       ))}
