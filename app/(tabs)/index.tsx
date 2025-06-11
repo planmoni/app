@@ -415,7 +415,7 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Your payouts</Text>
+            <Text style={styles.sectionTitle}>Your payout plans</Text>
             <Pressable style={styles.viewAllButton} onPress={handleViewAllPayouts}>
               <Text style={styles.viewAllText}>View All</Text>
             </Pressable>
