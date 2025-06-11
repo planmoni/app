@@ -4,9 +4,28 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
-import { Bell, Mail, PencilLine, Phone, User, Building2, Gift, CircleHelp as HelpCircle, Languages, Link2, Lock, MessageSquare, Moon, Shield, FileSliders as Sliders, FileText as Terms, ChevronRight, Eye, Fingerprint, Clock, DollarSign } from 'lucide-react-native';
+import { 
+  Bell, 
+  Building2, 
+  ChevronRight, 
+  Clock, 
+  DollarSign, 
+  Eye, 
+  FileSliders as Sliders, 
+  FileText as Terms, 
+  Fingerprint, 
+  Gift, 
+  CircleHelp as HelpCircle, 
+  Languages, 
+  Lock, 
+  LogOut, 
+  MessageSquare, 
+  Moon, 
+  Shield, 
+  Trash2
+} from 'lucide-react-native';
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -80,318 +99,363 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.profileSection}>
-          <Pressable style={styles.profileInfo} onPress={handleViewProfile}>
+        <Pressable style={styles.profileCard} onPress={handleViewProfile}>
+          <View style={styles.profileContent}>
             <InitialsAvatar 
               firstName={firstName} 
               lastName={lastName} 
-              size={48}
-              fontSize={20}
+              size={60}
+              fontSize={24}
             />
-            <View style={styles.profileText}>
+            <View style={styles.profileInfo}>
               <Text style={styles.profileName}>{firstName} {lastName}</Text>
               <Text style={styles.profileEmail}>{email}</Text>
               <View style={styles.verifiedBadge}>
                 <Text style={styles.verifiedText}>Verified</Text>
               </View>
             </View>
-            <ChevronRight size={20} color={colors.textSecondary} />
-          </Pressable>
-        </View>
+          </View>
+          <ChevronRight size={20} color={colors.textSecondary} />
+        </Pressable>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Preferences</Text>
           
-          <View style={styles.settingItem}>
-            <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
-              <Eye size={20} color="#3B82F6" />
+          <View style={styles.card}>
+            <View style={styles.settingItem}>
+              <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
+                <Eye size={20} color="#3B82F6" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Show Dashboard Balances</Text>
+                <Text style={styles.settingDescription}>Hide or display wallet and vault balances</Text>
+              </View>
+              <Switch
+                value={showBalances}
+                onValueChange={toggleBalances}
+                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                thumbColor={showBalances ? '#3B82F6' : colors.backgroundTertiary}
+              />
             </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Show Dashboard Balances</Text>
-              <Text style={styles.settingDescription}>Hide or display wallet and vault balances on your dashboard</Text>
-            </View>
-            <Switch
-              value={showBalances}
-              onValueChange={toggleBalances}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={showBalances ? '#3B82F6' : colors.backgroundTertiary}
-            />
-          </View>
 
-          <View style={styles.settingItem}>
-            <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
-              <Fingerprint size={20} color="#22C55E" />
+            <View style={styles.divider} />
+
+            <View style={styles.settingItem}>
+              <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
+                <Fingerprint size={20} color="#22C55E" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Enable Biometrics</Text>
+                <Text style={styles.settingDescription}>Use biometrics for authentication</Text>
+              </View>
+              <Switch
+                value={biometrics}
+                onValueChange={setBiometrics}
+                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                thumbColor={biometrics ? '#3B82F6' : colors.backgroundTertiary}
+              />
             </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Enable Biometrics</Text>
-              <Text style={styles.settingDescription}>Use biometrics to sign in or approve vault actions</Text>
+
+            <View style={styles.divider} />
+
+            <View style={styles.settingItem}>
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Moon size={20} color={colors.textSecondary} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Theme</Text>
+                <Text style={styles.settingDescription}>
+                  {theme === 'system' ? 'Follow system' : theme === 'dark' ? 'Dark mode' : 'Light mode'}
+                </Text>
+              </View>
+              <View style={styles.themeSelector}>
+                <Pressable
+                  style={[styles.themeOption, theme === 'light' && styles.activeThemeOption]}
+                  onPress={() => handleThemeChange('light')}
+                >
+                  <Text style={[styles.themeOptionText, theme === 'light' && styles.activeThemeOptionText]}>
+                    Light
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.themeOption, theme === 'dark' && styles.activeThemeOption]}
+                  onPress={() => handleThemeChange('dark')}
+                >
+                  <Text style={[styles.themeOptionText, theme === 'dark' && styles.activeThemeOptionText]}>
+                    Dark
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.themeOption, theme === 'system' && styles.activeThemeOption]}
+                  onPress={() => handleThemeChange('system')}
+                >
+                  <Text style={[styles.themeOptionText, theme === 'system' && styles.activeThemeOptionText]}>
+                    Auto
+                  </Text>
+                </Pressable>
+              </View>
             </View>
-            <Switch
-              value={biometrics}
-              onValueChange={setBiometrics}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={biometrics ? '#3B82F6' : colors.backgroundTertiary}
-            />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Management</Text>
           
-          <Pressable 
-            style={styles.settingItem}
-            onPress={() => setShowAccountStatement(true)}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
-              <Terms size={20} color={colors.textSecondary} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Generate Account Statement</Text>
-              <Text style={styles.settingDescription}>PDF/CSV export, custom range</Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
+          <View style={styles.card}>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => setShowAccountStatement(true)}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}>
+                <Terms size={20} color="#0EA5E9" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Generate Account Statement</Text>
+                <Text style={styles.settingDescription}>PDF/CSV export, custom range</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
 
-          <Pressable 
-            style={styles.settingItem}
-            onPress={handleViewLinkedAccounts}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}>
-              <Building2 size={20} color="#0EA5E9" />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Linked Bank Accounts</Text>
-              <Text style={styles.settingDescription}>Manage, verify, add/remove</Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
+            <View style={styles.divider} />
 
-          <Pressable 
-            style={styles.settingItem}
-            onPress={handleTransactionLimits}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: '#FEF3C7' }]}>
-              <DollarSign size={20} color="#D97706" />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Transaction Limits</Text>
-              <Text style={styles.settingDescription}>Set daily and per-transaction limits</Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleViewLinkedAccounts}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}>
+                <Building2 size={20} color="#0EA5E9" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Linked Bank Accounts</Text>
+                <Text style={styles.settingDescription}>Manage, verify, add/remove</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
 
-          <Pressable 
-            style={styles.settingItem}
-            onPress={handleViewReferral}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: '#FDF2F8' }]}>
-              <Gift size={20} color="#EC4899" />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Referral Program</Text>
-              <Text style={styles.settingDescription}>Your code & bonuses</Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
+            <View style={styles.divider} />
+
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleTransactionLimits}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#FEF3C7' }]}>
+                <DollarSign size={20} color="#D97706" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Transaction Limits</Text>
+                <Text style={styles.settingDescription}>Set daily and per-transaction limits</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleViewReferral}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#FDF2F8' }]}>
+                <Gift size={20} color="#EC4899" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Referral Program</Text>
+                <Text style={styles.settingDescription}>Your code & bonuses</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Security</Text>
           
-          <Pressable 
-            style={styles.settingItem}
-            onPress={handleChangePassword}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
-              <Lock size={20} color="#EF4444" />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Change Password</Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
+          <View style={styles.card}>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleChangePassword}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
+                <Lock size={20} color="#EF4444" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Change Password</Text>
+                <Text style={styles.settingDescription}>Update your account password</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
 
-          <Pressable 
-            style={styles.settingItem}
-            onPress={handleTwoFactorAuth}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
-              <Shield size={20} color="#22C55E" />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Two-Factor Authentication</Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
+            <View style={styles.divider} />
+
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleTwoFactorAuth}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
+                <Shield size={20} color="#22C55E" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Two-Factor Authentication</Text>
+                <Text style={styles.settingDescription}>Add an extra layer of security</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notifications</Text>
           
-          <View style={styles.settingItem}>
-            <View style={[styles.settingIcon, { backgroundColor: '#FEF9C3' }]}>
-              <Bell size={20} color="#CA8A04" />
+          <View style={styles.card}>
+            <View style={styles.settingItem}>
+              <View style={[styles.settingIcon, { backgroundColor: '#FEF9C3' }]}>
+                <Bell size={20} color="#CA8A04" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Vault Payout Alerts</Text>
+                <Text style={styles.settingDescription}>Get notified about payouts</Text>
+              </View>
+              <Switch
+                value={vaultAlerts}
+                onValueChange={setVaultAlerts}
+                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                thumbColor={vaultAlerts ? '#3B82F6' : colors.backgroundTertiary}
+              />
             </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Vault Payout Alerts</Text>
-            </View>
-            <Switch
-              value={vaultAlerts}
-              onValueChange={setVaultAlerts}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={vaultAlerts ? '#3B82F6' : colors.backgroundTertiary}
-            />
-          </View>
 
-          <View style={styles.settingItem}>
-            <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
-              <Shield size={20} color="#3B82F6" />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>New Login Notifications</Text>
-            </View>
-            <Switch
-              value={loginAlerts}
-              onValueChange={setLoginAlerts}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={loginAlerts ? '#3B82F6' : colors.backgroundTertiary}
-            />
-          </View>
+            <View style={styles.divider} />
 
-          <View style={styles.settingItem}>
-            <View style={[styles.settingIcon, { backgroundColor: '#F5F3FF' }]}>
-              <Clock size={20} color="#8B5CF6" />
+            <View style={styles.settingItem}>
+              <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
+                <Shield size={20} color="#3B82F6" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>New Login Notifications</Text>
+                <Text style={styles.settingDescription}>Security alerts for new logins</Text>
+              </View>
+              <Switch
+                value={loginAlerts}
+                onValueChange={setLoginAlerts}
+                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                thumbColor={loginAlerts ? '#3B82F6' : colors.backgroundTertiary}
+              />
             </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Plan Expiry Reminders</Text>
-            </View>
-            <Switch
-              value={expiryReminders}
-              onValueChange={setExpiryReminders}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={expiryReminders ? '#3B82F6' : colors.backgroundTertiary}
-            />
-          </View>
 
-          <Pressable 
-            style={styles.settingItem}
-            onPress={() => setShowNotificationSettings(true)}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
-              <Sliders size={20} color={colors.textSecondary} />
+            <View style={styles.divider} />
+
+            <View style={styles.settingItem}>
+              <View style={[styles.settingIcon, { backgroundColor: '#F5F3FF' }]}>
+                <Clock size={20} color="#8B5CF6" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Plan Expiry Reminders</Text>
+                <Text style={styles.settingDescription}>Get notified before plans expire</Text>
+              </View>
+              <Switch
+                value={expiryReminders}
+                onValueChange={setExpiryReminders}
+                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                thumbColor={expiryReminders ? '#3B82F6' : colors.backgroundTertiary}
+              />
             </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Customize Notifications</Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
+
+            <View style={styles.divider} />
+
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => setShowNotificationSettings(true)}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Sliders size={20} color={colors.textSecondary} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Customize Notifications</Text>
+                <Text style={styles.settingDescription}>Fine-tune your notification preferences</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>App & Support</Text>
+          <Text style={styles.sectionTitle}>Support & Legal</Text>
           
-          <Pressable 
-            style={styles.settingItem}
-            onPress={() => setShowHelpCenter(true)}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
-              <HelpCircle size={20} color="#F97316" />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Help Center</Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
+          <View style={styles.card}>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => setShowHelpCenter(true)}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
+                <HelpCircle size={20} color="#F97316" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Help Center</Text>
+                <Text style={styles.settingDescription}>Find answers to common questions</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
 
-          <Pressable 
-            style={styles.settingItem}
-            onPress={() => setShowSupport(true)}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
-              <MessageSquare size={20} color="#3B82F6" />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Contact Support</Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
+            <View style={styles.divider} />
 
-          <View style={styles.settingItem}>
-            <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
-              <Moon size={20} color={colors.textSecondary} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Theme</Text>
-              <Text style={styles.settingDescription}>
-                {theme === 'system' ? 'Follow system' : theme === 'dark' ? 'Dark mode' : 'Light mode'}
-              </Text>
-            </View>
-            <View style={styles.themeSelector}>
-              <Pressable
-                style={[styles.themeOption, theme === 'light' && styles.activeThemeOption]}
-                onPress={() => handleThemeChange('light')}
-              >
-                <Text style={[styles.themeOptionText, theme === 'light' && styles.activeThemeOptionText]}>
-                  Light
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.themeOption, theme === 'dark' && styles.activeThemeOption]}
-                onPress={() => handleThemeChange('dark')}
-              >
-                <Text style={[styles.themeOptionText, theme === 'dark' && styles.activeThemeOptionText]}>
-                  Dark
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.themeOption, theme === 'system' && styles.activeThemeOption]}
-                onPress={() => handleThemeChange('system')}
-              >
-                <Text style={[styles.themeOptionText, theme === 'system' && styles.activeThemeOptionText]}>
-                  Auto
-                </Text>
-              </Pressable>
-            </View>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => setShowSupport(true)}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
+                <MessageSquare size={20} color="#3B82F6" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Contact Support</Text>
+                <Text style={styles.settingDescription}>Get help with your account</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => setShowLanguage(true)}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
+                <Languages size={20} color="#22C55E" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Language Preference</Text>
+                <Text style={styles.settingDescription}>Change app language</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => setShowTerms(true)}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Terms size={20} color={colors.textSecondary} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Terms & Privacy</Text>
+                <Text style={styles.settingDescription}>Legal information</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
           </View>
-
-          <Pressable 
-            style={styles.settingItem}
-            onPress={() => setShowLanguage(true)}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
-              <Languages size={20} color="#22C55E" />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Language Preference</Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
-
-          <Pressable 
-            style={styles.settingItem}
-            onPress={() => setShowTerms(true)}
-          >
-            <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
-              <Terms size={20} color={colors.textSecondary} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Terms & Privacy</Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
         </View>
 
-        <View style={styles.footer}>
-          <Button
-            title="Sign Out"
-            onPress={handleSignOut}
-            style={styles.signOutButton}
-            variant="outline"
-          />
+        <View style={styles.accountActions}>
           <Pressable 
-            style={styles.deleteAccount}
+            style={styles.signOutButton}
+            onPress={handleSignOut}
           >
-            <Text style={styles.deleteText}>Delete Account</Text>
+            <LogOut size={20} color="#EF4444" />
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </Pressable>
+          
+          <Pressable style={styles.deleteAccountButton}>
+            <Trash2 size={20} color={colors.textTertiary} />
+            <Text style={styles.deleteAccountText}>Delete Account</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -440,7 +504,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.backgroundSecondary,
   },
   header: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
@@ -455,32 +519,39 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: 24,
+    padding: 16,
+    paddingBottom: 40,
   },
-  profileSection: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  profileInfo: {
+  profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  profileText: {
+  profileContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
-    marginLeft: 12,
+  },
+  profileInfo: {
+    marginLeft: 16,
+    flex: 1,
   },
   profileName: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+    marginBottom: 4,
   },
   profileEmail: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   verifiedBadge: {
     backgroundColor: '#F0FDF4',
@@ -496,46 +567,52 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   section: {
     marginBottom: 24,
-    paddingHorizontal: 16,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: colors.text,
     marginBottom: 12,
-    marginTop: 16,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    paddingHorizontal: 4,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginBottom: 8,
+    padding: 16,
   },
   settingIcon: {
     width: 40,
     height: 40,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   settingContent: {
     flex: 1,
+    marginRight: 8,
   },
   settingLabel: {
     fontSize: 16,
     fontWeight: '500',
     color: colors.text,
+    marginBottom: 2,
   },
   settingDescription: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
-    marginTop: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginHorizontal: 16,
   },
   themeSelector: {
     flexDirection: 'row',
@@ -561,19 +638,38 @@ const createStyles = (colors: any) => StyleSheet.create({
   activeThemeOptionText: {
     color: '#FFFFFF',
   },
-  footer: {
-    padding: 16,
+  accountActions: {
+    marginTop: 8,
     gap: 16,
-  },
-  signOutButton: {
-    borderColor: '#EF4444',
-    borderWidth: 1,
-  },
-  deleteAccount: {
     alignItems: 'center',
   },
-  deleteText: {
-    color: colors.textTertiary,
+  signOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    width: '100%',
+  },
+  signOutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#EF4444',
+    marginLeft: 12,
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  deleteAccountText: {
     fontSize: 14,
+    color: colors.textTertiary,
+    marginLeft: 8,
   },
 });
