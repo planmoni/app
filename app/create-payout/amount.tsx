@@ -156,7 +156,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 0,
   },
   title: {
-    fontSize: 14,
+    fontSize: 24,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
@@ -171,7 +171,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.backgroundTertiary,
     borderRadius: 12,
-    padding: 16,
+    padding: 10,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
