@@ -40,9 +40,8 @@ export default function EmailScreen() {
       return;
     }
     
-    // In a real app, you would send an OTP to this email
     router.push({
-      pathname: '/onboarding/otp',
+      pathname: '/onboarding/create-password',
       params: { 
         firstName,
         lastName,
@@ -61,7 +60,7 @@ export default function EmailScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={3} totalSteps={8} />
+      <OnboardingProgress currentStep={3} totalSteps={6} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -96,7 +95,7 @@ export default function EmailScreen() {
             </View>
             
             <Text style={styles.helperText}>
-              We'll send a verification code to this email
+              We'll use this email for account verification and communication
             </Text>
           </View>
         </View>
@@ -114,7 +113,7 @@ export default function EmailScreen() {
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundSecondary,
   },
   header: {
     paddingHorizontal: 16,

@@ -74,7 +74,7 @@ export default function CreatePasswordScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={5} totalSteps={8} />
+      <OnboardingProgress currentStep={4} totalSteps={6} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -146,7 +146,7 @@ export default function CreatePasswordScreen() {
             <View style={styles.requirements}>
               <View style={styles.requirementsHeader}>
                 <View style={styles.requirementsIconContainer}>
-                  <Shield size={20} color={colors.primary} />
+                  <Shield size={20} color="#3B82F6" />
                 </View>
                 <Text style={styles.requirementsTitle}>Password Requirements</Text>
               </View>
@@ -185,7 +185,7 @@ export default function CreatePasswordScreen() {
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundSecondary,
   },
   header: {
     paddingHorizontal: 16,

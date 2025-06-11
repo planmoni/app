@@ -54,7 +54,7 @@ export default function LastNameScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={2} totalSteps={8} />
+      <OnboardingProgress currentStep={2} totalSteps={6} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -102,7 +102,7 @@ export default function LastNameScreen() {
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundSecondary,
   },
   header: {
     paddingHorizontal: 16,

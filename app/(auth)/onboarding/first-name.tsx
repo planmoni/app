@@ -50,7 +50,7 @@ export default function FirstNameScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={1} totalSteps={8} />
+      <OnboardingProgress currentStep={1} totalSteps={6} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -98,7 +98,7 @@ export default function FirstNameScreen() {
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundSecondary,
   },
   header: {
     paddingHorizontal: 16,

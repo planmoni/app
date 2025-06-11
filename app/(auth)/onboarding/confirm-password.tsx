@@ -40,7 +40,7 @@ export default function ConfirmPasswordScreen() {
     }
     
     router.push({
-      pathname: '/onboarding/bvn',
+      pathname: '/onboarding/success',
       params: { 
         firstName,
         lastName,
@@ -60,7 +60,7 @@ export default function ConfirmPasswordScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={6} totalSteps={8} />
+      <OnboardingProgress currentStep={5} totalSteps={6} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -118,7 +118,7 @@ export default function ConfirmPasswordScreen() {
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundSecondary,
   },
   header: {
     paddingHorizontal: 16,
