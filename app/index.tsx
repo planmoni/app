@@ -43,7 +43,7 @@ const SLIDES = [
   },
   {
     id: '4',
-    title: 'Build Healthy Habits',
+    title: 'Build A Healthy Money Habits',
     description: 'Automate discipline and achieve long-term financial goals effortlessly.',
     image: require('@/assets/images/BuildHealthyHabits.png'),
     icon: TrendingUp,
