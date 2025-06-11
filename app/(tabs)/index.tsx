@@ -126,7 +126,15 @@ export default function HomeScreen() {
 
   // Get active payout plans for display
   const activePlans = payoutPlans.filter(plan => plan.status === 'active').slice(0, 3);
-  const nextPayout = activePlans.find(plan => plan.next_payout_date);
+  
+  // Find the next payout - the one with the earliest next_payout_date
+  const nextPayout = payoutPlans
+    .filter(plan => plan.status === 'active' && plan.next_payout_date)
+    .sort((a, b) => {
+      const dateA = new Date(a.next_payout_date!);
+      const dateB = new Date(b.next_payout_date!);
+      return dateA.getTime() - dateB.getTime();
+    })[0]; // Get the first one (earliest date)
 
   // Calculate summary stats from actual data
   const totalPaidOut = payoutPlans.reduce((sum, plan) => 
@@ -142,6 +150,15 @@ export default function HomeScreen() {
   const completionRate = payoutPlans.length > 0 
     ? Math.round((payoutPlans.filter(plan => plan.status === 'completed').length / payoutPlans.length) * 100)
     : 0;
+
+  // Helper function to calculate days until next payout
+  const getDaysUntilPayout = (dateString: string) => {
+    const payoutDate = new Date(dateString);
+    const today = new Date();
+    const diffTime = payoutDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
 
   const styles = createStyles(colors);
 
@@ -274,7 +291,20 @@ export default function HomeScreen() {
             <Text style={styles.payoutAmount}>{formatBalance(nextPayout.payout_amount)}</Text>
             <Text style={styles.payoutDate}>
               {nextPayout.next_payout_date 
-                ? `${new Date(nextPayout.next_payout_date).toLocaleDateString()} • ${Math.ceil((new Date(nextPayout.next_payout_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days left`
+                ? (() => {
+                    const daysLeft = getDaysUntilPayout(nextPayout.next_payout_date);
+                    const formattedDate = new Date(nextPayout.next_payout_date).toLocaleDateString();
+                    
+                    if (daysLeft === 0) {
+                      return `${formattedDate} • Today`;
+                    } else if (daysLeft === 1) {
+                      return `${formattedDate} • Tomorrow`;
+                    } else if (daysLeft > 0) {
+                      return `${formattedDate} • ${daysLeft} days left`;
+                    } else {
+                      return `${formattedDate} • Overdue`;
+                    }
+                  })()
                 : 'Date not set'
               }
             </Text>
