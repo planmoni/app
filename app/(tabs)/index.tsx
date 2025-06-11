@@ -470,7 +470,7 @@ export default function HomeScreen() {
                     
                     {plan.next_payout_date && (
                       <Text style={styles.nextPayoutDate}>
-                        Next: {new Date(plan.next_payout_date).toLocaleDateString('en-US', {
+                        Payday: {new Date(plan.next_payout_date).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric'
