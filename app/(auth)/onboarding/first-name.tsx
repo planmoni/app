@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, ArrowRight, User } from 'lucide-react-native';
+import { ArrowLeft, User } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
@@ -50,7 +50,7 @@ export default function FirstNameScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={1} totalSteps={9} />
+      <OnboardingProgress currentStep={1} totalSteps={8} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -90,7 +90,6 @@ export default function FirstNameScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={!isButtonEnabled}
-        icon={ArrowRight}
       />
     </SafeAreaView>
   );
@@ -120,7 +119,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'flex-start',
-    paddingTop: 24,
+    paddingTop: 20,
   },
   title: {
     fontSize: 28,
