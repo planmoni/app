@@ -107,9 +107,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: 1,
+    paddingTop: 5,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 5,
     zIndex: 1000,
   },
   buttonContainer: {
