@@ -3,7 +3,7 @@ import HorizontalLoader from '@/components/HorizontalLoader';
 import SafeFooter from '@/components/SafeFooter';
 import TransactionModal from '@/components/TransactionModal';
 import { router } from 'expo-router';
-import { ArrowDownRight, ArrowLeft, ArrowUpRight, Ban as Bank, Calendar, Search, Settings, SlidersHorizontal, Wallet, X } from 'lucide-react-native';
+import { ArrowDownRight, ArrowLeft, ArrowUpRight, Ban as Bank, Calendar, Search, X } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -134,9 +134,6 @@ export default function TransactionsScreen() {
               <Pressable style={styles.iconButton}>
                 <Search size={20} color={colors.text} />
               </Pressable>
-              <Pressable style={styles.iconButton}>
-                <SlidersHorizontal size={20} color={colors.text} />
-              </Pressable>
             </View>
           </View>
         </View>
@@ -168,9 +165,6 @@ export default function TransactionsScreen() {
               ) : (
                 <Search size={20} color={colors.text} />
               )}
-            </Pressable>
-            <Pressable style={styles.iconButton}>
-              <SlidersHorizontal size={20} color={colors.text} />
             </Pressable>
           </View>
         </View>
