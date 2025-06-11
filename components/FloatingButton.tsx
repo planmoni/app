@@ -112,13 +112,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: 50,
-    paddingHorizontal: 24,
+    paddingHorizontal: 50,
     paddingBottom: 24,
     zIndex: 1000,
   },
   buttonContainer: {
     width: '100%',
-    paddingTop: 50,
+    
   },
   button: {
     width: '100%',
