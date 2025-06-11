@@ -786,7 +786,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     overflow: 'hidden',
   },
   payoutCardContent: {
-    padding: 20,
+    padding: 1,
   },
   payoutHeader: {
     flexDirection: 'row',
