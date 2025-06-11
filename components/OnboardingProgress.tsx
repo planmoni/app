@@ -1,28 +1,30 @@
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 type OnboardingProgressProps = {
-  currentStep: number;
+  step: number;
   totalSteps: number;
 };
 
-export default function OnboardingProgress({ currentStep, totalSteps }: OnboardingProgressProps) {
+export default function OnboardingProgress({ step, totalSteps }: OnboardingProgressProps) {
   const { colors } = useTheme();
   
-  const progress = (currentStep / totalSteps) * 100;
-  
   const styles = createStyles(colors);
+  
+  // Calculate progress percentage
+  const progressPercentage = (step / totalSteps) * 100;
   
   return (
     <View style={styles.container}>
       <View style={styles.progressBar}>
         <View 
           style={[
-            styles.progressFill,
-            { width: `${progress}%` }
-          ]}
+            styles.progressFill, 
+            { width: `${progressPercentage}%` }
+          ]} 
         />
       </View>
+      <Text style={styles.stepText}>Step {step} of {totalSteps}</Text>
     </View>
   );
 }
@@ -30,16 +32,21 @@ export default function OnboardingProgress({ currentStep, totalSteps }: Onboardi
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingVertical: 16,
   },
   progressBar: {
     height: 4,
     backgroundColor: colors.border,
     borderRadius: 2,
+    marginBottom: 8,
   },
   progressFill: {
     height: '100%',
     backgroundColor: colors.primary,
     borderRadius: 2,
+  },
+  stepText: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
 });

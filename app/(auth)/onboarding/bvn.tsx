@@ -2,8 +2,8 @@ import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, ArrowRight, CreditCard, Info } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { CreditCard, Info } from 'lucide-react-native';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
@@ -18,19 +18,16 @@ export default function BVNScreen() {
   
   const [bvn, setBvn] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [isButtonEnabled, setIsButtonEnabled] = useState(false);
-  const bvnInputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
+    // Focus the input field when the component mounts
     const timer = setTimeout(() => {
-      bvnInputRef.current?.focus();
+      inputRef.current?.focus();
     }, 100);
+    
     return () => clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    setIsButtonEnabled(bvn.length === 11 || bvn.length === 0);
-  }, [bvn]);
 
   const handleContinue = () => {
     if (bvn && bvn.length !== 11) {
@@ -40,26 +37,14 @@ export default function BVNScreen() {
     
     router.push({
       pathname: '/onboarding/app-lock',
-      params: { 
-        firstName,
-        lastName,
-        email,
-        password,
-        bvn: bvn || 'skipped'
-      }
+      params: { firstName, lastName, email, password, bvn }
     });
   };
 
   const handleSkip = () => {
     router.push({
       pathname: '/onboarding/app-lock',
-      params: { 
-        firstName,
-        lastName,
-        email,
-        password,
-        bvn: 'skipped'
-      }
+      params: { firstName, lastName, email, password }
     });
   };
 
@@ -67,68 +52,63 @@ export default function BVNScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color={colors.text} />
-        </Pressable>
-      </View>
-
-      <OnboardingProgress currentStep={7} totalSteps={8} />
-
-      <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
+      <OnboardingProgress step={7} totalSteps={8} />
+      
+      <KeyboardAvoidingWrapper disableDismissKeyboard={true}>
         <View style={styles.content}>
-          <Text style={styles.title}>Verify your identity</Text>
-          <Text style={styles.subtitle}>This helps us keep your account secure</Text>
+          <View style={styles.header}>
+            <Text style={styles.title}>Enter your BVN</Text>
+            <Text style={styles.subtitle}>Bank Verification Number (Optional)</Text>
+          </View>
 
-          <View style={styles.formContainer}>
-            <Text style={styles.question}>What's your BVN?</Text>
-            
-            {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-            
-            <View style={styles.inputContainer}>
-              <CreditCard size={20} color={colors.textSecondary} style={styles.inputIcon} />
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          <View style={styles.inputContainer}>
+            <View style={styles.inputWrapper}>
+              <CreditCard size={20} color={colors.textSecondary} style={styles.icon} />
               <TextInput
-                ref={bvnInputRef}
+                ref={inputRef}
                 style={styles.input}
                 placeholder="Enter your 11-digit BVN"
                 placeholderTextColor={colors.textTertiary}
                 value={bvn}
                 onChangeText={(text) => {
-                  // Only allow numbers
-                  const numericText = text.replace(/[^0-9]/g, '');
-                  if (numericText.length <= 11) {
-                    setBvn(numericText);
-                    setError(null);
+                  // Only allow numbers and limit to 11 digits
+                  if (/^\d*$/.test(text) && text.length <= 11) {
+                    setBvn(text);
+                    if (error) setError(null);
                   }
                 }}
                 keyboardType="number-pad"
+                returnKeyType="next"
+                onSubmitEditing={handleContinue}
               />
             </View>
-            
-            <View style={styles.infoContainer}>
-              <Info size={16} color={colors.primary} />
-              <Text style={styles.infoText}>
-                Your BVN is not stored and is only used for verification purposes.
-              </Text>
-            </View>
-            
-            <Pressable onPress={handleSkip} style={styles.skipButton}>
-              <Text style={styles.skipText}>Skip for now</Text>
-            </Pressable>
+          </View>
+
+          <View style={styles.infoContainer}>
+            <Info size={20} color={colors.primary} style={styles.infoIcon} />
+            <Text style={styles.infoText}>
+              Your BVN helps us verify your identity and increases your transaction limits. We do not store your BVN after verification.
+            </Text>
           </View>
         </View>
       </KeyboardAvoidingWrapper>
 
-      <FloatingButton 
-        title="Continue"
-        onPress={handleContinue}
-        disabled={!isButtonEnabled}
-        icon={ArrowRight}
-      />
+      <View style={styles.buttonContainer}>
+        <FloatingButton 
+          title="Continue"
+          onPress={handleContinue}
+          disabled={bvn.length > 0 && bvn.length !== 11}
+        />
+        <Pressable onPress={handleSkip} style={styles.skipButton}>
+          <Text style={styles.skipText}>Skip for now</Text>
+        </Pressable>
+      </View>
     </SafeAreaView>
   );
 }
@@ -138,51 +118,30 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-  },
-  contentContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-  },
   content: {
     flex: 1,
-    justifyContent: 'flex-start',
-    paddingTop: 40,
+    padding: 24,
+  },
+  header: {
+    marginBottom: 24,
+    alignItems: 'flex-start',
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: 60,
-    textAlign: 'center',
-  },
-  formContainer: {
-    width: '100%',
-  },
-  question: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 24,
+    textAlign: 'left',
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
+    borderWidth: 1,
+    borderColor: colors.error,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
@@ -192,29 +151,35 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
   },
   inputContainer: {
+    marginBottom: 24,
+  },
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
+    padding: 16,
     backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    height: 56,
   },
-  inputIcon: {
+  icon: {
     marginRight: 12,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 18,
     color: colors.text,
-    height: '100%',
   },
   infoContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginTop: 16,
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  infoIcon: {
+    marginRight: 12,
+    marginTop: 2,
   },
   infoText: {
     flex: 1,
@@ -222,10 +187,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
   },
+  buttonContainer: {
+    padding: 24,
+    gap: 16,
+  },
   skipButton: {
-    alignSelf: 'center',
-    marginTop: 32,
-    padding: 12,
+    alignItems: 'center',
+    paddingVertical: 12,
   },
   skipText: {
     fontSize: 16,
