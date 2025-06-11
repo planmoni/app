@@ -6,6 +6,7 @@ import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Check } from 'lucide-react-n
 import Button from '@/components/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import SafeFooter from '@/components/SafeFooter';
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
@@ -309,7 +310,7 @@ export default function SignUpScreen() {
           <Button
             title="Create Account"
             onPress={handleSignUp}
-            loading={isLoading}
+            isLoading={isLoading}
             style={styles.signUpButton}
             icon={ArrowRight}
           />
@@ -324,6 +325,8 @@ export default function SignUpScreen() {
           </View>
         </View>
       </ScrollView>
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }
