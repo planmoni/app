@@ -16,7 +16,7 @@ import { usePayoutPlans } from '@/hooks/usePayoutPlans';
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance } = useBalance();
   const { session } = useAuth();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { payoutPlans, isLoading: payoutPlansLoading } = usePayoutPlans();
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
@@ -66,10 +66,6 @@ export default function HomeScreen() {
     } else {
       return 'Good evening 🌅';
     }
-  };
-
-  const handleProfilePress = () => {
-    router.push('/profile');
   };
 
   const buttonOpacity = scrollY.interpolate({
@@ -127,6 +123,10 @@ export default function HomeScreen() {
     setIsTransactionModalVisible(true);
   };
 
+  const handleProfilePress = () => {
+    router.push('/profile');
+  };
+
   // Get active payout plans for display
   const activePlans = payoutPlans.filter(plan => plan.status === 'active').slice(0, 3);
   
@@ -163,7 +163,7 @@ export default function HomeScreen() {
     return diffDays;
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -285,39 +285,81 @@ export default function HomeScreen() {
 
         {nextPayout && (
           <Card style={styles.payoutCard}>
-            <View style={styles.payoutHeader}>
-              <Text style={styles.payoutTitle}>Next Payout</Text>
-              <View style={styles.activeTag}>
-                <Text style={styles.activeTagText}>
-                  {nextPayout.status === 'active' ? 'Running' : 'Paused'}
-                </Text>
+            <View style={styles.payoutCardContent}>
+              <View style={styles.payoutHeader}>
+                <View style={styles.payoutTitleContainer}>
+                  <Text style={styles.payoutTitle}>Next Payout</Text>
+                  <View style={styles.activeTag}>
+                    <Text style={styles.activeTagText}>
+                      {nextPayout.status === 'active' ? 'Running' : 'Paused'}
+                    </Text>
+                  </View>
+                </View>
+                <Pressable 
+                  style={styles.viewAllButton} 
+                  onPress={handleViewAllPayouts}
+                >
+                  <Text style={styles.viewAllText}>View All</Text>
+                </Pressable>
               </View>
-            </View>
-            <Text style={styles.payoutAmount}>{formatBalance(nextPayout.payout_amount)}</Text>
-            <Text style={styles.payoutDate}>
-              {nextPayout.next_payout_date 
-                ? (() => {
-                    const daysLeft = getDaysUntilPayout(nextPayout.next_payout_date);
-                    const formattedDate = new Date(nextPayout.next_payout_date).toLocaleDateString();
-                    
-                    if (daysLeft === 0) {
-                      return `${formattedDate} • Today`;
-                    } else if (daysLeft === 1) {
-                      return `${formattedDate} • Tomorrow`;
-                    } else if (daysLeft > 0) {
-                      return `${formattedDate} • ${daysLeft} days left`;
-                    } else {
-                      return `${formattedDate} • Overdue`;
-                    }
-                  })()
-                : 'Date not set'
-              }
-            </Text>
-            <View style={styles.payoutActions}>
-              <Pressable style={styles.viewButton} onPress={() => handleViewPayout(nextPayout.id)}>
-                <Text style={styles.viewButtonText}>View</Text>
-                <ChevronRight size={20} color={colors.text} />
-              </Pressable>
+              
+              <View style={styles.payoutDetails}>
+                <View style={styles.payoutInfo}>
+                  <Text style={styles.payoutName}>{nextPayout.name}</Text>
+                  <Text style={styles.payoutAmount}>{formatBalance(nextPayout.payout_amount)}</Text>
+                  
+                  {nextPayout.next_payout_date && (
+                    <View style={styles.dateContainer}>
+                      <Calendar size={16} color={colors.primary} />
+                      <Text style={styles.payoutDate}>
+                        {(() => {
+                          const daysLeft = getDaysUntilPayout(nextPayout.next_payout_date!);
+                          const formattedDate = new Date(nextPayout.next_payout_date!).toLocaleDateString();
+                          
+                          if (daysLeft === 0) {
+                            return `${formattedDate} • Today`;
+                          } else if (daysLeft === 1) {
+                            return `${formattedDate} • Tomorrow`;
+                          } else if (daysLeft > 0) {
+                            return `${formattedDate} • ${daysLeft} days left`;
+                          } else {
+                            return `${formattedDate} • Overdue`;
+                          }
+                        })()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                
+                <View style={styles.progressContainer}>
+                  <View style={styles.progressBar}>
+                    <View 
+                      style={[
+                        styles.progressFill, 
+                        { width: `${Math.round((nextPayout.completed_payouts / nextPayout.duration) * 100)}%` }
+                      ]} 
+                    />
+                  </View>
+                  <View style={styles.progressStats}>
+                    <Text style={styles.progressText}>
+                      {nextPayout.completed_payouts}/{nextPayout.duration} payouts
+                    </Text>
+                    <Text style={styles.progressAmount}>
+                      {formatBalance(nextPayout.completed_payouts * nextPayout.payout_amount)}/{formatBalance(nextPayout.total_amount)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              
+              <View style={styles.payoutActions}>
+                <Pressable 
+                  style={styles.viewButton} 
+                  onPress={() => handleViewPayout(nextPayout.id)}
+                >
+                  <Text style={styles.viewButtonText}>View Details</Text>
+                  <ChevronRight size={20} color={colors.text} />
+                </Pressable>
+              </View>
             </View>
           </Card>
         )}
@@ -537,7 +579,7 @@ export default function HomeScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -738,20 +780,29 @@ const createStyles = (colors: any) => StyleSheet.create({
   payoutCard: {
     marginBottom: 24,
     borderRadius: 16,
-    padding: 1,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  payoutCardContent: {
+    padding: 20,
   },
   payoutHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+  },
+  payoutTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   payoutTitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
   },
   activeTag: {
     backgroundColor: '#DCFCE7',
@@ -764,23 +815,72 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#22C55E',
     fontWeight: '500',
   },
+  payoutDetails: {
+    marginBottom: 16,
+  },
+  payoutInfo: {
+    marginBottom: 16,
+  },
+  payoutName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
   payoutAmount: {
     fontSize: 24,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 12,
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
   },
   payoutDate: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  progressContainer: {
     marginBottom: 16,
   },
-  payoutActions: {
+  progressBar: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 3,
+  },
+  progressStats: {
     flexDirection: 'row',
-    gap: 12,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  progressText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  progressAmount: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  payoutActions: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 16,
   },
   viewButton: {
-    flex: 1,
     flexDirection: 'row',
     backgroundColor: colors.backgroundTertiary,
     borderWidth: 1,
@@ -901,26 +1001,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  progressBar: {
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 2,
-  },
   planProgress: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
-  },
-  progressText: {
-    fontSize: 12,
-    color: colors.textSecondary,
   },
   progressCount: {
     fontSize: 12,
