@@ -40,23 +40,12 @@ export default function LoginScreen() {
     
     setLoginError(null);
     
-    try {
-      await signIn(email.toLowerCase().trim(), password);
+    const result = await signIn(email.toLowerCase().trim(), password);
+    
+    if (result.success) {
       router.replace('/(tabs)');
-    } catch (err) {
-      // Handle specific error messages
-      const errorMessage = err instanceof Error ? err.message : 'Failed to sign in';
-      
-      // Check for common authentication errors and provide user-friendly messages
-      if (errorMessage.includes('Invalid login credentials')) {
-        setLoginError('Invalid email or password. Please check your credentials and try again.');
-      } else if (errorMessage.includes('Email not confirmed')) {
-        setLoginError('Please verify your email address before signing in.');
-      } else if (errorMessage.includes('rate limit')) {
-        setLoginError('Too many login attempts. Please try again later.');
-      } else {
-        setLoginError(errorMessage);
-      }
+    } else {
+      setLoginError(result.error || 'Failed to sign in');
     }
   };
 

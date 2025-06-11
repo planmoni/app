@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
 
+type AuthResult = {
+  success: boolean;
+  error?: string;
+};
+
 export function useSupabaseAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,7 +28,7 @@ export function useSupabaseAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string): Promise<AuthResult> => {
     try {
       setError(null);
       setIsLoading(true);
@@ -47,20 +52,20 @@ export function useSupabaseAuth() {
         }
         
         setError(errorMessage);
-        throw new Error(errorMessage);
+        return { success: false, error: errorMessage };
       }
       
-      return data;
+      return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign in';
       setError(message);
-      throw new Error(message);
+      return { success: false, error: message };
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
+  const signUp = async (email: string, password: string, firstName: string, lastName: string): Promise<AuthResult> => {
     try {
       setError(null);
       setIsLoading(true);
@@ -88,47 +93,57 @@ export function useSupabaseAuth() {
         }
         
         setError(errorMessage);
-        throw new Error(errorMessage);
+        return { success: false, error: errorMessage };
       }
 
       // The trigger will automatically create the profile and wallet
-      return data;
+      return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create account';
       setError(message);
-      throw new Error(message);
+      return { success: false, error: message };
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signOut = async () => {
+  const signOut = async (): Promise<AuthResult> => {
     try {
       setError(null);
       setIsLoading(true);
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      if (error) {
+        const message = error.message;
+        setError(message);
+        return { success: false, error: message };
+      }
+      return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign out';
       setError(message);
-      throw new Error(message);
+      return { success: false, error: message };
     } finally {
       setIsLoading(false);
     }
   };
 
-  const resetPassword = async (email: string) => {
+  const resetPassword = async (email: string): Promise<AuthResult> => {
     try {
       setError(null);
       setIsLoading(true);
       const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
         redirectTo: 'planmoni://reset-password',
       });
-      if (error) throw error;
+      if (error) {
+        const message = error.message;
+        setError(message);
+        return { success: false, error: message };
+      }
+      return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to send reset email';
       setError(message);
-      throw new Error(message);
+      return { success: false, error: message };
     } finally {
       setIsLoading(false);
     }
