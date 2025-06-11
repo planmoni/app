@@ -16,9 +16,10 @@ export default function FirstNameScreen() {
   const firstNameInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
+    // Focus the input field with a slight delay to ensure it's rendered
     const timer = setTimeout(() => {
       firstNameInputRef.current?.focus();
-    }, 100);
+    }, 300);
     return () => clearTimeout(timer);
   }, []);
 
@@ -49,7 +50,7 @@ export default function FirstNameScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={1} totalSteps={8} />
+      <OnboardingProgress currentStep={1} totalSteps={9} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
