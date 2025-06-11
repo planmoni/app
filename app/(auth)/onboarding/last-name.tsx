@@ -44,10 +44,6 @@ export default function LastNameScreen() {
     });
   };
 
-  const handleSignIn = () => {
-    router.push('/(auth)/login');
-  };
-
   const styles = createStyles(colors);
 
   return (
@@ -56,8 +52,8 @@ export default function LastNameScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Pressable style={styles.signInButton} onPress={handleSignIn}>
-          <Text style={styles.signInButtonText}>Sign In</Text>
+        <Pressable onPress={() => router.push('/login')} style={styles.signInButton}>
+          <Text style={styles.signInText}>Sign In</Text>
         </Pressable>
       </View>
 
@@ -113,8 +109,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
@@ -129,10 +125,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   signInButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 20,
     backgroundColor: colors.backgroundTertiary,
   },
-  signInButtonText: {
+  signInText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.primary,

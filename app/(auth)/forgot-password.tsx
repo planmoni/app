@@ -42,10 +42,6 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  const handleSignUp = () => {
-    router.push('/(auth)/onboarding/first-name');
-  };
-
   const styles = createStyles(colors);
 
   if (isEmailSent) {
@@ -89,9 +85,6 @@ export default function ForgotPasswordScreen() {
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft size={24} color={colors.text} />
-          </Pressable>
-          <Pressable style={styles.signUpButton} onPress={handleSignUp}>
-            <Text style={styles.signUpButtonText}>Sign Up</Text>
           </Pressable>
         </View>
 
@@ -165,9 +158,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     padding: 24,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 32,
   },
   backButton: {
@@ -177,17 +167,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: 20,
-  },
-  signUpButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: colors.backgroundTertiary,
-  },
-  signUpButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
   },
   content: {
     flex: 1,
