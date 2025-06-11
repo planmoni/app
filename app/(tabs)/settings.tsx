@@ -6,7 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { Bell, Mail, PencilLine, Phone, User, Building2, Gift, CircleHelp as HelpCircle, Languages, Link2, Lock, LogOut, MessageSquare, Moon, Shield, FileSliders as Sliders, FileText as Terms, ChevronRight, Eye, Fingerprint, Clock, DollarSign } from 'lucide-react-native';
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View, Alert } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -28,7 +28,6 @@ export default function SettingsScreen() {
   const [vaultAlerts, setVaultAlerts] = useState(true);
   const [loginAlerts, setLoginAlerts] = useState(true);
   const [expiryReminders, setExpiryReminders] = useState(false);
-  const [isSigningOut, setIsSigningOut] = useState(false);
 
   // Modal visibility states
   const [showAccountStatement, setShowAccountStatement] = useState(false);
@@ -69,37 +68,8 @@ export default function SettingsScreen() {
   };
 
   const handleSignOut = async () => {
-    // Show confirmation alert first
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out of your account?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setIsSigningOut(true);
-              await signOut();
-              // The auth state change will trigger navigation in the root layout
-            } catch (error) {
-              console.error('Sign out error:', error);
-              Alert.alert(
-                'Error',
-                'Failed to sign out. Please try again.',
-                [{ text: 'OK' }]
-              );
-            } finally {
-              setIsSigningOut(false);
-            }
-          },
-        },
-      ]
-    );
+    await signOut();
+    router.replace('/');
   };
 
   const styles = createStyles(colors);
@@ -411,25 +381,24 @@ export default function SettingsScreen() {
             <ChevronRight size={20} color={colors.textTertiary} />
           </Pressable>
         </View>
+
+        <View style={styles.footer}>
+          <Button
+            title="Sign Out"
+            onPress={handleSignOut}
+            style={styles.signOutButton}
+            variant="outline"
+            icon={LogOut}
+          />
+
+          <Pressable 
+            style={styles.deleteAccount}
+            onPress={() => setShowDeleteAccount(true)}
+          >
+            <Text style={styles.deleteText}>Delete Account</Text>
+          </Pressable>
+        </View>
       </ScrollView>
-
-      <View style={styles.footer}>
-        <Button
-          title={isSigningOut ? "Signing Out..." : "Sign Out"}
-          onPress={handleSignOut}
-          style={styles.signOutButton}
-          variant="outline"
-          icon={LogOut}
-          disabled={isSigningOut}
-        />
-
-        <Pressable 
-          style={styles.deleteAccount}
-          onPress={() => setShowDeleteAccount(true)}
-        >
-          <Text style={styles.deleteText}>Delete Account</Text>
-        </Pressable>
-      </View>
 
       <AccountStatementModal
         isVisible={showAccountStatement}

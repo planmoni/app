@@ -46,9 +46,8 @@ function RootLayoutNav() {
     <>
       <Stack screenOptions={{ headerShown: false }}>
         {session ? (
-          // User is authenticated - show app screens
           <React.Fragment key="authenticated-screens">
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)\" options={{ headerShown: false }} />
             <Stack.Screen name="profile" options={{ headerShown: false }} />
             <Stack.Screen name="add-funds" options={{ headerShown: false }} />
             <Stack.Screen name="all-payouts" options={{ headerShown: false }} />
@@ -64,7 +63,6 @@ function RootLayoutNav() {
             <Stack.Screen name="view-payout" options={{ headerShown: false }} />
           </React.Fragment>
         ) : (
-          // User is not authenticated - show welcome and auth screens
           <React.Fragment key="unauthenticated-screens">
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
