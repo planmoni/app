@@ -352,7 +352,7 @@ export default function HomeScreen() {
             <View style={styles.payoutCardContent}>
               <View style={styles.payoutHeader}>
                 <View style={styles.payoutTitleContainer}>
-                  <Text style={styles.payoutTitle}>Next Payout</Text>
+                  <Text style={styles.payoutTitle}>Upcoming Payout</Text>
                   <View style={styles.activeTag}>
                     <Text style={styles.activeTagText}>
                       {nextPayout.status === 'active' ? 'Running' : 'Paused'}
