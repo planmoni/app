@@ -73,7 +73,7 @@ export default function SettingsScreen() {
     try {
       await signOut();
       setShowLogout(false);
-      router.replace('/');
+      // Remove router.replace('/') - let the root layout handle navigation
     } catch (error) {
       Alert.alert('Error', 'Failed to log out. Please try again.');
     }
