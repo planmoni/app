@@ -351,20 +351,20 @@ export default function HomeScreen() {
           <Card style={styles.payoutCard}>
             <View style={styles.payoutCardContent}>
               <View style={styles.payoutHeader}>
-                <View style={styles.payoutTitleContainer}>
-                  <Text style={styles.payoutTitle}>Upcoming Payout</Text>
+                <Text style={styles.payoutTitle}>Upcoming Payout</Text>
+                <View style={styles.headerActions}>
                   <View style={styles.activeTag}>
                     <Text style={styles.activeTagText}>
                       {nextPayout.status === 'active' ? 'Running' : 'Paused'}
                     </Text>
                   </View>
+                  <Pressable 
+                    style={styles.viewAllButton} 
+                    onPress={handleViewAllPayouts}
+                  >
+                    <Text style={styles.viewAllText}>View All</Text>
+                  </Pressable>
                 </View>
-                {/* <Pressable 
-                  style={styles.viewAllButton} 
-                  onPress={handleViewAllPayouts}
-                >
-                  <Text style={styles.viewAllText}>View All</Text>
-                </Pressable> */}
               </View>
               
               <View style={styles.payoutDetails}>
@@ -859,6 +859,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   activeTag: {
     backgroundColor: '#DCFCE7',
