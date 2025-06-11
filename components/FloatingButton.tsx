@@ -108,7 +108,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: 18,
-    paddingHorizontal: 16,
+    paddingHorizontal: 1,
     paddingBottom: 16,
     zIndex: 1000,
   },
