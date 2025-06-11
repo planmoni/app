@@ -25,7 +25,7 @@ export default function ConfirmPasswordScreen() {
   useEffect(() => {
     const timer = setTimeout(() => {
       confirmPasswordInputRef.current?.focus();
-    }, 100);
+    }, 300);
     return () => clearTimeout(timer);
   }, []);
 
@@ -60,7 +60,7 @@ export default function ConfirmPasswordScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={6} totalSteps={8} />
+      <OnboardingProgress currentStep={6} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>

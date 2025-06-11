@@ -24,7 +24,7 @@ export default function CreatePasswordScreen() {
   useEffect(() => {
     const timer = setTimeout(() => {
       passwordInputRef.current?.focus();
-    }, 100);
+    }, 300);
     return () => clearTimeout(timer);
   }, []);
 
@@ -74,7 +74,7 @@ export default function CreatePasswordScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={5} totalSteps={8} />
+      <OnboardingProgress currentStep={5} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>

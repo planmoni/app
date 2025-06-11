@@ -30,7 +30,7 @@ export default function OTPScreen() {
   useEffect(() => {
     const timer = setTimeout(() => {
       inputRefs.current[0]?.focus();
-    }, 100);
+    }, 300);
     return () => clearTimeout(timer);
   }, []);
 
@@ -72,6 +72,13 @@ export default function OTPScreen() {
     // Handle backspace
     if (e.nativeEvent.key === 'Backspace' && index > 0 && otp[index] === '') {
       inputRefs.current[index - 1]?.focus();
+      
+      // Update the value to remove the previous digit
+      if (index > 0) {
+        const newOtp = [...otp];
+        newOtp[index - 1] = '';
+        setOtp(newOtp);
+      }
     }
   };
 
@@ -113,7 +120,7 @@ export default function OTPScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={4} totalSteps={8} />
+      <OnboardingProgress currentStep={4} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>

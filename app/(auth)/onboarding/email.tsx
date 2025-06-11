@@ -21,7 +21,7 @@ export default function EmailScreen() {
   useEffect(() => {
     const timer = setTimeout(() => {
       emailInputRef.current?.focus();
-    }, 100);
+    }, 300);
     return () => clearTimeout(timer);
   }, []);
 
@@ -61,7 +61,7 @@ export default function EmailScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={3} totalSteps={8} />
+      <OnboardingProgress currentStep={3} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>

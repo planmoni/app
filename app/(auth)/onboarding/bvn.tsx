@@ -24,7 +24,7 @@ export default function BVNScreen() {
   useEffect(() => {
     const timer = setTimeout(() => {
       bvnInputRef.current?.focus();
-    }, 100);
+    }, 300);
     return () => clearTimeout(timer);
   }, []);
 
@@ -73,7 +73,7 @@ export default function BVNScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={7} totalSteps={8} />
+      <OnboardingProgress currentStep={7} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
