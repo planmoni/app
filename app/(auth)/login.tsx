@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, Image, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { router, Link } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +6,7 @@ import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 
 export default function LoginScreen() {
   const { colors, isDark } = useTheme();
@@ -49,136 +50,138 @@ export default function LoginScreen() {
     }
   };
 
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
+  };
+
   const styles = createStyles(colors, isDark);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView 
-        style={styles.scrollView} 
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.logoContainer}>
-          <Image
-            source={isDark 
-              ? require('@/assets/images/PlanmoniDarkMode.png')
-              : require('@/assets/images/Planmoni.png')
-            }
-            style={styles.logo}
-            resizeMode="contain"
-          />
-        </View>
-
-        <View style={styles.header}>
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>Sign in to your Planmoni account</Text>
-        </View>
-
-        <View style={styles.form}>
-          {(loginError || authError) && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{loginError || authError}</Text>
-            </View>
-          )}
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
-            <View style={[
-              styles.inputContainer,
-              formErrors.email && styles.inputError
-            ]}>
-              <Mail size={20} color={colors.textSecondary} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor={colors.textTertiary}
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  if (formErrors.email) {
-                    setFormErrors(prev => ({ ...prev, email: undefined }));
-                  }
-                  if (loginError) {
-                    setLoginError(null);
-                  }
-                }}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                textContentType="emailAddress"
-              />
-            </View>
-            {formErrors.email && (
-              <Text style={styles.fieldError}>{formErrors.email}</Text>
-            )}
+      <TouchableWithoutFeedback onPress={dismissKeyboard}>
+        <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
+          <View style={styles.logoContainer}>
+            <Image
+              source={isDark 
+                ? require('@/assets/images/PlanmoniDarkMode.png')
+                : require('@/assets/images/Planmoni.png')
+              }
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
 
-          <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Text style={styles.label}>Password</Text>
-              <Link href="/(auth)/forgot-password" asChild>
+          <View style={styles.header}>
+            <Text style={styles.title}>Welcome back</Text>
+            <Text style={styles.subtitle}>Sign in to your Planmoni account</Text>
+          </View>
+
+          <View style={styles.form}>
+            {(loginError || authError) && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{loginError || authError}</Text>
+              </View>
+            )}
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Email Address</Text>
+              <View style={[
+                styles.inputContainer,
+                formErrors.email && styles.inputError
+              ]}>
+                <Mail size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  placeholderTextColor={colors.textTertiary}
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (formErrors.email) {
+                      setFormErrors(prev => ({ ...prev, email: undefined }));
+                    }
+                    if (loginError) {
+                      setLoginError(null);
+                    }
+                  }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                />
+              </View>
+              {formErrors.email && (
+                <Text style={styles.fieldError}>{formErrors.email}</Text>
+              )}
+            </View>
+
+            <View style={styles.inputGroup}>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>Password</Text>
+                <Link href="/(auth)/forgot-password" asChild>
+                  <Pressable>
+                    <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+                  </Pressable>
+                </Link>
+              </View>
+              <View style={[
+                styles.inputContainer,
+                formErrors.password && styles.inputError
+              ]}>
+                <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your password"
+                  placeholderTextColor={colors.textTertiary}
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (formErrors.password) {
+                      setFormErrors(prev => ({ ...prev, password: undefined }));
+                    }
+                    if (loginError) {
+                      setLoginError(null);
+                    }
+                  }}
+                  secureTextEntry={!showPassword}
+                  autoComplete="password"
+                  textContentType="password"
+                />
+                <Pressable
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff size={20} color={colors.textSecondary} />
+                  ) : (
+                    <Eye size={20} color={colors.textSecondary} />
+                  )}
+                </Pressable>
+              </View>
+              {formErrors.password && (
+                <Text style={styles.fieldError}>{formErrors.password}</Text>
+              )}
+            </View>
+
+            <Button
+              title="Sign In"
+              onPress={handleLogin}
+              isLoading={isLoading}
+              style={styles.signInButton}
+              icon={ArrowRight}
+            />
+
+            <View style={styles.signUpContainer}>
+              <Text style={styles.signUpText}>Don't have an account? </Text>
+              <Link href="/" asChild>
                 <Pressable>
-                  <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+                  <Text style={styles.signUpLink}>Sign up</Text>
                 </Pressable>
               </Link>
             </View>
-            <View style={[
-              styles.inputContainer,
-              formErrors.password && styles.inputError
-            ]}>
-              <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your password"
-                placeholderTextColor={colors.textTertiary}
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  if (formErrors.password) {
-                    setFormErrors(prev => ({ ...prev, password: undefined }));
-                  }
-                  if (loginError) {
-                    setLoginError(null);
-                  }
-                }}
-                secureTextEntry={!showPassword}
-                autoComplete="password"
-                textContentType="password"
-              />
-              <Pressable
-                style={styles.eyeButton}
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? (
-                  <EyeOff size={20} color={colors.textSecondary} />
-                ) : (
-                  <Eye size={20} color={colors.textSecondary} />
-                )}
-              </Pressable>
-            </View>
-            {formErrors.password && (
-              <Text style={styles.fieldError}>{formErrors.password}</Text>
-            )}
           </View>
-
-          <Button
-            title="Sign In"
-            onPress={handleLogin}
-            isLoading={isLoading}
-            style={styles.signInButton}
-            icon={ArrowRight}
-          />
-
-          <View style={styles.signUpContainer}>
-            <Text style={styles.signUpText}>Don't have an account? </Text>
-            <Link href="/" asChild>
-              <Pressable>
-                <Text style={styles.signUpLink}>Sign up</Text>
-              </Pressable>
-            </Link>
-          </View>
-        </View>
-      </ScrollView>
+        </KeyboardAvoidingWrapper>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }
@@ -188,10 +191,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
+  contentContainer: {
     flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
