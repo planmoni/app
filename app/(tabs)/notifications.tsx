@@ -7,8 +7,6 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import HorizontalLoader from '@/components/HorizontalLoader';
 
-type NotificationType = 'all' | 'payouts' | 'vaults' | 'security';
-
 type Notification = {
   id: string;
   type: string;
@@ -18,7 +16,6 @@ type Notification = {
   payout_plan_id: string | null;
   transaction_id: string | null;
   created_at: string;
-  category: NotificationType;
   icon: any;
   iconBg: string;
   iconColor: string;
@@ -29,7 +26,6 @@ type Notification = {
 export default function NotificationsScreen() {
   const { colors } = useTheme();
   const { session } = useAuth();
-  const [activeFilter, setActiveFilter] = useState<NotificationType>('all');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,16 +61,6 @@ export default function NotificationsScreen() {
   };
 
   const formatNotification = (event: any): Notification => {
-    // Determine category based on type
-    let category: NotificationType = 'all';
-    if (event.type.includes('payout')) {
-      category = 'payouts';
-    } else if (event.type.includes('vault')) {
-      category = 'vaults';
-    } else if (event.type.includes('security') || event.type.includes('alert')) {
-      category = 'security';
-    }
-
     // Determine icon and colors based on type
     let icon = Wallet;
     let iconBg = '#DCFCE7';
@@ -121,7 +107,6 @@ export default function NotificationsScreen() {
 
     return {
       ...event,
-      category,
       icon,
       iconBg,
       iconColor,
@@ -174,10 +159,6 @@ export default function NotificationsScreen() {
     }
   };
 
-  const filteredNotifications = notifications.filter(
-    notification => activeFilter === 'all' || notification.category === activeFilter
-  );
-
   const styles = createStyles(colors);
 
   if (isLoading) {
@@ -208,45 +189,6 @@ export default function NotificationsScreen() {
             <Text style={styles.markAllText}>Mark all as read</Text>
           </Pressable>
         </View>
-
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          contentContainerStyle={styles.filterContent}
-        >
-          <Pressable 
-            style={[styles.filterButton, activeFilter === 'all' && styles.activeFilterButton]}
-            onPress={() => setActiveFilter('all')}
-          >
-            <Text style={[styles.filterText, activeFilter === 'all' && styles.activeFilterText]}>
-              All
-            </Text>
-          </Pressable>
-          <Pressable 
-            style={[styles.filterButton, activeFilter === 'payouts' && styles.activeFilterButton]}
-            onPress={() => setActiveFilter('payouts')}
-          >
-            <Text style={[styles.filterText, activeFilter === 'payouts' && styles.activeFilterText]}>
-              Payouts
-            </Text>
-          </Pressable>
-          <Pressable 
-            style={[styles.filterButton, activeFilter === 'vaults' && styles.activeFilterButton]}
-            onPress={() => setActiveFilter('vaults')}
-          >
-            <Text style={[styles.filterText, activeFilter === 'vaults' && styles.activeFilterText]}>
-              Vaults
-            </Text>
-          </Pressable>
-          <Pressable 
-            style={[styles.filterButton, activeFilter === 'security' && styles.activeFilterButton]}
-            onPress={() => setActiveFilter('security')}
-          >
-            <Text style={[styles.filterText, activeFilter === 'security' && styles.activeFilterText]}>
-              Security
-            </Text>
-          </Pressable>
-        </ScrollView>
       </View>
 
       {error ? (
@@ -256,16 +198,16 @@ export default function NotificationsScreen() {
             <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>
         </View>
-      ) : filteredNotifications.length === 0 ? (
+      ) : notifications.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No notifications</Text>
           <Text style={styles.emptySubtext}>
-            You don't have any {activeFilter !== 'all' ? activeFilter : ''} notifications yet
+            You don't have any notifications yet
           </Text>
         </View>
       ) : (
         <ScrollView style={styles.notificationsList}>
-          {filteredNotifications.map((notification) => (
+          {notifications.map((notification) => (
             <Pressable 
               key={notification.id} 
               style={[styles.notification, notification.status === 'unread' && styles.unreadNotification]}
@@ -369,30 +311,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
     fontWeight: '500',
-  },
-  filterContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 8,
-    flexDirection: 'row',
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.backgroundTertiary,
-    marginRight: 8,
-  },
-  activeFilterButton: {
-    backgroundColor: colors.primary,
-  },
-  filterText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  activeFilterText: {
-    color: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,
