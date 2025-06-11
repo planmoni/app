@@ -180,7 +180,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     color: colors.textSecondary,
-    marginRight: 8,
+    marginRight: 3,
   },
   amountInput: {
     flex: 1,
