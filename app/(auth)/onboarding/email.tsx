@@ -50,6 +50,10 @@ export default function EmailScreen() {
     });
   };
 
+  const handleSignIn = () => {
+    router.push('/(auth)/login');
+  };
+
   const styles = createStyles(colors);
 
   return (
@@ -58,8 +62,8 @@ export default function EmailScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Pressable onPress={() => router.push('/login')} style={styles.signInButton}>
-          <Text style={styles.signInText}>Sign In</Text>
+        <Pressable style={styles.signInButton} onPress={handleSignIn}>
+          <Text style={styles.signInButtonText}>Sign In</Text>
         </Pressable>
       </View>
 
@@ -120,8 +124,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
@@ -136,10 +140,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   signInButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 20,
+    borderRadius: 8,
     backgroundColor: colors.backgroundTertiary,
   },
-  signInText: {
+  signInButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.primary,
