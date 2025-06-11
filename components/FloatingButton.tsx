@@ -122,5 +122,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   button: {
     width: '100%',
     backgroundColor: colors.primary,
+    paddingTop: 50,
   },
 });
