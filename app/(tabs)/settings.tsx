@@ -6,7 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { Bell, Mail, PencilLine, Phone, User, Building2, Gift, CircleHelp as HelpCircle, Languages, Link2, Lock, LogOut, MessageSquare, Moon, Shield, FileSliders as Sliders, FileText as Terms, ChevronRight, Eye, Fingerprint, Clock, DollarSign } from 'lucide-react-native';
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View, Alert } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -18,7 +18,7 @@ import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
 
 export default function SettingsScreen() {
-  const { session, signOut } = useAuth();
+  const { session } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
   const { theme, setTheme, colors } = useTheme();
   const firstName = session?.user?.user_metadata?.first_name || '';
@@ -67,34 +67,6 @@ export default function SettingsScreen() {
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut();
-      setShowLogout(false);
-      // The root layout will handle navigation to the welcome screen
-    } catch (error) {
-      Alert.alert('Error', 'Failed to log out. Please try again.');
-    }
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'Are you sure you want to permanently delete your account? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: () => {
-            // TODO: Implement account deletion
-            Alert.alert('Feature Coming Soon', 'Account deletion will be available in a future update.');
-          }
-        }
-      ]
-    );
   };
 
   const styles = createStyles(colors);
@@ -418,7 +390,7 @@ export default function SettingsScreen() {
 
           <Pressable 
             style={styles.deleteAccount}
-            onPress={handleDeleteAccount}
+            onPress={() => setShowDeleteAccount(true)}
           >
             <Text style={styles.deleteText}>Delete Account</Text>
           </Pressable>
@@ -463,7 +435,6 @@ export default function SettingsScreen() {
       <LogoutModal
         isVisible={showLogout}
         onClose={() => setShowLogout(false)}
-        onConfirmLogout={handleLogout}
       />
     </SafeAreaView>
   );
