@@ -6,7 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { Bell, Mail, PencilLine, Phone, User, Building2, Gift, CircleHelp as HelpCircle, Languages, Link2, Lock, LogOut, MessageSquare, Moon, Shield, FileSliders as Sliders, FileText as Terms, ChevronRight, Eye, Fingerprint, Clock, DollarSign } from 'lucide-react-native';
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -28,6 +28,7 @@ export default function SettingsScreen() {
   const [vaultAlerts, setVaultAlerts] = useState(true);
   const [loginAlerts, setLoginAlerts] = useState(true);
   const [expiryReminders, setExpiryReminders] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   // Modal visibility states
   const [showAccountStatement, setShowAccountStatement] = useState(false);
@@ -68,13 +69,37 @@ export default function SettingsScreen() {
   };
 
   const handleSignOut = async () => {
-    try {
-      await signOut();
-      // Don't use router.replace - let the root layout handle navigation
-      // based on the authentication state change
-    } catch (error) {
-      console.error('Sign out error:', error);
-    }
+    // Show confirmation alert first
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out of your account?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsSigningOut(true);
+              await signOut();
+              // The root layout will handle navigation based on auth state change
+            } catch (error) {
+              console.error('Sign out error:', error);
+              Alert.alert(
+                'Error',
+                'Failed to sign out. Please try again.',
+                [{ text: 'OK' }]
+              );
+            } finally {
+              setIsSigningOut(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const styles = createStyles(colors);
@@ -389,11 +414,12 @@ export default function SettingsScreen() {
 
         <View style={styles.footer}>
           <Button
-            title="Sign Out"
+            title={isSigningOut ? "Signing Out..." : "Sign Out"}
             onPress={handleSignOut}
             style={styles.signOutButton}
             variant="outline"
             icon={LogOut}
+            disabled={isSigningOut}
           />
 
           <Pressable 
