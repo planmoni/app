@@ -4,6 +4,7 @@ import TransactionModal from '@/components/TransactionModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import HorizontalLoader from '@/components/HorizontalLoader';
 import SafeFooter from '@/components/SafeFooter';
+import CountdownTimer from '@/components/CountdownTimer';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
@@ -30,6 +31,10 @@ export default function HomeScreen() {
   // Get user info from session
   const firstName = session?.user?.user_metadata?.first_name || 'User';
   const lastName = session?.user?.user_metadata?.last_name || '';
+
+  const handleProfilePress = () => {
+    router.push('/profile');
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -124,10 +129,6 @@ export default function HomeScreen() {
     setIsTransactionModalVisible(true);
   };
 
-  const handleProfilePress = () => {
-    router.push('/profile');
-  };
-
   // Get active payout plans for display
   const activePlans = payoutPlans.filter(plan => plan.status === 'active').slice(0, 3);
   
@@ -159,6 +160,11 @@ export default function HomeScreen() {
   const getDaysUntilPayout = (dateString: string) => {
     const payoutDate = new Date(dateString);
     const today = new Date();
+    
+    // Reset time part for accurate day calculation
+    today.setHours(0, 0, 0, 0);
+    payoutDate.setHours(0, 0, 0, 0);
+    
     const diffTime = payoutDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
@@ -310,25 +316,10 @@ export default function HomeScreen() {
                   <Text style={styles.payoutAmount}>{formatBalance(nextPayout.payout_amount)}</Text>
                   
                   {nextPayout.next_payout_date && (
-                    <View style={styles.dateContainer}>
-                      <Calendar size={16} color={colors.primary} />
-                      <Text style={styles.payoutDate}>
-                        {(() => {
-                          const daysLeft = getDaysUntilPayout(nextPayout.next_payout_date!);
-                          const formattedDate = new Date(nextPayout.next_payout_date!).toLocaleDateString();
-                          
-                          if (daysLeft === 0) {
-                            return `${formattedDate} • Today`;
-                          } else if (daysLeft === 1) {
-                            return `${formattedDate} • Tomorrow`;
-                          } else if (daysLeft > 0) {
-                            return `${formattedDate} • ${daysLeft} days left`;
-                          } else {
-                            return `${formattedDate} • Overdue`;
-                          }
-                        })()}
-                      </Text>
-                    </View>
+                    <CountdownTimer 
+                      targetDate={nextPayout.next_payout_date} 
+                      style={styles.dateContainer}
+                    />
                   )}
                 </View>
                 
@@ -419,12 +410,16 @@ export default function HomeScreen() {
                         {plan.completed_payouts}/{plan.duration}
                       </Text>
                     </View>
-                    <Text style={styles.nextPayoutDate}>
-                      Next payout: {plan.next_payout_date 
-                        ? new Date(plan.next_payout_date).toLocaleDateString()
-                        : 'Not scheduled'
-                      }
-                    </Text>
+                    
+                    {plan.next_payout_date && (
+                      <CountdownTimer 
+                        targetDate={plan.next_payout_date}
+                        style={styles.nextPayoutTimer}
+                        textStyle={styles.nextPayoutTimerText}
+                        iconSize={14}
+                      />
+                    )}
+                    
                     <Pressable 
                       style={styles.planViewButton}
                       onPress={() => handleViewPayout(plan.id)}
@@ -1009,14 +1004,16 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
+  nextPayoutTimer: {
+    marginBottom: 16,
+    alignSelf: 'flex-start',
+  },
+  nextPayoutTimerText: {
+    fontSize: 12,
+  },
   progressCount: {
     fontSize: 12,
     color: colors.textSecondary,
-  },
-  nextPayoutDate: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 16,
   },
   planViewButton: {
     flexDirection: 'row',
