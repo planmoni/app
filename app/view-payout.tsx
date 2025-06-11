@@ -5,7 +5,6 @@ import Button from '@/components/Button';
 import Card from '@/components/Card';
 import HorizontalLoader from '@/components/HorizontalLoader';
 import SafeFooter from '@/components/SafeFooter';
-import SafeFloatingButton from '@/components/SafeFloatingButton';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -291,20 +290,7 @@ export default function ViewPayoutScreen() {
         </View>
       </ScrollView>
       
-      <SafeFloatingButton>
-        <View style={styles.footer}>
-          <Button 
-            title={plan.status === 'paused' ? "Resume Payouts" : "Pause Payouts"}
-            onPress={handlePauseResume}
-            style={[
-              styles.footerButton,
-              plan.status === 'paused' ? styles.resumeFooterButton : styles.pauseFooterButton
-            ]}
-            icon={plan.status === 'paused' ? Play : Pause}
-            disabled={plan.status === 'completed' || plan.status === 'cancelled'}
-          />
-        </View>
-      </SafeFloatingButton>
+      <SafeFooter />
     </SafeAreaView>
   );
 }
@@ -365,7 +351,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100, // Extra padding for the floating button
+    paddingBottom: 32,
   },
   payoutNameContainer: {
     marginBottom: 24,
@@ -588,18 +574,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#F97316',
-  },
-  footer: {
-    width: '100%',
-  },
-  footerButton: {
-    height: 56,
-    borderRadius: 12,
-  },
-  pauseFooterButton: {
-    backgroundColor: '#EF4444',
-  },
-  resumeFooterButton: {
-    backgroundColor: '#22C55E',
   },
 });

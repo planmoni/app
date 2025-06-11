@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Check } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -6,7 +6,8 @@ import { useCreatePayout } from '@/hooks/useCreatePayout';
 import ErrorMessage from '@/components/ErrorMessage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import SafeFloatingButton from '@/components/SafeFloatingButton';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import FloatingButton from '@/components/FloatingButton';
 
 export default function ReviewScreen() {
   const { colors } = useTheme();
@@ -64,122 +65,119 @@ export default function ReviewScreen() {
         <Text style={styles.stepText}>Step 5 of 5</Text>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Review & Confirm</Text>
-        <Text style={styles.description}>
-          Review your payout plan details before confirming
-        </Text>
-
-        {error && <ErrorMessage message={error} />}
-
-        <View style={styles.detailsList}>
-          <View style={styles.detailItem}>
-            <View style={[styles.detailIcon, { backgroundColor: '#F0FDF4' }]}>
-              <Wallet size={20} color="#22C55E" />
-            </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Total Amount</Text>
-              <Text style={styles.detailValue}>{formattedTotal}</Text>
-            </View>
-            <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/amount')}>
-              <Text style={styles.editButtonText}>Edit</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.detailItem}>
-            <View style={[styles.detailIcon, { backgroundColor: '#EFF6FF' }]}>
-              <Calendar size={20} color="#3B82F6" />
-            </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Payout Frequency</Text>
-              <Text style={styles.detailValue}>{formattedFrequency}</Text>
-              <Text style={styles.detailSubtext}>{formattedPayout} per payout</Text>
-            </View>
-            <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/schedule')}>
-              <Text style={styles.editButtonText}>Edit</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.detailItem}>
-            <View style={[styles.detailIcon, { backgroundColor: '#F5F3FF' }]}>
-              <Clock size={20} color="#8B5CF6" />
-            </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Duration</Text>
-              <Text style={styles.detailValue}>{duration} {frequency === 'custom' ? 'payouts' : 'months'}</Text>
-              <Text style={styles.detailSubtext}>First payout on {startDate}</Text>
-            </View>
-            <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/schedule')}>
-              <Text style={styles.editButtonText}>Edit</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.detailItem}>
-            <View style={[styles.detailIcon, { backgroundColor: '#F0F9FF' }]}>
-              <Building2 size={20} color="#0EA5E9" />
-            </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Destination Account</Text>
-              <Text style={styles.detailValue}>{bankName} •••• {accountNumber.slice(-4)}</Text>
-              <Text style={styles.detailSubtext}>{accountName}</Text>
-            </View>
-            <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/destination')}>
-              <Text style={styles.editButtonText}>Edit</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Plan Summary</Text>
-          
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Amount</Text>
-            <Text style={styles.summaryValue}>{formattedTotal}</Text>
-          </View>
-          
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Number of Payouts</Text>
-            <Text style={styles.summaryValue}>{numberOfPayouts}</Text>
-          </View>
-          
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Amount per Payout</Text>
-            <Text style={styles.summaryValue}>{formattedPayout}</Text>
-          </View>
-
-          {emergencyWithdrawal && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Emergency Access</Text>
-              <Text style={styles.summaryValue}>Enabled</Text>
-            </View>
-          )}
-
-          <View style={[styles.summaryRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>Total Fees</Text>
-            <Text style={styles.totalValue}>₦0.00</Text>
-          </View>
-        </View>
-
-        <View style={styles.confirmationBox}>
-          <View style={styles.checkIcon}>
-            <Check size={20} color="#22C55E" />
-          </View>
-          <Text style={styles.confirmationText}>
-            By continuing, you agree to lock {formattedTotal} in your vault for the duration of this payout plan.
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Review & Confirm</Text>
+          <Text style={styles.description}>
+            Review your payout plan details before confirming
           </Text>
-        </View>
-      </ScrollView>
 
-      <SafeFloatingButton>
-        <View style={styles.footer}>
-          <Button 
-            title="Start Payout Plan"
-            onPress={handleStartPlan}
-            loading={isLoading}
-            style={styles.startButton}
-          />
+          {error && <ErrorMessage message={error} />}
+
+          <View style={styles.detailsList}>
+            <View style={styles.detailItem}>
+              <View style={[styles.detailIcon, { backgroundColor: '#F0FDF4' }]}>
+                <Wallet size={20} color="#22C55E" />
+              </View>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Total Amount</Text>
+                <Text style={styles.detailValue}>{formattedTotal}</Text>
+              </View>
+              <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/amount')}>
+                <Text style={styles.editButtonText}>Edit</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.detailItem}>
+              <View style={[styles.detailIcon, { backgroundColor: '#EFF6FF' }]}>
+                <Calendar size={20} color="#3B82F6" />
+              </View>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Payout Frequency</Text>
+                <Text style={styles.detailValue}>{formattedFrequency}</Text>
+                <Text style={styles.detailSubtext}>{formattedPayout} per payout</Text>
+              </View>
+              <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/schedule')}>
+                <Text style={styles.editButtonText}>Edit</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.detailItem}>
+              <View style={[styles.detailIcon, { backgroundColor: '#F5F3FF' }]}>
+                <Clock size={20} color="#8B5CF6" />
+              </View>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Duration</Text>
+                <Text style={styles.detailValue}>{duration} {frequency === 'custom' ? 'payouts' : 'months'}</Text>
+                <Text style={styles.detailSubtext}>First payout on {startDate}</Text>
+              </View>
+              <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/schedule')}>
+                <Text style={styles.editButtonText}>Edit</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.detailItem}>
+              <View style={[styles.detailIcon, { backgroundColor: '#F0F9FF' }]}>
+                <Building2 size={20} color="#0EA5E9" />
+              </View>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Destination Account</Text>
+                <Text style={styles.detailValue}>{bankName} •••• {accountNumber.slice(-4)}</Text>
+                <Text style={styles.detailSubtext}>{accountName}</Text>
+              </View>
+              <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/destination')}>
+                <Text style={styles.editButtonText}>Edit</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryTitle}>Plan Summary</Text>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Amount</Text>
+              <Text style={styles.summaryValue}>{formattedTotal}</Text>
+            </View>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Number of Payouts</Text>
+              <Text style={styles.summaryValue}>{numberOfPayouts}</Text>
+            </View>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Amount per Payout</Text>
+              <Text style={styles.summaryValue}>{formattedPayout}</Text>
+            </View>
+
+            {emergencyWithdrawal && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Emergency Access</Text>
+                <Text style={styles.summaryValue}>Enabled</Text>
+              </View>
+            )}
+
+            <View style={[styles.summaryRow, styles.totalRow]}>
+              <Text style={styles.totalLabel}>Total Fees</Text>
+              <Text style={styles.totalValue}>₦0.00</Text>
+            </View>
+          </View>
+
+          <View style={styles.confirmationBox}>
+            <View style={styles.checkIcon}>
+              <Check size={20} color="#22C55E" />
+            </View>
+            <Text style={styles.confirmationText}>
+              By continuing, you agree to lock {formattedTotal} in your vault for the duration of this payout plan.
+            </Text>
+          </View>
         </View>
-      </SafeFloatingButton>
+      </KeyboardAvoidingWrapper>
+
+      <FloatingButton 
+        title="Start Payout Plan"
+        onPress={handleStartPlan}
+        loading={isLoading}
+      />
     </SafeAreaView>
   );
 }
@@ -231,12 +229,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 20,
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
-    padding: 24,
     paddingBottom: 100, // Extra padding for the floating button
+  },
+  content: {
+    padding: 24,
   },
   title: {
     fontSize: 24,
@@ -367,13 +364,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
-  },
-  footer: {
-    width: '100%',
-  },
-  startButton: {
-    backgroundColor: '#1E3A8A',
-    height: 56,
-    borderRadius: 12,
   },
 });
