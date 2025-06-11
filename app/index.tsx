@@ -16,8 +16,8 @@ import { useEffect } from 'react';
 const SLIDES = [
   {
     id: '1',
-    title: 'Save Smarter',
-    description: 'Lock your funds safely and release them based on your schedule.',
+    title: 'Stabilize Your Cashflow',
+    description: 'Put some money aside, get paid on a schedule & say goodbye to irregular income. ',
     image: require('@/assets/images/SmartSavings.png'),
     icon: Wallet,
     color: '#EFF6FF',
@@ -25,7 +25,7 @@ const SLIDES = [
   },
   {
     id: '2',
-    title: 'Pay Yourself On Time',
+    title: 'Pay Yourself Whenever You Like',
     description: 'Receive payouts weekly, monthly, or however you choose — just like a salary.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     icon: Calendar,
@@ -34,7 +34,7 @@ const SLIDES = [
   },
   {
     id: '3',
-    title: 'Stay in Control',
+    title: 'Gain Control Over Your Financial Life',
     description: 'No impulse spending. Your money stays locked until your chosen payday.',
     image: require('@/assets/images/StayInControl.png'),
     icon: Shield,
@@ -43,7 +43,7 @@ const SLIDES = [
   },
   {
     id: '4',
-    title: 'Build Healthy Habits',
+    title: 'Build A Healthy Money Habits',
     description: 'Automate discipline and achieve long-term financial goals effortlessly.',
     image: require('@/assets/images/BuildHealthyHabits.png'),
     icon: TrendingUp,
@@ -78,7 +78,7 @@ export default function WelcomeScreen() {
   };
 
   const handleSignIn = () => {
-    router.push('/(auth)/login');
+    router.push('/login');
   };
 
   // Calculate responsive dimensions
@@ -203,7 +203,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     paddingBottom: responsive.verticalPadding / 2,
   },
   logo: {
-    width: 200,
+    width: 150,
     height: responsive.logoHeight,
   },
   sliderContainer: {

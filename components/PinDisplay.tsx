@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 interface PinDisplayProps {
@@ -8,8 +8,37 @@ interface PinDisplayProps {
 }
 
 export default function PinDisplay({ length, value }: PinDisplayProps) {
-  const { colors } = useTheme();
-  const styles = createStyles(colors);
+  const { colors, isDark } = useTheme();
+  const { width, height } = useWindowDimensions();
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
+  
+  // Calculate responsive sizes
+  const dotSize = isSmallScreen ? 12 : 16;
+  const dotGap = isSmallScreen ? 12 : 16;
+  
+  const styles = StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: dotGap,
+      marginVertical: isSmallScreen ? 16 : 24,
+    },
+    dot: {
+      width: dotSize,
+      height: dotSize,
+      borderRadius: dotSize / 2,
+      backgroundColor: isDark ? colors.backgroundSecondary : colors.backgroundTertiary,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dotFilled: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+  });
 
   return (
     <View style={styles.container}>
@@ -25,25 +54,3 @@ export default function PinDisplay({ length, value }: PinDisplayProps) {
     </View>
   );
 }
-
-const createStyles = (colors: any) => StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-    marginVertical: 24,
-  },
-  dot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.backgroundTertiary,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dotFilled: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-});

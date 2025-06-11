@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,10 +9,14 @@ import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 
 export default function AppLockSetupScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { width, height } = useWindowDimensions();
   const [pinLength] = useState<number>(6);
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
 
   useEffect(() => {
     setError(null);
@@ -50,13 +54,13 @@ export default function AppLockSetupScreen() {
     }
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark, isSmallScreen, width);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Pressable onPress={handleBackPress} style={styles.backButton}>
-          <ArrowLeft size={24} color={colors.text} />
+          <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>App Lock</Text>
       </View>
@@ -90,7 +94,7 @@ export default function AppLockSetupScreen() {
             
             <View style={styles.securityInfo}>
               <View style={styles.securityIconContainer}>
-                <Lock size={20} color={colors.primary} />
+                <Lock size={isSmallScreen ? 16 : 20} color={colors.primary} />
               </View>
               <Text style={styles.securityText}>
                 This PIN will be used to unlock the app and authorize transactions
@@ -103,96 +107,121 @@ export default function AppLockSetupScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  contentContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    paddingTop: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 8,
-    textAlign: 'left',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginBottom: 40,
-    textAlign: 'left',
-  },
-  formContainer: {
-    width: '100%',
-  },
-  instruction: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 24,
-    textAlign: 'left',
-  },
-  errorContainer: {
-    backgroundColor: colors.errorLight,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 14,
-  },
-  pinContainer: {
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  securityInfo: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    backgroundColor: colors.backgroundTertiary,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 32,
-  },
-  securityIconContainer: {
-    marginTop: 2,
-  },
-  securityText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-});
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, screenWidth: number) => {
+  // Calculate responsive sizes
+  const headerPadding = isSmallScreen ? 12 : 16;
+  const contentPadding = isSmallScreen ? 16 : 24;
+  const titleSize = isSmallScreen ? 24 : 28;
+  const subtitleSize = isSmallScreen ? 14 : 16;
+  const instructionSize = isSmallScreen ? 16 : 18;
+  const iconSize = isSmallScreen ? 36 : 40;
+  const backButtonSize = isSmallScreen ? 36 : 40;
+  const verticalSpacing = isSmallScreen ? 24 : 40;
+  
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: headerPadding,
+      paddingVertical: headerPadding,
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    backButton: {
+      width: backButtonSize,
+      height: backButtonSize,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: backButtonSize / 2,
+      marginRight: 12,
+    },
+    headerTitle: {
+      fontSize: isSmallScreen ? 16 : 18,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    contentContainer: {
+      flexGrow: 1,
+      paddingHorizontal: contentPadding,
+    },
+    content: {
+      flex: 1,
+      justifyContent: 'flex-start',
+      paddingTop: verticalSpacing,
+    },
+    title: {
+      fontSize: titleSize,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: 8,
+      textAlign: 'left',
+    },
+    subtitle: {
+      fontSize: subtitleSize,
+      color: colors.textSecondary,
+      marginBottom: verticalSpacing,
+      textAlign: 'left',
+    },
+    formContainer: {
+      width: '100%',
+      alignItems: 'center',
+    },
+    instruction: {
+      fontSize: instructionSize,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 24,
+      textAlign: 'center',
+      alignSelf: 'center',
+    },
+    errorContainer: {
+      backgroundColor: colors.errorLight,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 16,
+      width: '100%',
+    },
+    errorText: {
+      color: colors.error,
+      fontSize: 14,
+      textAlign: 'center',
+    },
+    pinContainer: {
+      alignItems: 'center',
+      marginVertical: isSmallScreen ? 16 : 24,
+      width: '100%',
+      maxWidth: Math.min(screenWidth - contentPadding * 2, 320),
+    },
+    securityInfo: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      backgroundColor: isDark ? colors.backgroundSecondary : colors.backgroundTertiary,
+      padding: 16,
+      borderRadius: 12,
+      marginTop: 16,
+      width: '100%',
+    },
+    securityIconContainer: {
+      marginTop: 2,
+      width: iconSize,
+      height: iconSize,
+      borderRadius: iconSize / 2,
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    securityText: {
+      flex: 1,
+      fontSize: isSmallScreen ? 13 : 14,
+      color: colors.textSecondary,
+      lineHeight: isSmallScreen ? 18 : 20,
+    },
+  });
+};
