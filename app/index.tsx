@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Image, Pressable, useWindowDimensions, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { 
   useAnimatedScrollHandler,
@@ -74,7 +74,7 @@ export default function WelcomeScreen() {
   });
 
   const handleGetStarted = () => {
-    router.push('/(auth)/signup');
+    router.push('/(auth)/onboarding/first-name');
   };
 
   const handleSignIn = () => {
