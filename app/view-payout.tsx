@@ -275,7 +275,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: colors.surface,
@@ -287,6 +286,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 8,
   },
   headerTitle: {
     fontSize: 18,
