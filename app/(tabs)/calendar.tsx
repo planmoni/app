@@ -97,17 +97,21 @@ export default function CalendarScreen() {
     return baseColors[type];
   };
 
+  // Updated function with clearer color mapping
   const getEventDotColor = (type: CalendarEvent['type']) => {
     switch (type) {
       case 'completed':
         return '#22C55E'; // Green for completed payouts
       case 'pending':
-        return '#3B82F6'; // Blue for payout created
+        return '#3B82F6'; // Blue for payout created/pending
       case 'scheduled':
         return '#EAB308'; // Yellow for scheduled payouts
       case 'failed':
+        return '#EF4444'; // Red for failed payouts
       case 'expiring':
-        return '#EF4444'; // Red for failed/expiring payouts
+        return '#F97316'; // Orange for expiring payouts (different from failed)
+      default:
+        return '#6B7280'; // Gray fallback
     }
   };
 
@@ -171,7 +175,7 @@ export default function CalendarScreen() {
     if (dateEvents.length === 0) return null;
     
     // Priority order: expiring > failed > scheduled > completed > pending
-    const priorityOrder = ['expiring', 'failed', 'scheduled', 'completed', 'pending'];
+    const priorityOrder: CalendarEvent['type'][] = ['expiring', 'failed', 'scheduled', 'completed', 'pending'];
     
     for (const priority of priorityOrder) {
       const event = dateEvents.find(e => e.type === priority);
@@ -393,8 +397,12 @@ export default function CalendarScreen() {
               <Text style={styles.legendText} numberOfLines={1}>Scheduled payout</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+              <View style={[styles.legendDot, { backgroundColor: '#F97316' }]} />
               <Text style={styles.legendText} numberOfLines={1}>Payout expiring</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+              <Text style={styles.legendText} numberOfLines={1}>Payout failed</Text>
             </View>
           </View>
         </View>
@@ -526,8 +534,12 @@ export default function CalendarScreen() {
               <Text style={styles.legendText} numberOfLines={1}>Scheduled payout</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+              <View style={[styles.legendDot, { backgroundColor: '#F97316' }]} />
               <Text style={styles.legendText} numberOfLines={1}>Payout expiring</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+              <Text style={styles.legendText} numberOfLines={1}>Payout failed</Text>
             </View>
           </View>
         </View>
@@ -613,8 +625,12 @@ export default function CalendarScreen() {
               <Text style={styles.legendText} numberOfLines={1}>Scheduled payout</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+              <View style={[styles.legendDot, { backgroundColor: '#F97316' }]} />
               <Text style={styles.legendText} numberOfLines={1}>Payout expiring</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+              <Text style={styles.legendText} numberOfLines={1}>Payout failed</Text>
             </View>
           </View>
         </View>
