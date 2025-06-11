@@ -16,7 +16,7 @@ import { useEffect } from 'react';
 const SLIDES = [
   {
     id: '1',
-    title: 'Save Smarter',
+    title: 'Stabilize Your Cashflow',
     description: 'Lock your funds safely and release them based on your schedule.',
     image: require('@/assets/images/SmartSavings.png'),
     icon: Wallet,
