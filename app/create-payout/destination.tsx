@@ -7,6 +7,8 @@ import AddBankAccountModal from '@/components/AddBankAccountModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBankAccounts } from '@/hooks/useBankAccounts';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import FloatingButton from '@/components/FloatingButton';
 
 export default function DestinationScreen() {
   const { colors } = useTheme();
@@ -77,99 +79,98 @@ export default function DestinationScreen() {
         <Text style={styles.stepText}>Step 3 of 5</Text>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Choose Payout Destination</Text>
-        <Text style={styles.description}>
-          Select a linked bank account or add a new one
-        </Text>
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Choose Payout Destination</Text>
+          <Text style={styles.description}>
+            Select a linked bank account or add a new one
+          </Text>
 
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        <View style={styles.accountsList}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading bank accounts...</Text>
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
             </View>
-          ) : bankAccounts.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No bank accounts found</Text>
-              <Text style={styles.emptySubtext}>Add a bank account to continue</Text>
-            </View>
-          ) : (
-            bankAccounts.map((account) => (
-              <Pressable
-                key={account.id}
-                style={[
-                  styles.accountOption,
-                  selectedAccountId === account.id && styles.selectedAccount
-                ]}
-                onPress={() => setSelectedAccountId(account.id)}
-              >
-                <View style={styles.accountInfo}>
-                  <View style={[
-                    styles.bankIcon,
-                    selectedAccountId === account.id && styles.selectedBankIcon
-                  ]}>
-                    <Building2 size={24} color={selectedAccountId === account.id ? '#1E3A8A' : colors.textSecondary} />
-                  </View>
-                  <View style={styles.accountDetails}>
-                    <Text style={[
-                      styles.accountName,
-                      selectedAccountId === account.id && styles.selectedText
-                    ]}>
-                      {account.bank_name} •••• {account.account_number.slice(-4)}
-                    </Text>
-                    <Text style={styles.accountHolder}>{account.account_name}</Text>
-                    {account.is_default && (
-                      <View style={styles.defaultTag}>
-                        <Text style={styles.defaultText}>Default Account</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-                <View style={[
-                  styles.radioOuter,
-                  selectedAccountId === account.id && styles.radioOuterSelected
-                ]}>
-                  {selectedAccountId === account.id && (
-                    <Check size={16} color="#1E3A8A" />
-                  )}
-                </View>
-              </Pressable>
-            ))
           )}
 
-          <Pressable
-            style={styles.addAccountButton}
-            onPress={() => setShowAddAccount(true)}
-          >
-            <Plus size={20} color={colors.primary} />
-            <Text style={styles.addAccountText}>Add New Bank Account</Text>
-          </Pressable>
-        </View>
+          <View style={styles.accountsList}>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading bank accounts...</Text>
+              </View>
+            ) : bankAccounts.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No bank accounts found</Text>
+                <Text style={styles.emptySubtext}>Add a bank account to continue</Text>
+              </View>
+            ) : (
+              bankAccounts.map((account) => (
+                <Pressable
+                  key={account.id}
+                  style={[
+                    styles.accountOption,
+                    selectedAccountId === account.id && styles.selectedAccount
+                  ]}
+                  onPress={() => setSelectedAccountId(account.id)}
+                >
+                  <View style={styles.accountInfo}>
+                    <View style={[
+                      styles.bankIcon,
+                      selectedAccountId === account.id && styles.selectedBankIcon
+                    ]}>
+                      <Building2 size={24} color={selectedAccountId === account.id ? '#1E3A8A' : colors.textSecondary} />
+                    </View>
+                    <View style={styles.accountDetails}>
+                      <Text style={[
+                        styles.accountName,
+                        selectedAccountId === account.id && styles.selectedText
+                      ]}>
+                        {account.bank_name} •••• {account.account_number.slice(-4)}
+                      </Text>
+                      <Text style={styles.accountHolder}>{account.account_name}</Text>
+                      {account.is_default && (
+                        <View style={styles.defaultTag}>
+                          <Text style={styles.defaultText}>Default Account</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  <View style={[
+                    styles.radioOuter,
+                    selectedAccountId === account.id && styles.radioOuterSelected
+                  ]}>
+                    {selectedAccountId === account.id && (
+                      <Check size={16} color="#1E3A8A" />
+                    )}
+                  </View>
+                </Pressable>
+              ))
+            )}
 
-        <View style={styles.notice}>
-          <View style={styles.noticeIcon}>
-            <Info size={20} color={colors.primary} />
+            <Pressable
+              style={styles.addAccountButton}
+              onPress={() => setShowAddAccount(true)}
+            >
+              <Plus size={20} color={colors.primary} />
+              <Text style={styles.addAccountText}>Add New Bank Account</Text>
+            </Pressable>
           </View>
-          <Text style={styles.noticeText}>
-            Your funds will be securely transferred to your selected bank account on the scheduled dates.
-          </Text>
-        </View>
-      </ScrollView>
 
-      <View style={styles.footer}>
-        <Button 
-          title="Continue"
-          onPress={handleContinue}
-          style={styles.continueButton}
-          disabled={selectedAccountId === null || loading}
-        />
-      </View>
+          <View style={styles.notice}>
+            <View style={styles.noticeIcon}>
+              <Info size={20} color={colors.primary} />
+            </View>
+            <Text style={styles.noticeText}>
+              Your funds will be securely transferred to your selected bank account on the scheduled dates.
+            </Text>
+          </View>
+        </View>
+      </KeyboardAvoidingWrapper>
+
+      <FloatingButton 
+        title="Continue"
+        onPress={handleContinue}
+        disabled={selectedAccountId === null || loading}
+      />
 
       <AddBankAccountModal
         isVisible={showAddAccount}
@@ -228,13 +229,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 20,
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
+    paddingBottom: 100, // Extra padding for the floating button
+  },
+  content: {
     padding: 20,
     paddingTop: 0,
-    paddingBottom: 100,
   },
   title: {
     fontSize: 24,
@@ -390,15 +390,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
-  },
-  footer: {
-    padding: 20,
-    paddingBottom: 50,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  continueButton: {
-    backgroundColor: '#1E3A8A',
   },
 });

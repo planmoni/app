@@ -1,10 +1,12 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Modal } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Calendar, ChevronRight, Clock, Info, Plus, ChevronLeft, ChevronDown, ArrowLeft } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import FloatingButton from '@/components/FloatingButton';
 
 type DatePickerProps = {
   isVisible: boolean;
@@ -326,144 +328,143 @@ export default function ScheduleScreen() {
         <Text style={styles.stepText}>Step 2 of 5</Text>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>How frequent do you want us to send this money?</Text>
-        <Text style={styles.description}>Choose your payout schedule</Text>
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
+          <Text style={styles.title}>How frequent do you want us to send this money?</Text>
+          <Text style={styles.description}>Choose your payout schedule</Text>
 
-        <View style={styles.scheduleOptions}>
-          <Pressable 
-            style={[
-              styles.scheduleOption,
-              selectedSchedule === 'monthly' && styles.selectedOption
-            ]}
-            onPress={() => handleScheduleSelect('monthly')}
-          >
-            <Calendar size={20} color={selectedSchedule === 'monthly' ? '#1E3A8A' : colors.text} />
-            <Text style={[
-              styles.optionText,
-              selectedSchedule === 'monthly' && styles.selectedOptionText
-            ]}>Monthly</Text>
-          </Pressable>
-
-          <Pressable 
-            style={[
-              styles.scheduleOption,
-              selectedSchedule === 'biweekly' && styles.selectedOption
-            ]}
-            onPress={() => handleScheduleSelect('biweekly')}
-          >
-            <Calendar size={20} color={selectedSchedule === 'biweekly' ? '#1E3A8A' : colors.text} />
-            <Text style={[
-              styles.optionText,
-              selectedSchedule === 'biweekly' && styles.selectedOptionText
-            ]}>Bi-weekly</Text>
-          </Pressable>
-
-          <Pressable 
-            style={[
-              styles.scheduleOption,
-              selectedSchedule === 'weekly' && styles.selectedOption
-            ]}
-            onPress={() => handleScheduleSelect('weekly')}
-          >
-            <Calendar size={20} color={selectedSchedule === 'weekly' ? '#1E3A8A' : colors.text} />
-            <Text style={[
-              styles.optionText,
-              selectedSchedule === 'weekly' && styles.selectedOptionText
-            ]}>Weekly</Text>
-          </Pressable>
-
-          <Pressable 
-            style={[
-              styles.scheduleOption,
-              selectedSchedule === 'custom' && styles.selectedOption
-            ]}
-            onPress={() => handleScheduleSelect('custom')}
-          >
-            <Calendar size={20} color={selectedSchedule === 'custom' ? '#1E3A8A' : colors.text} />
-            <Text style={[
-              styles.optionText,
-              selectedSchedule === 'custom' && styles.selectedOptionText
-            ]}>Custom Dates</Text>
-          </Pressable>
-        </View>
-
-        {selectedSchedule === 'custom' && (
-          <View style={styles.customDatesSection}>
-            <Text style={styles.customDatesTitle}>Selected Dates</Text>
-            
-            {customDates.map((date, index) => (
-              <View key={index} style={styles.dateItem}>
-                <View style={styles.dateInfo}>
-                  <Calendar size={16} color={colors.textSecondary} />
-                  <Text style={styles.dateText}>{date}</Text>
-                </View>
-                <Pressable 
-                  style={styles.removeDateButton}
-                  onPress={() => handleRemoveDate(index)}
-                >
-                  <Text style={styles.removeDateText}>Remove</Text>
-                </Pressable>
-              </View>
-            ))}
+          <View style={styles.scheduleOptions}>
+            <Pressable 
+              style={[
+                styles.scheduleOption,
+                selectedSchedule === 'monthly' && styles.selectedOption
+              ]}
+              onPress={() => handleScheduleSelect('monthly')}
+            >
+              <Calendar size={20} color={selectedSchedule === 'monthly' ? '#1E3A8A' : colors.text} />
+              <Text style={[
+                styles.optionText,
+                selectedSchedule === 'monthly' && styles.selectedOptionText
+              ]}>Monthly</Text>
+            </Pressable>
 
             <Pressable 
-              style={styles.addDateButton}
-              onPress={handleAddDate}
+              style={[
+                styles.scheduleOption,
+                selectedSchedule === 'biweekly' && styles.selectedOption
+              ]}
+              onPress={() => handleScheduleSelect('biweekly')}
             >
-              <Plus size={20} color="#1E3A8A" />
-              <Text style={styles.addDateText}>Add Date</Text>
-            </Pressable>
-          </View>
-        )}
-
-        <View style={styles.amountContainer}>
-          <View style={styles.amountHeader}>
-            <Text style={styles.amountLabel}>{getPayoutLabel()}</Text>
-            <Pressable
-              style={styles.splitToggle}
-              onPress={handleYearlySplitToggle}
-            >
+              <Calendar size={20} color={selectedSchedule === 'biweekly' ? '#1E3A8A' : colors.text} />
               <Text style={[
-                styles.splitToggleText,
-                isYearlySplit && styles.splitToggleTextActive
-              ]}>
-                1 Year Split
-              </Text>
+                styles.optionText,
+                selectedSchedule === 'biweekly' && styles.selectedOptionText
+              ]}>Bi-weekly</Text>
+            </Pressable>
+
+            <Pressable 
+              style={[
+                styles.scheduleOption,
+                selectedSchedule === 'weekly' && styles.selectedOption
+              ]}
+              onPress={() => handleScheduleSelect('weekly')}
+            >
+              <Calendar size={20} color={selectedSchedule === 'weekly' ? '#1E3A8A' : colors.text} />
+              <Text style={[
+                styles.optionText,
+                selectedSchedule === 'weekly' && styles.selectedOptionText
+              ]}>Weekly</Text>
+            </Pressable>
+
+            <Pressable 
+              style={[
+                styles.scheduleOption,
+                selectedSchedule === 'custom' && styles.selectedOption
+              ]}
+              onPress={() => handleScheduleSelect('custom')}
+            >
+              <Calendar size={20} color={selectedSchedule === 'custom' ? '#1E3A8A' : colors.text} />
+              <Text style={[
+                styles.optionText,
+                selectedSchedule === 'custom' && styles.selectedOptionText
+              ]}>Custom Dates</Text>
             </Pressable>
           </View>
-          
-          <Pressable 
-            style={styles.amountRow}
-            onPress={() => setIsEditingAmount(true)}
-          >
-            <Text style={styles.amount}>₦{payoutAmount}</Text>
-            <ChevronDown size={20} color={colors.textSecondary} />
-          </Pressable>
-          
-          <Text style={styles.payoutCount}>
-            {numberOfPayouts} payout{numberOfPayouts !== 1 ? 's' : ''} of ₦{payoutAmount}
-          </Text>
-        </View>
 
-        <View style={styles.notice}>
-          <View style={styles.noticeIcon}>
-            <Info size={20} color={colors.primary} />
+          {selectedSchedule === 'custom' && (
+            <View style={styles.customDatesSection}>
+              <Text style={styles.customDatesTitle}>Selected Dates</Text>
+              
+              {customDates.map((date, index) => (
+                <View key={index} style={styles.dateItem}>
+                  <View style={styles.dateInfo}>
+                    <Calendar size={16} color={colors.textSecondary} />
+                    <Text style={styles.dateText}>{date}</Text>
+                  </View>
+                  <Pressable 
+                    style={styles.removeDateButton}
+                    onPress={() => handleRemoveDate(index)}
+                  >
+                    <Text style={styles.removeDateText}>Remove</Text>
+                  </Pressable>
+                </View>
+              ))}
+
+              <Pressable 
+                style={styles.addDateButton}
+                onPress={handleAddDate}
+              >
+                <Plus size={20} color="#1E3A8A" />
+                <Text style={styles.addDateText}>Add Date</Text>
+              </Pressable>
+            </View>
+          )}
+
+          <View style={styles.amountContainer}>
+            <View style={styles.amountHeader}>
+              <Text style={styles.amountLabel}>{getPayoutLabel()}</Text>
+              <Pressable
+                style={styles.splitToggle}
+                onPress={handleYearlySplitToggle}
+              >
+                <Text style={[
+                  styles.splitToggleText,
+                  isYearlySplit && styles.splitToggleTextActive
+                ]}>
+                  1 Year Split
+                </Text>
+              </Pressable>
+            </View>
+            
+            <Pressable 
+              style={styles.amountRow}
+              onPress={() => setIsEditingAmount(true)}
+            >
+              <Text style={styles.amount}>₦{payoutAmount}</Text>
+              <ChevronDown size={20} color={colors.textSecondary} />
+            </Pressable>
+            
+            <Text style={styles.payoutCount}>
+              {numberOfPayouts} payout{numberOfPayouts !== 1 ? 's' : ''} of ₦{payoutAmount}
+            </Text>
           </View>
-          <Text style={styles.noticeText}>
-            Your funds will be automatically deposited to your bank account on the dates you've selected
-          </Text>
-        </View>
-      </ScrollView>
 
-      <View style={styles.footer}>
-        <Button 
-          title="Continue"
-          onPress={handleContinue}
-          style={styles.continueButton}
-          disabled={selectedSchedule === 'custom' && customDates.length === 0}
-        />
-      </View>
+          <View style={styles.notice}>
+            <View style={styles.noticeIcon}>
+              <Info size={20} color={colors.primary} />
+            </View>
+            <Text style={styles.noticeText}>
+              Your funds will be automatically deposited to your bank account on the dates you've selected
+            </Text>
+          </View>
+        </View>
+      </KeyboardAvoidingWrapper>
+
+      <FloatingButton 
+        title="Continue"
+        onPress={handleContinue}
+        disabled={selectedSchedule === 'custom' && customDates.length === 0}
+      />
 
       <Modal
         visible={isEditingAmount}
@@ -484,6 +485,7 @@ export default function ScheduleScreen() {
                 onChangeText={handleCustomAmountChange}
                 placeholder="Enter amount"
                 placeholderTextColor={colors.textTertiary}
+                autoFocus
               />
             </View>
 
@@ -564,10 +566,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 20,
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
+    paddingBottom: 100, // Extra padding for the floating button
+  },
+  content: {
     padding: 20,
     paddingTop: 0,
   },
@@ -715,16 +717,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
-  },
-  footer: {
-    padding: 20,
-    paddingBottom: 50,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  continueButton: {
-    backgroundColor: '#1E3A8A',
   },
   modalOverlay: {
     flex: 1,

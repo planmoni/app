@@ -1,10 +1,12 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Building2, Clock, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import SafeFooter from '@/components/SafeFooter';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import FloatingButton from '@/components/FloatingButton';
 
 export default function AuthorizationScreen() {
   const { colors } = useTheme();
@@ -35,68 +37,67 @@ export default function AuthorizationScreen() {
         <Text style={styles.stepText}>Step 3 of 3</Text>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Payment Authorization</Text>
-        <Text style={styles.description}>Review your deposit details before proceeding.</Text>
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Payment Authorization</Text>
+          <Text style={styles.description}>Review your deposit details before proceeding.</Text>
 
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryHeader}>
-            <Text style={styles.summaryTitle}>Deposit Summary</Text>
-          </View>
-
-          <View style={styles.summaryContent}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Amount</Text>
-              <Text style={styles.summaryValue}>₦{amount}</Text>
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryHeader}>
+              <Text style={styles.summaryTitle}>Deposit Summary</Text>
             </View>
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Payment Method</Text>
-              <View style={styles.methodContainer}>
-                <Building2 size={16} color={colors.primary} />
-                <Text style={styles.methodText}>{methodTitle}</Text>
+            <View style={styles.summaryContent}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Amount</Text>
+                <Text style={styles.summaryValue}>₦{amount}</Text>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Payment Method</Text>
+                <View style={styles.methodContainer}>
+                  <Building2 size={16} color={colors.primary} />
+                  <Text style={styles.methodText}>{methodTitle}</Text>
+                </View>
+              </View>
+              <Text style={styles.defaultText}>Default Account</Text>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Processing Fee</Text>
+                <Text style={styles.summaryValue}>₦0.00</Text>
+              </View>
+
+              <View style={[styles.summaryRow, styles.totalRow]}>
+                <Text style={styles.totalLabel}>Total Amount</Text>
+                <Text style={styles.totalValue}>₦{amount}</Text>
+              </View>
+
+              <View style={styles.estimateContainer}>
+                <Clock size={16} color={colors.primary} />
+                <Text style={styles.estimateLabel}>Estimated Time to Reflect</Text>
+                <Text style={styles.estimateValue}>Instant - 5 minutes</Text>
               </View>
             </View>
-            <Text style={styles.defaultText}>Default Account</Text>
+          </View>
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Processing Fee</Text>
-              <Text style={styles.summaryValue}>₦0.00</Text>
+          <View style={styles.infoCard}>
+            <View style={styles.infoHeader}>
+              <View style={styles.infoIconContainer}>
+                <AlertTriangle size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.infoTitle}>Security Notice</Text>
             </View>
-
-            <View style={[styles.summaryRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>Total Amount</Text>
-              <Text style={styles.totalValue}>₦{amount}</Text>
-            </View>
-
-            <View style={styles.estimateContainer}>
-              <Clock size={16} color={colors.primary} />
-              <Text style={styles.estimateLabel}>Estimated Time to Reflect</Text>
-              <Text style={styles.estimateValue}>Instant - 5 minutes</Text>
-            </View>
+            <Text style={styles.infoText}>
+              Your transaction will require PIN verification for security.
+            </Text>
           </View>
         </View>
+      </KeyboardAvoidingWrapper>
 
-        <View style={styles.infoCard}>
-          <View style={styles.infoHeader}>
-            <View style={styles.infoIconContainer}>
-              <AlertTriangle size={20} color={colors.primary} />
-            </View>
-            <Text style={styles.infoTitle}>Security Notice</Text>
-          </View>
-          <Text style={styles.infoText}>
-            Your transaction will require PIN verification for security.
-          </Text>
-        </View>
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <Button 
-          title="Fund wallet now"
-          onPress={handleFundWallet}
-          style={styles.fundButton}
-        />
-      </View>
+      <FloatingButton 
+        title="Fund wallet now"
+        onPress={handleFundWallet}
+      />
       
       <SafeFooter />
     </SafeAreaView>
@@ -152,12 +153,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 20,
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
+    paddingBottom: 100, // Extra padding for the floating button
+  },
+  content: {
     padding: 20,
-    paddingTop: 0,
   },
   title: {
     fontSize: 24,
@@ -290,14 +290,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
-  },
-  footer: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  fundButton: {
-    backgroundColor: colors.primary,
   },
 });

@@ -2,6 +2,7 @@ import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 
 import { ChevronDown, ChevronRight, Search } from 'lucide-react-native';
 import { useState, useMemo } from 'react';
 import Button from '@/components/Button';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 
 interface AddBankAccountModalProps {
   isVisible: boolean;
@@ -114,91 +115,93 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
             <Text style={styles.subtitle}>Enter your bank account details</Text>
           </View>
 
-          <ScrollView style={styles.content}>
-            {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-
-            <View style={styles.field}>
-              <Text style={styles.label}>Account Number</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter 10-digit account number"
-                keyboardType="numeric"
-                value={accountNumber}
-                onChangeText={handleAccountNumberChange}
-                maxLength={10}
-                editable={!isSubmitting}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>Select Bank</Text>
-              <Pressable
-                style={styles.bankSelector}
-                onPress={() => !isSubmitting && setShowBankList(!showBankList)}
-                disabled={isSubmitting}
-              >
-                <Text style={selectedBank ? styles.selectedBank : styles.bankPlaceholder}>
-                  {selectedBank || 'Choose your bank'}
-                </Text>
-                <ChevronDown size={20} color="#64748B" />
-              </Pressable>
-
-              {showBankList && (
-                <View style={styles.bankListContainer}>
-                  <View style={styles.searchContainer}>
-                    <Search size={20} color="#64748B" />
-                    <TextInput
-                      style={styles.searchInput}
-                      placeholder="Search banks..."
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
-                      editable={!isSubmitting}
-                    />
-                  </View>
-                  <ScrollView style={styles.bankList} nestedScrollEnabled>
-                    {filteredBanks.map((bank) => (
-                      <Pressable
-                        key={bank}
-                        style={styles.bankOption}
-                        onPress={() => {
-                          if (!isSubmitting) {
-                            setSelectedBank(bank);
-                            setShowBankList(false);
-                            setSearchQuery('');
-                            setError(null);
-                          }
-                        }}
-                        disabled={isSubmitting}
-                      >
-                        <Text style={styles.bankOptionText}>{bank}</Text>
-                        {selectedBank === bank && (
-                          <ChevronRight size={20} color="#1E3A8A" />
-                        )}
-                      </Pressable>
-                    ))}
-                  </ScrollView>
+          <KeyboardAvoidingWrapper style={styles.content} disableScrollView={false}>
+            <View style={styles.contentInner}>
+              {error && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{error}</Text>
                 </View>
               )}
-            </View>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Account Name</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter account name"
-                value={accountName}
-                onChangeText={(text) => {
-                  setAccountName(text);
-                  setError(null);
-                }}
-                editable={!isSubmitting}
-              />
+              <View style={styles.field}>
+                <Text style={styles.label}>Account Number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter 10-digit account number"
+                  keyboardType="numeric"
+                  value={accountNumber}
+                  onChangeText={handleAccountNumberChange}
+                  maxLength={10}
+                  editable={!isSubmitting}
+                />
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>Select Bank</Text>
+                <Pressable
+                  style={styles.bankSelector}
+                  onPress={() => !isSubmitting && setShowBankList(!showBankList)}
+                  disabled={isSubmitting}
+                >
+                  <Text style={selectedBank ? styles.selectedBank : styles.bankPlaceholder}>
+                    {selectedBank || 'Choose your bank'}
+                  </Text>
+                  <ChevronDown size={20} color="#64748B" />
+                </Pressable>
+
+                {showBankList && (
+                  <View style={styles.bankListContainer}>
+                    <View style={styles.searchContainer}>
+                      <Search size={20} color="#64748B" />
+                      <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search banks..."
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        editable={!isSubmitting}
+                      />
+                    </View>
+                    <ScrollView style={styles.bankList} nestedScrollEnabled>
+                      {filteredBanks.map((bank) => (
+                        <Pressable
+                          key={bank}
+                          style={styles.bankOption}
+                          onPress={() => {
+                            if (!isSubmitting) {
+                              setSelectedBank(bank);
+                              setShowBankList(false);
+                              setSearchQuery('');
+                              setError(null);
+                            }
+                          }}
+                          disabled={isSubmitting}
+                        >
+                          <Text style={styles.bankOptionText}>{bank}</Text>
+                          {selectedBank === bank && (
+                            <ChevronRight size={20} color="#1E3A8A" />
+                          )}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.label}>Account Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter account name"
+                  value={accountName}
+                  onChangeText={(text) => {
+                    setAccountName(text);
+                    setError(null);
+                  }}
+                  editable={!isSubmitting}
+                />
+              </View>
             </View>
-          </ScrollView>
+          </KeyboardAvoidingWrapper>
 
           <View style={styles.footer}>
             <Button
@@ -252,6 +255,10 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   content: {
+    flex: 1,
+    maxHeight: 400,
+  },
+  contentInner: {
     padding: 24,
   },
   errorContainer: {

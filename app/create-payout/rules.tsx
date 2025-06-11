@@ -1,10 +1,12 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Switch } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Switch } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, TriangleAlert as AlertTriangle, Clock } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import FloatingButton from '@/components/FloatingButton';
 
 export default function RulesScreen() {
   const { colors } = useTheme();
@@ -39,64 +41,63 @@ export default function RulesScreen() {
         <Text style={styles.stepText}>Step 4 of 5</Text>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Set Manual Withdrawal Rules</Text>
-        <Text style={styles.description}>
-          Configure security settings for your vault
-        </Text>
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Set Manual Withdrawal Rules</Text>
+          <Text style={styles.description}>
+            Configure security settings for your vault
+          </Text>
 
-        <View style={styles.settingsContainer}>
-          <View style={styles.setting}>
-            <View style={styles.settingInfo}>
-              <View style={styles.settingIcon}>
-                <AlertTriangle size={24} color="#F97316" />
+          <View style={styles.settingsContainer}>
+            <View style={styles.setting}>
+              <View style={styles.settingInfo}>
+                <View style={styles.settingIcon}>
+                  <AlertTriangle size={24} color="#F97316" />
+                </View>
+                <View style={styles.settingDetails}>
+                  <Text style={styles.settingTitle}>Emergency Withdrawal</Text>
+                  <Text style={styles.settingDescription}>
+                    Allow emergency access to funds
+                  </Text>
+                </View>
               </View>
-              <View style={styles.settingDetails}>
-                <Text style={styles.settingTitle}>Emergency Withdrawal</Text>
-                <Text style={styles.settingDescription}>
-                  Allow emergency access to funds
+              <Switch
+                value={emergencyWithdrawal}
+                onValueChange={setEmergencyWithdrawal}
+                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                thumbColor={emergencyWithdrawal ? '#1E3A8A' : colors.backgroundTertiary}
+              />
+            </View>
+
+            <View style={styles.cooldownSetting}>
+              <View style={styles.settingIcon}>
+                <Clock size={24} color="#3B82F6" />
+              </View>
+              <View style={styles.cooldownDetails}>
+                <Text style={styles.cooldownTitle}>Emergency Cooldown</Text>
+                <Text style={styles.cooldownValue}>72 hours</Text>
+                <Text style={styles.cooldownDescription}>
+                  Waiting period for emergency withdrawals
                 </Text>
               </View>
             </View>
-            <Switch
-              value={emergencyWithdrawal}
-              onValueChange={setEmergencyWithdrawal}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={emergencyWithdrawal ? '#1E3A8A' : colors.backgroundTertiary}
-            />
-          </View>
 
-          <View style={styles.cooldownSetting}>
-            <View style={styles.settingIcon}>
-              <Clock size={24} color="#3B82F6" />
-            </View>
-            <View style={styles.cooldownDetails}>
-              <Text style={styles.cooldownTitle}>Emergency Cooldown</Text>
-              <Text style={styles.cooldownValue}>72 hours</Text>
-              <Text style={styles.cooldownDescription}>
-                Waiting period for emergency withdrawals
+            <View style={styles.warning}>
+              <View style={styles.warningIcon}>
+                <AlertTriangle size={20} color="#EF4444" />
+              </View>
+              <Text style={styles.warningText}>
+                To enforce discipline, emergency withdrawals will hold funds for 72 hours and also attract high fees
               </Text>
             </View>
           </View>
-
-          <View style={styles.warning}>
-            <View style={styles.warningIcon}>
-              <AlertTriangle size={20} color="#EF4444" />
-            </View>
-            <Text style={styles.warningText}>
-              To enforce discipline, emergency withdrawals will hold funds for 72 hours and also attract high fees
-            </Text>
-          </View>
         </View>
-      </ScrollView>
+      </KeyboardAvoidingWrapper>
 
-      <View style={styles.footer}>
-        <Button 
-          title="Continue"
-          onPress={handleContinue}
-          style={styles.continueButton}
-        />
-      </View>
+      <FloatingButton 
+        title="Continue"
+        onPress={handleContinue}
+      />
     </SafeAreaView>
   );
 }
@@ -148,13 +149,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 20,
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
+    paddingBottom: 100, // Extra padding for the floating button
+  },
+  content: {
     padding: 20,
     paddingTop: 0,
-    paddingBottom: 100,
   },
   title: {
     fontSize: 24,
@@ -253,15 +253,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
-  },
-  footer: {
-    padding: 20,
-    paddingBottom: 50,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  continueButton: {
-    backgroundColor: '#1E3A8A',
   },
 });

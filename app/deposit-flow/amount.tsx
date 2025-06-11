@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Info } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import SafeFooter from '@/components/SafeFooter';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import FloatingButton from '@/components/FloatingButton';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
@@ -59,91 +61,90 @@ export default function AmountScreen() {
         <Text style={styles.stepText}>Step 2 of 3</Text>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>How much do you want to add?</Text>
-        <Text style={styles.description}>This money will be securely held in your wallet until used.</Text>
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
+          <Text style={styles.title}>How much do you want to add?</Text>
+          <Text style={styles.description}>This money will be securely held in your wallet until used.</Text>
 
-        <View style={styles.amountContainer}>
-          <Text style={styles.currencySymbol}>₦</Text>
-          <TextInput
-            style={styles.amountInput}
-            placeholder="0.00"
-            placeholderTextColor={colors.textTertiary}
-            keyboardType="numeric"
-            value={amount}
-            onChangeText={handleAmountChange}
-          />
-        </View>
-
-        <View style={styles.quickAmounts}>
-          <Pressable 
-            style={[
-              styles.quickAmount,
-              amount === '100,000' && styles.quickAmountActive
-            ]}
-            onPress={() => handleQuickAmount('100,000')}
-          >
-            <Text style={[
-              styles.quickAmountText,
-              amount === '100,000' && styles.quickAmountTextActive
-            ]}>₦100k</Text>
-          </Pressable>
-          <Pressable 
-            style={[
-              styles.quickAmount,
-              amount === '500,000' && styles.quickAmountActive
-            ]}
-            onPress={() => handleQuickAmount('500,000')}
-          >
-            <Text style={[
-              styles.quickAmountText,
-              amount === '500,000' && styles.quickAmountTextActive
-            ]}>₦500k</Text>
-          </Pressable>
-          <Pressable 
-            style={[
-              styles.quickAmount,
-              amount === '1,000,000' && styles.quickAmountActive
-            ]}
-            onPress={() => handleQuickAmount('1,000,000')}
-          >
-            <Text style={[
-              styles.quickAmountText,
-              amount === '1,000,000' && styles.quickAmountTextActive
-            ]}>₦1M</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.balanceContainer}>
-          <Text style={styles.balanceLabel}>Current Wallet Balance</Text>
-          <View style={styles.balanceRow}>
-            <Text style={styles.balanceAmount}>₦{availableBalance}</Text>
+          <View style={styles.amountContainer}>
+            <Text style={styles.currencySymbol}>₦</Text>
+            <TextInput
+              style={styles.amountInput}
+              placeholder="0.00"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="numeric"
+              value={amount}
+              onChangeText={handleAmountChange}
+            />
           </View>
-        </View>
 
-        <View style={styles.infoSection}>
-          <View style={styles.infoCard}>
-            <View style={styles.infoHeader}>
-              <View style={styles.infoIconContainer}>
-                <Info size={20} color={colors.primary} />
-              </View>
-              <Text style={styles.infoTitle}>Security Notice</Text>
+          <View style={styles.quickAmounts}>
+            <Pressable 
+              style={[
+                styles.quickAmount,
+                amount === '100,000' && styles.quickAmountActive
+              ]}
+              onPress={() => handleQuickAmount('100,000')}
+            >
+              <Text style={[
+                styles.quickAmountText,
+                amount === '100,000' && styles.quickAmountTextActive
+              ]}>₦100k</Text>
+            </Pressable>
+            <Pressable 
+              style={[
+                styles.quickAmount,
+                amount === '500,000' && styles.quickAmountActive
+              ]}
+              onPress={() => handleQuickAmount('500,000')}
+            >
+              <Text style={[
+                styles.quickAmountText,
+                amount === '500,000' && styles.quickAmountTextActive
+              ]}>₦500k</Text>
+            </Pressable>
+            <Pressable 
+              style={[
+                styles.quickAmount,
+                amount === '1,000,000' && styles.quickAmountActive
+              ]}
+              onPress={() => handleQuickAmount('1,000,000')}
+            >
+              <Text style={[
+                styles.quickAmountText,
+                amount === '1,000,000' && styles.quickAmountTextActive
+              ]}>₦1M</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.balanceContainer}>
+            <Text style={styles.balanceLabel}>Current Wallet Balance</Text>
+            <View style={styles.balanceRow}>
+              <Text style={styles.balanceAmount}>₦{availableBalance}</Text>
             </View>
-            <Text style={styles.infoText}>
-              Funds will be added to your secure wallet and can be used for transactions or investments.
-            </Text>
+          </View>
+
+          <View style={styles.infoSection}>
+            <View style={styles.infoCard}>
+              <View style={styles.infoHeader}>
+                <View style={styles.infoIconContainer}>
+                  <Info size={20} color={colors.primary} />
+                </View>
+                <Text style={styles.infoTitle}>Security Notice</Text>
+              </View>
+              <Text style={styles.infoText}>
+                Funds will be added to your secure wallet and can be used for transactions or investments.
+              </Text>
+            </View>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAvoidingWrapper>
 
-      <View style={styles.footer}>
-        <Button 
-          title="Continue"
-          onPress={handleContinue}
-          style={styles.continueButton}
-          disabled={!amount}
-        />
-      </View>
+      <FloatingButton 
+        title="Continue"
+        onPress={handleContinue}
+        disabled={!amount}
+      />
       
       <SafeFooter />
     </SafeAreaView>
@@ -194,10 +195,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
+    paddingBottom: 100, // Extra padding for the floating button
+  },
+  content: {
     padding: 16,
   },
   title: {
@@ -319,15 +320,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
-  },
-  footer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  continueButton: {
-    width: '100%',
-    backgroundColor: colors.primary,
   },
 });

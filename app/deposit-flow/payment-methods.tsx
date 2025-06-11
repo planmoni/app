@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import SafeFooter from '@/components/SafeFooter';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import FloatingButton from '@/components/FloatingButton';
 
 type PaymentMethod = {
   id: string;
@@ -81,91 +83,90 @@ export default function PaymentMethodsScreen() {
         <Text style={styles.stepText}>Step 1 of 3</Text>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Select Payment Method</Text>
-        <Text style={styles.description}>Choose your preferred payment option to add funds.</Text>
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Select Payment Method</Text>
+          <Text style={styles.description}>Choose your preferred payment option to add funds.</Text>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
-          
-          {savedMethods.map((method) => (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
+            
+            {savedMethods.map((method) => (
+              <Pressable 
+                key={method.id}
+                style={[
+                  styles.paymentMethod,
+                  selectedMethodId === method.id && styles.selectedMethod
+                ]}
+                onPress={() => handleMethodSelect(method.id)}
+              >
+                <View style={styles.methodLeft}>
+                  <View style={styles.methodIconContainer}>
+                    <method.icon size={24} color={colors.primary} />
+                  </View>
+                  <View style={styles.methodInfo}>
+                    <Text style={styles.methodTitle}>{method.title}</Text>
+                    <Text style={styles.methodSubtitle}>{method.subtitle}</Text>
+                  </View>
+                </View>
+                <View style={styles.radioContainer}>
+                  <View style={[
+                    styles.radioOuter,
+                    selectedMethodId === method.id && styles.radioOuterSelected
+                  ]}>
+                    {selectedMethodId === method.id && (
+                      <View style={styles.radioInner} />
+                    )}
+                  </View>
+                  <ChevronRight size={20} color={colors.textTertiary} />
+                </View>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Add New Payment Method</Text>
+            
             <Pressable 
-              key={method.id}
-              style={[
-                styles.paymentMethod,
-                selectedMethodId === method.id && styles.selectedMethod
-              ]}
-              onPress={() => handleMethodSelect(method.id)}
+              style={styles.newMethodButton}
+              onPress={handleAddCard}
             >
               <View style={styles.methodLeft}>
                 <View style={styles.methodIconContainer}>
-                  <method.icon size={24} color={colors.primary} />
+                  <CreditCard size={24} color={colors.primary} />
                 </View>
                 <View style={styles.methodInfo}>
-                  <Text style={styles.methodTitle}>{method.title}</Text>
-                  <Text style={styles.methodSubtitle}>{method.subtitle}</Text>
+                  <Text style={styles.methodTitle}>Debit/Credit Card</Text>
+                  <Text style={styles.methodSubtitle}>Visa, Mastercard, Verve</Text>
                 </View>
               </View>
-              <View style={styles.radioContainer}>
-                <View style={[
-                  styles.radioOuter,
-                  selectedMethodId === method.id && styles.radioOuterSelected
-                ]}>
-                  {selectedMethodId === method.id && (
-                    <View style={styles.radioInner} />
-                  )}
-                </View>
-                <ChevronRight size={20} color={colors.textTertiary} />
-              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
-          ))}
+
+            <Pressable 
+              style={styles.newMethodButton}
+              onPress={handleAddUSSD}
+            >
+              <View style={styles.methodLeft}>
+                <View style={styles.methodIconContainer}>
+                  <Smartphone size={24} color={colors.primary} />
+                </View>
+                <View style={styles.methodInfo}>
+                  <Text style={styles.methodTitle}>USSD</Text>
+                  <Text style={styles.methodSubtitle}>Use USSD Code to pay</Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+          </View>
         </View>
+      </KeyboardAvoidingWrapper>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Add New Payment Method</Text>
-          
-          <Pressable 
-            style={styles.newMethodButton}
-            onPress={handleAddCard}
-          >
-            <View style={styles.methodLeft}>
-              <View style={styles.methodIconContainer}>
-                <CreditCard size={24} color={colors.primary} />
-              </View>
-              <View style={styles.methodInfo}>
-                <Text style={styles.methodTitle}>Debit/Credit Card</Text>
-                <Text style={styles.methodSubtitle}>Visa, Mastercard, Verve</Text>
-              </View>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
-
-          <Pressable 
-            style={styles.newMethodButton}
-            onPress={handleAddUSSD}
-          >
-            <View style={styles.methodLeft}>
-              <View style={styles.methodIconContainer}>
-                <Smartphone size={24} color={colors.primary} />
-              </View>
-              <View style={styles.methodInfo}>
-                <Text style={styles.methodTitle}>USSD</Text>
-                <Text style={styles.methodSubtitle}>Use USSD Code to pay</Text>
-              </View>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
-        </View>
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <Button 
-          title="Continue"
-          onPress={handleContinue}
-          style={styles.continueButton}
-          disabled={!selectedMethodId}
-        />
-      </View>
+      <FloatingButton 
+        title="Continue"
+        onPress={handleContinue}
+        disabled={!selectedMethodId}
+      />
       
       <SafeFooter />
     </SafeAreaView>
@@ -215,10 +216,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
+    paddingBottom: 100, // Extra padding for the floating button
+  },
+  content: {
     padding: 16,
   },
   title: {
@@ -315,15 +316,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  footer: {
-    padding: 16,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  continueButton: {
-    width: '100%',
-    backgroundColor: colors.primary,
   },
 });
