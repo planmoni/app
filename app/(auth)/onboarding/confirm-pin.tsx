@@ -148,20 +148,20 @@ const createStyles = (colors: any) => StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'flex-start',
-    paddingTop: 40,
+    paddingTop: 24,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: 60,
-    textAlign: 'center',
+    marginBottom: 40,
+    textAlign: 'left',
   },
   formContainer: {
     width: '100%',
