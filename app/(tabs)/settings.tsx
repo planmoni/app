@@ -4,9 +4,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
-import { Bell, Mail, PencilLine, Phone, User, Building2, Gift, CircleHelp as HelpCircle, Languages, Link2, Lock, MessageSquare, Moon, Shield, FileSliders as Sliders, FileText as Terms, ChevronRight, Eye, Fingerprint, Clock, DollarSign } from 'lucide-react-native';
+import { Bell, Mail, PencilLine, Phone, User, Building2, Gift, CircleHelp as HelpCircle, Languages, Link2, Lock, MessageSquare, Moon, Shield, FileSliders as Sliders, FileText as Terms, ChevronRight, Eye, Fingerprint, Clock, DollarSign, LogOut } from 'lucide-react-native';
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -17,7 +17,7 @@ import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
 
 export default function SettingsScreen() {
-  const { session } = useAuth();
+  const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
   const { theme, setTheme, colors } = useTheme();
   const firstName = session?.user?.user_metadata?.first_name || '';
@@ -65,6 +65,45 @@ export default function SettingsScreen() {
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
+  };
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out of your account?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+              router.replace('/');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This action cannot be undone. All your data will be permanently deleted.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete Account', 
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert('Account Deletion', 'Please contact support to proceed with account deletion.');
+          }
+        }
+      ]
+    );
   };
 
   const styles = createStyles(colors);
@@ -379,8 +418,16 @@ export default function SettingsScreen() {
 
         <View style={styles.footer}>
           <Pressable 
+            style={styles.signOutButton}
+            onPress={handleSignOut}
+          >
+            <LogOut size={20} color="#EF4444" />
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </Pressable>
+          
+          <Pressable 
             style={styles.deleteAccount}
-            onPress={() => setShowDeleteAccount(true)}
+            onPress={handleDeleteAccount}
           >
             <Text style={styles.deleteText}>Delete Account</Text>
           </Pressable>
@@ -555,6 +602,23 @@ const createStyles = (colors: any) => StyleSheet.create({
   footer: {
     padding: 16,
     gap: 16,
+  },
+  signOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  signOutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#EF4444',
   },
   deleteAccount: {
     alignItems: 'center',
