@@ -118,10 +118,11 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   buttonContainer: {
     width: '100%',
+    paddingTop: 50,
   },
   button: {
     width: '100%',
     backgroundColor: colors.primary,
-    paddingTop: 50,
+    
   },
 });
