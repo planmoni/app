@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Modal, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Calendar, ChevronRight, Clock, Info, Plus, ChevronLeft, ChevronDown, ArrowLeft } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { ScrollView } from 'react-native-gesture-handler';
 
 type DatePickerProps = {
   isVisible: boolean;
@@ -19,6 +20,8 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
   const { colors } = useTheme();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const { width } = useWindowDimensions();
+  const isSmallScreen = width < 380;
 
   const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const MONTHS = [
@@ -73,7 +76,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
     return date < today;
   };
 
-  const styles = createDatePickerStyles(colors);
+  const styles = createDatePickerStyles(colors, isSmallScreen);
 
   return (
     <Modal
@@ -88,13 +91,13 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
             <Text style={styles.calendarTitle}>Select Date</Text>
             <View style={styles.monthNavigation}>
               <Pressable style={styles.navigationButton} onPress={handlePrevMonth}>
-                <ChevronLeft size={20} color={colors.textSecondary} />
+                <ChevronLeft size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
               </Pressable>
               <Text style={styles.monthYearText}>
                 {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
               </Text>
               <Pressable style={styles.navigationButton} onPress={handleNextMonth}>
-                <ChevronRight size={20} color={colors.textSecondary} />
+                <ChevronRight size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
               </Pressable>
             </View>
           </View>
@@ -184,6 +187,10 @@ export default function ScheduleScreen() {
   const [isYearlySplit, setIsYearlySplit] = useState(true);
   const [isEditingAmount, setIsEditingAmount] = useState(false);
   const [customAmount, setCustomAmount] = useState('');
+  const { width } = useWindowDimensions();
+
+  // Responsive styles based on screen width
+  const isSmallScreen = width < 380;
 
   useEffect(() => {
     if (params.totalAmount) {
@@ -310,7 +317,7 @@ export default function ScheduleScreen() {
     });
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isSmallScreen);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -341,7 +348,7 @@ export default function ScheduleScreen() {
               ]}
               onPress={() => handleScheduleSelect('monthly')}
             >
-              <Calendar size={20} color={selectedSchedule === 'monthly' ? '#1E3A8A' : colors.text} />
+              <Calendar size={isSmallScreen ? 18 : 20} color={selectedSchedule === 'monthly' ? '#1E3A8A' : colors.text} />
               <Text style={[
                 styles.optionText,
                 selectedSchedule === 'monthly' && styles.selectedOptionText
@@ -355,7 +362,7 @@ export default function ScheduleScreen() {
               ]}
               onPress={() => handleScheduleSelect('biweekly')}
             >
-              <Calendar size={20} color={selectedSchedule === 'biweekly' ? '#1E3A8A' : colors.text} />
+              <Calendar size={isSmallScreen ? 18 : 20} color={selectedSchedule === 'biweekly' ? '#1E3A8A' : colors.text} />
               <Text style={[
                 styles.optionText,
                 selectedSchedule === 'biweekly' && styles.selectedOptionText
@@ -369,7 +376,7 @@ export default function ScheduleScreen() {
               ]}
               onPress={() => handleScheduleSelect('weekly')}
             >
-              <Calendar size={20} color={selectedSchedule === 'weekly' ? '#1E3A8A' : colors.text} />
+              <Calendar size={isSmallScreen ? 18 : 20} color={selectedSchedule === 'weekly' ? '#1E3A8A' : colors.text} />
               <Text style={[
                 styles.optionText,
                 selectedSchedule === 'weekly' && styles.selectedOptionText
@@ -383,7 +390,7 @@ export default function ScheduleScreen() {
               ]}
               onPress={() => handleScheduleSelect('custom')}
             >
-              <Calendar size={20} color={selectedSchedule === 'custom' ? '#1E3A8A' : colors.text} />
+              <Calendar size={isSmallScreen ? 18 : 20} color={selectedSchedule === 'custom' ? '#1E3A8A' : colors.text} />
               <Text style={[
                 styles.optionText,
                 selectedSchedule === 'custom' && styles.selectedOptionText
@@ -519,7 +526,7 @@ export default function ScheduleScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -574,7 +581,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 0,
   },
   title: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 20 : 24,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
@@ -587,23 +594,27 @@ const createStyles = (colors: any) => StyleSheet.create({
   scheduleOptions: {
     gap: 12,
     marginBottom: 24,
+    flexDirection: isSmallScreen ? 'column' : 'row',
+    flexWrap: isSmallScreen ? 'nowrap' : 'wrap',
   },
   scheduleOption: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 16,
+    padding: isSmallScreen ? 12 : 16,
     backgroundColor: colors.backgroundTertiary,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
+    flex: isSmallScreen ? 0 : 1,
+    minWidth: isSmallScreen ? '100%' : '48%',
   },
   selectedOption: {
     backgroundColor: '#F0F9FF',
     borderColor: '#1E3A8A',
   },
   optionText: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     color: colors.text,
     fontWeight: '500',
   },
@@ -678,7 +689,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 8,
   },
   amount: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 20 : 24,
     fontWeight: '600',
     color: colors.text,
   },
@@ -714,7 +725,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   noticeText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     color: colors.text,
     lineHeight: 20,
   },
@@ -733,7 +744,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     maxWidth: 400,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 16,
@@ -749,13 +760,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.border,
   },
   currencySymbol: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     color: colors.textSecondary,
     marginRight: 8,
   },
   modalInput: {
     flex: 1,
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     color: colors.text,
   },
   modalActions: {
@@ -784,7 +795,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.border,
   },
   splitToggleText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
   },
   splitToggleTextActive: {
@@ -792,7 +803,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
 });
 
-const createDatePickerStyles = (colors: any) => StyleSheet.create({
+const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -803,7 +814,7 @@ const createDatePickerStyles = (colors: any) => StyleSheet.create({
   modalContent: {
     backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 24,
+    padding: isSmallScreen ? 16 : 24,
     width: '100%',
     maxWidth: 400,
     maxHeight: '90%',
@@ -812,7 +823,7 @@ const createDatePickerStyles = (colors: any) => StyleSheet.create({
     marginBottom: 16,
   },
   calendarTitle: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 12,
@@ -828,7 +839,7 @@ const createDatePickerStyles = (colors: any) => StyleSheet.create({
     borderRadius: 8,
   },
   monthYearText: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '500',
     color: colors.text,
   },
@@ -844,7 +855,7 @@ const createDatePickerStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   weekDayText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
     fontWeight: '500',
   },
@@ -853,13 +864,13 @@ const createDatePickerStyles = (colors: any) => StyleSheet.create({
     flexWrap: 'wrap',
   },
   dayCell: {
-    width: '14.28%',
+    width: `${100/7}%`,
     aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   dayText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.text,
   },
   selectedDay: {
@@ -909,12 +920,12 @@ const createDatePickerStyles = (colors: any) => StyleSheet.create({
     backgroundColor: '#1E3A8A',
   },
   cancelButtonText: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     color: colors.textSecondary,
     fontWeight: '500',
   },
   confirmButtonText: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     color: '#FFFFFF',
     fontWeight: '500',
   },

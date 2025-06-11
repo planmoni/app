@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Building2, Plus, Info, Check } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -15,6 +15,7 @@ export default function DestinationScreen() {
   const params = useLocalSearchParams();
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const { width } = useWindowDimensions();
   
   const { 
     bankAccounts, 
@@ -61,7 +62,10 @@ export default function DestinationScreen() {
     }
   };
 
-  const styles = createStyles(colors);
+  // Responsive styles based on screen width
+  const isSmallScreen = width < 380;
+
+  const styles = createStyles(colors, isSmallScreen);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -117,7 +121,7 @@ export default function DestinationScreen() {
                       styles.bankIcon,
                       selectedAccountId === account.id && styles.selectedBankIcon
                     ]}>
-                      <Building2 size={24} color={selectedAccountId === account.id ? '#1E3A8A' : colors.textSecondary} />
+                      <Building2 size={isSmallScreen ? 20 : 24} color={selectedAccountId === account.id ? '#1E3A8A' : colors.textSecondary} />
                     </View>
                     <View style={styles.accountDetails}>
                       <Text style={[
@@ -182,7 +186,7 @@ export default function DestinationScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -237,7 +241,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 0,
   },
   title: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 22 : 24,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
@@ -287,7 +291,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: isSmallScreen ? 12 : 16,
     backgroundColor: colors.surface,
     borderRadius: 12,
     borderWidth: 1,
@@ -300,12 +304,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   accountInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: isSmallScreen ? 12 : 16,
+    flex: 1,
   },
   bankIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: isSmallScreen ? 40 : 48,
+    height: isSmallScreen ? 40 : 48,
+    borderRadius: isSmallScreen ? 20 : 24,
     backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -315,9 +320,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   accountDetails: {
     gap: 4,
+    flex: 1,
   },
   accountName: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '500',
     color: colors.text,
   },
@@ -325,7 +331,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#1E3A8A',
   },
   accountHolder: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
   },
   defaultTag: {
@@ -349,6 +355,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.borderSecondary,
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 8,
   },
   radioOuterSelected: {
     borderColor: '#1E3A8A',

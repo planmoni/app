@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, Switch } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Switch, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, TriangleAlert as AlertTriangle, Clock } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -12,6 +12,7 @@ export default function RulesScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const [emergencyWithdrawal, setEmergencyWithdrawal] = useState(false);
+  const { width } = useWindowDimensions();
 
   const handleContinue = () => {
     router.push({
@@ -23,7 +24,10 @@ export default function RulesScreen() {
     });
   };
 
-  const styles = createStyles(colors);
+  // Responsive styles based on screen width
+  const isSmallScreen = width < 380;
+
+  const styles = createStyles(colors, isSmallScreen);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -52,7 +56,7 @@ export default function RulesScreen() {
             <View style={styles.setting}>
               <View style={styles.settingInfo}>
                 <View style={styles.settingIcon}>
-                  <AlertTriangle size={24} color="#F97316" />
+                  <AlertTriangle size={isSmallScreen ? 20 : 24} color="#F97316" />
                 </View>
                 <View style={styles.settingDetails}>
                   <Text style={styles.settingTitle}>Emergency Withdrawal</Text>
@@ -71,7 +75,7 @@ export default function RulesScreen() {
 
             <View style={styles.cooldownSetting}>
               <View style={styles.settingIcon}>
-                <Clock size={24} color="#3B82F6" />
+                <Clock size={isSmallScreen ? 20 : 24} color="#3B82F6" />
               </View>
               <View style={styles.cooldownDetails}>
                 <Text style={styles.cooldownTitle}>Emergency Cooldown</Text>
@@ -84,7 +88,7 @@ export default function RulesScreen() {
 
             <View style={styles.warning}>
               <View style={styles.warningIcon}>
-                <AlertTriangle size={20} color="#EF4444" />
+                <AlertTriangle size={isSmallScreen ? 16 : 20} color="#EF4444" />
               </View>
               <Text style={styles.warningText}>
                 To enforce discipline, emergency withdrawals will hold funds for 72 hours and also attract high fees
@@ -102,7 +106,7 @@ export default function RulesScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -157,7 +161,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 0,
   },
   title: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 22 : 24,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
@@ -175,7 +179,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: colors.card,
-    padding: 16,
+    padding: isSmallScreen ? 12 : 16,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
@@ -183,11 +187,12 @@ const createStyles = (colors: any) => StyleSheet.create({
   settingInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: isSmallScreen ? 8 : 12,
+    flex: 1,
   },
   settingIcon: {
-    width: 40,
-    height: 40,
+    width: isSmallScreen ? 36 : 40,
+    height: isSmallScreen ? 36 : 40,
     borderRadius: 8,
     backgroundColor: '#FFF7ED',
     justifyContent: 'center',
@@ -195,21 +200,22 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   settingDetails: {
     gap: 4,
+    flex: 1,
   },
   settingTitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 15 : 16,
     fontWeight: '500',
     color: colors.text,
   },
   settingDescription: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     color: colors.textSecondary,
   },
   cooldownSetting: {
     flexDirection: 'row',
-    gap: 12,
+    gap: isSmallScreen ? 8 : 12,
     backgroundColor: colors.card,
-    padding: 16,
+    padding: isSmallScreen ? 12 : 16,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
@@ -218,31 +224,32 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   cooldownDetails: {
     gap: 4,
+    flex: 1,
   },
   cooldownTitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 15 : 16,
     fontWeight: '500',
     color: colors.text,
   },
   cooldownValue: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontWeight: '500',
     color: '#1E3A8A',
   },
   cooldownDescription: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     color: colors.textSecondary,
   },
   warning: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: isSmallScreen ? 8 : 12,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
     borderLeftColor: '#EF4444',
-    padding: 16,
+    padding: isSmallScreen ? 12 : 16,
     borderRadius: 12,
   },
   warningIcon: {
@@ -250,8 +257,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   warningText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     color: colors.text,
-    lineHeight: 20,
+    lineHeight: isSmallScreen ? 18 : 20,
   },
 });
