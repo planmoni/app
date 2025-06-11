@@ -74,7 +74,7 @@ export default function WelcomeScreen() {
   });
 
   const handleGetStarted = () => {
-    router.push('/(auth)/onboarding/welcome');
+    router.push('/(auth)/onboarding/first-name');
   };
 
   const handleSignIn = () => {
