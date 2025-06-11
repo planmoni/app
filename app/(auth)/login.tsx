@@ -9,11 +9,12 @@ import { useTheme } from '@/contexts/ThemeContext';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
-  const { signIn, isLoading, error } = useAuth();
+  const { signIn, isLoading, error: authError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [formErrors, setFormErrors] = useState<{email?: string; password?: string}>({});
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const validateForm = () => {
     const errors: {email?: string; password?: string} = {};
@@ -37,11 +38,25 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     if (!validateForm()) return;
     
+    setLoginError(null);
+    
     try {
       await signIn(email.toLowerCase().trim(), password);
       router.replace('/(tabs)');
     } catch (err) {
-      // Error is handled by the auth context
+      // Handle specific error messages
+      const errorMessage = err instanceof Error ? err.message : 'Failed to sign in';
+      
+      // Check for common authentication errors and provide user-friendly messages
+      if (errorMessage.includes('Invalid login credentials')) {
+        setLoginError('Invalid email or password. Please check your credentials and try again.');
+      } else if (errorMessage.includes('Email not confirmed')) {
+        setLoginError('Please verify your email address before signing in.');
+      } else if (errorMessage.includes('rate limit')) {
+        setLoginError('Too many login attempts. Please try again later.');
+      } else {
+        setLoginError(errorMessage);
+      }
     }
   };
 
@@ -60,9 +75,9 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.form}>
-          {error && (
+          {(loginError || authError) && (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
+              <Text style={styles.errorText}>{loginError || authError}</Text>
             </View>
           )}
 
@@ -82,6 +97,9 @@ export default function LoginScreen() {
                   setEmail(text);
                   if (formErrors.email) {
                     setFormErrors(prev => ({ ...prev, email: undefined }));
+                  }
+                  if (loginError) {
+                    setLoginError(null);
                   }
                 }}
                 keyboardType="email-address"
@@ -111,6 +129,9 @@ export default function LoginScreen() {
                   setPassword(text);
                   if (formErrors.password) {
                     setFormErrors(prev => ({ ...prev, password: undefined }));
+                  }
+                  if (loginError) {
+                    setLoginError(null);
                   }
                 }}
                 secureTextEntry={!showPassword}

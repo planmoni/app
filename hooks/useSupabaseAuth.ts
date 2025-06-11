@@ -28,12 +28,29 @@ export function useSupabaseAuth() {
       setError(null);
       setIsLoading(true);
       
-      const { error } = await supabase.auth.signInWithPassword({ 
+      const { error, data } = await supabase.auth.signInWithPassword({ 
         email: email.toLowerCase().trim(), 
         password 
       });
       
-      if (error) throw error;
+      if (error) {
+        // Format error message for better user experience
+        let errorMessage = error.message;
+        
+        // Handle specific error cases
+        if (error.message.includes('Invalid login credentials')) {
+          errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (error.message.includes('Email not confirmed')) {
+          errorMessage = 'Please verify your email address before signing in.';
+        } else if (error.message.includes('rate limit')) {
+          errorMessage = 'Too many login attempts. Please try again later.';
+        }
+        
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      }
+      
+      return data;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign in';
       setError(message);
@@ -59,10 +76,23 @@ export function useSupabaseAuth() {
         },
       });
       
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        // Format error message for better user experience
+        let errorMessage = signUpError.message;
+        
+        // Handle specific error cases
+        if (signUpError.message.includes('already registered')) {
+          errorMessage = 'This email is already registered. Please sign in or use a different email.';
+        } else if (signUpError.message.includes('password')) {
+          errorMessage = 'Password is too weak. Please use a stronger password.';
+        }
+        
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      }
 
       // The trigger will automatically create the profile and wallet
-      
+      return data;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create account';
       setError(message);
@@ -75,18 +105,22 @@ export function useSupabaseAuth() {
   const signOut = async () => {
     try {
       setError(null);
+      setIsLoading(true);
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign out';
       setError(message);
       throw new Error(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const resetPassword = async (email: string) => {
     try {
       setError(null);
+      setIsLoading(true);
       const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
         redirectTo: 'planmoni://reset-password',
       });
@@ -95,6 +129,8 @@ export function useSupabaseAuth() {
       const message = err instanceof Error ? err.message : 'Failed to send reset email';
       setError(message);
       throw new Error(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
