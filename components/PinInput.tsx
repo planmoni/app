@@ -1,194 +1,136 @@
-import { View, TextInput, StyleSheet, Dimensions } from 'react-native';
-import { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
+import { View, TextInput, StyleSheet, Pressable } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import Animated, { useAnimatedStyle, withTiming, withSequence, withDelay } from 'react-native-reanimated';
 
-type PinInputProps = {
+interface PinInputProps {
   length: number;
   value: string;
   onChange: (value: string) => void;
-  autoFocus?: boolean;
-  secure?: boolean;
-  inputSpacing?: number;
-  containerStyle?: any;
-};
+  secureTextEntry?: boolean;
+}
 
 export default function PinInput({ 
   length, 
   value, 
   onChange, 
-  autoFocus = false,
-  secure = false,
-  inputSpacing,
-  containerStyle
+  secureTextEntry = true 
 }: PinInputProps) {
-  const { colors, isDark } = useTheme();
-  const inputRef = useRef<TextInput>(null);
-  const [isFocused, setIsFocused] = useState(false);
-  const windowWidth = Dimensions.get('window').width;
-  
-  // Calculate responsive sizes
-  const isSmallScreen = windowWidth < 380;
-  const dotSize = isSmallScreen ? 16 : 20;
-  const cellSize = isSmallScreen ? 48 : 56;
-  const spacing = inputSpacing !== undefined ? inputSpacing : isSmallScreen ? 12 : 16;
+  const { colors } = useTheme();
+  const inputRefs = useRef<(TextInput | null)[]>([]);
   
   useEffect(() => {
-    if (autoFocus) {
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
-    }
-  }, [autoFocus]);
-  
-  const handleChange = (text: string) => {
-    // Only allow numbers
-    const numericValue = text.replace(/[^0-9]/g, '');
+    const timer = setTimeout(() => {
+      if (inputRefs.current[0]) {
+        inputRefs.current[0].focus();
+      }
+    }, 100); // Small delay to ensure component is rendered
     
-    // Limit to specified length
-    if (numericValue.length <= length) {
-      onChange(numericValue);
-    }
-  };
+    return () => clearTimeout(timer);
+  }, []);
   
-  const handleFocus = () => {
-    setIsFocused(true);
-  };
-  
-  const handleBlur = () => {
-    setIsFocused(false);
-  };
-  
-  const renderPinCells = () => {
-    const cells = [];
+  const handleChangeText = (text: string, index: number) => {
+    // Only allow numeric input
+    const numericText = text.replace(/[^0-9]/g, '');
     
-    for (let i = 0; i < length; i++) {
-      const isCellFilled = i < value.length;
-      const isLastFilledCell = i === value.length - 1;
-      const isCurrentCell = i === value.length;
+    if (numericText.length > 1) {
+      // Handle paste scenario
+      const pastedValue = numericText.slice(0, length);
+      onChange(pastedValue);
       
-      const animatedStyle = useAnimatedStyle(() => {
-        if (isLastFilledCell) {
-          return {
-            transform: [
-              { scale: withSequence(
-                withTiming(1.2, { duration: 50 }),
-                withTiming(1, { duration: 100 })
-              )}
-            ]
-          };
-        }
-        return {};
-      });
-      
-      const cursorAnimatedStyle = useAnimatedStyle(() => {
-        if (isCurrentCell && isFocused) {
-          return {
-            opacity: withDelay(
-              300,
-              withSequence(
-                withTiming(0, { duration: 500 }),
-                withTiming(1, { duration: 500 })
-              )
-            )
-          };
-        }
-        return { opacity: 0 };
-      });
-      
-      cells.push(
-        <Animated.View 
-          key={i} 
-          style={[
-            styles.cell,
-            { 
-              width: cellSize,
-              height: cellSize,
-              borderColor: isCurrentCell && isFocused ? colors.primary : colors.border,
-              backgroundColor: isCellFilled ? colors.backgroundTertiary : colors.surface
-            },
-            animatedStyle
-          ]}
-        >
-          {isCellFilled ? (
-            secure ? (
-              <View style={[styles.dot, { width: dotSize, height: dotSize, backgroundColor: colors.text }]} />
-            ) : (
-              <Animated.Text style={[styles.cellText, { color: colors.text }]}>
-                {value[i]}
-              </Animated.Text>
-            )
-          ) : (
-            <Animated.View 
-              style={[
-                styles.cursor, 
-                { backgroundColor: colors.primary },
-                cursorAnimatedStyle
-              ]} 
-            />
-          )}
-        </Animated.View>
-      );
+      // Focus the last filled input or the next empty one
+      const nextIndex = Math.min(pastedValue.length, length - 1);
+      inputRefs.current[nextIndex]?.focus();
+      return;
     }
     
-    return cells;
+    // Build new value
+    const newValue = value.split('');
+    newValue[index] = numericText;
+    const updatedValue = newValue.join('').slice(0, length);
+    
+    onChange(updatedValue);
+    
+    // Auto-focus next input
+    if (numericText && index < length - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
   };
   
-  const styles = createStyles(colors, isDark, spacing);
+  const handleKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !value[index] && index > 0) {
+      // Focus previous input on backspace if current is empty
+      inputRefs.current[index - 1]?.focus();
+      
+      // Update the value to remove the previous digit
+      if (index > 0) {
+        const newValue = value.split('');
+        newValue[index - 1] = '';
+        onChange(newValue.join(''));
+      }
+    }
+  };
+  
+  const handleInputPress = (index: number) => {
+    // Focus the first empty input or the pressed input
+    const firstEmptyIndex = value.length;
+    const targetIndex = Math.min(firstEmptyIndex, index);
+    inputRefs.current[targetIndex]?.focus();
+  };
+  
+  const styles = createStyles(colors);
   
   return (
-    <View style={[styles.container, containerStyle]}>
-      <View style={styles.cellsContainer}>
-        {renderPinCells()}
-      </View>
-      <TextInput
-        ref={inputRef}
-        style={styles.hiddenInput}
-        value={value}
-        onChangeText={handleChange}
-        keyboardType="number-pad"
-        maxLength={length}
-        caretHidden
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        autoFocus={autoFocus}
-      />
+    <View style={styles.container}>
+      {Array.from({ length }, (_, index) => (
+        <Pressable
+          key={index}
+          onPress={() => handleInputPress(index)}
+          style={styles.inputWrapper}
+        >
+          <TextInput
+            ref={(ref) => (inputRefs.current[index] = ref)}
+            style={[
+              styles.input,
+              value[index] && styles.inputFilled,
+            ]}
+            value={value[index] || ''}
+            onChangeText={(text) => handleChangeText(text, index)}
+            onKeyPress={(e) => handleKeyPress(e, index)}
+            keyboardType="numeric"
+            maxLength={1}
+            selectTextOnFocus
+            secureTextEntry={secureTextEntry}
+          />
+        </Pressable>
+      ))}
     </View>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, spacing: number) => StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  cellsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: spacing,
-    marginBottom: 24,
+    gap: 12,
   },
-  cell: {
-    borderWidth: 1,
+  inputWrapper: {
+    width: 50,
+    height: 60,
+  },
+  input: {
+    width: '100%',
+    height: '100%',
+    borderWidth: 2,
+    borderColor: colors.border,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cellText: {
     fontSize: 24,
     fontWeight: '600',
+    color: colors.text,
+    backgroundColor: colors.surface,
+    textAlign: 'center',
   },
-  dot: {
-    borderRadius: 10,
-  },
-  cursor: {
-    width: 2,
-    height: 24,
-  },
-  hiddenInput: {
-    position: 'absolute',
-    opacity: 0,
-    height: 0,
-    width: 0,
+  inputFilled: {
+    borderColor: colors.primary,
+    backgroundColor: colors.backgroundTertiary,
   },
 });

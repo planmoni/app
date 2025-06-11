@@ -1,13 +1,12 @@
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Eye, EyeOff, Lock } from 'lucide-react-native';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
-import { useKeyboardFocus } from '@/hooks/useKeyboardFocus';
 
 export default function ConfirmPasswordScreen() {
   const { colors } = useTheme();
@@ -20,14 +19,21 @@ export default function ConfirmPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const inputRef = useKeyboardFocus(true);
+  const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+  const confirmPasswordInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      confirmPasswordInputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    setIsButtonEnabled(confirmPassword.length >= 8);
+  }, [confirmPassword]);
 
   const handleContinue = () => {
-    if (!confirmPassword) {
-      setError('Please confirm your password');
-      return;
-    }
-    
     if (confirmPassword !== password) {
       setError('Passwords do not match');
       return;
@@ -35,7 +41,12 @@ export default function ConfirmPasswordScreen() {
     
     router.push({
       pathname: '/onboarding/bvn',
-      params: { firstName, lastName, email, password }
+      params: { 
+        firstName,
+        lastName,
+        email,
+        password
+      }
     });
   };
 
@@ -43,41 +54,46 @@ export default function ConfirmPasswordScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <OnboardingProgress step={6} totalSteps={8} />
-      
-      <KeyboardAvoidingWrapper disableDismissKeyboard={true}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft size={24} color={colors.text} />
+        </Pressable>
+      </View>
+
+      <OnboardingProgress currentStep={6} totalSteps={8} />
+
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Confirm your password</Text>
-            <Text style={styles.subtitle}>Please re-enter your password to confirm</Text>
-          </View>
+          <Text style={styles.title}>Confirm your password</Text>
+          <Text style={styles.subtitle}>Make sure your passwords match</Text>
 
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-
-          <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
-              <Lock size={20} color={colors.textSecondary} style={styles.icon} />
+          <View style={styles.formContainer}>
+            <Text style={styles.question}>Re-enter your password</Text>
+            
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+            
+            <View style={styles.inputContainer}>
+              <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
-                ref={inputRef}
+                ref={confirmPasswordInputRef}
                 style={styles.input}
                 placeholder="Confirm your password"
                 placeholderTextColor={colors.textTertiary}
                 value={confirmPassword}
                 onChangeText={(text) => {
                   setConfirmPassword(text);
-                  if (error) setError(null);
+                  setError(null);
                 }}
                 secureTextEntry={!showPassword}
-                returnKeyType="next"
-                onSubmitEditing={handleContinue}
+                textContentType="newPassword"
               />
               <Pressable
-                onPress={() => setShowPassword(!showPassword)}
                 style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
               >
                 {showPassword ? (
                   <EyeOff size={20} color={colors.textSecondary} />
@@ -93,7 +109,8 @@ export default function ConfirmPasswordScreen() {
       <FloatingButton 
         title="Continue"
         onPress={handleContinue}
-        disabled={!confirmPassword}
+        disabled={!isButtonEnabled}
+        icon={ArrowRight}
       />
     </SafeAreaView>
   );
@@ -104,30 +121,51 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+  },
+  contentContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+  },
   content: {
     flex: 1,
-    padding: 24,
-  },
-  header: {
-    marginBottom: 32,
-    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    paddingTop: 40,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
-    textAlign: 'left',
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: 'left',
+    marginBottom: 60,
+    textAlign: 'center',
+  },
+  formContainer: {
+    width: '100%',
+  },
+  question: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 24,
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
-    borderWidth: 1,
-    borderColor: colors.error,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
@@ -137,26 +175,25 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
   },
   inputContainer: {
-    marginBottom: 24,
-  },
-  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
-    padding: 16,
     backgroundColor: colors.surface,
+    paddingHorizontal: 16,
+    height: 56,
   },
-  icon: {
+  inputIcon: {
     marginRight: 12,
   },
   input: {
     flex: 1,
-    fontSize: 18,
+    fontSize: 16,
     color: colors.text,
+    height: '100%',
   },
   eyeButton: {
-    padding: 4,
+    padding: 8,
   },
 });

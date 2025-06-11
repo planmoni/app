@@ -1,12 +1,12 @@
-import { View, Text, StyleSheet, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ArrowLeft, ArrowRight, User } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
-import { useKeyboardFocus } from '@/hooks/useKeyboardFocus';
 
 export default function LastNameScreen() {
   const { colors } = useTheme();
@@ -14,7 +14,19 @@ export default function LastNameScreen() {
   const firstName = params.firstName as string;
   const [lastName, setLastName] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const inputRef = useKeyboardFocus(true);
+  const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+  const lastNameInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      lastNameInputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    setIsButtonEnabled(lastName.trim().length > 0);
+  }, [lastName]);
 
   const handleContinue = () => {
     if (!lastName.trim()) {
@@ -24,7 +36,10 @@ export default function LastNameScreen() {
     
     router.push({
       pathname: '/onboarding/email',
-      params: { firstName, lastName }
+      params: { 
+        firstName,
+        lastName: lastName.trim()
+      }
     });
   };
 
@@ -32,36 +47,44 @@ export default function LastNameScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <OnboardingProgress step={2} totalSteps={8} />
-      
-      <KeyboardAvoidingWrapper disableDismissKeyboard={true}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft size={24} color={colors.text} />
+        </Pressable>
+      </View>
+
+      <OnboardingProgress currentStep={2} totalSteps={8} />
+
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
-          <View style={styles.header}>
-            <Text style={styles.title}>What's your last name?</Text>
-            <Text style={styles.subtitle}>We'll use this to personalize your experience</Text>
-          </View>
+          <Text style={styles.title}>Welcome, {firstName}</Text>
+          <Text style={styles.subtitle}>Let's continue setting up your account</Text>
 
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
+          <View style={styles.formContainer}>
+            <Text style={styles.question}>What's your last name?</Text>
+            
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+            
+            <View style={styles.inputContainer}>
+              <User size={20} color={colors.textSecondary} style={styles.inputIcon} />
+              <TextInput
+                ref={lastNameInputRef}
+                style={styles.input}
+                placeholder="Enter your last name"
+                placeholderTextColor={colors.textTertiary}
+                value={lastName}
+                onChangeText={(text) => {
+                  setLastName(text);
+                  setError(null);
+                }}
+                autoCapitalize="words"
+                textContentType="familyName"
+              />
             </View>
-          )}
-
-          <View style={styles.inputContainer}>
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              placeholder="Enter your last name"
-              placeholderTextColor={colors.textTertiary}
-              value={lastName}
-              onChangeText={(text) => {
-                setLastName(text);
-                if (error) setError(null);
-              }}
-              autoCapitalize="words"
-              returnKeyType="next"
-              onSubmitEditing={handleContinue}
-            />
           </View>
         </View>
       </KeyboardAvoidingWrapper>
@@ -69,7 +92,8 @@ export default function LastNameScreen() {
       <FloatingButton 
         title="Continue"
         onPress={handleContinue}
-        disabled={!lastName.trim()}
+        disabled={!isButtonEnabled}
+        icon={ArrowRight}
       />
     </SafeAreaView>
   );
@@ -80,30 +104,51 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+  },
+  contentContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+  },
   content: {
     flex: 1,
-    padding: 24,
-  },
-  header: {
-    marginBottom: 32,
-    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    paddingTop: 40,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
-    textAlign: 'left',
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: 'left',
+    marginBottom: 60,
+    textAlign: 'center',
+  },
+  formContainer: {
+    width: '100%',
+  },
+  question: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 24,
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
-    borderWidth: 1,
-    borderColor: colors.error,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
@@ -113,15 +158,22 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
   },
   inputContainer: {
-    marginBottom: 24,
-  },
-  input: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
-    padding: 16,
-    fontSize: 18,
-    color: colors.text,
     backgroundColor: colors.surface,
+    paddingHorizontal: 16,
+    height: 56,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+    height: '100%',
   },
 });
