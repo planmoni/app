@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, Image } from 'react-native';
 import { router, Link } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function LoginScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { signIn, isLoading, error: authError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -49,7 +49,7 @@ export default function LoginScreen() {
     }
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -58,6 +58,17 @@ export default function LoginScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
+        <View style={styles.logoContainer}>
+          <Image
+            source={isDark 
+              ? require('@/assets/images/PlanmoniDarkMode.png')
+              : require('@/assets/images/Planmoni.png')
+            }
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+
         <View style={styles.header}>
           <Text style={styles.title}>Welcome back</Text>
           <Text style={styles.subtitle}>Sign in to your Planmoni account</Text>
@@ -103,7 +114,14 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Password</Text>
+              <Link href="/(auth)/forgot-password" asChild>
+                <Pressable>
+                  <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+                </Pressable>
+              </Link>
+            </View>
             <View style={[
               styles.inputContainer,
               formErrors.password && styles.inputError
@@ -143,25 +161,17 @@ export default function LoginScreen() {
             )}
           </View>
 
-          <View style={styles.forgotPasswordContainer}>
-            <Link href="/(auth)/forgot-password" asChild>
-              <Pressable>
-                <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
-              </Pressable>
-            </Link>
-          </View>
-
           <Button
             title="Sign In"
             onPress={handleLogin}
-            loading={isLoading}
+            isLoading={isLoading}
             style={styles.signInButton}
             icon={ArrowRight}
           />
 
           <View style={styles.signUpContainer}>
             <Text style={styles.signUpText}>Don't have an account? </Text>
-            <Link href="/(auth)/signup" asChild>
+            <Link href="/" asChild>
               <Pressable>
                 <Text style={styles.signUpLink}>Sign up</Text>
               </Pressable>
@@ -173,7 +183,7 @@ export default function LoginScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -186,15 +196,23 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
-  header: {
+  logoContainer: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 40,
+  },
+  logo: {
+    width: 180,
+    height: 60,
+  },
+  header: {
+    marginBottom: 32,
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
@@ -208,8 +226,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.errorLight,
     borderWidth: 1,
     borderColor: colors.error,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 8,
   },
   errorText: {
@@ -219,6 +237,11 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   inputGroup: {
     gap: 8,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   label: {
     fontSize: 14,
@@ -231,7 +254,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: isDark ? colors.backgroundTertiary : colors.surface,
     paddingHorizontal: 16,
     height: 56,
   },
@@ -248,17 +271,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     height: '100%',
   },
   eyeButton: {
-    padding: 4,
-    marginLeft: 8,
+    padding: 8,
   },
   fieldError: {
     fontSize: 12,
     color: colors.error,
     marginTop: 4,
-  },
-  forgotPasswordContainer: {
-    alignItems: 'flex-end',
-    marginTop: -8,
   },
   forgotPasswordText: {
     fontSize: 14,
@@ -275,7 +293,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 16,
   },
   signUpText: {
     fontSize: 14,
