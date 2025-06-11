@@ -1,6 +1,5 @@
 import Button from '@/components/Button';
 import InitialsAvatar from '@/components/InitialsAvatar';
-import SafeFooter from '@/components/SafeFooter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -538,7 +537,6 @@ export default function SettingsScreen() {
         onClose={() => setShowTerms(false)}
       />
       
-      <SafeFooter />
     </View>
   );
 }
