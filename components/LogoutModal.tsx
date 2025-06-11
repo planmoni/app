@@ -1,49 +1,51 @@
 import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
-import { router } from 'expo-router';
+import { LogOut, AlertTriangle } from 'lucide-react-native';
+import Button from '@/components/Button';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface LogoutModalProps {
   isVisible: boolean;
   onClose: () => void;
+  onConfirmLogout: () => void;
 }
 
-export default function LogoutModal({ isVisible, onClose }: LogoutModalProps) {
-  const handleLogout = () => {
-    onClose();
-    // Navigate to welcome screen
-    router.replace('/');
-  };
+export default function LogoutModal({ isVisible, onClose, onConfirmLogout }: LogoutModalProps) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
 
   return (
     <Modal
-      animationType="slide"
+      animationType="fade"
       transparent={true}
       visible={isVisible}
       onRequestClose={onClose}
     >
-      <View style={styles.centeredView}>
-        <View style={styles.modalView}>
-          <Text style={styles.modalTitle}>Log Out</Text>
-          
-          <View style={styles.content}>
-            <Text style={styles.description}>
-              Are you sure you want to log out of your account?
-            </Text>
+      <View style={styles.overlay}>
+        <View style={styles.modal}>
+          <View style={styles.iconContainer}>
+            <LogOut size={32} color="#EF4444" />
           </View>
+          
+          <Text style={styles.title}>Log Out</Text>
+          
+          <Text style={styles.message}>
+            Are you sure you want to log out of your account? You'll need to sign in again to access your data.
+          </Text>
 
           <View style={styles.buttonContainer}>
-            <Pressable
-              style={[styles.button, styles.cancelButton]}
+            <Button
+              title="Cancel"
               onPress={onClose}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </Pressable>
+              variant="outline"
+              style={styles.cancelButton}
+            />
             
-            <Pressable
-              style={[styles.button, styles.logoutButton]}
-              onPress={handleLogout}
-            >
-              <Text style={styles.logoutButtonText}>Log Out</Text>
-            </Pressable>
+            <Button
+              title="Log Out"
+              onPress={onConfirmLogout}
+              style={styles.logoutButton}
+              icon={LogOut}
+            />
           </View>
         </View>
       </View>
@@ -51,66 +53,64 @@ export default function LogoutModal({ isVisible, onClose }: LogoutModalProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  centeredView: {
+const createStyles = (colors: any) => StyleSheet.create({
+  overlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: 16,
   },
-  modalView: {
-    width: '90%',
-    maxWidth: 500,
-    backgroundColor: 'white',
+  modal: {
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
     shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  modalTitle: {
+  iconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  title: {
     fontSize: 24,
     fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 16,
+    color: colors.text,
+    marginBottom: 12,
+    textAlign: 'center',
   },
-  content: {
-    marginBottom: 24,
-  },
-  description: {
+  message: {
     fontSize: 16,
-    color: '#64748B',
+    color: colors.textSecondary,
+    textAlign: 'center',
     lineHeight: 24,
+    marginBottom: 32,
   },
   buttonContainer: {
     flexDirection: 'row',
     gap: 12,
-  },
-  button: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+    width: '100%',
   },
   cancelButton: {
-    backgroundColor: '#F1F5F9',
+    flex: 1,
+    borderColor: colors.border,
   },
   logoutButton: {
-    backgroundColor: '#FEE2E2',
-  },
-  cancelButtonText: {
-    color: '#64748B',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  logoutButtonText: {
-    color: '#EF4444',
-    fontSize: 16,
-    fontWeight: '600',
+    flex: 1,
+    backgroundColor: '#EF4444',
   },
 });
