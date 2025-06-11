@@ -52,7 +52,7 @@ export default function LoginEmailScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Pressable onPress={() => router.push('/(auth)/onboarding')} style={styles.signUpButton}>
+        <Pressable onPress={() => router.push('/(auth)/signup')} style={styles.signUpButton}>
           <Text style={styles.signUpText}>Sign Up</Text>
         </Pressable>
       </View>
