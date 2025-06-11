@@ -175,7 +175,7 @@ export default function WelcomeScreen() {
           style={styles.signInButton}
         />
 
-        {/* <View style={styles.regulatoryInfo}>
+        <View style={styles.regulatoryInfo}>
           <View style={styles.regulatoryRow}>
             <Image
               source={require('@/assets/images/CBN-logo.png')}
@@ -190,7 +190,7 @@ export default function WelcomeScreen() {
             <Text style={styles.regulatoryText}>Licensed by the CBN. Deposits insured by NDIC</Text>
           </View>
         </View>
-      </View> */}
+      </View>
     </ScrollView>
   );
 }
