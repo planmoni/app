@@ -175,21 +175,7 @@ export default function WelcomeScreen() {
           style={styles.signInButton}
         />
 
-        <View style={styles.regulatoryInfo}>
-          <View style={styles.regulatoryRow}>
-            <Image
-              source={require('@/assets/images/CBN-logo.png')}
-              style={styles.cbnLogo}
-              resizeMode="contain"
-            />
-            <Image
-              source={require('@/assets/images/ndic-logo.png')}
-              style={styles.ndicLogo}
-              resizeMode="contain"
-            />
-            <Text style={styles.regulatoryText}>Licensed by the CBN. Deposits insured by NDIC</Text>
-          </View>
-        </View>
+        
       </View>
     </ScrollView>
   );
