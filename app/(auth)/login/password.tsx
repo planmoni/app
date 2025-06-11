@@ -59,7 +59,7 @@ export default function LoginPasswordScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Pressable onPress={() => router.push('/(auth)/signup')} style={styles.signUpButton}>
-          <Text style={styles.signUpText}>Sign Up</Text>
+          <Text style={styles.signUpText}>Sign up instead</Text>
         </Pressable>
       </View>
 
