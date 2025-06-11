@@ -106,12 +106,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     textAlign: 'center',
   },
   summaryCard: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.successLight,
     borderRadius: 12,
     padding: 24,
     width: '100%',
     alignItems: 'center',
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.success,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.success,
   },
   amount: {
     fontSize: 32,
@@ -126,7 +130,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 24,
   },
   highlight: {
-    color: '#22C55E',
+    color: colors.success,
     fontWeight: '600',
   },
   detailsContainer: {
@@ -148,11 +152,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
   },
   notice: {
-    backgroundColor: '#F0F9FF',
+    backgroundColor: colors.card,
     padding: 16,
     borderRadius: 12,
     width: '100%',
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
   },
   noticeText: {
     fontSize: 14,
