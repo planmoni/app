@@ -67,6 +67,10 @@ export default function HomeScreen() {
     }
   };
 
+  const handleProfilePress = () => {
+    router.push('/profile');
+  };
+
   const buttonOpacity = scrollY.interpolate({
     inputRange: [0, 200],
     outputRange: [0, 1],
@@ -173,12 +177,14 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <InitialsAvatar 
-              firstName={firstName} 
-              lastName={lastName} 
-              size={48}
-              fontSize={18}
-            />
+            <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
+              <InitialsAvatar 
+                firstName={firstName} 
+                lastName={lastName} 
+                size={48}
+                fontSize={18}
+              />
+            </Pressable>
             <Text style={styles.date}>{formatDate(currentDate)}</Text>
           </View>
           <View style={styles.greetingContainer}>
@@ -547,6 +553,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  avatarButton: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    // Add subtle feedback for the touchable area
+    activeOpacity: 0.8,
   },
   greetingContainer: {
     marginLeft: 0,
