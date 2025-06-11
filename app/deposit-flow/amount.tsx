@@ -5,6 +5,7 @@ import Button from '@/components/Button';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import SafeFooter from '@/components/SafeFooter';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
@@ -143,6 +144,8 @@ export default function AmountScreen() {
           disabled={!amount}
         />
       </View>
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }

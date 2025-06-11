@@ -5,6 +5,7 @@ import SuccessAnimation from '@/components/SuccessAnimation';
 import { Download, Info } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import SafeFooter from '@/components/SafeFooter';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
@@ -80,6 +81,8 @@ export default function SuccessScreen() {
           icon={Download}
         />
       </View>
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }

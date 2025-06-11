@@ -4,6 +4,7 @@ import { ArrowLeft, Building2, Clock, TriangleAlert as AlertTriangle } from 'luc
 import Button from '@/components/Button';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import SafeFooter from '@/components/SafeFooter';
 
 export default function AuthorizationScreen() {
   const { colors } = useTheme();
@@ -96,6 +97,8 @@ export default function AuthorizationScreen() {
           style={styles.fundButton}
         />
       </View>
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }
