@@ -43,10 +43,10 @@ export default function FloatingButton({
       // Get keyboard height
       const keyboardHeightValue = event.endCoordinates.height;
       
-      // Animate the button position
+      // Animate the button position - use full keyboard height for Android
       Animated.parallel([
         Animated.timing(keyboardHeight, {
-          toValue: keyboardHeightValue - (Platform.OS === 'ios' ? 0 : 20),
+          toValue: keyboardHeightValue,
           duration: 250,
           useNativeDriver: false,
         }),
