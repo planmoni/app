@@ -48,6 +48,9 @@ export default function FirstNameScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
+        <Pressable onPress={() => router.push('/(auth)/login')} style={styles.signInButton}>
+          <Text style={styles.signInText}>Sign In</Text>
+        </Pressable>
       </View>
 
       <OnboardingProgress currentStep={1} totalSteps={6} />
@@ -101,6 +104,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.backgroundSecondary,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
@@ -111,6 +117,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: 20,
+  },
+  signInButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundTertiary,
+  },
+  signInText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
   },
   contentContainer: {
     flexGrow: 1,

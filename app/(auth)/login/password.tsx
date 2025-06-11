@@ -58,6 +58,9 @@ export default function LoginPasswordScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
+        <Pressable onPress={() => router.push('/(auth)/signup')} style={styles.signUpButton}>
+          <Text style={styles.signUpText}>Sign Up</Text>
+        </Pressable>
       </View>
 
       <OnboardingProgress currentStep={2} totalSteps={2} />
@@ -136,6 +139,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
@@ -146,6 +152,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: 20,
+  },
+  signUpButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundTertiary,
+  },
+  signUpText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
   },
   contentContainer: {
     flexGrow: 1,
