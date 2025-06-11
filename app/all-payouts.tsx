@@ -7,12 +7,12 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { usePayoutPlans } from '@/hooks/usePayoutPlans';
+import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
 
 export default function AllPayoutsScreen() {
   const { colors } = useTheme();
-  const { payoutPlans, isLoading, pausePlan, resumePlan } = usePayoutPlans();
+  const { payoutPlans, isLoading, pausePlan, resumePlan } = useRealtimePayoutPlans();
   const { showBalances } = useBalance();
 
   const handleCreatePayout = () => {

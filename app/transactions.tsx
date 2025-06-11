@@ -4,15 +4,17 @@ import SafeFooter from '@/components/SafeFooter';
 import TransactionModal from '@/components/TransactionModal';
 import { router } from 'expo-router';
 import { ArrowDownRight, ArrowLeft, ArrowUpRight, Ban as Bank, Calendar, Search, Settings, SlidersHorizontal, Wallet, X } from 'lucide-react-native';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useRealtimeTransactions, Transaction } from '@/hooks/useRealtimeTransactions';
 
 type TransactionType = 'all' | 'deposits' | 'payouts' | 'withdrawals';
 
 export default function TransactionsScreen() {
   const { colors } = useTheme();
+  const { transactions, isLoading } = useRealtimeTransactions();
   const [activeType, setActiveType] = useState<TransactionType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
@@ -24,27 +26,21 @@ export default function TransactionsScreen() {
     start: null,
     end: null,
   });
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  // Simulate initial loading
-  setTimeout(() => {
-    setIsInitialLoading(false);
-  }, 1500);
-
-  const handleTransactionPress = (transaction) => {
+  const handleTransactionPress = (transaction: Transaction) => {
     setSelectedTransaction({
-      amount: transaction.amount,
-      status: transaction.status || 'Completed',
-      date: transaction.date,
-      time: transaction.time,
-      type: transaction.type,
-      source: transaction.source || 'Wallet',
-      destination: transaction.destination || 'GTBank (****1234)',
-      transactionId: transaction.id || 'TXN-82931A7F',
-      planRef: transaction.planRef || 'PLAN-MNTH-0039',
-      paymentMethod: transaction.paymentMethod || 'Bank Transfer',
-      initiatedBy: transaction.initiatedBy || 'Auto-scheduler',
-      processingTime: transaction.processingTime || 'Instant',
+      amount: `₦${transaction.amount.toLocaleString()}`,
+      status: transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1),
+      date: new Date(transaction.created_at).toLocaleDateString(),
+      time: new Date(transaction.created_at).toLocaleTimeString(),
+      type: transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1),
+      source: transaction.source,
+      destination: transaction.destination,
+      transactionId: transaction.id,
+      planRef: transaction.payout_plan_id || '',
+      paymentMethod: 'Bank Transfer',
+      initiatedBy: 'You',
+      processingTime: transaction.status === 'completed' ? 'Instant' : '2-3 business days',
     });
     setIsTransactionModalVisible(true);
   };
@@ -73,118 +69,49 @@ export default function TransactionsScreen() {
     return `${formatDate(dateRange.start)} - ${formatDate(dateRange.end)}`;
   };
 
-  const transactions = [
-    {
-      id: '1',
-      type: 'Monthly Payout',
-      date: 'Dec 15, 2024',
-      time: '9:15 AM',
-      amount: '+₦500,000',
-      category: 'payouts',
-      icon: ArrowUpRight,
-      iconBg: '#DCFCE7',
-      iconColor: '#22C55E',
-      positive: true,
-    },
-    {
-      id: '2',
-      type: 'Emergency Withdrawal',
-      date: 'Dec 15, 2024',
-      time: '2:30 PM',
-      amount: '-₦150,000',
-      category: 'withdrawals',
-      icon: ArrowDownRight,
-      iconBg: '#FEE2E2',
-      iconColor: '#EF4444',
-      positive: false,
-    },
-    {
-      id: '3',
-      type: 'Vault Deposit',
-      date: 'Dec 14, 2024',
-      time: '11:45 AM',
-      amount: '-₦3,000,000',
-      category: 'deposits',
-      icon: Bank,
-      iconBg: '#EFF6FF',
-      iconColor: '#3B82F6',
-      positive: false,
-    },
-    {
-      id: '4',
-      type: 'Wallet Top-up',
-      date: 'Dec 14, 2024',
-      time: '4:20 PM',
-      amount: '+₦1,000,000',
-      category: 'deposits',
-      icon: Wallet,
-      iconBg: '#DCFCE7',
-      iconColor: '#22C55E',
-      positive: true,
-    },
-    {
-      id: '5',
-      type: 'Plan Edit - Rent Vault',
-      date: 'Dec 12, 2024',
-      time: '1:15 PM',
-      amount: '₦0',
-      category: 'all',
-      icon: Settings,
-      iconBg: colors.backgroundTertiary,
-      iconColor: colors.textSecondary,
-      positive: true,
-    },
-    {
-      id: '6',
-      type: 'Weekly Payout',
-      date: 'Dec 12, 2024',
-      time: '9:00 AM',
-      amount: '+₦250,000',
-      category: 'payouts',
-      icon: ArrowUpRight,
-      iconBg: '#DCFCE7',
-      iconColor: '#22C55E',
-      positive: true,
-    },
-    {
-      id: '7',
-      type: 'Emergency Fund Deposit',
-      date: 'Dec 10, 2024',
-      time: '3:30 PM',
-      amount: '-₦500,000',
-      category: 'deposits',
-      icon: Bank,
-      iconBg: '#EFF6FF',
-      iconColor: '#3B82F6',
-      positive: false,
-    },
-  ];
-
   const filteredTransactions = transactions.filter(transaction => {
-    if (activeType !== 'all' && transaction.category !== activeType) {
+    if (activeType !== 'all' && transaction.type !== activeType) {
       return false;
     }
 
     if (searchQuery) {
-      return transaction.type.toLowerCase().includes(searchQuery.toLowerCase());
+      return transaction.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             transaction.source.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             transaction.destination.toLowerCase().includes(searchQuery.toLowerCase());
     }
 
     if (dateRange.start && dateRange.end) {
-      const transactionDate = new Date(transaction.date);
+      const transactionDate = new Date(transaction.created_at);
       return transactionDate >= dateRange.start && transactionDate <= dateRange.end;
     }
 
     return true;
   });
 
+  // Calculate stats based on filtered transactions
   const stats = {
-    inflows: '₦2,500,000',
-    outflows: '₦3,200,000',
-    netMovement: '-₦700,000',
+    inflows: `₦${filteredTransactions
+      .filter(t => t.type === 'deposit')
+      .reduce((sum, t) => sum + t.amount, 0)
+      .toLocaleString()}`,
+    outflows: `₦${filteredTransactions
+      .filter(t => t.type === 'payout' || t.type === 'withdrawal')
+      .reduce((sum, t) => sum + t.amount, 0)
+      .toLocaleString()}`,
+    netMovement: `₦${(
+      filteredTransactions.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0) -
+      filteredTransactions.filter(t => t.type === 'payout' || t.type === 'withdrawal').reduce((sum, t) => sum + t.amount, 0)
+    ).toLocaleString()}`
   };
 
+  // Group transactions by date
   const groupedTransactions = filteredTransactions.reduce((groups, transaction) => {
-    const date = transaction.date.split(',')[0];
+    const date = new Date(transaction.created_at).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+    
     if (!groups[date]) {
       groups[date] = [];
     }
@@ -194,7 +121,7 @@ export default function TransactionsScreen() {
 
   const styles = createStyles(colors);
 
-  if (isInitialLoading) {
+  if (isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
@@ -326,54 +253,78 @@ export default function TransactionsScreen() {
             <Text style={styles.statLabel}>Net Movement</Text>
             <Text style={[
               styles.statValue,
-              parseFloat(stats.netMovement) >= 0 ? styles.positiveValue : styles.negativeValue
+              parseFloat(stats.netMovement.replace(/[₦,]/g, '')) >= 0 ? styles.positiveValue : styles.negativeValue
             ]}>{stats.netMovement}</Text>
           </View>
         </View>
       </View>
 
       <ScrollView style={styles.content}>
-        {Object.entries(groupedTransactions).map(([date, transactions]) => (
-          <View key={date} style={styles.dateGroup}>
-            <Text style={styles.dateHeader}>
-              {date === new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).split(',')[0]
-                ? 'Today'
-                : date === new Date(Date.now() - 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).split(',')[0]
-                  ? 'Yesterday'
-                  : date}
-            </Text>
-            {transactions.map((transaction) => (
-              <Pressable
-                key={transaction.id}
-                style={styles.transaction}
-                onPress={() => handleTransactionPress(transaction)}
-              >
-                <View style={[styles.transactionIcon, { backgroundColor: transaction.iconBg }]}>
-                  <transaction.icon size={20} color={transaction.iconColor} />
-                </View>
-                <View style={styles.transactionInfo}>
-                  <Text style={styles.transactionTitle}>{transaction.type}</Text>
-                  <Text style={styles.transactionDate}>{transaction.time}</Text>
-                </View>
-                <Text style={[
-                  styles.transactionAmount,
-                  transaction.positive ? styles.positiveAmount : styles.negativeAmount
-                ]}>{transaction.amount}</Text>
-              </Pressable>
-            ))}
+        {Object.entries(groupedTransactions).length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>No transactions found</Text>
+            <Text style={styles.emptyStateSubtext}>Try adjusting your filters</Text>
           </View>
-        ))}
-
-        <Pressable style={styles.loadMoreButton} onPress={handleLoadMore}>
-          {loading ? (
-            <View style={styles.loadingMoreContainer}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.loadMoreText}>Loading...</Text>
+        ) : (
+          Object.entries(groupedTransactions).map(([date, transactions]) => (
+            <View key={date} style={styles.dateGroup}>
+              <Text style={styles.dateHeader}>
+                {date === new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  ? 'Today'
+                  : date === new Date(Date.now() - 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    ? 'Yesterday'
+                    : date}
+              </Text>
+              {transactions.map((transaction) => {
+                const isPositive = transaction.type === 'deposit';
+                const Icon = isPositive ? ArrowUpRight : transaction.type === 'payout' ? ArrowDownRight : Bank;
+                const iconBg = isPositive ? '#DCFCE7' : transaction.type === 'payout' ? '#FEE2E2' : '#EFF6FF';
+                const iconColor = isPositive ? '#22C55E' : transaction.type === 'payout' ? '#EF4444' : '#3B82F6';
+                
+                return (
+                  <Pressable
+                    key={transaction.id}
+                    style={styles.transaction}
+                    onPress={() => handleTransactionPress(transaction)}
+                  >
+                    <View style={[styles.transactionIcon, { backgroundColor: iconBg }]}>
+                      <Icon size={20} color={iconColor} />
+                    </View>
+                    <View style={styles.transactionInfo}>
+                      <Text style={styles.transactionTitle}>
+                        {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
+                      </Text>
+                      <Text style={styles.transactionDate}>
+                        {new Date(transaction.created_at).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </Text>
+                    </View>
+                    <Text style={[
+                      styles.transactionAmount,
+                      isPositive ? styles.positiveAmount : styles.negativeAmount
+                    ]}>₦{transaction.amount.toLocaleString()}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
-          ) : (
-            <Text style={styles.loadMoreText}>Load More Transactions</Text>
-          )}
-        </Pressable>
+          ))
+        )}
+
+        {filteredTransactions.length > 0 && (
+          <Pressable style={styles.loadMoreButton} onPress={handleLoadMore}>
+            {loading ? (
+              <View style={styles.loadingMoreContainer}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.loadMoreText}>Loading...</Text>
+              </View>
+            ) : (
+              <Text style={styles.loadMoreText}>Load More Transactions</Text>
+            )}
+          </Pressable>
+        )}
       </ScrollView>
 
       {selectedTransaction && (
@@ -520,6 +471,22 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
   dateGroup: {
     paddingHorizontal: 16,

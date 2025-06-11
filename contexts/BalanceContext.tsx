@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from 'react';
-import { useWallet } from '@/hooks/useWallet';
+import { useRealtimeWallet } from '@/hooks/useRealtimeWallet';
 
 type BalanceContextType = {
   showBalances: boolean;
@@ -17,7 +17,7 @@ const BalanceContext = createContext<BalanceContextType | undefined>(undefined);
 
 export function BalanceProvider({ children }: { children: React.ReactNode }) {
   const [showBalances, setShowBalances] = useState(true);
-  const wallet = useWallet();
+  const wallet = useRealtimeWallet();
 
   const toggleBalances = () => {
     setShowBalances(prev => !prev);

@@ -8,14 +8,14 @@ import SafeFooter from '@/components/SafeFooter';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { usePayoutPlans } from '@/hooks/usePayoutPlans';
+import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
 
 export default function ViewPayoutScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const { id } = useLocalSearchParams();
-  const { payoutPlans, isLoading, pausePlan, resumePlan } = usePayoutPlans();
+  const { payoutPlans, isLoading, pausePlan, resumePlan } = useRealtimePayoutPlans();
   const { showBalances } = useBalance();
   
   const [isEditing, setIsEditing] = useState(false);

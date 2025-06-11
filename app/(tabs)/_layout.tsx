@@ -2,9 +2,61 @@ import { Tabs } from 'expo-router';
 import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings } from 'lucide-react-native'; //Do not change the Home to Chrome
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function TabLayout() {
   const { colors } = useTheme();
+  const { session } = useAuth();
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    // Initial fetch of unread notifications count
+    fetchUnreadNotificationsCount();
+
+    // Set up real-time subscription for events table
+    const channel = supabase
+      .channel('events-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'events',
+          filter: `user_id=eq.${session.user.id}`,
+        },
+        (payload) => {
+          console.log('Events change received:', payload);
+          // Refresh unread count when events change
+          fetchUnreadNotificationsCount();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Events subscription status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id]);
+
+  const fetchUnreadNotificationsCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('events')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', session?.user?.id)
+        .eq('status', 'unread');
+
+      if (error) throw error;
+      setUnreadNotifications(count || 0);
+    } catch (error) {
+      console.error('Error fetching unread notifications count:', error);
+    }
+  };
 
   return (
     <Tabs
@@ -43,7 +95,9 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <View>
               <Bell size={size} color={color} />
-              <View style={styles.notificationBadge} />
+              {unreadNotifications > 0 && (
+                <View style={styles.notificationBadge} />
+              )}
             </View>
           ),
         }}

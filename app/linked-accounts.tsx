@@ -7,7 +7,7 @@ import SafeFooter from '@/components/SafeFooter';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useBankAccounts } from '@/hooks/useBankAccounts';
+import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
 
 export default function LinkedAccountsScreen() {
@@ -16,13 +16,13 @@ export default function LinkedAccountsScreen() {
   
   const { 
     bankAccounts, 
-    loading, 
+    isLoading, 
     error, 
     addBankAccount, 
     fetchBankAccounts,
     setDefaultAccount,
     deleteAccount
-  } = useBankAccounts();
+  } = useRealtimeBankAccounts();
 
   const handleAddAccount = async (account: {
     bankName: string;
@@ -37,7 +37,6 @@ export default function LinkedAccountsScreen() {
         is_default: bankAccounts.length === 0 // Make first account default
       });
       setShowAddAccount(false);
-      await fetchBankAccounts();
     } catch (error) {
       console.error('Error adding bank account:', error);
     }
@@ -74,7 +73,7 @@ export default function LinkedAccountsScreen() {
         <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
       </View>
 
-      {loading && <HorizontalLoader />}
+      {isLoading && <HorizontalLoader />}
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={styles.subtitle}>
@@ -88,7 +87,7 @@ export default function LinkedAccountsScreen() {
         )}
 
         <View style={styles.accountsList}>
-          {loading ? (
+          {isLoading ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingText}>Loading bank accounts...</Text>
             </View>
@@ -220,7 +219,7 @@ export default function LinkedAccountsScreen() {
         isVisible={showAddAccount}
         onClose={() => setShowAddAccount(false)}
         onAdd={handleAddAccount}
-        loading={loading}
+        loading={isLoading}
       />
       
       <SafeFooter />

@@ -12,13 +12,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { usePayoutPlans } from '@/hooks/usePayoutPlans';
+import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance } = useBalance();
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
-  const { payoutPlans, isLoading: payoutPlansLoading } = usePayoutPlans();
+  const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
