@@ -68,8 +68,15 @@ export default function SettingsScreen() {
   };
 
   const handleSignOut = async () => {
-    await signOut();
-    router.replace('/');
+    try {
+      await signOut();
+      // Use replace to ensure we go to the welcome screen and clear the navigation stack
+      router.replace('/');
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Even if there's an error, try to navigate to welcome screen
+      router.replace('/');
+    }
   };
 
   const styles = createStyles(colors);
