@@ -10,7 +10,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 type KYCLevel = 'unverified' | 'tier1' | 'tier2' | 'tier3';
 
 export default function ProfileScreen() {
-  const { session, signOut } = useAuth();
+  const { session } = useAuth();
   const { colors } = useTheme();
   const firstName = session?.user?.user_metadata?.first_name || '';
   const lastName = session?.user?.user_metadata?.last_name || '';
@@ -19,11 +19,6 @@ export default function ProfileScreen() {
   // Mock KYC status - in real app, this would come from your backend
   const kycLevel: KYCLevel = 'tier1';
   const kycStatus = getKYCStatus(kycLevel);
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.replace('/');
-  };
 
   const handleEditProfile = () => {
     router.push('/edit-profile');
@@ -175,15 +170,6 @@ export default function ProfileScreen() {
           </View>
         </View>
       </ScrollView>
-
-      <View style={styles.footer}>
-        <Button
-          title="Sign Out"
-          onPress={handleSignOut}
-          style={styles.signOutButton}
-          variant="outline"
-        />
-      </View>
     </SafeAreaView>
   );
 }
@@ -481,15 +467,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: colors.text,
-  },
-  footer: {
-    padding: 24,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  signOutButton: {
-    borderColor: '#EF4444',
-    borderWidth: 1,
   },
 });
