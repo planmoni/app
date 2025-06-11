@@ -72,7 +72,7 @@ export default function SignUpScreen() {
         formData.firstName.trim(),
         formData.lastName.trim()
       );
-      router.replace('/onboarding');
+      router.replace('/(tabs)');
     } catch (err) {
       // Error is handled by the auth context
     }
