@@ -352,18 +352,10 @@ export default function HomeScreen() {
             <View style={styles.payoutCardContent}>
               <View style={styles.payoutHeader}>
                 <Text style={styles.payoutTitle}>Upcoming Payout</Text>
-                <View style={styles.headerActions}>
-                  <View style={styles.activeTag}>
-                    <Text style={styles.activeTagText}>
-                      {nextPayout.status === 'active' ? 'Running' : 'Paused'}
-                    </Text>
-                  </View>
-                  <Pressable 
-                    style={styles.viewAllButton} 
-                    onPress={handleViewAllPayouts}
-                  >
-                    <Text style={styles.viewAllText}>View All</Text>
-                  </Pressable>
+                <View style={styles.activeTag}>
+                  <Text style={styles.activeTagText}>
+                    {nextPayout.status === 'active' ? 'Running' : 'Paused'}
+                  </Text>
                 </View>
               </View>
               
@@ -393,7 +385,7 @@ export default function HomeScreen() {
                     <Text style={styles.progressText}>
                       {formatBalance(nextPayout.completed_payouts * nextPayout.payout_amount)}/{formatBalance(nextPayout.total_amount)}
                     </Text>
-                    <Text style={styles.progressAmount}>
+                    <Text style={styles.progressCount}>
                       {nextPayout.completed_payouts}/{nextPayout.duration}
                     </Text>
                   </View>
@@ -849,11 +841,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
-  },
-  payoutTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
   },
   payoutTitle: {
     fontSize: 16,
