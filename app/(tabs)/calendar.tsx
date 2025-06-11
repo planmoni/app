@@ -5,7 +5,6 @@ import { router } from 'expo-router';
 import { TriangleAlert as AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, Plus } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCalendarEvents, CalendarEvent } from '@/hooks/useCalendarEvents';
 
@@ -206,7 +205,7 @@ export default function CalendarScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Calendar</Text>
           <View style={styles.headerActions}>
@@ -230,13 +229,13 @@ export default function CalendarScreen() {
           <Text style={styles.loadingText}>Loading calendar events...</Text>
         </View>
         <SafeFooter />
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Calendar</Text>
           <View style={styles.headerActions}>
@@ -262,7 +261,7 @@ export default function CalendarScreen() {
           </Pressable>
         </View>
         <SafeFooter />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -683,7 +682,7 @@ export default function CalendarScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Calendar</Text>
         <View style={styles.headerActions}>
@@ -731,7 +730,7 @@ export default function CalendarScreen() {
       </ScrollView>
       
       <SafeFooter />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -739,6 +738,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
+    paddingTop: 50, // Add padding to account for status bar
   },
   header: {
     flexDirection: 'row',
