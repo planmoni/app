@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowRight, Chrome as Home } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ArrowRight, Chrome as Home } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
@@ -22,22 +22,12 @@ export default function SuccessScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('Success screen mounted with params:', { firstName, lastName, email });
-    
     const registerUser = async () => {
       try {
-        console.log('Starting user registration...');
-        const result = await signUp(email, password, firstName, lastName);
-        console.log('Registration result:', result);
-        
-        if (!result.success) {
-          setError(result.error || 'Failed to create account');
-        }
+        await signUp(email, password, firstName, lastName);
+        setIsRegistering(false);
       } catch (err) {
-        console.error('Registration error:', err);
         setError(err instanceof Error ? err.message : 'Failed to create account');
-      } finally {
-        console.log('Registration process completed');
         setIsRegistering(false);
       }
     };
@@ -79,6 +69,7 @@ export default function SuccessScreen() {
             onPress={handleCreatePayout}
             style={styles.createButton}
             icon={ArrowRight}
+            disabled={isRegistering}
           />
           
           <Button
@@ -87,6 +78,7 @@ export default function SuccessScreen() {
             variant="outline"
             style={styles.dashboardButton}
             icon={Home}
+            disabled={isRegistering}
           />
         </View>
       </View>
