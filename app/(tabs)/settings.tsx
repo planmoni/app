@@ -16,6 +16,8 @@ import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
 
+
+
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
@@ -38,6 +40,17 @@ export default function SettingsScreen() {
   const [showLanguage, setShowLanguage] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  
+  const handleSignOut = async () => {
+  await signOut();
+  router.replace('/');
+};
+
+    const handleSignOut = async () => {
+    await signOut();
+    router.replace('/');
+  };
+
 
   const handleViewProfile = () => {
     router.push('/profile');
@@ -67,6 +80,9 @@ export default function SettingsScreen() {
     setTheme(newTheme);
   };
 
+            onPress={handleSignOut}
+          style={styles.signOutButton}
+
   const handleSignOut = async () => {
     Alert.alert(
       'Sign Out',
@@ -88,6 +104,13 @@ export default function SettingsScreen() {
       ]
     );
   };
+<View style={styles.footer}>
+        <Button
+          title="Sign Out"
+          onPress={handleSignOut}
+          style={styles.signOutButton}
+          variant="outline"
+          />
 
   const handleDeleteAccount = () => {
     Alert.alert(
