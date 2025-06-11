@@ -15,7 +15,7 @@ export default function PendingActionsSection() {
       id: 'verify-email',
       title: 'Verify your email address',
       description: 'Confirm your email to secure your account',
-      icon: <Mail size={20} color="#3B82F6" />,
+      icon: <Mail size={20} color="#EF4444" />,
       route: '/profile',
       priority: 'high' as const,
       // Only show if email is not verified
@@ -34,7 +34,7 @@ export default function PendingActionsSection() {
       id: 'account-verification',
       title: 'Start Account Verification',
       description: 'Verify your identity to unlock higher limits',
-      icon: <Shield size={20} color="#22C55E" />,
+      icon: <Shield size={20} color="#F59E0B" />,
       route: '/transaction-limits',
       priority: 'medium' as const,
       show: true, // Always show for demo
@@ -43,7 +43,7 @@ export default function PendingActionsSection() {
       id: 'setup-2fa',
       title: 'Setup 2FA',
       description: 'Enable two-factor authentication for better security',
-      icon: <Fingerprint size={20} color="#8B5CF6" />,
+      icon: <Fingerprint size={20} color="#3B82F6" />,
       route: '/two-factor-auth',
       priority: 'low' as const,
       show: true, // Always show for demo
@@ -52,7 +52,7 @@ export default function PendingActionsSection() {
       id: 'enable-notifications',
       title: 'Enable Notifications',
       description: 'Stay updated with important account activities',
-      icon: <Bell size={20} color="#EC4899" />,
+      icon: <Bell size={20} color="#3B82F6" />,
       route: '/(tabs)/settings',
       priority: 'low' as const,
       show: true, // Always show for demo

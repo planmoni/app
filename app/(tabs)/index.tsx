@@ -897,11 +897,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  progressAmount: {
+  progressCount: {
     fontSize: 14,
     color: colors.textSecondary,
   },
-  progressCount: {
+  progressAmount: {
     fontSize: 14,
     color: colors.textSecondary,
   },
