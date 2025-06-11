@@ -147,7 +147,7 @@ export default function DestinationScreen() {
             style={styles.addAccountButton}
             onPress={() => setShowAddAccount(true)}
           >
-            <Plus size={20} color="#1E3A8A" />
+            <Plus size={20} color={colors.primary} />
             <Text style={styles.addAccountText}>Add New Bank Account</Text>
           </Pressable>
         </View>
@@ -361,13 +361,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#1E3A8A',
+    borderColor: colors.primary,
     borderRadius: 12,
     backgroundColor: colors.backgroundTertiary,
   },
   addAccountText: {
     fontSize: 14,
-    color: '#1E3A8A',
+    color: colors.text,
     fontWeight: '500',
   },
   notice: {
