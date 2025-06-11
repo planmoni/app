@@ -1,176 +1,193 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
-export interface CalendarEvent {
+export type CalendarEvent = {
   id: string;
-  type: 'completed' | 'pending' | 'scheduled' | 'failed' | 'expiring';
   title: string;
-  description: string;
-  date: string;
+  amount: string;
   time: string;
+  type: 'completed' | 'pending' | 'scheduled' | 'failed' | 'expiring';
+  description: string;
+  vault?: string;
+  date: string;
   payout_plan_id?: string;
   transaction_id?: string;
-}
+};
 
 export function useCalendarEvents() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { session } = useAuth();
 
-  const fetchEvents = async () => {
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetchCalendarEvents();
+    }
+  }, [session?.user?.id]);
+
+  const fetchCalendarEvents = async () => {
     try {
-      setIsLoading(true);
       setError(null);
+      setIsLoading(true);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
-
-      // Fetch events from the events table
-      const { data: eventsData, error: eventsError } = await supabase
-        .from('events')
-        .select(`
-          id,
-          type,
-          title,
-          description,
-          created_at,
-          payout_plan_id,
-          transaction_id
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (eventsError) {
-        throw eventsError;
-      }
-
-      // Fetch upcoming payout dates from payout plans
-      const { data: payoutPlans, error: payoutError } = await supabase
+      // Fetch payout plans and their events
+      const { data: payoutPlans, error: plansError } = await supabase
         .from('payout_plans')
         .select(`
           id,
           name,
-          next_payout_date,
           payout_amount,
-          status
+          status,
+          start_date,
+          next_payout_date,
+          created_at,
+          completed_payouts,
+          duration
         `)
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .not('next_payout_date', 'is', null);
+        .eq('user_id', session?.user?.id);
 
-      if (payoutError) {
-        throw payoutError;
-      }
+      if (plansError) throw plansError;
 
-      // Transform events data
-      const transformedEvents: CalendarEvent[] = [];
+      // Fetch transactions related to payouts
+      const { data: transactions, error: transactionsError } = await supabase
+        .from('transactions')
+        .select(`
+          id,
+          type,
+          amount,
+          status,
+          created_at,
+          payout_plan_id,
+          payout_plans (
+            name
+          )
+        `)
+        .eq('user_id', session?.user?.id)
+        .eq('type', 'payout')
+        .order('created_at', { ascending: false });
 
-      // Add events from events table
-      if (eventsData) {
-        eventsData.forEach(event => {
-          const eventDate = new Date(event.created_at);
-          const eventType = mapEventTypeToCalendarType(event.type);
-          
-          transformedEvents.push({
-            id: event.id,
-            type: eventType,
-            title: event.title,
-            description: event.description,
-            date: formatDate(eventDate),
-            time: formatTime(eventDate),
-            payout_plan_id: event.payout_plan_id,
-            transaction_id: event.transaction_id,
+      if (transactionsError) throw transactionsError;
+
+      const calendarEvents: CalendarEvent[] = [];
+
+      // Process completed payouts from transactions
+      transactions?.forEach(transaction => {
+        const date = new Date(transaction.created_at);
+        const formattedDate = date.toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric'
+        });
+
+        calendarEvents.push({
+          id: transaction.id,
+          title: `₦${transaction.amount.toLocaleString()} disbursed`,
+          amount: `₦${transaction.amount.toLocaleString()}`,
+          time: date.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          }),
+          type: transaction.status === 'completed' ? 'completed' : 'failed',
+          description: `From Vault "${transaction.payout_plans?.name || 'Unknown'}"`,
+          vault: transaction.payout_plans?.name,
+          date: formattedDate,
+          payout_plan_id: transaction.payout_plan_id,
+          transaction_id: transaction.id,
+        });
+      });
+
+      // Process payout plan creation dates
+      payoutPlans?.forEach(plan => {
+        const createdDate = new Date(plan.created_at);
+        const formattedCreatedDate = createdDate.toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric'
+        });
+
+        calendarEvents.push({
+          id: `plan-created-${plan.id}`,
+          title: 'Payout plan created',
+          amount: `₦${plan.payout_amount.toLocaleString()}`,
+          time: createdDate.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          }),
+          type: 'pending',
+          description: `Plan "${plan.name}" created`,
+          vault: plan.name,
+          date: formattedCreatedDate,
+          payout_plan_id: plan.id,
+        });
+
+        // Process scheduled payouts
+        if (plan.next_payout_date && plan.status === 'active') {
+          const nextPayoutDate = new Date(plan.next_payout_date);
+          const formattedNextDate = nextPayoutDate.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
           });
-        });
-      }
 
-      // Add scheduled payouts from payout plans
-      if (payoutPlans) {
-        payoutPlans.forEach(plan => {
-          if (plan.next_payout_date) {
-            const payoutDate = new Date(plan.next_payout_date);
-            const today = new Date();
-            const daysDiff = Math.ceil((payoutDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-            
-            // Determine event type based on how close the payout is
-            let eventType: CalendarEvent['type'] = 'scheduled';
-            if (daysDiff <= 3 && daysDiff > 0) {
-              eventType = 'expiring';
-            } else if (daysDiff < 0) {
-              eventType = 'failed';
-            }
+          // Check if payout is expiring (within 3 days)
+          const daysUntilPayout = Math.ceil((nextPayoutDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          const isExpiring = daysUntilPayout <= 3 && daysUntilPayout > 0;
 
-            transformedEvents.push({
-              id: `payout-${plan.id}`,
-              type: eventType,
-              title: `${plan.name} Payout`,
-              description: `Scheduled payout of ₦${Number(plan.payout_amount).toLocaleString()}`,
-              date: formatDate(payoutDate),
-              time: '09:00 AM',
-              payout_plan_id: plan.id,
-            });
-          }
-        });
-      }
+          calendarEvents.push({
+            id: `plan-scheduled-${plan.id}`,
+            title: isExpiring ? 'Payout expiring soon' : 'Scheduled payout',
+            amount: `₦${plan.payout_amount.toLocaleString()}`,
+            time: '12:00 PM', // Default time for scheduled events
+            type: isExpiring ? 'expiring' : 'scheduled',
+            description: `Next payout from "${plan.name}"`,
+            vault: plan.name,
+            date: formattedNextDate,
+            payout_plan_id: plan.id,
+          });
+        }
 
-      setEvents(transformedEvents);
+        // Check for plans that might have failed payouts
+        if (plan.status === 'paused' && plan.next_payout_date) {
+          const pausedDate = new Date(plan.next_payout_date);
+          const formattedPausedDate = pausedDate.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+          });
+
+          calendarEvents.push({
+            id: `plan-failed-${plan.id}`,
+            title: 'Payout paused',
+            amount: `₦${plan.payout_amount.toLocaleString()}`,
+            time: '12:00 PM',
+            type: 'failed',
+            description: `Payout from "${plan.name}" was paused`,
+            vault: plan.name,
+            date: formattedPausedDate,
+            payout_plan_id: plan.id,
+          });
+        }
+      });
+
+      // Sort events by date
+      calendarEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      setEvents(calendarEvents);
     } catch (err) {
-      console.error('Error fetching calendar events:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load calendar events');
+      setError(err instanceof Error ? err.message : 'Failed to fetch calendar events');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const refreshEvents = () => {
-    fetchEvents();
-  };
-
-  useEffect(() => {
-    fetchEvents();
-  }, []);
-
   return {
     events,
     isLoading,
     error,
-    refreshEvents,
+    refreshEvents: fetchCalendarEvents,
   };
-}
-
-// Helper functions
-function mapEventTypeToCalendarType(eventType: string): CalendarEvent['type'] {
-  switch (eventType) {
-    case 'payout_completed':
-      return 'completed';
-    case 'payout_scheduled':
-      return 'scheduled';
-    case 'disbursement_failed':
-      return 'failed';
-    case 'vault_created':
-      return 'pending';
-    case 'security_alert':
-      return 'failed';
-    default:
-      return 'pending';
-  }
-}
-
-function formatDate(date: Date): string {
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-  
-  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-}
-
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
 }
