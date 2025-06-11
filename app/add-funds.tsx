@@ -1,4 +1,5 @@
 import Button from '@/components/Button';
+import SafeFooter from '@/components/SafeFooter';
 import { router } from 'expo-router';
 import { ArrowLeft, Copy, Info } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -91,6 +92,8 @@ export default function AddFundsScreen() {
           </Pressable>
         </View>
       </ScrollView>
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }
