@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, ChevronRight, Calendar, Clock, Wallet, Building2, TriangleAlert as AlertTriangle, PencilLine, Pause, Play, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Calendar, Clock, Wallet, Building2, TriangleAlert as AlertTriangle, PencilLine, Pause, Play } from 'lucide-react-native';
 import Button from '@/components/Button';
 import Card from '@/components/Card';
 import { useState, useEffect } from 'react';
@@ -13,7 +13,7 @@ export default function ViewPayoutScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const { id } = useLocalSearchParams();
-  const { payoutPlans, pausePlan, resumePlan, deletePlan } = usePayoutPlans();
+  const { payoutPlans, pausePlan, resumePlan } = usePayoutPlans();
   const { showBalances } = useBalance();
   
   const [isEditing, setIsEditing] = useState(false);
@@ -75,28 +75,6 @@ export default function ViewPayoutScreen() {
     }
   };
 
-  const handleDelete = async () => {
-    Alert.alert(
-      'Delete Payout Plan',
-      `Are you sure you want to permanently delete "${plan.name}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deletePlan(plan.id);
-              router.back();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete payout plan');
-            }
-          }
-        }
-      ]
-    );
-  };
-
   const formatCurrency = (amount: number) => {
     return showBalances ? `₦${amount.toLocaleString()}` : '••••••••';
   };
@@ -130,9 +108,6 @@ export default function ViewPayoutScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Payout Details</Text>
-        <Pressable style={styles.deleteButton} onPress={handleDelete}>
-          <Trash2 size={20} color="#EF4444" />
-        </Pressable>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -317,14 +292,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
-  },
-  deleteButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FEE2E2',
-    borderRadius: 20,
   },
   errorContainer: {
     flex: 1,

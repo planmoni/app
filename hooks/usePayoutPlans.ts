@@ -91,23 +91,6 @@ export function usePayoutPlans() {
     }
   };
 
-  const deletePlan = async (planId: string) => {
-    try {
-      setError(null);
-      const { error: deleteError } = await supabase
-        .from('payout_plans')
-        .delete()
-        .eq('id', planId)
-        .eq('user_id', session?.user?.id);
-
-      if (deleteError) throw deleteError;
-      await fetchPayoutPlans();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete plan');
-      throw err;
-    }
-  };
-
   return {
     payoutPlans,
     isLoading,
@@ -115,6 +98,5 @@ export function usePayoutPlans() {
     fetchPayoutPlans,
     pausePlan,
     resumePlan,
-    deletePlan,
   };
 }

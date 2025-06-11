@@ -1,6 +1,6 @@
 import Card from '@/components/Card';
 import { router } from 'expo-router';
-import { ArrowLeft, Calendar, ChevronRight, Clock, Plus, Pause, Play, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, Calendar, ChevronRight, Clock, Plus, Pause, Play } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +10,7 @@ import { useBalance } from '@/contexts/BalanceContext';
 
 export default function AllPayoutsScreen() {
   const { colors } = useTheme();
-  const { payoutPlans, isLoading, pausePlan, resumePlan, deletePlan } = usePayoutPlans();
+  const { payoutPlans, isLoading, pausePlan, resumePlan } = usePayoutPlans();
   const { showBalances } = useBalance();
 
   const handleCreatePayout = () => {
@@ -51,27 +51,6 @@ export default function AllPayoutsScreen() {
     } catch (error) {
       Alert.alert('Error', 'Failed to resume payout plan');
     }
-  };
-
-  const handleDeletePlan = async (planId: string, planName: string) => {
-    Alert.alert(
-      'Delete Payout Plan',
-      `Are you sure you want to permanently delete "${planName}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deletePlan(planId);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete payout plan');
-            }
-          }
-        }
-      ]
-    );
   };
 
   const formatCurrency = (amount: number) => {
@@ -172,12 +151,6 @@ export default function AllPayoutsScreen() {
                         <Play size={16} color="#22C55E" />
                       </Pressable>
                     ) : null}
-                    <Pressable
-                      style={styles.actionButton}
-                      onPress={() => handleDeletePlan(plan.id, plan.name)}
-                    >
-                      <Trash2 size={16} color="#EF4444" />
-                    </Pressable>
                   </View>
                 </View>
 
