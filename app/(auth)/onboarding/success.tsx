@@ -7,7 +7,6 @@ import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
-import OnboardingProgress from '@/components/OnboardingProgress';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
@@ -47,8 +46,6 @@ export default function SuccessScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <OnboardingProgress currentStep={10} totalSteps={10} />
-      
       <View style={styles.content}>
         <SuccessAnimation />
         

@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowRight, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import OnScreenKeypad from '@/components/OnScreenKeypad';
 
-export default function ConfirmPinScreen() {
+export default function CreatePinScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
@@ -16,43 +17,41 @@ export default function ConfirmPinScreen() {
   const email = params.email as string;
   const password = params.password as string;
   const bvn = params.bvn as string;
-  const pin = params.pin as string;
   
-  const [confirmPin, setConfirmPin] = useState('');
+  const [pinLength, setPinLength] = useState<4 | 6>(4);
+  const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
-  const pinLength = pin.length;
 
   useEffect(() => {
-    setIsButtonEnabled(confirmPin.length === pinLength);
-  }, [confirmPin, pinLength]);
+    setIsButtonEnabled(pin.length === pinLength);
+  }, [pin, pinLength]);
 
   const handleKeyPress = (key: string) => {
-    if (confirmPin.length < pinLength) {
-      setConfirmPin(prev => prev + key);
+    if (pin.length < pinLength) {
+      setPin(prev => prev + key);
       setError(null);
     }
   };
 
   const handleDelete = () => {
-    setConfirmPin(prev => prev.slice(0, -1));
+    setPin(prev => prev.slice(0, -1));
     setError(null);
   };
 
   const handleClear = () => {
-    setConfirmPin('');
+    setPin('');
     setError(null);
   };
 
   const handleContinue = () => {
-    if (confirmPin !== pin) {
-      setError('PINs do not match. Please try again.');
-      setConfirmPin('');
+    if (pin.length !== pinLength) {
+      setError(`Please enter a ${pinLength}-digit PIN`);
       return;
     }
     
     router.push({
-      pathname: '/onboarding/success',
+      pathname: '/onboarding/confirm-pin',
       params: { 
         firstName,
         lastName,
@@ -74,13 +73,49 @@ export default function ConfirmPinScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={8} totalSteps={9} />
+      <OnboardingProgress currentStep={7} totalSteps={9} />
 
       <View style={styles.content}>
-        <Text style={styles.title}>Confirm your PIN</Text>
-        <Text style={styles.subtitle}>Enter your PIN again to confirm</Text>
+        <Text style={styles.title}>Set up app lock</Text>
+        <Text style={styles.subtitle}>Create a PIN to secure your account</Text>
 
         <View style={styles.formContainer}>
+          <Text style={styles.question}>Choose a PIN length</Text>
+          
+          <View style={styles.pinLengthContainer}>
+            <Pressable 
+              style={[
+                styles.pinLengthOption,
+                pinLength === 4 && styles.activePinLength
+              ]}
+              onPress={() => {
+                setPinLength(4);
+                setPin('');
+              }}
+            >
+              <Text style={[
+                styles.pinLengthText,
+                pinLength === 4 && styles.activePinLengthText
+              ]}>4 digits</Text>
+            </Pressable>
+            
+            <Pressable 
+              style={[
+                styles.pinLengthOption,
+                pinLength === 6 && styles.activePinLength
+              ]}
+              onPress={() => {
+                setPinLength(6);
+                setPin('');
+              }}
+            >
+              <Text style={[
+                styles.pinLengthText,
+                pinLength === 6 && styles.activePinLengthText
+              ]}>6 digits</Text>
+            </Pressable>
+          </View>
+          
           {error && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>
@@ -94,7 +129,7 @@ export default function ConfirmPinScreen() {
                   key={index} 
                   style={[
                     styles.pinDot,
-                    index < confirmPin.length && styles.pinDotFilled
+                    index < pin.length && styles.pinDotFilled
                   ]}
                 />
               ))}
@@ -106,7 +141,7 @@ export default function ConfirmPinScreen() {
               <Shield size={20} color={colors.primary} />
             </View>
             <Text style={styles.securityText}>
-              Make sure your PIN is secure and not easy to guess
+              This PIN will be used to unlock the app and authorize transactions
             </Text>
           </View>
         </View>
@@ -125,7 +160,7 @@ export default function ConfirmPinScreen() {
         onKeyPress={handleKeyPress}
         onDelete={handleDelete}
         onClear={handleClear}
-        disabled={confirmPin.length >= pinLength}
+        disabled={pin.length >= pinLength}
       />
     </SafeAreaView>
   );
@@ -168,6 +203,39 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   formContainer: {
     width: '100%',
+  },
+  question: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 24,
+  },
+  pinLengthContainer: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 24,
+  },
+  pinLengthOption: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+  },
+  activePinLength: {
+    borderColor: colors.primary,
+    backgroundColor: colors.backgroundTertiary,
+  },
+  pinLengthText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  activePinLengthText: {
+    color: colors.primary,
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
