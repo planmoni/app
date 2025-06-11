@@ -156,6 +156,63 @@ export default function HomeScreen() {
     ? Math.round((payoutPlans.filter(plan => plan.status === 'completed').length / payoutPlans.length) * 100)
     : 0;
 
+  // Find the last payout date - the most recent completed payout
+  const getLastPayoutDate = () => {
+    // Sort all plans by their completed_payouts and find the most recent one
+    const completedPayouts = payoutPlans.filter(plan => plan.completed_payouts > 0);
+    
+    if (completedPayouts.length === 0) {
+      return 'No payouts yet';
+    }
+    
+    // For simplicity, we'll use the start_date and completed_payouts to estimate the last payout date
+    // In a real app, you would track actual payout dates in transactions
+    const mostRecentPlan = completedPayouts.reduce((latest, current) => {
+      const latestDate = new Date(latest.start_date);
+      const currentDate = new Date(current.start_date);
+      
+      // Add time based on frequency and completed payouts
+      let latestPayoutDate = new Date(latestDate);
+      let currentPayoutDate = new Date(currentDate);
+      
+      if (latest.frequency === 'weekly') {
+        latestPayoutDate.setDate(latestDate.getDate() + (7 * (latest.completed_payouts - 1)));
+      } else if (latest.frequency === 'biweekly') {
+        latestPayoutDate.setDate(latestDate.getDate() + (14 * (latest.completed_payouts - 1)));
+      } else if (latest.frequency === 'monthly') {
+        latestPayoutDate.setMonth(latestDate.getMonth() + (latest.completed_payouts - 1));
+      }
+      
+      if (current.frequency === 'weekly') {
+        currentPayoutDate.setDate(currentDate.getDate() + (7 * (current.completed_payouts - 1)));
+      } else if (current.frequency === 'biweekly') {
+        currentPayoutDate.setDate(currentDate.getDate() + (14 * (current.completed_payouts - 1)));
+      } else if (current.frequency === 'monthly') {
+        currentPayoutDate.setMonth(currentDate.getMonth() + (current.completed_payouts - 1));
+      }
+      
+      return currentPayoutDate > latestPayoutDate ? current : latest;
+    });
+    
+    // Calculate the estimated last payout date
+    const startDate = new Date(mostRecentPlan.start_date);
+    let lastPayoutDate = new Date(startDate);
+    
+    if (mostRecentPlan.frequency === 'weekly') {
+      lastPayoutDate.setDate(startDate.getDate() + (7 * (mostRecentPlan.completed_payouts - 1)));
+    } else if (mostRecentPlan.frequency === 'biweekly') {
+      lastPayoutDate.setDate(startDate.getDate() + (14 * (mostRecentPlan.completed_payouts - 1)));
+    } else if (mostRecentPlan.frequency === 'monthly') {
+      lastPayoutDate.setMonth(startDate.getMonth() + (mostRecentPlan.completed_payouts - 1));
+    }
+    
+    return lastPayoutDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
   // Helper function to calculate days until next payout
   const getDaysUntilPayout = (dateString: string) => {
     const payoutDate = new Date(dateString);
@@ -270,7 +327,7 @@ export default function HomeScreen() {
               <View style={styles.summaryItem}>
                 <Text style={styles.summaryLabel}>Last payout date</Text>
                 <Text style={styles.summaryValue}>
-                  {payoutPlans.length > 0 ? 'June 2, 2025' : 'No payouts yet'}
+                  {getLastPayoutDate()}
                 </Text>
               </View>
             </View>
