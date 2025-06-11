@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
@@ -7,7 +7,6 @@ import SuccessAnimation from '@/components/SuccessAnimation';
 
 export default function AppLockSuccessScreen() {
   const { colors } = useTheme();
-  const params = useLocalSearchParams();
   
   const handleGoToDashboard = () => {
     router.replace('/(tabs)');
