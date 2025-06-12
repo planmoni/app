@@ -6,12 +6,13 @@ import Animated, {
   useSharedValue,
   withSpring,
   interpolate,
+  runOnJS,
 } from 'react-native-reanimated';
 import { Shield, Calendar, Wallet, TrendingUp } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 
@@ -70,6 +71,12 @@ export default function WelcomeScreen() {
     }
   }, [session]);
 
+  // Function to handle index change and trigger haptic feedback
+  const handleIndexChange = useCallback((newIndex: number) => {
+    setLastIndex(newIndex);
+    haptics.selection();
+  }, [haptics]);
+
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollX.value = event.contentOffset.x;
@@ -82,12 +89,6 @@ export default function WelcomeScreen() {
       }
     },
   });
-
-  // Function to handle index change and trigger haptic feedback
-  const handleIndexChange = (newIndex: number) => {
-    setLastIndex(newIndex);
-    haptics.selection();
-  };
 
   const handleGetStarted = () => {
     haptics.mediumImpact();
@@ -210,12 +211,6 @@ export default function WelcomeScreen() {
     </View>
   );
 }
-
-// Helper function to run a function on the JS thread from the UI thread
-const runOnJS = (fn: Function) => {
-  'worklet';
-  fn();
-};
 
 const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleSheet.create({
   container: {
