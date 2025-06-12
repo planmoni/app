@@ -11,7 +11,9 @@ import { Shield, Calendar, Wallet, TrendingUp } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
+import { useHaptics } from '@/hooks/useHaptics';
 
 const SLIDES = [
   {
@@ -58,6 +60,8 @@ export default function WelcomeScreen() {
   const { session } = useAuth();
   const scrollX = useSharedValue(0);
   const currentIndex = useSharedValue(0);
+  const haptics = useHaptics();
+  const [lastIndex, setLastIndex] = useState(0);
 
   // Redirect to tabs if user is already authenticated
   useEffect(() => {
@@ -69,15 +73,29 @@ export default function WelcomeScreen() {
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollX.value = event.contentOffset.x;
-      currentIndex.value = Math.round(scrollX.value / width);
+      const newIndex = Math.round(scrollX.value / width);
+      currentIndex.value = newIndex;
+      
+      // This will run on the UI thread
+      if (Platform.OS !== 'web' && newIndex !== lastIndex) {
+        runOnJS(handleIndexChange)(newIndex);
+      }
     },
   });
 
+  // Function to handle index change and trigger haptic feedback
+  const handleIndexChange = (newIndex: number) => {
+    setLastIndex(newIndex);
+    haptics.selection();
+  };
+
   const handleGetStarted = () => {
+    haptics.mediumImpact();
     router.push('/(auth)/onboarding/first-name');
   };
 
   const handleSignIn = () => {
+    haptics.lightImpact();
     router.push('/login');
   };
 
@@ -179,17 +197,25 @@ export default function WelcomeScreen() {
           title="Get Started"
           onPress={handleGetStarted}
           style={styles.getStartedButton}
+          hapticType="medium"
         />
         <Button
           title="Already have an account? Sign In"
           onPress={handleSignIn}
           variant="outline"
           style={styles.signInButton}
+          hapticType="light"
         />
       </View>
     </View>
   );
 }
+
+// Helper function to run a function on the JS thread from the UI thread
+const runOnJS = (fn: Function) => {
+  'worklet';
+  fn();
+};
 
 const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleSheet.create({
   container: {
