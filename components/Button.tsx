@@ -1,5 +1,6 @@
 import { Pressable, Text, StyleSheet, ActivityIndicator, PressableProps, View } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
+import * as Haptics from 'expo-haptics';
 
 type ButtonProps = PressableProps & {
   title?: string;
@@ -81,22 +82,22 @@ export default function Button({
     
     switch (hapticType) {
       case 'light':
-        haptics.lightImpact();
+        haptics.impact(Haptics.ImpactFeedbackStyle.Light);
         break;
       case 'medium':
-        haptics.mediumImpact();
+        haptics.impact(Haptics.ImpactFeedbackStyle.Medium);
         break;
       case 'heavy':
-        haptics.heavyImpact();
+        haptics.impact(Haptics.ImpactFeedbackStyle.Heavy);
         break;
       case 'success':
-        haptics.success();
+        haptics.notification(Haptics.NotificationFeedbackType.Success);
         break;
       case 'warning':
-        haptics.warning();
+        haptics.notification(Haptics.NotificationFeedbackType.Warning);
         break;
       case 'error':
-        haptics.error();
+        haptics.notification(Haptics.NotificationFeedbackType.Error);
         break;
       case 'selection':
         haptics.selection();
