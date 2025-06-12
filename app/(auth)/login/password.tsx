@@ -3,6 +3,7 @@ import { router, useLocalSearchParams, Link } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -39,7 +40,7 @@ export default function LoginPasswordScreen() {
 
   const handleLogin = async () => {
     if (!password) {
-      haptics.error();
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
       setError('Please enter your password');
       showToast('Please enter your password', 'error');
       return;
@@ -50,10 +51,10 @@ export default function LoginPasswordScreen() {
     const result = await signIn(email, password);
     
     if (result.success) {
-      haptics.success();
+      haptics.notification(Haptics.NotificationFeedbackType.Success);
       router.replace('/(tabs)');
     } else {
-      haptics.error();
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
       setError(result.error || 'Failed to sign in');
       showToast(result.error || 'Failed to sign in', 'error');
     }
