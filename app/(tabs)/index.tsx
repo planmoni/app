@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance } = useBalance();
@@ -22,6 +23,7 @@ export default function HomeScreen() {
   const { colors, isDark } = useTheme();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
   const { transactions, isLoading: transactionsLoading } = useRealtimeTransactions();
+  const { impact, notification } = useHaptics();
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -87,14 +89,20 @@ export default function HomeScreen() {
   };
 
   const handleAddFunds = () => {
+    // Trigger medium impact haptic feedback
+    impact();
     router.push('/add-funds');
   };
 
   const handleCreatePayout = () => {
+    // Trigger medium impact haptic feedback
+    impact();
     router.push('/create-payout/amount');
   };
 
   const handleViewPayout = (id?: string) => {
+    // Trigger selection haptic feedback
+    notification(Haptics.NotificationFeedbackType.Success);
     if (id) {
       router.push({
         pathname: '/view-payout',
@@ -273,11 +281,17 @@ export default function HomeScreen() {
               <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text>
             </View>
             <View style={styles.buttonGroup}>
-              <Pressable style={styles.createButton} onPress={handleCreatePayout}>
+              <Pressable 
+                style={styles.createButton} 
+                onPress={handleCreatePayout}
+              >
                 <Send size={20} color="#FFFFFF" />
                 <Text style={styles.createButtonText}>Plan</Text>
               </Pressable>
-              <Pressable style={styles.addFundsButton} onPress={handleAddFunds}>
+              <Pressable 
+                style={styles.addFundsButton} 
+                onPress={handleAddFunds}
+              >
                 <Wallet size={20} color={colors.text} />
                 <Text style={styles.addFundsText}>Add Funds</Text>
               </Pressable>
@@ -582,11 +596,17 @@ export default function HomeScreen() {
           }],
         },
       ]}>
-        <Pressable style={styles.createButton} onPress={handleCreatePayout}>
+        <Pressable 
+          style={styles.createButton} 
+          onPress={handleCreatePayout}
+        >
           <Send size={20} color="#FFFFFF" />
           <Text style={styles.createButtonText}>Plan</Text>
         </Pressable>
-        <Pressable style={styles.addFundsButton} onPress={handleAddFunds}>
+        <Pressable 
+          style={styles.addFundsButton} 
+          onPress={handleAddFunds}
+        >
           <Wallet size={20} color={colors.text} />
           <Text style={styles.addFundsText}>Add Funds</Text>
         </Pressable>

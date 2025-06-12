@@ -1,73 +1,30 @@
-import { Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { Platform } from 'react-native';
 
 /**
- * Custom hook for handling haptic feedback with platform compatibility
+ * Custom hook for handling haptic feedback with platform checks
  */
 export function useHaptics() {
   /**
-   * Trigger light impact haptic feedback
-   * Used for subtle feedback like successful form submissions, button presses
+   * Trigger impact feedback with specified intensity
    */
-  const lightImpact = () => {
+  const impact = (style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Medium) => {
     if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Haptics.impactAsync(style);
     }
   };
 
   /**
-   * Trigger medium impact haptic feedback
-   * Used for more significant actions like completing a transaction
+   * Trigger notification feedback with specified type
    */
-  const mediumImpact = () => {
+  const notification = (type: Haptics.NotificationFeedbackType = Haptics.NotificationFeedbackType.Success) => {
     if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.notificationAsync(type);
     }
   };
 
   /**
-   * Trigger heavy impact haptic feedback
-   * Used for major events like errors or important confirmations
-   */
-  const heavyImpact = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    }
-  };
-
-  /**
-   * Trigger success notification haptic feedback
-   * Used for successful operations like payments or form submissions
-   */
-  const success = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  };
-
-  /**
-   * Trigger warning notification haptic feedback
-   * Used for warning alerts or confirmations of destructive actions
-   */
-  const warning = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    }
-  };
-
-  /**
-   * Trigger error notification haptic feedback
-   * Used for error states or failed operations
-   */
-  const error = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-  };
-
-  /**
-   * Trigger selection haptic feedback
-   * Used for selection changes like toggling switches or selecting items
+   * Trigger selection feedback
    */
   const selection = () => {
     if (Platform.OS !== 'web') {
@@ -76,12 +33,8 @@ export function useHaptics() {
   };
 
   return {
-    lightImpact,
-    mediumImpact,
-    heavyImpact,
-    success,
-    warning,
-    error,
+    impact,
+    notification,
     selection
   };
 }
