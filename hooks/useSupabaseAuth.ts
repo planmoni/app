@@ -111,14 +111,7 @@ export function useSupabaseAuth() {
     try {
       setError(null);
       setIsLoading(true);
-      
-      // If there's no active session, consider the user already signed out
-      if (!session) {
-        return { success: true };
-      }
-      
-      // Use local scope to avoid server-side session validation errors
-      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      const { error } = await supabase.auth.signOut();
       if (error) {
         const message = error.message;
         setError(message);
