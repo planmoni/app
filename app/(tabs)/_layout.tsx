@@ -95,6 +95,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Home size={size} color={color} />
           ),
+          tabBarLabel: "Home"
         }}
       />
       <Tabs.Screen 
@@ -104,6 +105,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Calendar size={size} color={color} />
           ),
+          tabBarLabel: "Calendar"
         }}
       />
       <Tabs.Screen 
@@ -113,6 +115,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <BarChart3 size={size} color={color} />
           ),
+          tabBarLabel: "Insights"
         }}
       />
       <Tabs.Screen 
@@ -122,6 +125,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Bell size={size} color={color} />
           ),
+          tabBarLabel: "Alerts"
         }}
       />
       <Tabs.Screen 
@@ -131,6 +135,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Settings size={size} color={color} />
           ),
+          tabBarLabel: "Settings"
         }}
       />
     </Tabs>
