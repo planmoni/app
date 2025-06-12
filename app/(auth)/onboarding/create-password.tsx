@@ -76,7 +76,7 @@ export default function CreatePasswordScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Pressable onPress={() => router.push('/(auth)/login')} style={styles.signInButton}>
+        <Pressable onPress={() => router.push('/login')} style={styles.signInButton}>
           <Text style={styles.signInText}>Sign in instead</Text>
         </Pressable>
       </View>

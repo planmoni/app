@@ -78,7 +78,7 @@ export default function WelcomeScreen() {
   };
 
   const handleSignIn = () => {
-    router.push('/(auth)/login');
+    router.push('/login');
   };
 
   // Calculate responsive dimensions
