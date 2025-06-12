@@ -5,10 +5,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, ArrowRight, Check } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/contexts/ToastContext';
 import { supabase } from '@/lib/supabase';
 
 export default function ForgotPasswordScreen() {
   const { colors } = useTheme();
+  const { showToast } = useToast();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isEmailSent, setIsEmailSent] = useState(false);
@@ -17,11 +19,13 @@ export default function ForgotPasswordScreen() {
   const handleResetPassword = async () => {
     if (!email.trim()) {
       setError('Please enter your email address');
+      showToast('Please enter your email address', 'error');
       return;
     }
 
     if (!/\S+@\S+\.\S+/.test(email)) {
       setError('Please enter a valid email address');
+      showToast('Please enter a valid email address', 'error');
       return;
     }
 
@@ -35,8 +39,11 @@ export default function ForgotPasswordScreen() {
 
       if (error) throw error;
       setIsEmailSent(true);
+      showToast('Password reset email sent successfully', 'success');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send reset email');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send reset email';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -125,7 +132,7 @@ export default function ForgotPasswordScreen() {
             <Button
               title="Send Reset Link"
               onPress={handleResetPassword}
-              loading={isLoading}
+              isLoading={isLoading}
               style={styles.resetButton}
               icon={ArrowRight}
             />

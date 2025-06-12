@@ -3,6 +3,8 @@ import InitialsAvatar from '@/components/InitialsAvatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useHaptics } from '@/hooks/useHaptics';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { 
   Bell, 
@@ -39,6 +41,8 @@ export default function SettingsScreen() {
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
   const { theme, setTheme, colors } = useTheme();
+  const haptics = useHaptics();
+  
   const firstName = session?.user?.user_metadata?.first_name || '';
   const lastName = session?.user?.user_metadata?.last_name || '';
   const email = session?.user?.email || '';
@@ -59,17 +63,21 @@ export default function SettingsScreen() {
 
   const handleSignOut = async () => {
     try {
+      haptics.notification(Haptics.NotificationFeedbackType.Warning);
       Alert.alert(
         "Sign Out",
         "Are you sure you want to sign out?",
         [
           {
             text: "Cancel",
-            style: "cancel"
+            style: "cancel",
+            onPress: () => haptics.lightImpact()
           },
           {
             text: "Sign Out",
+            style: "destructive",
             onPress: async () => {
+              haptics.heavyImpact();
               await signOut();
               router.replace('/');
             }
@@ -77,51 +85,67 @@ export default function SettingsScreen() {
         ]
       );
     } catch (error) {
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Error", "Failed to sign out. Please try again.");
     }
   };
 
   const handleViewProfile = () => {
+    haptics.lightImpact();
     router.push('/profile');
   };
 
   const handleViewLinkedAccounts = () => {
+    haptics.lightImpact();
     router.push('/linked-accounts');
   };
 
   const handleViewReferral = () => {
+    haptics.lightImpact();
     router.push('/referral');
   };
 
   const handleChangePassword = () => {
+    haptics.lightImpact();
     router.push('/change-password');
   };
 
   const handleTwoFactorAuth = () => {
+    haptics.lightImpact();
     router.push('/two-factor-auth');
   };
 
   const handleTransactionLimits = () => {
+    haptics.lightImpact();
     router.push('/transaction-limits');
   };
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+    haptics.selection();
     setTheme(newTheme);
   };
 
+  const handleToggleSwitch = (setter: React.Dispatch<React.SetStateAction<boolean>>) => {
+    haptics.selection();
+    setter(prev => !prev);
+  };
+
   const handleDeleteAccount = () => {
+    haptics.notification(Haptics.NotificationFeedbackType.Error);
     Alert.alert(
       "Delete Account",
       "Are you sure you want to delete your account? This action cannot be undone.",
       [
         {
           text: "Cancel",
-          style: "cancel"
+          style: "cancel",
+          onPress: () => haptics.lightImpact()
         },
         {
           text: "Delete",
           style: "destructive",
           onPress: () => {
+            haptics.heavyImpact();
             // Implement account deletion logic here
             Alert.alert("Account Deletion", "Please contact support to complete account deletion.");
           }
@@ -172,7 +196,10 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={showBalances}
-                onValueChange={toggleBalances}
+                onValueChange={() => {
+                  haptics.selection();
+                  toggleBalances();
+                }}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                 thumbColor={showBalances ? '#3B82F6' : colors.backgroundTertiary}
               />
@@ -190,7 +217,7 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={biometrics}
-                onValueChange={setBiometrics}
+                onValueChange={() => handleToggleSwitch(setBiometrics)}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                 thumbColor={biometrics ? '#3B82F6' : colors.backgroundTertiary}
               />
@@ -244,7 +271,10 @@ export default function SettingsScreen() {
           <View style={styles.card}>
             <Pressable 
               style={styles.settingItem}
-              onPress={() => setShowAccountStatement(true)}
+              onPress={() => {
+                haptics.lightImpact();
+                setShowAccountStatement(true);
+              }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}>
                 <Terms size={20} color="#0EA5E9" />
@@ -356,7 +386,7 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={vaultAlerts}
-                onValueChange={setVaultAlerts}
+                onValueChange={() => handleToggleSwitch(setVaultAlerts)}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                 thumbColor={vaultAlerts ? '#3B82F6' : colors.backgroundTertiary}
               />
@@ -374,7 +404,7 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={loginAlerts}
-                onValueChange={setLoginAlerts}
+                onValueChange={() => handleToggleSwitch(setLoginAlerts)}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                 thumbColor={loginAlerts ? '#3B82F6' : colors.backgroundTertiary}
               />
@@ -392,7 +422,7 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={expiryReminders}
-                onValueChange={setExpiryReminders}
+                onValueChange={() => handleToggleSwitch(setExpiryReminders)}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                 thumbColor={expiryReminders ? '#3B82F6' : colors.backgroundTertiary}
               />
@@ -402,7 +432,10 @@ export default function SettingsScreen() {
 
             <Pressable 
               style={styles.settingItem}
-              onPress={() => setShowNotificationSettings(true)}
+              onPress={() => {
+                haptics.lightImpact();
+                setShowNotificationSettings(true);
+              }}
             >
               <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
                 <Sliders size={20} color={colors.textSecondary} />
@@ -422,7 +455,10 @@ export default function SettingsScreen() {
           <View style={styles.card}>
             <Pressable 
               style={styles.settingItem}
-              onPress={() => setShowHelpCenter(true)}
+              onPress={() => {
+                haptics.lightImpact();
+                setShowHelpCenter(true);
+              }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
                 <HelpCircle size={20} color="#F97316" />
@@ -438,7 +474,10 @@ export default function SettingsScreen() {
 
             <Pressable 
               style={styles.settingItem}
-              onPress={() => setShowSupport(true)}
+              onPress={() => {
+                haptics.lightImpact();
+                setShowSupport(true);
+              }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
                 <MessageSquare size={20} color="#3B82F6" />
@@ -454,7 +493,10 @@ export default function SettingsScreen() {
 
             <Pressable 
               style={styles.settingItem}
-              onPress={() => setShowLanguage(true)}
+              onPress={() => {
+                haptics.lightImpact();
+                setShowLanguage(true);
+              }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
                 <Languages size={20} color="#22C55E" />
@@ -470,7 +512,10 @@ export default function SettingsScreen() {
 
             <Pressable 
               style={styles.settingItem}
-              onPress={() => setShowTerms(true)}
+              onPress={() => {
+                haptics.lightImpact();
+                setShowTerms(true);
+              }}
             >
               <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
                 <Terms size={20} color={colors.textSecondary} />
@@ -505,37 +550,58 @@ export default function SettingsScreen() {
 
       <AccountStatementModal
         isVisible={showAccountStatement}
-        onClose={() => setShowAccountStatement(false)}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowAccountStatement(false);
+        }}
       />
 
       <NotificationSettingsModal
         isVisible={showNotificationSettings}
-        onClose={() => setShowNotificationSettings(false)}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowNotificationSettings(false);
+        }}
       />
 
       <SecurityModal
         isVisible={showSecurity}
-        onClose={() => setShowSecurity(false)}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowSecurity(false);
+        }}
       />
 
       <HelpCenterModal
         isVisible={showHelpCenter}
-        onClose={() => setShowHelpCenter(false)}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowHelpCenter(false);
+        }}
       />
 
       <SupportModal
         isVisible={showSupport}
-        onClose={() => setShowSupport(false)}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowSupport(false);
+        }}
       />
 
       <LanguageModal
         isVisible={showLanguage}
-        onClose={() => setShowLanguage(false)}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowLanguage(false);
+        }}
       />
 
       <TermsModal
         isVisible={showTerms}
-        onClose={() => setShowTerms(false)}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowTerms(false);
+        }}
       />
       
     </SafeAreaView>

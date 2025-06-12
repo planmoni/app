@@ -1,46 +1,46 @@
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, Link } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, User } from 'lucide-react-native';
+import { ArrowLeft, Mail, ArrowRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import SafeFooter from '@/components/SafeFooter';
 import OnboardingProgress from '@/components/OnboardingProgress';
 
-export default function LastNameScreen() {
+export default function LoginEmailScreen() {
   const { colors } = useTheme();
-  const params = useLocalSearchParams();
-  const firstName = params.firstName as string;
-  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
-  const lastNameInputRef = useRef<TextInput>(null);
+  const emailInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    // Focus the input field with a slight delay to ensure it's rendered
     const timer = setTimeout(() => {
-      lastNameInputRef.current?.focus();
+      emailInputRef.current?.focus();
     }, 300);
     return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    setIsButtonEnabled(lastName.trim().length > 0);
-  }, [lastName]);
+    setIsButtonEnabled(email.trim().length > 0 && /\S+@\S+\.\S+/.test(email));
+  }, [email]);
 
   const handleContinue = () => {
-    if (!lastName.trim()) {
-      setError('Please enter your last name');
+    if (!email.trim()) {
+      setError('Please enter your email address');
+      return;
+    }
+
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setError('Please enter a valid email address');
       return;
     }
     
     router.push({
-      pathname: '/onboarding/email',
-      params: { 
-        firstName,
-        lastName: lastName.trim()
-      }
+      pathname: '/login/password',
+      params: { email: email.trim().toLowerCase() }
     });
   };
 
@@ -52,20 +52,20 @@ export default function LastNameScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Pressable onPress={() => router.push('/login')} style={styles.signInButton}>
-          <Text style={styles.signInText}>Sign in instead</Text>
+        <Pressable onPress={() => router.push('/(auth)/onboarding/first-name')} style={styles.signUpButton}>
+          <Text style={styles.signUpText}>Sign up instead</Text>
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={2} totalSteps={6} />
+      <OnboardingProgress currentStep={1} totalSteps={2} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
-          <Text style={styles.title}>Welcome, {firstName}</Text>
-          <Text style={styles.subtitle}>Let's continue setting up your account</Text>
+          <Text style={styles.title}>Welcome back</Text>
+          <Text style={styles.subtitle}>Sign in to your Planmoni account</Text>
 
           <View style={styles.formContainer}>
-            <Text style={styles.question}>What's your last name?</Text>
+            <Text style={styles.question}>What's your email address?</Text>
             
             {error && (
               <View style={styles.errorContainer}>
@@ -74,19 +74,22 @@ export default function LastNameScreen() {
             )}
             
             <View style={styles.inputContainer}>
-              <User size={20} color={colors.textSecondary} style={styles.inputIcon} />
+              <Mail size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
-                ref={lastNameInputRef}
+                ref={emailInputRef}
                 style={styles.input}
-                placeholder="Enter your last name"
+                placeholder="Enter your email address"
                 placeholderTextColor={colors.textTertiary}
-                value={lastName}
+                value={email}
                 onChangeText={(text) => {
-                  setLastName(text);
+                  setEmail(text);
                   setError(null);
                 }}
-                autoCapitalize="words"
-                textContentType="familyName"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                textContentType="emailAddress"
+                returnKeyType="next"
+                onSubmitEditing={handleContinue}
               />
             </View>
           </View>
@@ -97,7 +100,10 @@ export default function LastNameScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={!isButtonEnabled}
+        icon={ArrowRight}
       />
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }
@@ -105,7 +111,7 @@ export default function LastNameScreen() {
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -122,13 +128,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 20,
   },
-  signInButton: {
+  signUpButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
     backgroundColor: colors.backgroundTertiary,
   },
-  signInText: {
+  signUpText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.primary,
@@ -184,6 +190,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
     paddingHorizontal: 16,
     height: 56,
+    marginBottom: 24,
   },
   inputIcon: {
     marginRight: 12,

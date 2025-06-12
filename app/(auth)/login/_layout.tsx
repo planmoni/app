@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 
-export default function AuthLayout() {
+export default function LoginLayout() {
   const { colors } = useTheme();
 
   return (
@@ -12,8 +12,8 @@ export default function AuthLayout() {
         animation: 'slide_from_right',
       }}
     >
-      <Stack.Screen name="onboarding" />
-      <Stack.Screen name="forgot-password" />
+      <Stack.Screen name="index" />
+      <Stack.Screen name="password" />
     </Stack>
   );
 }

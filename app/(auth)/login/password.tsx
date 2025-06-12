@@ -1,53 +1,68 @@
 import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, Link } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Eye, EyeOff, Lock } from 'lucide-react-native';
+import { ArrowLeft, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
+import { useHaptics } from '@/hooks/useHaptics';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import SafeFooter from '@/components/SafeFooter';
 import OnboardingProgress from '@/components/OnboardingProgress';
 
-export default function ConfirmPasswordScreen() {
+export default function LoginPasswordScreen() {
   const { colors } = useTheme();
+  const { signIn, isLoading } = useAuth();
+  const { showToast } = useToast();
+  const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const firstName = params.firstName as string;
-  const lastName = params.lastName as string;
   const email = params.email as string;
-  const password = params.password as string;
   
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
-  const confirmPasswordInputRef = useRef<TextInput>(null);
+  const passwordInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      confirmPasswordInputRef.current?.focus();
+      passwordInputRef.current?.focus();
     }, 300);
     return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    setIsButtonEnabled(confirmPassword.length >= 8);
-  }, [confirmPassword]);
+    setIsButtonEnabled(password.length >= 6);
+  }, [password]);
 
-  const handleContinue = () => {
-    if (confirmPassword !== password) {
-      setError('Passwords do not match');
+  const handleLogin = async () => {
+    if (!password) {
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
+      setError('Please enter your password');
+      showToast('Please enter your password', 'error');
       return;
     }
     
-    router.push({
-      pathname: '/onboarding/success',
-      params: { 
-        firstName,
-        lastName,
-        email,
-        password
-      }
-    });
+    setError(null);
+    
+    const result = await signIn(email, password);
+    
+    if (result.success) {
+      haptics.notification(Haptics.NotificationFeedbackType.Success);
+      router.replace('/(tabs)');
+    } else {
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
+      setError(result.error || 'Failed to sign in');
+      showToast(result.error || 'Failed to sign in', 'error');
+    }
+  };
+
+  const handleTogglePasswordVisibility = () => {
+    haptics.selection();
+    setShowPassword(!showPassword);
   };
 
   const styles = createStyles(colors);
@@ -55,23 +70,35 @@ export default function ConfirmPasswordScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Pressable onPress={() => router.push('/login')} style={styles.signInButton}>
-          <Text style={styles.signInText}>Sign in instead</Text>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.push('/(auth)/signup');
+          }} 
+          style={styles.signUpButton}
+        >
+          <Text style={styles.signUpText}>Sign up instead</Text>
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={5} totalSteps={6} />
+      <OnboardingProgress currentStep={2} totalSteps={2} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
-          <Text style={styles.title}>Confirm your password</Text>
-          <Text style={styles.subtitle}>Make sure your passwords match</Text>
+          <Text style={styles.title}>Enter your password</Text>
+          <Text style={styles.subtitle}>Please enter your password to continue</Text>
 
           <View style={styles.formContainer}>
-            <Text style={styles.question}>Re-enter your password</Text>
+            <Text style={styles.emailDisplay}>{email}</Text>
             
             {error && (
               <View style={styles.errorContainer}>
@@ -82,21 +109,24 @@ export default function ConfirmPasswordScreen() {
             <View style={styles.inputContainer}>
               <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
-                ref={confirmPasswordInputRef}
+                ref={passwordInputRef}
                 style={styles.input}
-                placeholder="Confirm your password"
+                placeholder="Enter your password"
                 placeholderTextColor={colors.textTertiary}
-                value={confirmPassword}
+                value={password}
                 onChangeText={(text) => {
-                  setConfirmPassword(text);
+                  setPassword(text);
                   setError(null);
                 }}
                 secureTextEntry={!showPassword}
-                textContentType="newPassword"
+                autoComplete="password"
+                textContentType="password"
+                returnKeyType="go"
+                onSubmitEditing={handleLogin}
               />
               <Pressable
                 style={styles.eyeButton}
-                onPress={() => setShowPassword(!showPassword)}
+                onPress={handleTogglePasswordVisibility}
               >
                 {showPassword ? (
                   <EyeOff size={20} color={colors.textSecondary} />
@@ -105,15 +135,28 @@ export default function ConfirmPasswordScreen() {
                 )}
               </Pressable>
             </View>
+            
+            <View style={styles.forgotPasswordContainer}>
+              <Link href="/(auth)/forgot-password" asChild>
+                <Pressable onPress={() => haptics.lightImpact()}>
+                  <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
+                </Pressable>
+              </Link>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title="Continue"
-        onPress={handleContinue}
+        title="Sign In"
+        onPress={handleLogin}
         disabled={!isButtonEnabled}
+        loading={isLoading}
+        icon={ArrowRight}
+        hapticType="success"
       />
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }
@@ -121,7 +164,7 @@ export default function ConfirmPasswordScreen() {
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -138,13 +181,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 20,
   },
-  signInButton: {
+  signUpButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
     backgroundColor: colors.backgroundTertiary,
   },
-  signInText: {
+  signUpText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.primary,
@@ -174,12 +217,16 @@ const createStyles = (colors: any) => StyleSheet.create({
   formContainer: {
     width: '100%',
   },
-  question: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.text,
+  emailDisplay: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.primary,
     marginBottom: 24,
-    textAlign: 'left',
+    padding: 12,
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    overflow: 'hidden',
+    textAlign: 'center',
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
@@ -212,5 +259,14 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   eyeButton: {
     padding: 8,
+  },
+  forgotPasswordContainer: {
+    alignItems: 'flex-end',
+    marginTop: 16,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '500',
   },
 });

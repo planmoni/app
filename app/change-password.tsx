@@ -6,9 +6,11 @@ import SafeFooter from '@/components/SafeFooter';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function ChangePasswordScreen() {
   const { colors } = useTheme();
+  const { showToast } = useToast();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,20 +22,24 @@ export default function ChangePasswordScreen() {
   const handleSubmit = () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
       setError('All fields are required');
+      showToast('All fields are required', 'error');
       return;
     }
 
     if (newPassword !== confirmPassword) {
       setError('New passwords do not match');
+      showToast('New passwords do not match', 'error');
       return;
     }
 
     if (newPassword.length < 8) {
       setError('Password must be at least 8 characters long');
+      showToast('Password must be at least 8 characters long', 'error');
       return;
     }
 
     setError(null);
+    showToast('Password changed successfully', 'success');
     router.back();
   };
 
