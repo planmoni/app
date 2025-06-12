@@ -1,45 +1,33 @@
-import { useEffect, useRef } from 'react';
 import { Tabs } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings } from 'lucide-react-native'; //Do not change the Home to Chrome
+import { StyleSheet, View } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Chrome as Home, Calendar, ChartBar as BarChart3, Bell, Settings } from 'lucide-react-native';
+import { useEffect, useState, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
-export default function TabsLayout() {
+export default function TabLayout() {
+  const { colors } = useTheme();
   const { session } = useAuth();
-  const { colors, isDark } = useTheme();
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const channelRef = useRef<any>(null);
-
-  const fetchUnreadNotificationsCount = async () => {
-    // Implementation for fetching unread notifications count
-    // This function should be implemented based on your app's requirements
-  };
 
   useEffect(() => {
     if (!session?.user?.id) return;
 
-    const channelName = `events-changes-${session.user.id}`;
-
-    const existingChannels = supabase.getChannels();
-    const existingChannel = existingChannels.find(channel => channel.topic === `realtime:${channelName}`);
-
-    if (existingChannel && (existingChannel.state === 'joined' || existingChannel.state === 'joining')) {
-      channelRef.current = existingChannel;
-      fetchUnreadNotificationsCount();
-      return;
-    }
-
+    // Clean up any existing channel before creating a new one
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
 
-    if (existingChannel) {
-      supabase.removeChannel(existingChannel);
-    }
-
+    // Initial fetch of unread notifications count
     fetchUnreadNotificationsCount();
 
+    // Create a unique channel name per user to prevent conflicts
+    const channelName = `events-changes-${session.user.id}`;
+
+    // Set up real-time subscription for events table
     const channel = supabase
       .channel(channelName)
       .on(
@@ -52,11 +40,15 @@ export default function TabsLayout() {
         },
         (payload) => {
           console.log('Events change received:', payload);
+          // Refresh unread count when events change
           fetchUnreadNotificationsCount();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Events subscription status:', status);
+      });
 
+    // Store the channel reference
     channelRef.current = channel;
 
     return () => {
@@ -67,77 +59,95 @@ export default function TabsLayout() {
     };
   }, [session?.user?.id]);
 
+  const fetchUnreadNotificationsCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('events')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', session?.user?.id)
+        .eq('status', 'unread');
+
+      if (error) throw error;
+      setUnreadNotifications(count || 0);
+    } catch (error) {
+      console.error('Error fetching unread notifications count:', error);
+    }
+  };
+
   return (
-    <Tabs 
-      screenOptions={{ 
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          paddingTop: 8,
-          paddingBottom: 8,
-          height: 60,
-        },
+    <Tabs
+      screenOptions={{
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '500',
-          marginTop: 0,
-          marginBottom: 4,
-        }
-      }}
-    >
-      <Tabs.Screen 
-        name="index" 
+        tabBarInactiveTintColor: colors.textTertiary,
+        tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
+        tabBarLabelStyle: styles.tabBarLabel,
+        headerShown: false,
+      }}>
+      <Tabs.Screen
+        name="index"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Home size={size} color={color} />
-          ),
-          tabBarLabel: "Home"
+          title: 'Home',
+          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
         }}
       />
-      <Tabs.Screen 
-        name="calendar" 
+      <Tabs.Screen
+        name="calendar"
         options={{
-          title: "Calendar",
-          tabBarIcon: ({ color, size }) => (
-            <Calendar size={size} color={color} />
-          ),
-          tabBarLabel: "Calendar"
+          title: 'Calendar',
+          tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
         }}
       />
-      <Tabs.Screen 
-        name="insights" 
+      <Tabs.Screen
+        name="insights"
         options={{
-          title: "Insights",
-          tabBarIcon: ({ color, size }) => (
-            <BarChart3 size={size} color={color} />
-          ),
-          tabBarLabel: "Insights"
+          title: 'Insights',
+          tabBarIcon: ({ color, size }) => <PieChart size={size} color={color} />,
         }}
       />
-      <Tabs.Screen 
-        name="notifications" 
+      <Tabs.Screen
+        name="notifications"
         options={{
-          title: "Notifications",
+          title: 'Notifications',
           tabBarIcon: ({ color, size }) => (
-            <Bell size={size} color={color} />
+            <View>
+              <Bell size={size} color={color} />
+              {unreadNotifications > 0 && (
+                <View style={styles.notificationBadge} />
+              )}
+            </View>
           ),
-          tabBarLabel: "Alerts"
         }}
       />
-      <Tabs.Screen 
-        name="settings" 
+      <Tabs.Screen
+        name="settings"
         options={{
-          title: "Settings",
-          tabBarIcon: ({ color, size }) => (
-            <Settings size={size} color={color} />
-          ),
-          tabBarLabel: "Settings"
+          title: 'Settings',
+          tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    height: 100,
+    paddingBottom: 20,
+    paddingTop: 8,
+  },
+  tabBarLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+});
