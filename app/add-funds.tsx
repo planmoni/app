@@ -1,35 +1,61 @@
 import Button from '@/components/Button';
-import SafeFooter from '@/components/SafeFooter';
 import { router } from 'expo-router';
 import { ArrowLeft, Copy, Info } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function AddFundsScreen() {
   const { colors } = useTheme();
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const haptics = useHaptics();
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
 
   const handleCopyAccountNumber = () => {
+    haptics.selection();
     // Implement copy functionality
   };
 
   const handleMoreDepositMethods = () => {
+    haptics.mediumImpact();
     router.push('/deposit-flow/payment-methods');
   };
 
-  const styles = createStyles(colors);
+  const handleBack = () => {
+    haptics.lightImpact();
+    router.back();
+  };
+
+  const handleDone = () => {
+    haptics.mediumImpact();
+    router.back();
+  };
+
+  const styles = createStyles(colors, isSmallScreen);
+
+  // Calculate footer height including safe area
+  const footerHeight = 80 + insets.bottom;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable onPress={handleBack} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Add Funds</Text>
       </View>
 
-      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingWrapper 
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: footerHeight } // Add padding to account for fixed footer
+        ]}
+      >
         <View style={styles.content}>
           <Text style={styles.title}>Add funds via <Text style={styles.highlight}>Bank Transfer</Text></Text>
           <Text style={styles.description}>
@@ -82,26 +108,29 @@ export default function AddFundsScreen() {
               </Text>
             </View>
           </View>
-
-          <View style={styles.footer}>
-            <Button 
-              title="Done"
-              onPress={() => router.back()}
-              style={styles.doneButton}
-            />
-            <Pressable onPress={handleMoreDepositMethods} style={styles.moreMethodsButton}>
-              <Text style={styles.moreMethodsText}>More deposit methods</Text>
-            </Pressable>
-          </View>
         </View>
       </KeyboardAvoidingWrapper>
-      
-      <SafeFooter />
+
+      {/* Fixed footer with safe area padding */}
+      <View style={[
+        styles.footer, 
+        { paddingBottom: Math.max(16, insets.bottom) }
+      ]}>
+        <Button 
+          title="Done"
+          onPress={handleDone}
+          style={styles.doneButton}
+          hapticType="medium"
+        />
+        <Pressable onPress={handleMoreDepositMethods} style={styles.moreMethodsButton}>
+          <Text style={styles.moreMethodsText}>More deposit methods</Text>
+        </Pressable>
+      </View>
     </SafeAreaView>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -109,8 +138,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: isSmallScreen ? 12 : 16,
+    paddingVertical: isSmallScreen ? 12 : 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -123,19 +152,18 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginRight: 8,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 16 : 18,
     fontWeight: '600',
     color: colors.text,
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
+    padding: isSmallScreen ? 16 : 20,
   },
   content: {
     flex: 1,
   },
   title: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 20 : 24,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
@@ -144,9 +172,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.primary,
   },
   description: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     color: colors.textSecondary,
-    marginBottom: 24,
+    marginBottom: isSmallScreen ? 20 : 24,
     lineHeight: 20,
   },
   accountDetailsCard: {
@@ -154,33 +182,34 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 24,
+    marginBottom: isSmallScreen ? 20 : 24,
     overflow: 'hidden',
   },
   cardHeader: {
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     backgroundColor: colors.backgroundTertiary,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 16 : 18,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   cardDescription: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     color: colors.textSecondary,
   },
   fieldsContainer: {
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
+    gap: isSmallScreen ? 16 : 20,
   },
   field: {
-    marginBottom: 20,
+    marginBottom: 0, // Using gap in fieldsContainer instead
   },
   fieldLabel: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontWeight: '500',
     color: colors.textSecondary,
     marginBottom: 8,
@@ -192,11 +221,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.backgroundTertiary,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 16,
+    padding: isSmallScreen ? 12 : 16,
     borderRadius: 12,
   },
   accountNumber: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 16 : 18,
     fontWeight: '600',
     color: colors.text,
     letterSpacing: 1,
@@ -215,21 +244,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.backgroundTertiary,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 16,
+    padding: isSmallScreen ? 12 : 16,
     borderRadius: 12,
   },
   fieldValue: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '500',
     color: colors.text,
   },
   infoSection: {
-    marginBottom: 32,
+    marginBottom: isSmallScreen ? 24 : 32,
   },
   infoCard: {
     backgroundColor: colors.card,
     borderRadius: 12,
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
@@ -250,26 +279,33 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginRight: 12,
   },
   infoTitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '600',
     color: colors.text,
   },
   infoText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     color: colors.textSecondary,
     lineHeight: 20,
   },
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    padding: 16,
     gap: 16,
     alignItems: 'center',
-    marginTop: 'auto',
   },
   doneButton: {
     width: '100%',
     backgroundColor: colors.primary,
   },
   moreMethodsButton: {
-    paddingVertical: 12,
+    paddingVertical: 8,
     paddingHorizontal: 16,
   },
   moreMethodsText: {
