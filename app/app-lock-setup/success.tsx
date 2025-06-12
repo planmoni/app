@@ -2,17 +2,20 @@ import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/contexts/ToastContext';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 
 export default function AppLockSuccessScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const { showToast } = useToast();
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
   
   const handleGoToDashboard = () => {
+    showToast('App lock enabled successfully!', 'success');
     router.replace('/(tabs)');
   };
 

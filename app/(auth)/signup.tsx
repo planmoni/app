@@ -6,11 +6,14 @@ import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Check, ArrowLeft } from 'luc
 import Button from '@/components/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/contexts/ToastContext';
 import SafeFooter from '@/components/SafeFooter';
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
-  const { signUp, isLoading, error } = useAuth();
+  const { signUp, isLoading } = useAuth();
+  const { showToast } = useToast();
+  
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -59,6 +62,13 @@ export default function SignUpScreen() {
     }
     
     setFormErrors(errors);
+    
+    if (Object.keys(errors).length > 0) {
+      // Show toast with the first error
+      const firstError = Object.values(errors)[0];
+      showToast(firstError, 'error');
+    }
+    
     return Object.keys(errors).length === 0;
   };
 
@@ -66,15 +76,22 @@ export default function SignUpScreen() {
     if (!validateForm()) return;
     
     try {
-      await signUp(
+      const result = await signUp(
         formData.email.toLowerCase().trim(),
         formData.password,
         formData.firstName.trim(),
         formData.lastName.trim()
       );
-      router.replace('/(tabs)');
+      
+      if (result.success) {
+        router.replace('/(tabs)');
+        showToast('Account created successfully!', 'success');
+      } else {
+        showToast(result.error || 'Failed to create account', 'error');
+      }
     } catch (err) {
       // Error is handled by the auth context
+      showToast('An unexpected error occurred', 'error');
     }
   };
 
@@ -114,12 +131,6 @@ export default function SignUpScreen() {
         </View>
 
         <View style={styles.form}>
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-
           <View style={styles.nameRow}>
             <View style={[styles.inputGroup, styles.nameInput]}>
               <Text style={styles.label}>First Name</Text>
@@ -375,19 +386,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   form: {
     gap: 20,
-  },
-  errorContainer: {
-    backgroundColor: colors.errorLight,
-    borderWidth: 1,
-    borderColor: colors.error,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 14,
-    textAlign: 'center',
   },
   nameRow: {
     flexDirection: 'row',

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ShieldCheck } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
@@ -11,6 +12,7 @@ import PinKeypad from '@/components/PinKeypad';
 export default function ConfirmPinScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const { showToast } = useToast();
   const params = useLocalSearchParams();
   const originalPin = params.pin as string;
   const pinLength = originalPin.length;
@@ -35,6 +37,7 @@ export default function ConfirmPinScreen() {
           });
         } else {
           setError('PINs do not match. Please try again.');
+          showToast('PINs do not match. Please try again.', 'error');
           setConfirmPin('');
         }
       }, 300); // Small delay for better UX
@@ -76,8 +79,10 @@ export default function ConfirmPinScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer} disableScrollView={true}>
         <View style={styles.content}>
-          <Text style={styles.title}>Confirm your PIN</Text>
-          <Text style={styles.subtitle}>Enter your PIN again to confirm</Text>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>Confirm your PIN</Text>
+            <Text style={styles.subtitle}>Enter your PIN again to confirm</Text>
+          </View>
 
           <View style={styles.formContainer}>
             {error && (
@@ -160,19 +165,23 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, scre
       flex: 1,
       justifyContent: 'flex-start',
       paddingTop: verticalSpacing,
+      alignItems: 'center',
+    },
+    titleContainer: {
+      alignItems: 'center',
+      marginBottom: verticalSpacing,
     },
     title: {
       fontSize: titleSize,
       fontWeight: '700',
       color: colors.text,
       marginBottom: 8,
-      textAlign: 'left',
+      textAlign: 'center',
     },
     subtitle: {
       fontSize: subtitleSize,
       color: colors.textSecondary,
-      marginBottom: verticalSpacing,
-      textAlign: 'left',
+      textAlign: 'center',
     },
     formContainer: {
       width: '100%',
