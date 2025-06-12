@@ -3,7 +3,7 @@ import { Tabs } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Home, Calendar, BarChart3, Bell, Settings } from 'lucide-react-native';
+import { Chrome as Home, Calendar, ChartBar as BarChart3, Bell, Settings } from 'lucide-react-native';
 
 export default function TabsLayout() {
   const { session } = useAuth();
