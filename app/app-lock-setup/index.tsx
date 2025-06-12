@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Lock } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
@@ -11,6 +12,7 @@ import PinKeypad from '@/components/PinKeypad';
 export default function AppLockSetupScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const { showToast } = useToast();
   const [pinLength] = useState<number>(6);
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +69,10 @@ export default function AppLockSetupScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer} disableScrollView={true}>
         <View style={styles.content}>
-          <Text style={styles.title}>Set up app lock</Text>
-          <Text style={styles.subtitle}>Create a PIN to secure your account</Text>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>Set up app lock</Text>
+            <Text style={styles.subtitle}>Create a PIN to secure your account</Text>
+          </View>
 
           <View style={styles.formContainer}>
             <Text style={styles.instruction}>Enter a 6-digit PIN</Text>
@@ -155,6 +159,9 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, scre
       justifyContent: 'flex-start',
       paddingTop: verticalSpacing,
     },
+    titleContainer: {
+      marginBottom: verticalSpacing,
+    },
     title: {
       fontSize: titleSize,
       fontWeight: '700',
@@ -165,7 +172,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, scre
     subtitle: {
       fontSize: subtitleSize,
       color: colors.textSecondary,
-      marginBottom: verticalSpacing,
       textAlign: 'left',
     },
     formContainer: {
