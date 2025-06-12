@@ -1,4 +1,5 @@
 import { Pressable, Text, StyleSheet, ActivityIndicator, PressableProps, View } from 'react-native';
+import { useHaptics } from '@/hooks/useHaptics';
 
 type ButtonProps = PressableProps & {
   title?: string;
@@ -7,6 +8,7 @@ type ButtonProps = PressableProps & {
   isLoading?: boolean;
   disabled?: boolean;
   icon?: React.ComponentType<any>;
+  hapticType?: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' | 'selection' | 'none';
 };
 
 export default function Button({
@@ -17,8 +19,11 @@ export default function Button({
   disabled = false,
   style,
   icon: Icon,
+  hapticType = 'light',
   ...props
 }: ButtonProps) {
+  const haptics = useHaptics();
+
   const getVariantStyle = () => {
     switch (variant) {
       case 'primary':
@@ -71,6 +76,43 @@ export default function Button({
     }
   };
 
+  const triggerHaptic = () => {
+    if (disabled || isLoading) return;
+    
+    switch (hapticType) {
+      case 'light':
+        haptics.lightImpact();
+        break;
+      case 'medium':
+        haptics.mediumImpact();
+        break;
+      case 'heavy':
+        haptics.heavyImpact();
+        break;
+      case 'success':
+        haptics.success();
+        break;
+      case 'warning':
+        haptics.warning();
+        break;
+      case 'error':
+        haptics.error();
+        break;
+      case 'selection':
+        haptics.selection();
+        break;
+      case 'none':
+      default:
+        // No haptic feedback
+        break;
+    }
+  };
+
+  const handlePress = (e: any) => {
+    triggerHaptic();
+    props.onPress?.(e);
+  };
+
   return (
     <Pressable
       style={[
@@ -82,6 +124,7 @@ export default function Button({
       ]}
       disabled={disabled || isLoading}
       {...props}
+      onPress={handlePress}
     >
       <View style={styles.content}>
         {isLoading ? (

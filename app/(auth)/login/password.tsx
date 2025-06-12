@@ -6,6 +6,7 @@ import { ArrowLeft, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import { useHaptics } from '@/hooks/useHaptics';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import SafeFooter from '@/components/SafeFooter';
@@ -15,6 +16,7 @@ export default function LoginPasswordScreen() {
   const { colors } = useTheme();
   const { signIn, isLoading } = useAuth();
   const { showToast } = useToast();
+  const haptics = useHaptics();
   const params = useLocalSearchParams();
   const email = params.email as string;
   
@@ -37,6 +39,7 @@ export default function LoginPasswordScreen() {
 
   const handleLogin = async () => {
     if (!password) {
+      haptics.error();
       setError('Please enter your password');
       showToast('Please enter your password', 'error');
       return;
@@ -47,11 +50,18 @@ export default function LoginPasswordScreen() {
     const result = await signIn(email, password);
     
     if (result.success) {
+      haptics.success();
       router.replace('/(tabs)');
     } else {
+      haptics.error();
       setError(result.error || 'Failed to sign in');
       showToast(result.error || 'Failed to sign in', 'error');
     }
+  };
+
+  const handleTogglePasswordVisibility = () => {
+    haptics.selection();
+    setShowPassword(!showPassword);
   };
 
   const styles = createStyles(colors);
@@ -59,10 +69,22 @@ export default function LoginPasswordScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Pressable onPress={() => router.push('/(auth)/signup')} style={styles.signUpButton}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.push('/(auth)/signup');
+          }} 
+          style={styles.signUpButton}
+        >
           <Text style={styles.signUpText}>Sign up instead</Text>
         </Pressable>
       </View>
@@ -103,7 +125,7 @@ export default function LoginPasswordScreen() {
               />
               <Pressable
                 style={styles.eyeButton}
-                onPress={() => setShowPassword(!showPassword)}
+                onPress={handleTogglePasswordVisibility}
               >
                 {showPassword ? (
                   <EyeOff size={20} color={colors.textSecondary} />
@@ -115,7 +137,7 @@ export default function LoginPasswordScreen() {
             
             <View style={styles.forgotPasswordContainer}>
               <Link href="/(auth)/forgot-password" asChild>
-                <Pressable>
+                <Pressable onPress={() => haptics.lightImpact()}>
                   <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
                 </Pressable>
               </Link>
@@ -130,6 +152,7 @@ export default function LoginPasswordScreen() {
         disabled={!isButtonEnabled}
         loading={isLoading}
         icon={ArrowRight}
+        hapticType="success"
       />
       
       <SafeFooter />

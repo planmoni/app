@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import Toast from '@/components/Toast';
+import { useHaptics } from '@/hooks/useHaptics';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -15,6 +16,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [message, setMessage] = useState('');
   const [type, setType] = useState<ToastType>('info');
   const [duration, setDuration] = useState(3000);
+  const haptics = useHaptics();
 
   const showToast = (
     message: string,
@@ -25,6 +27,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setType(type);
     setDuration(duration);
     setVisible(true);
+    
+    // Trigger appropriate haptic feedback based on toast type
+    switch (type) {
+      case 'success':
+        haptics.success();
+        break;
+      case 'error':
+        haptics.error();
+        break;
+      case 'warning':
+        haptics.warning();
+        break;
+      case 'info':
+        haptics.selection();
+        break;
+    }
   };
 
   const hideToast = () => {

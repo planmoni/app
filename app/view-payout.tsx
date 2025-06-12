@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function ViewPayoutScreen() {
   const { colors } = useTheme();
@@ -17,6 +18,7 @@ export default function ViewPayoutScreen() {
   const { id } = useLocalSearchParams();
   const { payoutPlans, isLoading, pausePlan, resumePlan } = useRealtimePayoutPlans();
   const { showBalances } = useBalance();
+  const haptics = useHaptics();
   
   const [isEditing, setIsEditing] = useState(false);
   const [payoutName, setPayoutName] = useState('');
@@ -53,7 +55,13 @@ export default function ViewPayoutScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Pressable 
+            onPress={() => {
+              haptics.lightImpact();
+              router.back();
+            }} 
+            style={styles.backButton}
+          >
             <ArrowLeft size={24} color={colors.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Payout Details</Text>
@@ -62,8 +70,12 @@ export default function ViewPayoutScreen() {
           <Text style={styles.errorText}>Payout plan not found</Text>
           <Button 
             title="Go Back" 
-            onPress={() => router.back()} 
+            onPress={() => {
+              haptics.mediumImpact();
+              router.back();
+            }} 
             style={styles.errorButton}
+            hapticType="medium"
           />
         </View>
         <SafeFooter />
@@ -72,6 +84,7 @@ export default function ViewPayoutScreen() {
   }
 
   const handleSave = () => {
+    haptics.success();
     setIsEditing(false);
     // TODO: Implement update functionality
   };
@@ -79,24 +92,32 @@ export default function ViewPayoutScreen() {
   const handlePauseResume = async () => {
     try {
       if (plan.status === 'active') {
+        haptics.warning();
         Alert.alert(
           'Pause Payout Plan',
           `Are you sure you want to pause "${plan.name}"? You can resume it anytime.`,
           [
-            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Cancel', 
+              style: 'cancel',
+              onPress: () => haptics.lightImpact()
+            },
             {
               text: 'Pause',
               style: 'destructive',
               onPress: async () => {
+                haptics.heavyImpact();
                 await pausePlan(plan.id);
               }
             }
           ]
         );
       } else if (plan.status === 'paused') {
+        haptics.success();
         await resumePlan(plan.id);
       }
     } catch (error) {
+      haptics.error();
       Alert.alert('Error', 'Failed to update payout plan');
     }
   };
@@ -130,7 +151,13 @@ export default function ViewPayoutScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Payout Details</Text>
@@ -164,7 +191,10 @@ export default function ViewPayoutScreen() {
                   <Text style={styles.payoutName}>{plan.name}</Text>
                   <Pressable 
                     style={styles.editButton} 
-                    onPress={() => setIsEditing(true)}
+                    onPress={() => {
+                      haptics.selection();
+                      setIsEditing(true);
+                    }}
                   >
                     <PencilLine size={20} color={colors.textSecondary} />
                   </Pressable>
@@ -268,6 +298,7 @@ export default function ViewPayoutScreen() {
                 ]}
                 icon={plan.status === 'paused' ? Play : Pause}
                 disabled={plan.status === 'completed' || plan.status === 'cancelled'}
+                hapticType={plan.status === 'paused' ? 'success' : 'warning'}
               />
             </View>
           </Card>
@@ -283,7 +314,13 @@ export default function ViewPayoutScreen() {
             <Text style={styles.warningDescription}>
               You can withdraw your funds before the scheduled date, but this will attract a fee and a 72-hour processing time.
             </Text>
-            <Pressable style={styles.withdrawButton}>
+            <Pressable 
+              style={styles.withdrawButton}
+              onPress={() => {
+                haptics.warning();
+                // Implement emergency withdrawal
+              }}
+            >
               <Text style={styles.withdrawButtonText}>Request Emergency Withdrawal</Text>
             </Pressable>
           </Card>

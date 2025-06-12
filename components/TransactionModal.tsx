@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { X, Copy, ArrowUpRight, ArrowDownRight } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useHaptics } from '@/hooks/useHaptics';
 
 type TransactionModalProps = {
   isVisible: boolean;
@@ -24,11 +25,28 @@ type TransactionModalProps = {
 
 export default function TransactionModal({ isVisible, onClose, transaction }: TransactionModalProps) {
   const { colors } = useTheme();
+  const haptics = useHaptics();
   
   if (!isVisible) return null;
 
   const handleCopyTransactionId = () => {
+    haptics.selection();
     // Implement copy functionality
+  };
+
+  const handleClose = () => {
+    haptics.lightImpact();
+    onClose();
+  };
+
+  const handleDownloadReceipt = () => {
+    haptics.mediumImpact();
+    // Implement download functionality
+  };
+
+  const handleReportIssue = () => {
+    haptics.mediumImpact();
+    // Implement report functionality
   };
 
   const isPositive = transaction.amount.startsWith('+');
@@ -41,7 +59,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.title}>Transaction Details</Text>
-            <Pressable onPress={onClose} style={styles.closeButton}>
+            <Pressable onPress={handleClose} style={styles.closeButton}>
               <X size={24} color="#FFFFFF" />
             </Pressable>
           </View>
@@ -129,11 +147,15 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
           <Button
             title="Download Receipt"
             style={styles.receiptButton}
+            onPress={handleDownloadReceipt}
+            hapticType="medium"
           />
           <Button
             title="Report an Issue"
             variant="outline"
             style={styles.reportButton}
+            onPress={handleReportIssue}
+            hapticType="warning"
           />
         </View>
       </View>

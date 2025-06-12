@@ -4,10 +4,13 @@ import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useEffect } from 'react';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
+  const haptics = useHaptics();
   
   // Get values from route params with safe defaults
   const totalAmount = params.totalAmount as string || '0';
@@ -17,11 +20,23 @@ export default function SuccessScreen() {
   const bankName = params.bankName as string || '';
   const accountNumber = (params.accountNumber as string) || '';
 
+  // Trigger success haptic feedback when the screen loads
+  useEffect(() => {
+    // Use a small delay to ensure the screen is fully rendered
+    const timer = setTimeout(() => {
+      haptics.success();
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleViewPayouts = () => {
+    haptics.mediumImpact();
     router.push('/all-payouts');
   };
 
   const handleBackToDashboard = () => {
+    haptics.lightImpact();
     router.replace('/(tabs)');
   };
 
@@ -68,12 +83,14 @@ export default function SuccessScreen() {
           title="View All Payouts"
           onPress={handleViewPayouts}
           style={styles.viewPayoutsButton}
+          hapticType="medium"
         />
         <Button 
           title="Back to Dashboard"
           onPress={handleBackToDashboard}
           variant="outline"
           style={styles.dashboardButton}
+          hapticType="light"
         />
       </View>
     </SafeAreaView>
