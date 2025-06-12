@@ -11,6 +11,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import * as Haptics from 'expo-haptics';
 
 export default function ViewPayoutScreen() {
   const { colors } = useTheme();
@@ -84,7 +85,7 @@ export default function ViewPayoutScreen() {
   }
 
   const handleSave = () => {
-    haptics.success();
+    haptics.notification(Haptics.NotificationFeedbackType.Success);
     setIsEditing(false);
     // TODO: Implement update functionality
   };
@@ -92,7 +93,7 @@ export default function ViewPayoutScreen() {
   const handlePauseResume = async () => {
     try {
       if (plan.status === 'active') {
-        haptics.warning();
+        haptics.notification(Haptics.NotificationFeedbackType.Warning);
         Alert.alert(
           'Pause Payout Plan',
           `Are you sure you want to pause "${plan.name}"? You can resume it anytime.`,
@@ -113,11 +114,11 @@ export default function ViewPayoutScreen() {
           ]
         );
       } else if (plan.status === 'paused') {
-        haptics.success();
+        haptics.notification(Haptics.NotificationFeedbackType.Success);
         await resumePlan(plan.id);
       }
     } catch (error) {
-      haptics.error();
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Error', 'Failed to update payout plan');
     }
   };
@@ -317,7 +318,7 @@ export default function ViewPayoutScreen() {
             <Pressable 
               style={styles.withdrawButton}
               onPress={() => {
-                haptics.warning();
+                haptics.notification(Haptics.NotificationFeedbackType.Warning);
                 // Implement emergency withdrawal
               }}
             >

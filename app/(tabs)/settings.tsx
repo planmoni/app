@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { 
   Bell, 
@@ -62,7 +63,7 @@ export default function SettingsScreen() {
 
   const handleSignOut = async () => {
     try {
-      haptics.warning();
+      haptics.notification(Haptics.NotificationFeedbackType.Warning);
       Alert.alert(
         "Sign Out",
         "Are you sure you want to sign out?",
@@ -84,7 +85,7 @@ export default function SettingsScreen() {
         ]
       );
     } catch (error) {
-      haptics.error();
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Error", "Failed to sign out. Please try again.");
     }
   };
@@ -130,7 +131,7 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteAccount = () => {
-    haptics.error();
+    haptics.notification(Haptics.NotificationFeedbackType.Error);
     Alert.alert(
       "Delete Account",
       "Are you sure you want to delete your account? This action cannot be undone.",
