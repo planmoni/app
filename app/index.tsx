@@ -6,22 +6,19 @@ import Animated, {
   useSharedValue,
   withSpring,
   interpolate,
-  runOnJS
 } from 'react-native-reanimated';
 import { Shield, Calendar, Wallet, TrendingUp } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState, useCallback } from 'react';
-import { Platform } from 'react-native';
-import { useHaptics } from '@/hooks/useHaptics';
+import { useEffect } from 'react';
 
 const SLIDES = [
   {
     id: '1',
     title: 'Stabilize Your Cashflow',
     description: 'Put some money aside, get paid on a schedule & say goodbye to irregular income. ',
-    image: require('@/assets/animations/CashFlowImg.json'),
+    image: require('@/assets/images/SmartSavings.png'),
     icon: Wallet,
     color: '#EFF6FF',
     iconColor: '#3B82F6',
@@ -30,7 +27,7 @@ const SLIDES = [
     id: '2',
     title: 'Pay Yourself Whenever You Like',
     description: 'Receive payouts weekly, monthly, or however you choose — just like a salary.',
-    image: require('@/assets/animations/PayYourselfAnytime.json'),
+    image: require('@/assets/images/PayYourselfOnTime.png'),
     icon: Calendar,
     color: '#F0FDF4',
     iconColor: '#22C55E',
@@ -39,7 +36,7 @@ const SLIDES = [
     id: '3',
     title: 'Gain Control Over Your Financial Life',
     description: 'No impulse spending. Your money stays locked until your chosen payday.',
-    image: require('@/assets/animations/Control.json'),
+    image: require('@/assets/images/StayInControl.png'),
     icon: Shield,
     color: '#FEF3C7',
     iconColor: '#D97706',
@@ -48,7 +45,7 @@ const SLIDES = [
     id: '4',
     title: 'Build A Healthy Money Habits',
     description: 'Automate discipline and achieve long-term financial goals effortlessly.',
-    image: require('@/assets/animations/Healthy Habits.json'),
+    image: require('@/assets/images/BuildHealthyHabits.png'),
     icon: TrendingUp,
     color: '#F3E8FF',
     iconColor: '#9333EA',
@@ -61,8 +58,6 @@ export default function WelcomeScreen() {
   const { session } = useAuth();
   const scrollX = useSharedValue(0);
   const currentIndex = useSharedValue(0);
-  const [lastIndex, setLastIndex] = useState(0);
-  const haptics = useHaptics();
 
   // Redirect to tabs if user is already authenticated
   useEffect(() => {
@@ -71,27 +66,10 @@ export default function WelcomeScreen() {
     }
   }, [session]);
 
-  // Callback function to handle index changes and trigger haptic feedback
-  const handleIndexChange = useCallback((newIndex) => {
-    if (newIndex !== lastIndex) {
-      setLastIndex(newIndex);
-      if (Platform.OS !== 'web') {
-        haptics.selection();
-      }
-    }
-  }, [lastIndex, haptics]);
-
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollX.value = event.contentOffset.x;
-      const newIndex = Math.round(scrollX.value / width);
-      
-      if (currentIndex.value !== newIndex) {
-        currentIndex.value = newIndex;
-        if (Platform.OS !== 'web') {
-          runOnJS(handleIndexChange)(newIndex);
-        }
-      }
+      currentIndex.value = Math.round(scrollX.value / width);
     },
   });
 
@@ -201,14 +179,12 @@ export default function WelcomeScreen() {
           title="Get Started"
           onPress={handleGetStarted}
           style={styles.getStartedButton}
-          hapticType="medium"
         />
         <Button
           title="Already have an account? Sign In"
           onPress={handleSignIn}
           variant="outline"
           style={styles.signInButton}
-          hapticType="selection"
         />
       </View>
     </View>
