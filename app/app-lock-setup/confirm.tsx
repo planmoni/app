@@ -165,8 +165,10 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, scre
       flex: 1,
       justifyContent: 'flex-start',
       paddingTop: verticalSpacing,
+      alignItems: 'center',
     },
     titleContainer: {
+      alignItems: 'center',
       marginBottom: verticalSpacing,
     },
     title: {
@@ -174,13 +176,12 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, scre
       fontWeight: '700',
       color: colors.text,
       marginBottom: 8,
-      textAlign: 'left',
+      textAlign: 'center',
     },
     subtitle: {
       fontSize: subtitleSize,
       color: colors.textSecondary,
-      marginBottom: verticalSpacing,
-      textAlign: 'left',
+      textAlign: 'center',
     },
     formContainer: {
       width: '100%',
