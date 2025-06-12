@@ -2,9 +2,12 @@ import { useEffect, useRef } from 'react';
 import { Tabs } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Home, Calendar, BarChart3, Bell, Settings } from 'lucide-react-native';
 
 export default function TabsLayout() {
   const { session } = useAuth();
+  const { colors, isDark } = useTheme();
   const channelRef = useRef<any>(null);
 
   const fetchUnreadNotificationsCount = async () => {
@@ -65,12 +68,71 @@ export default function TabsLayout() {
   }, [session?.user?.id]);
 
   return (
-    <Tabs screenOptions={{ headerShown: false }}>
-      <Tabs.Screen name="index" />
-      <Tabs.Screen name="calendar" />
-      <Tabs.Screen name="insights" />
-      <Tabs.Screen name="notifications" />
-      <Tabs.Screen name="settings" />
+    <Tabs 
+      screenOptions={{ 
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          paddingTop: 8,
+          paddingBottom: 8,
+          height: 60,
+        },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '500',
+          marginTop: 0,
+          marginBottom: 4,
+        }
+      }}
+    >
+      <Tabs.Screen 
+        name="index" 
+        options={{
+          title: "Home",
+          tabBarIcon: ({ color, size }) => (
+            <Home size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen 
+        name="calendar" 
+        options={{
+          title: "Calendar",
+          tabBarIcon: ({ color, size }) => (
+            <Calendar size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen 
+        name="insights" 
+        options={{
+          title: "Insights",
+          tabBarIcon: ({ color, size }) => (
+            <BarChart3 size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen 
+        name="notifications" 
+        options={{
+          title: "Notifications",
+          tabBarIcon: ({ color, size }) => (
+            <Bell size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen 
+        name="settings" 
+        options={{
+          title: "Settings",
+          tabBarIcon: ({ color, size }) => (
+            <Settings size={size} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
