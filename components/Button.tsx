@@ -1,4 +1,6 @@
 import { Pressable, Text, StyleSheet, ActivityIndicator, PressableProps, View } from 'react-native';
+import { useHaptics } from '@/hooks/useHaptics';
+import * as Haptics from 'expo-haptics';
 
 type ButtonProps = PressableProps & {
   title?: string;
@@ -7,6 +9,7 @@ type ButtonProps = PressableProps & {
   isLoading?: boolean;
   disabled?: boolean;
   icon?: React.ComponentType<any>;
+  hapticType?: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' | 'selection' | 'none';
 };
 
 export default function Button({
@@ -17,8 +20,11 @@ export default function Button({
   disabled = false,
   style,
   icon: Icon,
+  hapticType = 'light',
   ...props
 }: ButtonProps) {
+  const haptics = useHaptics();
+
   const getVariantStyle = () => {
     switch (variant) {
       case 'primary':
@@ -71,6 +77,43 @@ export default function Button({
     }
   };
 
+  const triggerHaptic = () => {
+    if (disabled || isLoading) return;
+    
+    switch (hapticType) {
+      case 'light':
+        haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+        break;
+      case 'medium':
+        haptics.impact(Haptics.ImpactFeedbackStyle.Medium);
+        break;
+      case 'heavy':
+        haptics.impact(Haptics.ImpactFeedbackStyle.Heavy);
+        break;
+      case 'success':
+        haptics.notification(Haptics.NotificationFeedbackType.Success);
+        break;
+      case 'warning':
+        haptics.notification(Haptics.NotificationFeedbackType.Warning);
+        break;
+      case 'error':
+        haptics.notification(Haptics.NotificationFeedbackType.Error);
+        break;
+      case 'selection':
+        haptics.selection();
+        break;
+      case 'none':
+      default:
+        // No haptic feedback
+        break;
+    }
+  };
+
+  const handlePress = (e: any) => {
+    triggerHaptic();
+    props.onPress?.(e);
+  };
+
   return (
     <Pressable
       style={[
@@ -82,6 +125,7 @@ export default function Button({
       ]}
       disabled={disabled || isLoading}
       {...props}
+      onPress={handlePress}
     >
       <View style={styles.content}>
         {isLoading ? (

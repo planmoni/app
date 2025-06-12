@@ -18,6 +18,7 @@ type FloatingButtonProps = {
   loading?: boolean;
   icon?: React.ComponentType<any>;
   variant?: 'primary' | 'secondary' | 'outline';
+  hapticType?: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' | 'selection' | 'none';
 };
 
 export default function FloatingButton({
@@ -26,7 +27,8 @@ export default function FloatingButton({
   disabled = false,
   loading = false,
   icon,
-  variant = 'primary'
+  variant = 'primary',
+  hapticType = 'medium'
 }: FloatingButtonProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -93,6 +95,7 @@ export default function FloatingButton({
           style={styles.button}
           icon={icon}
           variant={variant}
+          hapticType={hapticType}
         />
       </View>
     </Animated.View>

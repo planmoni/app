@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useHaptics } from '@/hooks/useHaptics';
 
 interface PinKeypadProps {
   onKeyPress: (key: string) => void;
@@ -12,18 +13,21 @@ interface PinKeypadProps {
 export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: PinKeypadProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const haptics = useHaptics();
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
   
   const handleKeyPress = (key: string) => {
     if (!disabled) {
+      haptics.selection();
       onKeyPress(key);
     }
   };
 
   const handleDelete = () => {
     if (!disabled) {
+      haptics.lightImpact();
       onDelete();
     }
   };
