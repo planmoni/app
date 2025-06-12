@@ -6,6 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import { Ionicons } from "@expo/vector-icons"
 import { 
   Bell, 
   Building2, 
@@ -24,10 +25,11 @@ import {
   MessageSquare, 
   Moon, 
   Shield, 
-  Trash2
+  Trash2,
+  DoorOpen
 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -36,6 +38,7 @@ import NotificationSettingsModal from '@/components/NotificationSettingsModal';
 import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
+import { BiometricSetup } from '@/components/biometrics/BiometricSetup';
 
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
@@ -47,7 +50,7 @@ export default function SettingsScreen() {
   const lastName = session?.user?.user_metadata?.last_name || '';
   const email = session?.user?.email || '';
 
-  const [biometrics, setBiometrics] = useState(true);
+  const [biometrics, setBiometrics] = useState(false);
   const [vaultAlerts, setVaultAlerts] = useState(true);
   const [loginAlerts, setLoginAlerts] = useState(true);
   const [expiryReminders, setExpiryReminders] = useState(false);
@@ -215,13 +218,33 @@ export default function SettingsScreen() {
                 <Text style={styles.settingLabel}>Enable Biometrics</Text>
                 <Text style={styles.settingDescription}>Use biometrics for authentication</Text>
               </View>
-              <Switch
+              {/* <Switch
                 value={biometrics}
                 onValueChange={() => handleToggleSwitch(setBiometrics)}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                thumbColor={biometrics ? '#3B82F6' : colors.backgroundTertiary}
-              />
+                // thumbColor={biometrics ? '#3B82F6' : colors.backgroundTertiary}
+              /> */}
+              <TouchableOpacity style={styles.button} onPress={() => setBiometrics(true)}>
+                {/* <Ionicons name="close" size={24} color="#374151" /> */}
+                {/* <DoorOpen color={"#0000ff"} /> */}
+                <Text style={styles.buttonText}>Click Me</Text>
+              </TouchableOpacity>
             </View>
+            {/* Biometric Setup Modal */}
+            <Modal visible={biometrics} animationType="slide" presentationStyle="pageSheet">
+              <View style={styles.biometricModal}>
+                <View style={styles.biometricHeader}>
+                  <TouchableOpacity onPress={() => setBiometrics(false)}>
+                    <Ionicons name="close" size={24} color="#374151" />
+                  </TouchableOpacity>
+                  <Text style={styles.biometricTitle}>Biometric Authentication</Text>
+                  <View style={{ width: 24 }} />
+                </View>
+                <ScrollView>
+                  <BiometricSetup />
+                </ScrollView>
+              </View>
+            </Modal>
 
             <View style={styles.divider} />
 
@@ -781,5 +804,37 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textTertiary,
     marginLeft: 8,
+  },
+  biometricModal: {
+    flex: 1,
+    backgroundColor: "#f8f9fa",
+  },
+  biometricHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    paddingTop: 60,
+    backgroundColor: "white",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  biometricTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  button: {
+    backgroundColor: '#3B82F6', // blue
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
