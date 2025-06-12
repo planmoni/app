@@ -117,15 +117,9 @@ export function useSupabaseAuth() {
         return { success: true };
       }
       
-      const { error } = await supabase.auth.signOut();
+      // Use local scope to avoid server-side session validation errors
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error) {
-        // If the session doesn't exist on the server, treat it as a successful logout
-        // since the user is effectively already signed out
-        if (error.message.includes('Session from session_id claim in JWT does not exist') || 
-            error.message.includes('session_not_found')) {
-          return { success: true };
-        }
-        
         const message = error.message;
         setError(message);
         return { success: false, error: message };
