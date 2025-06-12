@@ -111,6 +111,12 @@ export function useSupabaseAuth() {
     try {
       setError(null);
       setIsLoading(true);
+      
+      // If there's no active session, consider the user already signed out
+      if (!session) {
+        return { success: true };
+      }
+      
       const { error } = await supabase.auth.signOut();
       if (error) {
         // If the session doesn't exist on the server, treat it as a successful logout
