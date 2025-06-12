@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { BalanceProvider } from '@/contexts/BalanceContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { ToastProvider } from '@/contexts/ToastContext';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack } from 'expo-router';
@@ -81,11 +82,13 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <BalanceProvider>
-          <RootLayoutNav />
-        </BalanceProvider>
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <BalanceProvider>
+            <RootLayoutNav />
+          </BalanceProvider>
+        </AuthProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

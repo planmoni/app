@@ -6,11 +6,13 @@ import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 import { supabase } from '@/lib/supabase';
 
 export default function EditProfileScreen() {
   const { colors } = useTheme();
   const { session } = useAuth();
+  const { showToast } = useToast();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -64,18 +66,22 @@ export default function EditProfileScreen() {
   const validateForm = () => {
     if (!firstName.trim()) {
       setError('First name is required');
+      showToast('First name is required', 'error');
       return false;
     }
     if (!lastName.trim()) {
       setError('Last name is required');
+      showToast('Last name is required', 'error');
       return false;
     }
     if (!email.trim()) {
       setError('Email is required');
+      showToast('Email is required', 'error');
       return false;
     }
     if (!/\S+@\S+\.\S+/.test(email)) {
       setError('Please enter a valid email address');
+      showToast('Please enter a valid email address', 'error');
       return false;
     }
     return true;
@@ -112,13 +118,12 @@ export default function EditProfileScreen() {
 
       if (profileError) throw profileError;
 
-      Alert.alert(
-        'Success',
-        'Your profile has been updated successfully.',
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      showToast('Profile updated successfully', 'success');
+      router.back();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update profile');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update profile';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -127,11 +132,11 @@ export default function EditProfileScreen() {
   const handleCancel = () => {
     if (hasChanges) {
       Alert.alert(
-        'Discard Changes',
-        'You have unsaved changes. Are you sure you want to go back?',
+        "Discard Changes",
+        "You have unsaved changes. Are you sure you want to go back?",
         [
-          { text: 'Stay', style: 'cancel' },
-          { text: 'Discard', style: 'destructive', onPress: () => router.back() }
+          { text: "Stay", style: "cancel" },
+          { text: "Discard", style: "destructive", onPress: () => router.back() }
         ]
       );
     } else {
@@ -234,7 +239,7 @@ export default function EditProfileScreen() {
         <Button
           title="Save Changes"
           onPress={handleSave}
-          loading={isLoading}
+          isLoading={isLoading}
           disabled={!hasChanges}
           style={[styles.saveButton, !hasChanges && styles.disabledButton]}
           icon={Save}

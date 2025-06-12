@@ -4,12 +4,14 @@ import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Eye, EyeOff, Lock, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 
 export default function CreatePasswordScreen() {
   const { colors } = useTheme();
+  const { showToast } = useToast();
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
   const lastName = params.lastName as string;
@@ -45,11 +47,13 @@ export default function CreatePasswordScreen() {
   const handleContinue = () => {
     if (password.length < 8) {
       setError('Password must be at least 8 characters');
+      showToast('Password must be at least 8 characters', 'error');
       return;
     }
     
     if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
       setError('Password must contain uppercase, lowercase, and number');
+      showToast('Password must contain uppercase, lowercase, and number', 'error');
       return;
     }
     

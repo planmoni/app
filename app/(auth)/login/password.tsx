@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import SafeFooter from '@/components/SafeFooter';
@@ -12,7 +13,8 @@ import OnboardingProgress from '@/components/OnboardingProgress';
 
 export default function LoginPasswordScreen() {
   const { colors } = useTheme();
-  const { signIn, isLoading, error: authError } = useAuth();
+  const { signIn, isLoading } = useAuth();
+  const { showToast } = useToast();
   const params = useLocalSearchParams();
   const email = params.email as string;
   
@@ -36,6 +38,7 @@ export default function LoginPasswordScreen() {
   const handleLogin = async () => {
     if (!password) {
       setError('Please enter your password');
+      showToast('Please enter your password', 'error');
       return;
     }
     
@@ -47,6 +50,7 @@ export default function LoginPasswordScreen() {
       router.replace('/(tabs)');
     } else {
       setError(result.error || 'Failed to sign in');
+      showToast(result.error || 'Failed to sign in', 'error');
     }
   };
 
@@ -73,9 +77,9 @@ export default function LoginPasswordScreen() {
           <View style={styles.formContainer}>
             <Text style={styles.emailDisplay}>{email}</Text>
             
-            {(error || authError) && (
+            {error && (
               <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error || authError}</Text>
+                <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
             
