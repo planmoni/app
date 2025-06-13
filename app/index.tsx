@@ -121,22 +121,19 @@ export default function WelcomeScreen() {
           style={styles.slider}
         >
           {SLIDES.map((slide, index) => (
-            <View key={slide.id} style={[styles.slide, { width }]}>
-              {index === 0 ? (
-                <View style={styles.logoContainer}>
-                  <Image
-                    source={slide.image}
-                    style={styles.logo}
-                    resizeMode="contain"
-                  />
-                </View>
-              ) : (
-                <Image 
-                  source={slide.image}
-                  style={styles.slideImage}
-                  resizeMode="contain"
-                />
-              )}
+            <View 
+              key={slide.id} 
+              style={[
+                styles.slide, 
+                { width },
+                index === 0 && styles.firstSlide
+              ]}
+            >
+              <Image 
+                source={slide.image}
+                style={styles.slideImage}
+                resizeMode="contain"
+              />
               <Text style={styles.slideTitle}>{slide.title}</Text>
               <Text style={styles.slideDescription}>{slide.description}</Text>
             </View>
@@ -205,16 +202,6 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     backgroundColor: colors.background,
     justifyContent: 'space-between',
   },
-  logoContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: responsive.imageHeight,
-    marginBottom: responsive.verticalPadding / 2,
-  },
-  logo: {
-    width: '100%',
-    height: responsive.imageHeight,
-  },
   sliderContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -224,9 +211,12 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   slide: {
     flex: 1,
-    alignItems: 'flex-start', // Changed from 'center' to 'flex-start'
+    alignItems: 'flex-start',
     paddingHorizontal: 40,
     justifyContent: 'center',
+  },
+  firstSlide: {
+    alignItems: 'center',
   },
   slideImage: {
     width: '100%',
@@ -237,13 +227,13 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     fontSize: responsive.titleSize,
     fontWeight: '700',
     color: colors.text,
-    textAlign: 'left', // Changed from 'center' to 'left'
+    textAlign: 'left',
     marginBottom: 8,
   },
   slideDescription: {
     fontSize: responsive.descriptionSize,
     color: colors.textSecondary,
-    textAlign: 'left', // Changed from 'center' to 'left'
+    textAlign: 'left',
     lineHeight: responsive.descriptionSize * 1.5,
   },
   pagination: {
