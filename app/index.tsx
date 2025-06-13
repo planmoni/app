@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Image, Pressable, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { 
   useAnimatedScrollHandler,
@@ -6,28 +6,19 @@ import Animated, {
   useSharedValue,
   withSpring,
   interpolate,
-  runOnJS
 } from 'react-native-reanimated';
 import { Shield, Calendar, Wallet, TrendingUp } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState, useCallback } from 'react';
-import { useHaptics } from '@/hooks/useHaptics';
-import LottieView from 'lottie-react-native';
-
-// Conditionally load the Player component only on web
-let Player: any = null;
-if (Platform.OS === 'web') {
-  Player = require('@lottiefiles/react-lottie-player').Player;
-}
+import { useEffect } from 'react';
 
 const SLIDES = [
   {
     id: '1',
     title: 'Stabilize Your Cashflow',
     description: 'Put some money aside, get paid on a schedule & say goodbye to irregular income. ',
-    lottieAnimation: true,
+    image: require('@/assets/images/SmartSavings.png'),
     icon: Wallet,
     color: '#EFF6FF',
     iconColor: '#3B82F6',
@@ -67,8 +58,6 @@ export default function WelcomeScreen() {
   const { session } = useAuth();
   const scrollX = useSharedValue(0);
   const currentIndex = useSharedValue(0);
-  const [lastIndex, setLastIndex] = useState(0);
-  const haptics = useHaptics();
 
   // Redirect to tabs if user is already authenticated
   useEffect(() => {
@@ -77,27 +66,10 @@ export default function WelcomeScreen() {
     }
   }, [session]);
 
-  // Callback to handle index changes and trigger haptic feedback
-  const handleIndexChange = useCallback((index: number) => {
-    if (index !== lastIndex) {
-      haptics.selection();
-      setLastIndex(index);
-    }
-  }, [lastIndex, haptics]);
-
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollX.value = event.contentOffset.x;
-      const newIndex = Math.round(scrollX.value / width);
-      
-      if (newIndex !== currentIndex.value) {
-        currentIndex.value = newIndex;
-        
-        // Only trigger haptics on non-web platforms
-        if (Platform.OS !== 'web') {
-          runOnJS(handleIndexChange)(newIndex);
-        }
-      }
+      currentIndex.value = Math.round(scrollX.value / width);
     },
   });
 
@@ -152,31 +124,11 @@ export default function WelcomeScreen() {
         >
           {SLIDES.map((slide) => (
             <View key={slide.id} style={[styles.slide, { width }]}>
-              {slide.lottieAnimation ? (
-                <View style={styles.lottieContainer}>
-                  {Platform.OS === 'web' ? (
-                    <Player
-                      src={require('@/assets/animations/Animation - 1749106589475.json')}
-                      autoplay
-                      loop
-                      style={styles.lottieAnimation}
-                    />
-                  ) : (
-                    <LottieView
-                      source={require('@/assets/animations/Animation - 1749106589475.json')}
-                      autoPlay
-                      loop
-                      style={styles.lottieAnimation}
-                    />
-                  )}
-                </View>
-              ) : (
-                <Image 
-                  source={slide.image}
-                  style={styles.slideImage}
-                  resizeMode="contain"
-                />
-              )}
+              <Image 
+                source={slide.image}
+                style={styles.slideImage}
+                resizeMode="contain"
+              />
               <Text style={styles.slideTitle}>{slide.title}</Text>
               <Text style={styles.slideDescription}>{slide.description}</Text>
             </View>
@@ -227,14 +179,12 @@ export default function WelcomeScreen() {
           title="Get Started"
           onPress={handleGetStarted}
           style={styles.getStartedButton}
-          hapticType="medium"
         />
         <Button
           title="Already have an account? Sign In"
           onPress={handleSignIn}
           variant="outline"
           style={styles.signInButton}
-          hapticType="light"
         />
       </View>
     </View>
@@ -273,17 +223,6 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     width: '100%',
     height: responsive.imageHeight,
     marginBottom: responsive.verticalPadding / 2,
-  },
-  lottieContainer: {
-    width: '100%',
-    height: responsive.imageHeight,
-    marginBottom: responsive.verticalPadding / 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  lottieAnimation: {
-    width: responsive.imageHeight,
-    height: responsive.imageHeight,
   },
   slideTitle: {
     fontSize: responsive.titleSize,
