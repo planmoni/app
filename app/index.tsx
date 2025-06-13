@@ -241,7 +241,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   slideDescription: {
     fontSize: responsive.descriptionSize,
     color: colors.textSecondary,
-    textAlign: 'left',
+    textAlign: 'center',
     lineHeight: responsive.descriptionSize * 1.5,
   },
   pagination: {
