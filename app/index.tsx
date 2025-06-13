@@ -18,7 +18,7 @@ const SLIDES = [
     id: '1',
     title: 'Welcome to Planmoni',
     description: 'Your personal finance assistant for automated payouts and financial discipline.',
-    image: require('@/assets/images/Planmoni.png'),
+    image: require('@/assets/images/slider1 logo.png'),
     icon: null,
     color: '#EFF6FF',
     iconColor: '#3B82F6',
@@ -219,7 +219,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     alignItems: 'center',
   },
   slideImage: {
-    width: '100%',
+    width: '60%',
     height: responsive.imageHeight,
     marginBottom: responsive.verticalPadding / 2,
   },
