@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TouchableOpacity } from 'react-native';
 import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, TriangleAlert as AlertTriangle, Clock, Check, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
@@ -9,6 +9,38 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
+import { MonoConnectButton, MonoProvider, useMonoConnect } from '@mono.co/connect-react-native';
+
+const config = {
+  publicKey: process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY!,
+  scope: 'auth',
+  data: {
+    customer: { id: '6846e28772c7fdac6cba1972' }
+  },
+  onClose: () => console.log('Widget closed'),
+  onSuccess: (data: any) => {
+    const code = data.getAuthCode()
+    console.log("Access code", code)
+    console.log("Data", data)
+  },
+  onEvent: (eventName:any, data:any) => {
+    console.log(eventName);
+    console.log(data);
+  },
+  reference: 'test_ref'
+}
+
+function LinkAccount() {
+  const { init } = useMonoConnect()
+
+  return (
+    <View style={{marginBottom: 10}}>
+      <TouchableOpacity onPress={() => init()}>
+        <Text style={{color: 'blue'}}>Link your bank account</Text>
+      </TouchableOpacity>
+    </View>
+  )
+}
 
 export default function LinkedAccountsScreen() {
   const { colors } = useTheme();
@@ -65,165 +97,179 @@ export default function LinkedAccountsScreen() {
   const styles = createStyles(colors);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
-      </View>
+    <MonoProvider {...config}>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
+        </View>
 
-      {isLoading && <HorizontalLoader />}
+        {isLoading && <HorizontalLoader />}
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={styles.subtitle}>
-          Manage your linked bank accounts for receiving payouts
-        </Text>
+        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+          <Text style={styles.subtitle}>
+            Manage your linked bank accounts for receiving payouts
+          </Text>
 
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        <View style={styles.accountsList}>
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading bank accounts...</Text>
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
             </View>
-          ) : bankAccounts.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No bank accounts found</Text>
-              <Text style={styles.emptySubtext}>Add a bank account to continue</Text>
-            </View>
-          ) : (
-            bankAccounts.map((account) => (
-              <View key={account.id} style={styles.accountCard}>
-                <View style={styles.accountHeader}>
-                  <View style={styles.bankInfo}>
-                    <View style={styles.bankIcon}>
-                      <Building2 size={24} color="#3B82F6" />
-                    </View>
-                    <View style={styles.bankDetails}>
-                      <Text style={styles.bankName}>{account.bank_name}</Text>
-                      <Text style={styles.accountNumber}>•••• {account.account_number.slice(-4)}</Text>
-                    </View>
-                  </View>
-                  {account.status === 'active' && (
-                    <View style={styles.statusTag}>
-                      <Check size={12} color="#22C55E" />
-                      <Text style={styles.statusText}>Verified</Text>
-                    </View>
-                  )}
-                  {account.status === 'pending' && (
-                    <View style={[styles.statusTag, styles.pendingTag]}>
-                      <Clock size={12} color="#D97706" />
-                      <Text style={[styles.statusText, styles.pendingText]}>Pending</Text>
-                    </View>
-                  )}
-                  {account.status === 'failed' && (
-                    <View style={[styles.statusTag, styles.failedTag]}>
-                      <AlertTriangle size={12} color="#EF4444" />
-                      <Text style={[styles.statusText, styles.failedText]}>Failed</Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.accountContent}>
-                  <Text style={styles.accountName}>{account.account_name}</Text>
-                  {account.is_default && (
-                    <Text style={styles.defaultText}>Default Account</Text>
-                  )}
-                </View>
-
-                {account.status === 'failed' && (
-                  <View style={styles.errorMessage}>
-                    <View style={styles.errorIconContainer}>
-                      <AlertTriangle size={16} color="#EF4444" />
-                    </View>
-                    <Text style={styles.errorText}>
-                      Verification failed. Please check your account details and try again.
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.accountActions}>
-                  {!account.is_default && account.status === 'active' && (
-                    <Pressable
-                      style={styles.actionButton}
-                      onPress={() => handleMakeDefault(account.id)}
-                    >
-                      <Text style={styles.actionButtonText}>Make Default</Text>
-                    </Pressable>
-                  )}
-                  {account.status === 'failed' && (
-                    <Pressable
-                      style={[styles.actionButton, styles.retryButton]}
-                      onPress={() => handleRetryVerification(account.id)}
-                    >
-                      <Text style={[styles.actionButtonText, styles.retryButtonText]}>
-                        Retry Verification
-                      </Text>
-                    </Pressable>
-                  )}
-                  {!account.is_default && (
-                    <Pressable
-                      style={[styles.actionButton, styles.removeButton]}
-                      onPress={() => handleRemoveAccount(account.id)}
-                    >
-                      <Trash2 size={16} color="#EF4444" />
-                      <Text style={[styles.actionButtonText, styles.removeButtonText]}>
-                        Remove
-                      </Text>
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-            ))
           )}
 
-          <Pressable
-            style={styles.addAccountButton}
-            onPress={() => setShowAddAccount(true)}
-          >
-            <Plus size={20} color={colors.primary} />
-            <Text style={styles.addAccountText}>Add New Bank Account</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.infoSection}>
-          <View style={styles.infoCard}>
-            <View style={styles.infoHeader}>
-              <View style={styles.infoIconContainer}>
-                <Info size={20} color="#3B82F6" />
+          <View style={styles.accountsList}>
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading bank accounts...</Text>
               </View>
-              <Text style={styles.infoTitle}>Account Verification</Text>
-            </View>
-            <Text style={styles.infoText}>
-              All bank accounts must be verified before they can be used for payouts. Verification typically takes 1-2 business days.
-            </Text>
+            ) : bankAccounts.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No bank accounts found</Text>
+                <Text style={styles.emptySubtext}>Add a bank account to continue</Text>
+              </View>
+            ) : (
+              bankAccounts.map((account) => (
+                <View key={account.id} style={styles.accountCard}>
+                  <View style={styles.accountHeader}>
+                    <View style={styles.bankInfo}>
+                      <View style={styles.bankIcon}>
+                        <Building2 size={24} color="#3B82F6" />
+                      </View>
+                      <View style={styles.bankDetails}>
+                        <Text style={styles.bankName}>{account.bank_name}</Text>
+                        <Text style={styles.accountNumber}>•••• {account.account_number.slice(-4)}</Text>
+                      </View>
+                    </View>
+                    {account.status === 'active' && (
+                      <View style={styles.statusTag}>
+                        <Check size={12} color="#22C55E" />
+                        <Text style={styles.statusText}>Verified</Text>
+                      </View>
+                    )}
+                    {account.status === 'pending' && (
+                      <View style={[styles.statusTag, styles.pendingTag]}>
+                        <Clock size={12} color="#D97706" />
+                        <Text style={[styles.statusText, styles.pendingText]}>Pending</Text>
+                      </View>
+                    )}
+                    {account.status === 'failed' && (
+                      <View style={[styles.statusTag, styles.failedTag]}>
+                        <AlertTriangle size={12} color="#EF4444" />
+                        <Text style={[styles.statusText, styles.failedText]}>Failed</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.accountContent}>
+                    <Text style={styles.accountName}>{account.account_name}</Text>
+                    {account.is_default && (
+                      <Text style={styles.defaultText}>Default Account</Text>
+                    )}
+                  </View>
+
+                  {account.status === 'failed' && (
+                    <View style={styles.errorMessage}>
+                      <View style={styles.errorIconContainer}>
+                        <AlertTriangle size={16} color="#EF4444" />
+                      </View>
+                      <Text style={styles.errorText}>
+                        Verification failed. Please check your account details and try again.
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.accountActions}>
+                    {!account.is_default && account.status === 'active' && (
+                      <Pressable
+                        style={styles.actionButton}
+                        onPress={() => handleMakeDefault(account.id)}
+                      >
+                        <Text style={styles.actionButtonText}>Make Default</Text>
+                      </Pressable>
+                    )}
+                    {account.status === 'failed' && (
+                      <Pressable
+                        style={[styles.actionButton, styles.retryButton]}
+                        onPress={() => handleRetryVerification(account.id)}
+                      >
+                        <Text style={[styles.actionButtonText, styles.retryButtonText]}>
+                          Retry Verification
+                        </Text>
+                      </Pressable>
+                    )}
+                    {!account.is_default && (
+                      <Pressable
+                        style={[styles.actionButton, styles.removeButton]}
+                        onPress={() => handleRemoveAccount(account.id)}
+                      >
+                        <Trash2 size={16} color="#EF4444" />
+                        <Text style={[styles.actionButtonText, styles.removeButtonText]}>
+                          Remove
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              ))
+            )}
+
+            <Pressable
+              style={styles.addAccountButton}
+              onPress={() => setShowAddAccount(true)}
+            >
+              <Plus size={20} color={colors.primary} />
+              <Text style={styles.addAccountText}>Add New Bank Account</Text>
+            </Pressable>
           </View>
+
+          <View style={styles.infoSection}>
+            <View style={styles.infoCard}>
+              <View style={styles.infoHeader}>
+                <View style={styles.infoIconContainer}>
+                  <Info size={20} color="#3B82F6" />
+                </View>
+                <Text style={styles.infoTitle}>Account Verification</Text>
+              </View>
+              <Text style={styles.infoText}>
+                All bank accounts must be verified before they can be used for payouts. Verification typically takes 1-2 business days.
+              </Text>
+            </View>
+          </View>
+
+
+          <View style={styles.footer}>
+            <Text style={{textAlign: 'center'}}>
+              To share you financial data with Mono Demo App, click the link or button below!
+            </Text>
+
+            <LinkAccount />
+
+            <MonoConnectButton accountId="684537772bc72b6bf0c95407" />
+          </View>
+
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <Button
+            title="Add New Account"
+            onPress={() => setShowAddAccount(true)}
+            style={styles.addButton}
+            icon={Plus}
+          />
         </View>
-      </ScrollView>
 
-      <View style={styles.footer}>
-        <Button
-          title="Add New Account"
-          onPress={() => setShowAddAccount(true)}
-          style={styles.addButton}
-          icon={Plus}
+        <AddBankAccountModal
+          isVisible={showAddAccount}
+          onClose={() => setShowAddAccount(false)}
+          onAdd={handleAddAccount}
+          loading={isLoading}
         />
-      </View>
-
-      <AddBankAccountModal
-        isVisible={showAddAccount}
-        onClose={() => setShowAddAccount(false)}
-        onAdd={handleAddAccount}
-        loading={isLoading}
-      />
-      
-      <SafeFooter />
-    </SafeAreaView>
+        
+        <SafeFooter />
+      </SafeAreaView>
+    </MonoProvider>
   );
 }
 
