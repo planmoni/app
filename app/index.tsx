@@ -228,7 +228,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     fontWeight: '700',
     fontSize: 43,
     color: colors.text,
-    textAlign: 'left',
+    textAlign: 'center',
     marginBottom: 8,
   },
   slideDescription: {
