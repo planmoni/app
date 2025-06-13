@@ -16,6 +16,15 @@ import { useEffect } from 'react';
 const SLIDES = [
   {
     id: '1',
+    title: 'Welcome to Planmoni',
+    description: 'Your personal finance assistant for automated payouts and financial discipline.',
+    image: require('@/assets/images/Planmoni.png'),
+    icon: null,
+    color: '#EFF6FF',
+    iconColor: '#3B82F6',
+  },
+  {
+    id: '2',
     title: 'Stabilize Your Cashflow',
     description: 'Put some money aside, get paid on a schedule & say goodbye to irregular income. ',
     image: require('@/assets/images/SmartSavings.png'),
@@ -24,7 +33,7 @@ const SLIDES = [
     iconColor: '#3B82F6',
   },
   {
-    id: '2',
+    id: '3',
     title: 'Pay Yourself Whenever You Like',
     description: 'Receive payouts weekly, monthly, or however you choose — just like a salary.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
@@ -33,7 +42,7 @@ const SLIDES = [
     iconColor: '#22C55E',
   },
   {
-    id: '3',
+    id: '4',
     title: 'Gain Control Over Your Financial Life',
     description: 'No impulse spending. Your money stays locked until your chosen payday.',
     image: require('@/assets/images/StayInControl.png'),
@@ -42,7 +51,7 @@ const SLIDES = [
     iconColor: '#D97706',
   },
   {
-    id: '4',
+    id: '5',
     title: 'Build A Healthy Money Habits',
     description: 'Automate discipline and achieve long-term financial goals effortlessly.',
     image: require('@/assets/images/BuildHealthyHabits.png'),
@@ -102,17 +111,6 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.logoContainer}>
-        <Image
-          source={isDark 
-            ? require('@/assets/images/PlanmoniDarkMode.png')
-            : require('@/assets/images/Planmoni.png')
-          }
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </View>
-
       <View style={styles.sliderContainer}>
         <Animated.ScrollView
           horizontal
@@ -122,13 +120,23 @@ export default function WelcomeScreen() {
           scrollEventThrottle={16}
           style={styles.slider}
         >
-          {SLIDES.map((slide) => (
+          {SLIDES.map((slide, index) => (
             <View key={slide.id} style={[styles.slide, { width }]}>
-              <Image 
-                source={slide.image}
-                style={styles.slideImage}
-                resizeMode="contain"
-              />
+              {index === 0 ? (
+                <View style={styles.logoContainer}>
+                  <Image
+                    source={slide.image}
+                    style={styles.logo}
+                    resizeMode="contain"
+                  />
+                </View>
+              ) : (
+                <Image 
+                  source={slide.image}
+                  style={styles.slideImage}
+                  resizeMode="contain"
+                />
+              )}
               <Text style={styles.slideTitle}>{slide.title}</Text>
               <Text style={styles.slideDescription}>{slide.description}</Text>
             </View>
@@ -199,12 +207,13 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   logoContainer: {
     alignItems: 'center',
-    paddingTop: responsive.verticalPadding,
-    paddingBottom: responsive.verticalPadding / 2,
+    justifyContent: 'center',
+    height: responsive.imageHeight,
+    marginBottom: responsive.verticalPadding / 2,
   },
   logo: {
-    width: 150,
-    height: responsive.logoHeight,
+    width: '80%',
+    height: responsive.imageHeight,
   },
   sliderContainer: {
     flex: 1,
