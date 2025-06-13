@@ -224,7 +224,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   slide: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: 'flex-start', // Changed from 'center' to 'flex-start'
     paddingHorizontal: 40,
     justifyContent: 'center',
   },
@@ -237,13 +237,13 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     fontSize: responsive.titleSize,
     fontWeight: '700',
     color: colors.text,
-    textAlign: 'center',
+    textAlign: 'left', // Changed from 'center' to 'left'
     marginBottom: 8,
   },
   slideDescription: {
     fontSize: responsive.descriptionSize,
     color: colors.textSecondary,
-    textAlign: 'center',
+    textAlign: 'left', // Changed from 'center' to 'left'
     lineHeight: responsive.descriptionSize * 1.5,
   },
   pagination: {
