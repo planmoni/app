@@ -219,7 +219,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     alignItems: 'center',
   },
   slideImage: {
-    width: '80%',
+    width: '30%',
     height: responsive.imageHeight,
     marginBottom: responsive.verticalPadding / 2,
   },
