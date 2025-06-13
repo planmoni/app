@@ -131,7 +131,11 @@ export default function WelcomeScreen() {
             >
               <Image 
                 source={slide.image}
-                style={styles.slideImage}
+                style={[
+                  styles.slideImage,
+                  // Apply 50% size reduction only to the first slide image
+                  index === 0 && styles.firstSlideImage
+                ]}
                 resizeMode="contain"
               />
               <Text style={styles.slideTitle}>{slide.title}</Text>
@@ -223,13 +227,16 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     height: responsive.imageHeight,
     marginBottom: responsive.verticalPadding / 2,
   },
+  firstSlideImage: {
+    width: '50%', // Reduce first slide image to 50% of the original size
+    height: responsive.imageHeight / 2, // Reduce height proportionally
+  },
   slideTitle: {
     fontSize: responsive.titleSize,
     fontWeight: '700',
-    fontSize: 43,
     color: colors.text,
-    textAlign: 'center',
     marginBottom: 8,
+    textAlign: 'left',
   },
   slideDescription: {
     fontSize: responsive.descriptionSize,
