@@ -29,7 +29,9 @@ function RootLayoutNav() {
   });
 
   useEffect(() => {
-    if (fontError) throw fontError;
+    if (fontError) {
+      console.error('Font loading error:', fontError);
+    }
   }, [fontError]);
 
   useEffect(() => {
