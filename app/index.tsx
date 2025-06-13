@@ -18,7 +18,7 @@ const SLIDES = [
     id: '1',
     title: 'Welcome to Planmoni',
     description: 'Your personal finance assistant for automated payouts and financial discipline.',
-    image: require('@/assets/images/slider1 logo.png'),
+    image: require('@/assets/images/planmoni.png'),
     icon: null,
     color: '#EFF6FF',
     iconColor: '#3B82F6',
