@@ -15,7 +15,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
 
 function RootLayoutNav() {
   const { session, isLoading } = useAuth();
@@ -34,7 +34,7 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (fontsLoaded && !isLoading) {
-      SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(e => console.warn("Failed to hide splash screen:", e));
     }
   }, [fontsLoaded, isLoading]);
 
