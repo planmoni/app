@@ -26,7 +26,6 @@ import {
   Moon, 
   Shield, 
   Trash2,
-  CreditCard,
   Wallet
 } from 'lucide-react-native';
 import { useState } from 'react';
@@ -39,7 +38,6 @@ import NotificationSettingsModal from '@/components/NotificationSettingsModal';
 import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
-import PayoutAccountsModal from '@/components/PayoutAccountsModal';
 
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
@@ -64,7 +62,6 @@ export default function SettingsScreen() {
   const [showSupport, setShowSupport] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
-  const [showPayoutAccounts, setShowPayoutAccounts] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -104,10 +101,10 @@ export default function SettingsScreen() {
     haptics.lightImpact();
     router.push('/linked-accounts');
   };
-
+  
   const handleViewPayoutAccounts = () => {
     haptics.lightImpact();
-    setShowPayoutAccounts(true);
+    router.push('/payout-accounts');
   };
 
   const handleViewReferral = () => {
@@ -307,11 +304,11 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Linked Bank Accounts</Text>
-                <Text style={styles.settingDescription}>Manage, verify, add/remove</Text>
+                <Text style={styles.settingDescription}>Manage accounts for deposits</Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
-
+            
             <View style={styles.divider} />
 
             <Pressable 
@@ -319,7 +316,7 @@ export default function SettingsScreen() {
               onPress={handleViewPayoutAccounts}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
-                <CreditCard size={20} color="#22C55E" />
+                <Wallet size={20} color="#22C55E" />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Payout Accounts</Text>
@@ -627,14 +624,6 @@ export default function SettingsScreen() {
         onClose={() => {
           haptics.lightImpact();
           setShowTerms(false);
-        }}
-      />
-      
-      <PayoutAccountsModal
-        isVisible={showPayoutAccounts}
-        onClose={() => {
-          haptics.lightImpact();
-          setShowPayoutAccounts(false);
         }}
       />
       
