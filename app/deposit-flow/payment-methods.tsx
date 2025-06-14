@@ -1,7 +1,6 @@
-import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Landmark } from 'lucide-react-native';
-import Button from '@/components/Button';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -9,6 +8,7 @@ import SafeFooter from '@/components/SafeFooter';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
+import Button from '@/components/Button';
 
 type PaymentMethod = {
   id: string;
@@ -21,12 +21,8 @@ type PaymentMethod = {
 
 export default function PaymentMethodsScreen() {
   const { colors, isDark } = useTheme();
-  const { width, height } = useWindowDimensions();
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>('1');
   const haptics = useHaptics();
-
-  // Determine if we're on a small screen
-  const isSmallScreen = width < 380 || height < 700;
 
   const savedMethods: PaymentMethod[] = [
     {
@@ -67,7 +63,7 @@ export default function PaymentMethodsScreen() {
 
   const handleAddCard = () => {
     haptics.mediumImpact();
-    router.push('/add-card');
+    router.push('/deposit-flow/card-amount');
   };
 
   const handleAddUSSD = () => {
@@ -80,7 +76,7 @@ export default function PaymentMethodsScreen() {
     router.push('/linked-accounts');
   };
 
-  const styles = createStyles(colors, isDark, isSmallScreen);
+  const styles = createStyles(colors, isDark);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -123,7 +119,7 @@ export default function PaymentMethodsScreen() {
               >
                 <View style={styles.methodLeft}>
                   <View style={styles.methodIconContainer}>
-                    <method.icon size={isSmallScreen ? 20 : 24} color={colors.primary} />
+                    <method.icon size={24} color={colors.primary} />
                   </View>
                   <View style={styles.methodInfo}>
                     <Text style={styles.methodTitle}>{method.title}</Text>
@@ -139,7 +135,7 @@ export default function PaymentMethodsScreen() {
                       <View style={styles.radioInner} />
                     )}
                   </View>
-                  <ChevronRight size={isSmallScreen ? 16 : 20} color={colors.textTertiary} />
+                  <ChevronRight size={20} color={colors.textTertiary} />
                 </View>
               </Pressable>
             ))}
@@ -154,14 +150,14 @@ export default function PaymentMethodsScreen() {
             >
               <View style={styles.methodLeft}>
                 <View style={styles.methodIconContainer}>
-                  <CreditCard size={isSmallScreen ? 20 : 24} color={colors.primary} />
+                  <CreditCard size={24} color={colors.primary} />
                 </View>
                 <View style={styles.methodInfo}>
                   <Text style={styles.methodTitle}>Debit/Credit Card</Text>
                   <Text style={styles.methodSubtitle}>Visa, Mastercard, Verve</Text>
                 </View>
               </View>
-              <ChevronRight size={isSmallScreen ? 16 : 20} color={colors.textTertiary} />
+              <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
 
             <Pressable 
@@ -170,14 +166,14 @@ export default function PaymentMethodsScreen() {
             >
               <View style={styles.methodLeft}>
                 <View style={styles.methodIconContainer}>
-                  <Smartphone size={isSmallScreen ? 20 : 24} color={colors.primary} />
+                  <Smartphone size={24} color={colors.primary} />
                 </View>
                 <View style={styles.methodInfo}>
                   <Text style={styles.methodTitle}>USSD</Text>
                   <Text style={styles.methodSubtitle}>Use USSD Code to pay</Text>
                 </View>
               </View>
-              <ChevronRight size={isSmallScreen ? 16 : 20} color={colors.textTertiary} />
+              <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
             
             <Pressable 
@@ -186,14 +182,14 @@ export default function PaymentMethodsScreen() {
             >
               <View style={styles.methodLeft}>
                 <View style={styles.methodIconContainer}>
-                  <Landmark size={isSmallScreen ? 20 : 24} color={colors.primary} />
+                  <Landmark size={24} color={colors.primary} />
                 </View>
                 <View style={styles.methodInfo}>
                   <Text style={styles.methodTitle}>Link Bank Account</Text>
                   <Text style={styles.methodSubtitle}>Add your bank account for transfers</Text>
                 </View>
               </View>
-              <ChevronRight size={isSmallScreen ? 16 : 20} color={colors.textTertiary} />
+              <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
           </View>
         </View>
@@ -211,7 +207,7 @@ export default function PaymentMethodsScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -219,25 +215,22 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: isSmallScreen ? 12 : 16,
+    padding: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 8,
     marginRight: 8,
   },
   headerTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
   },
   progressContainer: {
-    padding: isSmallScreen ? 12 : 16,
+    padding: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -254,35 +247,34 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderRadius: 2,
   },
   stepText: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     color: colors.textSecondary,
   },
   scrollContent: {
     paddingBottom: 100, // Extra padding for the floating button
   },
   content: {
-    padding: isSmallScreen ? 16 : 20,
+    padding: 16,
   },
   title: {
-    fontSize: isSmallScreen ? 20 : 24,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
   },
   description: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: isSmallScreen ? 20 : 24,
-    lineHeight: isSmallScreen ? 20 : 24,
+    marginBottom: 24,
   },
   section: {
-    marginBottom: isSmallScreen ? 20 : 24,
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: isSmallScreen ? 12 : 16,
+    marginBottom: 16,
   },
   paymentMethod: {
     flexDirection: 'row',
@@ -304,10 +296,10 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     alignItems: 'center',
   },
   methodIconContainer: {
-    width: isSmallScreen ? 40 : 48,
-    height: isSmallScreen ? 40 : 48,
-    borderRadius: isSmallScreen ? 20 : 24,
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : colors.backgroundTertiary,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -316,19 +308,18 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     marginLeft: 0,
   },
   methodTitle: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     fontWeight: '500',
     color: colors.text,
   },
   methodSubtitle: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     color: colors.textSecondary,
     marginTop: 2,
   },
   radioContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
   radioOuter: {
     width: 20,
@@ -336,6 +327,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderRadius: 10,
     borderWidth: 2,
     borderColor: colors.borderSecondary,
+    marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },

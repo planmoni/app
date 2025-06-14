@@ -1,12 +1,11 @@
-import Button from '@/components/Button';
+import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, Info } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions, Alert } from 'react-native';
+import { ArrowLeft, Copy, Building2, CreditCard, Smartphone, Landmark, ChevronRight, Info } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
+import Button from '@/components/Button';
 
 export default function AddFundsScreen() {
   const { colors, isDark } = useTheme();
@@ -23,18 +22,13 @@ export default function AddFundsScreen() {
     showToast('Account number copied to clipboard', 'success');
   };
 
-  const handleMoreDepositMethods = () => {
+  const handleNavigateToPaymentMethod = (route: string) => {
     haptics.mediumImpact();
-    router.push('/deposit-flow/payment-methods');
+    router.push(route);
   };
 
   const handleBack = () => {
     haptics.lightImpact();
-    router.back();
-  };
-
-  const handleDone = () => {
-    haptics.mediumImpact();
     router.back();
   };
 
@@ -52,21 +46,23 @@ export default function AddFundsScreen() {
         <Text style={styles.headerTitle}>Add Funds</Text>
       </View>
 
-      <KeyboardAvoidingWrapper 
+      <ScrollView 
+        style={styles.scrollView} 
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: footerHeight } // Add padding to account for fixed footer
         ]}
       >
-        <View style={styles.content}>
-          <Text style={styles.title}>Add funds via <Text style={styles.highlight}>Bank Transfer</Text></Text>
-          <Text style={styles.description}>
-            Money Transfers sent to this bank account number will automatically top up your Planmoni available wallet.
-          </Text>
+        <Text style={styles.title}>Choose Payment Method</Text>
+        <Text style={styles.description}>
+          Select your preferred method to add funds to your Planmoni wallet
+        </Text>
 
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Bank Transfer</Text>
           <View style={styles.accountDetailsCard}>
             <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>9PBS Account Details</Text>
+              <Text style={styles.cardTitle}>Account Details</Text>
               <Text style={styles.cardDescription}>Use these details to receive funds directly</Text>
             </View>
 
@@ -96,22 +92,74 @@ export default function AddFundsScreen() {
               </View>
             </View>
           </View>
+        </View>
 
-          <View style={styles.infoSection}>
-            <View style={styles.infoCard}>
-              <View style={styles.infoHeader}>
-                <View style={styles.infoIconContainer}>
-                  <Info size={isSmallScreen ? 16 : 20} color={colors.primary} />
-                </View>
-                <Text style={styles.infoTitle}>Security Notice</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Other Payment Methods</Text>
+          
+          <Pressable 
+            style={styles.paymentMethodButton}
+            onPress={() => handleNavigateToPaymentMethod('/add-card')}
+          >
+            <View style={styles.methodLeft}>
+              <View style={styles.methodIcon}>
+                <CreditCard size={24} color={colors.primary} />
               </View>
-              <Text style={styles.infoText}>
-                Funds will be added to your secure wallet and can be used for transactions or investments. Processing time is typically instant to 5 minutes.
-              </Text>
+              <View style={styles.methodInfo}>
+                <Text style={styles.methodTitle}>Debit/Credit Card</Text>
+                <Text style={styles.methodDescription}>Pay with Visa, Mastercard, or Verve</Text>
+              </View>
             </View>
+            <ChevronRight size={20} color={colors.textSecondary} />
+          </Pressable>
+          
+          <Pressable 
+            style={styles.paymentMethodButton}
+            onPress={() => handleNavigateToPaymentMethod('/add-ussd')}
+          >
+            <View style={styles.methodLeft}>
+              <View style={styles.methodIcon}>
+                <Smartphone size={24} color={colors.primary} />
+              </View>
+              <View style={styles.methodInfo}>
+                <Text style={styles.methodTitle}>USSD</Text>
+                <Text style={styles.methodDescription}>Pay using your bank's USSD code</Text>
+              </View>
+            </View>
+            <ChevronRight size={20} color={colors.textSecondary} />
+          </Pressable>
+          
+          <Pressable 
+            style={styles.paymentMethodButton}
+            onPress={() => handleNavigateToPaymentMethod('/linked-accounts')}
+          >
+            <View style={styles.methodLeft}>
+              <View style={styles.methodIcon}>
+                <Building2 size={24} color={colors.primary} />
+              </View>
+              <View style={styles.methodInfo}>
+                <Text style={styles.methodTitle}>Link Bank Account</Text>
+                <Text style={styles.methodDescription}>Connect your bank account for direct transfers</Text>
+              </View>
+            </View>
+            <ChevronRight size={20} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+
+        <View style={styles.infoSection}>
+          <View style={styles.infoCard}>
+            <View style={styles.infoHeader}>
+              <View style={styles.infoIconContainer}>
+                <Info size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.infoTitle}>Security Notice</Text>
+            </View>
+            <Text style={styles.infoText}>
+              Funds will be added to your secure wallet and can be used for transactions or investments. Processing time is typically instant to 5 minutes.
+            </Text>
           </View>
         </View>
-      </KeyboardAvoidingWrapper>
+      </ScrollView>
 
       {/* Fixed footer with safe area padding */}
       <View style={[
@@ -119,14 +167,11 @@ export default function AddFundsScreen() {
         { paddingBottom: Math.max(16, insets.bottom) }
       ]}>
         <Button 
-          title="Done"
-          onPress={handleDone}
-          style={styles.doneButton}
+          title="Go to Payment Methods"
+          onPress={() => handleNavigateToPaymentMethod('/deposit-flow/payment-methods')}
+          style={styles.footerButton}
           hapticType="medium"
         />
-        <Pressable onPress={handleMoreDepositMethods} style={styles.moreMethodsButton}>
-          <Text style={styles.moreMethodsText}>More deposit methods</Text>
-        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -158,11 +203,11 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontWeight: '600',
     color: colors.text,
   },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
     padding: isSmallScreen ? 16 : 20,
-  },
-  content: {
-    flex: 1,
   },
   title: {
     fontSize: isSmallScreen ? 20 : 24,
@@ -170,14 +215,20 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     color: colors.text,
     marginBottom: 8,
   },
-  highlight: {
-    color: colors.primary,
-  },
   description: {
     fontSize: isSmallScreen ? 13 : 14,
     color: colors.textSecondary,
     marginBottom: isSmallScreen ? 20 : 24,
     lineHeight: 20,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
   },
   accountDetailsCard: {
     backgroundColor: colors.card,
@@ -191,7 +242,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     padding: isSmallScreen ? 16 : 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : colors.backgroundTertiary,
+    backgroundColor: colors.backgroundTertiary,
   },
   cardTitle: {
     fontSize: isSmallScreen ? 16 : 18,
@@ -254,6 +305,44 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontWeight: '500',
     color: colors.text,
   },
+  paymentMethodButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  methodLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  methodIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  methodInfo: {
+    flex: 1,
+  },
+  methodTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  methodDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
   infoSection: {
     marginBottom: isSmallScreen ? 24 : 32,
   },
@@ -272,10 +361,10 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     marginBottom: 12,
   },
   infoIconContainer: {
-    width: isSmallScreen ? 28 : 32,
-    height: isSmallScreen ? 28 : 32,
-    borderRadius: isSmallScreen ? 14 : 16,
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : colors.backgroundTertiary,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -288,7 +377,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   infoText: {
     fontSize: isSmallScreen ? 13 : 14,
     color: colors.textSecondary,
-    lineHeight: isSmallScreen ? 18 : 20,
+    lineHeight: 20,
   },
   footer: {
     position: 'absolute',
@@ -299,20 +388,9 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderTopWidth: 1,
     borderTopColor: colors.border,
     padding: 16,
-    gap: 16,
-    alignItems: 'center',
   },
-  doneButton: {
+  footerButton: {
     width: '100%',
     backgroundColor: colors.primary,
-  },
-  moreMethodsButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  moreMethodsText: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '500',
   },
 });

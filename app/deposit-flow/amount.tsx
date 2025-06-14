@@ -1,46 +1,24 @@
-import { View, Text, StyleSheet, Pressable, TextInput, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Info } from 'lucide-react-native';
 import Button from '@/components/Button';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useBalance } from '@/contexts/BalanceContext';
 import SafeFooter from '@/components/SafeFooter';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
-import { useHaptics } from '@/hooks/useHaptics';
 
 export default function AmountScreen() {
-  const { colors, isDark } = useTheme();
-  const { width, height } = useWindowDimensions();
+  const { colors } = useTheme();
   const params = useLocalSearchParams();
   const methodId = params.methodId as string;
   const methodTitle = params.methodTitle as string;
-  const { balance } = useBalance();
   
   const [amount, setAmount] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const haptics = useHaptics();
-
-  // Determine if we're on a small screen
-  const isSmallScreen = width < 380 || height < 700;
+  const [availableBalance, setAvailableBalance] = useState('15,750,000');
 
   const handleContinue = () => {
-    if (!amount.trim()) {
-      setError('Please enter an amount');
-      haptics.error();
-      return;
-    }
-
-    const numericAmount = parseFloat(amount.replace(/,/g, ''));
-    if (isNaN(numericAmount) || numericAmount <= 0) {
-      setError('Please enter a valid amount');
-      haptics.error();
-      return;
-    }
-
-    haptics.mediumImpact();
     router.replace({
       pathname: '/deposit-flow/authorization',
       params: {
@@ -59,27 +37,18 @@ export default function AmountScreen() {
   const handleAmountChange = (value: string) => {
     const formattedValue = formatAmount(value);
     setAmount(formattedValue);
-    setError(null);
   };
 
   const handleQuickAmount = (value: string) => {
-    haptics.selection();
     setAmount(value);
-    setError(null);
   };
 
-  const styles = createStyles(colors, isDark, isSmallScreen);
+  const styles = createStyles(colors);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable 
-          onPress={() => {
-            haptics.lightImpact();
-            router.back();
-          }} 
-          style={styles.backButton}
-        >
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Add Funds</Text>
@@ -151,21 +120,15 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Current Wallet Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
+              <Text style={styles.balanceAmount}>₦{availableBalance}</Text>
             </View>
           </View>
-
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
 
           <View style={styles.infoSection}>
             <View style={styles.infoCard}>
               <View style={styles.infoHeader}>
                 <View style={styles.infoIconContainer}>
-                  <Info size={isSmallScreen ? 16 : 20} color={colors.primary} />
+                  <Info size={20} color={colors.primary} />
                 </View>
                 <Text style={styles.infoTitle}>Security Notice</Text>
               </View>
@@ -181,7 +144,6 @@ export default function AmountScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={!amount}
-        hapticType="medium"
       />
       
       <SafeFooter />
@@ -189,7 +151,7 @@ export default function AmountScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -197,26 +159,23 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: isSmallScreen ? 12 : 16,
-    paddingVertical: isSmallScreen ? 12 : 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 8,
     marginRight: 8,
   },
   headerTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
   },
   progressContainer: {
-    padding: isSmallScreen ? 12 : 16,
+    padding: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -233,25 +192,25 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderRadius: 2,
   },
   stepText: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     color: colors.textSecondary,
   },
   scrollContent: {
     paddingBottom: 100, // Extra padding for the floating button
   },
   content: {
-    padding: isSmallScreen ? 16 : 20,
+    padding: 16,
   },
   title: {
-    fontSize: isSmallScreen ? 20 : 24,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
   },
   description: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: isSmallScreen ? 20 : 24,
+    marginBottom: 24,
   },
   amountContainer: {
     flexDirection: 'row',
@@ -261,17 +220,17 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderColor: colors.border,
     borderRadius: 12,
     padding: 16,
-    marginBottom: isSmallScreen ? 16 : 24,
+    marginBottom: 24,
   },
   currencySymbol: {
-    fontSize: isSmallScreen ? 24 : 32,
+    fontSize: 32,
     fontWeight: '600',
     color: colors.text,
     marginRight: 8,
   },
   amountInput: {
     flex: 1,
-    fontSize: isSmallScreen ? 24 : 32,
+    fontSize: 32,
     fontWeight: '600',
     color: colors.text,
     padding: 0,
@@ -279,13 +238,13 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   quickAmounts: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: isSmallScreen ? 16 : 24,
+    marginBottom: 24,
     gap: 8,
   },
   quickAmount: {
     flex: 1,
-    paddingVertical: isSmallScreen ? 10 : 12,
-    paddingHorizontal: isSmallScreen ? 12 : 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 8,
     backgroundColor: colors.card,
     borderWidth: 1,
@@ -297,7 +256,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderColor: colors.primary,
   },
   quickAmountText: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.textSecondary,
   },
@@ -310,10 +269,10 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderColor: colors.border,
     padding: 16,
     borderRadius: 12,
-    marginBottom: isSmallScreen ? 16 : 24,
+    marginBottom: 24,
   },
   balanceLabel: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 4,
   },
@@ -322,29 +281,17 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     alignItems: 'center',
   },
   balanceAmount: {
-    fontSize: isSmallScreen ? 18 : 20,
+    fontSize: 20,
     fontWeight: '700',
     color: colors.text,
   },
-  errorContainer: {
-    backgroundColor: colors.errorLight,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.error,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 14,
-  },
   infoSection: {
-    marginBottom: isSmallScreen ? 16 : 24,
+    marginBottom: 24,
   },
   infoCard: {
     backgroundColor: colors.card,
     borderRadius: 12,
-    padding: isSmallScreen ? 16 : 20,
+    padding: 20,
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
@@ -356,22 +303,22 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     marginBottom: 12,
   },
   infoIconContainer: {
-    width: isSmallScreen ? 28 : 32,
-    height: isSmallScreen ? 28 : 32,
-    borderRadius: isSmallScreen ? 14 : 16,
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : colors.backgroundTertiary,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   infoTitle: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
   },
   infoText: {
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: 14,
     color: colors.textSecondary,
-    lineHeight: isSmallScreen ? 18 : 20,
+    lineHeight: 20,
   },
 });

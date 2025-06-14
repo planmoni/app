@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, TextInput, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Info } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -12,15 +12,11 @@ import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
 
 export default function AmountScreen() {
-  const { colors, isDark } = useTheme();
-  const { width, height } = useWindowDimensions();
+  const { colors } = useTheme();
   const { balance } = useBalance();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
-
-  // Determine if we're on a small screen
-  const isSmallScreen = width < 380 || height < 700;
 
   const handleContinue = () => {
     if (!amount) {
@@ -71,7 +67,7 @@ export default function AmountScreen() {
     router.push('/add-funds');
   };
 
-  const styles = createStyles(colors, isDark, isSmallScreen);
+  const styles = createStyles(colors);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -139,7 +135,7 @@ export default function AmountScreen() {
 
           <View style={styles.notice}>
             <View style={styles.noticeIcon}>
-              <Info size={isSmallScreen ? 16 : 20} color={colors.primary} />
+              <Info size={20} color={colors.primary} />
             </View>
             <Text style={styles.noticeText}>
               This amount will be secured in your vault and cannot be accessed until your scheduled payout dates.
@@ -158,7 +154,7 @@ export default function AmountScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -166,8 +162,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: isSmallScreen ? 12 : 16,
-    paddingVertical: isSmallScreen ? 12 : 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -180,12 +176,12 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     marginRight: 8,
   },
   headerTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
   },
   progressContainer: {
-    padding: isSmallScreen ? 16 : 20,
+    padding: 20,
     paddingBottom: 0,
     backgroundColor: colors.surface,
   },
@@ -201,28 +197,27 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderRadius: 2,
   },
   stepText: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     color: colors.textSecondary,
-    marginBottom: isSmallScreen ? 16 : 20,
+    marginBottom: 20,
   },
   scrollContent: {
     paddingBottom: 100, // Extra padding to account for the floating button
   },
   content: {
-    padding: isSmallScreen ? 16 : 20,
+    padding: 20,
     paddingTop: 0,
   },
   title: {
-    fontSize: isSmallScreen ? 20 : 24,
+    fontSize: 24,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
   },
   description: {
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: 14,
     color: colors.textSecondary,
-    marginBottom: isSmallScreen ? 20 : 24,
-    lineHeight: isSmallScreen ? 18 : 20,
+    marginBottom: 24,
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
@@ -236,12 +231,10 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
   },
   errorText: {
     color: colors.error,
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: 14,
     flex: 1,
   },
   addFundsErrorButton: {
@@ -249,10 +242,11 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
+    marginLeft: 8,
   },
   addFundsErrorText: {
     color: '#FFFFFF',
-    fontSize: isSmallScreen ? 12 : 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   amountContainer: {
@@ -266,23 +260,23 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderColor: colors.border,
   },
   currencySymbol: {
-    fontSize: isSmallScreen ? 20 : 24,
+    fontSize: 24,
     fontWeight: '600',
     color: colors.textSecondary,
     marginRight: 3,
   },
   amountInput: {
     flex: 1,
-    fontSize: isSmallScreen ? 20 : 24,
+    fontSize: 24,
     fontWeight: '600',
     color: colors.text,
     height: 56,
   },
   balanceContainer: {
-    marginBottom: isSmallScreen ? 20 : 24,
+    marginBottom: 24,
   },
   balanceLabel: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 8,
   },
@@ -292,7 +286,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     justifyContent: 'space-between',
   },
   balanceAmount: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
   },
@@ -304,7 +298,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   },
   maxButtonText: {
     color: '#FFFFFF',
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     fontWeight: '500',
   },
   notice: {
@@ -324,8 +318,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   },
   noticeText: {
     flex: 1,
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: 14,
     color: colors.text,
-    lineHeight: isSmallScreen ? 18 : 20,
+    lineHeight: 20,
   },
 });
