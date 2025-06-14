@@ -1,11 +1,12 @@
 import Button from '@/components/Button';
 import { router } from 'expo-router';
 import { ArrowLeft, Copy, Info } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions, ToastAndroid } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useHaptics } from '@/hooks/useHaptics';
+import * as Clipboard from 'expo-clipboard';
 
 export default function AddFundsScreen() {
   const { colors } = useTheme();
@@ -19,6 +20,8 @@ export default function AddFundsScreen() {
   const handleCopyAccountNumber = () => {
     haptics.selection();
     // Implement copy functionality
+    Clipboard.setStringAsync("muhammed@gmail.com");
+    ToastAndroid.show('Account number copied to clipboard', ToastAndroid.SHORT);
   };
 
   const handleMoreDepositMethods = () => {
