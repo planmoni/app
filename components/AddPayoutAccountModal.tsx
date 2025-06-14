@@ -138,6 +138,11 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
         setAccountResolved(false);
         setFormData(prev => ({ ...prev, accountName: '' }));
       }
+      
+      // If account number is 10 digits and bank is selected, try to resolve
+      if (numericText.length === 10 && selectedBank) {
+        handleResolveAccount(numericText, selectedBank.code);
+      }
     }
   };
 
@@ -204,6 +209,37 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
             )}
             
             <View style={styles.formGroup}>
+              <Text style={styles.label}>Account Number</Text>
+              <View style={[
+                styles.inputContainer, 
+                formErrors.accountNumber && styles.inputError,
+                accountResolved && styles.resolvedInput
+              ]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter 10-digit account number"
+                  placeholderTextColor={colors.textTertiary}
+                  value={formData.accountNumber}
+                  onChangeText={handleAccountNumberChange}
+                  keyboardType="numeric"
+                  maxLength={10}
+                  editable={!isSubmitting && !accountResolved}
+                />
+                {isResolving && (
+                  <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
+                )}
+                {accountResolved && (
+                  <View style={styles.resolvedIcon}>
+                    <Check size={16} color={colors.success} />
+                  </View>
+                )}
+              </View>
+              {formErrors.accountNumber && (
+                <Text style={styles.fieldError}>{formErrors.accountNumber}</Text>
+              )}
+            </View>
+            
+            <View style={styles.formGroup}>
               <Text style={styles.label}>Bank</Text>
               <Pressable 
                 style={[
@@ -227,42 +263,6 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
               </Pressable>
               {formErrors.bankName && (
                 <Text style={styles.fieldError}>{formErrors.bankName}</Text>
-              )}
-            </View>
-            
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Account Number</Text>
-              <View style={[
-                styles.inputContainer, 
-                formErrors.accountNumber && styles.inputError,
-                accountResolved && styles.resolvedInput
-              ]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter 10-digit account number"
-                  placeholderTextColor={colors.textTertiary}
-                  value={formData.accountNumber}
-                  onChangeText={handleAccountNumberChange}
-                  keyboardType="numeric"
-                  maxLength={10}
-                  editable={!isSubmitting && !accountResolved}
-                  onBlur={() => {
-                    if (formData.accountNumber.length === 10 && selectedBank) {
-                      handleResolveAccount(formData.accountNumber, selectedBank.code);
-                    }
-                  }}
-                />
-                {isResolving && (
-                  <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
-                )}
-                {accountResolved && (
-                  <View style={styles.resolvedIcon}>
-                    <Check size={16} color={colors.success} />
-                  </View>
-                )}
-              </View>
-              {formErrors.accountNumber && (
-                <Text style={styles.fieldError}>{formErrors.accountNumber}</Text>
               )}
             </View>
             
