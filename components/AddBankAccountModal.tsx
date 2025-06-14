@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Search } from 'lucide-react-native';
 import { useState, useMemo } from 'react';
 import Button from '@/components/Button';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface AddBankAccountModalProps {
   isVisible: boolean;
@@ -367,6 +368,3 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
 });
-
-// Import at the top
-import { useTheme } from '@/contexts/ThemeContext';

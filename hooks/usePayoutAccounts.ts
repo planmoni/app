@@ -10,7 +10,6 @@ export type PayoutAccount = {
   account_number: string;
   bank_name: string;
   is_default: boolean;
-  status: 'pending' | 'active' | 'failed';
   created_at: string;
   updated_at: string;
 };
@@ -44,7 +43,6 @@ export function usePayoutAccounts() {
             account_number: '0123456789',
             bank_name: 'GTBank',
             is_default: true,
-            status: 'active',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           },
@@ -55,7 +53,6 @@ export function usePayoutAccounts() {
             account_number: '9876543210',
             bank_name: 'First Bank',
             is_default: false,
-            status: 'active',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           },
@@ -66,7 +63,6 @@ export function usePayoutAccounts() {
             account_number: '5678901234',
             bank_name: 'Access Bank',
             is_default: false,
-            status: 'pending',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }
@@ -112,7 +108,6 @@ export function usePayoutAccounts() {
           account_number: accountData.account_number,
           bank_name: accountData.bank_name,
           is_default: accountData.is_default || payoutAccounts.length === 0,
-          status: 'pending',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
@@ -126,8 +121,7 @@ export function usePayoutAccounts() {
         .from('payout_accounts')
         .insert({
           user_id: session?.user?.id,
-          ...accountData,
-          status: 'pending',
+          ...accountData
         })
         .select()
         .single();

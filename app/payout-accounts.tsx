@@ -7,43 +7,31 @@ import SafeFooter from '@/components/SafeFooter';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
-import AddBankAccountModal from '@/components/AddBankAccountModal';
+import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
+import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
+import EditPayoutAccountModal from '@/components/EditPayoutAccountModal';
 import { useHaptics } from '@/hooks/useHaptics';
 
 export default function PayoutAccountsScreen() {
   const { colors, isDark } = useTheme();
   const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showEditAccount, setShowEditAccount] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const haptics = useHaptics();
   
   const { 
-    bankAccounts, 
+    payoutAccounts, 
     isLoading, 
     error, 
-    addBankAccount, 
-    fetchBankAccounts,
+    fetchPayoutAccounts,
     setDefaultAccount,
     deleteAccount
-  } = useRealtimeBankAccounts();
+  } = usePayoutAccounts();
 
-  const handleAddAccount = async (account: {
-    bankName: string;
-    accountNumber: string;
-    accountName: string;
-  }) => {
-    try {
-      haptics.success();
-      await addBankAccount({
-        bank_name: account.bankName,
-        account_number: account.accountNumber,
-        account_name: account.accountName,
-        is_default: bankAccounts.length === 0 // Make first account default
-      });
-      setShowAddAccount(false);
-    } catch (error) {
-      haptics.error();
-      console.error('Error adding bank account:', error);
-    }
+  const handleEditAccount = (account: any) => {
+    haptics.selection();
+    setSelectedAccount(account);
+    setShowEditAccount(true);
   };
 
   const handleMakeDefault = async (accountId: string) => {
@@ -117,15 +105,15 @@ export default function PayoutAccountsScreen() {
         <View style={styles.accountsList}>
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading bank accounts...</Text>
+              <Text style={styles.loadingText}>Loading payout accounts...</Text>
             </View>
-          ) : bankAccounts.length === 0 ? (
+          ) : payoutAccounts.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No bank accounts found</Text>
-              <Text style={styles.emptySubtext}>Add a bank account to continue</Text>
+              <Text style={styles.emptyText}>No payout accounts found</Text>
+              <Text style={styles.emptySubtext}>Add a bank account to receive payouts</Text>
             </View>
           ) : (
-            bankAccounts.map((account) => (
+            payoutAccounts.map((account) => (
               <View key={account.id} style={styles.accountCard}>
                 <View style={styles.accountHeader}>
                   <View style={styles.bankInfo}>
@@ -147,6 +135,13 @@ export default function PayoutAccountsScreen() {
                 </View>
 
                 <View style={styles.accountActions}>
+                  <Pressable
+                    style={styles.actionButton}
+                    onPress={() => handleEditAccount(account)}
+                  >
+                    <Text style={styles.actionButtonText}>Edit</Text>
+                  </Pressable>
+                  
                   {!account.is_default && (
                     <Pressable
                       style={styles.actionButton}
@@ -180,7 +175,7 @@ export default function PayoutAccountsScreen() {
             }}
           >
             <Plus size={20} color={colors.primary} />
-            <Text style={styles.addAccountText}>Add New Bank Account</Text>
+            <Text style={styles.addAccountText}>Add New Payout Account</Text>
           </Pressable>
         </View>
 
@@ -190,7 +185,7 @@ export default function PayoutAccountsScreen() {
               <View style={styles.infoIconContainer}>
                 <Info size={20} color={colors.primary} />
               </View>
-              <Text style={styles.infoTitle}>About Bank Accounts</Text>
+              <Text style={styles.infoTitle}>About Payout Accounts</Text>
             </View>
             <Text style={styles.infoText}>
               These bank accounts will be used to receive your automated payouts. You can add multiple accounts and set one as default.
@@ -212,14 +207,22 @@ export default function PayoutAccountsScreen() {
         />
       </View>
 
-      <AddBankAccountModal
+      <AddPayoutAccountModal
         isVisible={showAddAccount}
         onClose={() => {
           haptics.lightImpact();
           setShowAddAccount(false);
         }}
-        onAdd={handleAddAccount}
-        loading={isLoading}
+      />
+      
+      <EditPayoutAccountModal
+        isVisible={showEditAccount}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowEditAccount(false);
+          setSelectedAccount(null);
+        }}
+        account={selectedAccount}
       />
       
       <SafeFooter />
@@ -362,10 +365,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   accountActions: {
     flexDirection: 'row',
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   actionButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

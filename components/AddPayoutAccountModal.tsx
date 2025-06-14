@@ -14,7 +14,7 @@ interface AddPayoutAccountModalProps {
 }
 
 export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutAccountModalProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const haptics = useHaptics();
   const { addPayoutAccount } = usePayoutAccounts();
   
@@ -94,7 +94,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     }
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark);
 
   return (
     <Modal
@@ -192,12 +192,6 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                 <Text style={styles.fieldError}>{formErrors.bankName}</Text>
               )}
             </View>
-            
-            <View style={styles.infoContainer}>
-              <Text style={styles.infoText}>
-                Your account will be verified before it can be used for payouts. Verification typically takes 1-2 business days.
-              </Text>
-            </View>
           </KeyboardAvoidingWrapper>
           
           <View style={styles.footer}>
@@ -223,7 +217,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -237,6 +231,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: '100%',
     maxWidth: 500,
     maxHeight: '90%',
+    borderWidth: isDark ? 1 : 0,
+    borderColor: isDark ? colors.border : 'transparent',
   },
   header: {
     flexDirection: 'row',
@@ -273,6 +269,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.error,
   },
   errorText: {
     color: colors.error,
@@ -303,18 +301,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 12,
     color: colors.error,
     marginTop: 4,
-  },
-  infoContainer: {
-    backgroundColor: colors.backgroundTertiary,
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  infoText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
   },
   footer: {
     padding: 20,

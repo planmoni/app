@@ -15,7 +15,7 @@ interface EditPayoutAccountModalProps {
 }
 
 export default function EditPayoutAccountModal({ isVisible, onClose, account }: EditPayoutAccountModalProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const haptics = useHaptics();
   const { updatePayoutAccount } = usePayoutAccounts();
   
@@ -31,9 +31,9 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
   useEffect(() => {
     if (account) {
       setFormData({
-        accountName: account.account_name || account.name || '',
-        accountNumber: account.account_number || account.accountNumber || '',
-        bankName: account.bank_name || account.bankName || ''
+        accountName: account.account_name || '',
+        accountNumber: account.account_number || '',
+        bankName: account.bank_name || ''
       });
     }
   }, [account]);
@@ -94,7 +94,7 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
     }
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark);
 
   return (
     <Modal
@@ -213,7 +213,7 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -227,6 +227,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: '100%',
     maxWidth: 500,
     maxHeight: '90%',
+    borderWidth: isDark ? 1 : 0,
+    borderColor: isDark ? colors.border : 'transparent',
   },
   header: {
     flexDirection: 'row',
@@ -257,6 +259,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.error,
   },
   errorText: {
     color: colors.error,
