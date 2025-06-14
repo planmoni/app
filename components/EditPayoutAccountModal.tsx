@@ -1,6 +1,6 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react-native';
+import { X, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -125,19 +125,21 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
             
             <View style={styles.formGroup}>
               <Text style={styles.label}>Account Name</Text>
-              <TextInput
-                style={[styles.input, formErrors.accountName && styles.inputError]}
-                placeholder="Enter account holder name"
-                placeholderTextColor={colors.textTertiary}
-                value={formData.accountName}
-                onChangeText={(text) => {
-                  setFormData({...formData, accountName: text});
-                  if (formErrors.accountName) {
-                    setFormErrors({...formErrors, accountName: ''});
-                  }
-                }}
-                editable={!isSubmitting}
-              />
+              <View style={[styles.inputContainer, formErrors.accountName && styles.inputError]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter account holder name"
+                  placeholderTextColor={colors.textTertiary}
+                  value={formData.accountName}
+                  onChangeText={(text) => {
+                    setFormData({...formData, accountName: text});
+                    if (formErrors.accountName) {
+                      setFormErrors({...formErrors, accountName: ''});
+                    }
+                  }}
+                  editable={!isSubmitting}
+                />
+              </View>
               {formErrors.accountName && (
                 <Text style={styles.fieldError}>{formErrors.accountName}</Text>
               )}
@@ -145,25 +147,27 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
             
             <View style={styles.formGroup}>
               <Text style={styles.label}>Account Number</Text>
-              <TextInput
-                style={[styles.input, formErrors.accountNumber && styles.inputError]}
-                placeholder="Enter 10-digit account number"
-                placeholderTextColor={colors.textTertiary}
-                value={formData.accountNumber}
-                onChangeText={(text) => {
-                  // Only allow numbers and limit to 10 digits
-                  const numericText = text.replace(/[^0-9]/g, '');
-                  if (numericText.length <= 10) {
-                    setFormData({...formData, accountNumber: numericText});
-                    if (formErrors.accountNumber) {
-                      setFormErrors({...formErrors, accountNumber: ''});
+              <View style={[styles.inputContainer, formErrors.accountNumber && styles.inputError]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter 10-digit account number"
+                  placeholderTextColor={colors.textTertiary}
+                  value={formData.accountNumber}
+                  onChangeText={(text) => {
+                    // Only allow numbers and limit to 10 digits
+                    const numericText = text.replace(/[^0-9]/g, '');
+                    if (numericText.length <= 10) {
+                      setFormData({...formData, accountNumber: numericText});
+                      if (formErrors.accountNumber) {
+                        setFormErrors({...formErrors, accountNumber: ''});
+                      }
                     }
-                  }
-                }}
-                keyboardType="numeric"
-                maxLength={10}
-                editable={!isSubmitting}
-              />
+                  }}
+                  keyboardType="numeric"
+                  maxLength={10}
+                  editable={!isSubmitting}
+                />
+              </View>
               {formErrors.accountNumber && (
                 <Text style={styles.fieldError}>{formErrors.accountNumber}</Text>
               )}
@@ -171,22 +175,31 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
             
             <View style={styles.formGroup}>
               <Text style={styles.label}>Bank Name</Text>
-              <TextInput
-                style={[styles.input, formErrors.bankName && styles.inputError]}
-                placeholder="Enter bank name"
-                placeholderTextColor={colors.textTertiary}
-                value={formData.bankName}
-                onChangeText={(text) => {
-                  setFormData({...formData, bankName: text});
-                  if (formErrors.bankName) {
-                    setFormErrors({...formErrors, bankName: ''});
-                  }
-                }}
-                editable={!isSubmitting}
-              />
+              <View style={[styles.inputContainer, formErrors.bankName && styles.inputError]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter bank name"
+                  placeholderTextColor={colors.textTertiary}
+                  value={formData.bankName}
+                  onChangeText={(text) => {
+                    setFormData({...formData, bankName: text});
+                    if (formErrors.bankName) {
+                      setFormErrors({...formErrors, bankName: ''});
+                    }
+                  }}
+                  editable={!isSubmitting}
+                />
+              </View>
               {formErrors.bankName && (
                 <Text style={styles.fieldError}>{formErrors.bankName}</Text>
               )}
+            </View>
+            
+            <View style={styles.infoContainer}>
+              <AlertTriangle size={16} color={colors.primary} />
+              <Text style={styles.infoText}>
+                Please ensure all details are correct. These details will be used for your payouts.
+              </Text>
             </View>
           </KeyboardAvoidingWrapper>
           
@@ -275,14 +288,19 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
     marginBottom: 8,
   },
-  input: {
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
     padding: 16,
+    backgroundColor: colors.backgroundTertiary,
+  },
+  input: {
+    flex: 1,
     fontSize: 16,
     color: colors.text,
-    backgroundColor: colors.backgroundTertiary,
   },
   inputError: {
     borderColor: colors.error,
@@ -291,6 +309,20 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 12,
     color: colors.error,
     marginTop: 4,
+  },
+  infoContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    padding: 12,
+    borderRadius: 8,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
   footer: {
     padding: 20,

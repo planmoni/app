@@ -9,6 +9,7 @@ export default {
       EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY: process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
       EXPO_PUBLIC_MONO_PUBLIC_KEY: process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || '',
       EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL || '',
+      PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY || '',
     },
   },
 };
