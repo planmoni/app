@@ -107,7 +107,6 @@ export default function PaymentMethodsScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
-            
             {savedMethods.map((method) => (
               <Pressable 
                 key={method.id}
@@ -143,7 +142,6 @@ export default function PaymentMethodsScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Add New Payment Method</Text>
-            
             <Pressable 
               style={styles.newMethodButton}
               onPress={handleAddCard}
