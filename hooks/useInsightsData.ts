@@ -135,6 +135,27 @@ export function useInsightsData() {
         depositGrowthPercentage = ((currentMonthDeposits - lastMonthDeposits) / lastMonthDeposits) * 100;
       }
       
+      // Calculate transaction count growth
+      const currentMonthTransactionCount = transactions
+        ?.filter(t => {
+          const txDate = new Date(t.created_at);
+          return txDate.getMonth() === currentDate.getMonth() &&
+                 txDate.getFullYear() === currentDate.getFullYear();
+        }).length || 0;
+      
+      const lastMonthTransactionCount = transactions
+        ?.filter(t => {
+          const txDate = new Date(t.created_at);
+          return txDate.getMonth() === lastMonthDate.getMonth() &&
+                 txDate.getFullYear() === lastMonthDate.getFullYear();
+        }).length || 0;
+      
+      // Calculate transaction count growth percentage
+      let transactionGrowthPercentage = 0;
+      if (lastMonthTransactionCount > 0) {
+        transactionGrowthPercentage = ((currentMonthTransactionCount - lastMonthTransactionCount) / lastMonthTransactionCount) * 100;
+      }
+      
       // Calculate average payout amount
       const averagePayoutAmount = payoutPlans && payoutPlans.length > 0
         ? payoutPlans.reduce((sum, plan) => sum + plan.payout_amount, 0) / payoutPlans.length
@@ -215,8 +236,8 @@ export function useInsightsData() {
         {
           title: 'Txns',
           value: totalTransactions.toString(),
-          change: '+2.4%', // Placeholder for now
-          positive: true,
+          change: `${transactionGrowthPercentage >= 0 ? '+' : ''}${Math.abs(transactionGrowthPercentage).toFixed(1)}%`,
+          positive: transactionGrowthPercentage >= 0,
           icon: 'TrendingUp',
           description: 'Total payout transactions',
         },
