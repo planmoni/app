@@ -62,6 +62,11 @@ export default function AmountScreen() {
     setError(null);
   };
 
+  const handleAddFunds = () => {
+    haptics.mediumImpact();
+    router.push('/add-funds');
+  };
+
   const styles = createStyles(colors);
 
   return (
@@ -95,7 +100,14 @@ export default function AmountScreen() {
 
           {error && (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
+              <View style={styles.errorContent}>
+                <Text style={styles.errorText}>{error}</Text>
+                {error === 'Amount exceeds your available balance' && (
+                  <Pressable style={styles.addFundsErrorButton} onPress={handleAddFunds}>
+                    <Text style={styles.addFundsErrorText}>Add Funds</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
           )}
 
@@ -215,9 +227,27 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.error,
   },
+  errorContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   errorText: {
     color: colors.error,
     fontSize: 14,
+    flex: 1,
+  },
+  addFundsErrorButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  addFundsErrorText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   amountContainer: {
     flexDirection: 'row',
