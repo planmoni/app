@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Bank } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Ban as Bank } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
