@@ -69,7 +69,6 @@ function RootLayoutNav() {
           <React.Fragment key="unauthenticated-screens">
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="login" options={{ headerShown: false }} />
           </React.Fragment>
         )}
         <Stack.Screen name="+not-found" options={{ title: 'Page Not Found' }} />
