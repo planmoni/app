@@ -1,113 +1,64 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { TrendingUp, TrendingDown, Users, ArrowUpRight, ArrowDownRight, Wallet, Clock, Calendar, Send } from 'lucide-react-native';
 import Card from '@/components/Card';
 import { useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useInsightsData } from '@/hooks/useInsightsData';
+import HorizontalLoader from '@/components/HorizontalLoader';
+import Button from '@/components/Button';
 
 export default function InsightsScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { metrics, trends, vaultStats, isLoading, error, refreshInsights } = useInsightsData();
 
-  // Calculate metrics based on transaction data
-  const metrics = useMemo(() => {
-    return [
-      {
-        title: 'Payouts',
-        value: '₦2.45M',
-        change: '+12.5%',
-        positive: true,
-        icon: Send,
-        description: 'Total payouts this month',
-      },
-      {
-        title: 'Deposits',
-        value: '₦4.5M',
-        change: '+18.2%',
-        positive: true,
-        icon: Wallet,
-        description: 'Total deposits this month',
-      },
-      {
-        title: 'Active',
-        value: '4',
-        change: '+2',
-        positive: true,
-        icon: Clock,
-        description: 'Currently active payouts',
-      },
-      {
-        title: 'Txns',
-        value: '993',
-        change: '+2.4%',
-        positive: true,
-        icon: TrendingUp,
-        description: 'Total payout transactions',
-      },
-    ];
-  }, []);
+  // Map icon names to components
+  const getIconComponent = (iconName: string) => {
+    switch (iconName) {
+      case 'Send': return Send;
+      case 'Wallet': return Wallet;
+      case 'Clock': return Clock;
+      case 'TrendingUp': return TrendingUp;
+      case 'Users': return Users;
+      case 'Calendar': return Calendar;
+      default: return TrendingUp;
+    }
+  };
 
-  const trends = useMemo(() => {
-    return [
-      {
-        title: 'Monthly Growth',
-        value: '+25.8%',
-        description: 'Compared to last month',
-        positive: true,
-        details: [
-          { label: 'Last Month', value: '₦1.95M' },
-          { label: 'This Month', value: '₦2.45M' },
-        ],
-      },
-      {
-        title: 'Average Payout',
-        value: '₦850K',
-        description: '₦50K more than usual',
-        positive: true,
-        details: [
-          { label: 'Previous Avg', value: '₦800K' },
-          { label: 'Current Avg', value: '₦850K' },
-        ],
-      },
-      {
-        title: 'Upcoming Payouts',
-        value: '₦3.2M',
-        description: 'Next 30 days',
-        positive: true,
-        details: [
-          { label: 'This Week', value: '₦750K' },
-          { label: 'Next Week', value: '₦1.2M' },
-        ],
-      },
-    ];
-  }, []);
+  const styles = createStyles(colors, isDark);
 
-  const vaultStats = useMemo(() => {
-    return [
-      {
-        title: 'Monthly Salary',
-        total: '₦10M',
-        progress: '30%',
-        nextPayout: 'Jun 30',
-        status: 'Active',
-      },
-      {
-        title: 'House Rent',
-        total: '₦5M',
-        progress: '50%',
-        nextPayout: 'Jul 15',
-        status: 'Active',
-      },
-      {
-        title: 'Car Purchase',
-        total: '₦8M',
-        progress: '0%',
-        nextPayout: 'Aug 1',
-        status: 'Pending',
-      },
-    ];
-  }, []);
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Insights</Text>
+        </View>
+        <HorizontalLoader />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading insights data...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-  const styles = createStyles(colors);
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Insights</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Button 
+            title="Retry" 
+            onPress={refreshInsights} 
+            style={styles.retryButton}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -119,38 +70,41 @@ export default function InsightsScreen() {
         <View style={styles.contentPadding}>
           <Text style={styles.sectionTitle}>Key Metrics</Text>
           <View style={styles.metricsGrid}>
-            {metrics.map((metric, index) => (
-              <Card key={index} style={styles.metricCard}>
-                <View style={styles.metricHeader}>
-                  <Text style={styles.metricTitle}>{metric.title}</Text>
-                  <View style={[
-                    styles.metricIcon,
-                    { backgroundColor: metric.positive ? '#DCFCE7' : '#FEE2E2' }
-                  ]}>
-                    <metric.icon
-                      size={20}
-                      color={metric.positive ? '#22C55E' : '#EF4444'}
-                    />
-                  </View>
-                </View>
-                <Text style={styles.metricValue}>{metric.value}</Text>
-                <View style={styles.metricChange}>
-                  {metric.positive ? (
-                    <ArrowUpRight size={16} color="#22C55E" />
-                  ) : (
-                    <ArrowDownRight size={16} color="#EF4444" />
-                  )}
-                  <Text
-                    style={[
-                      styles.metricChangeText,
-                      { color: metric.positive ? '#22C55E' : '#EF4444' },
+            {metrics.map((metric, index) => {
+              const IconComponent = getIconComponent(metric.icon);
+              return (
+                <Card key={index} style={styles.metricCard}>
+                  <View style={styles.metricHeader}>
+                    <Text style={styles.metricTitle}>{metric.title}</Text>
+                    <View style={[
+                      styles.metricIcon,
+                      { backgroundColor: metric.positive ? '#DCFCE7' : '#FEE2E2' }
                     ]}>
-                    {metric.change}
-                  </Text>
-                </View>
-                <Text style={styles.metricDescription}>{metric.description}</Text>
-              </Card>
-            ))}
+                      <IconComponent
+                        size={20}
+                        color={metric.positive ? '#22C55E' : '#EF4444'}
+                      />
+                    </View>
+                  </View>
+                  <Text style={styles.metricValue}>{metric.value}</Text>
+                  <View style={styles.metricChange}>
+                    {metric.positive ? (
+                      <ArrowUpRight size={16} color="#22C55E" />
+                    ) : (
+                      <ArrowDownRight size={16} color="#EF4444" />
+                    )}
+                    <Text
+                      style={[
+                        styles.metricChangeText,
+                        { color: metric.positive ? '#22C55E' : '#EF4444' },
+                      ]}>
+                      {metric.change}
+                    </Text>
+                  </View>
+                  <Text style={styles.metricDescription}>{metric.description}</Text>
+                </Card>
+              );
+            })}
           </View>
 
           <View style={styles.section}>
@@ -188,44 +142,62 @@ export default function InsightsScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Vault Performance</Text>
-            {vaultStats.map((vault, index) => (
-              <Card key={index} style={styles.vaultCard}>
-                <View style={styles.vaultHeader}>
-                  <Text style={styles.vaultTitle}>{vault.title}</Text>
-                  <View style={[
-                    styles.vaultStatus,
-                    { backgroundColor: vault.status === 'Active' ? '#DCFCE7' : '#FEF3C7' }
-                  ]}>
-                    <Text style={[
-                      styles.vaultStatusText,
-                      { color: vault.status === 'Active' ? '#22C55E' : '#D97706' }
-                    ]}>{vault.status}</Text>
-                  </View>
-                </View>
-                <View style={styles.vaultStats}>
-                  <View style={styles.vaultStat}>
-                    <Text style={styles.vaultStatLabel}>Total</Text>
-                    <Text style={styles.vaultStatValue}>{vault.total}</Text>
-                  </View>
-                  <View style={styles.vaultStat}>
-                    <Text style={styles.vaultStatLabel}>Progress</Text>
-                    <Text style={styles.vaultStatValue}>{vault.progress}</Text>
-                  </View>
-                  <View style={styles.vaultStat}>
-                    <Text style={styles.vaultStatLabel}>Next Payout</Text>
-                    <Text style={styles.vaultStatValue}>{vault.nextPayout}</Text>
-                  </View>
-                </View>
-                <View style={styles.progressBar}>
-                  <View 
-                    style={[
-                      styles.progressFill,
-                      { width: vault.progress }
-                    ]} 
-                  />
-                </View>
+            {vaultStats.length === 0 ? (
+              <Card style={styles.emptyVaultCard}>
+                <Text style={styles.emptyVaultText}>No active vaults found</Text>
+                <Text style={styles.emptyVaultSubtext}>
+                  Create a payout plan to start tracking your vault performance
+                </Text>
               </Card>
-            ))}
+            ) : (
+              vaultStats.map((vault, index) => (
+                <Card key={index} style={styles.vaultCard}>
+                  <View style={styles.vaultHeader}>
+                    <Text style={styles.vaultTitle}>{vault.title}</Text>
+                    <View style={[
+                      styles.vaultStatus,
+                      { 
+                        backgroundColor: vault.status === 'Active' ? '#DCFCE7' : 
+                                        vault.status === 'Paused' ? '#FEE2E2' : 
+                                        vault.status === 'Completed' ? '#EFF6FF' : '#FEF3C7' 
+                      }
+                    ]}>
+                      <Text style={[
+                        styles.vaultStatusText,
+                        { 
+                          color: vault.status === 'Active' ? '#22C55E' : 
+                                vault.status === 'Paused' ? '#EF4444' : 
+                                vault.status === 'Completed' ? '#3B82F6' : '#D97706' 
+                        }
+                      ]}>{vault.status}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.vaultStats}>
+                    <View style={styles.vaultStat}>
+                      <Text style={styles.vaultStatLabel}>Total</Text>
+                      <Text style={styles.vaultStatValue}>{vault.total}</Text>
+                    </View>
+                    <View style={styles.vaultStat}>
+                      <Text style={styles.vaultStatLabel}>Progress</Text>
+                      <Text style={styles.vaultStatValue}>{vault.progress}</Text>
+                    </View>
+                    <View style={styles.vaultStat}>
+                      <Text style={styles.vaultStatLabel}>Next Payout</Text>
+                      <Text style={styles.vaultStatValue}>{vault.nextPayout}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.progressBar}>
+                    <View 
+                      style={[
+                        styles.progressFill,
+                        { width: vault.progress }
+                      ]} 
+                    />
+                  </View>
+                </Card>
+              ))
+            )}
           </View>
         </View>
       </ScrollView>
@@ -233,7 +205,7 @@ export default function InsightsScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -255,6 +227,33 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   contentPadding: {
     padding: 16,
+    paddingBottom: 32,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.error,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    minWidth: 120,
+    backgroundColor: colors.primary,
   },
   sectionTitle: {
     fontSize: 18,
@@ -362,6 +361,22 @@ const createStyles = (colors: any) => StyleSheet.create({
   vaultCard: {
     marginBottom: 12,
     padding: 16,
+  },
+  emptyVaultCard: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyVaultText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  emptyVaultSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   vaultHeader: {
     flexDirection: 'row',

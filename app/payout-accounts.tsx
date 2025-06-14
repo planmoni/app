@@ -7,43 +7,31 @@ import SafeFooter from '@/components/SafeFooter';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
-import AddBankAccountModal from '@/components/AddBankAccountModal';
+import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
+import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
+import EditPayoutAccountModal from '@/components/EditPayoutAccountModal';
 import { useHaptics } from '@/hooks/useHaptics';
 
-export default function LinkedAccountsScreen() {
-  const { colors } = useTheme();
+export default function PayoutAccountsScreen() {
+  const { colors, isDark } = useTheme();
   const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showEditAccount, setShowEditAccount] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const haptics = useHaptics();
   
   const { 
-    bankAccounts, 
+    payoutAccounts, 
     isLoading, 
     error, 
-    addBankAccount, 
-    fetchBankAccounts,
+    fetchPayoutAccounts,
     setDefaultAccount,
     deleteAccount
-  } = useRealtimeBankAccounts();
+  } = usePayoutAccounts();
 
-  const handleAddAccount = async (account: {
-    bankName: string;
-    accountNumber: string;
-    accountName: string;
-  }) => {
-    try {
-      haptics.success();
-      await addBankAccount({
-        bank_name: account.bankName,
-        account_number: account.accountNumber,
-        account_name: account.accountName,
-        is_default: bankAccounts.length === 0 // Make first account default
-      });
-      setShowAddAccount(false);
-    } catch (error) {
-      haptics.error();
-      console.error('Error adding bank account:', error);
-    }
+  const handleEditAccount = (account: any) => {
+    haptics.selection();
+    setSelectedAccount(account);
+    setShowEditAccount(true);
   };
 
   const handleMakeDefault = async (accountId: string) => {
@@ -59,7 +47,7 @@ export default function LinkedAccountsScreen() {
   const handleRemoveAccount = async (accountId: string, accountName: string) => {
     haptics.warning();
     Alert.alert(
-      "Remove Bank Account",
+      "Remove Account",
       `Are you sure you want to remove ${accountName}?`,
       [
         {
@@ -84,7 +72,7 @@ export default function LinkedAccountsScreen() {
     );
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -98,14 +86,14 @@ export default function LinkedAccountsScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
+        <Text style={styles.headerTitle}>Payout Accounts</Text>
       </View>
 
       {isLoading && <HorizontalLoader />}
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={styles.subtitle}>
-          Manage your linked bank accounts for receiving payouts
+          Manage your bank accounts for receiving payouts
         </Text>
 
         {error && (
@@ -117,20 +105,20 @@ export default function LinkedAccountsScreen() {
         <View style={styles.accountsList}>
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading bank accounts...</Text>
+              <Text style={styles.loadingText}>Loading payout accounts...</Text>
             </View>
-          ) : bankAccounts.length === 0 ? (
+          ) : payoutAccounts.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No bank accounts found</Text>
-              <Text style={styles.emptySubtext}>Add a bank account to continue</Text>
+              <Text style={styles.emptyText}>No payout accounts found</Text>
+              <Text style={styles.emptySubtext}>Add a bank account to receive payouts</Text>
             </View>
           ) : (
-            bankAccounts.map((account) => (
+            payoutAccounts.map((account) => (
               <View key={account.id} style={styles.accountCard}>
                 <View style={styles.accountHeader}>
                   <View style={styles.bankInfo}>
                     <View style={styles.bankIcon}>
-                      <Building2 size={24} color="#3B82F6" />
+                      <Building2 size={24} color={colors.primary} />
                     </View>
                     <View style={styles.bankDetails}>
                       <Text style={styles.bankName}>{account.bank_name}</Text>
@@ -147,6 +135,13 @@ export default function LinkedAccountsScreen() {
                 </View>
 
                 <View style={styles.accountActions}>
+                  <Pressable
+                    style={styles.actionButton}
+                    onPress={() => handleEditAccount(account)}
+                  >
+                    <Text style={styles.actionButtonText}>Edit</Text>
+                  </Pressable>
+                  
                   {!account.is_default && (
                     <Pressable
                       style={styles.actionButton}
@@ -180,7 +175,7 @@ export default function LinkedAccountsScreen() {
             }}
           >
             <Plus size={20} color={colors.primary} />
-            <Text style={styles.addAccountText}>Add New Bank Account</Text>
+            <Text style={styles.addAccountText}>Add New Payout Account</Text>
           </Pressable>
         </View>
 
@@ -188,9 +183,9 @@ export default function LinkedAccountsScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoHeader}>
               <View style={styles.infoIconContainer}>
-                <Info size={20} color="#3B82F6" />
+                <Info size={20} color={colors.primary} />
               </View>
-              <Text style={styles.infoTitle}>About Bank Accounts</Text>
+              <Text style={styles.infoTitle}>About Payout Accounts</Text>
             </View>
             <Text style={styles.infoText}>
               These bank accounts will be used to receive your automated payouts. You can add multiple accounts and set one as default.
@@ -212,14 +207,22 @@ export default function LinkedAccountsScreen() {
         />
       </View>
 
-      <AddBankAccountModal
+      <AddPayoutAccountModal
         isVisible={showAddAccount}
         onClose={() => {
           haptics.lightImpact();
           setShowAddAccount(false);
         }}
-        onAdd={handleAddAccount}
-        loading={isLoading}
+      />
+      
+      <EditPayoutAccountModal
+        isVisible={showEditAccount}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowEditAccount(false);
+          setSelectedAccount(null);
+        }}
+        account={selectedAccount}
       />
       
       <SafeFooter />
@@ -227,7 +230,7 @@ export default function LinkedAccountsScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -278,28 +281,35 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
   },
   errorContainer: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.errorLight,
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.error,
   },
   errorText: {
-    color: '#EF4444',
+    color: colors.error,
     fontSize: 14,
   },
   emptyContainer: {
-    padding: 20,
+    padding: 40,
     alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 18,
     color: colors.text,
     fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
     color: colors.textSecondary,
+    textAlign: 'center',
   },
   accountCard: {
     backgroundColor: colors.card,
@@ -323,7 +333,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -349,16 +359,16 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   defaultText: {
     fontSize: 12,
-    color: '#3B82F6',
+    color: colors.primary,
     fontWeight: '500',
     marginBottom: 4,
   },
   accountActions: {
     flexDirection: 'row',
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   actionButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -376,8 +386,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
   },
   removeButton: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#EF4444',
+    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2',
+    borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FECACA',
   },
   removeButtonText: {
     color: '#EF4444',
@@ -392,7 +402,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
+    borderLeftColor: colors.primary,
   },
   infoHeader: {
     flexDirection: 'row',
@@ -403,7 +413,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -425,7 +435,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
   },
   addButton: {
-    backgroundColor: '#1E3A8A',
+    backgroundColor: colors.primary,
   },
   addAccountButton: {
     flexDirection: 'row',
@@ -437,7 +447,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: colors.primary,
     borderRadius: 12,
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : colors.backgroundTertiary,
   },
   addAccountText: {
     fontSize: 14,

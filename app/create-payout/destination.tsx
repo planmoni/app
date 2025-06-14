@@ -2,63 +2,92 @@ import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-na
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Building2, Plus, Info, Check } from 'lucide-react-native';
 import Button from '@/components/Button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
+import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useBankAccounts } from '@/hooks/useBankAccounts';
+import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
+import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function DestinationScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [accountType, setAccountType] = useState<'payout' | 'linked'>('payout');
   const { width } = useWindowDimensions();
+  const haptics = useHaptics();
+  
+  // Get both account types
+  const { 
+    payoutAccounts, 
+    isLoading: payoutAccountsLoading, 
+    error: payoutAccountsError 
+  } = usePayoutAccounts();
   
   const { 
     bankAccounts, 
-    loading, 
-    error, 
-    addBankAccount, 
-    fetchBankAccounts 
-  } = useBankAccounts();
+    isLoading: bankAccountsLoading, 
+    error: bankAccountsError 
+  } = useRealtimeBankAccounts();
+
+  // Combine loading and error states
+  const isLoading = payoutAccountsLoading || bankAccountsLoading;
+  const error = payoutAccountsError || bankAccountsError;
+
+  // Set default selection to the first payout account if available
+  useEffect(() => {
+    if (payoutAccounts.length > 0 && !selectedAccountId) {
+      const defaultAccount = payoutAccounts.find(account => account.is_default);
+      setSelectedAccountId(defaultAccount?.id || payoutAccounts[0].id);
+      setAccountType('payout');
+    } else if (payoutAccounts.length === 0 && bankAccounts.length > 0 && !selectedAccountId) {
+      const defaultAccount = bankAccounts.find(account => account.is_default);
+      setSelectedAccountId(defaultAccount?.id || bankAccounts[0].id);
+      setAccountType('linked');
+    }
+  }, [payoutAccounts, bankAccounts, selectedAccountId]);
 
   const handleContinue = () => {
     if (selectedAccountId) {
-      const selectedAccount = bankAccounts.find(account => account.id === selectedAccountId);
+      haptics.mediumImpact();
+      
+      let selectedAccount;
+      let accountName, bankName, accountNumber;
+      
+      if (accountType === 'payout') {
+        selectedAccount = payoutAccounts.find(account => account.id === selectedAccountId);
+        if (selectedAccount) {
+          accountName = selectedAccount.account_name;
+          bankName = selectedAccount.bank_name;
+          accountNumber = selectedAccount.account_number;
+        }
+      } else {
+        selectedAccount = bankAccounts.find(account => account.id === selectedAccountId);
+        if (selectedAccount) {
+          accountName = selectedAccount.account_name;
+          bankName = selectedAccount.bank_name;
+          accountNumber = selectedAccount.account_number;
+        }
+      }
+      
       if (selectedAccount) {
         router.push({
           pathname: '/create-payout/rules',
           params: {
             ...params,
-            bankAccountId: selectedAccountId,
-            bankName: selectedAccount.bank_name,
-            accountNumber: selectedAccount.account_number,
-            accountName: selectedAccount.account_name
+            bankAccountId: accountType === 'linked' ? selectedAccountId : null,
+            payoutAccountId: accountType === 'payout' ? selectedAccountId : null,
+            bankName,
+            accountNumber,
+            accountName
           }
         });
       }
-    }
-  };
-
-  const handleAddAccount = async (account: {
-    bankName: string;
-    accountNumber: string;
-    accountName: string;
-  }) => {
-    try {
-      await addBankAccount({
-        bank_name: account.bankName,
-        account_number: account.accountNumber,
-        account_name: account.accountName,
-        is_default: bankAccounts.length === 0 // Make first account default
-      });
-      setShowAddAccount(false);
-      await fetchBankAccounts();
-    } catch (error) {
-      console.error('Error adding bank account:', error);
     }
   };
 
@@ -70,7 +99,13 @@ export default function DestinationScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
@@ -87,7 +122,7 @@ export default function DestinationScreen() {
         <View style={styles.content}>
           <Text style={styles.title}>Choose Payout Destination</Text>
           <Text style={styles.description}>
-            Select a linked bank account or add a new one
+            Select a bank account to receive your payouts
           </Text>
 
           {error && (
@@ -96,66 +131,170 @@ export default function DestinationScreen() {
             </View>
           )}
 
+          <View style={styles.accountTypeSelector}>
+            <Pressable
+              style={[
+                styles.accountTypeOption,
+                accountType === 'payout' && styles.activeAccountType
+              ]}
+              onPress={() => {
+                haptics.selection();
+                setAccountType('payout');
+                setSelectedAccountId(null);
+              }}
+            >
+              <Text style={[
+                styles.accountTypeText,
+                accountType === 'payout' && styles.activeAccountTypeText
+              ]}>
+                Payout Accounts
+              </Text>
+            </Pressable>
+            
+            <Pressable
+              style={[
+                styles.accountTypeOption,
+                accountType === 'linked' && styles.activeAccountType
+              ]}
+              onPress={() => {
+                haptics.selection();
+                setAccountType('linked');
+                setSelectedAccountId(null);
+              }}
+            >
+              <Text style={[
+                styles.accountTypeText,
+                accountType === 'linked' && styles.activeAccountTypeText
+              ]}>
+                Linked Accounts
+              </Text>
+            </Pressable>
+          </View>
+
           <View style={styles.accountsList}>
-            {loading ? (
+            {isLoading ? (
               <View style={styles.loadingContainer}>
                 <Text style={styles.loadingText}>Loading bank accounts...</Text>
               </View>
-            ) : bankAccounts.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No bank accounts found</Text>
-                <Text style={styles.emptySubtext}>Add a bank account to continue</Text>
-              </View>
-            ) : (
-              bankAccounts.map((account) => (
-                <Pressable
-                  key={account.id}
-                  style={[
-                    styles.accountOption,
-                    selectedAccountId === account.id && styles.selectedAccount
-                  ]}
-                  onPress={() => setSelectedAccountId(account.id)}
-                >
-                  <View style={styles.accountInfo}>
-                    <View style={[
-                      styles.bankIcon,
-                      selectedAccountId === account.id && styles.selectedBankIcon
-                    ]}>
-                      <Building2 size={isSmallScreen ? 20 : 24} color={selectedAccountId === account.id ? '#1E3A8A' : colors.textSecondary} />
-                    </View>
-                    <View style={styles.accountDetails}>
-                      <Text style={[
-                        styles.accountName,
-                        selectedAccountId === account.id && styles.selectedText
+            ) : accountType === 'payout' ? (
+              payoutAccounts.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No payout accounts found</Text>
+                  <Text style={styles.emptySubtext}>Add a payout account to continue</Text>
+                </View>
+              ) : (
+                payoutAccounts.map((account) => (
+                  <Pressable
+                    key={account.id}
+                    style={[
+                      styles.accountOption,
+                      selectedAccountId === account.id && styles.selectedAccount
+                    ]}
+                    onPress={() => {
+                      haptics.selection();
+                      setSelectedAccountId(account.id);
+                      setAccountType('payout');
+                    }}
+                  >
+                    <View style={styles.accountInfo}>
+                      <View style={[
+                        styles.bankIcon,
+                        selectedAccountId === account.id && styles.selectedBankIcon
                       ]}>
-                        {account.bank_name} •••• {account.account_number.slice(-4)}
-                      </Text>
-                      <Text style={styles.accountHolder}>{account.account_name}</Text>
-                      {account.is_default && (
-                        <View style={styles.defaultTag}>
-                          <Text style={styles.defaultText}>Default Account</Text>
-                        </View>
+                        <Building2 size={isSmallScreen ? 20 : 24} color={selectedAccountId === account.id ? '#1E3A8A' : colors.textSecondary} />
+                      </View>
+                      <View style={styles.accountDetails}>
+                        <Text style={[
+                          styles.accountName,
+                          selectedAccountId === account.id && styles.selectedText
+                        ]}>
+                          {account.bank_name} •••• {account.account_number.slice(-4)}
+                        </Text>
+                        <Text style={styles.accountHolder}>{account.account_name}</Text>
+                        {account.is_default && (
+                          <View style={styles.defaultTag}>
+                            <Text style={styles.defaultText}>Default Account</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <View style={[
+                      styles.radioOuter,
+                      selectedAccountId === account.id && styles.radioOuterSelected
+                    ]}>
+                      {selectedAccountId === account.id && (
+                        <Check size={16} color="#1E3A8A" />
                       )}
                     </View>
-                  </View>
-                  <View style={[
-                    styles.radioOuter,
-                    selectedAccountId === account.id && styles.radioOuterSelected
-                  ]}>
-                    {selectedAccountId === account.id && (
-                      <Check size={16} color="#1E3A8A" />
-                    )}
-                  </View>
-                </Pressable>
-              ))
+                  </Pressable>
+                ))
+              )
+            ) : (
+              bankAccounts.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No linked accounts found</Text>
+                  <Text style={styles.emptySubtext}>Add a linked account to continue</Text>
+                </View>
+              ) : (
+                bankAccounts.map((account) => (
+                  <Pressable
+                    key={account.id}
+                    style={[
+                      styles.accountOption,
+                      selectedAccountId === account.id && styles.selectedAccount
+                    ]}
+                    onPress={() => {
+                      haptics.selection();
+                      setSelectedAccountId(account.id);
+                      setAccountType('linked');
+                    }}
+                  >
+                    <View style={styles.accountInfo}>
+                      <View style={[
+                        styles.bankIcon,
+                        selectedAccountId === account.id && styles.selectedBankIcon
+                      ]}>
+                        <Building2 size={isSmallScreen ? 20 : 24} color={selectedAccountId === account.id ? '#1E3A8A' : colors.textSecondary} />
+                      </View>
+                      <View style={styles.accountDetails}>
+                        <Text style={[
+                          styles.accountName,
+                          selectedAccountId === account.id && styles.selectedText
+                        ]}>
+                          {account.bank_name} •••• {account.account_number.slice(-4)}
+                        </Text>
+                        <Text style={styles.accountHolder}>{account.account_name}</Text>
+                        {account.is_default && (
+                          <View style={styles.defaultTag}>
+                            <Text style={styles.defaultText}>Default Account</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <View style={[
+                      styles.radioOuter,
+                      selectedAccountId === account.id && styles.radioOuterSelected
+                    ]}>
+                      {selectedAccountId === account.id && (
+                        <Check size={16} color="#1E3A8A" />
+                      )}
+                    </View>
+                  </Pressable>
+                ))
+              )
             )}
 
             <Pressable
               style={styles.addAccountButton}
-              onPress={() => setShowAddAccount(true)}
+              onPress={() => {
+                haptics.mediumImpact();
+                setShowAddAccount(true);
+              }}
             >
               <Plus size={20} color={colors.primary} />
-              <Text style={styles.addAccountText}>Add New Bank Account</Text>
+              <Text style={styles.addAccountText}>
+                Add New {accountType === 'payout' ? 'Payout' : 'Bank'} Account
+              </Text>
             </Pressable>
           </View>
 
@@ -173,15 +312,31 @@ export default function DestinationScreen() {
       <FloatingButton 
         title="Continue"
         onPress={handleContinue}
-        disabled={selectedAccountId === null || loading}
+        disabled={selectedAccountId === null || isLoading}
+        hapticType="medium"
       />
 
-      <AddBankAccountModal
-        isVisible={showAddAccount}
-        onClose={() => setShowAddAccount(false)}
-        onAdd={handleAddAccount}
-        loading={loading}
-      />
+      {accountType === 'payout' ? (
+        <AddPayoutAccountModal
+          isVisible={showAddAccount}
+          onClose={() => {
+            haptics.lightImpact();
+            setShowAddAccount(false);
+          }}
+        />
+      ) : (
+        <AddBankAccountModal
+          isVisible={showAddAccount}
+          onClose={() => {
+            haptics.lightImpact();
+            setShowAddAccount(false);
+          }}
+          onAdd={async (account) => {
+            // This is handled by the modal
+          }}
+          loading={isLoading}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -250,6 +405,30 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 24,
+  },
+  accountTypeSelector: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    padding: 4,
+  },
+  accountTypeOption: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  activeAccountType: {
+    backgroundColor: colors.primary,
+  },
+  accountTypeText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  activeAccountTypeText: {
+    color: '#FFFFFF',
   },
   errorContainer: {
     backgroundColor: '#FEE2E2',
@@ -394,7 +573,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   },
   noticeText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     color: colors.text,
     lineHeight: 20,
   },

@@ -24,6 +24,7 @@ export default function ReviewScreen() {
   const accountNumber = params.accountNumber as string;
   const accountName = params.accountName as string;
   const bankAccountId = params.bankAccountId as string;
+  const payoutAccountId = params.payoutAccountId as string;
   const emergencyWithdrawal = params.emergencyWithdrawal === 'true';
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
 
@@ -42,7 +43,8 @@ export default function ReviewScreen() {
       frequency: frequency as 'weekly' | 'biweekly' | 'monthly' | 'custom',
       duration: parseInt(duration),
       startDate,
-      bankAccountId,
+      bankAccountId: bankAccountId || null,
+      payoutAccountId: payoutAccountId || null,
       customDates,
     });
   };

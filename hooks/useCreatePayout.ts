@@ -17,6 +17,7 @@ export function useCreatePayout() {
     duration,
     startDate,
     bankAccountId,
+    payoutAccountId,
     customDates,
   }: {
     name: string;
@@ -26,7 +27,8 @@ export function useCreatePayout() {
     frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom';
     duration: number;
     startDate: string;
-    bankAccountId: string;
+    bankAccountId?: string | null;
+    payoutAccountId?: string | null;
     customDates?: string[];
   }) => {
     try {
@@ -49,7 +51,8 @@ export function useCreatePayout() {
           frequency,
           duration,
           start_date: startDate,
-          bank_account_id: bankAccountId,
+          bank_account_id: bankAccountId || null,
+          payout_account_id: payoutAccountId || null,
           status: 'active',
           completed_payouts: 0,
           next_payout_date: startDate,
@@ -91,7 +94,8 @@ export function useCreatePayout() {
           frequency,
           payoutAmount: payoutAmount.toString(),
           startDate,
-          bankAccountId,
+          bankAccountId: bankAccountId || '',
+          payoutAccountId: payoutAccountId || '',
         }
       });
 
