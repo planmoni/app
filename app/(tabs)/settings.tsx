@@ -1,5 +1,6 @@
 import Button from '@/components/Button';
 import InitialsAvatar from '@/components/InitialsAvatar';
+import SafeFooter from '@/components/SafeFooter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -24,7 +25,9 @@ import {
   MessageSquare, 
   Moon, 
   Shield, 
-  Trash2
+  Trash2,
+  CreditCard,
+  Wallet
 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
@@ -36,6 +39,7 @@ import NotificationSettingsModal from '@/components/NotificationSettingsModal';
 import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
+import PayoutAccountsModal from '@/components/PayoutAccountsModal';
 
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
@@ -60,6 +64,7 @@ export default function SettingsScreen() {
   const [showSupport, setShowSupport] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [showPayoutAccounts, setShowPayoutAccounts] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -98,6 +103,11 @@ export default function SettingsScreen() {
   const handleViewLinkedAccounts = () => {
     haptics.lightImpact();
     router.push('/linked-accounts');
+  };
+
+  const handleViewPayoutAccounts = () => {
+    haptics.lightImpact();
+    setShowPayoutAccounts(true);
   };
 
   const handleViewReferral = () => {
@@ -298,6 +308,22 @@ export default function SettingsScreen() {
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Linked Bank Accounts</Text>
                 <Text style={styles.settingDescription}>Manage, verify, add/remove</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleViewPayoutAccounts}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
+                <CreditCard size={20} color="#22C55E" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Payout Accounts</Text>
+                <Text style={styles.settingDescription}>Manage accounts for receiving payouts</Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
@@ -601,6 +627,14 @@ export default function SettingsScreen() {
         onClose={() => {
           haptics.lightImpact();
           setShowTerms(false);
+        }}
+      />
+      
+      <PayoutAccountsModal
+        isVisible={showPayoutAccounts}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowPayoutAccounts(false);
         }}
       />
       
