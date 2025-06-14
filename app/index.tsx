@@ -25,7 +25,7 @@ const SLIDES = [
   },
   {
     id: '2',
-    title: 'Stabilize Your Cashflow',
+    title: 'Turn bulk money into steady income',
     description: 'Put some money aside, get paid on a schedule & say goodbye to irregular income. ',
     image: require('@/assets/images/SmartSavings.png'),
     icon: Wallet,
@@ -34,7 +34,7 @@ const SLIDES = [
   },
   {
     id: '3',
-    title: 'Pay Yourself Whenever You Like',
+    title: 'Get paid as frequently as you the need money',
     description: 'Receive payouts weekly, monthly, or however you choose — just like a salary.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     icon: Calendar,
@@ -43,7 +43,7 @@ const SLIDES = [
   },
   {
     id: '4',
-    title: 'Gain Control Over Your Financial Life',
+    title: 'Gain total control over your financial life',
     description: 'No impulse spending. Your money stays locked until your chosen payday.',
     image: require('@/assets/images/StayInControl.png'),
     icon: Shield,
@@ -52,7 +52,7 @@ const SLIDES = [
   },
   {
     id: '5',
-    title: 'Build A Healthy Money Habits',
+    title: 'Build healthy money habits',
     description: 'Automate discipline and achieve long-term financial goals effortlessly.',
     image: require('@/assets/images/BuildHealthyHabits.png'),
     icon: TrendingUp,
