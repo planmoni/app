@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Link } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Bank } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import SafeFooter from '@/components/SafeFooter';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useHaptics } from '@/hooks/useHaptics';
 
 type PaymentMethod = {
   id: string;
@@ -21,6 +22,7 @@ type PaymentMethod = {
 export default function PaymentMethodsScreen() {
   const { colors } = useTheme();
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>('1');
+  const haptics = useHaptics();
 
   const savedMethods: PaymentMethod[] = [
     {
@@ -41,11 +43,13 @@ export default function PaymentMethodsScreen() {
   ];
 
   const handleMethodSelect = (methodId: string) => {
+    haptics.selection();
     setSelectedMethodId(methodId);
   };
 
   const handleContinue = () => {
     if (selectedMethodId) {
+      haptics.mediumImpact();
       const selectedMethod = savedMethods.find(method => method.id === selectedMethodId);
       router.replace({
         pathname: '/deposit-flow/amount',
@@ -58,14 +62,17 @@ export default function PaymentMethodsScreen() {
   };
 
   const handleAddCard = () => {
+    haptics.mediumImpact();
     router.push('/add-card');
   };
 
   const handleAddUSSD = () => {
+    haptics.mediumImpact();
     router.push('/add-ussd');
   };
-  
-  const handleLinkBankAccount = () => {
+
+  const handleAddBankAccount = () => {
+    haptics.mediumImpact();
     router.push('/linked-accounts');
   };
 
@@ -74,7 +81,13 @@ export default function PaymentMethodsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Payment</Text>
@@ -165,15 +178,15 @@ export default function PaymentMethodsScreen() {
             
             <Pressable 
               style={styles.newMethodButton}
-              onPress={handleLinkBankAccount}
+              onPress={handleAddBankAccount}
             >
               <View style={styles.methodLeft}>
                 <View style={styles.methodIconContainer}>
-                  <Building2 size={24} color={colors.primary} />
+                  <Bank size={24} color={colors.primary} />
                 </View>
                 <View style={styles.methodInfo}>
                   <Text style={styles.methodTitle}>Link Bank Account</Text>
-                  <Text style={styles.methodSubtitle}>Connect your bank account for direct transfers</Text>
+                  <Text style={styles.methodSubtitle}>Add your bank account for transfers</Text>
                 </View>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
@@ -186,6 +199,7 @@ export default function PaymentMethodsScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={!selectedMethodId}
+        hapticType="medium"
       />
       
       <SafeFooter />
