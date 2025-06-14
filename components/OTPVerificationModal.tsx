@@ -143,7 +143,7 @@ export default function OTPVerificationModal({
                   value={digit}
                   onChangeText={(text) => handleOtpChange(text, index)}
                   onKeyPress={(e) => handleKeyPress(e, index)}
-                  keyboardType="number-pad"
+                  keyboardType="numeric"
                   maxLength={1}
                   editable={!isLoading}
                 />
