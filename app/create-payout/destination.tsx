@@ -6,9 +6,10 @@ import { useState } from 'react';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useBankAccounts } from '@/hooks/useBankAccounts';
+import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function DestinationScreen() {
   const { colors } = useTheme();
@@ -16,6 +17,7 @@ export default function DestinationScreen() {
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const { width } = useWindowDimensions();
+  const haptics = useHaptics();
   
   const { 
     bankAccounts, 
@@ -23,10 +25,11 @@ export default function DestinationScreen() {
     error, 
     addBankAccount, 
     fetchBankAccounts 
-  } = useBankAccounts();
+  } = useRealtimeBankAccounts();
 
   const handleContinue = () => {
     if (selectedAccountId) {
+      haptics.mediumImpact();
       const selectedAccount = bankAccounts.find(account => account.id === selectedAccountId);
       if (selectedAccount) {
         router.push({
@@ -49,6 +52,7 @@ export default function DestinationScreen() {
     accountName: string;
   }) => {
     try {
+      haptics.success();
       await addBankAccount({
         bank_name: account.bankName,
         account_number: account.accountNumber,
@@ -58,6 +62,7 @@ export default function DestinationScreen() {
       setShowAddAccount(false);
       await fetchBankAccounts();
     } catch (error) {
+      haptics.error();
       console.error('Error adding bank account:', error);
     }
   };
@@ -70,7 +75,13 @@ export default function DestinationScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
@@ -114,7 +125,10 @@ export default function DestinationScreen() {
                     styles.accountOption,
                     selectedAccountId === account.id && styles.selectedAccount
                   ]}
-                  onPress={() => setSelectedAccountId(account.id)}
+                  onPress={() => {
+                    haptics.selection();
+                    setSelectedAccountId(account.id);
+                  }}
                 >
                   <View style={styles.accountInfo}>
                     <View style={[
@@ -152,7 +166,10 @@ export default function DestinationScreen() {
 
             <Pressable
               style={styles.addAccountButton}
-              onPress={() => setShowAddAccount(true)}
+              onPress={() => {
+                haptics.mediumImpact();
+                setShowAddAccount(true);
+              }}
             >
               <Plus size={20} color={colors.primary} />
               <Text style={styles.addAccountText}>Add New Bank Account</Text>
@@ -174,11 +191,15 @@ export default function DestinationScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={selectedAccountId === null || loading}
+        hapticType="medium"
       />
 
       <AddBankAccountModal
         isVisible={showAddAccount}
-        onClose={() => setShowAddAccount(false)}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowAddAccount(false);
+        }}
         onAdd={handleAddAccount}
         loading={loading}
       />

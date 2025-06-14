@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, TriangleAlert as AlertTriangle, Clock, Check, Info } from 'lucide-react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
+import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
 import HorizontalLoader from '@/components/HorizontalLoader';
@@ -9,10 +9,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function LinkedAccountsScreen() {
   const { colors } = useTheme();
   const [showAddAccount, setShowAddAccount] = useState(false);
+  const haptics = useHaptics();
   
   const { 
     bankAccounts, 
@@ -30,6 +32,7 @@ export default function LinkedAccountsScreen() {
     accountName: string;
   }) => {
     try {
+      haptics.success();
       await addBankAccount({
         bank_name: account.bankName,
         account_number: account.accountNumber,
@@ -38,28 +41,47 @@ export default function LinkedAccountsScreen() {
       });
       setShowAddAccount(false);
     } catch (error) {
+      haptics.error();
       console.error('Error adding bank account:', error);
     }
   };
 
   const handleMakeDefault = async (accountId: string) => {
     try {
+      haptics.success();
       await setDefaultAccount(accountId);
     } catch (error) {
+      haptics.error();
       console.error('Error setting default account:', error);
     }
   };
 
-  const handleRemoveAccount = async (accountId: string) => {
-    try {
-      await deleteAccount(accountId);
-    } catch (error) {
-      console.error('Error removing account:', error);
-    }
-  };
-
-  const handleRetryVerification = (accountId: string) => {
-    // Implement retry verification logic
+  const handleRemoveAccount = async (accountId: string, accountName: string) => {
+    haptics.warning();
+    Alert.alert(
+      "Remove Bank Account",
+      `Are you sure you want to remove ${accountName}?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => haptics.lightImpact()
+        },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              haptics.heavyImpact();
+              await deleteAccount(accountId);
+            } catch (error) {
+              haptics.error();
+              console.error('Error removing account:', error);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const styles = createStyles(colors);
@@ -67,7 +89,13 @@ export default function LinkedAccountsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
@@ -109,24 +137,6 @@ export default function LinkedAccountsScreen() {
                       <Text style={styles.accountNumber}>•••• {account.account_number.slice(-4)}</Text>
                     </View>
                   </View>
-                  {account.status === 'active' && (
-                    <View style={styles.statusTag}>
-                      <Check size={12} color="#22C55E" />
-                      <Text style={styles.statusText}>Verified</Text>
-                    </View>
-                  )}
-                  {account.status === 'pending' && (
-                    <View style={[styles.statusTag, styles.pendingTag]}>
-                      <Clock size={12} color="#D97706" />
-                      <Text style={[styles.statusText, styles.pendingText]}>Pending</Text>
-                    </View>
-                  )}
-                  {account.status === 'failed' && (
-                    <View style={[styles.statusTag, styles.failedTag]}>
-                      <AlertTriangle size={12} color="#EF4444" />
-                      <Text style={[styles.statusText, styles.failedText]}>Failed</Text>
-                    </View>
-                  )}
                 </View>
 
                 <View style={styles.accountContent}>
@@ -136,19 +146,8 @@ export default function LinkedAccountsScreen() {
                   )}
                 </View>
 
-                {account.status === 'failed' && (
-                  <View style={styles.errorMessage}>
-                    <View style={styles.errorIconContainer}>
-                      <AlertTriangle size={16} color="#EF4444" />
-                    </View>
-                    <Text style={styles.errorText}>
-                      Verification failed. Please check your account details and try again.
-                    </Text>
-                  </View>
-                )}
-
                 <View style={styles.accountActions}>
-                  {!account.is_default && account.status === 'active' && (
+                  {!account.is_default && (
                     <Pressable
                       style={styles.actionButton}
                       onPress={() => handleMakeDefault(account.id)}
@@ -156,20 +155,11 @@ export default function LinkedAccountsScreen() {
                       <Text style={styles.actionButtonText}>Make Default</Text>
                     </Pressable>
                   )}
-                  {account.status === 'failed' && (
-                    <Pressable
-                      style={[styles.actionButton, styles.retryButton]}
-                      onPress={() => handleRetryVerification(account.id)}
-                    >
-                      <Text style={[styles.actionButtonText, styles.retryButtonText]}>
-                        Retry Verification
-                      </Text>
-                    </Pressable>
-                  )}
+                  
                   {!account.is_default && (
                     <Pressable
                       style={[styles.actionButton, styles.removeButton]}
-                      onPress={() => handleRemoveAccount(account.id)}
+                      onPress={() => handleRemoveAccount(account.id, account.account_name)}
                     >
                       <Trash2 size={16} color="#EF4444" />
                       <Text style={[styles.actionButtonText, styles.removeButtonText]}>
@@ -184,7 +174,10 @@ export default function LinkedAccountsScreen() {
 
           <Pressable
             style={styles.addAccountButton}
-            onPress={() => setShowAddAccount(true)}
+            onPress={() => {
+              haptics.mediumImpact();
+              setShowAddAccount(true);
+            }}
           >
             <Plus size={20} color={colors.primary} />
             <Text style={styles.addAccountText}>Add New Bank Account</Text>
@@ -197,10 +190,10 @@ export default function LinkedAccountsScreen() {
               <View style={styles.infoIconContainer}>
                 <Info size={20} color="#3B82F6" />
               </View>
-              <Text style={styles.infoTitle}>Account Verification</Text>
+              <Text style={styles.infoTitle}>About Bank Accounts</Text>
             </View>
             <Text style={styles.infoText}>
-              All bank accounts must be verified before they can be used for payouts. Verification typically takes 1-2 business days.
+              These bank accounts will be used to receive your automated payouts. You can add multiple accounts and set one as default.
             </Text>
           </View>
         </View>
@@ -209,15 +202,22 @@ export default function LinkedAccountsScreen() {
       <View style={styles.footer}>
         <Button
           title="Add New Account"
-          onPress={() => setShowAddAccount(true)}
+          onPress={() => {
+            haptics.mediumImpact();
+            setShowAddAccount(true);
+          }}
           style={styles.addButton}
           icon={Plus}
+          hapticType="medium"
         />
       </View>
 
       <AddBankAccountModal
         isVisible={showAddAccount}
-        onClose={() => setShowAddAccount(false)}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowAddAccount(false);
+        }}
         onAdd={handleAddAccount}
         loading={isLoading}
       />
@@ -339,32 +339,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  statusTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#DCFCE7',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#22C55E',
-  },
-  pendingTag: {
-    backgroundColor: '#FEF3C7',
-  },
-  pendingText: {
-    color: '#D97706',
-  },
-  failedTag: {
-    backgroundColor: '#FEE2E2',
-  },
-  failedText: {
-    color: '#EF4444',
-  },
   accountContent: {
     marginBottom: 16,
   },
@@ -378,22 +352,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#3B82F6',
     fontWeight: '500',
     marginBottom: 4,
-  },
-  errorMessage: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderLeftWidth: 4,
-    borderLeftColor: '#EF4444',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  errorIconContainer: {
-    marginTop: 2,
   },
   accountActions: {
     flexDirection: 'row',
@@ -416,13 +374,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: colors.text,
-  },
-  retryButton: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#3B82F6',
-  },
-  retryButtonText: {
-    color: '#3B82F6',
   },
   removeButton: {
     backgroundColor: '#FEF2F2',
