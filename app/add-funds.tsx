@@ -50,7 +50,7 @@ export default function AddFundsScreen() {
         style={styles.scrollView} 
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: footerHeight } // Add padding to account for fixed footer
+          { paddingBottom: footerHeight }
         ]}
       >
         <Text style={styles.title}>Choose Payment Method</Text>
@@ -161,7 +161,6 @@ export default function AddFundsScreen() {
         </View>
       </ScrollView>
 
-      {/* Fixed footer with safe area padding */}
       <View style={[
         styles.footer, 
         { paddingBottom: Math.max(16, insets.bottom) }
@@ -259,7 +258,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     gap: isSmallScreen ? 16 : 20,
   },
   field: {
-    marginBottom: 0, // Using gap in fieldsContainer instead
+    marginBottom: 0,
   },
   fieldLabel: {
     fontSize: isSmallScreen ? 13 : 14,
