@@ -31,13 +31,22 @@ const config = {
 }
 
 function LinkAccount() {
-  const { init } = useMonoConnect()
+  const { init } = useMonoConnect();
+  const { colors } = useTheme();
+
+  const styles = createStyles(colors);
 
   return (
     <View style={{marginBottom: 10}}>
-      <TouchableOpacity onPress={() => init()}>
+      <Button
+        title="Add New Account"
+        onPress={() => init()}
+        style={styles.addButton}
+        icon={Plus}
+      />
+      {/* <TouchableOpacity onPress={() => init()}>
         <Text style={{color: 'blue'}}>Link your bank account</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </View>
   )
 }
@@ -215,13 +224,13 @@ export default function LinkedAccountsScreen() {
               ))
             )}
 
-            <Pressable
+            {/* <Pressable
               style={styles.addAccountButton}
               onPress={() => setShowAddAccount(true)}
             >
               <Plus size={20} color={colors.primary} />
               <Text style={styles.addAccountText}>Add New Bank Account</Text>
-            </Pressable>
+            </Pressable> */}
           </View>
 
           <View style={styles.infoSection}>
@@ -239,7 +248,7 @@ export default function LinkedAccountsScreen() {
           </View>
 
 
-          <View style={styles.footer}>
+          {/* <View style={styles.footer}>
             <Text style={{textAlign: 'center'}}>
               To share you financial data with Mono Demo App, click the link or button below!
             </Text>
@@ -247,25 +256,35 @@ export default function LinkedAccountsScreen() {
             <LinkAccount />
 
             <MonoConnectButton accountId="684537772bc72b6bf0c95407" />
-          </View>
+          </View> */}
 
         </ScrollView>
 
         <View style={styles.footer}>
+          <Text style={{textAlign: 'center'}}>
+            To share you financial data with Mono Demo App, click the link or button below!
+          </Text>
+
+          <LinkAccount />
+
+          {/* <MonoConnectButton accountId="684537772bc72b6bf0c95407" /> */}
+        </View>
+
+        {/* <View style={styles.footer}>
           <Button
             title="Add New Account"
             onPress={() => setShowAddAccount(true)}
             style={styles.addButton}
             icon={Plus}
           />
-        </View>
+        </View> */}
 
-        <AddBankAccountModal
+        {/* <AddBankAccountModal
           isVisible={showAddAccount}
           onClose={() => setShowAddAccount(false)}
           onAdd={handleAddAccount}
           loading={isLoading}
-        />
+        /> */}
         
         <SafeFooter />
       </SafeAreaView>
