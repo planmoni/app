@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
-import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, TriangleAlert as AlertTriangle, Clock, Check, Info } from 'lucide-react-native';
+import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
 import HorizontalLoader from '@/components/HorizontalLoader';
@@ -12,7 +12,7 @@ import AddBankAccountModal from '@/components/AddBankAccountModal';
 import { useHaptics } from '@/hooks/useHaptics';
 
 export default function PayoutAccountsScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const [showAddAccount, setShowAddAccount] = useState(false);
   const haptics = useHaptics();
   
@@ -32,6 +32,7 @@ export default function PayoutAccountsScreen() {
     accountName: string;
   }) => {
     try {
+      haptics.success();
       await addBankAccount({
         bank_name: account.bankName,
         account_number: account.accountNumber,
@@ -39,28 +40,27 @@ export default function PayoutAccountsScreen() {
         is_default: bankAccounts.length === 0 // Make first account default
       });
       setShowAddAccount(false);
-      haptics.success();
     } catch (error) {
-      console.error('Error adding bank account:', error);
       haptics.error();
+      console.error('Error adding bank account:', error);
     }
   };
 
   const handleMakeDefault = async (accountId: string) => {
     try {
-      await setDefaultAccount(accountId);
       haptics.success();
+      await setDefaultAccount(accountId);
     } catch (error) {
-      console.error('Error setting default account:', error);
       haptics.error();
+      console.error('Error setting default account:', error);
     }
   };
 
-  const handleRemoveAccount = async (accountId: string) => {
+  const handleRemoveAccount = async (accountId: string, accountName: string) => {
     haptics.warning();
     Alert.alert(
       "Remove Account",
-      "Are you sure you want to remove this account? This action cannot be undone.",
+      `Are you sure you want to remove ${accountName}?`,
       [
         {
           text: "Cancel",
@@ -72,11 +72,11 @@ export default function PayoutAccountsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              haptics.heavyImpact();
               await deleteAccount(accountId);
-              haptics.success();
             } catch (error) {
-              console.error('Error removing account:', error);
               haptics.error();
+              console.error('Error removing account:', error);
             }
           }
         }
@@ -84,30 +84,7 @@ export default function PayoutAccountsScreen() {
     );
   };
 
-  const handleRetryVerification = (accountId: string) => {
-    haptics.mediumImpact();
-    // Implement retry verification logic
-    Alert.alert(
-      "Retry Verification",
-      "We'll attempt to verify this account again. This may take a few minutes.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-          onPress: () => haptics.lightImpact()
-        },
-        {
-          text: "Retry",
-          onPress: () => {
-            // Implement retry logic here
-            haptics.success();
-          }
-        }
-      ]
-    );
-  };
-
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -128,7 +105,7 @@ export default function PayoutAccountsScreen() {
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={styles.subtitle}>
-          Manage your payout accounts for receiving automated payments
+          Manage your bank accounts for receiving payouts
         </Text>
 
         {error && (
@@ -140,12 +117,12 @@ export default function PayoutAccountsScreen() {
         <View style={styles.accountsList}>
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading payout accounts...</Text>
+              <Text style={styles.loadingText}>Loading bank accounts...</Text>
             </View>
           ) : bankAccounts.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No payout accounts found</Text>
-              <Text style={styles.emptySubtext}>Add a payout account to receive automated payments</Text>
+              <Text style={styles.emptyText}>No bank accounts found</Text>
+              <Text style={styles.emptySubtext}>Add a bank account to continue</Text>
             </View>
           ) : (
             bankAccounts.map((account) => (
@@ -153,53 +130,24 @@ export default function PayoutAccountsScreen() {
                 <View style={styles.accountHeader}>
                   <View style={styles.bankInfo}>
                     <View style={styles.bankIcon}>
-                      <Building2 size={24} color="#3B82F6" />
+                      <Building2 size={24} color={colors.primary} />
                     </View>
                     <View style={styles.bankDetails}>
                       <Text style={styles.bankName}>{account.bank_name}</Text>
                       <Text style={styles.accountNumber}>•••• {account.account_number.slice(-4)}</Text>
                     </View>
                   </View>
-                  {account.status === 'active' && (
-                    <View style={styles.statusTag}>
-                      <Check size={12} color="#22C55E" />
-                      <Text style={styles.statusText}>Verified</Text>
-                    </View>
-                  )}
-                  {account.status === 'pending' && (
-                    <View style={[styles.statusTag, styles.pendingTag]}>
-                      <Clock size={12} color="#D97706" />
-                      <Text style={[styles.statusText, styles.pendingText]}>Pending</Text>
-                    </View>
-                  )}
-                  {account.status === 'failed' && (
-                    <View style={[styles.statusTag, styles.failedTag]}>
-                      <AlertTriangle size={12} color="#EF4444" />
-                      <Text style={[styles.statusText, styles.failedText]}>Failed</Text>
-                    </View>
-                  )}
                 </View>
 
                 <View style={styles.accountContent}>
                   <Text style={styles.accountName}>{account.account_name}</Text>
                   {account.is_default && (
-                    <Text style={styles.defaultText}>Default Payout Account</Text>
+                    <Text style={styles.defaultText}>Default Account</Text>
                   )}
                 </View>
 
-                {account.status === 'failed' && (
-                  <View style={styles.errorMessage}>
-                    <View style={styles.errorIconContainer}>
-                      <AlertTriangle size={16} color="#EF4444" />
-                    </View>
-                    <Text style={styles.errorText}>
-                      Verification failed. Please check your account details and try again.
-                    </Text>
-                  </View>
-                )}
-
                 <View style={styles.accountActions}>
-                  {!account.is_default && account.status === 'active' && (
+                  {!account.is_default && (
                     <Pressable
                       style={styles.actionButton}
                       onPress={() => handleMakeDefault(account.id)}
@@ -207,20 +155,11 @@ export default function PayoutAccountsScreen() {
                       <Text style={styles.actionButtonText}>Make Default</Text>
                     </Pressable>
                   )}
-                  {account.status === 'failed' && (
-                    <Pressable
-                      style={[styles.actionButton, styles.retryButton]}
-                      onPress={() => handleRetryVerification(account.id)}
-                    >
-                      <Text style={[styles.actionButtonText, styles.retryButtonText]}>
-                        Retry Verification
-                      </Text>
-                    </Pressable>
-                  )}
+                  
                   {!account.is_default && (
                     <Pressable
                       style={[styles.actionButton, styles.removeButton]}
-                      onPress={() => handleRemoveAccount(account.id)}
+                      onPress={() => handleRemoveAccount(account.id, account.account_name)}
                     >
                       <Trash2 size={16} color="#EF4444" />
                       <Text style={[styles.actionButtonText, styles.removeButtonText]}>
@@ -241,7 +180,7 @@ export default function PayoutAccountsScreen() {
             }}
           >
             <Plus size={20} color={colors.primary} />
-            <Text style={styles.addAccountText}>Add New Payout Account</Text>
+            <Text style={styles.addAccountText}>Add New Bank Account</Text>
           </Pressable>
         </View>
 
@@ -249,12 +188,12 @@ export default function PayoutAccountsScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoHeader}>
               <View style={styles.infoIconContainer}>
-                <Info size={20} color="#3B82F6" />
+                <Info size={20} color={colors.primary} />
               </View>
-              <Text style={styles.infoTitle}>About Payout Accounts</Text>
+              <Text style={styles.infoTitle}>About Bank Accounts</Text>
             </View>
             <Text style={styles.infoText}>
-              Payout accounts are used to receive automated payments from your payout plans. All accounts must be verified before they can be used. Verification typically takes 1-2 business days.
+              These bank accounts will be used to receive your automated payouts. You can add multiple accounts and set one as default.
             </Text>
           </View>
         </View>
@@ -262,13 +201,14 @@ export default function PayoutAccountsScreen() {
 
       <View style={styles.footer}>
         <Button
-          title="Add New Payout Account"
+          title="Add New Account"
           onPress={() => {
             haptics.mediumImpact();
             setShowAddAccount(true);
           }}
           style={styles.addButton}
           icon={Plus}
+          hapticType="medium"
         />
       </View>
 
@@ -287,7 +227,7 @@ export default function PayoutAccountsScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -390,7 +330,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -406,32 +346,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
-  statusTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#DCFCE7',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#22C55E',
-  },
-  pendingTag: {
-    backgroundColor: '#FEF3C7',
-  },
-  pendingText: {
-    color: '#D97706',
-  },
-  failedTag: {
-    backgroundColor: '#FEE2E2',
-  },
-  failedText: {
-    color: '#EF4444',
-  },
   accountContent: {
     marginBottom: 16,
   },
@@ -442,23 +356,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   defaultText: {
     fontSize: 12,
-    color: '#3B82F6',
+    color: colors.primary,
     fontWeight: '500',
     marginBottom: 4,
-  },
-  errorMessage: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    backgroundColor: colors.errorLight,
-    borderWidth: 1,
-    borderColor: colors.error,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  errorIconContainer: {
-    marginTop: 2,
   },
   accountActions: {
     flexDirection: 'row',
@@ -482,16 +382,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '500',
     color: colors.text,
   },
-  retryButton: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#3B82F6',
-  },
-  retryButtonText: {
-    color: '#3B82F6',
-  },
   removeButton: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#EF4444',
+    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2',
+    borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FECACA',
   },
   removeButtonText: {
     color: '#EF4444',
@@ -506,7 +399,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
+    borderLeftColor: colors.primary,
   },
   infoHeader: {
     flexDirection: 'row',
@@ -517,7 +410,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -539,7 +432,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
   },
   addButton: {
-    backgroundColor: '#1E3A8A',
+    backgroundColor: colors.primary,
   },
   addAccountButton: {
     flexDirection: 'row',
@@ -551,7 +444,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: colors.primary,
     borderRadius: 12,
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : colors.backgroundTertiary,
   },
   addAccountText: {
     fontSize: 14,
