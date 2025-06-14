@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, CreditCard, Calendar, Lock, Info, Shield } from 'lucide-react-native';
@@ -14,6 +14,8 @@ export default function AddCardScreen() {
   const { colors, isDark } = useTheme();
   const { showToast } = useToast();
   const haptics = useHaptics();
+  const params = useLocalSearchParams();
+  const amount = params.amount as string || '';
   
   const [cardNumber, setCardNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
@@ -113,7 +115,15 @@ export default function AddCardScreen() {
       
       haptics.success();
       showToast('Card added successfully', 'success');
-      router.back();
+      
+      // Navigate to success screen with amount
+      router.replace({
+        pathname: '/deposit-flow/success',
+        params: {
+          amount,
+          methodTitle: 'Card Payment'
+        }
+      });
     } catch (error) {
       haptics.error();
       showToast('Failed to add card. Please try again.', 'error');
@@ -145,6 +155,13 @@ export default function AddCardScreen() {
           <Text style={styles.description}>
             Add your card details to make quick and secure payments
           </Text>
+
+          {amount && (
+            <View style={styles.amountContainer}>
+              <Text style={styles.amountLabel}>Amount to Add</Text>
+              <Text style={styles.amountValue}>₦{amount}</Text>
+            </View>
+          )}
 
           <View style={styles.cardPreview}>
             <View style={styles.cardHeader}>
@@ -345,6 +362,24 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     marginBottom: 24,
+  },
+  amountContainer: {
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : '#BFDBFE',
+  },
+  amountLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  amountValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.primary,
   },
   cardPreview: {
     backgroundColor: '#1E3A8A',

@@ -8,6 +8,7 @@ import SafeFooter from '@/components/SafeFooter';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
+import Button from '@/components/Button';
 
 type PaymentMethod = {
   id: string;
@@ -19,7 +20,7 @@ type PaymentMethod = {
 };
 
 export default function PaymentMethodsScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>('1');
   const haptics = useHaptics();
 
@@ -62,7 +63,7 @@ export default function PaymentMethodsScreen() {
 
   const handleAddCard = () => {
     haptics.mediumImpact();
-    router.push('/add-card');
+    router.push('/deposit-flow/card-amount');
   };
 
   const handleAddUSSD = () => {
@@ -75,7 +76,7 @@ export default function PaymentMethodsScreen() {
     router.push('/linked-accounts');
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -206,7 +207,7 @@ export default function PaymentMethodsScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
