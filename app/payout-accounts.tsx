@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, Pressable, Alert, ScrollView } from 'react-nati
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, CreditCard, Plus, ChevronRight, Check, Trash2, Edit2, Info } from 'lucide-react-native';
+import { ArrowLeft, CreditCard, Plus, ChevronRight, Check, Trash2, LocationEdit as Edit2, Info } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';

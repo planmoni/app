@@ -1,6 +1,6 @@
 import { Modal, View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput } from 'react-native';
 import { useState, useEffect } from 'react';
-import { X, Plus, CreditCard, ChevronRight, Check, Trash2, Edit2 } from 'lucide-react-native';
+import { X, Plus, CreditCard, ChevronRight, Check, Trash2, LocationEdit as Edit2 } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
