@@ -243,6 +243,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     fontSize: responsive.descriptionSize,
     color: colors.textSecondary,
     textAlign: 'center',
+    fontSize: 20,
     lineHeight: responsive.descriptionSize * 1.5,
   },
   pagination: {
