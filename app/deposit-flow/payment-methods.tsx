@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Landmark } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Ban as Bank } from 'lucide-react-native';
+import Button from '@/components/Button';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -8,7 +9,6 @@ import SafeFooter from '@/components/SafeFooter';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
-import Button from '@/components/Button';
 
 type PaymentMethod = {
   id: string;
@@ -20,7 +20,7 @@ type PaymentMethod = {
 };
 
 export default function PaymentMethodsScreen() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>('1');
   const haptics = useHaptics();
 
@@ -63,7 +63,7 @@ export default function PaymentMethodsScreen() {
 
   const handleAddCard = () => {
     haptics.mediumImpact();
-    router.push('/deposit-flow/card-amount');
+    router.push('/add-card');
   };
 
   const handleAddUSSD = () => {
@@ -76,7 +76,7 @@ export default function PaymentMethodsScreen() {
     router.push('/linked-accounts');
   };
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -182,7 +182,7 @@ export default function PaymentMethodsScreen() {
             >
               <View style={styles.methodLeft}>
                 <View style={styles.methodIconContainer}>
-                  <Landmark size={24} color={colors.primary} />
+                  <Bank size={24} color={colors.primary} />
                 </View>
                 <View style={styles.methodInfo}>
                   <Text style={styles.methodTitle}>Link Bank Account</Text>
@@ -207,7 +207,7 @@ export default function PaymentMethodsScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
