@@ -131,9 +131,9 @@ export default function PaymentMethodsScreen() {
                     styles.radioOuter,
                     selectedMethodId === method.id && styles.radioOuterSelected
                   ]}>
-                    {selectedMethodId === method.id && (
+                    {selectedMethodId === method.id ? (
                       <View style={styles.radioInner} />
-                    )}
+                    ) : null}
                   </View>
                   <ChevronRight size={20} color={colors.textTertiary} />
                 </View>
