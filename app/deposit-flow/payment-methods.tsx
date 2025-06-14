@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Link } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -63,6 +63,10 @@ export default function PaymentMethodsScreen() {
 
   const handleAddUSSD = () => {
     router.push('/add-ussd');
+  };
+  
+  const handleLinkBankAccount = () => {
+    router.push('/linked-accounts');
   };
 
   const styles = createStyles(colors);
@@ -154,6 +158,22 @@ export default function PaymentMethodsScreen() {
                 <View style={styles.methodInfo}>
                   <Text style={styles.methodTitle}>USSD</Text>
                   <Text style={styles.methodSubtitle}>Use USSD Code to pay</Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+            
+            <Pressable 
+              style={styles.newMethodButton}
+              onPress={handleLinkBankAccount}
+            >
+              <View style={styles.methodLeft}>
+                <View style={styles.methodIconContainer}>
+                  <Building2 size={24} color={colors.primary} />
+                </View>
+                <View style={styles.methodInfo}>
+                  <Text style={styles.methodTitle}>Link Bank Account</Text>
+                  <Text style={styles.methodSubtitle}>Connect your bank account for direct transfers</Text>
                 </View>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
