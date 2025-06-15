@@ -11,24 +11,7 @@ import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
 import { MonoConnectButton, MonoProvider, useMonoConnect } from '@mono.co/connect-react-native';
 
-const config = {
-  publicKey: process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY!,
-  scope: 'auth',
-  data: {
-    customer: { id: '6846e28772c7fdac6cba1972' }
-  },
-  onClose: () => console.log('Widget closed'),
-  onSuccess: (data: any) => {
-    const code = data.getAuthCode()
-    console.log("Access code", code)
-    console.log("Data", data)
-  },
-  onEvent: (eventName:any, data:any) => {
-    console.log(eventName);
-    console.log(data);
-  },
-  reference: 'test_ref'
-}
+
 
 function LinkAccount() {
   const { init } = useMonoConnect();
@@ -45,7 +28,7 @@ function LinkAccount() {
         icon={Plus}
       />
       {/* <TouchableOpacity onPress={() => init()}>
-        <Text style={{color: 'blue'}}>Link your bank account</Text>
+        <Text style={{color: 'blue'}}>Link yourcode_I7AI9mds7WziibEzohSAQ7gh bank account</Text>
       </TouchableOpacity> */}
     </View>
   )
@@ -64,6 +47,83 @@ export default function LinkedAccountsScreen() {
     setDefaultAccount,
     deleteAccount
   } = useRealtimeBankAccounts();
+
+  const handleMonoSuccess = async (data: any) => {
+    const code = data.getAuthCode();
+    console.log("Access code", code)
+    console.log("Data", data)
+    
+  
+    try {
+      // 1. Exchange auth code for account ID
+      const res = await fetch('https://api.withmono.com/v2/accounts/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'mono-sec-key': process.env.EXPO_PUBLIC_MONO_SECRET_KEY!,
+        },
+        body: JSON.stringify({ code }),
+      });
+  
+      const authData = await res.json();
+      console.log("Account data:", authData);
+      const accountId = authData.data.id;
+      console.log("Account id:", accountId);
+  
+      // 2. Get account details
+      const accountRes = await fetch(`https://api.withmono.com/v2/accounts/${accountId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'mono-sec-key': process.env.EXPO_PUBLIC_MONO_SECRET_KEY!,
+        },
+      });
+  
+      const accountDetails = await accountRes.json();
+      const monoData = accountDetails.data;
+      console.log("Mono Linked Account:", monoData);
+  
+      const account = {
+        bankName: monoData.account.institution.name,
+        bankCode: monoData.account.institution.bank_code,
+        accountNumber: monoData.account.account_number,
+        accountName: monoData.account.name,
+        monoAccountId: monoData.account.id,
+      };
+  
+      // Save account in your app
+      await addBankAccount({
+        bank_name: account.bankName,
+        bank_code: account.bankCode,
+        account_number: account.accountNumber,
+        account_name: account.accountName,
+        mono_account_id: account.monoAccountId,
+        is_default: bankAccounts.length === 0,
+      });
+  
+      // Refresh list
+      fetchBankAccounts?.();
+      
+    } catch (err) {
+      console.error('Failed to link Mono account:', err);
+    }
+  };
+  
+  const config = {
+    publicKey: process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY!,
+    scope: 'auth',
+    data: {
+      customer: { id: '684761506b658900c542295b' }
+    },
+    onClose: () => console.log('Widget closed'),
+    onSuccess: handleMonoSuccess,
+    onEvent: (eventName:any, data:any) => {
+      console.log(eventName);
+      console.log(data);
+    },
+    reference: 'test_ref'
+  }
+  
 
   const handleAddAccount = async (account: {
     bankName: string;
@@ -119,7 +179,7 @@ export default function LinkedAccountsScreen() {
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           <Text style={styles.subtitle}>
-            Manage your linked bank accounts for receiving payouts
+            Manage your linked bank accounts for adding payments
           </Text>
 
           {error && (

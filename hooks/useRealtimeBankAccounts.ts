@@ -9,6 +9,7 @@ export type BankAccount = {
   bank_name: string;
   account_number: string;
   account_name: string;
+  mono_account_id?: string,
   is_default: boolean;
   status: 'pending' | 'active' | 'failed';
   created_at: string;
@@ -97,8 +98,10 @@ export function useRealtimeBankAccounts() {
 
   const addBankAccount = async (accountData: {
     bank_name: string;
+    bank_code?: string;
     account_number: string;
     account_name: string;
+    mono_account_id?: string,
     is_default?: boolean;
   }) => {
     try {
