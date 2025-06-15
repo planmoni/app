@@ -227,7 +227,7 @@ export default function TransactionsScreen() {
           style={styles.dateRangeButton}
           onPress={() => setIsDateRangeModalVisible(true)}
         >
-          <Calendar size={20} color="#3B82F6" />
+          <Calendar size={20} color="#1E3A8A" />
           <Text style={styles.dateRangeText}>{formatDateRange()}</Text>
         </Pressable>
 
@@ -270,7 +270,7 @@ export default function TransactionsScreen() {
                 const isPositive = transaction.type === 'deposit';
                 const Icon = isPositive ? ArrowUpRight : transaction.type === 'payout' ? ArrowDownRight : Bank;
                 const iconBg = isPositive ? '#DCFCE7' : transaction.type === 'payout' ? '#FEE2E2' : '#EFF6FF';
-                const iconColor = isPositive ? '#22C55E' : transaction.type === 'payout' ? '#EF4444' : '#3B82F6';
+                const iconColor = isPositive ? '#22C55E' : transaction.type === 'payout' ? '#EF4444' : '#1E3A8A';
                 
                 return (
                   <Pressable
@@ -425,7 +425,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   dateRangeText: {
     fontSize: 14,
-    color: '#3B82F6',
+    color: '#1E3A8A',
     fontWeight: '500',
   },
   statsContainer: {
@@ -531,7 +531,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   loadMoreText: {
     fontSize: 14,
-    color: '#3B82F6',
+    color: '#1E3A8A',
     fontWeight: '500',
   },
   loadingContainer: {
