@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     borderColor: '#1E3A8A',
   },
   outlineText: {
-    color: '#1E3A8A',
+    color: '#fff',
   },
   // Sizes
   smallButton: {
