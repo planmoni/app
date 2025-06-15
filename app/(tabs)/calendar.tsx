@@ -1,5 +1,5 @@
 import Card from '@/components/Card';
-import DotLottieLoader from '@/components/DotLottieLoader';
+import HorizontalLoader from '@/components/HorizontalLoader';
 import { router } from 'expo-router';
 import { TriangleAlert as AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, Plus } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
@@ -224,12 +224,8 @@ export default function CalendarScreen() {
             </Pressable>
           </View>
         </View>
+        <HorizontalLoader />
         <View style={styles.loadingContainer}>
-          <DotLottieLoader 
-            source="https://lottie.host/30777839-d597-4a19-9434-eb1fb7a2f9fe/pcKrCtWnr9.json"
-            width={150}
-            height={150}
-          />
           <Text style={styles.loadingText}>Loading calendar events...</Text>
         </View>
       </SafeAreaView>
