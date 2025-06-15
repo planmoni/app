@@ -34,6 +34,23 @@ export default function ReviewScreen() {
   const numberOfPayouts = parseInt(duration);
   const formattedFrequency = frequency.charAt(0).toUpperCase() + frequency.slice(1);
 
+  // Format date for display (Month Day, Year)
+  const formatDisplayDate = (dateString: string): string => {
+    // Check if the date is already in the format "Month Day, Year"
+    if (/[A-Za-z]+ \d+, \d{4}/.test(dateString)) {
+      return dateString;
+    }
+    
+    // Otherwise, convert from ISO format (YYYY-MM-DD)
+    const date = new Date(dateString);
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    
+    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+  };
+
   const handleStartPlan = async () => {
     await createPayout({
       name: `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`,
@@ -111,7 +128,7 @@ export default function ReviewScreen() {
               <View style={styles.detailContent}>
                 <Text style={styles.detailLabel}>Duration</Text>
                 <Text style={styles.detailValue}>{duration} {frequency === 'custom' ? 'payouts' : 'months'}</Text>
-                <Text style={styles.detailSubtext}>First payout on {startDate}</Text>
+                <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
               </View>
               <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/schedule')}>
                 <Text style={styles.editButtonText}>Edit</Text>
