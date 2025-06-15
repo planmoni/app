@@ -78,8 +78,8 @@ export default function NotificationsScreen() {
       case 'payout_scheduled':
         icon = Calendar;
         iconBg = '#EFF6FF';
-        iconColor = '#3B82F6';
-        statusColor = '#3B82F6';
+        iconColor = '#1E3A8A';
+        statusColor = '#1E3A8A';
         statusBg = '#EFF6FF';
         break;
       case 'vault_created':
