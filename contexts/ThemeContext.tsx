@@ -26,7 +26,7 @@ const lightColors = {
   textTertiary: '#94A3B8',
   
   // Primary colors
-  primary: '#FFF',
+  primary: '#1E3A8A',
   primaryLight: '#EBF0FF',
   primaryDark: '#1E40AF',
   
