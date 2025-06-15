@@ -8,6 +8,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import SafeFooter from '@/components/SafeFooter';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useBalance } from '@/contexts/BalanceContext';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
@@ -17,7 +18,7 @@ export default function AmountScreen() {
   const newMethodType = params.newMethodType as string;
   
   const [amount, setAmount] = useState('');
-  const [availableBalance, setAvailableBalance] = useState('15,750,000');
+  const { balance } = useBalance();
 
   const handleContinue = () => {
     if (newMethodType) {
@@ -147,7 +148,7 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Current Wallet Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{availableBalance}</Text>
+              <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
             </View>
           </View>
 
