@@ -238,7 +238,7 @@ export default function HomeScreen() {
   const styles = createStyles(colors, isDark);
 
   // Show loader if any data is loading
-  if (payoutPlansLoading || transactionsLoding) {
+  if (payoutPlansLoading || transactionsLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <PlanmoniLoader 
