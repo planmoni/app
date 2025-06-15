@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   closeButtonText: {
-    color: '#3B82F6',
+    color: '#1E3A8A',
     fontSize: 16,
     fontWeight: '600',
   },
