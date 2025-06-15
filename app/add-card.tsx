@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, CreditCard, Calendar, Lock, Info, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 import Button from '@/components/Button';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
@@ -14,6 +15,7 @@ import { useBalance } from '@/contexts/BalanceContext';
 export default function AddCardScreen() {
   const { colors, isDark } = useTheme();
   const { showToast } = useToast();
+  const { session } = useAuth();
   const haptics = useHaptics();
   const { addFunds } = useBalance();
   const params = useLocalSearchParams();
