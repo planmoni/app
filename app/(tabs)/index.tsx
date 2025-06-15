@@ -129,7 +129,10 @@ export default function HomeScreen() {
       destination: transaction.destination,
       transactionId: transaction.id,
       planRef: transaction.payout_plan_id || '',
-      paymentMethod: 'Bank Transfer',
+      paymentMethod: transaction.type === 'deposit' ? 'Bank Transfer' : 
+                    transaction.bank_accounts ? 
+                    `${transaction.bank_accounts.bank_name} •••• ${transaction.bank_accounts.account_number.slice(-4)}` : 
+                    'Bank Account',
       initiatedBy: 'You',
       processingTime: transaction.status === 'completed' ? 'Instant' : '2-3 business days',
     };
@@ -529,6 +532,25 @@ export default function HomeScreen() {
               const Icon = isPositive ? ArrowUpRight : 
                           transaction.type === 'payout' ? ArrowDownRight : ArrowDown;
               
+              // Format date and time
+              const txDate = new Date(transaction.created_at);
+              const formattedDate = txDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              });
+              const formattedTime = txDate.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              });
+              
+              // Determine transaction method
+              const transactionMethod = isPositive ? 'Bank Transfer' : 
+                                       transaction.bank_accounts ? 
+                                       `${transaction.bank_accounts.bank_name} •••• ${transaction.bank_accounts.account_number.slice(-4)}` : 
+                                       'Bank Account';
+              
               return (
                 <Pressable 
                   key={transaction.id} 
@@ -549,8 +571,11 @@ export default function HomeScreen() {
                         <Text style={styles.transactionTitle}>
                           {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
                         </Text>
-                        <Text style={styles.transactionDate}>
-                          {new Date(transaction.created_at).toLocaleDateString()}
+                        <Text style={styles.transactionMethod}>
+                          {transactionMethod}
+                        </Text>
+                        <Text style={styles.transactionDateTime}>
+                          {formattedDate} • {formattedTime}
                         </Text>
                       </View>
                       <Text style={[
@@ -1136,13 +1161,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   transactionTitle: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  transactionDate: {
-    fontSize: 12,
+  transactionMethod: {
+    fontSize: 13,
     color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  transactionDateTime: {
+    fontSize: 12,
+    color: colors.textTertiary,
   },
   transactionAmount: {
     fontSize: 14,
