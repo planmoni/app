@@ -75,11 +75,11 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
           colorFilters={isDark ? [
             {
               keypath: "Stroke 1",
-              color: "#3B82F6" // Blue color for dark mode
+              color: "#EAF2FF" // Blue color for dark mode
             },
             {
               keypath: "Fill 1",
-              color: "#3B82F6" // Blue color for dark mode
+              color: "#EAF2FF" // Blue color for dark mode
             }
           ] : undefined}
         />
