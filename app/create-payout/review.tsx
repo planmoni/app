@@ -14,10 +14,7 @@ export default function ReviewScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const { createPayout, isLoading, error } = useCreatePayout();
-  const { balance, lockedBalance = 0 } = useBalance();
-  
-  // Calculate available balance (total balance minus locked funds)
-  const availableBalance = balance - lockedBalance;
+  const { balance } = useBalance();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -57,9 +54,9 @@ export default function ReviewScreen() {
   };
 
   const handleStartPlan = async () => {
-    // Check if there's enough available balance (not total balance)
+    // Check if there's enough balance
     const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
-    if (numericTotal > availableBalance) {
+    if (numericTotal > balance) {
       router.push('/add-funds');
       return;
     }

@@ -13,13 +13,10 @@ import * as Haptics from 'expo-haptics';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
-  const { balance, lockedBalance = 0 } = useBalance();
+  const { balance } = useBalance();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
-
-  // Calculate available balance (total balance minus locked funds)
-  const availableBalance = balance - lockedBalance;
 
   const handleContinue = () => {
     if (!amount) {
@@ -35,8 +32,7 @@ export default function AmountScreen() {
       return;
     }
 
-    // Check against available balance instead of total balance
-    if (numericAmount > availableBalance) {
+    if (numericAmount > balance) {
       setError('Amount exceeds your available balance');
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       return;
@@ -62,8 +58,7 @@ export default function AmountScreen() {
 
   const handleMaxPress = () => {
     haptics.selection();
-    // Use available balance for max amount
-    setAmount(availableBalance.toLocaleString());
+    setAmount(balance.toLocaleString());
     setError(null);
   };
 
@@ -130,16 +125,11 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
+              <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
               <Pressable style={styles.maxButton} onPress={handleMaxPress}>
                 <Text style={styles.maxButtonText}>Max</Text>
               </Pressable>
             </View>
-            {lockedBalance > 0 && (
-              <Text style={styles.lockedBalanceText}>
-                ₦{lockedBalance.toLocaleString()} locked in active plans
-              </Text>
-            )}
           </View>
 
           <View style={styles.notice}>
@@ -299,11 +289,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-  },
-  lockedBalanceText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 4,
   },
   maxButton: {
     backgroundColor: '#1E3A8A',
