@@ -15,6 +15,18 @@ Since this project runs in WebContainer, the Supabase CLI is not available. To a
 ### Option 2: Programmatic Migration
 The migrations can be applied programmatically using the Supabase client. See the migration files in `supabase/migrations/` for the SQL to execute.
 
+## ⚠️ URGENT: Fix Required for lock_funds Function
+
+**There is currently a critical database error that needs to be resolved immediately.**
+
+The `lock_funds` function has conflicting definitions causing function overloading errors. To fix this:
+
+1. **Go to your Supabase Dashboard** → SQL Editor
+2. **Copy and paste the entire contents** of `supabase/migrations/20250615135506_proud_coral.sql`
+3. **Execute the SQL** to resolve the function conflict
+
+**This migration MUST be applied before the app can function properly.**
+
 ## Available Migrations
 - `20250605200539_silent_bar.sql`
 - `20250605200543_broad_field.sql`
@@ -36,7 +48,7 @@ The migrations can be applied programmatically using the Supabase client. See th
 - `20250614170800_sunny_term.sql`
 - `20250614185753_wispy_darkness.sql`
 - `20250615123429_bright_prism.sql`
-- `20250615135506_proud_coral.sql`
+- **`20250615135506_proud_coral.sql` ← APPLY THIS IMMEDIATELY**
 
 ## Development
 
