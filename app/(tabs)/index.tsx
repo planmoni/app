@@ -144,9 +144,16 @@ export default function HomeScreen() {
   // Get active payout plans for display
   const activePlans = payoutPlans.filter(plan => plan.status === 'active').slice(0, 3);
   
-  // Find the next payout - the one with the earliest next_payout_date
+  // Find the next payout - the one with the earliest next_payout_date that hasn't expired
   const nextPayout = payoutPlans
-    .filter(plan => plan.status === 'active' && plan.next_payout_date)
+    .filter(plan => {
+      // Only include active plans with a valid next payout date
+      if (plan.status !== 'active' || !plan.next_payout_date) return false;
+      
+      // Check if the next payout date is in the future (not expired)
+      const nextPayoutDate = new Date(plan.next_payout_date);
+      return nextPayoutDate > new Date();
+    })
     .sort((a, b) => {
       const dateA = new Date(a.next_payout_date!);
       const dateB = new Date(b.next_payout_date!);
