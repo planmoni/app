@@ -5,20 +5,51 @@ import { Database } from '@/types/supabase';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please check your .env file.');
+// Validation function that returns error messages instead of throwing
+function validateSupabaseConfig(): string | null {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return 'Missing Supabase environment variables. Please check your .env file.';
+  }
+
+  // Validate URL format
+  try {
+    new URL(supabaseUrl);
+  } catch (error) {
+    return 'Invalid Supabase URL format. Please check your EXPO_PUBLIC_SUPABASE_URL in .env file.';
+  }
+
+  // Validate that the anon key is not a placeholder
+  if (supabaseAnonKey.includes('your-') || supabaseAnonKey === '') {
+    return 'Invalid Supabase anon key. Please check your EXPO_PUBLIC_SUPABASE_ANON_KEY in .env file.';
+  }
+
+  return null;
 }
 
-// Validate URL format
-try {
-  new URL(supabaseUrl);
-} catch (error) {
-  throw new Error('Invalid Supabase URL format. Please check your EXPO_PUBLIC_SUPABASE_URL in .env file.');
+// Validate configuration
+const configError = validateSupabaseConfig();
+
+if (configError) {
+  console.error('Supabase Configuration Error:', configError);
+  // Create a mock client that will show the error when used
+  export const supabase = {
+    auth: {
+      signUp: () => Promise.reject(new Error(configError)),
+      signIn: () => Promise.reject(new Error(configError)),
+      signOut: () => Promise.reject(new Error(configError)),
+      getSession: () => Promise.reject(new Error(configError)),
+      onAuthStateChange: () => ({ data: { subscription: null }, error: new Error(configError) }),
+    },
+    from: () => ({
+      select: () => Promise.reject(new Error(configError)),
+      insert: () => Promise.reject(new Error(configError)),
+      update: () => Promise.reject(new Error(configError)),
+      delete: () => Promise.reject(new Error(configError)),
+    }),
+  } as any;
+} else {
+  export const supabase = createClient<Database>(supabaseUrl!, supabaseAnonKey!);
 }
 
-// Validate that the anon key is not a placeholder
-if (supabaseAnonKey.includes('your-') || supabaseAnonKey === '') {
-  throw new Error('Invalid Supabase anon key. Please check your EXPO_PUBLIC_SUPABASE_ANON_KEY in .env file.');
-}
-
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+// Export validation function for use in components if needed
+export const getSupabaseConfigError = () => configError;
