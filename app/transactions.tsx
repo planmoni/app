@@ -272,6 +272,14 @@ export default function TransactionsScreen() {
                 const iconBg = isPositive ? '#DCFCE7' : transaction.type === 'payout' ? '#FEE2E2' : '#EFF6FF';
                 const iconColor = isPositive ? '#22C55E' : transaction.type === 'payout' ? '#EF4444' : '#1E3A8A';
                 
+                // Format date and time
+                const txDate = new Date(transaction.created_at);
+                const formattedTime = txDate.toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true
+                });
+                
                 return (
                   <Pressable
                     key={transaction.id}
@@ -282,21 +290,24 @@ export default function TransactionsScreen() {
                       <Icon size={20} color={iconColor} />
                     </View>
                     <View style={styles.transactionInfo}>
-                      <Text style={styles.transactionTitle}>
-                        {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
-                      </Text>
-                      <Text style={styles.transactionDate}>
-                        {new Date(transaction.created_at).toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true
-                        })}
-                      </Text>
+                      <View style={styles.transactionHeader}>
+                        <Text style={styles.transactionTitle}>
+                          {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
+                        </Text>
+                        <Text style={[
+                          styles.transactionAmount,
+                          isPositive ? styles.positiveAmount : styles.negativeAmount
+                        ]}>₦{transaction.amount.toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.transactionDetails}>
+                        <Text style={styles.transactionDate}>
+                          {formattedTime}
+                        </Text>
+                        <Text style={styles.transactionStatus}>
+                          {transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
+                        </Text>
+                      </View>
                     </View>
-                    <Text style={[
-                      styles.transactionAmount,
-                      isPositive ? styles.positiveAmount : styles.negativeAmount
-                    ]}>₦{transaction.amount.toLocaleString()}</Text>
                   </Pressable>
                 );
               })}
@@ -488,6 +499,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 12,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   transactionIcon: {
     width: 40,
@@ -500,15 +513,29 @@ const createStyles = (colors: any) => StyleSheet.create({
   transactionInfo: {
     flex: 1,
   },
+  transactionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   transactionTitle: {
     fontSize: 14,
     fontWeight: '500',
     color: colors.text,
-    marginBottom: 4,
+  },
+  transactionDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   transactionDate: {
     fontSize: 12,
     color: colors.textSecondary,
+  },
+  transactionStatus: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
   },
   transactionAmount: {
     fontSize: 14,
