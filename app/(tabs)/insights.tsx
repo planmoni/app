@@ -165,7 +165,7 @@ export default function InsightsScreen() {
                         { 
                           color: vault.status === 'Active' ? '#22C55E' : 
                                 vault.status === 'Paused' ? '#EF4444' : 
-                                vault.status === 'Completed' ? '#3B82F6' : '#D97706' 
+                                vault.status === 'Completed' ? '#1E3A8A' : '#D97706' 
                         }
                       ]}>{vault.status}</Text>
                     </View>
@@ -421,7 +421,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#1E3A8A',
     borderRadius: 2,
   },
 });
