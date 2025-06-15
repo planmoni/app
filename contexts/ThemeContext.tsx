@@ -26,7 +26,7 @@ const lightColors = {
   textTertiary: '#94A3B8',
   
   // Primary colors
-  primary: '#1E3A8A',
+  primary: '#FFF',
   primaryLight: '#EBF0FF',
   primaryDark: '#1E40AF',
   
@@ -70,7 +70,7 @@ const darkColors = {
   textTertiary: '#94A3B8',
   
   // Primary colors
-  primary: '#s',
+  primary: '#1E3A8A',
   primaryLight: '#60A5FA',
   primaryDark: '#2563EB',
   
