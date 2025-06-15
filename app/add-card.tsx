@@ -44,15 +44,26 @@ export default function AddCardScreen() {
   };
 
   const formatExpiryDate = (value: string) => {
-    // Remove all non-digit characters
-    const digits = value.replace(/\D/g, '');
+    // Remove non-numeric characters
+    let cleaned = value.replace(/[^0-9]/g, '');
     
-    // Format as MM/YY
-    if (digits.length > 2) {
-      return digits.slice(0, 2) + '/' + digits.slice(2, 4);
-    } else {
-      return digits;
+    // Add slashes automatically
+    if (cleaned.length > 4) {
+      cleaned = cleaned.slice(0, 4) + cleaned.slice(4);
     }
+    if (cleaned.length > 2) {
+      cleaned = cleaned.slice(0, 2) + '/' + cleaned.slice(2);
+    }
+    if (cleaned.length > 5) {
+      cleaned = cleaned.slice(0, 5) + '/' + cleaned.slice(5);
+    }
+    
+    // Limit to DD/MM/YYYY format
+    if (cleaned.length > 10) {
+      cleaned = cleaned.slice(0, 10);
+    }
+    
+    return cleaned;
   };
 
   const validateForm = () => {
@@ -101,6 +112,38 @@ export default function AddCardScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const addPaymentMethod = async (cardData: any) => {
+    try {
+      // In a real app, this would call your API to tokenize the card with Paystack
+      // For demo purposes, we'll simulate a successful tokenization
+      console.log('Adding payment method:', cardData);
+      
+      // Simulate API call
+      const response = await fetch('/api/paystack-tokenize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify(cardData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Card tokenization error:', errorData);
+        throw new Error(errorData.error || 'Failed to tokenize card');
+      }
+      
+      const data = await response.json();
+      console.log('Card tokenization successful:', data);
+      
+      return data;
+    } catch (error) {
+      console.error('Error in addPaymentMethod:', error);
+      throw error;
+    }
+  };
+
   const handleAddCard = async () => {
     if (!validateForm()) {
       haptics.error();
@@ -112,44 +155,48 @@ export default function AddCardScreen() {
       setIsLoading(true);
       haptics.impact();
       
+      console.log('Starting card addition process...');
+      
+      // Extract month and year from expiry date
+      const expiryDigits = expiryDate.replace(/\D/g, '');
+      const expMonth = expiryDigits.slice(0, 2);
+      const expYear = expiryDigits.slice(2, 4);
+      
+      // Prepare card data
+      const cardData = {
+        card_number: cardNumber.replace(/\s/g, ''),
+        cvv,
+        expiry_month: expMonth,
+        expiry_year: expYear,
+        cardholder_name: cardholderName
+      };
+      
+      console.log('Card data prepared:', { 
+        card_number: '****' + cardData.card_number.slice(-4), 
+        cvv: '***',
+        expiry_month: cardData.expiry_month,
+        expiry_year: cardData.expiry_year,
+        cardholder_name: cardData.cardholder_name
+      });
+      
       // In a real app, this would call the Paystack API to tokenize the card
       // For demo purposes, we'll simulate a successful tokenization
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // If saveCard is true, add the card to saved payment methods
-      if (saveCard) {
-        const cardDigits = cardNumber.replace(/\D/g, '');
-        const lastFour = cardDigits.slice(-4);
-        const [expMonth, expYear] = expiryDate.split('/');
-        
-        // Determine card type based on first digit
-        let cardType = 'unknown';
-        if (cardDigits.startsWith('4')) {
-          cardType = 'visa';
-        } else if (cardDigits.startsWith('5')) {
-          cardType = 'mastercard';
-        } else if (cardDigits.startsWith('6')) {
-          cardType = 'verve';
+      try {
+        if (saveCard) {
+          console.log('Attempting to save card...');
+          await addPaymentMethod(cardData);
+          console.log('Card saved successfully');
         }
-        
-        // Add the card to saved payment methods
-        await addPaymentMethod({
-          type: 'card',
-          provider: 'paystack',
-          token: `TOKEN_${Date.now()}`, // In a real app, this would be the token from Paystack
-          last_four: lastFour,
-          exp_month: expMonth,
-          exp_year: expYear,
-          card_type: cardType,
-          bank: 'Demo Bank',
-          is_default: false
-        });
-        
-        showToast('Card saved successfully', 'success');
+      } catch (tokenizeError) {
+        console.error('Error tokenizing card:', tokenizeError);
+        // Continue with the flow even if tokenization fails
+        // This allows the user to complete the current transaction
+        showToast('Could not save card for future use, but continuing with current transaction', 'warning');
       }
       
       if (fromDepositFlow && amount) {
-        // If coming from deposit flow, proceed to authorization screen
+        console.log('Proceeding to authorization screen with amount:', amount);
+        // For deposit flow, proceed to authorization screen
         router.replace({
           pathname: '/deposit-flow/authorization',
           params: {
@@ -159,13 +206,34 @@ export default function AddCardScreen() {
         });
       } else {
         // Standard card add flow
+        console.log('Card addition completed successfully');
         haptics.success();
         showToast('Card added successfully', 'success');
         router.back();
       }
     } catch (error) {
       haptics.error();
-      showToast('Failed to add card. Please try again.', 'error');
+      console.error('Error adding card:', error);
+      
+      // Detailed error reporting
+      const errorMessage = error instanceof Error 
+        ? `Failed to add card: ${error.message}` 
+        : 'Failed to add card. Please try again.';
+      
+      showToast(errorMessage, 'error');
+      
+      // Log additional details for debugging
+      if (error instanceof Error && error.stack) {
+        console.error('Error stack:', error.stack);
+      }
+      
+      // Show more detailed error in development
+      if (__DEV__) {
+        Alert.alert(
+          'Card Addition Error',
+          `Error details: ${errorMessage}\n\nPlease check the console for more information.`
+        );
+      }
     } finally {
       setIsLoading(false);
     }
