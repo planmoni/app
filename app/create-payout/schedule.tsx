@@ -38,6 +38,14 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
   };
 
   const formatDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatDateForDisplay = (dateString: string) => {
+    const date = new Date(dateString);
     return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
@@ -192,6 +200,11 @@ export default function ScheduleScreen() {
   // Responsive styles based on screen width
   const isSmallScreen = width < 380;
 
+  const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
   useEffect(() => {
     if (params.totalAmount) {
       const amount = params.totalAmount as string;
@@ -323,30 +336,28 @@ export default function ScheduleScreen() {
         }
     }
     
-    return formatDate(nextPayoutDate);
+    return formatDateForAPI(nextPayoutDate);
   };
   
   // Format date to YYYY-MM-DD for API and ISO string handling
-  const formatDateForAPI = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toISOString().split('T')[0];
+  const formatDateForAPI = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
   
   // Format date for display (Month Day, Year)
-  const formatDate = (date: Date): string => {
+  const formatDateForDisplay = (dateString: string): string => {
+    const date = new Date(dateString);
     return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
-  
-  const MONTHS = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
 
   const handleContinue = () => {
     // Calculate the next payout date based on frequency
     const startDate = customDates.length > 0 
-      ? formatDateForAPI(customDates[0]) 
-      : formatDateForAPI(calculateNextPayoutDate(selectedSchedule));
+      ? customDates[0]
+      : calculateNextPayoutDate(selectedSchedule);
     
     router.push({
       pathname: '/create-payout/destination',
@@ -450,7 +461,7 @@ export default function ScheduleScreen() {
                 <View key={index} style={styles.dateItem}>
                   <View style={styles.dateInfo}>
                     <Calendar size={16} color={colors.textSecondary} />
-                    <Text style={styles.dateText}>{date}</Text>
+                    <Text style={styles.dateText}>{formatDateForDisplay(date)}</Text>
                   </View>
                   <Pressable 
                     style={styles.removeDateButton}
