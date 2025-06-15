@@ -66,7 +66,7 @@ export default function AllPayoutsScreen() {
       case 'paused':
         return { bg: '#FEE2E2', text: '#EF4444' };
       case 'completed':
-        return { bg: '#EFF6FF', text: '#3B82F6' };
+        return { bg: '#EFF6FF', text: '#1E3A8A' };
       case 'cancelled':
         return { bg: '#F1F5F9', text: '#64748B' };
       default:
@@ -202,7 +202,7 @@ export default function AllPayoutsScreen() {
                       onPress={() => handleViewPayout(plan.id)}
                     >
                       <Text style={styles.viewButtonText}>View</Text>
-                      <ChevronRight size={16} color="#3B82F6" />
+                      <ChevronRight size={16} color="#1E3A8A" />
                     </Pressable>
                   </View>
                 </View>
@@ -411,7 +411,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   viewButtonText: {
     fontSize: 14,
-    color: '#3B82F6',
+    color: '#1E3A8A',
     fontWeight: '500',
   },
 });
