@@ -10,12 +10,14 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useBalance } from '@/contexts/BalanceContext';
+import { usePaymentMethods } from '@/hooks/usePaymentMethods';
 
 export default function AddCardScreen() {
   const { colors, isDark } = useTheme();
   const { showToast } = useToast();
   const haptics = useHaptics();
   const { addFunds } = useBalance();
+  const { addPaymentMethod } = usePaymentMethods();
   const params = useLocalSearchParams();
   const amount = params.amount as string;
   const fromDepositFlow = params.fromDepositFlow === 'true';
@@ -114,7 +116,39 @@ export default function AddCardScreen() {
       
       // In a real app, this would call the Paystack API to tokenize the card
       // For demo purposes, we'll simulate a successful tokenization
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // If saveCard is true, add the card to saved payment methods
+      if (saveCard) {
+        const cardDigits = cardNumber.replace(/\D/g, '');
+        const lastFour = cardDigits.slice(-4);
+        const [expMonth, expYear] = expiryDate.split('/');
+        
+        // Determine card type based on first digit
+        let cardType = 'unknown';
+        if (cardDigits.startsWith('4')) {
+          cardType = 'visa';
+        } else if (cardDigits.startsWith('5')) {
+          cardType = 'mastercard';
+        } else if (cardDigits.startsWith('6')) {
+          cardType = 'verve';
+        }
+        
+        // Add the card to saved payment methods
+        await addPaymentMethod({
+          type: 'card',
+          provider: 'paystack',
+          token: `TOKEN_${Date.now()}`, // In a real app, this would be the token from Paystack
+          last_four: lastFour,
+          exp_month: expMonth,
+          exp_year: expYear,
+          card_type: cardType,
+          bank: 'Demo Bank',
+          is_default: false
+        });
+        
+        showToast('Card saved successfully', 'success');
+      }
       
       if (fromDepositFlow && amount) {
         // If coming from deposit flow, process the deposit

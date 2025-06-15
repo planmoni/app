@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Ban as Bank } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -9,38 +9,13 @@ import SafeFooter from '@/components/SafeFooter';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
-
-type PaymentMethod = {
-  id: string;
-  type: 'bank' | 'card';
-  title: string;
-  subtitle: string;
-  icon: any;
-  isDefault?: boolean;
-};
+import { usePaymentMethods } from '@/hooks/usePaymentMethods';
 
 export default function PaymentMethodsScreen() {
   const { colors } = useTheme();
-  const [selectedMethodId, setSelectedMethodId] = useState<string | null>('1');
+  const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
   const haptics = useHaptics();
-
-  const savedMethods: PaymentMethod[] = [
-    {
-      id: '1',
-      type: 'bank',
-      title: 'GTBank •••• 6721',
-      subtitle: 'Default',
-      icon: Building2,
-      isDefault: true,
-    },
-    {
-      id: '2',
-      type: 'card',
-      title: 'Visa •••• 9087',
-      subtitle: 'Make Default',
-      icon: CreditCard,
-    },
-  ];
+  const { paymentMethods, isLoading, error, setDefaultMethod, deletePaymentMethod } = usePaymentMethods();
 
   const handleMethodSelect = (methodId: string) => {
     haptics.selection();
@@ -50,12 +25,14 @@ export default function PaymentMethodsScreen() {
   const handleContinue = () => {
     if (selectedMethodId) {
       haptics.mediumImpact();
-      const selectedMethod = savedMethods.find(method => method.id === selectedMethodId);
+      const selectedMethod = paymentMethods.find(method => method.id === selectedMethodId);
       router.replace({
         pathname: '/deposit-flow/amount',
         params: {
           methodId: selectedMethodId,
-          methodTitle: selectedMethod?.title
+          methodTitle: selectedMethod ? 
+            `${selectedMethod.type === 'card' ? selectedMethod.card_type?.toUpperCase() : selectedMethod.bank} •••• ${selectedMethod.last_four}` : 
+            'Selected Method'
         }
       });
     }
@@ -92,6 +69,34 @@ export default function PaymentMethodsScreen() {
     });
   };
 
+  const handleSetDefault = async (methodId: string) => {
+    try {
+      haptics.mediumImpact();
+      await setDefaultMethod(methodId);
+      haptics.success();
+    } catch (error) {
+      haptics.error();
+      console.error('Error setting default method:', error);
+    }
+  };
+
+  const handleDelete = async (methodId: string) => {
+    try {
+      haptics.warning();
+      await deletePaymentMethod(methodId);
+      
+      // If the deleted method was selected, clear the selection
+      if (selectedMethodId === methodId) {
+        setSelectedMethodId(null);
+      }
+      
+      haptics.success();
+    } catch (error) {
+      haptics.error();
+      console.error('Error deleting payment method:', error);
+    }
+  };
+
   const styles = createStyles(colors);
 
   return (
@@ -121,100 +126,142 @@ export default function PaymentMethodsScreen() {
           <Text style={styles.title}>Select Payment Method</Text>
           <Text style={styles.description}>Choose your preferred payment option to add funds.</Text>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
-            
-            {savedMethods.map((method) => (
-              <Pressable 
-                key={method.id}
-                style={[
-                  styles.paymentMethod,
-                  selectedMethodId === method.id && styles.selectedMethod
-                ]}
-                onPress={() => handleMethodSelect(method.id)}
-              >
-                <View style={styles.methodLeft}>
-                  <View style={styles.methodIconContainer}>
-                    <method.icon size={24} color={colors.primary} />
-                  </View>
-                  <View style={styles.methodInfo}>
-                    <Text style={styles.methodTitle}>{method.title}</Text>
-                    <Text style={styles.methodSubtitle}>{method.subtitle}</Text>
-                  </View>
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Loading payment methods...</Text>
+            </View>
+          ) : error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : (
+            <>
+              {paymentMethods.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
+                  
+                  {paymentMethods.map((method) => (
+                    <Pressable 
+                      key={method.id}
+                      style={[
+                        styles.paymentMethod,
+                        selectedMethodId === method.id && styles.selectedMethod
+                      ]}
+                      onPress={() => handleMethodSelect(method.id)}
+                    >
+                      <View style={styles.methodLeft}>
+                        <View style={styles.methodIconContainer}>
+                          {method.type === 'card' ? (
+                            <CreditCard size={24} color={colors.primary} />
+                          ) : (
+                            <Building2 size={24} color={colors.primary} />
+                          )}
+                        </View>
+                        <View style={styles.methodInfo}>
+                          <Text style={styles.methodTitle}>
+                            {method.type === 'card' 
+                              ? `${method.card_type?.toUpperCase() || 'Card'} •••• ${method.last_four}`
+                              : `${method.bank || 'Bank'} •••• ${method.last_four}`
+                            }
+                          </Text>
+                          <Text style={styles.methodSubtitle}>
+                            {method.is_default ? 'Default' : method.type === 'card' 
+                              ? `Expires ${method.exp_month}/${method.exp_year}`
+                              : 'Bank Account'
+                            }
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.radioContainer}>
+                        <View style={[
+                          styles.radioOuter,
+                          selectedMethodId === method.id && styles.radioOuterSelected
+                        ]}>
+                          {selectedMethodId === method.id && (
+                            <View style={styles.radioInner} />
+                          )}
+                        </View>
+                        <Pressable 
+                          style={styles.actionButton}
+                          onPress={() => handleSetDefault(method.id)}
+                        >
+                          <Text style={styles.actionText}>
+                            {method.is_default ? 'Default' : 'Set Default'}
+                          </Text>
+                        </Pressable>
+                        <Pressable 
+                          style={styles.actionButton}
+                          onPress={() => handleDelete(method.id)}
+                        >
+                          <Text style={[styles.actionText, styles.deleteText]}>Remove</Text>
+                        </Pressable>
+                      </View>
+                    </Pressable>
+                  ))}
                 </View>
-                <View style={styles.radioContainer}>
-                  <View style={[
-                    styles.radioOuter,
-                    selectedMethodId === method.id && styles.radioOuterSelected
-                  ]}>
-                    {selectedMethodId === method.id && (
-                      <View style={styles.radioInner} />
-                    )}
+              )}
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Add New Payment Method</Text>
+                
+                <Pressable 
+                  style={styles.newMethodButton}
+                  onPress={handleAddCard}
+                >
+                  <View style={styles.methodLeft}>
+                    <View style={styles.methodIconContainer}>
+                      <CreditCard size={24} color={colors.primary} />
+                    </View>
+                    <View style={styles.methodInfo}>
+                      <Text style={styles.methodTitle}>Debit/Credit Card</Text>
+                      <Text style={styles.methodSubtitle}>Visa, Mastercard, Verve</Text>
+                    </View>
                   </View>
                   <ChevronRight size={20} color={colors.textTertiary} />
-                </View>
-              </Pressable>
-            ))}
-          </View>
+                </Pressable>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Add New Payment Method</Text>
-            
-            <Pressable 
-              style={styles.newMethodButton}
-              onPress={handleAddCard}
-            >
-              <View style={styles.methodLeft}>
-                <View style={styles.methodIconContainer}>
-                  <CreditCard size={24} color={colors.primary} />
-                </View>
-                <View style={styles.methodInfo}>
-                  <Text style={styles.methodTitle}>Debit/Credit Card</Text>
-                  <Text style={styles.methodSubtitle}>Visa, Mastercard, Verve</Text>
-                </View>
+                <Pressable 
+                  style={styles.newMethodButton}
+                  onPress={handleAddUSSD}
+                >
+                  <View style={styles.methodLeft}>
+                    <View style={styles.methodIconContainer}>
+                      <Smartphone size={24} color={colors.primary} />
+                    </View>
+                    <View style={styles.methodInfo}>
+                      <Text style={styles.methodTitle}>USSD</Text>
+                      <Text style={styles.methodSubtitle}>Use USSD Code to pay</Text>
+                    </View>
+                  </View>
+                  <ChevronRight size={20} color={colors.textTertiary} />
+                </Pressable>
+                
+                <Pressable 
+                  style={styles.newMethodButton}
+                  onPress={handleAddBankAccount}
+                >
+                  <View style={styles.methodLeft}>
+                    <View style={styles.methodIconContainer}>
+                      <Bank size={24} color={colors.primary} />
+                    </View>
+                    <View style={styles.methodInfo}>
+                      <Text style={styles.methodTitle}>Link Bank Account</Text>
+                      <Text style={styles.methodSubtitle}>Add your bank account for transfers</Text>
+                    </View>
+                  </View>
+                  <ChevronRight size={20} color={colors.textTertiary} />
+                </Pressable>
               </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
-
-            <Pressable 
-              style={styles.newMethodButton}
-              onPress={handleAddUSSD}
-            >
-              <View style={styles.methodLeft}>
-                <View style={styles.methodIconContainer}>
-                  <Smartphone size={24} color={colors.primary} />
-                </View>
-                <View style={styles.methodInfo}>
-                  <Text style={styles.methodTitle}>USSD</Text>
-                  <Text style={styles.methodSubtitle}>Use USSD Code to pay</Text>
-                </View>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
-            
-            <Pressable 
-              style={styles.newMethodButton}
-              onPress={handleAddBankAccount}
-            >
-              <View style={styles.methodLeft}>
-                <View style={styles.methodIconContainer}>
-                  <Bank size={24} color={colors.primary} />
-                </View>
-                <View style={styles.methodInfo}>
-                  <Text style={styles.methodTitle}>Link Bank Account</Text>
-                  <Text style={styles.methodSubtitle}>Add your bank account for transfers</Text>
-                </View>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
-          </View>
+            </>
+          )}
         </View>
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
         title="Continue"
         onPress={handleContinue}
-        disabled={!selectedMethodId}
+        disabled={!selectedMethodId || isLoading}
         hapticType="medium"
       />
       
@@ -283,6 +330,27 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 24,
   },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginTop: 16,
+  },
+  errorContainer: {
+    padding: 20,
+    backgroundColor: colors.errorLight,
+    borderRadius: 8,
+    marginBottom: 24,
+  },
+  errorText: {
+    fontSize: 14,
+    color: colors.error,
+    textAlign: 'center',
+  },
   section: {
     marginBottom: 24,
   },
@@ -336,6 +404,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   radioContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   radioOuter: {
     width: 20,
@@ -343,7 +412,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 10,
     borderWidth: 2,
     borderColor: colors.borderSecondary,
-    marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -355,6 +423,18 @@ const createStyles = (colors: any) => StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: colors.primary,
+  },
+  actionButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  actionText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  deleteText: {
+    color: colors.error,
   },
   newMethodButton: {
     flexDirection: 'row',
