@@ -29,10 +29,13 @@ function validateSupabaseConfig(): string | null {
 // Validate configuration
 const configError = validateSupabaseConfig();
 
+// Declare supabase variable at top level
+let supabase: any;
+
 if (configError) {
   console.error('Supabase Configuration Error:', configError);
   // Create a mock client that will show the error when used
-  export const supabase = {
+  supabase = {
     auth: {
       signUp: () => Promise.reject(new Error(configError)),
       signInWithPassword: () => Promise.reject(new Error(configError)),
@@ -49,10 +52,13 @@ if (configError) {
       update: () => Promise.reject(new Error(configError)),
       delete: () => Promise.reject(new Error(configError)),
     }),
-  } as any;
+  };
 } else {
-  export const supabase = createClient<Database>(supabaseUrl!, supabaseAnonKey!);
+  supabase = createClient<Database>(supabaseUrl!, supabaseAnonKey!);
 }
+
+// Export at top level
+export { supabase };
 
 // Export validation function for use in components if needed
 export const getSupabaseConfigError = () => configError;
