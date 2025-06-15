@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '@/types/supabase';
+import { Platform } from 'react-native';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -64,7 +65,8 @@ export { supabase };
 export const getSupabaseConfigError = () => configError;
 
 // Add global error handler for unhandled promise rejections
-if (typeof window !== 'undefined') {
+// Only add event listener if we're in a browser environment and addEventListener exists
+if (Platform.OS === 'web' && typeof window !== 'undefined' && window.addEventListener) {
   window.addEventListener('unhandledrejection', (event) => {
     console.error('Unhandled promise rejection:', event.reason);
     // Prevent the default behavior (which would crash the app)
