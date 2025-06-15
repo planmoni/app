@@ -37,7 +37,7 @@ export function usePayoutAccounts() {
         
         setPayoutAccounts([
           {
-            id: '1',
+            id: '550e8400-e29b-41d4-a716-446655440001',
             user_id: session?.user?.id || '',
             account_name: 'John Doe',
             account_number: '0123456789',
@@ -47,7 +47,7 @@ export function usePayoutAccounts() {
             updated_at: new Date().toISOString()
           },
           {
-            id: '2',
+            id: '550e8400-e29b-41d4-a716-446655440002',
             user_id: session?.user?.id || '',
             account_name: 'John Doe',
             account_number: '9876543210',
@@ -57,7 +57,7 @@ export function usePayoutAccounts() {
             updated_at: new Date().toISOString()
           },
           {
-            id: '3',
+            id: '550e8400-e29b-41d4-a716-446655440003',
             user_id: session?.user?.id || '',
             account_name: 'John Doe',
             account_number: '5678901234',
@@ -102,7 +102,7 @@ export function usePayoutAccounts() {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         const newAccount: PayoutAccount = {
-          id: Date.now().toString(),
+          id: `550e8400-e29b-41d4-a716-${Date.now().toString().padStart(12, '0')}`,
           user_id: session?.user?.id || '',
           account_name: accountData.account_name,
           account_number: accountData.account_number,
