@@ -69,7 +69,7 @@ export default function PlanmoniLoader({
     },
     descriptionText: {
       fontSize: 16,
-      color: Platform.OS === 'web' ? '#1E3A8A' : '#3B82F6',
+      color: Platform.OS === 'web' ? '#1E3A8A' : '#B7C9E5',
       fontWeight: '600',
       textAlign: 'center',
     }
