@@ -15,7 +15,7 @@ interface DotLottieLoaderProps {
 
 export default function DotLottieLoader({
   size = 200,
-  src = "https://lottie.host/3a73d7e9-4d8f-4646-80cb-11ed4151e654/XtKKd9n7yc.lottie",
+  src = "https://lottie.host/30777839-d597-4a19-9434-eb1fb7a2f9fe/pcKrCtWnr9.json",
   loop = true,
   autoplay = true,
   backgroundColor = 'transparent'
