@@ -17,6 +17,7 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import LottieView from 'lottie-react-native';
+import { BlurView } from 'expo-blur';
 
 // Conditionally import the Player component only on web
 let Player: any = null;
@@ -258,24 +259,34 @@ export default function HomeScreen() {
 
   const styles = createStyles(colors, isDark);
 
-  // Render loading state
+  // Render loading state with blur effect
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, styles.loadingContainer]} edges={['top']}>
-        {Platform.OS === 'web' && Player ? (
-          <Player
-            autoplay
-            loop
-            src={require('@/assets/animations/planmoniloader.json')}
-            style={styles.lottieAnimation}
-          />
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {Platform.OS !== 'web' ? (
+          <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={styles.blurContainer}>
+            <View style={styles.loadingContainer}>
+              <LottieView
+                source={require('@/assets/animations/planmoniloader.json')}
+                autoPlay
+                loop
+                style={styles.lottieAnimation}
+              />
+            </View>
+          </BlurView>
         ) : (
-          <LottieView
-            source={require('@/assets/animations/planmoniloader.json')}
-            autoPlay
-            loop
-            style={styles.lottieAnimation}
-          />
+          <View style={[styles.webBlurContainer, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)' }]}>
+            <View style={styles.loadingContainer}>
+              {Player && (
+                <Player
+                  autoplay
+                  loop
+                  src={require('@/assets/animations/planmoniloader.json')}
+                  style={styles.lottieAnimation}
+                />
+              )}
+            </View>
+          </View>
         )}
       </SafeAreaView>
     );
@@ -733,6 +744,17 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
   },
+  blurContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  webBlurContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backdropFilter: 'blur(10px)',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1085,10 +1107,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.primary,
     fontWeight: '500',
   },
-  loadingContainer: {
-    padding: 20,
-    alignItems: 'center',
-  },
   loadingText: {
     fontSize: 14,
     color: colors.textSecondary,
@@ -1189,10 +1207,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
     marginBottom: 16,
-  },
-  progressCount: {
-    fontSize: 12,
-    color: colors.textSecondary,
   },
   planViewButton: {
     flexDirection: 'row',

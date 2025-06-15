@@ -2,11 +2,17 @@ import React, { useEffect } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { BlurView } from 'expo-blur';
 
 // Conditionally load the Player component only on web
 let Player: any = null;
 if (Platform.OS === 'web') {
-  Player = require('@lottiefiles/react-lottie-player').Player;
+  try {
+    const LottieWeb = require('@lottiefiles/react-lottie-player');
+    Player = LottieWeb.Player;
+  } catch (error) {
+    console.error('Failed to import @lottiefiles/react-lottie-player:', error);
+  }
 }
 
 interface SplashScreenProps {
@@ -35,45 +41,79 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
     return () => clearTimeout(timer);
   }, [onFinish]);
 
-  if (Platform.OS === 'web') {
+  const renderContent = () => {
+    if (Platform.OS === 'web') {
+      return (
+        <View style={styles.animationContainer}>
+          {Player && (
+            <Player
+              ref={playerRef}
+              src={require('@/assets/animations/planmoniloader.json')}
+              autoplay
+              loop={false}
+              style={styles.animation}
+              onEvent={event => {
+                if (event === 'complete') {
+                  onFinish?.();
+                }
+              }}
+            />
+          )}
+        </View>
+      );
+    }
+
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Player
-          ref={playerRef}
-          src={require('@/assets/animations/planmoniloader.json')}
-          autoplay
-          loop={false}
+      <View style={styles.animationContainer}>
+        <LottieView
+          ref={animationRef}
+          source={require('@/assets/animations/planmoniloader.json')}
           style={styles.animation}
-          onEvent={event => {
-            if (event === 'complete') {
-              onFinish?.();
+          autoPlay
+          loop={false}
+          onAnimationFinish={onFinish}
+          colorFilters={isDark ? [
+            {
+              keypath: "Stroke 1",
+              color: "#3B82F6" // Blue color for dark mode
+            },
+            {
+              keypath: "Fill 1",
+              color: "#3B82F6" // Blue color for dark mode
             }
-          }}
+          ] : undefined}
         />
       </View>
     );
+  };
+
+  // For native platforms, use BlurView
+  if (Platform.OS !== 'web') {
+    return (
+      <BlurView 
+        intensity={70} 
+        tint={isDark ? 'dark' : 'light'} 
+        style={styles.container}
+      >
+        {renderContent()}
+      </BlurView>
+    );
   }
 
+  // For web, use a semi-transparent background
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LottieView
-        ref={animationRef}
-        source={require('@/assets/animations/planmoniloader.json')}
-        style={styles.animation}
-        autoPlay
-        loop={false}
-        onAnimationFinish={onFinish}
-        colorFilters={isDark ? [
-          {
-            keypath: "Stroke 1",
-            color: "#3B82F6" // Blue color for dark mode
-          },
-          {
-            keypath: "Fill 1",
-            color: "#3B82F6" // Blue color for dark mode
-          }
-        ] : undefined}
-      />
+    <View 
+      style={[
+        styles.container, 
+        { 
+          backgroundColor: isDark 
+            ? 'rgba(15, 23, 42, 0.9)' 
+            : 'rgba(255, 255, 255, 0.9)',
+          backdropFilter: 'blur(10px)'
+        }
+      ]}
+    >
+      {renderContent()}
     </View>
   );
 }
@@ -81,6 +121,10 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  animationContainer: {
     justifyContent: 'center',
     alignItems: 'center',
   },
