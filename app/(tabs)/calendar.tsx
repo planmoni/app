@@ -66,9 +66,9 @@ export default function CalendarScreen() {
         icon: '#FFFFFF'
       },
       pending: {
-        primary: '#3B82F6',
+        primary: '#1E3A8A',
         light: isDark ? '#1E3A8A' : '#F0F9FF',
-        border: isDark ? '#3B82F6' : '#BFDBFE',
+        border: isDark ? '#1E3A8A' : '#BFDBFE',
         text: isDark ? '#DBEAFE' : '#1E3A8A',
         icon: '#FFFFFF'
       },
@@ -104,7 +104,7 @@ export default function CalendarScreen() {
       case 'completed':
         return '#22C55E'; // Green for completed payouts
       case 'pending':
-        return '#3B82F6'; // Blue for payout created/pending
+        return '#1E3A8A'; // Blue for payout created/pending
       case 'scheduled':
         return '#EAB308'; // Yellow for scheduled payouts
       case 'failed':
@@ -389,7 +389,7 @@ export default function CalendarScreen() {
               <Text style={styles.legendText} numberOfLines={1}>Payout received</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
+              <View style={[styles.legendDot, { backgroundColor: '#1E3A8A' }]} />
               <Text style={styles.legendText} numberOfLines={1}>Payout created</Text>
             </View>
             <View style={styles.legendItem}>
@@ -526,7 +526,7 @@ export default function CalendarScreen() {
               <Text style={styles.legendText} numberOfLines={1}>Payout received</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
+              <View style={[styles.legendDot, { backgroundColor: '#1E3A8A' }]} />
               <Text style={styles.legendText} numberOfLines={1}>Payout created</Text>
             </View>
             <View style={styles.legendItem}>
@@ -657,7 +657,7 @@ export default function CalendarScreen() {
               <Text style={styles.legendText} numberOfLines={1}>Payout received</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
+              <View style={[styles.legendDot, { backgroundColor: '#1E3A8A' }]} />
               <Text style={styles.legendText} numberOfLines={1}>Payout created</Text>
             </View>
             <View style={styles.legendItem}>
