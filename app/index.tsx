@@ -21,7 +21,7 @@ const SLIDES = [
     image: require('@/assets/images/slider1 logo.png'),
     icon: null,
     color: '#EFF6FF',
-    iconColor: '#3B82F6',
+    iconColor: '#1E3A8A',
   },
   {
     id: '2',
@@ -30,7 +30,7 @@ const SLIDES = [
     image: require('@/assets/images/SmartSavings.png'),
     icon: Wallet,
     color: '#EFF6FF',
-    iconColor: '#3B82F6',
+    iconColor: '#1E3A8A',
   },
   {
     id: '3',
