@@ -2,6 +2,9 @@ import Button from '@/components/Button';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import SafeFooter from '@/components/SafeFooter';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBalance } from '@/contexts/BalanceContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useHaptics } from '@/hooks/useHaptics';
 import { router } from 'expo-router';
 import { Ionicons } from "@expo/vector-icons"
 import { 
@@ -26,8 +29,9 @@ import {
   Wallet
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
 import LanguageModal from '@/components/LanguageModal';
