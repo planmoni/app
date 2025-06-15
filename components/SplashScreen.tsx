@@ -91,7 +91,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
   if (Platform.OS !== 'web') {
     return (
       <BlurView 
-        intensity={70} 
+        intensity={40} 
         tint={isDark ? 'dark' : 'light'} 
         style={styles.container}
       >
