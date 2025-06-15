@@ -1,29 +1,38 @@
-import Button from '@/components/Button';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, CreditCard, Ban as Bank, ArrowRight, Smartphone } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions, ToastAndroid } from 'react-native';
+import { ArrowLeft, Copy, Info, ChevronRight, CreditCard, Smartphone, Building2 } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import { useToast } from '@/contexts/ToastContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Clipboard from 'expo-clipboard';
-import { useState } from 'react';
+import Button from '@/components/Button';
+
+const { width } = Dimensions.get('window');
 
 export default function AddFundsScreen() {
-  const { colors } = useTheme();
-  const { width, height } = useWindowDimensions();
+  const { colors, isDark } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const { showToast } = useToast();
   const haptics = useHaptics();
-  const [activeTab, setActiveTab] = useState<'bankTransfer' | 'otherMethods'>('bankTransfer');
   
-  // Determine if we're on a small screen
-  const isSmallScreen = width < 380 || height < 700;
+  const [activeTab, setActiveTab] = useState(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
 
-  const handleCopyAccountNumber = () => {
+  // Determine if we're on a small screen
+  const isSmallScreen = screenWidth < 380;
+
+  const handleCopyAccountNumber = async () => {
     haptics.selection();
-    // Implement copy functionality
-    Clipboard.setStringAsync("muhammed@gmail.com");
-    ToastAndroid.show('Account number copied to clipboard', ToastAndroid.SHORT);
+    try {
+      await Clipboard.setStringAsync("9002893892");
+      showToast('Account number copied to clipboard', 'success');
+    } catch (error) {
+      showToast('Failed to copy to clipboard', 'error');
+    }
   };
 
   const handleMoreDepositMethods = () => {
@@ -41,15 +50,32 @@ export default function AddFundsScreen() {
     router.back();
   };
 
-  const handleTabChange = (tab: 'bankTransfer' | 'otherMethods') => {
+  const handleTabPress = (index: number) => {
     haptics.selection();
-    setActiveTab(tab);
+    setActiveTab(index);
+    scrollViewRef.current?.scrollTo({ x: index * screenWidth, animated: true });
   };
 
-  const styles = createStyles(colors, isSmallScreen);
+  const handleScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+    { useNativeDriver: false }
+  );
+
+  const handleScrollEnd = (event: any) => {
+    const newIndex = Math.round(event.nativeEvent.contentOffset.x / screenWidth);
+    if (newIndex !== activeTab) {
+      setActiveTab(newIndex);
+    }
+  };
+
+  const styles = createStyles(colors, isDark, isSmallScreen);
 
   // Calculate footer height including safe area
   const footerHeight = 80 + insets.bottom;
+
+  // Calculate tab indicator position and width
+  const tabWidth = screenWidth / 2;
+  const indicatorPosition = Animated.multiply(scrollX, 0.5);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -62,55 +88,48 @@ export default function AddFundsScreen() {
 
       <View style={styles.tabContainer}>
         <Pressable 
-          style={[
-            styles.tab, 
-            activeTab === 'bankTransfer' && styles.activeTab
-          ]}
-          onPress={() => handleTabChange('bankTransfer')}
+          style={[styles.tab, activeTab === 0 && styles.activeTab]} 
+          onPress={() => handleTabPress(0)}
         >
-          <Bank 
-            size={isSmallScreen ? 18 : 20} 
-            color={activeTab === 'bankTransfer' ? colors.primary : colors.textSecondary} 
-          />
-          <Text 
-            style={[
-              styles.tabText, 
-              activeTab === 'bankTransfer' && styles.activeTabText
-            ]}
-          >
+          <Text style={[styles.tabText, activeTab === 0 && styles.activeTabText]}>
             Bank Transfer
           </Text>
         </Pressable>
-        
         <Pressable 
-          style={[
-            styles.tab, 
-            activeTab === 'otherMethods' && styles.activeTab
-          ]}
-          onPress={() => handleTabChange('otherMethods')}
+          style={[styles.tab, activeTab === 1 && styles.activeTab]} 
+          onPress={() => handleTabPress(1)}
         >
-          <CreditCard 
-            size={isSmallScreen ? 18 : 20} 
-            color={activeTab === 'otherMethods' ? colors.primary : colors.textSecondary} 
-          />
-          <Text 
-            style={[
-              styles.tabText, 
-              activeTab === 'otherMethods' && styles.activeTabText
-            ]}
-          >
+          <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
             Cards/Bank/USSD
           </Text>
         </Pressable>
+        <Animated.View 
+          style={[
+            styles.tabIndicator, 
+            { 
+              width: tabWidth / 2,
+              transform: [{ translateX: indicatorPosition }] 
+            }
+          ]} 
+        />
       </View>
 
-      <KeyboardAvoidingWrapper 
+      <Animated.ScrollView
+        ref={scrollViewRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={handleScroll}
+        onMomentumScrollEnd={handleScrollEnd}
+        scrollEventThrottle={16}
+        style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: footerHeight } // Add padding to account for fixed footer
+          { paddingBottom: footerHeight }
         ]}
       >
-        {activeTab === 'bankTransfer' ? (
+        {/* Bank Transfer Tab */}
+        <View style={[styles.tabContent, { width: screenWidth }]}>
           <View style={styles.content}>
             <Text style={styles.title}>Add funds via <Text style={styles.highlight}>Bank Transfer</Text></Text>
             <Text style={styles.description}>
@@ -150,65 +169,62 @@ export default function AddFundsScreen() {
               </View>
             </View>
           </View>
-        ) : (
+        </View>
+
+        {/* Cards/Bank/USSD Tab */}
+        <View style={[styles.tabContent, { width: screenWidth }]}>
           <View style={styles.content}>
             <Text style={styles.title}>Choose a <Text style={styles.highlight}>Payment Method</Text></Text>
             <Text style={styles.description}>
-              Select your preferred method to add funds to your Planmoni wallet.
+              Select your preferred payment option to add funds to your wallet.
             </Text>
-            
+
             <View style={styles.paymentMethodsContainer}>
               <Pressable 
-                style={styles.paymentMethodCard}
-                onPress={handleMoreDepositMethods}
+                style={styles.paymentMethod}
+                onPress={() => router.push('/add-card')}
               >
                 <View style={styles.paymentMethodIcon}>
                   <CreditCard size={24} color={colors.primary} />
                 </View>
                 <View style={styles.paymentMethodInfo}>
                   <Text style={styles.paymentMethodTitle}>Debit/Credit Card</Text>
-                  <Text style={styles.paymentMethodDescription}>Add funds instantly using your card</Text>
+                  <Text style={styles.paymentMethodDescription}>Add funds using your card</Text>
                 </View>
-                <View style={styles.arrowContainer}>
-                  <ArrowRight size={20} color={colors.textSecondary} />
-                </View>
+                <ChevronRight size={20} color={colors.textSecondary} />
               </Pressable>
-              
+
               <Pressable 
-                style={styles.paymentMethodCard}
-                onPress={handleMoreDepositMethods}
-              >
-                <View style={styles.paymentMethodIcon}>
-                  <Bank size={24} color={colors.primary} />
-                </View>
-                <View style={styles.paymentMethodInfo}>
-                  <Text style={styles.paymentMethodTitle}>Bank Account</Text>
-                  <Text style={styles.paymentMethodDescription}>Link your bank account for transfers</Text>
-                </View>
-                <View style={styles.arrowContainer}>
-                  <ArrowRight size={20} color={colors.textSecondary} />
-                </View>
-              </Pressable>
-              
-              <Pressable 
-                style={styles.paymentMethodCard}
-                onPress={handleMoreDepositMethods}
+                style={styles.paymentMethod}
+                onPress={() => router.push('/add-ussd')}
               >
                 <View style={styles.paymentMethodIcon}>
                   <Smartphone size={24} color={colors.primary} />
                 </View>
                 <View style={styles.paymentMethodInfo}>
-                  <Text style={styles.paymentMethodTitle}>USSD</Text>
-                  <Text style={styles.paymentMethodDescription}>Use USSD code to add funds</Text>
+                  <Text style={styles.paymentMethodTitle}>USSD Transfer</Text>
+                  <Text style={styles.paymentMethodDescription}>Add funds using USSD code</Text>
                 </View>
-                <View style={styles.arrowContainer}>
-                  <ArrowRight size={20} color={colors.textSecondary} />
+                <ChevronRight size={20} color={colors.textSecondary} />
+              </Pressable>
+
+              <Pressable 
+                style={styles.paymentMethod}
+                onPress={() => router.push('/linked-accounts')}
+              >
+                <View style={styles.paymentMethodIcon}>
+                  <Building2 size={24} color={colors.primary} />
                 </View>
+                <View style={styles.paymentMethodInfo}>
+                  <Text style={styles.paymentMethodTitle}>Bank Account</Text>
+                  <Text style={styles.paymentMethodDescription}>Add funds from your bank account</Text>
+                </View>
+                <ChevronRight size={20} color={colors.textSecondary} />
               </Pressable>
             </View>
           </View>
-        )}
-      </KeyboardAvoidingWrapper>
+        </View>
+      </Animated.ScrollView>
 
       {/* Fixed footer with safe area padding */}
       <View style={[
@@ -226,7 +242,7 @@ export default function AddFundsScreen() {
   );
 }
 
-const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -255,30 +271,20 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    position: 'relative',
   },
   tab: {
     flex: 1,
-    flexDirection: 'row',
+    paddingVertical: 16,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    gap: 8,
-    backgroundColor: colors.backgroundTertiary,
-    marginHorizontal: 4,
   },
   activeTab: {
-    backgroundColor: colors.backgroundTertiary,
-    borderWidth: 1,
-    borderColor: colors.primary,
+    backgroundColor: 'transparent',
   },
   tabText: {
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: 14,
     fontWeight: '500',
     color: colors.textSecondary,
   },
@@ -286,11 +292,27 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     color: colors.primary,
     fontWeight: '600',
   },
+  tabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    height: 3,
+    backgroundColor: colors.primary,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+    left: '25%', // Center in first tab by default
+  },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
-    padding: isSmallScreen ? 16 : 20,
+    flexGrow: 1,
+  },
+  tabContent: {
+    flex: 1,
   },
   content: {
     flex: 1,
+    padding: isSmallScreen ? 16 : 20,
   },
   title: {
     fontSize: isSmallScreen ? 20 : 24,
@@ -383,25 +405,25 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     color: colors.text,
   },
   paymentMethodsContainer: {
-    gap: 12,
+    gap: 16,
   },
-  paymentMethodCard: {
+  paymentMethod: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.card,
-    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 16,
     padding: 16,
   },
   paymentMethodIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   paymentMethodInfo: {
     flex: 1,
@@ -415,12 +437,6 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   paymentMethodDescription: {
     fontSize: 14,
     color: colors.textSecondary,
-  },
-  arrowContainer: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   footer: {
     position: 'absolute',
