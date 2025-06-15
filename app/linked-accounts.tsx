@@ -230,7 +230,7 @@ export default function LinkedAccountsScreen() {
                 <View style={styles.accountHeader}>
                   <View style={styles.bankInfo}>
                     <View style={styles.bankIcon}>
-                      <Building2 size={24} color="#3B82F6" />
+                      <Building2 size={24} color="#1E3A8A" />
                     </View>
                     <View style={styles.bankDetails}>
                       <Text style={styles.bankName}>{account.bank_name}</Text>
@@ -288,7 +288,7 @@ export default function LinkedAccountsScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoHeader}>
               <View style={styles.infoIconContainer}>
-                <Info size={20} color="#3B82F6" />
+                <Info size={20} color="#1E3A8A" />
               </View>
               <Text style={styles.infoTitle}>Account Verification</Text>
             </View>
@@ -445,7 +445,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   defaultText: {
     fontSize: 12,
-    color: '#3B82F6',
+    color: '#1E3A8A',
     fontWeight: '500',
     marginBottom: 4,
   },
@@ -488,7 +488,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
+    borderLeftColor: '#1E3A8A',
   },
   infoHeader: {
     flexDirection: 'row',
