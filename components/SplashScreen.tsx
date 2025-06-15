@@ -1,13 +1,22 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import LottieView from 'lottie-react-native';
-import { Player } from '@lottiefiles/react-lottie-player';
+import { useTheme } from '@/contexts/ThemeContext';
+
+// Conditionally load the Player component only on web
+let Player: any = null;
+if (Platform.OS === 'web') {
+  Player = require('@lottiefiles/react-lottie-player').Player;
+}
 
 interface SplashScreenProps {
   onFinish?: () => void;
 }
 
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
+  // Get the current theme
+  const { colors, isDark } = useTheme();
+  
   // Reference to the animation
   const animationRef = React.useRef<LottieView | null>(null);
   const playerRef = React.useRef<any>(null);
@@ -16,8 +25,6 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
     // Play the animation when the component mounts
     if (Platform.OS !== 'web') {
       animationRef.current?.play();
-    } else if (playerRef.current) {
-      // For web, the Player component handles autoplay
     }
 
     // Set a timeout to call onFinish after animation completes
@@ -30,7 +37,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
 
   if (Platform.OS === 'web') {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Player
           ref={playerRef}
           src={require('@/assets/animations/planmoniloader.json')}
@@ -48,7 +55,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LottieView
         ref={animationRef}
         source={require('@/assets/animations/planmoniloader.json')}
@@ -56,6 +63,16 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
         autoPlay
         loop={false}
         onAnimationFinish={onFinish}
+        colorFilters={isDark ? [
+          {
+            keypath: "Stroke 1",
+            color: "#3B82F6" // Blue color for dark mode
+          },
+          {
+            keypath: "Fill 1",
+            color: "#3B82F6" // Blue color for dark mode
+          }
+        ] : undefined}
       />
     </View>
   );
@@ -66,7 +83,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF', // White background
   },
   animation: {
     width: 200,
