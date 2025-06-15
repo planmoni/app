@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { Ionicons } from "@expo/vector-icons"
 import { 
@@ -29,9 +30,8 @@ import {
   Wallet
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
 import LanguageModal from '@/components/LanguageModal';
@@ -44,7 +44,7 @@ import { BiometricSetup } from '@/components/biometrics/BiometricSetup';
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
-  const { theme, setTheme, colors } = useTheme();
+  const { theme, setTheme, colors, isDark } = useTheme();
   const haptics = useHaptics();
   
   const firstName = session?.user?.user_metadata?.first_name || '';
@@ -232,12 +232,17 @@ export default function SettingsScreen() {
 
             {/* Biometric Setup Modal */}
             <Modal visible={biometrics} animationType="slide" presentationStyle="pageSheet">
-              <View style={styles.biometricModal}>
-                <View style={styles.biometricHeader}>
+              <View style={[styles.biometricModal, { backgroundColor: isDark ? colors.backgroundSecondary : "#f8f9fa" }]}>
+                <View style={[styles.biometricHeader, { 
+                  backgroundColor: isDark ? colors.surface : "white",
+                  borderBottomColor: isDark ? colors.border : "#e5e7eb"
+                }]}>
                   <TouchableOpacity onPress={() => setBiometrics(false)}>
-                    <Ionicons name="close" size={24} color="#374151" />
+                    <Ionicons name="close" size={24} color={isDark ? colors.text : "#374151"} />
                   </TouchableOpacity>
-                  <Text style={styles.biometricTitle}>Biometric Authentication</Text>
+                  <Text style={[styles.biometricTitle, { color: isDark ? colors.text : "#1f2937" }]}>
+                    Biometric Authentication
+                  </Text>
                   <View style={{ width: 24 }} />
                 </View>
                 <ScrollView>
@@ -823,7 +828,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   biometricModal: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
   },
   biometricHeader: {
     flexDirection: "row",
@@ -831,13 +835,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: "center",
     padding: 20,
     paddingTop: 60,
-    backgroundColor: "white",
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
   },
   biometricTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1f2937",
   },
 });
