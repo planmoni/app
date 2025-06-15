@@ -137,8 +137,7 @@ export default function TransactionsScreen() {
           </View>
         </View>
         <View style={styles.loadingContainer}>
-          <PlanmoniLoader size="medium" />
-          <Text style={styles.loadingText}>Loading transactions...</Text>
+          <PlanmoniLoader size="large" description="Loading transactions..." />
         </View>
         <SafeFooter />
       </SafeAreaView>

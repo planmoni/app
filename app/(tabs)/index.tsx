@@ -241,7 +241,11 @@ export default function HomeScreen() {
   if (payoutPlansLoading || transactionsLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <PlanmoniLoader blurBackground={true} size="large" />
+        <PlanmoniLoader 
+          blurBackground={true} 
+          size="large" 
+          description="Loading your financial data..."
+        />
       </SafeAreaView>
     );
   }

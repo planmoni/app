@@ -34,8 +34,7 @@ export default function InsightsScreen() {
           <Text style={styles.headerTitle}>Insights</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <PlanmoniLoader size="medium" />
-          <Text style={styles.loadingText}>Loading insights data...</Text>
+          <PlanmoniLoader size="large" description="Loading insights data..." />
         </View>
       </SafeAreaView>
     );

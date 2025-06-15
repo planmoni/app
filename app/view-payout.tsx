@@ -44,8 +44,7 @@ export default function ViewPayoutScreen() {
           <Text style={styles.headerTitle}>Payout Details</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <PlanmoniLoader size="medium" />
-          <Text style={styles.loadingText}>Loading payout details...</Text>
+          <PlanmoniLoader size="large" description="Loading payout details..." />
         </View>
         <SafeFooter />
       </SafeAreaView>

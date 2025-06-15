@@ -225,8 +225,7 @@ export default function CalendarScreen() {
           </View>
         </View>
         <View style={styles.loadingContainer}>
-          <PlanmoniLoader size="medium" />
-          <Text style={styles.loadingText}>Loading calendar events...</Text>
+          <PlanmoniLoader size="large" description="Loading calendar events..." />
         </View>
       </SafeAreaView>
     );

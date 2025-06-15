@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, Text } from 'react-native';
 import LottieView from 'lottie-react-native';
 
 // Conditionally load the Player component only on web
@@ -12,23 +12,28 @@ type PlanmoniLoaderProps = {
   size?: 'small' | 'medium' | 'large';
   containerStyle?: any;
   blurBackground?: boolean;
+  description?: string;
 };
 
 export default function PlanmoniLoader({ 
   size = 'medium', 
   containerStyle,
-  blurBackground = false
+  blurBackground = false,
+  description
 }: PlanmoniLoaderProps) {
   // Calculate size based on the prop
   const getSize = () => {
+    // If there's a description, double the size
+    const multiplier = description ? 2 : 1;
+    
     switch (size) {
       case 'small':
-        return 80;
+        return 80 * multiplier;
       case 'large':
-        return 200;
+        return 200 * multiplier;
       case 'medium':
       default:
-        return 120;
+        return 120 * multiplier;
     }
   };
 
@@ -56,6 +61,17 @@ export default function PlanmoniLoader({
       justifyContent: 'center',
       alignItems: 'center',
       zIndex: 1000,
+    },
+    descriptionContainer: {
+      marginTop: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    descriptionText: {
+      fontSize: 16,
+      color: Platform.OS === 'web' ? '#1E3A8A' : '#3B82F6',
+      fontWeight: '600',
+      textAlign: 'center',
     }
   });
 
@@ -69,6 +85,11 @@ export default function PlanmoniLoader({
             loop
             style={{ width: loaderSize, height: loaderSize }}
           />
+          {description && (
+            <View style={styles.descriptionContainer}>
+              <Text style={styles.descriptionText}>{description}</Text>
+            </View>
+          )}
         </View>
       );
     }
@@ -81,6 +102,11 @@ export default function PlanmoniLoader({
           loop
           style={{ width: loaderSize, height: loaderSize }}
         />
+        {description && (
+          <View style={styles.descriptionContainer}>
+            <Text style={styles.descriptionText}>{description}</Text>
+          </View>
+        )}
       </View>
     );
   };
