@@ -81,13 +81,23 @@ export function useRealtimeWallet() {
   const addFunds = async (amount: number) => {
     try {
       setError(null);
+      
+      // Optimistically update the balance immediately for better UX
+      setBalance(prevBalance => prevBalance + amount);
+      
       const { error: walletError } = await supabase.rpc('add_funds', {
         p_amount: amount,
         p_user_id: session?.user?.id
       });
 
-      if (walletError) throw walletError;
-      // Real-time subscription will handle the update
+      if (walletError) {
+        // Revert the optimistic update if there's an error
+        setBalance(prevBalance => prevBalance - amount);
+        throw walletError;
+      }
+      
+      // Fetch the latest wallet data to ensure consistency
+      await fetchWallet();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add funds');
       throw err;
@@ -97,13 +107,25 @@ export function useRealtimeWallet() {
   const lockFunds = async (amount: number) => {
     try {
       setError(null);
+      
+      // Optimistically update the balances immediately for better UX
+      setBalance(prevBalance => prevBalance - amount);
+      setLockedBalance(prevLocked => prevLocked + amount);
+      
       const { error: walletError } = await supabase.rpc('lock_funds', {
         p_amount: amount,
         p_user_id: session?.user?.id
       });
 
-      if (walletError) throw walletError;
-      // Real-time subscription will handle the update
+      if (walletError) {
+        // Revert the optimistic update if there's an error
+        setBalance(prevBalance => prevBalance + amount);
+        setLockedBalance(prevLocked => prevLocked - amount);
+        throw walletError;
+      }
+      
+      // Fetch the latest wallet data to ensure consistency
+      await fetchWallet();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to lock funds');
       throw err;

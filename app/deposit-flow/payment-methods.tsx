@@ -1,8 +1,8 @@
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Ban as Bank } from 'lucide-react-native';
 import Button from '@/components/Button';
-import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import SafeFooter from '@/components/SafeFooter';
@@ -16,6 +16,11 @@ export default function PaymentMethodsScreen() {
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
   const haptics = useHaptics();
   const { paymentMethods, isLoading, error, setDefaultMethod, deletePaymentMethod } = usePaymentMethods();
+  const params = useLocalSearchParams();
+  
+  // Filter payment methods by type
+  const cardMethods = paymentMethods.filter(method => method.type === 'card');
+  const bankMethods = paymentMethods.filter(method => method.type === 'bank');
 
   const handleMethodSelect = (methodId: string) => {
     haptics.selection();
@@ -124,7 +129,7 @@ export default function PaymentMethodsScreen() {
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           <Text style={styles.title}>Select Payment Method</Text>
-          <Text style={styles.description}>Choose your preferred payment option to add funds.</Text>
+          <Text style={styles.description}>Choose your preferred payment option to add funds to your wallet.</Text>
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
@@ -137,73 +142,98 @@ export default function PaymentMethodsScreen() {
             </View>
           ) : (
             <>
-              {paymentMethods.length > 0 && (
+              {(cardMethods.length > 0 || bankMethods.length > 0) && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
                   
-                  {paymentMethods.map((method) => (
-                    <Pressable 
-                      key={method.id}
-                      style={[
-                        styles.paymentMethod,
-                        selectedMethodId === method.id && styles.selectedMethod
-                      ]}
-                      onPress={() => handleMethodSelect(method.id)}
-                    >
-                      <View style={styles.methodLeft}>
-                        <View style={styles.methodIconContainer}>
-                          {method.type === 'card' ? (
-                            <CreditCard size={24} color={colors.primary} />
-                          ) : (
-                            <Building2 size={24} color={colors.primary} />
-                          )}
-                        </View>
-                        <View style={styles.methodInfo}>
-                          <Text style={styles.methodTitle}>
-                            {method.type === 'card' 
-                              ? `${method.card_type?.toUpperCase() || 'Card'} •••• ${method.last_four}`
-                              : `${method.bank || 'Bank'} •••• ${method.last_four}`
-                            }
-                          </Text>
-                          <Text style={styles.methodSubtitle}>
-                            {method.is_default ? 'Default' : method.type === 'card' 
-                              ? `Expires ${method.exp_month}/${method.exp_year}`
-                              : 'Bank Account'
-                            }
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={styles.radioContainer}>
-                        <View style={[
-                          styles.radioOuter,
-                          selectedMethodId === method.id && styles.radioOuterSelected
-                        ]}>
-                          {selectedMethodId === method.id && (
-                            <View style={styles.radioInner} />
-                          )}
-                        </View>
-                        <Pressable 
-                          style={styles.actionButton}
-                          onPress={() => handleSetDefault(method.id)}
-                        >
-                          <Text style={styles.actionText}>
-                            {method.is_default ? 'Default' : 'Set Default'}
-                          </Text>
-                        </Pressable>
-                        <Pressable 
-                          style={styles.actionButton}
-                          onPress={() => handleDelete(method.id)}
-                        >
-                          <Text style={[styles.actionText, styles.deleteText]}>Remove</Text>
+                  {cardMethods.length > 0 && (
+                    <View style={styles.methodTypeContainer}>
+                      <View style={styles.methodTypeHeader}>
+                        <Text style={styles.methodTypeTitle}>Cards</Text>
+                        <Pressable style={styles.seeAllButton}>
+                          <Text style={styles.seeAllText}>See All</Text>
                         </Pressable>
                       </View>
-                    </Pressable>
-                  ))}
+                      
+                      {cardMethods.map((method) => (
+                        <Pressable 
+                          key={method.id}
+                          style={[
+                            styles.paymentMethod,
+                            selectedMethodId === method.id && styles.selectedMethod
+                          ]}
+                          onPress={() => handleMethodSelect(method.id)}
+                        >
+                          <View style={styles.methodLeft}>
+                            <View style={styles.methodIconContainer}>
+                              <CreditCard size={24} color={colors.primary} />
+                            </View>
+                            <View style={styles.methodInfo}>
+                              <Text style={styles.methodTitle}>
+                                {method.card_type?.toUpperCase() || 'Card'} •••• {method.last_four}
+                              </Text>
+                              <Text style={styles.methodSubtitle}>
+                                {method.is_default ? 'Default' : `Expires ${method.exp_month}/${method.exp_year}`}
+                              </Text>
+                            </View>
+                          </View>
+                          <Pressable 
+                            style={styles.useButton}
+                            onPress={() => handleMethodSelect(method.id)}
+                          >
+                            <Text style={styles.useButtonText}>Use this card</Text>
+                          </Pressable>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                  
+                  {bankMethods.length > 0 && (
+                    <View style={styles.methodTypeContainer}>
+                      <View style={styles.methodTypeHeader}>
+                        <Text style={styles.methodTypeTitle}>Linked Bank Accounts</Text>
+                        <Pressable style={styles.seeAllButton}>
+                          <Text style={styles.seeAllText}>See All</Text>
+                        </Pressable>
+                      </View>
+                      
+                      {bankMethods.map((method) => (
+                        <Pressable 
+                          key={method.id}
+                          style={[
+                            styles.paymentMethod,
+                            selectedMethodId === method.id && styles.selectedMethod
+                          ]}
+                          onPress={() => handleMethodSelect(method.id)}
+                        >
+                          <View style={styles.methodLeft}>
+                            <View style={styles.methodIconContainer}>
+                              <Building2 size={24} color={colors.primary} />
+                            </View>
+                            <View style={styles.methodInfo}>
+                              <Text style={styles.methodTitle}>
+                                {method.bank || 'Bank'} •••• {method.last_four}
+                              </Text>
+                              <Text style={styles.methodSubtitle}>
+                                Martins Osodi
+                              </Text>
+                            </View>
+                          </View>
+                          <Pressable 
+                            style={styles.useButton}
+                            onPress={() => handleMethodSelect(method.id)}
+                          >
+                            <Text style={styles.useButtonText}>Use this Bank</Text>
+                          </Pressable>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
                 </View>
               )}
 
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Add New Payment Method</Text>
+                <Text style={styles.sectionTitle}>Choose a new payment method</Text>
                 
                 <Pressable 
                   style={styles.newMethodButton}
@@ -360,6 +390,29 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
     marginBottom: 16,
   },
+  methodTypeContainer: {
+    marginBottom: 20,
+  },
+  methodTypeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  methodTypeTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  seeAllButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  seeAllText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '500',
+  },
   paymentMethod: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -401,40 +454,18 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
-  radioContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  useButton: {
+    backgroundColor: colors.backgroundTertiary,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.borderSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioOuterSelected: {
-    borderColor: colors.primary,
-  },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.primary,
-  },
-  actionButton: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  actionText: {
-    fontSize: 12,
+  useButtonText: {
+    fontSize: 14,
     color: colors.primary,
     fontWeight: '500',
-  },
-  deleteText: {
-    color: colors.error,
   },
   newMethodButton: {
     flexDirection: 'row',
