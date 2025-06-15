@@ -118,7 +118,7 @@ export default function ReviewScreen() {
 
             <View style={styles.detailItem}>
               <View style={[styles.detailIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Calendar size={20} color="#3B82F6" />
+                <Calendar size={20} color="#1E3A8A" />
               </View>
               <View style={styles.detailContent}>
                 <Text style={styles.detailLabel}>Payout Frequency</Text>
@@ -321,7 +321,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   editButtonText: {
     fontSize: 14,
-    color: '#3B82F6',
+    color: '#1E3A8A',
     fontWeight: '500',
   },
   summaryCard: {
