@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions, useWindowDimensions } from 'react-native';
-import { X, Copy, ArrowUpRight, ArrowDownRight, Download, AlertTriangle } from 'lucide-react-native';
+import { X, Copy, ArrowUpRight, ArrowDownRight, Download, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
