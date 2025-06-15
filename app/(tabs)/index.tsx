@@ -102,7 +102,7 @@ export default function HomeScreen() {
 
   const handleViewPayout = (id?: string) => {
     // Trigger selection haptic feedback
-    notification(Haptics.NotificationFeedbackType.Success);
+    notification();
     if (id) {
       router.push({
         pathname: '/view-payout',
