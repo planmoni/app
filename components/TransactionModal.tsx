@@ -113,7 +113,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
               <View style={styles.idContainer}>
                 <Text style={styles.value}>{transaction.transactionId}</Text>
                 <Pressable onPress={handleCopyTransactionId} style={styles.copyButton}>
-                  <Copy size={20} color="#3B82F6" />
+                  <Copy size={20} color="#1E3A8A" />
                 </Pressable>
               </View>
             </View>

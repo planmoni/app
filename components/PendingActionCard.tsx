@@ -61,12 +61,12 @@ const createStyles = (colors: any, priority: 'high' | 'medium' | 'low') => {
         };
       case 'low':
         return {
-          border: '#3B82F6',
+          border: '#1E3A8A',
           background: '#EFF6FF',
         };
       default:
         return {
-          border: '#3B82F6',
+          border: '#1E3A8A',
           background: '#EFF6FF',
         };
     }

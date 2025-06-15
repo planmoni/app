@@ -154,7 +154,7 @@ export default function ProfileScreen() {
             <Pressable style={styles.actionItem} onPress={handleEditProfile}>
               <View style={styles.actionLeft}>
                 <View style={[styles.actionIcon, { backgroundColor: '#EFF6FF' }]}>
-                  <Edit3 size={20} color="#3B82F6" />
+                  <Edit3 size={20} color="#1E3A8A" />
                 </View>
                 <Text style={styles.actionText}>Edit Profile</Text>
               </View>
@@ -234,7 +234,7 @@ function getKYCStatus(level: KYCLevel) {
       return {
         label: 'Tier 2 Verified',
         description: 'Enhanced verification completed. Upgrade to Tier 3 for maximum limits and exclusive features.',
-        color: '#3B82F6',
+        color: '#1E3A8A',
         backgroundColor: '#EFF6FF',
         icon: Shield,
         limits: {

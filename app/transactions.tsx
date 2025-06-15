@@ -1,11 +1,10 @@
-import DateRangeModal from '@/components/DateRangeModal';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 import SafeFooter from '@/components/SafeFooter';
 import TransactionModal from '@/components/TransactionModal';
 import { router } from 'expo-router';
 import { ArrowDownRight, ArrowLeft, ArrowUpRight, Ban as Bank, Calendar, Search, X } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, ActivityIndicator } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeTransactions, Transaction } from '@/hooks/useRealtimeTransactions';
@@ -137,10 +136,8 @@ export default function TransactionsScreen() {
             </View>
           </View>
         </View>
-        <HorizontalLoader />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading transactions...</Text>
+          <PlanmoniLoader size="medium" description="Loading transactions..." />
         </View>
         <SafeFooter />
       </SafeAreaView>
@@ -230,7 +227,7 @@ export default function TransactionsScreen() {
           style={styles.dateRangeButton}
           onPress={() => setIsDateRangeModalVisible(true)}
         >
-          <Calendar size={20} color="#3B82F6" />
+          <Calendar size={20} color="#1E3A8A" />
           <Text style={styles.dateRangeText}>{formatDateRange()}</Text>
         </Pressable>
 
@@ -273,7 +270,15 @@ export default function TransactionsScreen() {
                 const isPositive = transaction.type === 'deposit';
                 const Icon = isPositive ? ArrowUpRight : transaction.type === 'payout' ? ArrowDownRight : Bank;
                 const iconBg = isPositive ? '#DCFCE7' : transaction.type === 'payout' ? '#FEE2E2' : '#EFF6FF';
-                const iconColor = isPositive ? '#22C55E' : transaction.type === 'payout' ? '#EF4444' : '#3B82F6';
+                const iconColor = isPositive ? '#22C55E' : transaction.type === 'payout' ? '#EF4444' : '#1E3A8A';
+                
+                // Format date and time
+                const txDate = new Date(transaction.created_at);
+                const formattedTime = txDate.toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true
+                });
                 
                 return (
                   <Pressable
@@ -285,21 +290,24 @@ export default function TransactionsScreen() {
                       <Icon size={20} color={iconColor} />
                     </View>
                     <View style={styles.transactionInfo}>
-                      <Text style={styles.transactionTitle}>
-                        {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
-                      </Text>
-                      <Text style={styles.transactionDate}>
-                        {new Date(transaction.created_at).toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true
-                        })}
-                      </Text>
+                      <View style={styles.transactionHeader}>
+                        <Text style={styles.transactionTitle}>
+                          {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
+                        </Text>
+                        <Text style={[
+                          styles.transactionAmount,
+                          isPositive ? styles.positiveAmount : styles.negativeAmount
+                        ]}>₦{transaction.amount.toLocaleString()}</Text>
+                      </View>
+                      <View style={styles.transactionDetails}>
+                        <Text style={styles.transactionDate}>
+                          {formattedTime}
+                        </Text>
+                        <Text style={styles.transactionStatus}>
+                          {transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
+                        </Text>
+                      </View>
                     </View>
-                    <Text style={[
-                      styles.transactionAmount,
-                      isPositive ? styles.positiveAmount : styles.negativeAmount
-                    ]}>₦{transaction.amount.toLocaleString()}</Text>
                   </Pressable>
                 );
               })}
@@ -311,7 +319,7 @@ export default function TransactionsScreen() {
           <Pressable style={styles.loadMoreButton} onPress={handleLoadMore}>
             {loading ? (
               <View style={styles.loadingMoreContainer}>
-                <ActivityIndicator size="small" color={colors.primary} />
+                <PlanmoniLoader size="small" />
                 <Text style={styles.loadMoreText}>Loading...</Text>
               </View>
             ) : (
@@ -328,14 +336,6 @@ export default function TransactionsScreen() {
           transaction={selectedTransaction}
         />
       )}
-
-      <DateRangeModal
-        isVisible={isDateRangeModalVisible}
-        onClose={() => setIsDateRangeModalVisible(false)}
-        onSelect={handleDateRangeSelect}
-        initialStartDate={dateRange.start}
-        initialEndDate={dateRange.end}
-      />
       
       <SafeFooter />
     </SafeAreaView>
@@ -436,7 +436,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   dateRangeText: {
     fontSize: 14,
-    color: '#3B82F6',
+    color: '#1E3A8A',
     fontWeight: '500',
   },
   statsContainer: {
@@ -499,6 +499,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 12,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   transactionIcon: {
     width: 40,
@@ -511,15 +513,29 @@ const createStyles = (colors: any) => StyleSheet.create({
   transactionInfo: {
     flex: 1,
   },
+  transactionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   transactionTitle: {
     fontSize: 14,
     fontWeight: '500',
     color: colors.text,
-    marginBottom: 4,
+  },
+  transactionDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   transactionDate: {
     fontSize: 12,
     color: colors.textSecondary,
+  },
+  transactionStatus: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
   },
   transactionAmount: {
     fontSize: 14,
@@ -542,7 +558,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   loadMoreText: {
     fontSize: 14,
-    color: '#3B82F6',
+    color: '#1E3A8A',
     fontWeight: '500',
   },
   loadingContainer: {

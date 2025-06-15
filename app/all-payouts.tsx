@@ -1,10 +1,10 @@
 import Card from '@/components/Card';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 import SafeFooter from '@/components/SafeFooter';
 import { router } from 'expo-router';
 import { ArrowLeft, Calendar, ChevronRight, Clock, Plus, Pause, Play } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
@@ -66,7 +66,7 @@ export default function AllPayoutsScreen() {
       case 'paused':
         return { bg: '#FEE2E2', text: '#EF4444' };
       case 'completed':
-        return { bg: '#EFF6FF', text: '#3B82F6' };
+        return { bg: '#EFF6FF', text: '#1E3A8A' };
       case 'cancelled':
         return { bg: '#F1F5F9', text: '#64748B' };
       default:
@@ -89,9 +89,8 @@ export default function AllPayoutsScreen() {
           </Pressable>
           <Text style={styles.headerTitle}>Your Payouts</Text>
         </View>
-        <HorizontalLoader />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <PlanmoniLoader size="large" />
           <Text style={styles.loadingText}>Loading your payout plans...</Text>
         </View>
         <SafeFooter />
@@ -182,7 +181,7 @@ export default function AllPayoutsScreen() {
 
                   <View style={styles.progressDetails}>
                     <Text style={styles.progressText}>
-                      {formatCurrency(plan.completed_payouts * plan.payout_amount)} of {formatCurrency(plan.total_amount)}
+                      {formatCurrency(plan.completed_payouts * plan.payout_amount)}/{formatCurrency(plan.total_amount)}
                     </Text>
                     <Text style={styles.progressCount}>
                       {plan.completed_payouts}/{plan.duration}
@@ -203,7 +202,7 @@ export default function AllPayoutsScreen() {
                       onPress={() => handleViewPayout(plan.id)}
                     >
                       <Text style={styles.viewButtonText}>View</Text>
-                      <ChevronRight size={16} color="#3B82F6" />
+                      <ChevronRight size={16} color="#1E3A8A" />
                     </Pressable>
                   </View>
                 </View>
@@ -412,7 +411,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   viewButtonText: {
     fontSize: 14,
-    color: '#3B82F6',
+    color: '#1E3A8A',
     fontWeight: '500',
   },
 });

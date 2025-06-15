@@ -153,7 +153,7 @@ export default function CreatePasswordScreen() {
             <View style={styles.requirements}>
               <View style={styles.requirementsHeader}>
                 <View style={styles.requirementsIconContainer}>
-                  <Shield size={20} color="#3B82F6" />
+                  <Shield size={20} color="#1E3A8A" />
                 </View>
                 <Text style={styles.requirementsTitle}>Password Requirements</Text>
               </View>

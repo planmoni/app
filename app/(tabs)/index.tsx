@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Card from '@/components/Card';
 import TransactionModal from '@/components/TransactionModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 import CountdownTimer from '@/components/CountdownTimer';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import { useRoute } from '@react-navigation/native';
@@ -237,6 +237,19 @@ export default function HomeScreen() {
 
   const styles = createStyles(colors, isDark);
 
+  // Show loader if any data is loading
+  if (payoutPlansLoading || transactionsLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <PlanmoniLoader 
+          blurBackground={true} 
+          size="medium" 
+          description="Loading your financial data..."
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView 
@@ -429,14 +442,7 @@ export default function HomeScreen() {
             </Pressable>
           </View>
           
-          {payoutPlansLoading ? (
-            <View>
-              <HorizontalLoader />
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading your payout plans...</Text>
-              </View>
-            </View>
-          ) : activePlans.length > 0 ? (
+          {activePlans.length > 0 ? (
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false}
@@ -526,14 +532,7 @@ export default function HomeScreen() {
             </Pressable>
           </View>
           
-          {transactionsLoading ? (
-            <View>
-              <HorizontalLoader />
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading transactions...</Text>
-              </View>
-            </View>
-          ) : recentTransactions.length > 0 ? (
+          {recentTransactions.length > 0 ? (
             recentTransactions.map((transaction) => {
               const isPositive = transaction.type === 'deposit';
               const Icon = isPositive ? ArrowUpRight : 

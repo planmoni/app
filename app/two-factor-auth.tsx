@@ -76,7 +76,7 @@ export default function TwoFactorAuthScreen() {
             onPress={() => handleMethodSelect('sms')}
           >
             <View style={[styles.methodIcon, { backgroundColor: '#EFF6FF' }]}>
-              <Smartphone size={24} color="#3B82F6" />
+              <Smartphone size={24} color="#1E3A8A" />
             </View>
             <View style={styles.methodInfo}>
               <Text style={styles.methodTitle}>SMS Authentication</Text>
@@ -109,7 +109,7 @@ export default function TwoFactorAuthScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoHeader}>
               <View style={styles.infoIconContainer}>
-                <Lock size={20} color="#3B82F6" />
+                <Lock size={20} color="#1E3A8A" />
               </View>
               <Text style={styles.infoTitle}>Why use 2FA?</Text>
             </View>
@@ -260,7 +260,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
+    borderLeftColor: '#1E3A8A',
   },
   infoHeader: {
     flexDirection: 'row',

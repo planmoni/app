@@ -46,7 +46,7 @@ export default function ReferralScreen() {
           <View style={styles.codeContainer}>
             <Text style={styles.referralCode}>{referralCode}</Text>
             <Pressable style={styles.copyButton} onPress={handleCopyCode}>
-              <Copy size={20} color="#3B82F6" />
+              <Copy size={20} color="#1E3A8A" />
             </Pressable>
           </View>
         </View>
@@ -58,14 +58,14 @@ export default function ReferralScreen() {
               {referralLink}
             </Text>
             <Pressable style={styles.copyButton} onPress={handleCopyCode}>
-              <Copy size={20} color="#3B82F6" />
+              <Copy size={20} color="#1E3A8A" />
             </Pressable>
           </View>
         </View>
 
         <View style={styles.statsSection}>
           <View style={styles.statCard}>
-            <Users size={24} color="#3B82F6" />
+            <Users size={24} color="#1E3A8A" />
             <Text style={styles.statValue}>12</Text>
             <Text style={styles.statLabel}>Friends Invited</Text>
           </View>
@@ -119,7 +119,7 @@ export default function ReferralScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoHeader}>
               <View style={styles.infoIconContainer}>
-                <Info size={20} color="#3B82F6" />
+                <Info size={20} color="#1E3A8A" />
               </View>
               <Text style={styles.infoTitle}>Terms & Conditions</Text>
             </View>
@@ -244,7 +244,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   referralLink: {
     flex: 1,
     fontSize: 14,
-    color: '#3B82F6',
+    color: '#1E3A8A',
     marginRight: 12,
   },
   copyButton: {
@@ -332,7 +332,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
+    borderLeftColor: '#1E3A8A',
   },
   infoHeader: {
     flexDirection: 'row',

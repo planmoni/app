@@ -75,7 +75,7 @@ export default function RulesScreen() {
 
             <View style={styles.cooldownSetting}>
               <View style={styles.settingIcon}>
-                <Clock size={isSmallScreen ? 20 : 24} color="#3B82F6" />
+                <Clock size={isSmallScreen ? 20 : 24} color="#1E3A8A" />
               </View>
               <View style={styles.cooldownDetails}>
                 <Text style={styles.cooldownTitle}>Emergency Cooldown</Text>
@@ -220,7 +220,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
+    borderLeftColor: '#1E3A8A',
   },
   cooldownDetails: {
     gap: 4,

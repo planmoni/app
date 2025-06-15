@@ -197,7 +197,7 @@ export default function SettingsScreen() {
           <View style={styles.card}>
             <View style={styles.settingItem}>
               <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Eye size={20} color="#3B82F6" />
+                <Eye size={20} color="#1E3A8A" />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Show Dashboard Balances</Text>
@@ -210,7 +210,7 @@ export default function SettingsScreen() {
                   toggleBalances();
                 }}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                thumbColor={showBalances ? '#3B82F6' : colors.backgroundTertiary}
+                thumbColor={showBalances ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
 
@@ -432,7 +432,7 @@ export default function SettingsScreen() {
                 value={vaultAlerts}
                 onValueChange={() => handleToggleSwitch(setVaultAlerts)}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                thumbColor={vaultAlerts ? '#3B82F6' : colors.backgroundTertiary}
+                thumbColor={vaultAlerts ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
 
@@ -440,7 +440,7 @@ export default function SettingsScreen() {
 
             <View style={styles.settingItem}>
               <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Shield size={20} color="#3B82F6" />
+                <Shield size={20} color="#1E3A8A" />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>New Login Notifications</Text>
@@ -450,7 +450,7 @@ export default function SettingsScreen() {
                 value={loginAlerts}
                 onValueChange={() => handleToggleSwitch(setLoginAlerts)}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                thumbColor={loginAlerts ? '#3B82F6' : colors.backgroundTertiary}
+                thumbColor={loginAlerts ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
 
@@ -468,7 +468,7 @@ export default function SettingsScreen() {
                 value={expiryReminders}
                 onValueChange={() => handleToggleSwitch(setExpiryReminders)}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                thumbColor={expiryReminders ? '#3B82F6' : colors.backgroundTertiary}
+                thumbColor={expiryReminders ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
 
@@ -524,7 +524,7 @@ export default function SettingsScreen() {
               }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
-                <MessageSquare size={20} color="#3B82F6" />
+                <MessageSquare size={20} color="#1E3A8A" />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Contact Support</Text>
