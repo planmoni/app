@@ -4,13 +4,34 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
-import { useAuth } from "@/contexts/AuthContext"
 import { BiometricService } from "@/lib/biometrics"
 
 export const BiometricSetup: React.FC = () => {
-  const { biometricSettings, setBiometricEnabled, refreshBiometricSettings } = useAuth()
+  const [biometricSettings, setBiometricSettings] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [testing, setTesting] = useState(false)
+
+  const refreshBiometricSettings = async () => {
+    try {
+      const settings = await BiometricService.checkBiometricSupport()
+      setBiometricSettings(settings)
+    } catch (error) {
+      console.error('Failed to check biometric support:', error)
+    }
+  }
+
+  const setBiometricEnabled = async (enabled: boolean) => {
+    try {
+      const success = await BiometricService.setBiometricEnabled(enabled)
+      if (success) {
+        await refreshBiometricSettings()
+      }
+      return success
+    } catch (error) {
+      console.error('Failed to set biometric enabled:', error)
+      return false
+    }
+  }
 
   useEffect(() => {
     refreshBiometricSettings()
