@@ -173,7 +173,7 @@ export default function NotificationsScreen() {
           </View>
         </View>
         <View style={styles.loadingContainer}>
-          <PlanmoniLoader size="small" description="Loading notifications..." />
+          <PlanmoniLoader size="medium" description="Loading notifications..." />
         </View>
       </SafeAreaView>
     );
