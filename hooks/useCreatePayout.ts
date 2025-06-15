@@ -8,7 +8,7 @@ export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
-  const { lockFunds } = useBalance();
+  const { lockFunds, refreshWallet } = useBalance();
 
   const createPayout = async ({
     name,
@@ -107,6 +107,9 @@ export function useCreatePayout() {
         status: 'unread',
         payout_plan_id: payoutPlan.id,
       });
+
+      // Explicitly refresh the wallet to update UI immediately
+      await refreshWallet();
 
       // Navigate to success screen
       router.replace({
