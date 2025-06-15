@@ -244,7 +244,6 @@ export default function HomeScreen() {
         <PlanmoniLoader 
           blurBackground={true} 
           size="medium" 
-          description="Loading your financial data..."
         />
       </SafeAreaView>
     );
