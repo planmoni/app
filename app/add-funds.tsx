@@ -141,7 +141,6 @@ export default function AddFundsScreen() {
             <View style={styles.accountDetailsCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>9PBS Account Details</Text>
-                <Text style={styles.cardDescription}>Use these details to receive funds directly</Text>
               </View>
 
               <View style={styles.fieldsContainer}>
