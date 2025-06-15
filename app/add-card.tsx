@@ -344,7 +344,7 @@ export default function AddCardScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title={fromDepositFlow ? `Add Card` : "Add Card"}
+        title="Add Card"
         onPress={handleAddCard}
         loading={isLoading}
         disabled={isLoading}

@@ -7,6 +7,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import SafeFooter from '@/components/SafeFooter';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useBalance } from '@/contexts/BalanceContext';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function AuthorizationScreen() {
   const { colors } = useTheme();
@@ -15,51 +17,40 @@ export default function AuthorizationScreen() {
   const methodId = params.methodId as string;
   const methodTitle = params.methodTitle as string;
   const newMethodType = params.newMethodType as string;
+  const { addFunds } = useBalance();
+  const haptics = useHaptics();
 
-  const handleFundWallet = () => {
-    if (newMethodType) {
-      // If this is a new payment method, redirect to the appropriate screen
-      switch (newMethodType) {
-        case 'card':
-          router.replace({
-            pathname: '/add-card',
-            params: {
-              amount,
-              fromDepositFlow: 'true'
-            }
-          });
-          break;
-        case 'ussd':
-          router.replace({
-            pathname: '/add-ussd',
-            params: {
-              amount,
-              fromDepositFlow: 'true'
-            }
-          });
-          break;
-        case 'bank-account':
-          router.replace({
-            pathname: '/linked-accounts',
-            params: {
-              amount,
-              fromDepositFlow: 'true'
-            }
-          });
-          break;
-        default:
-          // Fallback to success screen if method type is unknown
-          router.replace('/deposit-flow/success');
-      }
-    } else {
-      // For existing payment methods, proceed to success
+  const handleFundWallet = async () => {
+    try {
+      // Process the deposit
+      const numericAmount = parseFloat(amount.replace(/,/g, ''));
+      await addFunds(numericAmount);
+      haptics.success();
+      
+      // Navigate to success screen
       router.replace({
         pathname: '/deposit-flow/success',
         params: {
           amount,
-          methodTitle
+          methodTitle: methodTitle || getMethodTitle(newMethodType)
         }
       });
+    } catch (error) {
+      haptics.error();
+      console.error('Error funding wallet:', error);
+    }
+  };
+
+  const getMethodTitle = (type: string): string => {
+    switch (type) {
+      case 'card':
+        return 'New Card';
+      case 'ussd':
+        return 'USSD Payment';
+      case 'bank-account':
+        return 'Bank Account';
+      default:
+        return 'New Payment Method';
     }
   };
 
@@ -102,11 +93,11 @@ export default function AuthorizationScreen() {
                 <View style={styles.methodContainer}>
                   <Building2 size={16} color={colors.primary} />
                   <Text style={styles.methodText}>
-                    {newMethodType ? getMethodTitle(newMethodType) : methodTitle}
+                    {methodTitle || getMethodTitle(newMethodType)}
                   </Text>
                 </View>
               </View>
-              {!newMethodType && <Text style={styles.defaultText}>Default Account</Text>}
+              {methodId && <Text style={styles.defaultText}>Default Account</Text>}
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Processing Fee</Text>
@@ -148,19 +139,6 @@ export default function AuthorizationScreen() {
       <SafeFooter />
     </SafeAreaView>
   );
-}
-
-function getMethodTitle(type: string): string {
-  switch (type) {
-    case 'card':
-      return 'New Card';
-    case 'ussd':
-      return 'USSD Payment';
-    case 'bank-account':
-      return 'Bank Account';
-    default:
-      return 'New Payment Method';
-  }
 }
 
 const createStyles = (colors: any) => StyleSheet.create({

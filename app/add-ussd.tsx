@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Smartphone, Copy, Info } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
