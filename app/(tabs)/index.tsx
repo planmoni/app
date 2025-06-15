@@ -2,13 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import Card from '@/components/Card';
 import TransactionModal from '@/components/TransactionModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
-import HorizontalLoader from '@/components/HorizontalLoader';
 import CountdownTimer from '@/components/CountdownTimer';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +15,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
+import LottieView from 'lottie-react-native';
 
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance } = useBalance();
@@ -28,13 +28,25 @@ export default function HomeScreen() {
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [isLoading, setIsLoading] = useState(true);
   const route = useRoute();
   const params = useLocalSearchParams();
   const scrollY = route.params?.scrollY || new Animated.Value(0);
+  const lottieRef = useRef<LottieView>(null);
 
   // Get user info from session
   const firstName = session?.user?.user_metadata?.first_name || 'User';
   const lastName = session?.user?.user_metadata?.last_name || '';
+
+  // Simulate loading state
+  useEffect(() => {
+    // Show loader for 2 seconds
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleProfilePress = () => {
     router.push('/profile');
@@ -237,6 +249,40 @@ export default function HomeScreen() {
 
   const styles = createStyles(colors, isDark);
 
+  // Render loading state with Lottie animation
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.container, styles.loaderContainer]} edges={['top']}>
+        {Platform.OS === 'web' ? (
+          // Web implementation using @lottiefiles/react-lottie-player
+          <div style={{ width: 200, height: 200 }}>
+            <Player
+              autoplay
+              loop
+              src={require('@/assets/animations/planmoniloader.json')}
+              style={{ width: '100%', height: '100%' }}
+            />
+          </div>
+        ) : (
+          // Native implementation using lottie-react-native
+          <LottieView
+            ref={lottieRef}
+            source={require('@/assets/animations/planmoniloader.json')}
+            autoPlay
+            loop
+            style={styles.lottieAnimation}
+            colorFilters={isDark ? [
+              {
+                keypath: "Stroke 1",
+                color: colors.primary
+              }
+            ] : undefined}
+          />
+        )}
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView 
@@ -430,11 +476,31 @@ export default function HomeScreen() {
           </View>
           
           {payoutPlansLoading ? (
-            <View>
-              <HorizontalLoader />
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading your payout plans...</Text>
-              </View>
+            <View style={styles.loadingContainer}>
+              {Platform.OS === 'web' ? (
+                <div style={{ width: 100, height: 100 }}>
+                  <Player
+                    autoplay
+                    loop
+                    src={require('@/assets/animations/planmoniloader.json')}
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                </div>
+              ) : (
+                <LottieView
+                  source={require('@/assets/animations/planmoniloader.json')}
+                  autoPlay
+                  loop
+                  style={styles.smallLottieAnimation}
+                  colorFilters={isDark ? [
+                    {
+                      keypath: "Stroke 1",
+                      color: colors.primary
+                    }
+                  ] : undefined}
+                />
+              )}
+              <Text style={styles.loadingText}>Loading your payout plans...</Text>
             </View>
           ) : activePlans.length > 0 ? (
             <ScrollView 
@@ -527,11 +593,31 @@ export default function HomeScreen() {
           </View>
           
           {transactionsLoading ? (
-            <View>
-              <HorizontalLoader />
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading transactions...</Text>
-              </View>
+            <View style={styles.loadingContainer}>
+              {Platform.OS === 'web' ? (
+                <div style={{ width: 100, height: 100 }}>
+                  <Player
+                    autoplay
+                    loop
+                    src={require('@/assets/animations/planmoniloader.json')}
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                </div>
+              ) : (
+                <LottieView
+                  source={require('@/assets/animations/planmoniloader.json')}
+                  autoPlay
+                  loop
+                  style={styles.smallLottieAnimation}
+                  colorFilters={isDark ? [
+                    {
+                      keypath: "Stroke 1",
+                      color: colors.primary
+                    }
+                  ] : undefined}
+                />
+              )}
+              <Text style={styles.loadingText}>Loading transactions...</Text>
             </View>
           ) : recentTransactions.length > 0 ? (
             recentTransactions.map((transaction) => {
@@ -660,6 +746,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
+  },
+  loaderContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lottieAnimation: {
+    width: 200,
+    height: 200,
+  },
+  smallLottieAnimation: {
+    width: 100,
+    height: 100,
   },
   scrollView: {
     flex: 1,
