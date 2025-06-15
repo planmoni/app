@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
-import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, Info } from 'lucide-react-native';
+import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, TriangleAlert as AlertTriangle, Clock, Check, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
 import HorizontalLoader from '@/components/HorizontalLoader';
@@ -25,6 +25,83 @@ export default function LinkedAccountsScreen() {
     setDefaultAccount,
     deleteAccount
   } = useRealtimeBankAccounts();
+
+  const handleMonoSuccess = async (data: any) => {
+    const code = data.getAuthCode();
+    console.log("Access code", code)
+    console.log("Data", data)
+    
+  
+    try {
+      // 1. Exchange auth code for account ID
+      const res = await fetch('https://api.withmono.com/v2/accounts/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'mono-sec-key': process.env.EXPO_PUBLIC_MONO_SECRET_KEY!,
+        },
+        body: JSON.stringify({ code }),
+      });
+  
+      const authData = await res.json();
+      console.log("Account data:", authData);
+      const accountId = authData.data.id;
+      console.log("Account id:", accountId);
+  
+      // 2. Get account details
+      const accountRes = await fetch(`https://api.withmono.com/v2/accounts/${accountId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'mono-sec-key': process.env.EXPO_PUBLIC_MONO_SECRET_KEY!,
+        },
+      });
+  
+      const accountDetails = await accountRes.json();
+      const monoData = accountDetails.data;
+      console.log("Mono Linked Account:", monoData);
+  
+      const account = {
+        bankName: monoData.account.institution.name,
+        bankCode: monoData.account.institution.bank_code,
+        accountNumber: monoData.account.account_number,
+        accountName: monoData.account.name,
+        monoAccountId: monoData.account.id,
+      };
+  
+      // Save account in your app
+      await addBankAccount({
+        bank_name: account.bankName,
+        bank_code: account.bankCode,
+        account_number: account.accountNumber,
+        account_name: account.accountName,
+        mono_account_id: account.monoAccountId,
+        is_default: bankAccounts.length === 0,
+      });
+  
+      // Refresh list
+      fetchBankAccounts?.();
+      
+    } catch (err) {
+      console.error('Failed to link Mono account:', err);
+    }
+  };
+  
+  const config = {
+    publicKey: process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY!,
+    scope: 'auth',
+    data: {
+      customer: { id: '684761506b658900c542295b' }
+    },
+    onClose: () => console.log('Widget closed'),
+    onSuccess: handleMonoSuccess,
+    onEvent: (eventName:any, data:any) => {
+      console.log(eventName);
+      console.log(data);
+    },
+    reference: 'test_ref'
+  }
+  
 
   const handleAddAccount = async (account: {
     bankName: string;
@@ -89,30 +166,24 @@ export default function LinkedAccountsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable 
-          onPress={() => {
-            haptics.lightImpact();
-            router.back();
-          }} 
-          style={styles.backButton}
-        >
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
       </View>
 
-      {isLoading && <HorizontalLoader />}
+        {isLoading && <HorizontalLoader />}
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={styles.subtitle}>
-          Manage your linked bank accounts for receiving payouts
-        </Text>
+        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+          <Text style={styles.subtitle}>
+            Manage your linked bank accounts for adding payments
+          </Text>
 
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
 
         <View style={styles.accountsList}>
           {isLoading ? (
@@ -137,6 +208,24 @@ export default function LinkedAccountsScreen() {
                       <Text style={styles.accountNumber}>•••• {account.account_number.slice(-4)}</Text>
                     </View>
                   </View>
+                  {account.status === 'active' && (
+                    <View style={styles.statusTag}>
+                      <Check size={12} color="#22C55E" />
+                      <Text style={styles.statusText}>Verified</Text>
+                    </View>
+                  )}
+                  {account.status === 'pending' && (
+                    <View style={[styles.statusTag, styles.pendingTag]}>
+                      <Clock size={12} color="#D97706" />
+                      <Text style={[styles.statusText, styles.pendingText]}>Pending</Text>
+                    </View>
+                  )}
+                  {account.status === 'failed' && (
+                    <View style={[styles.statusTag, styles.failedTag]}>
+                      <AlertTriangle size={12} color="#EF4444" />
+                      <Text style={[styles.statusText, styles.failedText]}>Failed</Text>
+                    </View>
+                  )}
                 </View>
 
                 <View style={styles.accountContent}>
@@ -146,8 +235,19 @@ export default function LinkedAccountsScreen() {
                   )}
                 </View>
 
+                {account.status === 'failed' && (
+                  <View style={styles.errorMessage}>
+                    <View style={styles.errorIconContainer}>
+                      <AlertTriangle size={16} color="#EF4444" />
+                    </View>
+                    <Text style={styles.errorText}>
+                      Verification failed. Please check your account details and try again.
+                    </Text>
+                  </View>
+                )}
+
                 <View style={styles.accountActions}>
-                  {!account.is_default && (
+                  {!account.is_default && account.status === 'active' && (
                     <Pressable
                       style={styles.actionButton}
                       onPress={() => handleMakeDefault(account.id)}
@@ -155,11 +255,20 @@ export default function LinkedAccountsScreen() {
                       <Text style={styles.actionButtonText}>Make Default</Text>
                     </Pressable>
                   )}
-                  
+                  {account.status === 'failed' && (
+                    <Pressable
+                      style={[styles.actionButton, styles.retryButton]}
+                      onPress={() => handleRetryVerification(account.id)}
+                    >
+                      <Text style={[styles.actionButtonText, styles.retryButtonText]}>
+                        Retry Verification
+                      </Text>
+                    </Pressable>
+                  )}
                   {!account.is_default && (
                     <Pressable
                       style={[styles.actionButton, styles.removeButton]}
-                      onPress={() => handleRemoveAccount(account.id, account.account_name)}
+                      onPress={() => handleRemoveAccount(account.id)}
                     >
                       <Trash2 size={16} color="#EF4444" />
                       <Text style={[styles.actionButtonText, styles.removeButtonText]}>
@@ -174,10 +283,7 @@ export default function LinkedAccountsScreen() {
 
           <Pressable
             style={styles.addAccountButton}
-            onPress={() => {
-              haptics.mediumImpact();
-              setShowAddAccount(true);
-            }}
+            onPress={() => setShowAddAccount(true)}
           >
             <Plus size={20} color={colors.primary} />
             <Text style={styles.addAccountText}>Add New Bank Account</Text>
@@ -190,10 +296,10 @@ export default function LinkedAccountsScreen() {
               <View style={styles.infoIconContainer}>
                 <Info size={20} color="#3B82F6" />
               </View>
-              <Text style={styles.infoTitle}>About Bank Accounts</Text>
+              <Text style={styles.infoTitle}>Account Verification</Text>
             </View>
             <Text style={styles.infoText}>
-              These bank accounts will be used to receive your automated payouts. You can add multiple accounts and set one as default.
+              All bank accounts must be verified before they can be used for payouts. Verification typically takes 1-2 business days.
             </Text>
           </View>
         </View>
@@ -202,22 +308,15 @@ export default function LinkedAccountsScreen() {
       <View style={styles.footer}>
         <Button
           title="Add New Account"
-          onPress={() => {
-            haptics.mediumImpact();
-            setShowAddAccount(true);
-          }}
+          onPress={() => setShowAddAccount(true)}
           style={styles.addButton}
           icon={Plus}
-          hapticType="medium"
         />
       </View>
 
       <AddBankAccountModal
         isVisible={showAddAccount}
-        onClose={() => {
-          haptics.lightImpact();
-          setShowAddAccount(false);
-        }}
+        onClose={() => setShowAddAccount(false)}
         onAdd={handleAddAccount}
         loading={isLoading}
       />
