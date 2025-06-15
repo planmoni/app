@@ -1,44 +1,19 @@
-import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Info } from 'lucide-react-native';
 import Button from '@/components/Button';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useBalance } from '@/contexts/BalanceContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
-import { useHaptics } from '@/hooks/useHaptics';
-import * as Haptics from 'expo-haptics';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
-  const { balance } = useBalance();
   const [amount, setAmount] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const haptics = useHaptics();
+  const [availableBalance, setAvailableBalance] = useState('15,750,000');
 
   const handleContinue = () => {
-    if (!amount) {
-      setError('Please enter an amount');
-      haptics.notification(Haptics.NotificationFeedbackType.Error);
-      return;
-    }
-
-    const numericAmount = parseFloat(amount.replace(/,/g, ''));
-    if (isNaN(numericAmount) || numericAmount <= 0) {
-      setError('Please enter a valid amount');
-      haptics.notification(Haptics.NotificationFeedbackType.Error);
-      return;
-    }
-
-    if (numericAmount > balance) {
-      setError('Amount exceeds your available balance');
-      haptics.notification(Haptics.NotificationFeedbackType.Error);
-      return;
-    }
-
-    haptics.mediumImpact();
     router.push({
       pathname: '/create-payout/schedule',
       params: { totalAmount: amount }
@@ -53,13 +28,10 @@ export default function AmountScreen() {
   const handleAmountChange = (value: string) => {
     const formattedValue = formatAmount(value);
     setAmount(formattedValue);
-    setError(null);
   };
 
   const handleMaxPress = () => {
-    haptics.selection();
-    setAmount(balance.toLocaleString());
-    setError(null);
+    setAmount(availableBalance);
   };
 
   const styles = createStyles(colors);
@@ -67,13 +39,7 @@ export default function AmountScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable 
-          onPress={() => {
-            haptics.lightImpact();
-            router.back();
-          }} 
-          style={styles.backButton}
-        >
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
@@ -93,12 +59,6 @@ export default function AmountScreen() {
             You won't be able to spend from this until your payout date.
           </Text>
 
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-
           <View style={styles.amountContainer}>
             <Text style={styles.currencySymbol}>₦</Text>
             <TextInput
@@ -114,7 +74,7 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
+              <Text style={styles.balanceAmount}>₦{availableBalance}</Text>
               <Pressable style={styles.maxButton} onPress={handleMaxPress}>
                 <Text style={styles.maxButtonText}>Max</Text>
               </Pressable>
@@ -136,7 +96,6 @@ export default function AmountScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={!amount}
-        hapticType="medium"
       />
     </SafeAreaView>
   );
@@ -207,18 +166,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 24,
   },
-  errorContainer: {
-    backgroundColor: colors.errorLight,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.error,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 14,
-  },
   amountContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -240,7 +187,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     color: colors.text,
-    height: 56,
   },
   balanceContainer: {
     marginBottom: 24,
@@ -291,5 +237,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+  },
+  footer: {
+    padding: 20,
+    paddingBottom: 50,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  continueButton: {
+    backgroundColor: '#1E3A8A',
   },
 });

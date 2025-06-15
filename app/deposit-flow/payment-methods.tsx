@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Ban as Bank } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Landmark } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -135,9 +135,9 @@ export default function PaymentMethodsScreen() {
                     styles.radioOuter,
                     selectedMethodId === method.id && styles.radioOuterSelected
                   ]}>
-                    {selectedMethodId === method.id && (
+                    {selectedMethodId === method.id ? (
                       <View style={styles.radioInner} />
-                    )}
+                    ) : null}
                   </View>
                   <ChevronRight size={20} color={colors.textTertiary} />
                 </View>
@@ -205,7 +205,7 @@ export default function PaymentMethodsScreen() {
             >
               <View style={styles.methodLeft}>
                 <View style={styles.methodIconContainer}>
-                  <Bank size={24} color={colors.primary} />
+                  <Landmark size={24} color={colors.primary} />
                 </View>
                 <View style={styles.methodInfo}>
                   <Text style={styles.methodTitle}>Link Bank Account</Text>
