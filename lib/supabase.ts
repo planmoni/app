@@ -62,3 +62,19 @@ export { supabase };
 
 // Export validation function for use in components if needed
 export const getSupabaseConfigError = () => configError;
+
+// Add global error handler for unhandled promise rejections
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
+    // Prevent the default behavior (which would crash the app)
+    event.preventDefault();
+  });
+}
+
+// For Node.js environments (like during build)
+if (typeof process !== 'undefined' && process.on) {
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  });
+}
