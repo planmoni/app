@@ -26,7 +26,7 @@ export default function PendingActionsCard() {
       description: 'Confirm your email to secure your account',
       icon: Mail,
       iconBg: '#EFF6FF',
-      iconColor: '#3B82F6',
+      iconColor: '#1E3A8A',
       route: '/verify-email',
       priority: 'high',
     },
