@@ -179,7 +179,6 @@ export default function PaymentMethodsScreen() {
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
-<<<<<<< HEAD
 
             <Pressable 
             style={styles.newMethodButton}
@@ -197,24 +196,6 @@ export default function PaymentMethodsScreen() {
             <ChevronRight size={20} color={colors.textTertiary} />
           </Pressable>
 
-=======
-            
-            <Pressable 
-              style={styles.newMethodButton}
-              onPress={handleAddBankAccount}
-            >
-              <View style={styles.methodLeft}>
-                <View style={styles.methodIconContainer}>
-                  <Landmark size={24} color={colors.primary} />
-                </View>
-                <View style={styles.methodInfo}>
-                  <Text style={styles.methodTitle}>Link Bank Account</Text>
-                  <Text style={styles.methodSubtitle}>Add your bank account for transfers</Text>
-                </View>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
->>>>>>> 49ec82a4b464553056994d5776c73e4c267e3134
           </View>
         </View>
       </KeyboardAvoidingWrapper>
