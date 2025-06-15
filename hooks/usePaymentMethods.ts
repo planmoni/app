@@ -65,6 +65,18 @@ export function usePaymentMethods() {
           is_default: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
+        },
+        {
+          id: '3',
+          user_id: session?.user?.id || '',
+          type: 'bank',
+          provider: 'paystack',
+          token: 'AUTH_456789123',
+          last_four: '8760',
+          bank: 'Keystone Bank',
+          is_default: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         }
       ]);
       setIsLoading(false);
