@@ -90,7 +90,7 @@ export default function AllPayoutsScreen() {
           <Text style={styles.headerTitle}>Your Payouts</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <PlanmoniLoader size="medium" />
+          <PlanmoniLoader size="small" />
           <Text style={styles.loadingText}>Loading your payout plans...</Text>
         </View>
         <SafeFooter />
