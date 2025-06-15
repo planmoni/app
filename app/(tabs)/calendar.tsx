@@ -1,5 +1,5 @@
 import Card from '@/components/Card';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 import { router } from 'expo-router';
 import { TriangleAlert as AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, Plus } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
@@ -224,8 +224,8 @@ export default function CalendarScreen() {
             </Pressable>
           </View>
         </View>
-        <HorizontalLoader />
         <View style={styles.loadingContainer}>
+          <PlanmoniLoader size="medium" />
           <Text style={styles.loadingText}>Loading calendar events...</Text>
         </View>
       </SafeAreaView>

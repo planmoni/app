@@ -1,11 +1,11 @@
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { TrendingUp, TrendingDown, Users, ArrowUpRight, ArrowDownRight, Wallet, Clock, Calendar, Send } from 'lucide-react-native';
 import Card from '@/components/Card';
 import { useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useInsightsData } from '@/hooks/useInsightsData';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 import Button from '@/components/Button';
 
 export default function InsightsScreen() {
@@ -33,9 +33,8 @@ export default function InsightsScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Insights</Text>
         </View>
-        <HorizontalLoader />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <PlanmoniLoader size="medium" />
           <Text style={styles.loadingText}>Loading insights data...</Text>
         </View>
       </SafeAreaView>

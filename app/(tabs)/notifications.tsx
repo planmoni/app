@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 
 type Notification = {
   id: string;
@@ -172,8 +172,8 @@ export default function NotificationsScreen() {
             </Pressable>
           </View>
         </View>
-        <HorizontalLoader />
         <View style={styles.loadingContainer}>
+          <PlanmoniLoader size="medium" />
           <Text style={styles.loadingText}>Loading notifications...</Text>
         </View>
       </SafeAreaView>

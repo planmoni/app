@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ChevronRight, Calendar, Clock, Wallet, Building2, TriangleAlert as AlertTriangle, PencilLine, Pause, Play } from 'lucide-react-native';
 import Button from '@/components/Button';
 import Card from '@/components/Card';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 import SafeFooter from '@/components/SafeFooter';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,8 +43,8 @@ export default function ViewPayoutScreen() {
           </Pressable>
           <Text style={styles.headerTitle}>Payout Details</Text>
         </View>
-        <HorizontalLoader />
         <View style={styles.loadingContainer}>
+          <PlanmoniLoader size="medium" />
           <Text style={styles.loadingText}>Loading payout details...</Text>
         </View>
         <SafeFooter />

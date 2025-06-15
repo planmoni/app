@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-nati
 import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, TriangleAlert as AlertTriangle, Clock, Check, Info } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import Button from '@/components/Button';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 import SafeFooter from '@/components/SafeFooter';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -193,7 +193,12 @@ export default function LinkedAccountsScreen() {
         <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
       </View>
 
-        {isLoading && <HorizontalLoader />}
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <PlanmoniLoader size="medium" />
+            <Text style={styles.loadingText}>Loading bank accounts...</Text>
+          </View>
+        )}
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           <Text style={styles.subtitle}>
@@ -360,10 +365,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   loadingContainer: {
     padding: 20,
     alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
   },
   loadingText: {
     fontSize: 16,
     color: colors.textSecondary,
+    marginTop: 16,
   },
   errorContainer: {
     backgroundColor: '#FEE2E2',

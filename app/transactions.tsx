@@ -1,11 +1,10 @@
-import DateRangeModal from '@/components/DateRangeModal';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 import SafeFooter from '@/components/SafeFooter';
 import TransactionModal from '@/components/TransactionModal';
 import { router } from 'expo-router';
 import { ArrowDownRight, ArrowLeft, ArrowUpRight, Ban as Bank, Calendar, Search, X } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, ActivityIndicator } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeTransactions, Transaction } from '@/hooks/useRealtimeTransactions';
@@ -137,9 +136,8 @@ export default function TransactionsScreen() {
             </View>
           </View>
         </View>
-        <HorizontalLoader />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <PlanmoniLoader size="medium" />
           <Text style={styles.loadingText}>Loading transactions...</Text>
         </View>
         <SafeFooter />
@@ -311,7 +309,7 @@ export default function TransactionsScreen() {
           <Pressable style={styles.loadMoreButton} onPress={handleLoadMore}>
             {loading ? (
               <View style={styles.loadingMoreContainer}>
-                <ActivityIndicator size="small" color={colors.primary} />
+                <PlanmoniLoader size="small" />
                 <Text style={styles.loadMoreText}>Loading...</Text>
               </View>
             ) : (
@@ -328,14 +326,6 @@ export default function TransactionsScreen() {
           transaction={selectedTransaction}
         />
       )}
-
-      <DateRangeModal
-        isVisible={isDateRangeModalVisible}
-        onClose={() => setIsDateRangeModalVisible(false)}
-        onSelect={handleDateRangeSelect}
-        initialStartDate={dateRange.start}
-        initialEndDate={dateRange.end}
-      />
       
       <SafeFooter />
     </SafeAreaView>
