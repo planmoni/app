@@ -75,7 +75,10 @@ export default function AddFundsScreen() {
 
   // Calculate tab indicator position and width
   const tabWidth = screenWidth / 2;
-  const indicatorPosition = Animated.multiply(scrollX, 0.5);
+  const indicatorTranslateX = Animated.multiply(
+    Animated.divide(scrollX, screenWidth),
+    tabWidth
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -107,8 +110,7 @@ export default function AddFundsScreen() {
           style={[
             styles.tabIndicator, 
             { 
-              width: tabWidth / 2,
-              transform: [{ translateX: indicatorPosition }] 
+              transform: [{ translateX: indicatorTranslateX }] 
             }
           ]} 
         />
@@ -296,10 +298,11 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     position: 'absolute',
     bottom: 0,
     height: 3,
+    width: '25%', // 50% of tab width (which is 50% of screen)
     backgroundColor: colors.primary,
     borderTopLeftRadius: 3,
     borderTopRightRadius: 3,
-    left: '25%', // Center in first tab by default
+    left: '12.5%', // Center in first tab by default
   },
   scrollView: {
     flex: 1,
