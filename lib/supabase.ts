@@ -35,10 +35,13 @@ if (configError) {
   export const supabase = {
     auth: {
       signUp: () => Promise.reject(new Error(configError)),
-      signIn: () => Promise.reject(new Error(configError)),
+      signInWithPassword: () => Promise.reject(new Error(configError)),
       signOut: () => Promise.reject(new Error(configError)),
-      getSession: () => Promise.reject(new Error(configError)),
-      onAuthStateChange: () => ({ data: { subscription: null }, error: new Error(configError) }),
+      getSession: () => Promise.resolve({ data: { session: null }, error: new Error(configError) }),
+      onAuthStateChange: () => ({ 
+        data: { subscription: { unsubscribe: () => {} } }, 
+        error: null 
+      }),
     },
     from: () => ({
       select: () => Promise.reject(new Error(configError)),
@@ -53,3 +56,19 @@ if (configError) {
 
 // Export validation function for use in components if needed
 export const getSupabaseConfigError = () => configError;
+
+// Add global error handler for unhandled promise rejections
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
+    // Prevent the default behavior (which would crash the app)
+    event.preventDefault();
+  });
+}
+
+// For Node.js environments (like during build)
+if (typeof process !== 'undefined' && process.on) {
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  });
+}

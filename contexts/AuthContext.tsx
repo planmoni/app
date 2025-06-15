@@ -1,96 +1,104 @@
-import { Session } from '@supabase/supabase-js';
-import { createContext, useContext, useState } from 'react';
-import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
-import { BiometricService, BiometricSettings } from '@/lib/biometrics';
-import { supabase } from '@/lib/supabase';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { supabase, getSupabaseConfigError } from '@/lib/supabase';
+import { Session, User } from '@supabase/supabase-js';
 
-type AuthResult = {
-  success: boolean;
-  error?: string;
-};
-
-type AuthContextType = {
+interface AuthContextType {
   session: Session | null;
+  user: User | null;
   isLoading: boolean;
+  signOut: () => Promise<void>;
   error: string | null;
-  biometricSettings: BiometricSettings | null
-  signIn: (email: string, password: string) => Promise<AuthResult>;
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<AuthResult>;
-  signOut: () => Promise<AuthResult>;
-  authenticateWithBiometrics: () => Promise<boolean>
-  setBiometricEnabled: (enabled: boolean) => Promise<boolean>
-  refreshBiometricSettings: () => Promise<void>
-};
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const auth = useSupabaseAuth();
-  const [biometricSettings, setBiometricSettings] = useState<BiometricSettings | null>(null)
-
-  
-  const refreshBiometricSettings = async () => {
-    try {
-      const settings = await BiometricService.checkBiometricSupport()
-      setBiometricSettings(settings)
-    } catch (error) {
-      console.error("Error refreshing biometric settings:", error)
-    }
-  }
-
-  
-  const setBiometricEnabled = async (enabled: boolean): Promise<boolean> => {
-    const success = await BiometricService.setBiometricEnabled(enabled)
-    if (success) {
-      await refreshBiometricSettings()
-
-      // Store current credentials if enabling biometrics
-      if (enabled) {
-        // Note: In a real app, you'd want to store a secure token instead of credentials
-        // This is simplified for demonstration
-        const currentSession = await supabase.auth.getSession()
-        // const currentSession = 'supabase.auth.getSession()'
-        // if (currentSession) {
-        //   await BiometricService.storeBiometricToken(
-        //     JSON.stringify({
-        //       sessionToken: currentSession,
-        //     }),
-        //   )
-        // }
-        if (currentSession.data.session) {
-          await BiometricService.storeBiometricToken(
-            JSON.stringify({
-              sessionToken: currentSession.data.session.access_token,
-            }),
-          )
-        }
-      }
-    }
-    return success
-  }
-
-  return (
-    <AuthContext.Provider 
-      value={{
-        ...auth,
-        biometricSettings,
-        authenticateWithBiometrics: async () => {
-          const result = await BiometricService.authenticateWithBiometrics();
-          return result.success;
-        },
-        setBiometricEnabled,
-        refreshBiometricSettings
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
 }
 
-export function useAuth() {
+const AuthContext = createContext<AuthContextType>({
+  session: null,
+  user: null,
+  isLoading: true,
+  signOut: async () => {},
+  error: null,
+});
+
+export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+};
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check for Supabase configuration errors first
+    const configError = getSupabaseConfigError();
+    if (configError) {
+      setError(configError);
+      setIsLoading(false);
+      return;
+    }
+
+    // Get initial session with error handling
+    const getInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error getting session:', error);
+          setError(error.message);
+        } else {
+          setSession(session);
+          setUser(session?.user ?? null);
+        }
+      } catch (err) {
+        console.error('Unexpected error getting session:', err);
+        setError('Failed to initialize authentication');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    getInitialSession();
+
+    // Listen for auth changes with error handling
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        try {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setIsLoading(false);
+          setError(null);
+        } catch (err) {
+          console.error('Error in auth state change:', err);
+          setError('Authentication state change failed');
+          setIsLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  const signOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out:', error);
+        setError(error.message);
+      }
+    } catch (err) {
+      console.error('Unexpected error signing out:', err);
+      setError('Failed to sign out');
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{ session, user, isLoading, signOut, error }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
