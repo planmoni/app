@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Smartphone, Copy, Info } from 'lucide-react-native';
@@ -9,6 +9,7 @@ import Button from '@/components/Button';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useBalance } from '@/contexts/BalanceContext';
 
 type Bank = {
   id: string;
@@ -20,9 +21,13 @@ export default function AddUSSDScreen() {
   const { colors, isDark } = useTheme();
   const { showToast } = useToast();
   const haptics = useHaptics();
+  const { addFunds } = useBalance();
+  const params = useLocalSearchParams();
+  const amountFromParams = params.amount as string;
+  const fromDepositFlow = params.fromDepositFlow === 'true';
   
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(amountFromParams || '');
   const [isLoading, setIsLoading] = useState(false);
   const [ussdCode, setUssdCode] = useState('');
   
@@ -38,6 +43,11 @@ export default function AddUSSDScreen() {
   const handleBankSelect = (bank: Bank) => {
     haptics.selection();
     setSelectedBank(bank);
+    
+    // Generate USSD code if amount is already set
+    if (amount) {
+      generateUSSDCode(bank, amount);
+    }
   };
 
   const handleAmountChange = (text: string) => {
@@ -65,7 +75,7 @@ export default function AddUSSDScreen() {
     showToast('USSD code copied to clipboard', 'success');
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!selectedBank) {
       haptics.error();
       showToast('Please select a bank', 'error');
@@ -81,14 +91,34 @@ export default function AddUSSDScreen() {
     setIsLoading(true);
     haptics.impact();
     
-    // In a real app, you would process the USSD payment
-    // For demo purposes, we'll simulate a successful payment
-    setTimeout(() => {
+    try {
+      if (fromDepositFlow) {
+        // Process the deposit if coming from deposit flow
+        const numericAmount = parseFloat(amount.replace(/,/g, ''));
+        await addFunds(numericAmount);
+        
+        // Navigate to success screen
+        router.replace({
+          pathname: '/deposit-flow/success',
+          params: {
+            amount,
+            methodTitle: 'USSD Payment'
+          }
+        });
+      } else {
+        // For demo purposes, we'll simulate a successful payment
+        setTimeout(() => {
+          setIsLoading(false);
+          haptics.success();
+          showToast('USSD payment initiated successfully', 'success');
+          router.replace('/deposit-flow/success');
+        }, 2000);
+      }
+    } catch (error) {
+      haptics.error();
+      showToast('Failed to process payment', 'error');
       setIsLoading(false);
-      haptics.success();
-      showToast('USSD payment initiated successfully', 'success');
-      router.replace('/deposit-flow/success');
-    }, 2000);
+    }
   };
 
   const styles = createStyles(colors, isDark);
@@ -164,6 +194,7 @@ export default function AddUSSDScreen() {
                   value={amount}
                   onChangeText={handleAmountChange}
                   keyboardType="numeric"
+                  editable={!fromDepositFlow} // Disable editing if amount is passed from deposit flow
                 />
               </View>
             </View>
@@ -197,7 +228,7 @@ export default function AddUSSDScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title="Continue"
+        title={fromDepositFlow ? "Complete Payment" : "Continue"}
         onPress={handleContinue}
         loading={isLoading}
         disabled={!selectedBank || !amount || isLoading}

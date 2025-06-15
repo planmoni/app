@@ -63,21 +63,32 @@ export default function PaymentMethodsScreen() {
 
   const handleAddCard = () => {
     haptics.mediumImpact();
-    router.push('/add-card');
+    router.push({
+      pathname: '/deposit-flow/amount',
+      params: {
+        newMethodType: 'card'
+      }
+    });
   };
 
   const handleAddUSSD = () => {
     haptics.mediumImpact();
-    router.push('/add-ussd');
+    router.push({
+      pathname: '/deposit-flow/amount',
+      params: {
+        newMethodType: 'ussd'
+      }
+    });
   };
   
-  const handleLinkAccount = () => {
-    router.push('/linked-accounts');
-  };
-
   const handleAddBankAccount = () => {
     haptics.mediumImpact();
-    router.push('/linked-accounts');
+    router.push({
+      pathname: '/deposit-flow/amount',
+      params: {
+        newMethodType: 'bank-account'
+      }
+    });
   };
 
   const styles = createStyles(colors);

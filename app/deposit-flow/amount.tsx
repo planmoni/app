@@ -14,19 +14,46 @@ export default function AmountScreen() {
   const params = useLocalSearchParams();
   const methodId = params.methodId as string;
   const methodTitle = params.methodTitle as string;
+  const newMethodType = params.newMethodType as string;
   
   const [amount, setAmount] = useState('');
   const [availableBalance, setAvailableBalance] = useState('15,750,000');
 
   const handleContinue = () => {
-    router.replace({
-      pathname: '/deposit-flow/authorization',
-      params: {
-        amount,
-        methodId,
-        methodTitle
-      }
-    });
+    if (newMethodType) {
+      // If coming from a new payment method selection, route to the appropriate screen
+      router.replace({
+        pathname: '/deposit-flow/authorization',
+        params: {
+          amount,
+          newMethodType,
+          methodTitle: getMethodTitle(newMethodType)
+        }
+      });
+    } else {
+      // For existing payment methods, continue with normal flow
+      router.replace({
+        pathname: '/deposit-flow/authorization',
+        params: {
+          amount,
+          methodId,
+          methodTitle
+        }
+      });
+    }
+  };
+
+  const getMethodTitle = (type: string): string => {
+    switch (type) {
+      case 'card':
+        return 'New Card';
+      case 'ussd':
+        return 'USSD Payment';
+      case 'bank-account':
+        return 'Bank Account';
+      default:
+        return 'New Payment Method';
+    }
   };
 
   const formatAmount = (value: string) => {

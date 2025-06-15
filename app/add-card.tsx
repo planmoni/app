@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, CreditCard, Calendar, Lock, Info, Shield } from 'lucide-react-native';
@@ -9,11 +9,16 @@ import Button from '@/components/Button';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useBalance } from '@/contexts/BalanceContext';
 
 export default function AddCardScreen() {
   const { colors, isDark } = useTheme();
   const { showToast } = useToast();
   const haptics = useHaptics();
+  const { addFunds } = useBalance();
+  const params = useLocalSearchParams();
+  const amount = params.amount as string;
+  const fromDepositFlow = params.fromDepositFlow === 'true';
   
   const [cardNumber, setCardNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
@@ -111,9 +116,25 @@ export default function AddCardScreen() {
       // For demo purposes, we'll simulate a successful tokenization
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      haptics.success();
-      showToast('Card added successfully', 'success');
-      router.back();
+      if (fromDepositFlow && amount) {
+        // If coming from deposit flow, process the deposit
+        const numericAmount = parseFloat(amount.replace(/,/g, ''));
+        await addFunds(numericAmount);
+        
+        // Navigate to success screen
+        router.replace({
+          pathname: '/deposit-flow/success',
+          params: {
+            amount,
+            methodTitle: 'New Card'
+          }
+        });
+      } else {
+        // Standard card add flow
+        haptics.success();
+        showToast('Card added successfully', 'success');
+        router.back();
+      }
     } catch (error) {
       haptics.error();
       showToast('Failed to add card. Please try again.', 'error');
@@ -293,7 +314,7 @@ export default function AddCardScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title="Add Card"
+        title={fromDepositFlow ? `Add Card & Fund ₦${amount}` : "Add Card"}
         onPress={handleAddCard}
         loading={isLoading}
         disabled={isLoading}

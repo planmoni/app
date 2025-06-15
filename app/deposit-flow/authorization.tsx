@@ -14,9 +14,53 @@ export default function AuthorizationScreen() {
   const amount = params.amount as string;
   const methodId = params.methodId as string;
   const methodTitle = params.methodTitle as string;
+  const newMethodType = params.newMethodType as string;
 
   const handleFundWallet = () => {
-    router.replace('/deposit-flow/success');
+    if (newMethodType) {
+      // If this is a new payment method, redirect to the appropriate screen
+      switch (newMethodType) {
+        case 'card':
+          router.replace({
+            pathname: '/add-card',
+            params: {
+              amount,
+              fromDepositFlow: 'true'
+            }
+          });
+          break;
+        case 'ussd':
+          router.replace({
+            pathname: '/add-ussd',
+            params: {
+              amount,
+              fromDepositFlow: 'true'
+            }
+          });
+          break;
+        case 'bank-account':
+          router.replace({
+            pathname: '/linked-accounts',
+            params: {
+              amount,
+              fromDepositFlow: 'true'
+            }
+          });
+          break;
+        default:
+          // Fallback to success screen if method type is unknown
+          router.replace('/deposit-flow/success');
+      }
+    } else {
+      // For existing payment methods, proceed to success
+      router.replace({
+        pathname: '/deposit-flow/success',
+        params: {
+          amount,
+          methodTitle
+        }
+      });
+    }
   };
 
   const styles = createStyles(colors);
@@ -57,10 +101,12 @@ export default function AuthorizationScreen() {
                 <Text style={styles.summaryLabel}>Payment Method</Text>
                 <View style={styles.methodContainer}>
                   <Building2 size={16} color={colors.primary} />
-                  <Text style={styles.methodText}>{methodTitle}</Text>
+                  <Text style={styles.methodText}>
+                    {newMethodType ? getMethodTitle(newMethodType) : methodTitle}
+                  </Text>
                 </View>
               </View>
-              <Text style={styles.defaultText}>Default Account</Text>
+              {!newMethodType && <Text style={styles.defaultText}>Default Account</Text>}
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Processing Fee</Text>
@@ -102,6 +148,19 @@ export default function AuthorizationScreen() {
       <SafeFooter />
     </SafeAreaView>
   );
+}
+
+function getMethodTitle(type: string): string {
+  switch (type) {
+    case 'card':
+      return 'New Card';
+    case 'ussd':
+      return 'USSD Payment';
+    case 'bank-account':
+      return 'Bank Account';
+    default:
+      return 'New Payment Method';
+  }
 }
 
 const createStyles = (colors: any) => StyleSheet.create({
