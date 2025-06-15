@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useBanks, Bank } from '@/hooks/useBanks';
-import { useAccountReso#1E3A8Alution } from '@/hooks/useAccountResolution';
+import { useAccountResolution } from '@/hooks/useAccountResolution';
 
 interface AddPayoutAccountModalProps {
   isVisible: boolean;
