@@ -27,7 +27,7 @@ const lightColors = {
   
   // Primary colors
   primary: '#1E3A8A',
-  primaryLight: '#1E3A8A',
+  primaryLight: '#EBF0FF',
   primaryDark: '#1E40AF',
   
   // Status colors
