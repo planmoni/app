@@ -16,7 +16,7 @@ type PlanmoniLoaderProps = {
 };
 
 export default function PlanmoniLoader({ 
-  size = 'medium', 
+  size = 'small', 
   containerStyle,
   blurBackground = false,
   description
