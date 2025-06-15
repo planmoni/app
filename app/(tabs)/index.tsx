@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import Card from '@/components/Card';
 import TransactionModal from '@/components/TransactionModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
-import PlanmoniLoader from '@/components/PlanmoniLoader';
 import CountdownTimer from '@/components/CountdownTimer';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import { useRoute } from '@react-navigation/native';
