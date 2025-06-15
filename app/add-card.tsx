@@ -10,14 +10,12 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useBalance } from '@/contexts/BalanceContext';
-import { usePaymentMethods } from '@/hooks/usePaymentMethods';
 
 export default function AddCardScreen() {
   const { colors, isDark } = useTheme();
   const { showToast } = useToast();
   const haptics = useHaptics();
   const { addFunds } = useBalance();
-  const { addPaymentMethod } = usePaymentMethods();
   const params = useLocalSearchParams();
   const amount = params.amount as string;
   const fromDepositFlow = params.fromDepositFlow === 'true';
@@ -156,7 +154,7 @@ export default function AddCardScreen() {
           pathname: '/deposit-flow/authorization',
           params: {
             amount,
-            methodTitle: 'New Card'
+            methodTitle: 'Card •••• ' + cardNumber.slice(-4).replace(/\s/g, '')
           }
         });
       } else {

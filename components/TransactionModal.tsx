@@ -49,7 +49,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
     // Implement report functionality
   };
 
-  const isPositive = transaction.amount.startsWith('+');
+  const isPositive = transaction.type === 'Deposit';
 
   const styles = createStyles(colors);
 

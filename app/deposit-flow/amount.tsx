@@ -23,14 +23,31 @@ export default function AmountScreen() {
   const handleContinue = () => {
     if (newMethodType) {
       // If coming from a new payment method selection, route to the appropriate screen
-      router.replace({
-        pathname: '/deposit-flow/authorization',
-        params: {
-          amount,
-          newMethodType,
-          methodTitle: getMethodTitle(newMethodType)
-        }
-      });
+      if (newMethodType === 'card') {
+        router.push({
+          pathname: '/add-card',
+          params: {
+            amount,
+            fromDepositFlow: 'true'
+          }
+        });
+      } else if (newMethodType === 'ussd') {
+        router.push({
+          pathname: '/add-ussd',
+          params: {
+            amount,
+            fromDepositFlow: 'true'
+          }
+        });
+      } else if (newMethodType === 'bank-account') {
+        router.push({
+          pathname: '/linked-accounts',
+          params: {
+            amount,
+            fromDepositFlow: 'true'
+          }
+        });
+      }
     } else {
       // For existing payment methods, continue with normal flow
       router.replace({
@@ -41,19 +58,6 @@ export default function AmountScreen() {
           methodTitle
         }
       });
-    }
-  };
-
-  const getMethodTitle = (type: string): string => {
-    switch (type) {
-      case 'card':
-        return 'New Card';
-      case 'ussd':
-        return 'USSD Payment';
-      case 'bank-account':
-        return 'Bank Account';
-      default:
-        return 'New Payment Method';
     }
   };
 
