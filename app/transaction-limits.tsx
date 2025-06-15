@@ -60,7 +60,7 @@ export default function TransactionLimitsScreen() {
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <View style={styles.currentTierCard}>
           <View style={styles.tierBadge}>
-            <Shield size={20} color="#3B82F6" />
+            <Shield size={20} color="#1E3A8A" />
             <Text style={styles.tierText}>Tier {currentTier}</Text>
           </View>
           <Text style={styles.tierTitle}>Current Limits</Text>
@@ -100,7 +100,7 @@ export default function TransactionLimitsScreen() {
                   onPress={handleUpgrade}
                 >
                   <Text style={styles.upgradeButtonText}>Upgrade</Text>
-                  <ChevronRight size={16} color="#3B82F6" />
+                  <ChevronRight size={16} color="#1E3A8A" />
                 </Pressable>
               </View>
 
@@ -183,7 +183,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
+    borderLeftColor: '#1E3A8A',
   },
   tierBadge: {
     flexDirection: 'row',
@@ -199,7 +199,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   tierText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3B82F6',
+    color: '#1E3A8A',
   },
   tierTitle: {
     fontSize: 20,
@@ -265,7 +265,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   upgradeTagText: {
     fontSize: 12,
-    color: '#3B82F6',
+    color: '#1E3A8A',
     fontWeight: '500',
   },
   upgradeButton: {
@@ -279,7 +279,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   upgradeButtonText: {
     fontSize: 14,
-    color: '#3B82F6',
+    color: '#1E3A8A',
     fontWeight: '500',
   },
   tierLimits: {
