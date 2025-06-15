@@ -1,8 +1,8 @@
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { ArrowLeft, ChevronRight, Building2, CreditCard, Smartphone, Ban as Bank } from 'lucide-react-native';
 import Button from '@/components/Button';
-import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import SafeFooter from '@/components/SafeFooter';
@@ -16,7 +16,8 @@ export default function PaymentMethodsScreen() {
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
   const haptics = useHaptics();
   const { paymentMethods, isLoading, error, setDefaultMethod, deletePaymentMethod } = usePaymentMethods();
-
+  const params = useLocalSearchParams();
+  
   // Filter payment methods by type
   const cardMethods = paymentMethods.filter(method => method.type === 'card');
   const bankMethods = paymentMethods.filter(method => method.type === 'bank');
@@ -128,7 +129,7 @@ export default function PaymentMethodsScreen() {
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           <Text style={styles.title}>Select Payment Method</Text>
-          <Text style={styles.description}>Choose your preferred payment option to add funds.</Text>
+          <Text style={styles.description}>Choose your preferred payment option to add funds to your wallet.</Text>
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
@@ -214,7 +215,7 @@ export default function PaymentMethodsScreen() {
                                 {method.bank || 'Bank'} •••• {method.last_four}
                               </Text>
                               <Text style={styles.methodSubtitle}>
-                                {method.is_default ? 'Default' : 'Bank Account'}
+                                Martins Osodi
                               </Text>
                             </View>
                           </View>

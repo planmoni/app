@@ -1,6 +1,6 @@
 import { Modal, View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { useState } from 'react';
-import { X, CreditCard, Building2, Plus, Trash2, Check } from 'lucide-react-native';
+import { X, CreditCard, Building2, Plus, Trash2, Check, Smartphone, ChevronRight } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -289,11 +289,7 @@ export default function PaymentMethodsModal({
 
                   <Pressable 
                     style={styles.newMethodButton}
-                    onPress={() => {
-                      haptics.mediumImpact();
-                      onClose();
-                      router.push('/add-ussd');
-                    }}
+                    onPress={handleAddUSSD}
                   >
                     <View style={styles.methodLeft}>
                       <View style={styles.methodIconContainer}>
@@ -330,28 +326,10 @@ export default function PaymentMethodsModal({
           <View style={styles.footer}>
             <Button
               title="Continue"
-              onPress={() => {
-                if (selectedMethodId) {
-                  const selectedMethod = paymentMethods.find(method => method.id === selectedMethodId);
-                  if (selectedMethod && onSelect) {
-                    onSelect(selectedMethod);
-                  }
-                }
-                onClose();
-              }}
-              style={styles.continueButton}
+              onPress={handleContinue}
               disabled={!selectedMethodId || isLoading}
+              style={styles.continueButton}
               hapticType="medium"
-            />
-            <Button
-              title="Cancel"
-              onPress={() => {
-                haptics.lightImpact();
-                onClose();
-              }}
-              variant="outline"
-              style={styles.cancelButton}
-              hapticType="light"
             />
           </View>
         </View>
@@ -551,18 +529,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
   footer: {
-    flexDirection: 'row',
-    gap: 12,
     padding: 20,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   continueButton: {
-    flex: 1,
     backgroundColor: colors.primary,
-  },
-  cancelButton: {
-    flex: 1,
-    borderColor: colors.border,
   },
 });
