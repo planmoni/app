@@ -76,9 +76,8 @@ BEGIN
 
   -- Lock the funds
   UPDATE wallets
-  SET 
+  SET
+    balance = balance - p_amount, -- Add this line to deduct from available balance
     locked_balance = locked_balance + p_amount,
     updated_at = now()
   WHERE user_id = p_user_id;
-END;
-$$;
