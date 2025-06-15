@@ -135,7 +135,7 @@ export default function AddFundsScreen() {
           <View style={styles.content}>
             <Text style={styles.title}>Add funds via <Text style={styles.highlight}>Bank Transfer</Text></Text>
             <Text style={styles.description}>
-              Money Transfers sent to this bank account number will automatically top up your Planmoni available wallet.
+              Money transfered to these account details will automatically appear on your available balance.
             </Text>
 
             <View style={styles.accountDetailsCard}>
