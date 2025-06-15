@@ -1,6 +1,6 @@
 import Button from '@/components/Button';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, CreditCard, Bank } from 'lucide-react-native';
+import { ArrowLeft, Copy, CreditCard, Ban as Bank } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions, ToastAndroid } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
