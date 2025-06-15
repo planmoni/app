@@ -21,7 +21,7 @@ export default function ReviewScreen() {
   const duration = params.duration as string;
   const startDate = params.startDate as string;
   const bankName = params.bankName as string;
-  const accountNumber = params.accountNumber as string;
+  const accountNumber = (params.accountNumber as string) || '';
   const accountName = params.accountName as string;
   const bankAccountId = params.bankAccountId as string;
   const payoutAccountId = params.payoutAccountId as string;

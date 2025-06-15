@@ -39,6 +39,23 @@ export function useCreatePayout() {
         throw new Error('User not authenticated');
       }
 
+      // Parse the start date string to a Date object
+      const startDateObj = new Date(startDate);
+      
+      // Calculate the next payout date based on frequency
+      let nextPayoutDate = new Date(startDateObj);
+      
+      if (frequency === 'weekly') {
+        nextPayoutDate.setDate(startDateObj.getDate() + 7);
+      } else if (frequency === 'biweekly') {
+        nextPayoutDate.setDate(startDateObj.getDate() + 14);
+      } else if (frequency === 'monthly') {
+        nextPayoutDate.setMonth(startDateObj.getMonth() + 1);
+      }
+      
+      // Format the next payout date as ISO string
+      const nextPayoutDateStr = nextPayoutDate.toISOString();
+
       // Create payout plan
       const { data: payoutPlan, error: payoutError } = await supabase
         .from('payout_plans')
@@ -55,7 +72,7 @@ export function useCreatePayout() {
           payout_account_id: payoutAccountId || null,
           status: 'active',
           completed_payouts: 0,
-          next_payout_date: startDate,
+          next_payout_date: frequency === 'custom' ? (customDates && customDates.length > 0 ? customDates[0] : startDate) : nextPayoutDateStr,
         })
         .select()
         .single();
