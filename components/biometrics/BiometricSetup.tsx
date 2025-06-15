@@ -1,16 +1,36 @@
-"use client"
-
-import type React from "react"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
-import { useAuth } from "@/contexts/AuthContext"
 import { BiometricService } from "@/lib/biometrics"
+import { useTheme } from "@/contexts/ThemeContext"
 
 export const BiometricSetup: React.FC = () => {
-  const { biometricSettings, setBiometricEnabled, refreshBiometricSettings } = useAuth()
+  const { colors, isDark } = useTheme()
+  const [biometricSettings, setBiometricSettings] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [testing, setTesting] = useState(false)
+
+  const refreshBiometricSettings = async () => {
+    try {
+      const settings = await BiometricService.checkBiometricSupport()
+      setBiometricSettings(settings)
+    } catch (error) {
+      console.error('Failed to check biometric support:', error)
+    }
+  }
+
+  const setBiometricEnabled = async (enabled: boolean) => {
+    try {
+      const success = await BiometricService.setBiometricEnabled(enabled)
+      if (success) {
+        await refreshBiometricSettings()
+      }
+      return success
+    } catch (error) {
+      console.error('Failed to set biometric enabled:', error)
+      return false
+    }
+  }
 
   useEffect(() => {
     refreshBiometricSettings()
@@ -55,9 +75,9 @@ export const BiometricSetup: React.FC = () => {
 
   if (!biometricSettings) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="small" color="#2563eb" />
-        <Text style={styles.loadingText}>Checking biometric support...</Text>
+      <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+        <ActivityIndicator size="small" color={colors.primary} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Checking biometric support...</Text>
       </View>
     )
   }
@@ -66,14 +86,14 @@ export const BiometricSetup: React.FC = () => {
   const biometricIcon = BiometricService.getBiometricIcon(biometricSettings.supportedTypes)
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Ionicons name={biometricIcon as any} size={24} color="#2563eb" />
+    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <View style={[styles.iconContainer, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff' }]}>
+          <Ionicons name={biometricIcon as any} size={24} color={colors.primary} />
         </View>
         <View style={styles.headerText}>
-          <Text style={styles.title}>{biometricLabel} Authentication</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.title, { color: colors.text }]}>{biometricLabel} Authentication</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             {biometricSettings.isAvailable
               ? `Use ${biometricLabel.toLowerCase()} to quickly and securely access your account`
               : "Biometric authentication is not available on this device"}
@@ -84,19 +104,19 @@ export const BiometricSetup: React.FC = () => {
       {biometricSettings.isAvailable && (
         <>
           {!biometricSettings.isEnrolled && (
-            <View style={styles.warningContainer}>
+            <View style={[styles.warningContainer, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#fffbeb' }]}>
               <Ionicons name="warning" size={20} color="#f59e0b" />
-              <Text style={styles.warningText}>
+              <Text style={[styles.warningText, { color: isDark ? '#fcd34d' : '#92400e' }]}>
                 No biometric credentials are enrolled on this device. Please set up {biometricLabel.toLowerCase()} in
                 your device settings.
               </Text>
             </View>
           )}
 
-          <View style={styles.toggleContainer}>
+          <View style={[styles.toggleContainer, { borderColor: colors.border }]}>
             <View style={styles.toggleContent}>
-              <Text style={styles.toggleLabel}>Enable {biometricLabel}</Text>
-              <Text style={styles.toggleDescription}>
+              <Text style={[styles.toggleLabel, { color: colors.text }]}>Enable {biometricLabel}</Text>
+              <Text style={[styles.toggleDescription, { color: colors.textSecondary }]}>
                 {biometricSettings.isEnabled
                   ? `${biometricLabel} authentication is enabled`
                   : `Enable ${biometricLabel.toLowerCase()} for quick access`}
@@ -109,41 +129,67 @@ export const BiometricSetup: React.FC = () => {
               disabled={loading || !biometricSettings.isEnrolled}
             >
               {loading ? (
-                <ActivityIndicator size="small" color="#2563eb" />
+                <ActivityIndicator size="small" color={colors.primary} />
               ) : (
-                <View style={[styles.toggle, biometricSettings.isEnabled && styles.toggleActive]}>
-                  <View style={[styles.toggleThumb, biometricSettings.isEnabled && styles.toggleThumbActive]} />
+                <View style={[
+                  styles.toggle, 
+                  { 
+                    backgroundColor: biometricSettings.isEnabled ? colors.primary : colors.border 
+                  }
+                ]}>
+                  <View style={[
+                    styles.toggleThumb, 
+                    { 
+                      alignSelf: biometricSettings.isEnabled ? 'flex-end' : 'flex-start',
+                      backgroundColor: colors.surface
+                    }
+                  ]} />
                 </View>
               )}
             </TouchableOpacity>
           </View>
 
           {biometricSettings.isEnabled && (
-            <TouchableOpacity style={styles.testButton} onPress={handleTestBiometric} disabled={testing}>
+            <TouchableOpacity 
+              style={[
+                styles.testButton, 
+                { 
+                  backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#eff6ff' 
+                }
+              ]} 
+              onPress={handleTestBiometric} 
+              disabled={testing}
+            >
               {testing ? (
-                <ActivityIndicator size="small" color="#2563eb" />
+                <ActivityIndicator size="small" color={colors.primary} />
               ) : (
-                <Ionicons name="play-circle" size={20} color="#2563eb" />
+                <Ionicons name="play-circle" size={20} color={colors.primary} />
               )}
-              <Text style={styles.testButtonText}>{testing ? "Testing..." : `Test ${biometricLabel}`}</Text>
+              <Text style={[styles.testButtonText, { color: colors.primary }]}>
+                {testing ? "Testing..." : `Test ${biometricLabel}`}
+              </Text>
             </TouchableOpacity>
           )}
 
-          <View style={styles.infoContainer}>
-            <Text style={styles.infoTitle}>Security Information</Text>
+          <View style={[styles.infoContainer, { backgroundColor: isDark ? colors.backgroundTertiary : '#f9fafb' }]}>
+            <Text style={[styles.infoTitle, { color: colors.text }]}>Security Information</Text>
             <View style={styles.infoItem}>
-              <Ionicons name="shield-checkmark" size={16} color="#10b981" />
-              <Text style={styles.infoText}>
+              <Ionicons name="shield-checkmark" size={16} color={isDark ? '#34d399' : '#10b981'} />
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                 Your biometric data is stored securely on your device and never shared
               </Text>
             </View>
             <View style={styles.infoItem}>
-              <Ionicons name="lock-closed" size={16} color="#10b981" />
-              <Text style={styles.infoText}>You can disable biometric authentication at any time</Text>
+              <Ionicons name="lock-closed" size={16} color={isDark ? '#34d399' : '#10b981'} />
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                You can disable biometric authentication at any time
+              </Text>
             </View>
             <View style={styles.infoItem}>
-              <Ionicons name="key" size={16} color="#10b981" />
-              <Text style={styles.infoText}>Your password is still required for sensitive operations</Text>
+              <Ionicons name="key" size={16} color={isDark ? '#34d399' : '#10b981'} />
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                Your password is still required for sensitive operations
+              </Text>
             </View>
           </View>
         </>
@@ -151,8 +197,10 @@ export const BiometricSetup: React.FC = () => {
 
       {!biometricSettings.isAvailable && (
         <View style={styles.unavailableContainer}>
-          <Ionicons name="information-circle" size={48} color="#6b7280" />
-          <Text style={styles.unavailableText}>Biometric authentication is not supported on this device</Text>
+          <Ionicons name="information-circle" size={48} color={colors.textTertiary} />
+          <Text style={[styles.unavailableText, { color: colors.textSecondary }]}>
+            Biometric authentication is not supported on this device
+          </Text>
         </View>
       )}
     </View>
@@ -161,31 +209,25 @@ export const BiometricSetup: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "white",
-    borderRadius: 12,
+    flex: 1,
     padding: 20,
-    margin: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   loadingText: {
     textAlign: "center",
-    color: "#6b7280",
     marginTop: 8,
   },
   header: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 20,
+    marginBottom: 24,
+    padding: 16,
+    borderRadius: 12,
+    borderBottomWidth: 1,
   },
   iconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#eff6ff",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
@@ -196,28 +238,24 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1f2937",
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: "#6b7280",
     lineHeight: 20,
   },
   warningContainer: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "#fffbeb",
-    padding: 12,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: 12,
     marginBottom: 20,
   },
   warningText: {
     flex: 1,
     fontSize: 14,
-    color: "#92400e",
     marginLeft: 8,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   toggleContainer: {
     flexDirection: "row",
@@ -226,7 +264,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: "#f3f4f6",
     marginBottom: 20,
   },
   toggleContent: {
@@ -235,11 +272,9 @@ const styles = StyleSheet.create({
   toggleLabel: {
     fontSize: 16,
     fontWeight: "500",
-    color: "#1f2937",
   },
   toggleDescription: {
     fontSize: 14,
-    color: "#6b7280",
     marginTop: 2,
   },
   toggleButton: {
@@ -249,65 +284,51 @@ const styles = StyleSheet.create({
     width: 48,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#d1d5db",
     justifyContent: "center",
     paddingHorizontal: 2,
-  },
-  toggleActive: {
-    backgroundColor: "#2563eb",
   },
   toggleThumb: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "white",
-    alignSelf: "flex-start",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 2,
   },
-  toggleThumbActive: {
-    alignSelf: "flex-end",
-  },
   testButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#eff6ff",
-    padding: 12,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: 12,
     marginBottom: 20,
   },
   testButtonText: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#2563eb",
     marginLeft: 8,
   },
   infoContainer: {
-    backgroundColor: "#f9fafb",
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   infoTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   infoItem: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 8,
+    marginBottom: 12,
   },
   infoText: {
     flex: 1,
-    fontSize: 13,
-    color: "#6b7280",
+    fontSize: 14,
     marginLeft: 8,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   unavailableContainer: {
     alignItems: "center",
@@ -315,8 +336,8 @@ const styles = StyleSheet.create({
   },
   unavailableText: {
     fontSize: 16,
-    color: "#6b7280",
     textAlign: "center",
     marginTop: 16,
+    maxWidth: 300,
   },
 })
