@@ -243,7 +243,7 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <PlanmoniLoader 
           blurBackground={true} 
-          size="medium" 
+          size="large" 
         />
       </SafeAreaView>
     );
