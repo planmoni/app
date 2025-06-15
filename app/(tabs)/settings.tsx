@@ -2,10 +2,6 @@ import Button from '@/components/Button';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import SafeFooter from '@/components/SafeFooter';
 import { useAuth } from '@/contexts/AuthContext';
-import { useBalance } from '@/contexts/BalanceContext';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useHaptics } from '@/hooks/useHaptics';
-import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { Ionicons } from "@expo/vector-icons"
 import { 
@@ -29,8 +25,8 @@ import {
   Trash2,
   Wallet
 } from 'lucide-react-native';
-import { useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -216,7 +212,10 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
-            <View style={styles.settingItem}>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => setBiometrics(true)}
+            >
               <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
                 <Fingerprint size={20} color="#22C55E" />
               </View>
@@ -224,18 +223,9 @@ export default function SettingsScreen() {
                 <Text style={styles.settingLabel}>Enable Biometrics</Text>
                 <Text style={styles.settingDescription}>Use biometrics for authentication</Text>
               </View>
-              {/* <Switch
-                value={biometrics}
-                onValueChange={() => handleToggleSwitch(setBiometrics)}
-                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                // thumbColor={biometrics ? '#3B82F6' : colors.backgroundTertiary}
-              /> */}
-              <TouchableOpacity style={styles.button} onPress={() => setBiometrics(true)}>
-                {/* <Ionicons name="close" size={24} color="#374151" /> */}
-                {/* <DoorOpen color={"#0000ff"} /> */}
-                <Text style={styles.buttonText}>Click Me</Text>
-              </TouchableOpacity>
-            </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+
             {/* Biometric Setup Modal */}
             <Modal visible={biometrics} animationType="slide" presentationStyle="pageSheet">
               <View style={styles.biometricModal}>
@@ -674,7 +664,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
+    padding: 24,
     paddingBottom: 40,
   },
   profileCard: {
@@ -845,18 +835,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#1f2937",
-  },
-  button: {
-    backgroundColor: '#3B82F6', // blue
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
