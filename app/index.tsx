@@ -16,7 +16,16 @@ import { useEffect } from 'react';
 const SLIDES = [
   {
     id: '1',
-    title: 'Stabilize Your Cashflow',
+    title: 'Welcome to Planmoni',
+    description: 'Your personal finance assistant for automated payouts and financial discipline.',
+    image: require('@/assets/images/slider1 logo.png'),
+    icon: null,
+    color: '#EFF6FF',
+    iconColor: '#3B82F6',
+  },
+  {
+    id: '2',
+    title: 'Turn bulk money into steady income',
     description: 'Put some money aside, get paid on a schedule & say goodbye to irregular income. ',
     image: require('@/assets/images/SmartSavings.png'),
     icon: Wallet,
@@ -24,8 +33,8 @@ const SLIDES = [
     iconColor: '#3B82F6',
   },
   {
-    id: '2',
-    title: 'Pay Yourself Whenever You Like',
+    id: '3',
+    title: 'Get paid as frequently as you the need money',
     description: 'Receive payouts weekly, monthly, or however you choose — just like a salary.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     icon: Calendar,
@@ -33,8 +42,8 @@ const SLIDES = [
     iconColor: '#22C55E',
   },
   {
-    id: '3',
-    title: 'Gain Control Over Your Financial Life',
+    id: '4',
+    title: 'Gain total control over your financial life',
     description: 'No impulse spending. Your money stays locked until your chosen payday.',
     image: require('@/assets/images/StayInControl.png'),
     icon: Shield,
@@ -42,8 +51,8 @@ const SLIDES = [
     iconColor: '#D97706',
   },
   {
-    id: '4',
-    title: 'Build A Healthy Money Habits',
+    id: '5',
+    title: 'Build healthy money habits',
     description: 'Automate discipline and achieve long-term financial goals effortlessly.',
     image: require('@/assets/images/BuildHealthyHabits.png'),
     icon: TrendingUp,
@@ -102,17 +111,6 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.logoContainer}>
-        <Image
-          source={isDark 
-            ? require('@/assets/images/PlanmoniDarkMode.png')
-            : require('@/assets/images/Planmoni.png')
-          }
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </View>
-
       <View style={styles.sliderContainer}>
         <Animated.ScrollView
           horizontal
@@ -122,11 +120,22 @@ export default function WelcomeScreen() {
           scrollEventThrottle={16}
           style={styles.slider}
         >
-          {SLIDES.map((slide) => (
-            <View key={slide.id} style={[styles.slide, { width }]}>
+          {SLIDES.map((slide, index) => (
+            <View 
+              key={slide.id} 
+              style={[
+                styles.slide, 
+                { width },
+                index === 0 && styles.firstSlide
+              ]}
+            >
               <Image 
                 source={slide.image}
-                style={styles.slideImage}
+                style={[
+                  styles.slideImage,
+                  // Apply 50% size reduction only to the first slide image
+                  index === 0 && styles.firstSlideImage
+                ]}
                 resizeMode="contain"
               />
               <Text style={styles.slideTitle}>{slide.title}</Text>
@@ -197,15 +206,6 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     backgroundColor: colors.background,
     justifyContent: 'space-between',
   },
-  logoContainer: {
-    alignItems: 'center',
-    paddingTop: responsive.verticalPadding,
-    paddingBottom: responsive.verticalPadding / 2,
-  },
-  logo: {
-    width: 150,
-    height: responsive.logoHeight,
-  },
   sliderContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -215,26 +215,35 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   slide: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: 40,
     justifyContent: 'center',
+  },
+  firstSlide: {
+    alignItems: 'center',
   },
   slideImage: {
     width: '100%',
     height: responsive.imageHeight,
     marginBottom: responsive.verticalPadding / 2,
   },
+  firstSlideImage: {
+    width: '50%', // Reduce first slide image to 50% of the original size
+    height: responsive.imageHeight / 2, // Reduce height proportionally
+  },
   slideTitle: {
     fontSize: responsive.titleSize,
-    fontWeight: '700',
+    fontWeight: '800',
+    fontSize: 40,
     color: colors.text,
-    textAlign: 'center',
     marginBottom: 8,
+    textAlign: 'center',
   },
   slideDescription: {
     fontSize: responsive.descriptionSize,
     color: colors.textSecondary,
     textAlign: 'center',
+    fontSize: 20,
     lineHeight: responsive.descriptionSize * 1.5,
   },
   pagination: {

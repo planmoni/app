@@ -21,6 +21,7 @@ export interface Database {
           duration: number
           start_date: string
           bank_account_id: string
+          payout_account_id: string | null
           status: 'active' | 'paused' | 'completed' | 'cancelled'
           completed_payouts: number
           next_payout_date: string | null
@@ -38,6 +39,7 @@ export interface Database {
           duration: number
           start_date: string
           bank_account_id: string
+          payout_account_id?: string | null
           status?: 'active' | 'paused' | 'completed' | 'cancelled'
           completed_payouts?: number
           next_payout_date?: string | null
@@ -55,6 +57,7 @@ export interface Database {
           duration?: number
           start_date?: string
           bank_account_id?: string
+          payout_account_id?: string | null
           status?: 'active' | 'paused' | 'completed' | 'cancelled'
           completed_payouts?: number
           next_payout_date?: string | null
@@ -80,6 +83,70 @@ export interface Database {
           payout_plan_id?: string
           payout_date?: string
           created_at?: string
+        }
+      }
+      bank_accounts: {
+        Row: {
+          id: string
+          user_id: string
+          bank_name: string
+          account_number: string
+          account_name: string
+          is_default: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          bank_name: string
+          account_number: string
+          account_name: string
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          bank_name?: string
+          account_number?: string
+          account_name?: string
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      payout_accounts: {
+        Row: {
+          id: string
+          user_id: string
+          account_name: string
+          account_number: string
+          bank_name: string
+          is_default: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          account_name: string
+          account_number: string
+          bank_name: string
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          account_name?: string
+          account_number?: string
+          bank_name?: string
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
         }
       }
     }

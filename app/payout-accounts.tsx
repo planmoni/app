@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
-import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, TriangleAlert as AlertTriangle, Clock, Check, Info } from 'lucide-react-native';
+import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
 import HorizontalLoader from '@/components/HorizontalLoader';
@@ -7,120 +7,31 @@ import SafeFooter from '@/components/SafeFooter';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
-import AddBankAccountModal from '@/components/AddBankAccountModal';
+import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
+import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
+import EditPayoutAccountModal from '@/components/EditPayoutAccountModal';
 import { useHaptics } from '@/hooks/useHaptics';
 
-export default function LinkedAccountsScreen() {
-  const { colors } = useTheme();
+export default function PayoutAccountsScreen() {
+  const { colors, isDark } = useTheme();
   const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showEditAccount, setShowEditAccount] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const haptics = useHaptics();
   
   const { 
-    bankAccounts, 
+    payoutAccounts, 
     isLoading, 
     error, 
-    addBankAccount, 
-    fetchBankAccounts,
+    fetchPayoutAccounts,
     setDefaultAccount,
     deleteAccount
-  } = useRealtimeBankAccounts();
+  } = usePayoutAccounts();
 
-  const handleMonoSuccess = async (data: any) => {
-    const code = data.getAuthCode();
-    console.log("Access code", code)
-    console.log("Data", data)
-    
-  
-    try {
-      // 1. Exchange auth code for account ID
-      const res = await fetch('https://api.withmono.com/v2/accounts/auth', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'mono-sec-key': process.env.EXPO_PUBLIC_MONO_SECRET_KEY!,
-        },
-        body: JSON.stringify({ code }),
-      });
-  
-      const authData = await res.json();
-      console.log("Account data:", authData);
-      const accountId = authData.data.id;
-      console.log("Account id:", accountId);
-  
-      // 2. Get account details
-      const accountRes = await fetch(`https://api.withmono.com/v2/accounts/${accountId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'mono-sec-key': process.env.EXPO_PUBLIC_MONO_SECRET_KEY!,
-        },
-      });
-  
-      const accountDetails = await accountRes.json();
-      const monoData = accountDetails.data;
-      console.log("Mono Linked Account:", monoData);
-  
-      const account = {
-        bankName: monoData.account.institution.name,
-        bankCode: monoData.account.institution.bank_code,
-        accountNumber: monoData.account.account_number,
-        accountName: monoData.account.name,
-        monoAccountId: monoData.account.id,
-      };
-  
-      // Save account in your app
-      await addBankAccount({
-        bank_name: account.bankName,
-        bank_code: account.bankCode,
-        account_number: account.accountNumber,
-        account_name: account.accountName,
-        mono_account_id: account.monoAccountId,
-        is_default: bankAccounts.length === 0,
-      });
-  
-      // Refresh list
-      fetchBankAccounts?.();
-      
-    } catch (err) {
-      console.error('Failed to link Mono account:', err);
-    }
-  };
-  
-  const config = {
-    publicKey: process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY!,
-    scope: 'auth',
-    data: {
-      customer: { id: '684761506b658900c542295b' }
-    },
-    onClose: () => console.log('Widget closed'),
-    onSuccess: handleMonoSuccess,
-    onEvent: (eventName:any, data:any) => {
-      console.log(eventName);
-      console.log(data);
-    },
-    reference: 'test_ref'
-  }
-  
-
-  const handleAddAccount = async (account: {
-    bankName: string;
-    accountNumber: string;
-    accountName: string;
-  }) => {
-    try {
-      haptics.success();
-      await addBankAccount({
-        bank_name: account.bankName,
-        account_number: account.accountNumber,
-        account_name: account.accountName,
-        is_default: bankAccounts.length === 0 // Make first account default
-      });
-      setShowAddAccount(false);
-    } catch (error) {
-      haptics.error();
-      console.error('Error adding bank account:', error);
-    }
+  const handleEditAccount = (account: any) => {
+    haptics.selection();
+    setSelectedAccount(account);
+    setShowEditAccount(true);
   };
 
   const handleMakeDefault = async (accountId: string) => {
@@ -136,7 +47,7 @@ export default function LinkedAccountsScreen() {
   const handleRemoveAccount = async (accountId: string, accountName: string) => {
     haptics.warning();
     Alert.alert(
-      "Remove Bank Account",
+      "Remove Account",
       `Are you sure you want to remove ${accountName}?`,
       [
         {
@@ -161,71 +72,59 @@ export default function LinkedAccountsScreen() {
     );
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
+        <Text style={styles.headerTitle}>Payout Accounts</Text>
       </View>
 
-        {isLoading && <HorizontalLoader />}
+      {isLoading && <HorizontalLoader />}
 
-        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-          <Text style={styles.subtitle}>
-            Manage your linked bank accounts for adding payments
-          </Text>
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        <Text style={styles.subtitle}>
+          Manage your bank accounts for receiving payouts
+        </Text>
 
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
 
         <View style={styles.accountsList}>
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading bank accounts...</Text>
+              <Text style={styles.loadingText}>Loading payout accounts...</Text>
             </View>
-          ) : bankAccounts.length === 0 ? (
+          ) : payoutAccounts.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No bank accounts found</Text>
-              <Text style={styles.emptySubtext}>Add a bank account to continue</Text>
+              <Text style={styles.emptyText}>No payout accounts found</Text>
+              <Text style={styles.emptySubtext}>Add a bank account to receive payouts</Text>
             </View>
           ) : (
-            bankAccounts.map((account) => (
+            payoutAccounts.map((account) => (
               <View key={account.id} style={styles.accountCard}>
                 <View style={styles.accountHeader}>
                   <View style={styles.bankInfo}>
                     <View style={styles.bankIcon}>
-                      <Building2 size={24} color="#3B82F6" />
+                      <Building2 size={24} color={colors.primary} />
                     </View>
                     <View style={styles.bankDetails}>
                       <Text style={styles.bankName}>{account.bank_name}</Text>
                       <Text style={styles.accountNumber}>•••• {account.account_number.slice(-4)}</Text>
                     </View>
                   </View>
-                  {account.status === 'active' && (
-                    <View style={styles.statusTag}>
-                      <Check size={12} color="#22C55E" />
-                      <Text style={styles.statusText}>Verified</Text>
-                    </View>
-                  )}
-                  {account.status === 'pending' && (
-                    <View style={[styles.statusTag, styles.pendingTag]}>
-                      <Clock size={12} color="#D97706" />
-                      <Text style={[styles.statusText, styles.pendingText]}>Pending</Text>
-                    </View>
-                  )}
-                  {account.status === 'failed' && (
-                    <View style={[styles.statusTag, styles.failedTag]}>
-                      <AlertTriangle size={12} color="#EF4444" />
-                      <Text style={[styles.statusText, styles.failedText]}>Failed</Text>
-                    </View>
-                  )}
                 </View>
 
                 <View style={styles.accountContent}>
@@ -235,19 +134,15 @@ export default function LinkedAccountsScreen() {
                   )}
                 </View>
 
-                {account.status === 'failed' && (
-                  <View style={styles.errorMessage}>
-                    <View style={styles.errorIconContainer}>
-                      <AlertTriangle size={16} color="#EF4444" />
-                    </View>
-                    <Text style={styles.errorText}>
-                      Verification failed. Please check your account details and try again.
-                    </Text>
-                  </View>
-                )}
-
                 <View style={styles.accountActions}>
-                  {!account.is_default && account.status === 'active' && (
+                  <Pressable
+                    style={styles.actionButton}
+                    onPress={() => handleEditAccount(account)}
+                  >
+                    <Text style={styles.actionButtonText}>Edit</Text>
+                  </Pressable>
+                  
+                  {!account.is_default && (
                     <Pressable
                       style={styles.actionButton}
                       onPress={() => handleMakeDefault(account.id)}
@@ -255,20 +150,11 @@ export default function LinkedAccountsScreen() {
                       <Text style={styles.actionButtonText}>Make Default</Text>
                     </Pressable>
                   )}
-                  {account.status === 'failed' && (
-                    <Pressable
-                      style={[styles.actionButton, styles.retryButton]}
-                      onPress={() => handleRetryVerification(account.id)}
-                    >
-                      <Text style={[styles.actionButtonText, styles.retryButtonText]}>
-                        Retry Verification
-                      </Text>
-                    </Pressable>
-                  )}
+                  
                   {!account.is_default && (
                     <Pressable
                       style={[styles.actionButton, styles.removeButton]}
-                      onPress={() => handleRemoveAccount(account.id)}
+                      onPress={() => handleRemoveAccount(account.id, account.account_name)}
                     >
                       <Trash2 size={16} color="#EF4444" />
                       <Text style={[styles.actionButtonText, styles.removeButtonText]}>
@@ -283,10 +169,13 @@ export default function LinkedAccountsScreen() {
 
           <Pressable
             style={styles.addAccountButton}
-            onPress={() => setShowAddAccount(true)}
+            onPress={() => {
+              haptics.mediumImpact();
+              setShowAddAccount(true);
+            }}
           >
             <Plus size={20} color={colors.primary} />
-            <Text style={styles.addAccountText}>Add New Bank Account</Text>
+            <Text style={styles.addAccountText}>Add New Payout Account</Text>
           </Pressable>
         </View>
 
@@ -294,12 +183,12 @@ export default function LinkedAccountsScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoHeader}>
               <View style={styles.infoIconContainer}>
-                <Info size={20} color="#3B82F6" />
+                <Info size={20} color={colors.primary} />
               </View>
-              <Text style={styles.infoTitle}>Account Verification</Text>
+              <Text style={styles.infoTitle}>About Payout Accounts</Text>
             </View>
             <Text style={styles.infoText}>
-              All bank accounts must be verified before they can be used for payouts. Verification typically takes 1-2 business days.
+              These bank accounts will be used to receive your automated payouts. You can add multiple accounts and set one as default.
             </Text>
           </View>
         </View>
@@ -308,17 +197,32 @@ export default function LinkedAccountsScreen() {
       <View style={styles.footer}>
         <Button
           title="Add New Account"
-          onPress={() => setShowAddAccount(true)}
+          onPress={() => {
+            haptics.mediumImpact();
+            setShowAddAccount(true);
+          }}
           style={styles.addButton}
           icon={Plus}
+          hapticType="medium"
         />
       </View>
 
-      <AddBankAccountModal
+      <AddPayoutAccountModal
         isVisible={showAddAccount}
-        onClose={() => setShowAddAccount(false)}
-        onAdd={handleAddAccount}
-        loading={isLoading}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowAddAccount(false);
+        }}
+      />
+      
+      <EditPayoutAccountModal
+        isVisible={showEditAccount}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowEditAccount(false);
+          setSelectedAccount(null);
+        }}
+        account={selectedAccount}
       />
       
       <SafeFooter />
@@ -326,7 +230,7 @@ export default function LinkedAccountsScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -377,28 +281,35 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
   },
   errorContainer: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.errorLight,
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.error,
   },
   errorText: {
-    color: '#EF4444',
+    color: colors.error,
     fontSize: 14,
   },
   emptyContainer: {
-    padding: 20,
+    padding: 40,
     alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 18,
     color: colors.text,
     fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
     color: colors.textSecondary,
+    textAlign: 'center',
   },
   accountCard: {
     backgroundColor: colors.card,
@@ -422,7 +333,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -448,16 +359,16 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   defaultText: {
     fontSize: 12,
-    color: '#3B82F6',
+    color: colors.primary,
     fontWeight: '500',
     marginBottom: 4,
   },
   accountActions: {
     flexDirection: 'row',
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   actionButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -475,8 +386,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
   },
   removeButton: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#EF4444',
+    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2',
+    borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FECACA',
   },
   removeButtonText: {
     color: '#EF4444',
@@ -491,7 +402,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
+    borderLeftColor: colors.primary,
   },
   infoHeader: {
     flexDirection: 'row',
@@ -502,7 +413,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -524,7 +435,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
   },
   addButton: {
-    backgroundColor: '#1E3A8A',
+    backgroundColor: colors.primary,
   },
   addAccountButton: {
     flexDirection: 'row',
@@ -536,7 +447,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: colors.primary,
     borderRadius: 12,
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : colors.backgroundTertiary,
   },
   addAccountText: {
     fontSize: 14,

@@ -1,5 +1,6 @@
 import Button from '@/components/Button';
 import InitialsAvatar from '@/components/InitialsAvatar';
+import SafeFooter from '@/components/SafeFooter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -26,7 +27,11 @@ import {
   Moon, 
   Shield, 
   Trash2,
+<<<<<<< HEAD
   DoorOpen
+=======
+  Wallet
+>>>>>>> 49ec82a4b464553056994d5776c73e4c267e3134
 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
@@ -101,6 +106,11 @@ export default function SettingsScreen() {
   const handleViewLinkedAccounts = () => {
     haptics.lightImpact();
     router.push('/linked-accounts');
+  };
+  
+  const handleViewPayoutAccounts = () => {
+    haptics.lightImpact();
+    router.push('/payout-accounts');
   };
 
   const handleViewReferral = () => {
@@ -320,7 +330,23 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Linked Bank Accounts</Text>
-                <Text style={styles.settingDescription}>Manage, verify, add/remove</Text>
+                <Text style={styles.settingDescription}>Manage accounts for deposits</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+            
+            <View style={styles.divider} />
+
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleViewPayoutAccounts}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
+                <Wallet size={20} color="#22C55E" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Payout Accounts</Text>
+                <Text style={styles.settingDescription}>Manage accounts for receiving payouts</Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>

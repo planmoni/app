@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Search } from 'lucide-react-native';
 import { useState, useMemo } from 'react';
 import Button from '@/components/Button';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface AddBankAccountModalProps {
   isVisible: boolean;
@@ -44,6 +45,9 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Get theme colors
+  const { colors, isDark } = useTheme();
 
   const filteredBanks = useMemo(() => {
     return BANKS.filter(bank => 
@@ -101,6 +105,8 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
     }
   };
 
+  const styles = createStyles(colors, isDark);
+
   return (
     <Modal
       animationType="slide"
@@ -128,6 +134,7 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
                 <TextInput
                   style={styles.input}
                   placeholder="Enter 10-digit account number"
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="numeric"
                   value={accountNumber}
                   onChangeText={handleAccountNumberChange}
@@ -146,16 +153,17 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
                   <Text style={selectedBank ? styles.selectedBank : styles.bankPlaceholder}>
                     {selectedBank || 'Choose your bank'}
                   </Text>
-                  <ChevronDown size={20} color="#64748B" />
+                  <ChevronDown size={20} color={colors.textSecondary} />
                 </Pressable>
 
                 {showBankList && (
                   <View style={styles.bankListContainer}>
                     <View style={styles.searchContainer}>
-                      <Search size={20} color="#64748B" />
+                      <Search size={20} color={colors.textSecondary} />
                       <TextInput
                         style={styles.searchInput}
                         placeholder="Search banks..."
+                        placeholderTextColor={colors.textTertiary}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         editable={!isSubmitting}
@@ -178,7 +186,7 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
                         >
                           <Text style={styles.bankOptionText}>{bank}</Text>
                           {selectedBank === bank && (
-                            <ChevronRight size={20} color="#1E3A8A" />
+                            <ChevronRight size={20} color={colors.primary} />
                           )}
                         </Pressable>
                       ))}
@@ -192,6 +200,7 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
                 <TextInput
                   style={styles.input}
                   placeholder="Enter account name"
+                  placeholderTextColor={colors.textTertiary}
                   value={accountName}
                   onChangeText={(text) => {
                     setAccountName(text);
@@ -224,7 +233,7 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -233,26 +242,28 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   modal: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     width: '100%',
     maxWidth: 400,
     maxHeight: '90%',
+    borderWidth: isDark ? 1 : 0,
+    borderColor: isDark ? colors.border : 'transparent',
   },
   header: {
     padding: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: colors.border,
   },
   title: {
     fontSize: 24,
     fontWeight: '600',
-    color: '#1E293B',
+    color: colors.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#64748B',
+    color: colors.textSecondary,
   },
   content: {
     flex: 1,
@@ -262,13 +273,15 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   errorContainer: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.errorLight,
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.error,
   },
   errorText: {
-    color: '#EF4444',
+    color: colors.error,
     fontSize: 14,
   },
   field: {
@@ -276,53 +289,56 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: '#64748B',
+    color: colors.text,
     marginBottom: 8,
+    fontWeight: '500',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    color: '#1E293B',
+    color: colors.text,
+    backgroundColor: colors.backgroundTertiary,
   },
   bankSelector: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     borderRadius: 8,
     padding: 12,
+    backgroundColor: colors.backgroundTertiary,
   },
   bankPlaceholder: {
     fontSize: 16,
-    color: '#94A3B8',
+    color: colors.textTertiary,
   },
   selectedBank: {
     fontSize: 16,
-    color: '#1E293B',
+    color: colors.text,
   },
   bankListContainer: {
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     borderRadius: 8,
     marginTop: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: colors.border,
     gap: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#1E293B',
+    color: colors.text,
   },
   bankList: {
     maxHeight: 200,
@@ -333,22 +349,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: colors.border,
   },
   bankOptionText: {
     fontSize: 16,
-    color: '#1E293B',
+    color: colors.text,
   },
   footer: {
     padding: 24,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: colors.border,
   },
   addButton: {
-    backgroundColor: '#1E3A8A',
+    backgroundColor: colors.primary,
   },
   cancelButton: {
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
 });

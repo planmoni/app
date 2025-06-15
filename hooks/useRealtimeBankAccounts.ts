@@ -11,7 +11,6 @@ export type BankAccount = {
   account_name: string;
   mono_account_id?: string,
   is_default: boolean;
-  status: 'pending' | 'active' | 'failed';
   created_at: string;
   updated_at: string;
 };
@@ -110,8 +109,7 @@ export function useRealtimeBankAccounts() {
         .from('bank_accounts')
         .insert({
           user_id: session?.user?.id,
-          ...accountData,
-          status: 'pending',
+          ...accountData
         })
         .select()
         .single();
