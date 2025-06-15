@@ -238,12 +238,13 @@ export default function HomeScreen() {
   const styles = createStyles(colors, isDark);
 
   // Show loader if any data is loading
-  if (payoutPlansLoading || transactionsLoading) {
+  if (payoutPlansLoading || transactionsLoding) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <PlanmoniLoader 
           blurBackground={true} 
-          size="large" 
+          size="medium" 
+          description="Loading your financial data..."
         />
       </SafeAreaView>
     );
