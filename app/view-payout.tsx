@@ -133,7 +133,7 @@ export default function ViewPayoutScreen() {
       case 'paused':
         return { bg: '#FEE2E2', text: '#EF4444' };
       case 'completed':
-        return { bg: '#EFF6FF', text: '#3B82F6' };
+        return { bg: '#EFF6FF', text: '#1E3A8A' };
       case 'cancelled':
         return { bg: '#F1F5F9', text: '#64748B' };
       default:
@@ -243,7 +243,7 @@ export default function ViewPayoutScreen() {
           <Card style={styles.scheduleCard}>
             <View style={styles.scheduleItem}>
               <View style={styles.scheduleIcon}>
-                <Calendar size={20} color="#3B82F6" />
+                <Calendar size={20} color="#1E3A8A" />
               </View>
               <View style={styles.scheduleInfo}>
                 <Text style={styles.scheduleLabel}>Frequency</Text>
@@ -494,7 +494,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#1E3A8A',
     borderRadius: 2,
   },
   progressStats: {
