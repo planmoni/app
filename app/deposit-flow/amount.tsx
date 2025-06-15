@@ -92,7 +92,6 @@ export default function AmountScreen() {
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           <Text style={styles.title}>How much do you want to add?</Text>
-          <Text style={styles.description}>This money will be securely held in your wallet until used.</Text>
 
           <View style={styles.amountContainer}>
             <Text style={styles.currencySymbol}>₦</Text>
