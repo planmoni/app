@@ -93,13 +93,9 @@ export default function AddUSSDScreen() {
     
     try {
       if (fromDepositFlow) {
-        // Process the deposit if coming from deposit flow
-        const numericAmount = parseFloat(amount.replace(/,/g, ''));
-        await addFunds(numericAmount);
-        
-        // Navigate to success screen
+        // Navigate to authorization screen
         router.replace({
-          pathname: '/deposit-flow/success',
+          pathname: '/deposit-flow/authorization',
           params: {
             amount,
             methodTitle: 'USSD Payment'
@@ -162,20 +158,16 @@ export default function AddUSSDScreen() {
                     ]}
                     onPress={() => handleBankSelect(bank)}
                   >
-                    <Text 
-                      style={[
-                        styles.bankName,
-                        selectedBank?.id === bank.id && styles.selectedBankName
-                      ]}
-                    >
+                    <Text style={[
+                      styles.bankName,
+                      selectedBank?.id === bank.id && styles.selectedBankName
+                    ]}>
                       {bank.name}
                     </Text>
-                    <Text 
-                      style={[
-                        styles.bankCode,
-                        selectedBank?.id === bank.id && styles.selectedBankCode
-                      ]}
-                    >
+                    <Text style={[
+                      styles.bankCode,
+                      selectedBank?.id === bank.id && styles.selectedBankCode
+                    ]}>
                       {bank.ussdCode}
                     </Text>
                   </Pressable>
@@ -228,7 +220,7 @@ export default function AddUSSDScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title={fromDepositFlow ? "Complete Payment" : "Continue"}
+        title="Continue"
         onPress={handleContinue}
         loading={isLoading}
         disabled={!selectedBank || !amount || isLoading}

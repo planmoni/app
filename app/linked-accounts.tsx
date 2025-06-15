@@ -123,13 +123,9 @@ export default function LinkedAccountsScreen() {
       });
       
       if (fromDepositFlow && amount) {
-        // Process the deposit if coming from deposit flow
-        const numericAmount = parseFloat(amount.replace(/,/g, ''));
-        await addFunds(numericAmount);
-        
-        // Navigate to success screen
+        // Navigate to authorization screen
         router.replace({
-          pathname: '/deposit-flow/success',
+          pathname: '/deposit-flow/authorization',
           params: {
             amount,
             methodTitle: 'Bank Account'

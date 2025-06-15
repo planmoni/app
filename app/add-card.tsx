@@ -151,13 +151,9 @@ export default function AddCardScreen() {
       }
       
       if (fromDepositFlow && amount) {
-        // If coming from deposit flow, process the deposit
-        const numericAmount = parseFloat(amount.replace(/,/g, ''));
-        await addFunds(numericAmount);
-        
-        // Navigate to success screen
+        // If coming from deposit flow, proceed to authorization screen
         router.replace({
-          pathname: '/deposit-flow/success',
+          pathname: '/deposit-flow/authorization',
           params: {
             amount,
             methodTitle: 'New Card'
@@ -348,7 +344,7 @@ export default function AddCardScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title={fromDepositFlow ? `Add Card & Fund ₦${amount}` : "Add Card"}
+        title={fromDepositFlow ? `Add Card` : "Add Card"}
         onPress={handleAddCard}
         loading={isLoading}
         disabled={isLoading}
