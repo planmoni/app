@@ -70,7 +70,7 @@ const darkColors = {
   textTertiary: '#94A3B8',
   
   // Primary colors
-  primary: '#3B82F6',
+  primary: '#1E3A8A',
   primaryLight: '#60A5FA',
   primaryDark: '#2563EB',
   
