@@ -61,6 +61,7 @@ export default function PaymentMethodsScreen() {
     }
   };
 
+  // These handlers now navigate to the amount screen first with the method type
   const handleAddCard = () => {
     haptics.mediumImpact();
     router.push({
