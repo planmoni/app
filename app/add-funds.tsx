@@ -1,6 +1,6 @@
 import Button from '@/components/Button';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, Info } from 'lucide-react-native';
+import { ArrowLeft, Copy } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions, ToastAndroid } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -95,20 +95,6 @@ export default function AddFundsScreen() {
                   <Text style={styles.fieldValue}>John Doe Planmoni</Text>
                 </View>
               </View>
-            </View>
-          </View>
-
-          <View style={styles.infoSection}>
-            <View style={styles.infoCard}>
-              <View style={styles.infoHeader}>
-                <View style={styles.infoIconContainer}>
-                  <Info size={20} color={colors.primary} />
-                </View>
-                <Text style={styles.infoTitle}>Security Notice</Text>
-              </View>
-              <Text style={styles.infoText}>
-                Funds will be added to your secure wallet and can be used for transactions or investments. Processing time is typically instant to 5 minutes.
-              </Text>
             </View>
           </View>
         </View>
@@ -254,42 +240,6 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '500',
     color: colors.text,
-  },
-  infoSection: {
-    marginBottom: isSmallScreen ? 24 : 32,
-  },
-  infoCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: isSmallScreen ? 16 : 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-  },
-  infoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  infoIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.backgroundTertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  infoTitle: {
-    fontSize: isSmallScreen ? 14 : 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  infoText: {
-    fontSize: isSmallScreen ? 13 : 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
   },
   footer: {
     position: 'absolute',

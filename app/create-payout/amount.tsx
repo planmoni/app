@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Info, Wallet } from 'lucide-react-native';
+import { ArrowLeft, Info, Plus } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -102,12 +102,9 @@ export default function AmountScreen() {
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>
               {error === 'Amount exceeds your available balance' && (
-                <Pressable 
-                  style={styles.addFundsErrorButton} 
-                  onPress={handleAddFunds}
-                >
-                  <Wallet size={16} color={colors.primary} />
-                  <Text style={styles.addFundsErrorText}>Add Funds</Text>
+                <Pressable style={styles.addFundsButton} onPress={handleAddFunds}>
+                  <Plus size={16} color="#FFFFFF" />
+                  <Text style={styles.addFundsButtonText}>Add Funds</Text>
                 </Pressable>
               )}
             </View>
@@ -236,21 +233,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.error,
     fontSize: 14,
     flex: 1,
+    marginRight: 8,
   },
-  addFundsErrorButton: {
+  addFundsButton: {
+    backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundTertiary,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 6,
-    marginLeft: 8,
     gap: 4,
   },
-  addFundsErrorText: {
+  addFundsButtonText: {
+    color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '500',
-    color: colors.primary,
+    fontWeight: '600',
   },
   amountContainer: {
     flexDirection: 'row',
