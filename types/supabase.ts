@@ -20,7 +20,7 @@ export interface Database {
           frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom'
           duration: number
           start_date: string
-          bank_account_id: string
+          bank_account_id: string | null
           payout_account_id: string | null
           status: 'active' | 'paused' | 'completed' | 'cancelled'
           completed_payouts: number
@@ -38,7 +38,7 @@ export interface Database {
           frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom'
           duration: number
           start_date: string
-          bank_account_id: string
+          bank_account_id?: string | null
           payout_account_id?: string | null
           status?: 'active' | 'paused' | 'completed' | 'cancelled'
           completed_payouts?: number
@@ -56,7 +56,7 @@ export interface Database {
           frequency?: 'weekly' | 'biweekly' | 'monthly' | 'custom'
           duration?: number
           start_date?: string
-          bank_account_id?: string
+          bank_account_id?: string | null
           payout_account_id?: string | null
           status?: 'active' | 'paused' | 'completed' | 'cancelled'
           completed_payouts?: number
