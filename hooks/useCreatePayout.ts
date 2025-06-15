@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
+import { useBalance } from '@/contexts/BalanceContext';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+  const { lockFunds } = useBalance();
 
   const createPayout = async ({
     name,
@@ -55,6 +57,9 @@ export function useCreatePayout() {
       
       // Format the next payout date as ISO string
       const nextPayoutDateStr = nextPayoutDate.toISOString();
+
+      // Lock the funds in the wallet
+      await lockFunds(totalAmount);
 
       // Create payout plan
       const { data: payoutPlan, error: payoutError } = await supabase

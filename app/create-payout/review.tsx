@@ -8,11 +8,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useBalance } from '@/contexts/BalanceContext';
 
 export default function ReviewScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const { createPayout, isLoading, error } = useCreatePayout();
+  const { balance } = useBalance();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -52,6 +54,13 @@ export default function ReviewScreen() {
   };
 
   const handleStartPlan = async () => {
+    // Check if there's enough balance
+    const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+    if (numericTotal > balance) {
+      router.push('/add-funds');
+      return;
+    }
+    
     await createPayout({
       name: `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`,
       description: `${frequency} payout of ${payoutAmount}`,
