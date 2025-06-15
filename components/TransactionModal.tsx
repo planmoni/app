@@ -1,8 +1,11 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { X, Copy, ArrowUpRight, ArrowDownRight } from 'lucide-react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions, useWindowDimensions } from 'react-native';
+import { X, Copy, ArrowUpRight, ArrowDownRight, Download, AlertTriangle } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
+import { useToast } from '@/contexts/ToastContext';
 
 type TransactionModalProps = {
   isVisible: boolean;
@@ -24,14 +27,24 @@ type TransactionModalProps = {
 };
 
 export default function TransactionModal({ isVisible, onClose, transaction }: TransactionModalProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const haptics = useHaptics();
+  const { showToast } = useToast();
+  const { width, height } = useWindowDimensions();
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
   
   if (!isVisible) return null;
 
-  const handleCopyTransactionId = () => {
+  const handleCopyTransactionId = async () => {
     haptics.selection();
-    // Implement copy functionality
+    try {
+      await Clipboard.setStringAsync(transaction.transactionId);
+      showToast('Transaction ID copied to clipboard', 'success');
+    } catch (error) {
+      showToast('Failed to copy to clipboard', 'error');
+    }
   };
 
   const handleClose = () => {
@@ -41,17 +54,40 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
 
   const handleDownloadReceipt = () => {
     haptics.mediumImpact();
+    showToast('Receipt download started', 'info');
     // Implement download functionality
   };
 
   const handleReportIssue = () => {
-    haptics.mediumImpact();
+    haptics.notification(Haptics.NotificationFeedbackType.Warning);
+    showToast('Issue reported', 'info');
     // Implement report functionality
   };
 
-  const isPositive = transaction.amount.startsWith('+');
+  const isPositive = transaction.type === 'Deposit';
 
-  const styles = createStyles(colors);
+  // Calculate responsive sizes
+  const headerPadding = isSmallScreen ? 16 : 24;
+  const contentPadding = isSmallScreen ? 16 : 24;
+  const iconSize = isSmallScreen ? 40 : 48;
+  const titleSize = isSmallScreen ? 18 : 20;
+  const amountSize = isSmallScreen ? 20 : 24;
+  const labelSize = isSmallScreen ? 12 : 14;
+  const valueSize = isSmallScreen ? 14 : 16;
+  const sectionTitleSize = isSmallScreen ? 14 : 16;
+  const buttonPadding = isSmallScreen ? 12 : 16;
+
+  const styles = createStyles(colors, isDark, {
+    headerPadding,
+    contentPadding,
+    iconSize,
+    titleSize,
+    amountSize,
+    labelSize,
+    valueSize,
+    sectionTitleSize,
+    buttonPadding
+  });
 
   return (
     <View style={styles.overlay}>
@@ -60,15 +96,15 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
           <View style={styles.headerContent}>
             <Text style={styles.title}>Transaction Details</Text>
             <Pressable onPress={handleClose} style={styles.closeButton}>
-              <X size={24} color="#FFFFFF" />
+              <X size={isSmallScreen ? 20 : 24} color="#FFFFFF" />
             </Pressable>
           </View>
           <View style={styles.amountSection}>
             <View style={[styles.amountIcon, { backgroundColor: isPositive ? '#DCFCE7' : '#FEE2E2' }]}>
               {isPositive ? (
-                <ArrowUpRight size={24} color="#22C55E" />
+                <ArrowUpRight size={isSmallScreen ? 20 : 24} color="#22C55E" />
               ) : (
-                <ArrowDownRight size={24} color="#EF4444" />
+                <ArrowDownRight size={isSmallScreen ? 20 : 24} color="#EF4444" />
               )}
             </View>
             <View>
@@ -96,6 +132,11 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
             </View>
 
             <View style={styles.field}>
+              <Text style={styles.label}>Payment Method</Text>
+              <Text style={styles.value}>{transaction.paymentMethod}</Text>
+            </View>
+
+            <View style={styles.field}>
               <Text style={styles.label}>Source</Text>
               <Text style={styles.value}>{transaction.source}</Text>
             </View>
@@ -111,26 +152,27 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
             <View style={styles.field}>
               <Text style={styles.label}>Transaction ID</Text>
               <View style={styles.idContainer}>
-                <Text style={styles.value}>{transaction.transactionId}</Text>
+                <Text style={styles.value} numberOfLines={1} ellipsizeMode="middle">
+                  {transaction.transactionId}
+                </Text>
                 <Pressable onPress={handleCopyTransactionId} style={styles.copyButton}>
-                  <Copy size={20} color="#3B82F6" />
+                  <Copy size={isSmallScreen ? 16 : 20} color={colors.primary} />
                 </Pressable>
               </View>
             </View>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Payout Plan Ref</Text>
-              <Text style={styles.value}>{transaction.planRef}</Text>
-            </View>
+            {transaction.planRef && (
+              <View style={styles.field}>
+                <Text style={styles.label}>Payout Plan Ref</Text>
+                <Text style={styles.value} numberOfLines={1} ellipsizeMode="middle">
+                  {transaction.planRef}
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Additional Details</Text>
-            <View style={styles.field}>
-              <Text style={styles.label}>Payment Method</Text>
-              <Text style={styles.value}>{transaction.paymentMethod}</Text>
-            </View>
-
             <View style={styles.field}>
               <Text style={styles.label}>Initiated By</Text>
               <Text style={styles.value}>{transaction.initiatedBy}</Text>
@@ -139,6 +181,13 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
             <View style={styles.field}>
               <Text style={styles.label}>Processing Time</Text>
               <Text style={styles.value}>{transaction.processingTime}</Text>
+            </View>
+            
+            <View style={styles.noteContainer}>
+              <AlertTriangle size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+              <Text style={styles.noteText}>
+                If you have any questions about this transaction, please contact our support team.
+              </Text>
             </View>
           </View>
         </ScrollView>
@@ -149,6 +198,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
             style={styles.receiptButton}
             onPress={handleDownloadReceipt}
             hapticType="medium"
+            icon={Download}
           />
           <Button
             title="Report an Issue"
@@ -163,7 +213,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, sizes: any) => StyleSheet.create({
   overlay: {
     position: 'absolute',
     top: 0,
@@ -174,6 +224,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
+    zIndex: 1000,
   },
   modal: {
     backgroundColor: colors.surface,
@@ -182,29 +233,39 @@ const createStyles = (colors: any) => StyleSheet.create({
     maxWidth: 480,
     maxHeight: '90%',
     overflow: 'hidden',
+    ...(isDark ? {
+      borderWidth: 1,
+      borderColor: colors.border,
+    } : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 5,
+    }),
   },
   header: {
     backgroundColor: '#1E3A8A',
-    padding: 24,
+    padding: sizes.headerPadding,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: sizes.headerPadding,
   },
   title: {
-    fontSize: 20,
+    fontSize: sizes.titleSize,
     fontWeight: '600',
     color: '#FFFFFF',
   },
   closeButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 20,
+    borderRadius: 18,
   },
   amountSection: {
     flexDirection: 'row',
@@ -212,14 +273,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 16,
   },
   amountIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: sizes.iconSize,
+    height: sizes.iconSize,
+    borderRadius: sizes.iconSize / 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
   amount: {
-    fontSize: 24,
+    fontSize: sizes.amountSize,
     fontWeight: '700',
     marginBottom: 4,
   },
@@ -230,7 +291,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#EF4444',
   },
   status: {
-    fontSize: 14,
+    fontSize: sizes.labelSize,
     fontWeight: '500',
   },
   positiveStatus: {
@@ -243,27 +304,30 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
+    padding: sizes.contentPadding,
   },
   section: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: sizes.sectionTitleSize,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   field: {
     marginBottom: 16,
   },
   label: {
-    fontSize: 14,
+    fontSize: sizes.labelSize,
     color: colors.textSecondary,
     marginBottom: 4,
   },
   value: {
-    fontSize: 16,
+    fontSize: sizes.valueSize,
     color: colors.text,
     fontWeight: '500',
   },
@@ -274,22 +338,41 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.backgroundTertiary,
     padding: 12,
     borderRadius: 8,
+    marginTop: 4,
   },
   copyButton: {
     padding: 8,
     backgroundColor: colors.backgroundSecondary,
     borderRadius: 8,
+    marginLeft: 8,
+  },
+  noteContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    gap: 12,
+  },
+  noteText: {
+    flex: 1,
+    fontSize: sizes.labelSize,
+    color: colors.textSecondary,
+    lineHeight: sizes.labelSize * 1.5,
   },
   footer: {
-    padding: 24,
+    padding: sizes.contentPadding,
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   receiptButton: {
     backgroundColor: '#1E3A8A',
+    paddingVertical: sizes.buttonPadding,
   },
   reportButton: {
     borderColor: colors.border,
+    paddingVertical: sizes.buttonPadding,
   },
 });
