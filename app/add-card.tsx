@@ -11,6 +11,7 @@ import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
+import OTPVerificationModal from '@/components/OTPVerificationModal';
 
 export default function AddCardScreen() {
   const { colors, isDark } = useTheme();
@@ -28,6 +29,11 @@ export default function AddCardScreen() {
   const [cardholderName, setCardholderName] = useState('');
   const [saveCard, setSaveCard] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // OTP verification state
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpReference, setOtpReference] = useState('');
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -47,13 +53,13 @@ export default function AddCardScreen() {
 
   const formatExpiryDate = (value: string) => {
     // Remove all non-digit characters
-    let cleaned = value.replace(/\D/g, '');
+    const digits = value.replace(/\D/g, '');
     
     // Format as MM/YY
-    if (cleaned.length > 2) {
-      return cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4);
+    if (digits.length > 2) {
+      return digits.slice(0, 2) + '/' + digits.slice(2, 4);
     } else {
-      return cleaned;
+      return digits;
     }
   };
 
@@ -114,22 +120,46 @@ export default function AddCardScreen() {
       setIsLoading(true);
       haptics.impact();
       
-      // Extract month and year from expiry date
-      const [expMonth, expYear] = expiryDate.split('/');
-      
-      // In a real app, this would call the Paystack API to tokenize the card
-      // For demo purposes, we'll simulate a successful tokenization
       if (!session?.user?.id) {
         throw new Error('User not authenticated');
       }
       
-      // Simulate API call delay
+      // Extract month and year from expiry date
+      const [expMonth, expYear] = expiryDate.split('/');
+      
+      // In a real app, this would call the Paystack API to tokenize the card
+      // For demo purposes, we'll simulate a successful tokenization with OTP
+      
+      // Simulate API call with a delay
       await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Simulate OTP requirement (in a real app, this would come from the API response)
+      setOtpReference(`REF_${Date.now()}`);
+      setShowOtpModal(true);
+      
+    } catch (err) {
+      haptics.error();
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add card';
+      showToast(`Error tokenizing card: ${errorMessage}`, 'error');
+      console.error('Error tokenizing card:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleVerifyOtp = async (otp: string) => {
+    try {
+      setIsVerifyingOtp(true);
+      
+      // In a real app, this would call the Paystack API to verify the OTP
+      // For demo purposes, we'll simulate a successful verification
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
       // If saveCard is true, add the card to saved payment methods
       if (saveCard) {
         const cardDigits = cardNumber.replace(/\D/g, '');
         const lastFour = cardDigits.slice(-4);
+        const [expMonth, expYear] = expiryDate.split('/');
         
         // Determine card type based on first digit
         let cardType = 'unknown';
@@ -172,20 +202,22 @@ export default function AddCardScreen() {
         showToast('Card added successfully', 'success');
         router.back();
       }
+      
+      setShowOtpModal(false);
+      
     } catch (error) {
       haptics.error();
-      console.error('Error tokenizing card:', error);
-      showToast('Failed to add card. Please try again.', 'error');
+      showToast('Failed to verify OTP. Please try again.', 'error');
     } finally {
-      setIsLoading(false);
+      setIsVerifyingOtp(false);
     }
   };
 
-  // Simulate adding a payment method
+  // Simulate adding a payment method (in a real app, this would be a database operation)
   const addPaymentMethod = async (methodData: any) => {
-    // In a real app, this would call your backend API
+    // This is a mock implementation
     console.log('Adding payment method:', methodData);
-    return { success: true };
+    return true;
   };
 
   const styles = createStyles(colors, isDark);
@@ -364,6 +396,14 @@ export default function AddCardScreen() {
         loading={isLoading}
         disabled={isLoading}
         hapticType="medium"
+      />
+      
+      <OTPVerificationModal
+        isVisible={showOtpModal}
+        onClose={() => setShowOtpModal(false)}
+        onVerify={handleVerifyOtp}
+        reference={otpReference}
+        isLoading={isVerifyingOtp}
       />
     </SafeAreaView>
   );
