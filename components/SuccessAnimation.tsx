@@ -5,7 +5,12 @@ import LottieView from 'lottie-react-native';
 // Conditionally load the Player component only on web
 let Player: any = null;
 if (Platform.OS === 'web') {
-  Player = require('@lottiefiles/react-lottie-player').Player;
+  try {
+    const LottieWeb = require('@lottiefiles/react-lottie-player');
+    Player = LottieWeb.Player;
+  } catch (error) {
+    console.error('Failed to import @lottiefiles/react-lottie-player:', error);
+  }
 }
 
 export default function SuccessAnimation() {
@@ -20,7 +25,7 @@ export default function SuccessAnimation() {
     }
   }, []);
 
-  if (Platform.OS === 'web') {
+  if (Platform.OS === 'web' && Player) {
     return (
       <View style={styles.container}>
         <View style={styles.confettiContainer}>
