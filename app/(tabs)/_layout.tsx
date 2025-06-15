@@ -43,10 +43,14 @@ export default function TabLayout() {
           // Refresh unread count when events change
           fetchUnreadNotificationsCount();
         }
-      )
-      .subscribe((status) => {
+      );
+
+    // Only subscribe if the channel is not already subscribed
+    if (channel.state === 'closed' || channel.state === 'leaving') {
+      channel.subscribe((status) => {
         console.log('Events subscription status:', status);
       });
+    }
 
     // Store the channel reference
     channelRef.current = channel;

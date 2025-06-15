@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, TriangleAlert as AlertTriangle, Clock, Check, Info } from 'lucide-react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import Button from '@/components/Button';
 import HorizontalLoader from '@/components/HorizontalLoader';
 import SafeFooter from '@/components/SafeFooter';
@@ -10,11 +10,16 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useBalance } from '@/contexts/BalanceContext';
 
 export default function LinkedAccountsScreen() {
   const { colors } = useTheme();
   const [showAddAccount, setShowAddAccount] = useState(false);
   const haptics = useHaptics();
+  const { addFunds } = useBalance();
+  const params = useLocalSearchParams();
+  const amount = params.amount as string;
+  const fromDepositFlow = params.fromDepositFlow === 'true';
   
   const { 
     bankAccounts, 
@@ -110,16 +115,32 @@ export default function LinkedAccountsScreen() {
   }) => {
     try {
       haptics.success();
-      await addBankAccount({
+      const newAccount = await addBankAccount({
         bank_name: account.bankName,
         account_number: account.accountNumber,
         account_name: account.accountName,
         is_default: bankAccounts.length === 0 // Make first account default
       });
-      setShowAddAccount(false);
+      
+      if (fromDepositFlow && amount) {
+        // Navigate to authorization screen
+        router.replace({
+          pathname: '/deposit-flow/authorization',
+          params: {
+            amount,
+            methodTitle: 'Bank Account'
+          }
+        });
+      } else {
+        // Just close the modal for regular flow
+        setShowAddAccount(false);
+      }
+      
+      return newAccount;
     } catch (error) {
       haptics.error();
       console.error('Error adding bank account:', error);
+      throw error;
     }
   };
 
@@ -176,7 +197,10 @@ export default function LinkedAccountsScreen() {
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           <Text style={styles.subtitle}>
-            Manage your linked bank accounts for adding payments
+            {fromDepositFlow 
+              ? `Add a bank account to deposit ₦${amount}`
+              : 'Manage your linked bank accounts for adding payments'
+            }
           </Text>
 
           {error && (
@@ -208,24 +232,10 @@ export default function LinkedAccountsScreen() {
                       <Text style={styles.accountNumber}>•••• {account.account_number.slice(-4)}</Text>
                     </View>
                   </View>
-                  {account.status === 'active' && (
-                    <View style={styles.statusTag}>
-                      <Check size={12} color="#22C55E" />
-                      <Text style={styles.statusText}>Verified</Text>
-                    </View>
-                  )}
-                  {account.status === 'pending' && (
-                    <View style={[styles.statusTag, styles.pendingTag]}>
-                      <Clock size={12} color="#D97706" />
-                      <Text style={[styles.statusText, styles.pendingText]}>Pending</Text>
-                    </View>
-                  )}
-                  {account.status === 'failed' && (
-                    <View style={[styles.statusTag, styles.failedTag]}>
-                      <AlertTriangle size={12} color="#EF4444" />
-                      <Text style={[styles.statusText, styles.failedText]}>Failed</Text>
-                    </View>
-                  )}
+                  <View style={styles.statusTag}>
+                    <Check size={12} color="#22C55E" />
+                    <Text style={styles.statusText}>Verified</Text>
+                  </View>
                 </View>
 
                 <View style={styles.accountContent}>
@@ -235,19 +245,8 @@ export default function LinkedAccountsScreen() {
                   )}
                 </View>
 
-                {account.status === 'failed' && (
-                  <View style={styles.errorMessage}>
-                    <View style={styles.errorIconContainer}>
-                      <AlertTriangle size={16} color="#EF4444" />
-                    </View>
-                    <Text style={styles.errorText}>
-                      Verification failed. Please check your account details and try again.
-                    </Text>
-                  </View>
-                )}
-
                 <View style={styles.accountActions}>
-                  {!account.is_default && account.status === 'active' && (
+                  {!account.is_default && (
                     <Pressable
                       style={styles.actionButton}
                       onPress={() => handleMakeDefault(account.id)}
@@ -255,20 +254,10 @@ export default function LinkedAccountsScreen() {
                       <Text style={styles.actionButtonText}>Make Default</Text>
                     </Pressable>
                   )}
-                  {account.status === 'failed' && (
-                    <Pressable
-                      style={[styles.actionButton, styles.retryButton]}
-                      onPress={() => handleRetryVerification(account.id)}
-                    >
-                      <Text style={[styles.actionButtonText, styles.retryButtonText]}>
-                        Retry Verification
-                      </Text>
-                    </Pressable>
-                  )}
                   {!account.is_default && (
                     <Pressable
                       style={[styles.actionButton, styles.removeButton]}
-                      onPress={() => handleRemoveAccount(account.id)}
+                      onPress={() => handleRemoveAccount(account.id, account.account_name)}
                     >
                       <Trash2 size={16} color="#EF4444" />
                       <Text style={[styles.actionButtonText, styles.removeButtonText]}>
@@ -541,6 +530,20 @@ const createStyles = (colors: any) => StyleSheet.create({
   addAccountText: {
     fontSize: 14,
     color: colors.text,
+    fontWeight: '500',
+  },
+  statusTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 12,
+    color: '#22C55E',
     fontWeight: '500',
   },
 });

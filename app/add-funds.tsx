@@ -68,6 +68,17 @@ export default function AddFundsScreen() {
     }
   };
 
+  // Handle navigation to deposit flow with payment method type
+  const handleNavigateToDepositFlow = (methodType: string) => {
+    haptics.mediumImpact();
+    router.push({
+      pathname: '/deposit-flow/amount',
+      params: {
+        newMethodType: methodType
+      }
+    });
+  };
+
   const styles = createStyles(colors, isDark, isSmallScreen);
 
   // Calculate footer height including safe area
@@ -183,7 +194,7 @@ export default function AddFundsScreen() {
             <View style={styles.paymentMethodsContainer}>
               <Pressable 
                 style={styles.paymentMethod}
-                onPress={() => router.push('/add-card')}
+                onPress={() => handleNavigateToDepositFlow('card')}
               >
                 <View style={styles.paymentMethodIcon}>
                   <CreditCard size={24} color={colors.primary} />
@@ -197,7 +208,7 @@ export default function AddFundsScreen() {
 
               <Pressable 
                 style={styles.paymentMethod}
-                onPress={() => router.push('/add-ussd')}
+                onPress={() => handleNavigateToDepositFlow('ussd')}
               >
                 <View style={styles.paymentMethodIcon}>
                   <Smartphone size={24} color={colors.primary} />
@@ -211,7 +222,7 @@ export default function AddFundsScreen() {
 
               <Pressable 
                 style={styles.paymentMethod}
-                onPress={() => router.push('/linked-accounts')}
+                onPress={() => handleNavigateToDepositFlow('bank-account')}
               >
                 <View style={styles.paymentMethodIcon}>
                   <Building2 size={24} color={colors.primary} />
