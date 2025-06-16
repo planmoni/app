@@ -305,7 +305,7 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     alignItems: 'center',
   },
   content: {
-    padding: 20,
+    padding: 10,
   },
   description: {
     fontSize: 16,
