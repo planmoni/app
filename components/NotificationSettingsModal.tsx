@@ -39,15 +39,14 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
 const styles = StyleSheet.create({
   centeredView: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalView: {
-    width: '90%',
-    maxWidth: 500,
+    width: '100%',
     backgroundColor: 'white',
-    borderRadius: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: 24,
     shadowColor: '#000',
     shadowOffset: {

@@ -238,15 +238,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+    justifyContent: 'flex-end',
   },
   modal: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     width: '100%',
-    maxWidth: 400,
     maxHeight: '90%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',

@@ -39,15 +39,14 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
 const styles = StyleSheet.create({
   centeredView: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalView: {
-    width: '90%',
-    maxWidth: 500,
+    width: '100%',
     backgroundColor: 'white',
-    borderRadius: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: 24,
     shadowColor: '#000',
     shadowOffset: {
@@ -79,7 +78,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   closeButtonText: {
-    color: '#1E3A8A',
+    color: '#3B82F6',
     fontSize: 16,
     fontWeight: '600',
   },

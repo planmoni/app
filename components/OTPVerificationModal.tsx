@@ -178,13 +178,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+    justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     width: '100%',
     maxWidth: 400,
     borderWidth: isDark ? 1 : 0,
