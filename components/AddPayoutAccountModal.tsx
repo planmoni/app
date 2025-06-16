@@ -1,4 +1,4 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, ScrollView } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useState, useEffect } from 'react';
 import { X, Check, TriangleAlert as AlertTriangle, Search } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -6,9 +6,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
-import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useBanks, Bank } from '@/hooks/useBanks';
 import { useAccountResolution } from '@/hooks/useAccountResolution';
+import { useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface AddPayoutAccountModalProps {
   isVisible: boolean;
@@ -21,6 +22,11 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   const { addPayoutAccount } = usePayoutAccounts();
   const { banks, isLoading: banksLoading } = useBanks();
   const { resolveAccount, isResolving, error: resolutionError, setError: setResolutionError } = useAccountResolution();
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
   
   const [formData, setFormData] = useState({
     accountName: '',
@@ -35,6 +41,22 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset form when modal is opened
+  useEffect(() => {
+    if (isVisible) {
+      setFormData({
+        accountName: '',
+        accountNumber: '',
+        bankName: ''
+      });
+      setSelectedBank(null);
+      setBankSearchQuery('');
+      setAccountResolved(false);
+      setFormErrors({});
+      setResolutionError(null);
+    }
+  }, [isVisible]);
 
   // Filter banks based on search query
   const filteredBanks = banks?.filter(bank =>
@@ -172,7 +194,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     }
   };
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, isSmallScreen, insets);
 
   return (
     <Modal
@@ -180,163 +202,167 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       transparent={true}
       visible={isVisible}
       onRequestClose={handleClose}
-      statusBarTranslucent={true}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Add Payout Account</Text>
-            <Pressable 
-              style={styles.closeButton} 
-              onPress={handleClose}
-              disabled={isSubmitting}
-            >
-              <X size={24} color={colors.text} />
-            </Pressable>
-          </View>
-          
-          <KeyboardAvoidingWrapper contentContainerStyle={styles.formContainer}>
-            <Text style={styles.description}>
-              Add a bank account where you want to receive payouts
-            </Text>
-            
-            {formErrors.general && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{formErrors.general}</Text>
-              </View>
-            )}
-            
-            {resolutionError && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{resolutionError}</Text>
-              </View>
-            )}
-            
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Account Number</Text>
-              <View style={[
-                styles.inputContainer, 
-                formErrors.accountNumber && styles.inputError,
-                accountResolved && styles.resolvedInput
-              ]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter 10-digit account number"
-                  placeholderTextColor={colors.textTertiary}
-                  value={formData.accountNumber}
-                  onChangeText={handleAccountNumberChange}
-                  keyboardType="numeric"
-                  maxLength={10}
-                  editable={!isSubmitting && !accountResolved}
-                />
-                {isResolving && (
-                  <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
-                )}
-                {accountResolved && (
-                  <View style={styles.resolvedIcon}>
-                    <Check size={16} color={colors.success} />
-                  </View>
-                )}
-              </View>
-              {formErrors.accountNumber && (
-                <Text style={styles.fieldError}>{formErrors.accountNumber}</Text>
-              )}
-            </View>
-            
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Bank</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardAvoidingView}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Add Payout Account</Text>
               <Pressable 
-                style={[
-                  styles.bankSelector,
-                  formErrors.bankName && styles.inputError,
-                  selectedBank && styles.selectedInput
-                ]}
-                onPress={() => {
-                  if (!isSubmitting && !accountResolved) {
-                    haptics.selection();
-                    setShowBankSelector(true);
-                  }
-                }}
-                disabled={isSubmitting || accountResolved}
+                style={styles.closeButton} 
+                onPress={handleClose}
+                disabled={isSubmitting}
               >
-                {selectedBank ? (
-                  <Text style={styles.selectedBankText}>{selectedBank.name}</Text>
-                ) : (
-                  <Text style={styles.placeholderText}>Select your bank</Text>
-                )}
+                <X size={24} color={colors.text} />
               </Pressable>
-              {formErrors.bankName && (
-                <Text style={styles.fieldError}>{formErrors.bankName}</Text>
-              )}
             </View>
             
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Account Name</Text>
-              <View style={[
-                styles.inputContainer, 
-                formErrors.accountName && styles.inputError,
-                accountResolved && styles.resolvedInput
-              ]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder={isResolving ? "Resolving account name..." : "Enter account holder name"}
-                  placeholderTextColor={colors.textTertiary}
-                  value={formData.accountName}
-                  onChangeText={(text) => {
-                    if (!accountResolved) {
-                      setFormData({...formData, accountName: text});
-                      if (formErrors.accountName) {
-                        setFormErrors({...formErrors, accountName: ''});
-                      }
+            <ScrollView style={styles.formContainer} contentContainerStyle={styles.formContent}>
+              <Text style={styles.description}>
+                Add a bank account where you want to receive payouts
+              </Text>
+              
+              {formErrors.general && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{formErrors.general}</Text>
+                </View>
+              )}
+              
+              {resolutionError && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{resolutionError}</Text>
+                </View>
+              )}
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Account Number</Text>
+                <View style={[
+                  styles.inputContainer, 
+                  formErrors.accountNumber && styles.inputError,
+                  accountResolved && styles.resolvedInput
+                ]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter 10-digit account number"
+                    placeholderTextColor={colors.textTertiary}
+                    value={formData.accountNumber}
+                    onChangeText={handleAccountNumberChange}
+                    keyboardType="numeric"
+                    maxLength={10}
+                    editable={!isSubmitting && !accountResolved}
+                  />
+                  {isResolving && (
+                    <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
+                  )}
+                  {accountResolved && (
+                    <View style={styles.resolvedIcon}>
+                      <Check size={16} color={colors.success} />
+                    </View>
+                  )}
+                </View>
+                {formErrors.accountNumber && (
+                  <Text style={styles.fieldError}>{formErrors.accountNumber}</Text>
+                )}
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Bank</Text>
+                <Pressable 
+                  style={[
+                    styles.bankSelector,
+                    formErrors.bankName && styles.inputError,
+                    selectedBank && styles.selectedInput
+                  ]}
+                  onPress={() => {
+                    if (!isSubmitting && !accountResolved) {
+                      haptics.selection();
+                      setShowBankSelector(true);
                     }
                   }}
-                  editable={!isSubmitting && !accountResolved && !isResolving}
-                />
-                {accountResolved && (
-                  <View style={styles.resolvedIcon}>
-                    <Check size={16} color={colors.success} />
-                  </View>
+                  disabled={isSubmitting || accountResolved}
+                >
+                  {selectedBank ? (
+                    <Text style={styles.selectedBankText} numberOfLines={1}>{selectedBank.name}</Text>
+                  ) : (
+                    <Text style={styles.placeholderText}>Select your bank</Text>
+                  )}
+                </Pressable>
+                {formErrors.bankName && (
+                  <Text style={styles.fieldError}>{formErrors.bankName}</Text>
                 )}
               </View>
-              {formErrors.accountName && (
-                <Text style={styles.fieldError}>{formErrors.accountName}</Text>
-              )}
-            </View>
-            
-            {accountResolved && (
-              <View style={styles.successContainer}>
-                <Check size={16} color={colors.success} />
-                <Text style={styles.successText}>Account details verified successfully</Text>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Account Name</Text>
+                <View style={[
+                  styles.inputContainer, 
+                  formErrors.accountName && styles.inputError,
+                  accountResolved && styles.resolvedInput
+                ]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={isResolving ? "Resolving account name..." : "Enter account holder name"}
+                    placeholderTextColor={colors.textTertiary}
+                    value={formData.accountName}
+                    onChangeText={(text) => {
+                      if (!accountResolved) {
+                        setFormData({...formData, accountName: text});
+                        if (formErrors.accountName) {
+                          setFormErrors({...formErrors, accountName: ''});
+                        }
+                      }
+                    }}
+                    editable={!isSubmitting && !accountResolved && !isResolving}
+                  />
+                  {accountResolved && (
+                    <View style={styles.resolvedIcon}>
+                      <Check size={16} color={colors.success} />
+                    </View>
+                  )}
+                </View>
+                {formErrors.accountName && (
+                  <Text style={styles.fieldError}>{formErrors.accountName}</Text>
+                )}
               </View>
-            )}
+              
+              {accountResolved && (
+                <View style={styles.successContainer}>
+                  <Check size={16} color={colors.success} />
+                  <Text style={styles.successText}>Account details verified successfully</Text>
+                </View>
+              )}
+              
+              <View style={styles.infoContainer}>
+                <AlertTriangle size={16} color={colors.primary} />
+                <Text style={styles.infoText}>
+                  Please ensure all details are correct. These details will be used for your payouts.
+                </Text>
+              </View>
+            </ScrollView>
             
-            <View style={styles.infoContainer}>
-              <AlertTriangle size={16} color={colors.primary} />
-              <Text style={styles.infoText}>
-                Please ensure all details are correct. These details will be used for your payouts.
-              </Text>
+            <View style={styles.footer}>
+              <Button
+                title="Add Account"
+                onPress={handleAddAccount}
+                isLoading={isSubmitting}
+                style={styles.addButton}
+                hapticType="success"
+              />
+              <Button
+                title="Cancel"
+                onPress={handleClose}
+                variant="outline"
+                style={styles.cancelButton}
+                disabled={isSubmitting}
+                hapticType="light"
+              />
             </View>
-          </KeyboardAvoidingWrapper>
-          
-          <View style={styles.footer}>
-            <Button
-              title="Add Account"
-              onPress={handleAddAccount}
-              isLoading={isSubmitting}
-              style={styles.addButton}
-              hapticType="success"
-            />
-            <Button
-              title="Cancel"
-              onPress={handleClose}
-              variant="outline"
-              style={styles.cancelButton}
-              disabled={isSubmitting}
-              hapticType="light"
-            />
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Bank Selection Modal */}
       <Modal
@@ -344,7 +370,6 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
         transparent={true}
         animationType="slide"
         onRequestClose={() => setShowBankSelector(false)}
-        statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.bankSelectorModal}>
@@ -376,7 +401,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                 <Text style={styles.loadingText}>Loading banks...</Text>
               </View>
             ) : (
-              <ScrollView style={styles.banksList}>
+              <ScrollView style={styles.banksList} contentContainerStyle={styles.banksListContent}>
                 {filteredBanks.map(bank => (
                   <Pressable
                     key={bank.id}
@@ -403,17 +428,22 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, insets: any) => StyleSheet.create({
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
   },
   modalContent: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderRadius: 16,
     width: '100%',
+    maxWidth: 500,
     maxHeight: '90%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
@@ -422,12 +452,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   title: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: colors.text,
   },
@@ -440,13 +470,16 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   formContainer: {
-    padding: 20,
+    flex: 1,
+  },
+  formContent: {
+    padding: isSmallScreen ? 16 : 20,
   },
   description: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     color: colors.textSecondary,
     marginBottom: 24,
-    lineHeight: 24,
+    lineHeight: isSmallScreen ? 20 : 24,
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
@@ -551,12 +584,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   infoText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: isSmallScreen ? 18 : 20,
   },
   footer: {
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
+    paddingBottom: Math.max(isSmallScreen ? 16 : 20, insets.bottom),
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
@@ -569,9 +603,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   bankSelectorModal: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderRadius: 16,
     width: '100%',
+    maxWidth: 500,
     maxHeight: '80%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
@@ -580,12 +614,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   bankSelectorTitle: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: colors.text,
   },
@@ -605,6 +639,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   banksList: {
     maxHeight: 400,
+  },
+  banksListContent: {
+    paddingBottom: 16,
   },
   bankItem: {
     flexDirection: 'row',

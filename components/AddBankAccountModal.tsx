@@ -1,9 +1,10 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react-native';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Button from '@/components/Button';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useWindowDimensions } from 'react-native';
 
 interface AddBankAccountModalProps {
   isVisible: boolean;
@@ -48,6 +49,21 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
   
   // Get theme colors
   const { colors, isDark } = useTheme();
+  const { width, height } = useWindowDimensions();
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
+
+  // Reset form when modal is opened
+  useEffect(() => {
+    if (isVisible) {
+      setSelectedBank('');
+      setAccountNumber('');
+      setAccountName('');
+      setSearchQuery('');
+      setError(null);
+    }
+  }, [isVisible]);
 
   const filteredBanks = useMemo(() => {
     return BANKS.filter(bank => 
@@ -105,7 +121,7 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
     }
   };
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, isSmallScreen);
 
   return (
     <Modal
@@ -113,17 +129,19 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
       transparent={true}
       visible={isVisible}
       onRequestClose={handleClose}
-      statusBarTranslucent={true}
     >
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Add Bank Account</Text>
-            <Text style={styles.subtitle}>Enter your bank account details</Text>
-          </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingView}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.modal}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Add Bank Account</Text>
+              <Text style={styles.subtitle}>Enter your bank account details</Text>
+            </View>
 
-          <KeyboardAvoidingWrapper style={styles.content} disableScrollView={false}>
-            <View style={styles.contentInner}>
+            <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
               {error && (
                 <View style={styles.errorContainer}>
                   <Text style={styles.errorText}>{error}</Text>
@@ -170,7 +188,11 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
                         editable={!isSubmitting}
                       />
                     </View>
-                    <ScrollView style={styles.bankList} nestedScrollEnabled>
+                    <ScrollView 
+                      style={styles.bankList} 
+                      nestedScrollEnabled
+                      contentContainerStyle={styles.bankListContent}
+                    >
                       {filteredBanks.map((bank) => (
                         <Pressable
                           key={bank}
@@ -191,6 +213,9 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
                           )}
                         </Pressable>
                       ))}
+                      {filteredBanks.length === 0 && (
+                        <Text style={styles.noResultsText}>No banks found</Text>
+                      )}
                     </ScrollView>
                   </View>
                 )}
@@ -210,58 +235,63 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
                   editable={!isSubmitting}
                 />
               </View>
-            </View>
-          </KeyboardAvoidingWrapper>
+            </ScrollView>
 
-          <View style={styles.footer}>
-            <Button
-              title={isSubmitting ? "Adding..." : "Add Account"}
-              onPress={handleAddAccount}
-              style={styles.addButton}
-              disabled={isSubmitting || loading}
-            />
-            <Button
-              title="Cancel"
-              onPress={handleClose}
-              variant="outline"
-              style={styles.cancelButton}
-              disabled={isSubmitting}
-            />
+            <View style={styles.footer}>
+              <Button
+                title={isSubmitting ? "Adding..." : "Add Account"}
+                onPress={handleAddAccount}
+                style={styles.addButton}
+                disabled={isSubmitting || loading}
+              />
+              <Button
+                title="Cancel"
+                onPress={handleClose}
+                variant="outline"
+                style={styles.cancelButton}
+                disabled={isSubmitting}
+              />
+            </View>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
   },
   modal: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderRadius: 16,
     width: '100%',
+    maxWidth: 400,
     maxHeight: '90%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
   },
   header: {
-    padding: 24,
+    padding: isSmallScreen ? 16 : 24,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   title: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 20 : 24,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
   },
   content: {
@@ -269,7 +299,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     maxHeight: 400,
   },
   contentInner: {
-    padding: 24,
+    padding: isSmallScreen ? 16 : 24,
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
@@ -342,6 +372,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   bankList: {
     maxHeight: 200,
   },
+  bankListContent: {
+    paddingBottom: 8,
+  },
   bankOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -354,8 +387,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 16,
     color: colors.text,
   },
+  noResultsText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    padding: 16,
+  },
   footer: {
-    padding: 24,
+    padding: isSmallScreen ? 16 : 24,
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,

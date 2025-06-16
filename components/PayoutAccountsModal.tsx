@@ -1,10 +1,12 @@
-import { Modal, View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useState, useEffect } from 'react';
 import { X, Plus, CreditCard, ChevronRight, Check, Trash2, LocationEdit as Edit2 } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
+import { useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface PayoutAccountsModalProps {
   isVisible: boolean;
@@ -24,6 +26,12 @@ type PayoutAccount = {
 export default function PayoutAccountsModal({ isVisible, onClose }: PayoutAccountsModalProps) {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
+  
   const [payoutAccounts, setPayoutAccounts] = useState<PayoutAccount[]>([
     {
       id: '1',
@@ -190,75 +198,80 @@ export default function PayoutAccountsModal({ isVisible, onClose }: PayoutAccoun
     return Object.keys(errors).length === 0;
   };
   
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, isSmallScreen, insets);
   
   const renderAddEditForm = () => (
-    <View style={styles.formContainer}>
-      <View style={styles.formHeader}>
-        <Text style={styles.formTitle}>
-          {showEditAccount ? 'Edit Payout Account' : 'Add Payout Account'}
-        </Text>
-        <Pressable 
-          style={styles.closeButton} 
-          onPress={() => {
-            haptics.lightImpact();
-            showEditAccount ? setShowEditAccount(false) : setShowAddAccount(false);
-            setSelectedAccount(null);
-          }}
-        >
-          <X size={24} color={colors.text} />
-        </Pressable>
-      </View>
-      
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Account Name</Text>
-        <TextInput
-          style={[styles.input, formErrors.accountName && styles.inputError]}
-          placeholder="Enter account holder name"
-          placeholderTextColor={colors.textTertiary}
-          value={formData.accountName}
-          onChangeText={(text) => setFormData({...formData, accountName: text})}
-        />
-        {formErrors.accountName && (
-          <Text style={styles.errorText}>{formErrors.accountName}</Text>
-        )}
-      </View>
-      
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Account Number</Text>
-        <TextInput
-          style={[styles.input, formErrors.accountNumber && styles.inputError]}
-          placeholder="Enter 10-digit account number"
-          placeholderTextColor={colors.textTertiary}
-          value={formData.accountNumber}
-          onChangeText={(text) => {
-            // Only allow numbers and limit to 10 digits
-            const numericText = text.replace(/[^0-9]/g, '');
-            if (numericText.length <= 10) {
-              setFormData({...formData, accountNumber: numericText});
-            }
-          }}
-          keyboardType="numeric"
-          maxLength={10}
-        />
-        {formErrors.accountNumber && (
-          <Text style={styles.errorText}>{formErrors.accountNumber}</Text>
-        )}
-      </View>
-      
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Bank Name</Text>
-        <TextInput
-          style={[styles.input, formErrors.bankName && styles.inputError]}
-          placeholder="Enter bank name"
-          placeholderTextColor={colors.textTertiary}
-          value={formData.bankName}
-          onChangeText={(text) => setFormData({...formData, bankName: text})}
-        />
-        {formErrors.bankName && (
-          <Text style={styles.errorText}>{formErrors.bankName}</Text>
-        )}
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.formContainer}
+    >
+      <ScrollView contentContainerStyle={styles.formScrollContent}>
+        <View style={styles.formHeader}>
+          <Text style={styles.formTitle}>
+            {showEditAccount ? 'Edit Payout Account' : 'Add Payout Account'}
+          </Text>
+          <Pressable 
+            style={styles.closeButton} 
+            onPress={() => {
+              haptics.lightImpact();
+              showEditAccount ? setShowEditAccount(false) : setShowAddAccount(false);
+              setSelectedAccount(null);
+            }}
+          >
+            <X size={24} color={colors.text} />
+          </Pressable>
+        </View>
+        
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>Account Name</Text>
+          <TextInput
+            style={[styles.input, formErrors.accountName && styles.inputError]}
+            placeholder="Enter account holder name"
+            placeholderTextColor={colors.textTertiary}
+            value={formData.accountName}
+            onChangeText={(text) => setFormData({...formData, accountName: text})}
+          />
+          {formErrors.accountName && (
+            <Text style={styles.errorText}>{formErrors.accountName}</Text>
+          )}
+        </View>
+        
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>Account Number</Text>
+          <TextInput
+            style={[styles.input, formErrors.accountNumber && styles.inputError]}
+            placeholder="Enter 10-digit account number"
+            placeholderTextColor={colors.textTertiary}
+            value={formData.accountNumber}
+            onChangeText={(text) => {
+              // Only allow numbers and limit to 10 digits
+              const numericText = text.replace(/[^0-9]/g, '');
+              if (numericText.length <= 10) {
+                setFormData({...formData, accountNumber: numericText});
+              }
+            }}
+            keyboardType="numeric"
+            maxLength={10}
+          />
+          {formErrors.accountNumber && (
+            <Text style={styles.errorText}>{formErrors.accountNumber}</Text>
+          )}
+        </View>
+        
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>Bank Name</Text>
+          <TextInput
+            style={[styles.input, formErrors.bankName && styles.inputError]}
+            placeholder="Enter bank name"
+            placeholderTextColor={colors.textTertiary}
+            value={formData.bankName}
+            onChangeText={(text) => setFormData({...formData, bankName: text})}
+          />
+          {formErrors.bankName && (
+            <Text style={styles.errorText}>{formErrors.bankName}</Text>
+          )}
+        </View>
+      </ScrollView>
       
       <View style={styles.formActions}>
         <Button
@@ -278,7 +291,7 @@ export default function PayoutAccountsModal({ isVisible, onClose }: PayoutAccoun
           hapticType="success"
         />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
   
   const renderAccountsList = () => (
@@ -294,7 +307,7 @@ export default function PayoutAccountsModal({ isVisible, onClose }: PayoutAccoun
         Manage accounts where you receive payouts from your plans
       </Text>
       
-      <ScrollView style={styles.accountsList}>
+      <ScrollView style={styles.accountsList} contentContainerStyle={styles.accountsListContent}>
         {payoutAccounts.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>No payout accounts added yet</Text>
@@ -387,7 +400,6 @@ export default function PayoutAccountsModal({ isVisible, onClose }: PayoutAccoun
       transparent={true}
       visible={isVisible}
       onRequestClose={onClose}
-      statusBarTranslucent={true}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
@@ -402,16 +414,17 @@ export default function PayoutAccountsModal({ isVisible, onClose }: PayoutAccoun
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, insets: any) => StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
   },
   modalContent: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderRadius: 16,
     width: '100%',
     maxWidth: 500,
     maxHeight: '90%',
@@ -421,12 +434,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: colors.text,
   },
@@ -439,15 +452,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   modalDescription: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 12,
     paddingBottom: 20,
   },
   accountsList: {
     flex: 1,
-    padding: 20,
+  },
+  accountsListContent: {
+    padding: isSmallScreen ? 16 : 20,
+    paddingBottom: 24,
   },
   emptyState: {
     alignItems: 'center',
@@ -467,7 +483,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   accountCard: {
     backgroundColor: colors.card,
     borderRadius: 12,
-    padding: 16,
+    padding: isSmallScreen ? 12 : 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
@@ -477,9 +493,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 16,
   },
   accountIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: isSmallScreen ? 40 : 48,
+    height: isSmallScreen ? 40 : 48,
+    borderRadius: isSmallScreen ? 20 : 24,
     backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -489,18 +505,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
   },
   accountName: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   accountNumber: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
     marginBottom: 4,
   },
   accountHolderName: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
     marginBottom: 8,
   },
@@ -548,7 +564,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
   actionButtonText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.text,
     fontWeight: '500',
   },
@@ -560,7 +576,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: '#EF4444',
   },
   addButtonContainer: {
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
+    paddingBottom: Math.max(isSmallScreen ? 16 : 20, insets.bottom),
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
@@ -568,7 +585,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   formContainer: {
-    padding: 20,
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  formScrollContent: {
+    padding: isSmallScreen ? 16 : 20,
   },
   formHeader: {
     flexDirection: 'row',
@@ -577,7 +599,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 20,
   },
   formTitle: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: colors.text,
   },
@@ -612,6 +634,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
     marginTop: 20,
+    padding: isSmallScreen ? 16 : 20,
+    paddingBottom: Math.max(isSmallScreen ? 16 : 20, insets.bottom),
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   cancelButton: {
     flex: 1,

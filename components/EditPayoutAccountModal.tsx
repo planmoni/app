@@ -1,4 +1,4 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useState, useEffect } from 'react';
 import { X, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -6,7 +6,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
-import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import { useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface EditPayoutAccountModalProps {
   isVisible: boolean;
@@ -18,6 +19,11 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
   const { updatePayoutAccount } = usePayoutAccounts();
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
   
   const [formData, setFormData] = useState({
     accountName: '',
@@ -94,7 +100,7 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
     }
   };
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, isSmallScreen, insets);
 
   return (
     <Modal
@@ -102,142 +108,151 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
       transparent={true}
       visible={isVisible}
       onRequestClose={handleClose}
-      statusBarTranslucent={true}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Edit Payout Account</Text>
-            <Pressable 
-              style={styles.closeButton} 
-              onPress={handleClose}
-              disabled={isSubmitting}
-            >
-              <X size={24} color={colors.text} />
-            </Pressable>
-          </View>
-          
-          <KeyboardAvoidingWrapper contentContainerStyle={styles.formContainer}>
-            {formErrors.general && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{formErrors.general}</Text>
-              </View>
-            )}
-            
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Account Name</Text>
-              <View style={[styles.inputContainer, formErrors.accountName && styles.inputError]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter account holder name"
-                  placeholderTextColor={colors.textTertiary}
-                  value={formData.accountName}
-                  onChangeText={(text) => {
-                    setFormData({...formData, accountName: text});
-                    if (formErrors.accountName) {
-                      setFormErrors({...formErrors, accountName: ''});
-                    }
-                  }}
-                  editable={!isSubmitting}
-                />
-              </View>
-              {formErrors.accountName && (
-                <Text style={styles.fieldError}>{formErrors.accountName}</Text>
-              )}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardAvoidingView}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Edit Payout Account</Text>
+              <Pressable 
+                style={styles.closeButton} 
+                onPress={handleClose}
+                disabled={isSubmitting}
+              >
+                <X size={24} color={colors.text} />
+              </Pressable>
             </View>
             
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Account Number</Text>
-              <View style={[styles.inputContainer, formErrors.accountNumber && styles.inputError]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter 10-digit account number"
-                  placeholderTextColor={colors.textTertiary}
-                  value={formData.accountNumber}
-                  onChangeText={(text) => {
-                    // Only allow numbers and limit to 10 digits
-                    const numericText = text.replace(/[^0-9]/g, '');
-                    if (numericText.length <= 10) {
-                      setFormData({...formData, accountNumber: numericText});
-                      if (formErrors.accountNumber) {
-                        setFormErrors({...formErrors, accountNumber: ''});
+            <ScrollView style={styles.formContainer} contentContainerStyle={styles.formContent}>
+              {formErrors.general && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{formErrors.general}</Text>
+                </View>
+              )}
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Account Name</Text>
+                <View style={[styles.inputContainer, formErrors.accountName && styles.inputError]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter account holder name"
+                    placeholderTextColor={colors.textTertiary}
+                    value={formData.accountName}
+                    onChangeText={(text) => {
+                      setFormData({...formData, accountName: text});
+                      if (formErrors.accountName) {
+                        setFormErrors({...formErrors, accountName: ''});
                       }
-                    }
-                  }}
-                  keyboardType="numeric"
-                  maxLength={10}
-                  editable={!isSubmitting}
-                />
+                    }}
+                    editable={!isSubmitting}
+                  />
+                </View>
+                {formErrors.accountName && (
+                  <Text style={styles.fieldError}>{formErrors.accountName}</Text>
+                )}
               </View>
-              {formErrors.accountNumber && (
-                <Text style={styles.fieldError}>{formErrors.accountNumber}</Text>
-              )}
-            </View>
-            
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Bank Name</Text>
-              <View style={[styles.inputContainer, formErrors.bankName && styles.inputError]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter bank name"
-                  placeholderTextColor={colors.textTertiary}
-                  value={formData.bankName}
-                  onChangeText={(text) => {
-                    setFormData({...formData, bankName: text});
-                    if (formErrors.bankName) {
-                      setFormErrors({...formErrors, bankName: ''});
-                    }
-                  }}
-                  editable={!isSubmitting}
-                />
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Account Number</Text>
+                <View style={[styles.inputContainer, formErrors.accountNumber && styles.inputError]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter 10-digit account number"
+                    placeholderTextColor={colors.textTertiary}
+                    value={formData.accountNumber}
+                    onChangeText={(text) => {
+                      // Only allow numbers and limit to 10 digits
+                      const numericText = text.replace(/[^0-9]/g, '');
+                      if (numericText.length <= 10) {
+                        setFormData({...formData, accountNumber: numericText});
+                        if (formErrors.accountNumber) {
+                          setFormErrors({...formErrors, accountNumber: ''});
+                        }
+                      }
+                    }}
+                    keyboardType="numeric"
+                    maxLength={10}
+                    editable={!isSubmitting}
+                  />
+                </View>
+                {formErrors.accountNumber && (
+                  <Text style={styles.fieldError}>{formErrors.accountNumber}</Text>
+                )}
               </View>
-              {formErrors.bankName && (
-                <Text style={styles.fieldError}>{formErrors.bankName}</Text>
-              )}
-            </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Bank Name</Text>
+                <View style={[styles.inputContainer, formErrors.bankName && styles.inputError]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter bank name"
+                    placeholderTextColor={colors.textTertiary}
+                    value={formData.bankName}
+                    onChangeText={(text) => {
+                      setFormData({...formData, bankName: text});
+                      if (formErrors.bankName) {
+                        setFormErrors({...formErrors, bankName: ''});
+                      }
+                    }}
+                    editable={!isSubmitting}
+                  />
+                </View>
+                {formErrors.bankName && (
+                  <Text style={styles.fieldError}>{formErrors.bankName}</Text>
+                )}
+              </View>
+              
+              <View style={styles.infoContainer}>
+                <AlertTriangle size={16} color={colors.primary} />
+                <Text style={styles.infoText}>
+                  Please ensure all details are correct. These details will be used for your payouts.
+                </Text>
+              </View>
+            </ScrollView>
             
-            <View style={styles.infoContainer}>
-              <AlertTriangle size={16} color={colors.primary} />
-              <Text style={styles.infoText}>
-                Please ensure all details are correct. These details will be used for your payouts.
-              </Text>
+            <View style={styles.footer}>
+              <Button
+                title="Save Changes"
+                onPress={handleUpdateAccount}
+                isLoading={isSubmitting}
+                style={styles.saveButton}
+                hapticType="success"
+              />
+              <Button
+                title="Cancel"
+                onPress={handleClose}
+                variant="outline"
+                style={styles.cancelButton}
+                disabled={isSubmitting}
+                hapticType="light"
+              />
             </View>
-          </KeyboardAvoidingWrapper>
-          
-          <View style={styles.footer}>
-            <Button
-              title="Save Changes"
-              onPress={handleUpdateAccount}
-              isLoading={isSubmitting}
-              style={styles.saveButton}
-              hapticType="success"
-            />
-            <Button
-              title="Cancel"
-              onPress={handleClose}
-              variant="outline"
-              style={styles.cancelButton}
-              disabled={isSubmitting}
-              hapticType="light"
-            />
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, insets: any) => StyleSheet.create({
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
   },
   modalContent: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderRadius: 16,
     width: '100%',
+    maxWidth: 500,
     maxHeight: '90%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
@@ -246,12 +261,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   title: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: colors.text,
   },
@@ -264,7 +279,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   formContainer: {
-    padding: 20,
+    flex: 1,
+  },
+  formContent: {
+    padding: isSmallScreen ? 16 : 20,
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
@@ -319,12 +337,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   infoText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: isSmallScreen ? 18 : 20,
   },
   footer: {
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
+    paddingBottom: Math.max(isSmallScreen ? 16 : 20, insets.bottom),
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
