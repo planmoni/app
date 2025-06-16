@@ -714,7 +714,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     width: '100%',
-    maxHeight: '80%',
+    maxHeight: '100%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
     // Add shadow for iOS
@@ -726,7 +726,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
         shadowRadius: 5,
       },
       android: {
-        elevation: 50,
+        elevation: 5,
       },
     }),
   },
