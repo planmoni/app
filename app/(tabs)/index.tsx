@@ -309,7 +309,7 @@ export default function HomeScreen() {
                 onPress={handleCreatePayout}
               >
                 <Send size={20} color="#FFFFFF" />
-                <Text style={styles.createButtonText}>Plan</Text>
+                <Text style={styles.createButtonText}>New</Text>
               </Pressable>
               <Pressable 
                 style={styles.addFundsButton} 
@@ -632,7 +632,7 @@ export default function HomeScreen() {
           onPress={handleCreatePayout}
         >
           <Send size={20} color="#FFFFFF" />
-          <Text style={styles.createButtonText}>Plan</Text>
+          <Text style={styles.createButtonText}>New</Text>
         </Pressable>
         <Pressable 
           style={styles.addFundsButton} 
