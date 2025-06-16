@@ -320,6 +320,7 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     width: '100%',
+    height: '90%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
     // Add shadow for iOS
