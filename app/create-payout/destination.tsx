@@ -89,6 +89,12 @@ export default function DestinationScreen() {
     }
   };
 
+  // Handler for when a new account is added
+  const handleAccountAdded = (newAccountId: string) => {
+    // Set the newly added account as selected
+    setSelectedAccountId(newAccountId);
+  };
+
   // Responsive styles based on screen width
   const isSmallScreen = width < 380;
 
@@ -321,6 +327,7 @@ export default function DestinationScreen() {
             haptics.lightImpact();
             setShowAddAccount(false);
           }}
+          onAccountAdded={handleAccountAdded}
         />
       ) : (
         <AddBankAccountModal

@@ -13,9 +13,14 @@ import { useAccountResolution } from '@/hooks/useAccountResolution';
 interface AddPayoutAccountModalProps {
   isVisible: boolean;
   onClose: () => void;
+  onAccountAdded?: (accountId: string) => void; // New callback for when account is added
 }
 
-export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutAccountModalProps) {
+export default function AddPayoutAccountModal({ 
+  isVisible, 
+  onClose,
+  onAccountAdded 
+}: AddPayoutAccountModalProps) {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
   const { addPayoutAccount } = usePayoutAccounts();
@@ -47,13 +52,19 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     try {
       setIsSubmitting(true);
       
-      await addPayoutAccount({
+      const newAccount = await addPayoutAccount({
         account_name: formData.accountName.trim(),
         account_number: formData.accountNumber.trim(),
         bank_name: selectedBank?.name || formData.bankName.trim()
       });
       
       haptics.notification(Haptics.NotificationFeedbackType.Success);
+      
+      // Call the onAccountAdded callback with the new account ID if it exists
+      if (onAccountAdded && newAccount?.id) {
+        onAccountAdded(newAccount.id);
+      }
+      
       resetForm();
       onClose();
     } catch (error) {
