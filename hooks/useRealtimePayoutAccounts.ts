@@ -113,6 +113,7 @@ export function useRealtimePayoutAccounts() {
         .single();
 
       if (insertError) throw insertError;
+      
       // Real-time subscription will handle the update
       return data;
     } catch (err) {
@@ -136,6 +137,7 @@ export function useRealtimePayoutAccounts() {
         .eq('user_id', session?.user?.id);
 
       if (updateError) throw updateError;
+      
       // Real-time subscription will handle the update
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update payout account');
@@ -161,6 +163,7 @@ export function useRealtimePayoutAccounts() {
         .eq('user_id', session?.user?.id);
 
       if (updateError) throw updateError;
+      
       // Real-time subscription will handle the update
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set default account');
@@ -171,7 +174,6 @@ export function useRealtimePayoutAccounts() {
   const deleteAccount = async (accountId: string) => {
     try {
       setError(null);
-      
       const { error: deleteError } = await supabase
         .from('payout_accounts')
         .delete()
@@ -179,6 +181,7 @@ export function useRealtimePayoutAccounts() {
         .eq('user_id', session?.user?.id);
 
       if (deleteError) throw deleteError;
+      
       // Real-time subscription will handle the update
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete account');
