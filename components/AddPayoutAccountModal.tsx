@@ -1,6 +1,6 @@
 import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Animated, Dimensions, Platform } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
-import { X, Search, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
+import { X, Search, Check, TriangleAlert as AlertTriangle, ChevronDown } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
