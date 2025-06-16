@@ -758,7 +758,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     marginLeft: 12,
   },
   bankList: {
-    maxHeight: '60%',
+    maxHeight: '90%',
   },
   bankOption: {
     flexDirection: 'row',
