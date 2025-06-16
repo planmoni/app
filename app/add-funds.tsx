@@ -7,12 +7,24 @@ import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Clipboard from 'expo-clipboard';
+import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
+
+type VirtualAccount = {
+  account_number: string;
+  bank_name: string;
+  account_name: string;
+};
 
 export default function AddFundsScreen() {
   const { colors } = useTheme();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const haptics = useHaptics();
+
+  // const styles = createStyles(colors);
+  const [virtualAccount, setVirtualAccount] = useState<VirtualAccount | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
@@ -20,14 +32,76 @@ export default function AddFundsScreen() {
   const handleCopyAccountNumber = () => {
     haptics.selection();
     // Implement copy functionality
+    // if (virtualAccount?.account_number) {
+    //   Clipboard.setStringAsync(virtualAccount.account_number);
+    //   ToastAndroid.show('Account number copied to clipboard', ToastAndroid.SHORT);
+    // }
     Clipboard.setStringAsync("muhammed@gmail.com");
     ToastAndroid.show('Account number copied to clipboard', ToastAndroid.SHORT);
+  };
+  
+  const handleCreateVirtualAccount = async () => {
+    setIsLoading(true);
+
+    try{
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/create-virtual-account`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+        }),
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        setVirtualAccount(result.virtualAccount);
+        ToastAndroid.show('Virtual account created successfully', ToastAndroid.SHORT);
+      } else {
+        ToastAndroid.show(result.message || 'Failed to create account', ToastAndroid.SHORT);
+      }
+    } catch (error) {
+      console.error('Something went wrong', error);
+      ToastAndroid.show('Something went wrong', ToastAndroid.SHORT);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleMoreDepositMethods = () => {
     haptics.mediumImpact();
     router.push('/deposit-flow/payment-methods');
   };
+
+  
+  const fetchVirtualAccount = async () => {
+
+    const { data, error } = await supabase
+    .from('users')
+    .select('paystack_account_number, paystack_account_name, paystack_bank_name')
+    .eq('id', (await supabase.auth.getUser()).data.user?.id)
+    .single();
+
+    if (data && data.paystack_account_number) {
+      setVirtualAccount({
+        account_number: data.paystack_account_number,
+        bank_name: data.paystack_bank_name, 
+        account_name: data.paystack_account_name,
+      });
+    }
+
+    if (error) {
+      console.error('Error fetching virtual account:', error);
+    }
+   
+  };
+
+  useEffect(() => {
+    fetchVirtualAccount();
+  }, []);
+  
+
 
   const handleBack = () => {
     haptics.lightImpact();
@@ -65,38 +139,50 @@ export default function AddFundsScreen() {
             Money Transfers sent to this bank account number will automatically top up your Planmoni available wallet.
           </Text>
 
-          <View style={styles.accountDetailsCard}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>9PBS Account Details</Text>
-              <Text style={styles.cardDescription}>Use these details to receive funds directly</Text>
+          {virtualAccount ? (
+            <View style={styles.accountDetailsCard}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>9PBS Account Details</Text>
+                <Text style={styles.cardDescription}>Use these details to receive funds directly</Text>
+              </View>
+
+              <View style={styles.fieldsContainer}>
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel}>Account Number</Text>
+                  <View style={styles.accountNumberContainer}>
+                    <Text style={styles.accountNumber}>9002893892</Text>
+                    <Pressable onPress={handleCopyAccountNumber} style={styles.copyButton}>
+                      <Copy size={20} color={colors.primary} />
+                    </Pressable>
+                  </View>
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel}>Bank Name</Text>
+                  <View style={styles.fieldValueContainer}>
+                    <Text style={styles.fieldValue}>9Payment Service Bank (9PSB)</Text>
+                  </View>
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel}>Account Name</Text>
+                  <View style={styles.fieldValueContainer}>
+                    <Text style={styles.fieldValue}>John Doe Planmoni</Text>
+                  </View>
+                </View>
+              </View>
             </View>
-
-            <View style={styles.fieldsContainer}>
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Account Number</Text>
-                <View style={styles.accountNumberContainer}>
-                  <Text style={styles.accountNumber}>9002893892</Text>
-                  <Pressable onPress={handleCopyAccountNumber} style={styles.copyButton}>
-                    <Copy size={20} color={colors.primary} />
-                  </Pressable>
-                </View>
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Bank Name</Text>
-                <View style={styles.fieldValueContainer}>
-                  <Text style={styles.fieldValue}>9Payment Service Bank (9PSB)</Text>
-                </View>
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Account Name</Text>
-                <View style={styles.fieldValueContainer}>
-                  <Text style={styles.fieldValue}>John Doe Planmoni</Text>
-                </View>
-              </View>
+          ) : (
+            <View style={{ marginTop: 40, marginBottom: 24 }}>
+              <Text style={{ fontWeight: 900, color: "#f3f3f3" }}>Create Vituals Account</Text>
+              <Button
+                title="Create Account"
+                onPress={handleCreateVirtualAccount}
+                isLoading={isLoading}
+                style={[commonStyles.buttonBase, commonStyles.primaryButton]}
+              />
             </View>
-          </View>
+          )}
 
           <View style={styles.infoSection}>
             <View style={styles.infoCard}>

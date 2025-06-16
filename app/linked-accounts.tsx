@@ -211,7 +211,7 @@ export default function LinkedAccountsScreen() {
                         <Text style={styles.accountNumber}>•••• {account.account_number.slice(-4)}</Text>
                       </View>
                     </View>
-                    {account.status === 'active' && (
+                    {/* {account.status === 'active' && (
                       <View style={styles.statusTag}>
                         <Check size={12} color="#22C55E" />
                         <Text style={styles.statusText}>Verified</Text>
@@ -228,7 +228,7 @@ export default function LinkedAccountsScreen() {
                         <AlertTriangle size={12} color="#EF4444" />
                         <Text style={[styles.statusText, styles.failedText]}>Failed</Text>
                       </View>
-                    )}
+                    )} */}
                   </View>
 
                   <View style={styles.accountContent}>
@@ -238,7 +238,7 @@ export default function LinkedAccountsScreen() {
                     )}
                   </View>
 
-                  {account.status === 'failed' && (
+                  {/* {account.status === 'failed' && (
                     <View style={styles.errorMessage}>
                       <View style={styles.errorIconContainer}>
                         <AlertTriangle size={16} color="#EF4444" />
@@ -247,9 +247,9 @@ export default function LinkedAccountsScreen() {
                         Verification failed. Please check your account details and try again.
                       </Text>
                     </View>
-                  )}
+                  )} */}
 
-                  <View style={styles.accountActions}>
+                  {/* <View style={styles.accountActions}>
                     {!account.is_default && account.status === 'active' && (
                       <Pressable
                         style={styles.actionButton}
@@ -279,7 +279,7 @@ export default function LinkedAccountsScreen() {
                         </Text>
                       </Pressable>
                     )}
-                  </View>
+                  </View> */}
                 </View>
               ))
             )}

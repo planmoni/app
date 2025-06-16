@@ -32,6 +32,22 @@ export const createTitanAccount = async (accountData: PaystackTitanAccount) => {
   }
 }
 
+const fetchAccounts = async () => {
+  try {
+    const res = await axios.get('https://api.paystack.co/dedicated_account', {
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+      },
+    });
+    setAccounts(res.data.data);
+  } catch (error) {
+    console.error(error?.response?.data || error);
+    Alert.alert('Error', 'Failed to fetch accounts');
+  }
+};
+
+
+
 export const createPaymentPlan = async (planData: PaystackPlan) => {
   try {
     const response = await fetch("https://api.paystack.co/plan", {
