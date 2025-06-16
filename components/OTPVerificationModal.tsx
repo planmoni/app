@@ -1,10 +1,9 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, Animated, Dimensions, Platform } from 'react-native';
 import { useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface OTPVerificationModalProps {
@@ -24,41 +23,42 @@ export default function OTPVerificationModal({
 }: OTPVerificationModalProps) {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
-  const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  
-  // Determine if we're on a small screen
-  const isSmallScreen = width < 380 || height < 700;
+  const { height: screenHeight } = Dimensions.get('window');
   
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState<string | null>(null);
-  const [timer, setTimer] = useState(59);
   const inputRefs = useRef<Array<TextInput | null>>([]);
+  
+  // Animation values
+  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (isVisible) {
       // Reset OTP when modal opens
       setOtp(['', '', '', '', '', '']);
       setError(null);
-      setTimer(59);
+      
+      // Animate modal in
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        })
+      ]).start();
       
       // Focus first input after a short delay
       setTimeout(() => {
         inputRefs.current[0]?.focus();
       }, 300);
-      
-      // Start countdown timer
-      const interval = setInterval(() => {
-        setTimer((prevTimer) => {
-          if (prevTimer <= 0) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prevTimer - 1;
-        });
-      }, 1000);
-      
-      return () => clearInterval(interval);
     }
   }, [isVisible]);
 
@@ -103,153 +103,196 @@ export default function OTPVerificationModal({
     
     try {
       await onVerify(otpValue);
+      
+      // Animate out on success
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: screenHeight,
+          duration: 250,
+          useNativeDriver: true,
+        })
+      ]).start();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to verify OTP');
       haptics.error();
     }
   };
 
-  const handleResendOtp = () => {
-    if (timer === 0) {
-      haptics.selection();
-      setOtp(['', '', '', '', '', '']);
-      setTimer(59);
-      inputRefs.current[0]?.focus();
-      // In a real app, you would call an API to resend the OTP
-    }
+  const handleCloseModal = () => {
+    if (isLoading) return;
+    
+    // Animate out before closing
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: screenHeight,
+        duration: 250,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      haptics.lightImpact();
+      onClose();
+    });
   };
 
-  const styles = createStyles(colors, isDark, isSmallScreen, insets);
+  // Calculate modal height - limit to 90% of screen height
+  const modalMaxHeight = screenHeight * 0.9;
+
+  const styles = createStyles(colors, isDark, insets);
+
+  if (!isVisible) return null;
 
   return (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={isVisible}
-      onRequestClose={() => {
-        if (!isLoading) {
-          haptics.lightImpact();
-          onClose();
-        }
-      }}
+    <Animated.View 
+      style={[
+        styles.modalOverlay,
+        { opacity: overlayOpacity }
+      ]}
+      pointerEvents={isVisible ? 'auto' : 'none'}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboardAvoidingView}
+      <Pressable style={styles.overlayPressable} onPress={handleCloseModal} />
+      
+      <Animated.View 
+        style={[
+          styles.modalContent,
+          { 
+            transform: [{ translateY: slideAnim }],
+            maxHeight: modalMaxHeight
+          }
+        ]}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.header}>
-              <Text style={styles.title}>Enter OTP</Text>
-              <Pressable 
-                style={styles.closeButton} 
-                onPress={() => {
-                  if (!isLoading) {
-                    haptics.lightImpact();
-                    onClose();
-                  }
-                }}
-                disabled={isLoading}
-              >
-                <X size={24} color={colors.text} />
-              </Pressable>
+        <View style={styles.dragIndicator} />
+        
+        <View style={styles.header}>
+          <Text style={styles.title}>Enter OTP</Text>
+          <Pressable 
+            style={styles.closeButton} 
+            onPress={handleCloseModal}
+            disabled={isLoading}
+          >
+            <X size={24} color={colors.text} />
+          </Pressable>
+        </View>
+        
+        <View style={styles.content}>
+          <Text style={styles.description}>
+            Please enter the one-time password sent to your mobile number or email to verify your card.
+          </Text>
+          
+          <Text style={styles.referenceText}>
+            Reference: {reference}
+          </Text>
+          
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
             </View>
-            
-            <View style={styles.content}>
-              <Text style={styles.description}>
-                Please enter the one-time password sent to your mobile number or email to verify your card.
-              </Text>
-              
-              <Text style={styles.referenceText}>
-                Reference: {reference}
-              </Text>
-              
-              {error && (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
-              )}
-              
-              <View style={styles.otpContainer}>
-                {otp.map((digit, index) => (
-                  <TextInput
-                    key={index}
-                    ref={(el) => inputRefs.current[index] = el}
-                    style={styles.otpInput}
-                    value={digit}
-                    onChangeText={(text) => handleOtpChange(text, index)}
-                    onKeyPress={(e) => handleKeyPress(e, index)}
-                    keyboardType="number-pad"
-                    maxLength={1}
-                    editable={!isLoading}
-                  />
-                ))}
-              </View>
-              
-              <View style={styles.timerContainer}>
-                <Pressable 
-                  onPress={handleResendOtp}
-                  disabled={timer > 0 || isLoading}
-                >
-                  <Text style={[
-                    styles.timerText,
-                    timer === 0 && styles.resendActive
-                  ]}>
-                    {timer > 0 
-                      ? `Resend code in 00:${timer.toString().padStart(2, '0')}`
-                      : 'Resend verification code'
-                    }
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-            
-            <View style={styles.footer}>
-              <Button
-                title="Verify"
-                onPress={handleVerify}
-                isLoading={isLoading}
-                style={styles.verifyButton}
-                disabled={otp.join('').length !== 6 || isLoading}
-                hapticType="success"
+          )}
+          
+          <View style={styles.otpContainer}>
+            {otp.map((digit, index) => (
+              <TextInput
+                key={index}
+                ref={(el) => inputRefs.current[index] = el}
+                style={styles.otpInput}
+                value={digit}
+                onChangeText={(text) => handleOtpChange(text, index)}
+                onKeyPress={(e) => handleKeyPress(e, index)}
+                keyboardType="number-pad"
+                maxLength={1}
+                editable={!isLoading}
               />
-            </View>
+            ))}
+          </View>
+          
+          <View style={styles.timerContainer}>
+            <Text style={styles.timerText}>
+              Resend code in 00:59
+            </Text>
           </View>
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+        
+        <View style={styles.footer}>
+          <Button
+            title="Verify"
+            onPress={handleVerify}
+            isLoading={isLoading}
+            style={styles.verifyButton}
+            disabled={otp.join('').length !== 6 || isLoading}
+            hapticType="success"
+          />
+        </View>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, insets: any) => StyleSheet.create({
-  keyboardAvoidingView: {
-    flex: 1,
-  },
+const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.create({
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+    justifyContent: 'flex-end',
+    zIndex: 1000,
+  },
+  overlayPressable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   modalContent: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     width: '100%',
-    maxWidth: 400,
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
+    // Add shadow for iOS
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  dragIndicator: {
+    width: 40,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 8,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: isSmallScreen ? 16 : 20,
+    padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   title: {
-    fontSize: isSmallScreen ? 18 : 20,
+    fontSize: 20,
     fontWeight: '600',
     color: colors.text,
   },
@@ -262,16 +305,16 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     alignItems: 'center',
   },
   content: {
-    padding: isSmallScreen ? 16 : 20,
+    padding: 20,
   },
   description: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     color: colors.textSecondary,
     marginBottom: 16,
-    lineHeight: isSmallScreen ? 20 : 24,
+    lineHeight: 24,
   },
   referenceText: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     color: colors.primary,
     fontWeight: '500',
     marginBottom: 20,
@@ -294,12 +337,12 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     marginBottom: 24,
   },
   otpInput: {
-    width: isSmallScreen ? 40 : 50,
-    height: isSmallScreen ? 48 : 50,
+    width: 50,
+    height: 50,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 8,
-    fontSize: isSmallScreen ? 18 : 20,
+    fontSize: 20,
     fontWeight: '600',
     textAlign: 'center',
     color: colors.text,
@@ -313,13 +356,9 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     fontSize: 14,
     color: colors.textSecondary,
   },
-  resendActive: {
-    color: colors.primary,
-    fontWeight: '500',
-  },
   footer: {
-    padding: isSmallScreen ? 16 : 20,
-    paddingBottom: Math.max(isSmallScreen ? 16 : 20, insets.bottom),
+    padding: 20,
+    paddingBottom: Math.max(20, insets.bottom),
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },

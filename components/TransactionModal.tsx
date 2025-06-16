@@ -1,10 +1,10 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Animated, Dimensions, Platform } from 'react-native';
 import { X, Copy, ArrowUpRight, ArrowDownRight } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useEffect, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useWindowDimensions } from 'react-native';
 
 type TransactionModalProps = {
   isVisible: boolean;
@@ -26,15 +26,47 @@ type TransactionModalProps = {
 };
 
 export default function TransactionModal({ isVisible, onClose, transaction }: TransactionModalProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const haptics = useHaptics();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { height: screenHeight } = Dimensions.get('window');
   
-  // Determine if we're on a small screen
-  const isSmallScreen = width < 380 || height < 700;
+  // Animation values
+  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
   
-  if (!isVisible) return null;
+  useEffect(() => {
+    if (isVisible) {
+      // Animate modal in
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        })
+      ]).start();
+    } else {
+      // Animate modal out
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: screenHeight,
+          duration: 250,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
+  }, [isVisible]);
 
   const handleCopyTransactionId = () => {
     haptics.selection();
@@ -43,7 +75,22 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
 
   const handleClose = () => {
     haptics.lightImpact();
-    onClose();
+    
+    // Animate out before calling onClose
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: screenHeight,
+        duration: 250,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      onClose();
+    });
   };
 
   const handleDownloadReceipt = () => {
@@ -56,13 +103,34 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
     // Implement report functionality
   };
 
-  const isPositive = transaction.type === 'Deposit';
+  const isPositive = transaction?.type === 'Deposit';
 
-  const styles = createStyles(colors, insets, isSmallScreen);
+  // Calculate modal height - limit to 90% of screen height
+  const modalMaxHeight = screenHeight * 0.9;
+
+  if (!isVisible || !transaction) return null;
+
+  const styles = createStyles(colors, isDark, insets);
 
   return (
-    <View style={styles.overlay}>
-      <View style={styles.modal}>
+    <Animated.View 
+      style={[
+        styles.overlay,
+        { opacity: overlayOpacity }
+      ]}
+      pointerEvents={isVisible ? 'auto' : 'none'}
+    >
+      <Pressable style={styles.overlayPressable} onPress={handleClose} />
+      
+      <Animated.View 
+        style={[
+          styles.modal,
+          { 
+            transform: [{ translateY: slideAnim }],
+            maxHeight: modalMaxHeight
+          }
+        ]}
+      >
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.title}>Transaction Details</Text>
@@ -118,7 +186,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
             <View style={styles.field}>
               <Text style={styles.label}>Transaction ID</Text>
               <View style={styles.idContainer}>
-                <Text style={styles.value} numberOfLines={1} ellipsizeMode="middle">{transaction.transactionId}</Text>
+                <Text style={styles.value}>{transaction.transactionId}</Text>
                 <Pressable onPress={handleCopyTransactionId} style={styles.copyButton}>
                   <Copy size={20} color="#1E3A8A" />
                 </Pressable>
@@ -127,7 +195,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
 
             <View style={styles.field}>
               <Text style={styles.label}>Payout Plan Ref</Text>
-              <Text style={styles.value} numberOfLines={1} ellipsizeMode="middle">{transaction.planRef}</Text>
+              <Text style={styles.value}>{transaction.planRef}</Text>
             </View>
           </View>
 
@@ -165,44 +233,74 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
             hapticType="warning"
           />
         </View>
-      </View>
-    </View>
+        
+        {/* Drag indicator for better UX */}
+        <View style={styles.dragIndicator} />
+      </Animated.View>
+    </Animated.View>
   );
 }
 
-const createStyles = (colors: any, insets: any, isSmallScreen: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.create({
   overlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.overlay,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
     zIndex: 1000,
+  },
+  overlayPressable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   modal: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     width: '100%',
-    maxWidth: 480,
-    maxHeight: '90%',
     overflow: 'hidden',
+    // Add shadow for iOS
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  dragIndicator: {
+    width: 40,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    position: 'absolute',
+    top: 8,
+    zIndex: 10,
   },
   header: {
     backgroundColor: '#1E3A8A',
-    padding: isSmallScreen ? 16 : 24,
+    padding: 24,
+    paddingTop: 32, // Extra padding for drag indicator
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: isSmallScreen ? 16 : 24,
+    marginBottom: 24,
   },
   title: {
-    fontSize: isSmallScreen ? 18 : 20,
+    fontSize: 20,
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -227,7 +325,7 @@ const createStyles = (colors: any, insets: any, isSmallScreen: boolean) => Style
     alignItems: 'center',
   },
   amount: {
-    fontSize: isSmallScreen ? 20 : 24,
+    fontSize: 24,
     fontWeight: '700',
     marginBottom: 4,
   },
@@ -248,30 +346,31 @@ const createStyles = (colors: any, insets: any, isSmallScreen: boolean) => Style
     color: '#EF4444',
   },
   scrollView: {
-    flex: 1,
+    maxHeight: '60%', // Limit scroll view height
   },
   scrollContent: {
-    padding: isSmallScreen ? 16 : 24,
+    padding: 24,
+    paddingBottom: 32,
   },
   section: {
-    marginBottom: isSmallScreen ? 24 : 32,
+    marginBottom: 32,
   },
   sectionTitle: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: isSmallScreen ? 12 : 16,
+    marginBottom: 16,
   },
   field: {
-    marginBottom: isSmallScreen ? 12 : 16,
+    marginBottom: 16,
   },
   label: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 4,
   },
   value: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     color: colors.text,
     fontWeight: '500',
   },
@@ -289,8 +388,8 @@ const createStyles = (colors: any, insets: any, isSmallScreen: boolean) => Style
     borderRadius: 8,
   },
   footer: {
-    padding: isSmallScreen ? 16 : 24,
-    paddingBottom: Math.max(16, insets.bottom),
+    padding: 24,
+    paddingBottom: Math.max(24, insets.bottom),
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,

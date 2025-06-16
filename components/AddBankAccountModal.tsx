@@ -1,10 +1,11 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, Platform } from 'react-native';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react-native';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import Button from '@/components/Button';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHaptics } from '@/hooks/useHaptics';
 
 interface AddBankAccountModalProps {
   isVisible: boolean;
@@ -49,21 +50,14 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
   
   // Get theme colors
   const { colors, isDark } = useTheme();
-  const { width, height } = useWindowDimensions();
-  
-  // Determine if we're on a small screen
-  const isSmallScreen = width < 380 || height < 700;
+  const insets = useSafeAreaInsets();
+  const { height: screenHeight } = Dimensions.get('window');
+  const haptics = useHaptics();
 
-  // Reset form when modal is opened
-  useEffect(() => {
-    if (isVisible) {
-      setSelectedBank('');
-      setAccountNumber('');
-      setAccountName('');
-      setSearchQuery('');
-      setError(null);
-    }
-  }, [isVisible]);
+  // Animation values
+  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const bankListSlideAnim = useRef(new Animated.Value(screenHeight)).current;
 
   const filteredBanks = useMemo(() => {
     return BANKS.filter(bank => 
@@ -71,17 +65,58 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
     );
   }, [searchQuery]);
 
+  useEffect(() => {
+    if (isVisible) {
+      // Animate modal in
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
+  }, [isVisible]);
+
+  useEffect(() => {
+    if (showBankList) {
+      // Animate bank list in
+      Animated.spring(bankListSlideAnim, {
+        toValue: 0,
+        tension: 65,
+        friction: 11,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Animate bank list out
+      Animated.timing(bankListSlideAnim, {
+        toValue: screenHeight,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showBankList]);
+
   const handleAddAccount = async () => {
     if (!accountNumber || accountNumber.length !== 10) {
       setError('Please enter a valid 10-digit account number');
+      haptics.error();
       return;
     }
     if (!selectedBank) {
       setError('Please select a bank');
+      haptics.error();
       return;
     }
     if (!accountName) {
       setError('Please enter account name');
+      haptics.error();
       return;
     }
 
@@ -99,8 +134,12 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
       setAccountName('');
       setSearchQuery('');
       setError(null);
+      
+      // Animate out before closing
+      handleClose();
     } catch (error) {
       setError('Failed to add bank account. Please try again.');
+      haptics.error();
     } finally {
       setIsSubmitting(false);
     }
@@ -116,190 +155,311 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
   };
 
   const handleClose = () => {
-    if (!isSubmitting) {
+    if (isSubmitting) return;
+    
+    // Animate out before closing
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: screenHeight,
+        duration: 250,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
       onClose();
-    }
+    });
   };
 
-  const styles = createStyles(colors, isDark, isSmallScreen);
+  // Calculate modal height - limit to 90% of screen height
+  const modalMaxHeight = screenHeight * 0.9;
+
+  const styles = createStyles(colors, isDark, insets);
+
+  if (!isVisible) return null;
 
   return (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={isVisible}
-      onRequestClose={handleClose}
+    <Animated.View 
+      style={[
+        styles.overlay,
+        { opacity: overlayOpacity }
+      ]}
+      pointerEvents={isVisible ? 'auto' : 'none'}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoidingView}
+      <Pressable style={styles.overlayPressable} onPress={handleClose} />
+      
+      <Animated.View 
+        style={[
+          styles.modal,
+          { 
+            transform: [{ translateY: slideAnim }],
+            maxHeight: modalMaxHeight
+          }
+        ]}
       >
-        <View style={styles.overlay}>
-          <View style={styles.modal}>
-            <View style={styles.header}>
-              <Text style={styles.title}>Add Bank Account</Text>
-              <Text style={styles.subtitle}>Enter your bank account details</Text>
+        <View style={styles.dragIndicator} />
+        
+        <View style={styles.header}>
+          <Text style={styles.title}>Add Bank Account</Text>
+          <Pressable 
+            style={styles.closeButton} 
+            onPress={handleClose}
+            disabled={isSubmitting}
+          >
+            <X size={24} color={colors.text} />
+          </Pressable>
+        </View>
+
+        <KeyboardAvoidingWrapper style={styles.content} disableScrollView={false}>
+          <View style={styles.contentInner}>
+            <Text style={styles.subtitle}>Enter your bank account details</Text>
+            
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Account Number</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter 10-digit account number"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numeric"
+                value={accountNumber}
+                onChangeText={handleAccountNumberChange}
+                maxLength={10}
+                editable={!isSubmitting}
+              />
             </View>
 
-            <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
-              {error && (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
-              )}
-
-              <View style={styles.field}>
-                <Text style={styles.label}>Account Number</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter 10-digit account number"
-                  placeholderTextColor={colors.textTertiary}
-                  keyboardType="numeric"
-                  value={accountNumber}
-                  onChangeText={handleAccountNumberChange}
-                  maxLength={10}
-                  editable={!isSubmitting}
-                />
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.label}>Select Bank</Text>
-                <Pressable
-                  style={styles.bankSelector}
-                  onPress={() => !isSubmitting && setShowBankList(!showBankList)}
-                  disabled={isSubmitting}
-                >
-                  <Text style={selectedBank ? styles.selectedBank : styles.bankPlaceholder}>
-                    {selectedBank || 'Choose your bank'}
-                  </Text>
-                  <ChevronDown size={20} color={colors.textSecondary} />
-                </Pressable>
-
-                {showBankList && (
-                  <View style={styles.bankListContainer}>
-                    <View style={styles.searchContainer}>
-                      <Search size={20} color={colors.textSecondary} />
-                      <TextInput
-                        style={styles.searchInput}
-                        placeholder="Search banks..."
-                        placeholderTextColor={colors.textTertiary}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        editable={!isSubmitting}
-                      />
-                    </View>
-                    <ScrollView 
-                      style={styles.bankList} 
-                      nestedScrollEnabled
-                      contentContainerStyle={styles.bankListContent}
-                    >
-                      {filteredBanks.map((bank) => (
-                        <Pressable
-                          key={bank}
-                          style={styles.bankOption}
-                          onPress={() => {
-                            if (!isSubmitting) {
-                              setSelectedBank(bank);
-                              setShowBankList(false);
-                              setSearchQuery('');
-                              setError(null);
-                            }
-                          }}
-                          disabled={isSubmitting}
-                        >
-                          <Text style={styles.bankOptionText}>{bank}</Text>
-                          {selectedBank === bank && (
-                            <ChevronRight size={20} color={colors.primary} />
-                          )}
-                        </Pressable>
-                      ))}
-                      {filteredBanks.length === 0 && (
-                        <Text style={styles.noResultsText}>No banks found</Text>
-                      )}
-                    </ScrollView>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.label}>Account Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter account name"
-                  placeholderTextColor={colors.textTertiary}
-                  value={accountName}
-                  onChangeText={(text) => {
-                    setAccountName(text);
-                    setError(null);
-                  }}
-                  editable={!isSubmitting}
-                />
-              </View>
-            </ScrollView>
-
-            <View style={styles.footer}>
-              <Button
-                title={isSubmitting ? "Adding..." : "Add Account"}
-                onPress={handleAddAccount}
-                style={styles.addButton}
-                disabled={isSubmitting || loading}
-              />
-              <Button
-                title="Cancel"
-                onPress={handleClose}
-                variant="outline"
-                style={styles.cancelButton}
+            <View style={styles.field}>
+              <Text style={styles.label}>Select Bank</Text>
+              <Pressable
+                style={styles.bankSelector}
+                onPress={() => {
+                  if (!isSubmitting) {
+                    setShowBankList(true);
+                    haptics.selection();
+                  }
+                }}
                 disabled={isSubmitting}
+              >
+                <Text style={selectedBank ? styles.selectedBank : styles.bankPlaceholder}>
+                  {selectedBank || 'Choose your bank'}
+                </Text>
+                <ChevronDown size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Account Name</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter account name"
+                placeholderTextColor={colors.textTertiary}
+                value={accountName}
+                onChangeText={(text) => {
+                  setAccountName(text);
+                  setError(null);
+                }}
+                editable={!isSubmitting}
               />
             </View>
           </View>
+        </KeyboardAvoidingWrapper>
+
+        <View style={styles.footer}>
+          <Button
+            title={isSubmitting ? "Adding..." : "Add Account"}
+            onPress={handleAddAccount}
+            style={styles.addButton}
+            disabled={isSubmitting || loading}
+            isLoading={isSubmitting}
+          />
+          <Button
+            title="Cancel"
+            onPress={handleClose}
+            variant="outline"
+            style={styles.cancelButton}
+            disabled={isSubmitting}
+          />
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+      </Animated.View>
+
+      {/* Bank Selection Modal */}
+      <Animated.View 
+        style={[
+          styles.overlay,
+          { 
+            opacity: showBankList ? 1 : 0,
+            zIndex: showBankList ? 1100 : -1,
+          }
+        ]}
+        pointerEvents={showBankList ? 'auto' : 'none'}
+      >
+        <Pressable 
+          style={styles.overlayPressable} 
+          onPress={() => {
+            setShowBankList(false);
+            haptics.lightImpact();
+          }} 
+        />
+        
+        <Animated.View 
+          style={[
+            styles.bankListModal,
+            { 
+              transform: [{ translateY: bankListSlideAnim }],
+              maxHeight: modalMaxHeight
+            }
+          ]}
+        >
+          <View style={styles.dragIndicator} />
+          
+          <View style={styles.bankListHeader}>
+            <Text style={styles.bankListTitle}>Select Bank</Text>
+            <Pressable 
+              style={styles.closeButton}
+              onPress={() => {
+                setShowBankList(false);
+                haptics.lightImpact();
+              }}
+            >
+              <X size={24} color={colors.text} />
+            </Pressable>
+          </View>
+          
+          <View style={styles.searchContainer}>
+            <Search size={20} color={colors.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search banks..."
+              placeholderTextColor={colors.textTertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus
+            />
+          </View>
+          
+          <ScrollView style={styles.bankList} nestedScrollEnabled>
+            {filteredBanks.map((bank) => (
+              <Pressable
+                key={bank}
+                style={styles.bankOption}
+                onPress={() => {
+                  if (!isSubmitting) {
+                    setSelectedBank(bank);
+                    setShowBankList(false);
+                    setSearchQuery('');
+                    setError(null);
+                    haptics.selection();
+                  }
+                }}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.bankOptionText}>{bank}</Text>
+                {selectedBank === bank && (
+                  <ChevronRight size={20} color={colors.primary} />
+                )}
+              </Pressable>
+            ))}
+            
+            {filteredBanks.length === 0 && (
+              <View style={styles.noResultsContainer}>
+                <Text style={styles.noResultsText}>No banks found</Text>
+              </View>
+            )}
+          </ScrollView>
+        </Animated.View>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
-  keyboardAvoidingView: {
-    flex: 1,
-  },
+const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.create({
   overlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+    justifyContent: 'flex-end',
+    zIndex: 1000,
+  },
+  overlayPressable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   modal: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     width: '100%',
-    maxWidth: 400,
-    maxHeight: '90%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
+    // Add shadow for iOS
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  dragIndicator: {
+    width: 40,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 8,
   },
   header: {
-    padding: isSmallScreen ? 16 : 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   title: {
-    fontSize: isSmallScreen ? 20 : 24,
+    fontSize: 20,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 8,
   },
   subtitle: {
-    fontSize: isSmallScreen ? 12 : 14,
+    fontSize: 16,
     color: colors.textSecondary,
+    marginBottom: 24,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
     maxHeight: 400,
   },
   contentInner: {
-    padding: isSmallScreen ? 16 : 24,
+    padding: 20,
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
@@ -325,8 +485,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   input: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
     color: colors.text,
     backgroundColor: colors.backgroundTertiary,
@@ -337,8 +497,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 16,
     backgroundColor: colors.backgroundTertiary,
   },
   bankPlaceholder: {
@@ -349,37 +509,61 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontSize: 16,
     color: colors.text,
   },
-  bankListContainer: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    marginTop: 8,
+  bankListModal: {
     backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    width: '100%',
+    borderWidth: isDark ? 1 : 0,
+    borderColor: isDark ? colors.border : 'transparent',
+    // Add shadow for iOS
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  bankListHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  bankListTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    gap: 8,
+    backgroundColor: colors.backgroundTertiary,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     color: colors.text,
+    marginLeft: 12,
   },
   bankList: {
-    maxHeight: 200,
-  },
-  bankListContent: {
-    paddingBottom: 8,
+    maxHeight: 400,
   },
   bankOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -387,14 +571,18 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontSize: 16,
     color: colors.text,
   },
+  noResultsContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   noResultsText: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
-    textAlign: 'center',
-    padding: 16,
   },
   footer: {
-    padding: isSmallScreen ? 16 : 24,
+    padding: 20,
+    paddingBottom: Math.max(20, insets.bottom),
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
