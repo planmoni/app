@@ -216,22 +216,23 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
               <Text style={styles.value}>{transaction.processingTime}</Text>
             </View>
           </View>
-          <View style={styles.footer}>
-            <Button
-              title="Download Receipt"
-              style={styles.receiptButton}
-              onPress={handleDownloadReceipt}
-              hapticType="medium"
-            />
-            <Button
-              title="Report an Issue"
-              variant="outline"
-              style={styles.reportButton}
-              onPress={handleReportIssue}
-              hapticType="warning"
-            />
-          </View>
-          </ScrollView>
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <Button
+            title="Download Receipt"
+            style={styles.receiptButton}
+            onPress={handleDownloadReceipt}
+            hapticType="medium"
+          />
+          <Button
+            title="Report an Issue"
+            variant="outline"
+            style={styles.reportButton}
+            onPress={handleReportIssue}
+            hapticType="warning"
+          />
+        </View>
         
         {/* Drag indicator for better UX */}
         <View style={styles.dragIndicator} />
