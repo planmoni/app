@@ -1,6 +1,6 @@
 import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Animated, Dimensions, Platform } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
-import { X, Search, Check, TriangleAlert as AlertTriangle, ChevronDown } from 'lucide-react-native';
+import { X, Check, TriangleAlert as AlertTriangle, ChevronDown } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -464,7 +464,6 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
           </View>
           
           <View style={styles.searchContainer}>
-            <Search size={20} color={colors.textSecondary} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search banks..."
@@ -531,7 +530,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     width: '100%',
-    maxHeight: '90%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
     // Add shadow for iOS
@@ -584,7 +582,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
   },
   content: {
     flex: 1,
-    maxHeight: '70%',
+    // Removed maxHeight property to allow content to expand properly
   },
   contentInner: {
     padding: isSmallScreen ? 16 : 20,
@@ -679,6 +677,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     marginBottom: 16,
   },
   successText: {
+    flex: 1,
     fontSize: isSmallScreen ? 12 : 14,
     color: colors.success,
   },
@@ -755,7 +754,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     flex: 1,
     fontSize: isSmallScreen ? 14 : 16,
     color: colors.text,
-    marginLeft: 12,
   },
   bankList: {
     maxHeight: '60%',
