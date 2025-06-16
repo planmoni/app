@@ -364,5 +364,6 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
   },
   verifyButton: {
     backgroundColor: colors.primary,
+    marginBottom: 250,
   },
 });
