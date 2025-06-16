@@ -79,7 +79,7 @@ export const BiometricSetup: React.FC = () => {
 
   if (!biometricSettings) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      <View style={[styles.container, { backgroundColor: colors.backgroundSecondary, padding }]}>
         <ActivityIndicator size="small" color={colors.primary} />
         <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Checking biometric support...</Text>
       </View>
