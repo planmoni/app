@@ -5,7 +5,7 @@ import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
-import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
+import { useRealtimePayoutAccounts } from '@/hooks/useRealtimePayoutAccounts';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useBanks, Bank } from '@/hooks/useBanks';
 import { useAccountResolution } from '@/hooks/useAccountResolution';
@@ -22,7 +22,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const haptics = useHaptics();
-  const { addPayoutAccount } = usePayoutAccounts();
+  const { addPayoutAccount } = useRealtimePayoutAccounts();
   const { banks, isLoading: banksLoading } = useBanks();
   const { resolveAccount, isResolving, error: resolutionError, setError: setResolutionError } = useAccountResolution();
   
@@ -277,7 +277,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
             </Pressable>
           </View>
 
-          <KeyboardAvoidingWrapper style={styles.content} disableScrollView={false}>
+          <KeyboardAvoidingWrapper style={styles.content}>
             <View style={styles.contentInner}>
               <Text style={styles.subtitle}>Enter your bank account details</Text>
               
@@ -530,7 +530,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     width: '100%',
-    height: '90%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
     // Add shadow for iOS
@@ -583,7 +582,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
   },
   content: {
     flex: 1,
-    // Removed maxHeight property to allow content to expand properly
   },
   contentInner: {
     padding: isSmallScreen ? 16 : 20,

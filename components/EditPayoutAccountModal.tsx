@@ -5,7 +5,7 @@ import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
-import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
+import { useRealtimePayoutAccounts } from '@/hooks/useRealtimePayoutAccounts';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -18,7 +18,7 @@ interface EditPayoutAccountModalProps {
 export default function EditPayoutAccountModal({ isVisible, onClose, account }: EditPayoutAccountModalProps) {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
-  const { updatePayoutAccount } = usePayoutAccounts();
+  const { updatePayoutAccount } = useRealtimePayoutAccounts();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = Dimensions.get('window');
   
@@ -149,9 +149,6 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
     });
   };
 
-  // Calculate modal height - limit to 90% of screen height
-  const modalMaxHeight = screenHeight * 0.9;
-
   const styles = createStyles(colors, isDark, insets);
 
   if (!isVisible || !account) return null;
@@ -170,8 +167,7 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
         style={[
           styles.modalContent,
           { 
-            transform: [{ translateY: slideAnim }],
-            maxHeight: modalMaxHeight
+            transform: [{ translateY: slideAnim }]
           }
         ]}
       >
