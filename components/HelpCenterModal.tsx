@@ -1,5 +1,5 @@
 import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
-import { X, Search, HelpCircle, MessageSquare, FileText, ExternalLink } from 'lucide-react-native';
+import { X, Search, CircleHelp as HelpCircle, MessageSquare, FileText, ExternalLink } from 'lucide-react-native';
 import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -40,7 +40,7 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
     {
       id: '4',
       question: 'How do I link a bank account?',
-      answer: 'Go to Settings > Linked Bank Accounts and tap "Add New Account". You'll need to provide your bank details for verification.'
+      answer: 'Go to Settings > Linked Bank Accounts and tap "Add New Account". You\'ll need to provide your bank details for verification.'
     },
   ];
   
