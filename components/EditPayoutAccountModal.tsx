@@ -150,9 +150,7 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
   };
 
   // Calculate modal height - limit to 90% of screen height
-  const Modal={
-    height = 90%,
-  };
+  const modalMaxHeight = screenHeight * 0.9;
 
   const styles = createStyles(colors, isDark, insets);
 
