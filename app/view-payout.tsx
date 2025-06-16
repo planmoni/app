@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ChevronRight, Calendar, Clock, Wallet, Building2, TriangleAlert as AlertTriangle, PencilLine, Pause, Play } from 'lucide-react-native';
 import Button from '@/components/Button';
 import Card from '@/components/Card';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 import SafeFooter from '@/components/SafeFooter';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,9 +43,8 @@ export default function ViewPayoutScreen() {
           </Pressable>
           <Text style={styles.headerTitle}>Payout Details</Text>
         </View>
-        <HorizontalLoader />
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading payout details...</Text>
+          <PlanmoniLoader size="medium" description="Loading payout details..." />
         </View>
         <SafeFooter />
       </SafeAreaView>
@@ -134,7 +133,7 @@ export default function ViewPayoutScreen() {
       case 'paused':
         return { bg: '#FEE2E2', text: '#EF4444' };
       case 'completed':
-        return { bg: '#EFF6FF', text: '#3B82F6' };
+        return { bg: '#EFF6FF', text: '#1E3A8A' };
       case 'cancelled':
         return { bg: '#F1F5F9', text: '#64748B' };
       default:
@@ -244,7 +243,7 @@ export default function ViewPayoutScreen() {
           <Card style={styles.scheduleCard}>
             <View style={styles.scheduleItem}>
               <View style={styles.scheduleIcon}>
-                <Calendar size={20} color="#3B82F6" />
+                <Calendar size={20} color="#1E3A8A" />
               </View>
               <View style={styles.scheduleInfo}>
                 <Text style={styles.scheduleLabel}>Frequency</Text>
@@ -495,7 +494,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#1E3A8A',
     borderRadius: 2,
   },
   progressStats: {

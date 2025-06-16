@@ -1,11 +1,11 @@
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { TrendingUp, TrendingDown, Users, ArrowUpRight, ArrowDownRight, Wallet, Clock, Calendar, Send } from 'lucide-react-native';
 import Card from '@/components/Card';
 import { useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useInsightsData } from '@/hooks/useInsightsData';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 import Button from '@/components/Button';
 
 export default function InsightsScreen() {
@@ -33,10 +33,8 @@ export default function InsightsScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Insights</Text>
         </View>
-        <HorizontalLoader />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading insights data...</Text>
+          <PlanmoniLoader size="medium" description="Loading insights data..." />
         </View>
       </SafeAreaView>
     );
@@ -167,7 +165,7 @@ export default function InsightsScreen() {
                         { 
                           color: vault.status === 'Active' ? '#22C55E' : 
                                 vault.status === 'Paused' ? '#EF4444' : 
-                                vault.status === 'Completed' ? '#3B82F6' : '#D97706' 
+                                vault.status === 'Completed' ? '#1E3A8A' : '#D97706' 
                         }
                       ]}>{vault.status}</Text>
                     </View>
@@ -423,7 +421,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#1E3A8A',
     borderRadius: 2,
   },
 });

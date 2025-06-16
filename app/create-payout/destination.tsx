@@ -39,18 +39,16 @@ export default function DestinationScreen() {
   const isLoading = payoutAccountsLoading || bankAccountsLoading;
   const error = payoutAccountsError || bankAccountsError;
 
-  // Set default selection to the first payout account if available
+  // Set default selection based on the active tab type
   useEffect(() => {
-    if (payoutAccounts.length > 0 && !selectedAccountId) {
+    if (accountType === 'payout' && payoutAccounts.length > 0 && !selectedAccountId) {
       const defaultAccount = payoutAccounts.find(account => account.is_default);
       setSelectedAccountId(defaultAccount?.id || payoutAccounts[0].id);
-      setAccountType('payout');
-    } else if (payoutAccounts.length === 0 && bankAccounts.length > 0 && !selectedAccountId) {
+    } else if (accountType === 'linked' && bankAccounts.length > 0 && !selectedAccountId) {
       const defaultAccount = bankAccounts.find(account => account.is_default);
       setSelectedAccountId(defaultAccount?.id || bankAccounts[0].id);
-      setAccountType('linked');
     }
-  }, [payoutAccounts, bankAccounts, selectedAccountId]);
+  }, [payoutAccounts, bankAccounts, selectedAccountId, accountType]);
 
   const handleContinue = () => {
     if (selectedAccountId) {
@@ -319,9 +317,13 @@ export default function DestinationScreen() {
       {accountType === 'payout' ? (
         <AddPayoutAccountModal
           isVisible={showAddAccount}
-          onClose={() => {
+          onClose={(newAccountId) => {
             haptics.lightImpact();
             setShowAddAccount(false);
+            // If a new account was added, select it
+            if (newAccountId) {
+              setSelectedAccountId(newAccountId);
+            }
           }}
         />
       ) : (

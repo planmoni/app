@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Info } from 'lucide-react-native';
+import { ArrowLeft, Info, Plus } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,7 +31,14 @@ export default function AmountScreen() {
   };
 
   const handleMaxPress = () => {
-    setAmount(availableBalance);
+    haptics.selection();
+    setAmount(balance.toLocaleString());
+    setError(null);
+  };
+
+  const handleAddFunds = () => {
+    haptics.mediumImpact();
+    router.push('/add-funds');
   };
 
   const styles = createStyles(colors);
@@ -58,6 +65,18 @@ export default function AmountScreen() {
           <Text style={styles.description}>
             You won't be able to spend from this until your payout date.
           </Text>
+
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+              {error === 'Amount exceeds your available balance' && (
+                <Pressable style={styles.addFundsButton} onPress={handleAddFunds}>
+                  <Plus size={16} color="#FFFFFF" />
+                  <Text style={styles.addFundsButtonText}>Add Funds</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
 
           <View style={styles.amountContainer}>
             <Text style={styles.currencySymbol}>₦</Text>
@@ -165,6 +184,37 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 24,
+  },
+  errorContainer: {
+    backgroundColor: colors.errorLight,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.error,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 14,
+    flex: 1,
+    marginRight: 8,
+  },
+  addFundsButton: {
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    gap: 4,
+  },
+  addFundsButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   amountContainer: {
     flexDirection: 'row',

@@ -8,25 +8,57 @@ import { useTheme } from '@/contexts/ThemeContext';
 import SafeFooter from '@/components/SafeFooter';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useBalance } from '@/contexts/BalanceContext';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const methodId = params.methodId as string;
   const methodTitle = params.methodTitle as string;
+  const newMethodType = params.newMethodType as string;
   
   const [amount, setAmount] = useState('');
-  const [availableBalance, setAvailableBalance] = useState('15,750,000');
+  const { balance } = useBalance();
 
   const handleContinue = () => {
-    router.replace({
-      pathname: '/deposit-flow/authorization',
-      params: {
-        amount,
-        methodId,
-        methodTitle
+    if (newMethodType) {
+      // If coming from a new payment method selection, route to the appropriate screen
+      if (newMethodType === 'card') {
+        router.push({
+          pathname: '/add-card',
+          params: {
+            amount,
+            fromDepositFlow: 'true'
+          }
+        });
+      } else if (newMethodType === 'ussd') {
+        router.push({
+          pathname: '/add-ussd',
+          params: {
+            amount,
+            fromDepositFlow: 'true'
+          }
+        });
+      } else if (newMethodType === 'bank-account') {
+        router.push({
+          pathname: '/linked-accounts',
+          params: {
+            amount,
+            fromDepositFlow: 'true'
+          }
+        });
       }
-    });
+    } else {
+      // For existing payment methods, continue with normal flow
+      router.replace({
+        pathname: '/deposit-flow/authorization',
+        params: {
+          amount,
+          methodId,
+          methodTitle
+        }
+      });
+    }
   };
 
   const formatAmount = (value: string) => {
@@ -64,7 +96,6 @@ export default function AmountScreen() {
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           <Text style={styles.title}>How much do you want to add?</Text>
-          <Text style={styles.description}>This money will be securely held in your wallet until used.</Text>
 
           <View style={styles.amountContainer}>
             <Text style={styles.currencySymbol}>₦</Text>
@@ -120,7 +151,7 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Current Wallet Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{availableBalance}</Text>
+              <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
             </View>
           </View>
 

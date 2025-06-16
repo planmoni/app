@@ -20,6 +20,23 @@ export default function SuccessScreen() {
   const bankName = params.bankName as string || '';
   const accountNumber = (params.accountNumber as string) || '';
 
+  // Format date for display (Month Day, Year)
+  const formatDisplayDate = (dateString: string): string => {
+    // Check if the date is already in the format "Month Day, Year"
+    if (/[A-Za-z]+ \d+, \d{4}/.test(dateString)) {
+      return dateString;
+    }
+    
+    // Otherwise, convert from ISO format (YYYY-MM-DD)
+    const date = new Date(dateString);
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    
+    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+  };
+
   // Trigger success haptic feedback when the screen loads
   useEffect(() => {
     // Use a small delay to ensure the screen is fully rendered
@@ -60,7 +77,7 @@ export default function SuccessScreen() {
           <View style={styles.detailsContainer}>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>First Payout</Text>
-              <Text style={styles.detailValue}>{startDate}</Text>
+              <Text style={styles.detailValue}>{formatDisplayDate(startDate)}</Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Destination</Text>

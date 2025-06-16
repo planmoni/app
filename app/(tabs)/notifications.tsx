@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 
 type Notification = {
   id: string;
@@ -78,8 +78,8 @@ export default function NotificationsScreen() {
       case 'payout_scheduled':
         icon = Calendar;
         iconBg = '#EFF6FF';
-        iconColor = '#3B82F6';
-        statusColor = '#3B82F6';
+        iconColor = '#1E3A8A';
+        statusColor = '#1E3A8A';
         statusBg = '#EFF6FF';
         break;
       case 'vault_created':
@@ -172,9 +172,8 @@ export default function NotificationsScreen() {
             </Pressable>
           </View>
         </View>
-        <HorizontalLoader />
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading notifications...</Text>
+          <PlanmoniLoader size="medium" description="Loading notifications..." />
         </View>
       </SafeAreaView>
     );

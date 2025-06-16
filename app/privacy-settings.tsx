@@ -71,7 +71,7 @@ export default function PrivacySettingsScreen() {
           
           <View style={styles.settingItem}>
             <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
-              <Database size={20} color="#3B82F6" />
+              <Database size={20} color="#1E3A8A" />
             </View>
             <View style={styles.settingContent}>
               <Text style={styles.settingLabel}>Data Collection</Text>
@@ -81,7 +81,7 @@ export default function PrivacySettingsScreen() {
               value={dataCollection}
               onValueChange={setDataCollection}
               trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={dataCollection ? '#3B82F6' : colors.backgroundTertiary}
+              thumbColor={dataCollection ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
 
@@ -97,7 +97,7 @@ export default function PrivacySettingsScreen() {
               value={analyticsTracking}
               onValueChange={setAnalyticsTracking}
               trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={analyticsTracking ? '#3B82F6' : colors.backgroundTertiary}
+              thumbColor={analyticsTracking ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
 
@@ -113,7 +113,7 @@ export default function PrivacySettingsScreen() {
               value={thirdPartySharing}
               onValueChange={setThirdPartySharing}
               trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={thirdPartySharing ? '#3B82F6' : colors.backgroundTertiary}
+              thumbColor={thirdPartySharing ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
         </View>
@@ -133,7 +133,7 @@ export default function PrivacySettingsScreen() {
               value={marketingEmails}
               onValueChange={setMarketingEmails}
               trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={marketingEmails ? '#3B82F6' : colors.backgroundTertiary}
+              thumbColor={marketingEmails ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
         </View>
@@ -153,7 +153,7 @@ export default function PrivacySettingsScreen() {
               value={profileVisibility}
               onValueChange={setProfileVisibility}
               trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={profileVisibility ? '#3B82F6' : colors.backgroundTertiary}
+              thumbColor={profileVisibility ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
 
@@ -169,7 +169,7 @@ export default function PrivacySettingsScreen() {
               value={activityTracking}
               onValueChange={setActivityTracking}
               trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={activityTracking ? '#3B82F6' : colors.backgroundTertiary}
+              thumbColor={activityTracking ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
 
@@ -185,7 +185,7 @@ export default function PrivacySettingsScreen() {
               value={locationTracking}
               onValueChange={setLocationTracking}
               trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={locationTracking ? '#3B82F6' : colors.backgroundTertiary}
+              thumbColor={locationTracking ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
         </View>
@@ -205,7 +205,7 @@ export default function PrivacySettingsScreen() {
               value={cookieConsent}
               onValueChange={setCookieConsent}
               trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-              thumbColor={cookieConsent ? '#3B82F6' : colors.backgroundTertiary}
+              thumbColor={cookieConsent ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
         </View>
@@ -216,7 +216,7 @@ export default function PrivacySettingsScreen() {
           <Pressable style={styles.actionItem} onPress={handleDataExport}>
             <View style={styles.actionLeft}>
               <View style={[styles.actionIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Download size={20} color="#3B82F6" />
+                <Download size={20} color="#1E3A8A" />
               </View>
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Export My Data</Text>

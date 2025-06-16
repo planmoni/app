@@ -8,11 +8,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useBalance } from '@/contexts/BalanceContext';
 
 export default function ReviewScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const { createPayout, isLoading, error } = useCreatePayout();
+  const { balance } = useBalance();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -21,7 +23,7 @@ export default function ReviewScreen() {
   const duration = params.duration as string;
   const startDate = params.startDate as string;
   const bankName = params.bankName as string;
-  const accountNumber = params.accountNumber as string;
+  const accountNumber = (params.accountNumber as string) || '';
   const accountName = params.accountName as string;
   const bankAccountId = params.bankAccountId as string;
   const payoutAccountId = params.payoutAccountId as string;
@@ -34,7 +36,31 @@ export default function ReviewScreen() {
   const numberOfPayouts = parseInt(duration);
   const formattedFrequency = frequency.charAt(0).toUpperCase() + frequency.slice(1);
 
+  // Format date for display (Month Day, Year)
+  const formatDisplayDate = (dateString: string): string => {
+    // Check if the date is already in the format "Month Day, Year"
+    if (/[A-Za-z]+ \d+, \d{4}/.test(dateString)) {
+      return dateString;
+    }
+    
+    // Otherwise, convert from ISO format (YYYY-MM-DD)
+    const date = new Date(dateString);
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    
+    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+  };
+
   const handleStartPlan = async () => {
+    // Check if there's enough balance
+    const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+    if (numericTotal > balance) {
+      router.push('/add-funds');
+      return;
+    }
+    
     await createPayout({
       name: `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`,
       description: `${frequency} payout of ${payoutAmount}`,
@@ -92,7 +118,7 @@ export default function ReviewScreen() {
 
             <View style={styles.detailItem}>
               <View style={[styles.detailIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Calendar size={20} color="#3B82F6" />
+                <Calendar size={20} color="#1E3A8A" />
               </View>
               <View style={styles.detailContent}>
                 <Text style={styles.detailLabel}>Payout Frequency</Text>
@@ -111,7 +137,7 @@ export default function ReviewScreen() {
               <View style={styles.detailContent}>
                 <Text style={styles.detailLabel}>Duration</Text>
                 <Text style={styles.detailValue}>{duration} {frequency === 'custom' ? 'payouts' : 'months'}</Text>
-                <Text style={styles.detailSubtext}>First payout on {startDate}</Text>
+                <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
               </View>
               <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/schedule')}>
                 <Text style={styles.editButtonText}>Edit</Text>
@@ -295,7 +321,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   editButtonText: {
     fontSize: 14,
-    color: '#3B82F6',
+    color: '#1E3A8A',
     fontWeight: '500',
   },
   summaryCard: {

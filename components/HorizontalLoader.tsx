@@ -1,6 +1,5 @@
-import { View, StyleSheet, Animated, Easing } from 'react-native';
-import { useEffect, useRef } from 'react';
-import { useTheme } from '@/contexts/ThemeContext';
+import { View, StyleSheet } from 'react-native';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 
 type HorizontalLoaderProps = {
   height?: number;
@@ -13,58 +12,9 @@ export default function HorizontalLoader({
   backgroundColor,
   loaderColor,
 }: HorizontalLoaderProps) {
-  const { colors } = useTheme();
-  const translateX = useRef(new Animated.Value(-100)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
-
-  const bgColor = backgroundColor || colors.border;
-  const loadColor = loaderColor || colors.primary;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(translateX, {
-          toValue: 100,
-          duration: 1200,
-          easing: Easing.ease,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateX, {
-          toValue: -100,
-          duration: 0,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 0,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    return () => {
-      translateX.stopAnimation();
-      opacity.stopAnimation();
-    };
-  }, []);
-
   return (
-    <View style={[styles.container, { height, backgroundColor: bgColor }]}>
-      <Animated.View
-        style={[
-          styles.loader,
-          {
-            backgroundColor: loadColor,
-            transform: [{ translateX }],
-            opacity,
-          },
-        ]}
-      />
+    <View style={[styles.container, { height }]}>
+      <PlanmoniLoader size="small" containerStyle={styles.loaderContainer} />
     </View>
   );
 }
@@ -74,10 +24,11 @@ const styles = StyleSheet.create({
     width: '100%',
     overflow: 'hidden',
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
   },
-  loader: {
-    height: '100%',
-    width: '50%',
-    position: 'absolute',
-  },
+  loaderContainer: {
+    height: 30,
+  }
 });

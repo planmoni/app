@@ -7,6 +7,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import SafeFooter from '@/components/SafeFooter';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useBalance } from '@/contexts/BalanceContext';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function AuthorizationScreen() {
   const { colors } = useTheme();
@@ -14,9 +16,42 @@ export default function AuthorizationScreen() {
   const amount = params.amount as string;
   const methodId = params.methodId as string;
   const methodTitle = params.methodTitle as string;
+  const newMethodType = params.newMethodType as string;
+  const { addFunds } = useBalance();
+  const haptics = useHaptics();
 
-  const handleFundWallet = () => {
-    router.replace('/deposit-flow/success');
+  const handleFundWallet = async () => {
+    try {
+      // Process the deposit
+      const numericAmount = parseFloat(amount.replace(/,/g, ''));
+      await addFunds(numericAmount);
+      haptics.success();
+      
+      // Navigate to success screen
+      router.replace({
+        pathname: '/deposit-flow/success',
+        params: {
+          amount,
+          methodTitle: methodTitle || getMethodTitle(newMethodType)
+        }
+      });
+    } catch (error) {
+      haptics.error();
+      console.error('Error funding wallet:', error);
+    }
+  };
+
+  const getMethodTitle = (type: string): string => {
+    switch (type) {
+      case 'card':
+        return 'New Card';
+      case 'ussd':
+        return 'USSD Payment';
+      case 'bank-account':
+        return 'Bank Account';
+      default:
+        return 'New Payment Method';
+    }
   };
 
   const styles = createStyles(colors);
@@ -57,10 +92,12 @@ export default function AuthorizationScreen() {
                 <Text style={styles.summaryLabel}>Payment Method</Text>
                 <View style={styles.methodContainer}>
                   <Building2 size={16} color={colors.primary} />
-                  <Text style={styles.methodText}>{methodTitle}</Text>
+                  <Text style={styles.methodText}>
+                    {methodTitle || getMethodTitle(newMethodType)}
+                  </Text>
                 </View>
               </View>
-              <Text style={styles.defaultText}>Default Account</Text>
+              {methodId && <Text style={styles.defaultText}>Default Account</Text>}
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Processing Fee</Text>

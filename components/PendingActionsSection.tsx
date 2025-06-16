@@ -43,7 +43,7 @@ export default function PendingActionsSection() {
       id: 'setup-2fa',
       title: 'Setup 2FA',
       description: 'Enable two-factor authentication for better security',
-      icon: <Fingerprint size={20} color="#3B82F6" />,
+      icon: <Fingerprint size={20} color="#1E3A8A" />,
       route: '/two-factor-auth',
       priority: 'low' as const,
       show: true, // Always show for demo

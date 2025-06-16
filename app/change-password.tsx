@@ -150,7 +150,7 @@ export default function ChangePasswordScreen() {
           <View style={styles.requirements}>
             <View style={styles.requirementsHeader}>
               <View style={styles.requirementsIconContainer}>
-                <Shield size={20} color="#3B82F6" />
+                <Shield size={20} color="#1E3A8A" />
               </View>
               <Text style={styles.requirementsTitle}>Password Requirements</Text>
             </View>
@@ -263,7 +263,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
+    borderLeftColor: '#1E3A8A',
     padding: 16,
     borderRadius: 8,
   },

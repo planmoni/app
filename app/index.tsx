@@ -21,7 +21,7 @@ const SLIDES = [
     image: require('@/assets/images/slider1 logo.png'),
     icon: null,
     color: '#EFF6FF',
-    iconColor: '#3B82F6',
+    iconColor: '#1E3A8A',
   },
   {
     id: '2',
@@ -30,7 +30,7 @@ const SLIDES = [
     image: require('@/assets/images/SmartSavings.png'),
     icon: Wallet,
     color: '#EFF6FF',
-    iconColor: '#3B82F6',
+    iconColor: '#1E3A8A',
   },
   {
     id: '3',
@@ -234,9 +234,9 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   slideTitle: {
     fontSize: responsive.titleSize,
     fontWeight: '800',
-    fontSize: 40,
+    fontSize: 30,
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 15,
     textAlign: 'center',
   },
   slideDescription: {
@@ -244,14 +244,14 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     color: colors.textSecondary,
     textAlign: 'center',
     fontSize: 20,
-    lineHeight: responsive.descriptionSize * 1.5,
+    lineHeight: responsive.descriptionSize * 1.7,
   },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: responsive.verticalPadding / 2,
+    paddingVertical: responsive.verticalPadding / 8,
   },
   dot: {
     height: 8,

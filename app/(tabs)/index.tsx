@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import Card from '@/components/Card';
 import TransactionModal from '@/components/TransactionModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
-import HorizontalLoader from '@/components/HorizontalLoader';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 import CountdownTimer from '@/components/CountdownTimer';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -102,7 +102,7 @@ export default function HomeScreen() {
 
   const handleViewPayout = (id?: string) => {
     // Trigger selection haptic feedback
-    notification(Haptics.NotificationFeedbackType.Success);
+    notification();
     if (id) {
       router.push({
         pathname: '/view-payout',
@@ -129,7 +129,10 @@ export default function HomeScreen() {
       destination: transaction.destination,
       transactionId: transaction.id,
       planRef: transaction.payout_plan_id || '',
-      paymentMethod: 'Bank Transfer',
+      paymentMethod: transaction.type === 'deposit' ? 'Bank Transfer' : 
+                    transaction.bank_accounts ? 
+                    `${transaction.bank_accounts.bank_name} •••• ${transaction.bank_accounts.account_number.slice(-4)}` : 
+                    'Bank Account',
       initiatedBy: 'You',
       processingTime: transaction.status === 'completed' ? 'Instant' : '2-3 business days',
     };
@@ -141,9 +144,16 @@ export default function HomeScreen() {
   // Get active payout plans for display
   const activePlans = payoutPlans.filter(plan => plan.status === 'active').slice(0, 3);
   
-  // Find the next payout - the one with the earliest next_payout_date
+  // Find the next payout - the one with the earliest next_payout_date that hasn't expired
   const nextPayout = payoutPlans
-    .filter(plan => plan.status === 'active' && plan.next_payout_date)
+    .filter(plan => {
+      // Only include active plans with a valid next payout date
+      if (plan.status !== 'active' || !plan.next_payout_date) return false;
+      
+      // Check if the next payout date is in the future (not expired)
+      const nextPayoutDate = new Date(plan.next_payout_date);
+      return nextPayoutDate > new Date();
+    })
     .sort((a, b) => {
       const dateA = new Date(a.next_payout_date!);
       const dateB = new Date(b.next_payout_date!);
@@ -226,6 +236,19 @@ export default function HomeScreen() {
   const recentTransactions = transactions.slice(0, 5);
 
   const styles = createStyles(colors, isDark);
+
+  // Show loader if any data is loading
+  if (payoutPlansLoading || transactionsLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <PlanmoniLoader 
+          blurBackground={true} 
+          size="medium" 
+          description="Loading your financial data..."
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -419,14 +442,7 @@ export default function HomeScreen() {
             </Pressable>
           </View>
           
-          {payoutPlansLoading ? (
-            <View>
-              <HorizontalLoader />
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading your payout plans...</Text>
-              </View>
-            </View>
-          ) : activePlans.length > 0 ? (
+          {activePlans.length > 0 ? (
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false}
@@ -516,18 +532,30 @@ export default function HomeScreen() {
             </Pressable>
           </View>
           
-          {transactionsLoading ? (
-            <View>
-              <HorizontalLoader />
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading transactions...</Text>
-              </View>
-            </View>
-          ) : recentTransactions.length > 0 ? (
+          {recentTransactions.length > 0 ? (
             recentTransactions.map((transaction) => {
               const isPositive = transaction.type === 'deposit';
               const Icon = isPositive ? ArrowUpRight : 
                           transaction.type === 'payout' ? ArrowDownRight : ArrowDown;
+              
+              // Format date and time
+              const txDate = new Date(transaction.created_at);
+              const formattedDate = txDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              });
+              const formattedTime = txDate.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              });
+              
+              // Determine transaction method
+              const transactionMethod = isPositive ? 'Bank Transfer' : 
+                                       transaction.bank_accounts ? 
+                                       `${transaction.bank_accounts.bank_name} •••• ${transaction.bank_accounts.account_number.slice(-4)}` : 
+                                       'Bank Account';
               
               return (
                 <Pressable 
@@ -549,8 +577,11 @@ export default function HomeScreen() {
                         <Text style={styles.transactionTitle}>
                           {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
                         </Text>
-                        <Text style={styles.transactionDate}>
-                          {new Date(transaction.created_at).toLocaleDateString()}
+                        <Text style={styles.transactionMethod}>
+                          {transactionMethod}
+                        </Text>
+                        <Text style={styles.transactionDateTime}>
+                          {formattedDate} • {formattedTime}
                         </Text>
                       </View>
                       <Text style={[
@@ -916,6 +947,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
+  progressCount: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
   progressAmount: {
     fontSize: 14,
     color: colors.textSecondary,
@@ -1136,13 +1171,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   transactionTitle: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  transactionDate: {
-    fontSize: 12,
+  transactionMethod: {
+    fontSize: 13,
     color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  transactionDateTime: {
+    fontSize: 12,
+    color: colors.textTertiary,
   },
   transactionAmount: {
     fontSize: 14,

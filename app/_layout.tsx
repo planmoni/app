@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { BalanceProvider } from '@/contexts/BalanceContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
@@ -7,19 +7,22 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native';
+import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
 import {
   Inter_400Regular,
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
+import CustomSplashScreen from '@/components/SplashScreen';
 
+// Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
 
 function RootLayoutNav() {
-  const { session, isLoading } = useAuth();
+  const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
+  const [showSplash, setShowSplash] = useState(true);
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
@@ -36,12 +39,35 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (fontsLoaded && !isLoading) {
+      // Hide the native splash screen
       SplashScreen.hideAsync().catch(e => console.warn("Failed to hide splash screen:", e));
     }
   }, [fontsLoaded, isLoading]);
 
+  // Show error screen if there's a critical error
+  if (error && !fontsLoaded) {
+    return null; // Keep splash screen while fonts load
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorTitle}>Configuration Error</Text>
+        <Text style={styles.errorMessage}>{error}</Text>
+        <Text style={styles.errorInstructions}>
+          Please check your environment configuration and database setup as described in the README.md file.
+        </Text>
+      </View>
+    );
+  }
+
   if (!fontsLoaded || isLoading) {
-    return null;
+    return null; // Keep native splash screen visible
+  }
+
+  // Show our custom splash screen
+  if (showSplash) {
+    return <CustomSplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
   return (
@@ -94,3 +120,33 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f5f5f5',
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#d32f2f',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  errorInstructions: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+});

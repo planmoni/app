@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
+import { useBalance } from '@/contexts/BalanceContext';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+  const { lockFunds, refreshWallet } = useBalance();
 
   const createPayout = async ({
     name,
@@ -39,6 +41,26 @@ export function useCreatePayout() {
         throw new Error('User not authenticated');
       }
 
+      // Parse the start date string to a Date object
+      const startDateObj = new Date(startDate);
+      
+      // Calculate the next payout date based on frequency
+      let nextPayoutDate = new Date(startDateObj);
+      
+      if (frequency === 'weekly') {
+        nextPayoutDate.setDate(startDateObj.getDate() + 7);
+      } else if (frequency === 'biweekly') {
+        nextPayoutDate.setDate(startDateObj.getDate() + 14);
+      } else if (frequency === 'monthly') {
+        nextPayoutDate.setMonth(startDateObj.getMonth() + 1);
+      }
+      
+      // Format the next payout date as ISO string
+      const nextPayoutDateStr = nextPayoutDate.toISOString();
+
+      // Lock the funds in the wallet
+      await lockFunds(totalAmount);
+
       // Create payout plan
       const { data: payoutPlan, error: payoutError } = await supabase
         .from('payout_plans')
@@ -55,7 +77,7 @@ export function useCreatePayout() {
           payout_account_id: payoutAccountId || null,
           status: 'active',
           completed_payouts: 0,
-          next_payout_date: startDate,
+          next_payout_date: frequency === 'custom' ? (customDates && customDates.length > 0 ? customDates[0] : startDate) : nextPayoutDateStr,
         })
         .select()
         .single();
@@ -85,6 +107,9 @@ export function useCreatePayout() {
         status: 'unread',
         payout_plan_id: payoutPlan.id,
       });
+
+      // Explicitly refresh the wallet to update UI immediately
+      await refreshWallet();
 
       // Navigate to success screen
       router.replace({
