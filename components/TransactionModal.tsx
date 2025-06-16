@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Animated, Dimensions, Platform } from 'react-native';
 import { X, Copy, ArrowUpRight, ArrowDownRight } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useEffect, useRef } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type TransactionModalProps = {
   isVisible: boolean;
@@ -24,10 +26,47 @@ type TransactionModalProps = {
 };
 
 export default function TransactionModal({ isVisible, onClose, transaction }: TransactionModalProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const haptics = useHaptics();
+  const insets = useSafeAreaInsets();
+  const { height: screenHeight } = Dimensions.get('window');
   
-  if (!isVisible) return null;
+  // Animation values
+  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  
+  useEffect(() => {
+    if (isVisible) {
+      // Animate modal in
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        })
+      ]).start();
+    } else {
+      // Animate modal out
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: screenHeight,
+          duration: 250,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
+  }, [isVisible]);
 
   const handleCopyTransactionId = () => {
     haptics.selection();
@@ -36,7 +75,22 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
 
   const handleClose = () => {
     haptics.lightImpact();
-    onClose();
+    
+    // Animate out before calling onClose
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: screenHeight,
+        duration: 250,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      onClose();
+    });
   };
 
   const handleDownloadReceipt = () => {
@@ -49,13 +103,34 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
     // Implement report functionality
   };
 
-  const isPositive = transaction.type === 'Deposit';
+  const isPositive = transaction?.type === 'Deposit';
 
-  const styles = createStyles(colors);
+  // Calculate modal height - limit to 90% of screen height
+  const modalMaxHeight = screenHeight * 0.9;
+
+  if (!isVisible || !transaction) return null;
+
+  const styles = createStyles(colors, isDark, insets);
 
   return (
-    <View style={styles.overlay}>
-      <View style={styles.modal}>
+    <Animated.View 
+      style={[
+        styles.overlay,
+        { opacity: overlayOpacity }
+      ]}
+      pointerEvents={isVisible ? 'auto' : 'none'}
+    >
+      <Pressable style={styles.overlayPressable} onPress={handleClose} />
+      
+      <Animated.View 
+        style={[
+          styles.modal,
+          { 
+            transform: [{ translateY: slideAnim }],
+            maxHeight: modalMaxHeight
+          }
+        ]}
+      >
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.title}>Transaction Details</Text>
@@ -158,34 +233,65 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
             hapticType="warning"
           />
         </View>
-      </View>
-    </View>
+        
+        {/* Drag indicator for better UX */}
+        <View style={styles.dragIndicator} />
+      </Animated.View>
+    </Animated.View>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.create({
   overlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.overlay,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+    zIndex: 1000,
+  },
+  overlayPressable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   modal: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     width: '100%',
-    maxWidth: 480,
-    maxHeight: '90%',
     overflow: 'hidden',
+    // Add shadow for iOS
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  dragIndicator: {
+    width: 40,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    position: 'absolute',
+    top: 8,
+    zIndex: 10,
   },
   header: {
     backgroundColor: '#1E3A8A',
     padding: 24,
+    paddingTop: 32, // Extra padding for drag indicator
   },
   headerContent: {
     flexDirection: 'row',
@@ -240,10 +346,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#EF4444',
   },
   scrollView: {
-    flex: 1,
+    maxHeight: '60%', // Limit scroll view height
   },
   scrollContent: {
     padding: 24,
+    paddingBottom: 32,
   },
   section: {
     marginBottom: 32,
@@ -282,6 +389,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   footer: {
     padding: 24,
+    paddingBottom: Math.max(24, insets.bottom),
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,

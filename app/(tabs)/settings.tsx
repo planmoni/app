@@ -231,23 +231,31 @@ export default function SettingsScreen() {
             </Pressable>
 
             {/* Biometric Setup Modal */}
-            <Modal visible={biometrics} animationType="slide" presentationStyle="pageSheet">
-              <View style={[styles.biometricModal, { backgroundColor: isDark ? colors.backgroundSecondary : "#f8f9fa" }]}>
-                <View style={[styles.biometricHeader, { 
-                  backgroundColor: isDark ? colors.surface : "white",
-                  borderBottomColor: isDark ? colors.border : "#e5e7eb"
-                }]}>
-                  <TouchableOpacity onPress={() => setBiometrics(false)}>
-                    <Ionicons name="close" size={24} color={isDark ? colors.text : "#374151"} />
-                  </TouchableOpacity>
-                  <Text style={[styles.biometricTitle, { color: isDark ? colors.text : "#1f2937" }]}>
-                    Biometric Authentication
-                  </Text>
-                  <View style={{ width: 24 }} />
+            <Modal 
+              visible={biometrics} 
+              animationType="slide" 
+              presentationStyle="pageSheet"
+              statusBarTranslucent={true}
+              transparent={true}
+            >
+              <View style={{flex: 1, justifyContent: 'flex-end'}}>
+                <View style={[styles.biometricModal, { backgroundColor: isDark ? colors.backgroundSecondary : "#f8f9fa" }]}>
+                  <View style={[styles.biometricHeader, { 
+                    backgroundColor: isDark ? colors.surface : "white",
+                    borderBottomColor: isDark ? colors.border : "#e5e7eb"
+                  }]}>
+                    <TouchableOpacity onPress={() => setBiometrics(false)}>
+                      <Ionicons name="close" size={24} color={isDark ? colors.text : "#374151"} />
+                    </TouchableOpacity>
+                    <Text style={[styles.biometricTitle, { color: isDark ? colors.text : "#1f2937" }]}>
+                      Biometric Authentication
+                    </Text>
+                    <View style={{ width: 24 }} />
+                  </View>
+                  <ScrollView>
+                    <BiometricSetup />
+                  </ScrollView>
                 </View>
-                <ScrollView>
-                  <BiometricSetup />
-                </ScrollView>
               </View>
             </Modal>
 
@@ -827,14 +835,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginLeft: 8,
   },
   biometricModal: {
-    flex: 1,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '90%',
   },
   biometricHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 20,
     borderBottomWidth: 1,
   },
   biometricTitle: {

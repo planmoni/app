@@ -1,9 +1,10 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, Animated, Dimensions, Platform } from 'react-native';
 import { useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface OTPVerificationModalProps {
   isVisible: boolean;
@@ -22,16 +23,37 @@ export default function OTPVerificationModal({
 }: OTPVerificationModalProps) {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
+  const insets = useSafeAreaInsets();
+  const { height: screenHeight } = Dimensions.get('window');
   
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState<string | null>(null);
   const inputRefs = useRef<Array<TextInput | null>>([]);
+  
+  // Animation values
+  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (isVisible) {
       // Reset OTP when modal opens
       setOtp(['', '', '', '', '', '']);
       setError(null);
+      
+      // Animate modal in
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        })
+      ]).start();
       
       // Focus first input after a short delay
       setTimeout(() => {
@@ -81,113 +103,185 @@ export default function OTPVerificationModal({
     
     try {
       await onVerify(otpValue);
+      
+      // Animate out on success
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: screenHeight,
+          duration: 250,
+          useNativeDriver: true,
+        })
+      ]).start();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to verify OTP');
       haptics.error();
     }
   };
 
-  const styles = createStyles(colors, isDark);
+  const handleCloseModal = () => {
+    if (isLoading) return;
+    
+    // Animate out before closing
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: screenHeight,
+        duration: 250,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      haptics.lightImpact();
+      onClose();
+    });
+  };
+
+  // Calculate modal height - limit to 90% of screen height
+  const modalMaxHeight = screenHeight * 0.9;
+
+  const styles = createStyles(colors, isDark, insets);
+
+  if (!isVisible) return null;
 
   return (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={isVisible}
-      onRequestClose={() => {
-        if (!isLoading) {
-          haptics.lightImpact();
-          onClose();
-        }
-      }}
+    <Animated.View 
+      style={[
+        styles.modalOverlay,
+        { opacity: overlayOpacity }
+      ]}
+      pointerEvents={isVisible ? 'auto' : 'none'}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Enter OTP</Text>
-            <Pressable 
-              style={styles.closeButton} 
-              onPress={() => {
-                if (!isLoading) {
-                  haptics.lightImpact();
-                  onClose();
-                }
-              }}
-              disabled={isLoading}
-            >
-              <X size={24} color={colors.text} />
-            </Pressable>
+      <Pressable style={styles.overlayPressable} onPress={handleCloseModal} />
+      
+      <Animated.View 
+        style={[
+          styles.modalContent,
+          { 
+            transform: [{ translateY: slideAnim }],
+            maxHeight: modalMaxHeight
+          }
+        ]}
+      >
+        <View style={styles.dragIndicator} />
+        
+        <View style={styles.header}>
+          <Text style={styles.title}>Enter OTP</Text>
+          <Pressable 
+            style={styles.closeButton} 
+            onPress={handleCloseModal}
+            disabled={isLoading}
+          >
+            <X size={24} color={colors.text} />
+          </Pressable>
+        </View>
+        
+        <View style={styles.content}>
+          <Text style={styles.description}>
+            Please enter the one-time password sent to your mobile number or email to verify your card.
+          </Text>
+          
+          <Text style={styles.referenceText}>
+            Reference: {reference}
+          </Text>
+          
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+          
+          <View style={styles.otpContainer}>
+            {otp.map((digit, index) => (
+              <TextInput
+                key={index}
+                ref={(el) => inputRefs.current[index] = el}
+                style={styles.otpInput}
+                value={digit}
+                onChangeText={(text) => handleOtpChange(text, index)}
+                onKeyPress={(e) => handleKeyPress(e, index)}
+                keyboardType="number-pad"
+                maxLength={1}
+                editable={!isLoading}
+              />
+            ))}
           </View>
           
-          <View style={styles.content}>
-            <Text style={styles.description}>
-              Please enter the one-time password sent to your mobile number or email to verify your card.
+          <View style={styles.timerContainer}>
+            <Text style={styles.timerText}>
+              Resend code in 00:59
             </Text>
-            
-            <Text style={styles.referenceText}>
-              Reference: {reference}
-            </Text>
-            
-            {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-            
-            <View style={styles.otpContainer}>
-              {otp.map((digit, index) => (
-                <TextInput
-                  key={index}
-                  ref={(el) => inputRefs.current[index] = el}
-                  style={styles.otpInput}
-                  value={digit}
-                  onChangeText={(text) => handleOtpChange(text, index)}
-                  onKeyPress={(e) => handleKeyPress(e, index)}
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  editable={!isLoading}
-                />
-              ))}
-            </View>
-            
-            <View style={styles.timerContainer}>
-              <Text style={styles.timerText}>
-                Resend code in 00:59
-              </Text>
-            </View>
-          </View>
-          
-          <View style={styles.footer}>
-            <Button
-              title="Verify"
-              onPress={handleVerify}
-              isLoading={isLoading}
-              style={styles.verifyButton}
-              disabled={otp.join('').length !== 6 || isLoading}
-              hapticType="success"
-            />
           </View>
         </View>
-      </View>
-    </Modal>
+        
+        <View style={styles.footer}>
+          <Button
+            title="Verify"
+            onPress={handleVerify}
+            isLoading={isLoading}
+            style={styles.verifyButton}
+            disabled={otp.join('').length !== 6 || isLoading}
+            hapticType="success"
+          />
+        </View>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.create({
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+    justifyContent: 'flex-end',
+    zIndex: 1000,
+  },
+  overlayPressable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   modalContent: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     width: '100%',
-    maxWidth: 400,
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
+    // Add shadow for iOS
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  dragIndicator: {
+    width: 40,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 8,
   },
   header: {
     flexDirection: 'row',
@@ -264,6 +358,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   footer: {
     padding: 20,
+    paddingBottom: Math.max(20, insets.bottom),
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },

@@ -317,9 +317,13 @@ export default function DestinationScreen() {
       {accountType === 'payout' ? (
         <AddPayoutAccountModal
           isVisible={showAddAccount}
-          onClose={() => {
+          onClose={(newAccountId) => {
             haptics.lightImpact();
             setShowAddAccount(false);
+            // If a new account was added, select it
+            if (newAccountId) {
+              setSelectedAccountId(newAccountId);
+            }
           }}
         />
       ) : (

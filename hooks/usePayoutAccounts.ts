@@ -63,7 +63,10 @@ export function usePayoutAccounts() {
         .single();
 
       if (insertError) throw insertError;
-      await fetchPayoutAccounts();
+      
+      // Update local state with the new account
+      setPayoutAccounts(prev => [data, ...prev]);
+      
       return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add payout account');
@@ -86,7 +89,15 @@ export function usePayoutAccounts() {
         .eq('user_id', session?.user?.id);
 
       if (updateError) throw updateError;
-      await fetchPayoutAccounts();
+      
+      // Update local state
+      setPayoutAccounts(prev => 
+        prev.map(account => 
+          account.id === accountId 
+            ? { ...account, ...accountData, updated_at: new Date().toISOString() }
+            : account
+        )
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update payout account');
       throw err;
@@ -111,7 +122,15 @@ export function usePayoutAccounts() {
         .eq('user_id', session?.user?.id);
 
       if (updateError) throw updateError;
-      await fetchPayoutAccounts();
+      
+      // Update local state
+      setPayoutAccounts(prev => 
+        prev.map(account => ({
+          ...account,
+          is_default: account.id === accountId,
+          updated_at: new Date().toISOString()
+        }))
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set default account');
       throw err;
@@ -129,7 +148,15 @@ export function usePayoutAccounts() {
         .eq('user_id', session?.user?.id);
 
       if (deleteError) throw deleteError;
-      await fetchPayoutAccounts();
+      
+      // Update local state
+      setPayoutAccounts(prev => prev.filter(account => account.id !== accountId));
+      
+      // If we deleted the default account and there are other accounts, make the first one default
+      const remainingAccounts = payoutAccounts.filter(account => account.id !== accountId);
+      if (payoutAccounts.find(a => a.id === accountId)?.is_default && remainingAccounts.length > 0) {
+        await setDefaultAccount(remainingAccounts[0].id);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete account');
       throw err;

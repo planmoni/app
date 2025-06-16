@@ -1,10 +1,11 @@
-import { Modal, View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput } from 'react-native';
-import { useState, useEffect } from 'react';
+import { Modal, View, Text, StyleSheet, Pressable, ScrollView, Alert, TextInput, Animated, Dimensions, Platform } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
 import { X, Plus, CreditCard, ChevronRight, Check, Trash2, LocationEdit as Edit2 } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface PayoutAccountsModalProps {
   isVisible: boolean;
@@ -24,6 +25,9 @@ type PayoutAccount = {
 export default function PayoutAccountsModal({ isVisible, onClose }: PayoutAccountsModalProps) {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
+  const insets = useSafeAreaInsets();
+  const { height: screenHeight } = Dimensions.get('window');
+  
   const [payoutAccounts, setPayoutAccounts] = useState<PayoutAccount[]>([
     {
       id: '1',
@@ -64,6 +68,49 @@ export default function PayoutAccountsModal({ isVisible, onClose }: PayoutAccoun
   
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   
+  // Animation values
+  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const formSlideAnim = useRef(new Animated.Value(screenHeight)).current;
+  
+  useEffect(() => {
+    if (isVisible) {
+      // Animate modal in
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
+  }, [isVisible]);
+  
+  useEffect(() => {
+    if (showAddAccount || showEditAccount) {
+      // Animate form in
+      Animated.spring(formSlideAnim, {
+        toValue: 0,
+        tension: 65,
+        friction: 11,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Animate form out
+      Animated.timing(formSlideAnim, {
+        toValue: screenHeight,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showAddAccount, showEditAccount]);
+  
   useEffect(() => {
     if (selectedAccount && showEditAccount) {
       setFormData({
@@ -96,11 +143,19 @@ export default function PayoutAccountsModal({ isVisible, onClose }: PayoutAccoun
     };
     
     setPayoutAccounts([...payoutAccounts, newAccount]);
-    setShowAddAccount(false);
-    setFormData({
-      accountName: '',
-      accountNumber: '',
-      bankName: ''
+    
+    // Animate form out
+    Animated.timing(formSlideAnim, {
+      toValue: screenHeight,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowAddAccount(false);
+      setFormData({
+        accountName: '',
+        accountNumber: '',
+        bankName: ''
+      });
     });
   };
   
@@ -121,8 +176,16 @@ export default function PayoutAccountsModal({ isVisible, onClose }: PayoutAccoun
     );
     
     setPayoutAccounts(updatedAccounts);
-    setShowEditAccount(false);
-    setSelectedAccount(null);
+    
+    // Animate form out
+    Animated.timing(formSlideAnim, {
+      toValue: screenHeight,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowEditAccount(false);
+      setSelectedAccount(null);
+    });
   };
   
   const handleDeleteAccount = (account: PayoutAccount) => {
@@ -187,235 +250,346 @@ export default function PayoutAccountsModal({ isVisible, onClose }: PayoutAccoun
     }
     
     setFormErrors(errors);
+    
+    if (Object.keys(errors).length > 0) {
+      haptics.error();
+    }
+    
     return Object.keys(errors).length === 0;
   };
   
-  const styles = createStyles(colors, isDark);
+  const handleClose = () => {
+    // Animate out before closing
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: screenHeight,
+        duration: 250,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      onClose();
+    });
+  };
+  
+  // Calculate modal height - limit to 90% of screen height
+  const modalMaxHeight = screenHeight * 0.9;
+  
+  const styles = createStyles(colors, isDark, insets);
+  
+  if (!isVisible) return null;
   
   const renderAddEditForm = () => (
-    <View style={styles.formContainer}>
-      <View style={styles.formHeader}>
-        <Text style={styles.formTitle}>
-          {showEditAccount ? 'Edit Payout Account' : 'Add Payout Account'}
-        </Text>
-        <Pressable 
-          style={styles.closeButton} 
-          onPress={() => {
-            haptics.lightImpact();
-            showEditAccount ? setShowEditAccount(false) : setShowAddAccount(false);
+    <Animated.View 
+      style={[
+        styles.overlay,
+        { 
+          opacity: showAddAccount || showEditAccount ? 1 : 0,
+          zIndex: showAddAccount || showEditAccount ? 1100 : -1,
+        }
+      ]}
+      pointerEvents={showAddAccount || showEditAccount ? 'auto' : 'none'}
+    >
+      <Pressable 
+        style={styles.overlayPressable} 
+        onPress={() => {
+          if (showAddAccount) {
+            setShowAddAccount(false);
+          } else {
+            setShowEditAccount(false);
             setSelectedAccount(null);
-          }}
-        >
-          <X size={24} color={colors.text} />
-        </Pressable>
-      </View>
+          }
+          haptics.lightImpact();
+        }} 
+      />
       
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Account Name</Text>
-        <TextInput
-          style={[styles.input, formErrors.accountName && styles.inputError]}
-          placeholder="Enter account holder name"
-          placeholderTextColor={colors.textTertiary}
-          value={formData.accountName}
-          onChangeText={(text) => setFormData({...formData, accountName: text})}
-        />
-        {formErrors.accountName && (
-          <Text style={styles.errorText}>{formErrors.accountName}</Text>
-        )}
-      </View>
-      
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Account Number</Text>
-        <TextInput
-          style={[styles.input, formErrors.accountNumber && styles.inputError]}
-          placeholder="Enter 10-digit account number"
-          placeholderTextColor={colors.textTertiary}
-          value={formData.accountNumber}
-          onChangeText={(text) => {
-            // Only allow numbers and limit to 10 digits
-            const numericText = text.replace(/[^0-9]/g, '');
-            if (numericText.length <= 10) {
-              setFormData({...formData, accountNumber: numericText});
-            }
-          }}
-          keyboardType="numeric"
-          maxLength={10}
-        />
-        {formErrors.accountNumber && (
-          <Text style={styles.errorText}>{formErrors.accountNumber}</Text>
-        )}
-      </View>
-      
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Bank Name</Text>
-        <TextInput
-          style={[styles.input, formErrors.bankName && styles.inputError]}
-          placeholder="Enter bank name"
-          placeholderTextColor={colors.textTertiary}
-          value={formData.bankName}
-          onChangeText={(text) => setFormData({...formData, bankName: text})}
-        />
-        {formErrors.bankName && (
-          <Text style={styles.errorText}>{formErrors.bankName}</Text>
-        )}
-      </View>
-      
-      <View style={styles.formActions}>
-        <Button
-          title="Cancel"
-          variant="outline"
-          style={styles.cancelButton}
-          onPress={() => {
-            haptics.lightImpact();
-            showEditAccount ? setShowEditAccount(false) : setShowAddAccount(false);
-            setSelectedAccount(null);
-          }}
-        />
-        <Button
-          title={showEditAccount ? "Save Changes" : "Add Account"}
-          style={styles.submitButton}
-          onPress={showEditAccount ? handleEditAccount : handleAddAccount}
-          hapticType="success"
-        />
-      </View>
-    </View>
+      <Animated.View 
+        style={[
+          styles.formContainer,
+          { 
+            transform: [{ translateY: formSlideAnim }],
+            maxHeight: modalMaxHeight
+          }
+        ]}
+      >
+        <View style={styles.dragIndicator} />
+        
+        <View style={styles.formHeader}>
+          <Text style={styles.formTitle}>
+            {showEditAccount ? 'Edit Payout Account' : 'Add Payout Account'}
+          </Text>
+          <Pressable 
+            style={styles.closeButton} 
+            onPress={() => {
+              haptics.lightImpact();
+              if (showAddAccount) {
+                setShowAddAccount(false);
+              } else {
+                setShowEditAccount(false);
+                setSelectedAccount(null);
+              }
+            }}
+          >
+            <X size={24} color={colors.text} />
+          </Pressable>
+        </View>
+        
+        <ScrollView style={styles.formScrollView}>
+          <View style={styles.formContent}>
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Account Name</Text>
+              <TextInput
+                style={[styles.input, formErrors.accountName && styles.inputError]}
+                placeholder="Enter account holder name"
+                placeholderTextColor={colors.textTertiary}
+                value={formData.accountName}
+                onChangeText={(text) => setFormData({...formData, accountName: text})}
+              />
+              {formErrors.accountName && (
+                <Text style={styles.errorText}>{formErrors.accountName}</Text>
+              )}
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Account Number</Text>
+              <TextInput
+                style={[styles.input, formErrors.accountNumber && styles.inputError]}
+                placeholder="Enter 10-digit account number"
+                placeholderTextColor={colors.textTertiary}
+                value={formData.accountNumber}
+                onChangeText={(text) => {
+                  // Only allow numbers and limit to 10 digits
+                  const numericText = text.replace(/[^0-9]/g, '');
+                  if (numericText.length <= 10) {
+                    setFormData({...formData, accountNumber: numericText});
+                  }
+                }}
+                keyboardType="numeric"
+                maxLength={10}
+              />
+              {formErrors.accountNumber && (
+                <Text style={styles.errorText}>{formErrors.accountNumber}</Text>
+              )}
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Bank Name</Text>
+              <TextInput
+                style={[styles.input, formErrors.bankName && styles.inputError]}
+                placeholder="Enter bank name"
+                placeholderTextColor={colors.textTertiary}
+                value={formData.bankName}
+                onChangeText={(text) => setFormData({...formData, bankName: text})}
+              />
+              {formErrors.bankName && (
+                <Text style={styles.errorText}>{formErrors.bankName}</Text>
+              )}
+            </View>
+          </View>
+        </ScrollView>
+        
+        <View style={styles.formActions}>
+          <Button
+            title="Cancel"
+            variant="outline"
+            style={styles.cancelButton}
+            onPress={() => {
+              haptics.lightImpact();
+              if (showAddAccount) {
+                setShowAddAccount(false);
+              } else {
+                setShowEditAccount(false);
+                setSelectedAccount(null);
+              }
+            }}
+          />
+          <Button
+            title={showEditAccount ? "Save Changes" : "Add Account"}
+            style={styles.submitButton}
+            onPress={showEditAccount ? handleEditAccount : handleAddAccount}
+            hapticType="success"
+          />
+        </View>
+      </Animated.View>
+    </Animated.View>
   );
   
-  const renderAccountsList = () => (
-    <>
-      <View style={styles.modalHeader}>
-        <Text style={styles.modalTitle}>Payout Accounts</Text>
-        <Pressable style={styles.closeButton} onPress={onClose}>
-          <X size={24} color={colors.text} />
-        </Pressable>
-      </View>
+  return (
+    <Animated.View 
+      style={[
+        styles.overlay,
+        { opacity: overlayOpacity }
+      ]}
+      pointerEvents={isVisible ? 'auto' : 'none'}
+    >
+      <Pressable style={styles.overlayPressable} onPress={handleClose} />
       
-      <Text style={styles.modalDescription}>
-        Manage accounts where you receive payouts from your plans
-      </Text>
-      
-      <ScrollView style={styles.accountsList}>
-        {payoutAccounts.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No payout accounts added yet</Text>
-            <Text style={styles.emptyStateSubtext}>Add an account to receive payouts</Text>
-          </View>
-        ) : (
-          payoutAccounts.map((account) => (
-            <View key={account.id} style={styles.accountCard}>
-              <View style={styles.accountHeader}>
-                <View style={styles.accountIcon}>
-                  <CreditCard size={24} color={colors.primary} />
-                </View>
-                <View style={styles.accountInfo}>
-                  <Text style={styles.accountName}>{account.bankName}</Text>
-                  <Text style={styles.accountNumber}>•••• {account.accountNumber.slice(-4)}</Text>
-                  <Text style={styles.accountHolderName}>{account.name}</Text>
-                  
-                  <View style={styles.accountStatus}>
-                    {account.isDefault && (
-                      <View style={styles.defaultBadge}>
-                        <Text style={styles.defaultBadgeText}>Default</Text>
-                      </View>
-                    )}
+      <Animated.View 
+        style={[
+          styles.modal,
+          { 
+            transform: [{ translateY: slideAnim }],
+            maxHeight: modalMaxHeight
+          }
+        ]}
+      >
+        <View style={styles.dragIndicator} />
+        
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Payout Accounts</Text>
+          <Pressable 
+            style={styles.closeButton} 
+            onPress={handleClose}
+          >
+            <X size={24} color={colors.text} />
+          </Pressable>
+        </View>
+        
+        <Text style={styles.modalDescription}>
+          Manage accounts where you receive payouts from your plans
+        </Text>
+        
+        <ScrollView style={styles.accountsList}>
+          {payoutAccounts.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No payout accounts added yet</Text>
+              <Text style={styles.emptyStateSubtext}>Add an account to receive payouts</Text>
+            </View>
+          ) : (
+            payoutAccounts.map((account) => (
+              <View key={account.id} style={styles.accountCard}>
+                <View style={styles.accountHeader}>
+                  <View style={styles.accountIcon}>
+                    <CreditCard size={24} color={colors.primary} />
+                  </View>
+                  <View style={styles.accountInfo}>
+                    <Text style={styles.accountName}>{account.bankName}</Text>
+                    <Text style={styles.accountNumber}>•••• {account.accountNumber.slice(-4)}</Text>
+                    <Text style={styles.accountHolderName}>{account.name}</Text>
                     
-                    {account.status === 'pending' && (
-                      <View style={styles.pendingBadge}>
-                        <Text style={styles.pendingBadgeText}>Pending Verification</Text>
-                      </View>
-                    )}
+                    <View style={styles.accountStatus}>
+                      {account.isDefault && (
+                        <View style={styles.defaultBadge}>
+                          <Text style={styles.defaultBadgeText}>Default</Text>
+                        </View>
+                      )}
+                      
+                      {account.status === 'pending' && (
+                        <View style={styles.pendingBadge}>
+                          <Text style={styles.pendingBadgeText}>Pending Verification</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                 </View>
-              </View>
-              
-              <View style={styles.accountActions}>
-                {!account.isDefault && (
+                
+                <View style={styles.accountActions}>
+                  {!account.isDefault && (
+                    <Pressable 
+                      style={styles.actionButton}
+                      onPress={() => handleSetDefault(account)}
+                    >
+                      <Check size={16} color={colors.primary} />
+                      <Text style={styles.actionButtonText}>Set Default</Text>
+                    </Pressable>
+                  )}
+                  
                   <Pressable 
                     style={styles.actionButton}
-                    onPress={() => handleSetDefault(account)}
+                    onPress={() => {
+                      haptics.selection();
+                      setSelectedAccount(account);
+                      setShowEditAccount(true);
+                    }}
                   >
-                    <Check size={16} color={colors.primary} />
-                    <Text style={styles.actionButtonText}>Set Default</Text>
+                    <Edit2 size={16} color={colors.text} />
+                    <Text style={styles.actionButtonText}>Edit</Text>
                   </Pressable>
-                )}
-                
-                <Pressable 
-                  style={styles.actionButton}
-                  onPress={() => {
-                    haptics.selection();
-                    setSelectedAccount(account);
-                    setShowEditAccount(true);
-                  }}
-                >
-                  <Edit2 size={16} color={colors.text} />
-                  <Text style={styles.actionButtonText}>Edit</Text>
-                </Pressable>
-                
-                {!account.isDefault && (
-                  <Pressable 
-                    style={[styles.actionButton, styles.deleteButton]}
-                    onPress={() => handleDeleteAccount(account)}
-                  >
-                    <Trash2 size={16} color="#EF4444" />
-                    <Text style={styles.deleteButtonText}>Delete</Text>
-                  </Pressable>
-                )}
+                  
+                  {!account.isDefault && (
+                    <Pressable 
+                      style={[styles.actionButton, styles.deleteButton]}
+                      onPress={() => handleDeleteAccount(account)}
+                    >
+                      <Trash2 size={16} color="#EF4444" />
+                      <Text style={styles.deleteButtonText}>Delete</Text>
+                    </Pressable>
+                  )}
+                </View>
               </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
-      
-      <View style={styles.addButtonContainer}>
-        <Button
-          title="Add New Account"
-          icon={Plus}
-          style={styles.addButton}
-          onPress={() => {
-            haptics.mediumImpact();
-            setShowAddAccount(true);
-          }}
-          hapticType="medium"
-        />
-      </View>
-    </>
-  );
-
-  return (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={isVisible}
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          {showAddAccount || showEditAccount ? (
-            renderAddEditForm()
-          ) : (
-            renderAccountsList()
+            ))
           )}
+        </ScrollView>
+        
+        <View style={styles.addButtonContainer}>
+          <Button
+            title="Add New Account"
+            icon={Plus}
+            style={styles.addButton}
+            onPress={() => {
+              haptics.mediumImpact();
+              setShowAddAccount(true);
+            }}
+            hapticType="medium"
+          />
         </View>
-      </View>
-    </Modal>
+      </Animated.View>
+      
+      {renderAddEditForm()}
+    </Animated.View>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
+const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+    justifyContent: 'flex-end',
+    zIndex: 1000,
   },
-  modalContent: {
+  overlayPressable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  modal: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     width: '100%',
-    maxWidth: 500,
-    maxHeight: '90%',
-    overflow: 'hidden',
+    borderWidth: isDark ? 1 : 0,
+    borderColor: isDark ? colors.border : 'transparent',
+    // Add shadow for iOS
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  dragIndicator: {
+    width: 40,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 8,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -447,6 +621,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   accountsList: {
     flex: 1,
+    maxHeight: '60%',
     padding: 20,
   },
   emptyState: {
@@ -561,6 +736,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   addButtonContainer: {
     padding: 20,
+    paddingBottom: Math.max(20, insets.bottom),
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
@@ -568,18 +744,43 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   formContainer: {
-    padding: 20,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    width: '100%',
+    borderWidth: isDark ? 1 : 0,
+    borderColor: isDark ? colors.border : 'transparent',
+    // Add shadow for iOS
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
   },
   formHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   formTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: colors.text,
+  },
+  formScrollView: {
+    maxHeight: 400,
+  },
+  formContent: {
+    padding: 20,
   },
   formGroup: {
     marginBottom: 20,
@@ -593,8 +794,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
     color: colors.text,
     backgroundColor: colors.backgroundTertiary,
@@ -611,7 +812,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 12,
-    marginTop: 20,
+    padding: 20,
+    paddingBottom: Math.max(20, insets.bottom),
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   cancelButton: {
     flex: 1,
