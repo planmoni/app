@@ -334,7 +334,7 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 204,
   },
   otpInput: {
     width: 50,
