@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { X, Copy, ArrowUpRight, ArrowDownRight } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -25,7 +25,11 @@ type TransactionModalProps = {
 
 export default function TransactionModal({ isVisible, onClose, transaction }: TransactionModalProps) {
   const { colors } = useTheme();
+  const { width, height } = useWindowDimensions();
   const haptics = useHaptics();
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
   
   if (!isVisible) return null;
 
@@ -51,7 +55,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
 
   const isPositive = transaction.type === 'Deposit';
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isSmallScreen);
 
   return (
     <View style={styles.overlay}>
@@ -61,15 +65,15 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
           <View style={styles.headerContent}>
             <Text style={styles.title}>Transaction Details</Text>
             <Pressable onPress={handleClose} style={styles.closeButton}>
-              <X size={24} color="#FFFFFF" />
+              <X size={isSmallScreen ? 20 : 24} color="#FFFFFF" />
             </Pressable>
           </View>
           <View style={styles.amountSection}>
             <View style={[styles.amountIcon, { backgroundColor: isPositive ? '#DCFCE7' : '#FEE2E2' }]}>
               {isPositive ? (
-                <ArrowUpRight size={24} color="#22C55E" />
+                <ArrowUpRight size={isSmallScreen ? 20 : 24} color="#22C55E" />
               ) : (
-                <ArrowDownRight size={24} color="#EF4444" />
+                <ArrowDownRight size={isSmallScreen ? 20 : 24} color="#EF4444" />
               )}
             </View>
             <View>
@@ -114,7 +118,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
               <View style={styles.idContainer}>
                 <Text style={styles.value}>{transaction.transactionId}</Text>
                 <Pressable onPress={handleCopyTransactionId} style={styles.copyButton}>
-                  <Copy size={20} color="#1E3A8A" />
+                  <Copy size={isSmallScreen ? 16 : 20} color="#1E3A8A" />
                 </Pressable>
               </View>
             </View>
@@ -164,7 +168,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
   overlay: {
     position: 'absolute',
     top: 0,
@@ -193,41 +197,41 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   header: {
     backgroundColor: '#1E3A8A',
-    padding: 24,
+    padding: isSmallScreen ? 16 : 24,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: isSmallScreen ? 16 : 24,
   },
   title: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: '#FFFFFF',
   },
   closeButton: {
-    width: 40,
-    height: 40,
+    width: isSmallScreen ? 32 : 40,
+    height: isSmallScreen ? 32 : 40,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 20,
+    borderRadius: isSmallScreen ? 16 : 20,
   },
   amountSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: isSmallScreen ? 12 : 16,
   },
   amountIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: isSmallScreen ? 40 : 48,
+    height: isSmallScreen ? 40 : 48,
+    borderRadius: isSmallScreen ? 20 : 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
   amount: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 20 : 24,
     fontWeight: '700',
     marginBottom: 4,
   },
@@ -238,7 +242,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#EF4444',
   },
   status: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     fontWeight: '500',
   },
   positiveStatus: {
@@ -251,27 +255,27 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
+    padding: isSmallScreen ? 16 : 24,
   },
   section: {
-    marginBottom: 32,
+    marginBottom: isSmallScreen ? 24 : 32,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: isSmallScreen ? 12 : 16,
   },
   field: {
-    marginBottom: 16,
+    marginBottom: isSmallScreen ? 12 : 16,
   },
   label: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
     marginBottom: 4,
   },
   value: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     color: colors.text,
     fontWeight: '500',
   },
@@ -289,7 +293,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 8,
   },
   footer: {
-    padding: 24,
+    padding: isSmallScreen ? 16 : 24,
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,

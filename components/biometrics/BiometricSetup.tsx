@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from "react"
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from "react-native"
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, useWindowDimensions, ScrollView } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { BiometricService } from "@/lib/biometrics"
 import { useTheme } from "@/contexts/ThemeContext"
 
 export const BiometricSetup: React.FC = () => {
   const { colors, isDark } = useTheme()
+  const { width, height } = useWindowDimensions()
   const [biometricSettings, setBiometricSettings] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [testing, setTesting] = useState(false)
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700
 
   const refreshBiometricSettings = async () => {
     try {
@@ -85,15 +89,25 @@ export const BiometricSetup: React.FC = () => {
   const biometricLabel = BiometricService.getBiometricTypeLabel(biometricSettings.supportedTypes)
   const biometricIcon = BiometricService.getBiometricIcon(biometricSettings.supportedTypes)
 
+  // Calculate responsive sizes
+  const iconSize = isSmallScreen ? 40 : 48
+  const titleSize = isSmallScreen ? 16 : 18
+  const textSize = isSmallScreen ? 13 : 14
+  const padding = isSmallScreen ? 16 : 20
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary, padding }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <View style={[styles.iconContainer, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff' }]}>
-          <Ionicons name={biometricIcon as any} size={24} color={colors.primary} />
+        <View style={[styles.iconContainer, { 
+          backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff',
+          width: iconSize,
+          height: iconSize,
+        }]}>
+          <Ionicons name={biometricIcon as any} size={iconSize / 2} color={colors.primary} />
         </View>
         <View style={styles.headerText}>
-          <Text style={[styles.title, { color: colors.text }]}>{biometricLabel} Authentication</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          <Text style={[styles.title, { color: colors.text, fontSize: titleSize }]}>{biometricLabel} Authentication</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary, fontSize: textSize }]}>
             {biometricSettings.isAvailable
               ? `Use ${biometricLabel.toLowerCase()} to quickly and securely access your account`
               : "Biometric authentication is not available on this device"}
@@ -106,7 +120,7 @@ export const BiometricSetup: React.FC = () => {
           {!biometricSettings.isEnrolled && (
             <View style={[styles.warningContainer, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#fffbeb' }]}>
               <Ionicons name="warning" size={20} color="#f59e0b" />
-              <Text style={[styles.warningText, { color: isDark ? '#fcd34d' : '#92400e' }]}>
+              <Text style={[styles.warningText, { color: isDark ? '#fcd34d' : '#92400e', fontSize: textSize }]}>
                 No biometric credentials are enrolled on this device. Please set up {biometricLabel.toLowerCase()} in
                 your device settings.
               </Text>
@@ -115,8 +129,8 @@ export const BiometricSetup: React.FC = () => {
 
           <View style={[styles.toggleContainer, { borderColor: colors.border }]}>
             <View style={styles.toggleContent}>
-              <Text style={[styles.toggleLabel, { color: colors.text }]}>Enable {biometricLabel}</Text>
-              <Text style={[styles.toggleDescription, { color: colors.textSecondary }]}>
+              <Text style={[styles.toggleLabel, { color: colors.text, fontSize: titleSize - 2 }]}>Enable {biometricLabel}</Text>
+              <Text style={[styles.toggleDescription, { color: colors.textSecondary, fontSize: textSize }]}>
                 {biometricSettings.isEnabled
                   ? `${biometricLabel} authentication is enabled`
                   : `Enable ${biometricLabel.toLowerCase()} for quick access`}
@@ -165,29 +179,29 @@ export const BiometricSetup: React.FC = () => {
               ) : (
                 <Ionicons name="play-circle" size={20} color={colors.primary} />
               )}
-              <Text style={[styles.testButtonText, { color: colors.primary }]}>
+              <Text style={[styles.testButtonText, { color: colors.primary, fontSize: textSize }]}>
                 {testing ? "Testing..." : `Test ${biometricLabel}`}
               </Text>
             </TouchableOpacity>
           )}
 
           <View style={[styles.infoContainer, { backgroundColor: isDark ? colors.backgroundTertiary : '#f9fafb' }]}>
-            <Text style={[styles.infoTitle, { color: colors.text }]}>Security Information</Text>
+            <Text style={[styles.infoTitle, { color: colors.text, fontSize: titleSize - 2 }]}>Security Information</Text>
             <View style={styles.infoItem}>
               <Ionicons name="shield-checkmark" size={16} color={isDark ? '#34d399' : '#10b981'} />
-              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              <Text style={[styles.infoText, { color: colors.textSecondary, fontSize: textSize }]}>
                 Your biometric data is stored securely on your device and never shared
               </Text>
             </View>
             <View style={styles.infoItem}>
               <Ionicons name="lock-closed" size={16} color={isDark ? '#34d399' : '#10b981'} />
-              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              <Text style={[styles.infoText, { color: colors.textSecondary, fontSize: textSize }]}>
                 You can disable biometric authentication at any time
               </Text>
             </View>
             <View style={styles.infoItem}>
               <Ionicons name="key" size={16} color={isDark ? '#34d399' : '#10b981'} />
-              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              <Text style={[styles.infoText, { color: colors.textSecondary, fontSize: textSize }]}>
                 Your password is still required for sensitive operations
               </Text>
             </View>
@@ -198,7 +212,7 @@ export const BiometricSetup: React.FC = () => {
       {!biometricSettings.isAvailable && (
         <View style={styles.unavailableContainer}>
           <Ionicons name="information-circle" size={48} color={colors.textTertiary} />
-          <Text style={[styles.unavailableText, { color: colors.textSecondary }]}>
+          <Text style={[styles.unavailableText, { color: colors.textSecondary, fontSize: textSize }]}>
             Biometric authentication is not supported on this device
           </Text>
         </View>
@@ -225,8 +239,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
     borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
@@ -236,12 +248,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 18,
     fontWeight: "600",
     marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
     lineHeight: 20,
   },
   warningContainer: {
@@ -253,7 +263,6 @@ const styles = StyleSheet.create({
   },
   warningText: {
     flex: 1,
-    fontSize: 14,
     marginLeft: 8,
     lineHeight: 20,
   },
@@ -270,11 +279,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   toggleLabel: {
-    fontSize: 16,
     fontWeight: "500",
   },
   toggleDescription: {
-    fontSize: 14,
     marginTop: 2,
   },
   toggleButton: {
@@ -306,7 +313,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   testButtonText: {
-    fontSize: 14,
     fontWeight: "500",
     marginLeft: 8,
   },
@@ -315,7 +321,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   infoTitle: {
-    fontSize: 16,
     fontWeight: "600",
     marginBottom: 16,
   },
@@ -326,7 +331,6 @@ const styles = StyleSheet.create({
   },
   infoText: {
     flex: 1,
-    fontSize: 14,
     marginLeft: 8,
     lineHeight: 20,
   },
@@ -335,7 +339,6 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   unavailableText: {
-    fontSize: 16,
     textAlign: "center",
     marginTop: 16,
     maxWidth: 300,

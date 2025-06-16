@@ -1,4 +1,7 @@
-import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import { X, Search, HelpCircle, MessageSquare, FileText, ExternalLink } from 'lucide-react-native';
+import { useState } from 'react';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface HelpCenterModalProps {
   isVisible: boolean;
@@ -6,6 +9,41 @@ interface HelpCenterModalProps {
 }
 
 export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalProps) {
+  const { colors, isDark } = useTheme();
+  const { width, height } = useWindowDimensions();
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
+  
+  // State for search
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const styles = createStyles(colors, isDark, isSmallScreen);
+  
+  // Mock FAQ data
+  const faqs = [
+    {
+      id: '1',
+      question: 'How do I create a payout plan?',
+      answer: 'To create a payout plan, go to the Home tab and tap on "Plan" or the "+" button. Follow the steps to set up your payout schedule and amount.'
+    },
+    {
+      id: '2',
+      question: 'How do I add funds to my wallet?',
+      answer: 'You can add funds by tapping on "Add Funds" on the Home screen. Choose your preferred payment method and follow the instructions.'
+    },
+    {
+      id: '3',
+      question: 'Can I change my payout schedule?',
+      answer: 'Yes, you can modify your payout schedule by viewing the payout details and selecting "Edit". Note that changes will apply to future payouts only.'
+    },
+    {
+      id: '4',
+      question: 'How do I link a bank account?',
+      answer: 'Go to Settings > Linked Bank Accounts and tap "Add New Account". You'll need to provide your bank details for verification.'
+    },
+  ];
+  
   return (
     <Modal
       animationType="slide"
@@ -15,39 +53,103 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
       statusBarTranslucent={true}
     >
       <View style={styles.centeredView}>
+        <Pressable style={styles.backdrop} onPress={onClose} />
         <View style={styles.modalView}>
-          <Text style={styles.modalTitle}>Help Center</Text>
-          
-          <View style={styles.content}>
-            <Text style={styles.description}>
-              Find answers to common questions and get help with your account.
-            </Text>
+          <View style={styles.header}>
+            <Text style={styles.modalTitle}>Help Center</Text>
+            <Pressable style={styles.closeButton} onPress={onClose}>
+              <X size={isSmallScreen ? 20 : 24} color={colors.text} />
+            </Pressable>
           </View>
+          
+          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+            <View style={styles.searchContainer}>
+              <Search size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+              <Pressable style={styles.searchInput}>
+                <Text style={styles.searchPlaceholder}>Search for help...</Text>
+              </Pressable>
+            </View>
+            
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
+              
+              {faqs.map(faq => (
+                <Pressable key={faq.id} style={styles.faqItem}>
+                  <Text style={styles.faqQuestion}>{faq.question}</Text>
+                  <Text style={styles.faqAnswer}>{faq.answer}</Text>
+                </Pressable>
+              ))}
+            </View>
+            
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Contact Support</Text>
+              
+              <Pressable style={styles.supportOption}>
+                <View style={styles.supportIconContainer}>
+                  <MessageSquare size={isSmallScreen ? 16 : 20} color="#1E3A8A" />
+                </View>
+                <View style={styles.supportInfo}>
+                  <Text style={styles.supportTitle}>Chat with Support</Text>
+                  <Text style={styles.supportDescription}>Available 24/7</Text>
+                </View>
+                <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+              </Pressable>
+              
+              <Pressable style={styles.supportOption}>
+                <View style={styles.supportIconContainer}>
+                  <FileText size={isSmallScreen ? 16 : 20} color="#22C55E" />
+                </View>
+                <View style={styles.supportInfo}>
+                  <Text style={styles.supportTitle}>Submit a Ticket</Text>
+                  <Text style={styles.supportDescription}>Get help with complex issues</Text>
+                </View>
+                <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+              </Pressable>
+              
+              <Pressable style={styles.supportOption}>
+                <View style={styles.supportIconContainer}>
+                  <HelpCircle size={isSmallScreen ? 16 : 20} color="#F97316" />
+                </View>
+                <View style={styles.supportInfo}>
+                  <Text style={styles.supportTitle}>Knowledge Base</Text>
+                  <Text style={styles.supportDescription}>Browse detailed guides</Text>
+                </View>
+                <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+          </ScrollView>
 
-          <Pressable
-            style={styles.closeButton}
-            onPress={onClose}
-          >
-            <Text style={styles.closeButtonText}>Close</Text>
-          </Pressable>
+          <View style={styles.footer}>
+            <Pressable style={styles.closeButton2} onPress={onClose}>
+              <Text style={styles.closeButtonText}>Close</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </Modal>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
   centeredView: {
     flex: 1,
     justifyContent: 'flex-end',
+    backgroundColor: 'transparent',
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalView: {
     width: '100%',
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 24,
+    maxHeight: '90%',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -57,29 +159,123 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: isSmallScreen ? 16 : 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   modalTitle: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 18 : 24,
     fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 16,
-  },
-  content: {
-    marginBottom: 24,
-  },
-  description: {
-    fontSize: 16,
-    color: '#64748B',
-    lineHeight: 24,
+    color: colors.text,
   },
   closeButton: {
-    backgroundColor: '#EFF6FF',
+    width: isSmallScreen ? 32 : 40,
+    height: isSmallScreen ? 32 : 40,
+    borderRadius: isSmallScreen ? 16 : 20,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollView: {
+    maxHeight: '70%',
+  },
+  scrollContent: {
+    padding: isSmallScreen ? 16 : 24,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
     padding: 12,
+    marginBottom: isSmallScreen ? 20 : 24,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  searchPlaceholder: {
+    fontSize: isSmallScreen ? 14 : 16,
+    color: colors.textTertiary,
+  },
+  section: {
+    marginBottom: isSmallScreen ? 20 : 24,
+  },
+  sectionTitle: {
+    fontSize: isSmallScreen ? 14 : 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: isSmallScreen ? 12 : 16,
+  },
+  faqItem: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  faqQuestion: {
+    fontSize: isSmallScreen ? 14 : 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  faqAnswer: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: colors.textSecondary,
+    lineHeight: isSmallScreen ? 18 : 20,
+  },
+  supportOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  supportIconContainer: {
+    width: isSmallScreen ? 32 : 40,
+    height: isSmallScreen ? 32 : 40,
+    borderRadius: isSmallScreen ? 16 : 20,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  supportInfo: {
+    flex: 1,
+  },
+  supportTitle: {
+    fontSize: isSmallScreen ? 14 : 16,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 2,
+  },
+  supportDescription: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: colors.textSecondary,
+  },
+  footer: {
+    padding: isSmallScreen ? 16 : 24,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  closeButton2: {
+    backgroundColor: colors.primary,
+    padding: isSmallScreen ? 12 : 16,
     borderRadius: 8,
     alignItems: 'center',
   },
   closeButtonText: {
-    color: '#3B82F6',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '600',
   },
 });
