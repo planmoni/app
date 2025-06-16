@@ -180,6 +180,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       transparent={true}
       visible={isVisible}
       onRequestClose={handleClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
@@ -343,6 +344,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
         transparent={true}
         animationType="slide"
         onRequestClose={() => setShowBankSelector(false)}
+        statusBarTranslucent={true}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.bankSelectorModal}>

@@ -113,6 +113,7 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
       transparent={true}
       visible={isVisible}
       onRequestClose={handleClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>

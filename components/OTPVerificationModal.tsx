@@ -100,6 +100,7 @@ export default function OTPVerificationModal({
           onClose();
         }
       }}
+      statusBarTranslucent={true}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>

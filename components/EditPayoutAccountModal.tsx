@@ -102,6 +102,7 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
       transparent={true}
       visible={isVisible}
       onRequestClose={handleClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>

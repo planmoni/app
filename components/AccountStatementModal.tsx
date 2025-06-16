@@ -12,6 +12,7 @@ export default function AccountStatementModal({ isVisible, onClose }: AccountSta
       transparent={true}
       visible={isVisible}
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.centeredView}>
         <View style={styles.modalView}>

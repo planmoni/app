@@ -231,7 +231,12 @@ export default function SettingsScreen() {
             </Pressable>
 
             {/* Biometric Setup Modal */}
-            <Modal visible={biometrics} animationType="slide" presentationStyle="pageSheet">
+            <Modal 
+              visible={biometrics} 
+              animationType="slide" 
+              presentationStyle="pageSheet"
+              statusBarTranslucent={true}
+            >
               <View style={[styles.biometricModal, { backgroundColor: isDark ? colors.backgroundSecondary : "#f8f9fa" }]}>
                 <View style={[styles.biometricHeader, { 
                   backgroundColor: isDark ? colors.surface : "white",

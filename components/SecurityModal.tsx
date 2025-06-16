@@ -12,6 +12,7 @@ export default function SecurityModal({ isVisible, onClose }: SecurityModalProps
       transparent={true}
       visible={isVisible}
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.centeredView}>
         <View style={styles.modalView}>

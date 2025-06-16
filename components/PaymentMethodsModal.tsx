@@ -94,6 +94,22 @@ export default function PaymentMethodsModal({
     router.push('/linked-accounts');
   };
 
+  const handleAddUSSD = () => {
+    haptics.mediumImpact();
+    onClose();
+    router.push('/add-ussd');
+  };
+
+  const handleContinue = () => {
+    if (selectedMethodId) {
+      const selectedMethod = paymentMethods.find(method => method.id === selectedMethodId);
+      if (selectedMethod && onSelect) {
+        onSelect(selectedMethod);
+      }
+      onClose();
+    }
+  };
+
   const getCardIcon = (cardType?: string) => {
     // In a real app, you would return different card icons based on the card type
     return <CreditCard size={24} color={colors.primary} />;
@@ -110,6 +126,7 @@ export default function PaymentMethodsModal({
         haptics.lightImpact();
         onClose();
       }}
+      statusBarTranslucent={true}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>

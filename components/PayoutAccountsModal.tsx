@@ -387,6 +387,7 @@ export default function PayoutAccountsModal({ isVisible, onClose }: PayoutAccoun
       transparent={true}
       visible={isVisible}
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
