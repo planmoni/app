@@ -6,7 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
-// import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useBanks, Bank } from '@/hooks/useBanks';
 import { useAccountResolution } from '@/hooks/useAccountResolution';
 
@@ -191,7 +191,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
             </Pressable>
           </View>
           
-          <View contentContainerStyle={styles.formContainer}>
+          <KeyboardAvoidingWrapper contentContainerStyle={styles.formContainer}>
             <Text style={styles.description}>
               Add a bank account where you want to receive payouts
             </Text>
@@ -312,7 +312,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                 Please ensure all details are correct. These details will be used for your payouts.
               </Text>
             </View>
-          </View>
+          </KeyboardAvoidingWrapper>
           
           <View style={styles.footer}>
             <Button
