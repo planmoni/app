@@ -1,6 +1,6 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
-import { X, Search, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
+import { X, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -12,15 +12,10 @@ import { useAccountResolution } from '@/hooks/useAccountResolution';
 
 interface AddPayoutAccountModalProps {
   isVisible: boolean;
-  onClose: () => void;
-  onAccountAdded?: (accountId: string) => void; // New callback for when account is added
+  onClose: (newAccountId?: string) => void;
 }
 
-export default function AddPayoutAccountModal({ 
-  isVisible, 
-  onClose,
-  onAccountAdded 
-}: AddPayoutAccountModalProps) {
+export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutAccountModalProps) {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
   const { addPayoutAccount } = usePayoutAccounts();
@@ -41,11 +36,6 @@ export default function AddPayoutAccountModal({
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Filter banks based on search query
-  const filteredBanks = banks.filter(bank => 
-    bank.name.toLowerCase().includes(bankSearchQuery.toLowerCase())
-  );
-
   const handleAddAccount = async () => {
     if (!validateForm()) return;
     
@@ -60,13 +50,9 @@ export default function AddPayoutAccountModal({
       
       haptics.notification(Haptics.NotificationFeedbackType.Success);
       
-      // Call the onAccountAdded callback with the new account ID if it exists
-      if (onAccountAdded && newAccount?.id) {
-        onAccountAdded(newAccount.id);
-      }
-      
       resetForm();
-      onClose();
+      // Pass the new account ID to the onClose callback
+      onClose(newAccount?.id);
     } catch (error) {
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       setFormErrors({

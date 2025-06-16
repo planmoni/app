@@ -89,12 +89,6 @@ export default function DestinationScreen() {
     }
   };
 
-  // Handler for when a new account is added
-  const handleAccountAdded = (newAccountId: string) => {
-    // Set the newly added account as selected
-    setSelectedAccountId(newAccountId);
-  };
-
   // Responsive styles based on screen width
   const isSmallScreen = width < 380;
 
@@ -323,11 +317,14 @@ export default function DestinationScreen() {
       {accountType === 'payout' ? (
         <AddPayoutAccountModal
           isVisible={showAddAccount}
-          onClose={() => {
+          onClose={(newAccountId) => {
             haptics.lightImpact();
             setShowAddAccount(false);
+            // If a new account was added, select it
+            if (newAccountId) {
+              setSelectedAccountId(newAccountId);
+            }
           }}
-          onAccountAdded={handleAccountAdded}
         />
       ) : (
         <AddBankAccountModal
