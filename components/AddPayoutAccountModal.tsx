@@ -726,7 +726,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
         shadowRadius: 5,
       },
       android: {
-        elevation: 5,
+        elevation: 50,
       },
     }),
   },
@@ -758,7 +758,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     marginLeft: 12,
   },
   bankList: {
-    maxHeight: '90%',
+    maxHeight: '60%',
   },
   bankOption: {
     flexDirection: 'row',
