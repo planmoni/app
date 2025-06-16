@@ -1,18 +1,17 @@
-import { View, Text, StyleSheet, Pressable, useWindowDimensions, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Building2, Plus, Info, Check } from 'lucide-react-native';
 import Button from '@/components/Button';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
 import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
-import { useRealtimePayoutAccounts } from '@/hooks/useRealtimePayoutAccounts';
+import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
-import { ScrollView } from 'react-native-gesture-handler';
 
 export default function DestinationScreen() {
   const { colors } = useTheme();
@@ -27,23 +26,18 @@ export default function DestinationScreen() {
   const { 
     payoutAccounts, 
     isLoading: payoutAccountsLoading, 
-    error: payoutAccountsError,
-    fetchPayoutAccounts
-  } = useRealtimePayoutAccounts();
+    error: payoutAccountsError 
+  } = usePayoutAccounts();
   
   const { 
     bankAccounts, 
     isLoading: bankAccountsLoading, 
-    error: bankAccountsError,
-    fetchBankAccounts
+    error: bankAccountsError 
   } = useRealtimeBankAccounts();
 
   // Combine loading and error states
   const isLoading = payoutAccountsLoading || bankAccountsLoading;
   const error = payoutAccountsError || bankAccountsError;
-  
-  // Refreshing state
-  const [refreshing, setRefreshing] = useState(false);
 
   // Set default selection based on the active tab type
   useEffect(() => {
@@ -55,23 +49,6 @@ export default function DestinationScreen() {
       setSelectedAccountId(defaultAccount?.id || bankAccounts[0].id);
     }
   }, [payoutAccounts, bankAccounts, selectedAccountId, accountType]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    haptics.lightImpact();
-    
-    try {
-      if (accountType === 'payout') {
-        await fetchPayoutAccounts();
-      } else {
-        await fetchBankAccounts();
-      }
-    } catch (error) {
-      console.error('Error refreshing accounts:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [accountType, fetchPayoutAccounts, fetchBankAccounts, haptics]);
 
   const handleContinue = () => {
     if (selectedAccountId) {
@@ -139,7 +116,7 @@ export default function DestinationScreen() {
         <Text style={styles.stepText}>Step 3 of 5</Text>
       </View>
 
-      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent} disableScrollView={true}>
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           <Text style={styles.title}>Choose Payout Destination</Text>
           <Text style={styles.description}>
@@ -192,17 +169,7 @@ export default function DestinationScreen() {
             </Pressable>
           </View>
 
-          <ScrollView 
-            style={styles.accountsList}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                colors={[colors.primary]}
-                tintColor={colors.primary}
-              />
-            }
-          >
+          <View style={styles.accountsList}>
             {isLoading ? (
               <View style={styles.loadingContainer}>
                 <Text style={styles.loadingText}>Loading bank accounts...</Text>
@@ -327,7 +294,7 @@ export default function DestinationScreen() {
                 Add New {accountType === 'payout' ? 'Payout' : 'Bank'} Account
               </Text>
             </Pressable>
-          </ScrollView>
+          </View>
 
           <View style={styles.notice}>
             <View style={styles.noticeIcon}>
@@ -498,19 +465,18 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     color: colors.textSecondary,
   },
   accountsList: {
-    maxHeight: 300,
+    gap: 12,
     marginBottom: 24,
   },
   accountOption: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     padding: isSmallScreen ? 12 : 16,
     backgroundColor: colors.surface,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 12,
   },
   selectedAccount: {
     backgroundColor: '#F0F9FF',
@@ -519,7 +485,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   accountInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: isSmallScreen ? 8 : 16,
+    gap: isSmallScreen ? 12 : 16,
     flex: 1,
   },
   bankIcon: {
