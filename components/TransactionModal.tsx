@@ -264,6 +264,7 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     width: '100%',
+    height: '90%',
     overflow: 'hidden',
     // Add shadow for iOS
     ...Platform.select({
@@ -362,7 +363,7 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     marginBottom: 16,
   },
   field: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
   label: {
     fontSize: 14,
@@ -389,8 +390,8 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
   },
   footer: {
     padding: 24,
-    paddingBottom: Math.max(24, insets.bottom),
-    gap: 12,
+    paddingBottom: Math.max(14, insets.bottom),
+    gap: 10,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
