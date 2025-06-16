@@ -277,7 +277,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
             </Pressable>
           </View>
 
-          <View style={styles.content} disableScrollView={false}>
+          <KeyboardAvoidingWrapper style={styles.content} disableScrollView={false}>
             <View style={styles.contentInner}>
               <Text style={styles.subtitle}>Enter your bank account details</Text>
               
@@ -399,7 +399,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                 </Text>
               </View>
             </View>
-          </View>
+          </KeyboardAvoidingWrapper>
           
           <View style={styles.footer}>
             <Button
