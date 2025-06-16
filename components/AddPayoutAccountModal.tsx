@@ -1,6 +1,6 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, ScrollView, Dimensions, Animated, Platform } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
-import { X, Check, TriangleAlert as AlertTriangle, Search } from 'lucide-react-native';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator } from 'react-native';
+import { useState, useEffect } from 'react';
+import { X, Search, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -9,11 +9,10 @@ import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useBanks, Bank } from '@/hooks/useBanks';
 import { useAccountResolution } from '@/hooks/useAccountResolution';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface AddPayoutAccountModalProps {
   isVisible: boolean;
-  onClose: (newAccountId?: string) => void;
+  onClose: () => void;
 }
 
 export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutAccountModalProps) {
@@ -22,8 +21,6 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   const { addPayoutAccount } = usePayoutAccounts();
   const { banks, isLoading: banksLoading } = useBanks();
   const { resolveAccount, isResolving, error: resolutionError, setError: setResolutionError } = useAccountResolution();
-  const insets = useSafeAreaInsets();
-  const { height: screenHeight } = Dimensions.get('window');
   
   const [formData, setFormData] = useState({
     accountName: '',
@@ -39,56 +36,10 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Animation values
-  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
-  const bankSelectorSlideAnim = useRef(new Animated.Value(screenHeight)).current;
-
   // Filter banks based on search query
-  const filteredBanks = banks?.filter(bank =>
+  const filteredBanks = banks.filter(bank => 
     bank.name.toLowerCase().includes(bankSearchQuery.toLowerCase())
-  ) || [];
-
-  useEffect(() => {
-    if (isVisible) {
-      // Animate modal in
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          tension: 65,
-          friction: 11,
-          useNativeDriver: true,
-        })
-      ]).start();
-    } else {
-      // Reset form when modal is closed
-      resetForm();
-    }
-  }, [isVisible]);
-
-  useEffect(() => {
-    if (showBankSelector) {
-      // Animate bank selector in
-      Animated.spring(bankSelectorSlideAnim, {
-        toValue: 0,
-        tension: 65,
-        friction: 11,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      // Animate bank selector out
-      Animated.timing(bankSelectorSlideAnim, {
-        toValue: screenHeight,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [showBankSelector]);
+  );
 
   const handleAddAccount = async () => {
     if (!validateForm()) return;
@@ -96,30 +47,15 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     try {
       setIsSubmitting(true);
       
-      const newAccount = await addPayoutAccount({
+      await addPayoutAccount({
         account_name: formData.accountName.trim(),
         account_number: formData.accountNumber.trim(),
         bank_name: selectedBank?.name || formData.bankName.trim()
       });
       
       haptics.notification(Haptics.NotificationFeedbackType.Success);
-      
-      // Animate out before closing
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: screenHeight,
-          duration: 250,
-          useNativeDriver: true,
-        })
-      ]).start(() => {
-        // Pass the new account ID to the onClose callback
-        onClose(newAccount?.id);
-      });
+      resetForm();
+      onClose();
     } catch (error) {
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       setFormErrors({
@@ -166,42 +102,19 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     setAccountResolved(false);
     setFormErrors({});
     setResolutionError(null);
-    setBankSearchQuery('');
   };
   
   const handleClose = () => {
-    if (isSubmitting) return;
-    
-    // Animate out before closing
-    Animated.parallel([
-      Animated.timing(overlayOpacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: screenHeight,
-        duration: 250,
-        useNativeDriver: true,
-      })
-    ]).start(() => {
+    if (!isSubmitting) {
+      resetForm();
       onClose();
-    });
+    }
   };
 
   const handleBankSelect = (bank: Bank) => {
     setSelectedBank(bank);
     setFormData(prev => ({ ...prev, bankName: bank.name }));
-    
-    // Animate bank selector out
-    Animated.timing(bankSelectorSlideAnim, {
-      toValue: screenHeight,
-      duration: 250,
-      useNativeDriver: true,
-    }).start(() => {
-      setShowBankSelector(false);
-    });
-    
+    setShowBankSelector(false);
     haptics.selection();
     
     // If account number is already entered, try to resolve account
@@ -256,320 +169,251 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     }
   };
 
-  // Calculate modal height - limit to 90% of screen height
-  const modalMaxHeight = screenHeight * 0.9;
-
-  const styles = createStyles(colors, isDark, insets);
-
-  if (!isVisible) return null;
+  const styles = createStyles(colors, isDark);
 
   return (
-    <Animated.View 
-      style={[
-        styles.modalOverlay,
-        { opacity: overlayOpacity }
-      ]}
-      pointerEvents={isVisible ? 'auto' : 'none'}
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isVisible}
+      onRequestClose={handleClose}
     >
-      <Pressable style={styles.overlayPressable} onPress={handleClose} />
-      
-      <Animated.View 
-        style={[
-          styles.modalContent,
-          { 
-            transform: [{ translateY: slideAnim }],
-            maxHeight: modalMaxHeight
-          }
-        ]}
-      >
-        <View style={styles.dragIndicator} />
-        
-        <View style={styles.header}>
-          <Text style={styles.title}>Add Payout Account</Text>
-          <Pressable 
-            style={styles.closeButton} 
-            onPress={handleClose}
-            disabled={isSubmitting}
-          >
-            <X size={24} color={colors.text} />
-          </Pressable>
-        </View>
-        
-        <KeyboardAvoidingWrapper contentContainerStyle={styles.formContainer}>
-          <Text style={styles.description}>
-            Add a bank account where you want to receive payouts
-          </Text>
-          
-          {formErrors.general && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{formErrors.general}</Text>
-            </View>
-          )}
-          
-          {resolutionError && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{resolutionError}</Text>
-            </View>
-          )}
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Account Number</Text>
-            <View style={[
-              styles.inputContainer, 
-              formErrors.accountNumber && styles.inputError,
-              accountResolved && styles.resolvedInput
-            ]}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter 10-digit account number"
-                placeholderTextColor={colors.textTertiary}
-                value={formData.accountNumber}
-                onChangeText={handleAccountNumberChange}
-                keyboardType="numeric"
-                maxLength={10}
-                editable={!isSubmitting && !accountResolved}
-              />
-              {isResolving && (
-                <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
-              )}
-              {accountResolved && (
-                <View style={styles.resolvedIcon}>
-                  <Check size={16} color={colors.success} />
-                </View>
-              )}
-            </View>
-            {formErrors.accountNumber && (
-              <Text style={styles.fieldError}>{formErrors.accountNumber}</Text>
-            )}
-          </View>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Bank</Text>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Add Payout Account</Text>
             <Pressable 
-              style={[
-                styles.bankSelector,
-                formErrors.bankName && styles.inputError,
-                selectedBank && styles.selectedInput
-              ]}
-              onPress={() => {
-                if (!isSubmitting && !accountResolved) {
-                  haptics.selection();
-                  setShowBankSelector(true);
-                }
-              }}
-              disabled={isSubmitting || accountResolved}
-            >
-              {selectedBank ? (
-                <Text style={styles.selectedBankText}>{selectedBank.name}</Text>
-              ) : (
-                <Text style={styles.placeholderText}>Select your bank</Text>
-              )}
-            </Pressable>
-            {formErrors.bankName && (
-              <Text style={styles.fieldError}>{formErrors.bankName}</Text>
-            )}
-          </View>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Account Name</Text>
-            <View style={[
-              styles.inputContainer, 
-              formErrors.accountName && styles.inputError,
-              accountResolved && styles.resolvedInput
-            ]}>
-              <TextInput
-                style={styles.input}
-                placeholder={isResolving ? "Resolving account name..." : "Enter account holder name"}
-                placeholderTextColor={colors.textTertiary}
-                value={formData.accountName}
-                onChangeText={(text) => {
-                  if (!accountResolved) {
-                    setFormData({...formData, accountName: text});
-                    if (formErrors.accountName) {
-                      setFormErrors({...formErrors, accountName: ''});
-                    }
-                  }
-                }}
-                editable={!isSubmitting && !accountResolved && !isResolving}
-              />
-              {accountResolved && (
-                <View style={styles.resolvedIcon}>
-                  <Check size={16} color={colors.success} />
-                </View>
-              )}
-            </View>
-            {formErrors.accountName && (
-              <Text style={styles.fieldError}>{formErrors.accountName}</Text>
-            )}
-          </View>
-          
-          {accountResolved && (
-            <View style={styles.successContainer}>
-              <Check size={16} color={colors.success} />
-              <Text style={styles.successText}>Account details verified successfully</Text>
-            </View>
-          )}
-          
-          <View style={styles.infoContainer}>
-            <AlertTriangle size={16} color={colors.primary} />
-            <Text style={styles.infoText}>
-              Please ensure all details are correct. These details will be used for your payouts.
-            </Text>
-          </View>
-        </KeyboardAvoidingWrapper>
-        
-        <View style={styles.footer}>
-          <Button
-            title="Add Account"
-            onPress={handleAddAccount}
-            isLoading={isSubmitting}
-            style={styles.addButton}
-            hapticType="success"
-          />
-          <Button
-            title="Cancel"
-            onPress={handleClose}
-            variant="outline"
-            style={styles.cancelButton}
-            disabled={isSubmitting}
-            hapticType="light"
-          />
-        </View>
-      </Animated.View>
-
-      {/* Bank Selection Modal */}
-      <Animated.View 
-        style={[
-          styles.modalOverlay,
-          { 
-            opacity: showBankSelector ? 1 : 0,
-            zIndex: showBankSelector ? 1100 : -1,
-          }
-        ]}
-        pointerEvents={showBankSelector ? 'auto' : 'none'}
-      >
-        <Pressable 
-          style={styles.overlayPressable} 
-          onPress={() => {
-            haptics.lightImpact();
-            setShowBankSelector(false);
-          }} 
-        />
-        
-        <Animated.View 
-          style={[
-            styles.bankSelectorModal,
-            { 
-              transform: [{ translateY: bankSelectorSlideAnim }],
-              maxHeight: modalMaxHeight
-            }
-          ]}
-        >
-          <View style={styles.dragIndicator} />
-          
-          <View style={styles.bankSelectorHeader}>
-            <Text style={styles.bankSelectorTitle}>Select Bank</Text>
-            <Pressable 
-              style={styles.closeButton}
-              onPress={() => {
-                haptics.lightImpact();
-                setShowBankSelector(false);
-              }}
+              style={styles.closeButton} 
+              onPress={handleClose}
+              disabled={isSubmitting}
             >
               <X size={24} color={colors.text} />
             </Pressable>
           </View>
           
-          <View style={styles.searchContainer}>
-            <Search size={20} color={colors.textSecondary} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search banks..."
-              placeholderTextColor={colors.textTertiary}
-              value={bankSearchQuery}
-              onChangeText={setBankSearchQuery}
-              autoFocus
+          <KeyboardAvoidingWrapper contentContainerStyle={styles.formContainer}>
+            <Text style={styles.description}>
+              Add a bank account where you want to receive payouts
+            </Text>
+            
+            {formErrors.general && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{formErrors.general}</Text>
+              </View>
+            )}
+            
+            {resolutionError && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{resolutionError}</Text>
+              </View>
+            )}
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Account Number</Text>
+              <View style={[
+                styles.inputContainer, 
+                formErrors.accountNumber && styles.inputError,
+                accountResolved && styles.resolvedInput
+              ]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter 10-digit account number"
+                  placeholderTextColor={colors.textTertiary}
+                  value={formData.accountNumber}
+                  onChangeText={handleAccountNumberChange}
+                  keyboardType="numeric"
+                  maxLength={10}
+                  editable={!isSubmitting && !accountResolved}
+                />
+                {isResolving && (
+                  <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
+                )}
+                {accountResolved && (
+                  <View style={styles.resolvedIcon}>
+                    <Check size={16} color={colors.success} />
+                  </View>
+                )}
+              </View>
+              {formErrors.accountNumber && (
+                <Text style={styles.fieldError}>{formErrors.accountNumber}</Text>
+              )}
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Bank</Text>
+              <Pressable 
+                style={[
+                  styles.bankSelector,
+                  formErrors.bankName && styles.inputError,
+                  selectedBank && styles.selectedInput
+                ]}
+                onPress={() => {
+                  if (!isSubmitting && !accountResolved) {
+                    haptics.selection();
+                    setShowBankSelector(true);
+                  }
+                }}
+                disabled={isSubmitting || accountResolved}
+              >
+                {selectedBank ? (
+                  <Text style={styles.selectedBankText}>{selectedBank.name}</Text>
+                ) : (
+                  <Text style={styles.placeholderText}>Select your bank</Text>
+                )}
+              </Pressable>
+              {formErrors.bankName && (
+                <Text style={styles.fieldError}>{formErrors.bankName}</Text>
+              )}
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Account Name</Text>
+              <View style={[
+                styles.inputContainer, 
+                formErrors.accountName && styles.inputError,
+                accountResolved && styles.resolvedInput
+              ]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder={isResolving ? "Resolving account name..." : "Enter account holder name"}
+                  placeholderTextColor={colors.textTertiary}
+                  value={formData.accountName}
+                  onChangeText={(text) => {
+                    if (!accountResolved) {
+                      setFormData({...formData, accountName: text});
+                      if (formErrors.accountName) {
+                        setFormErrors({...formErrors, accountName: ''});
+                      }
+                    }
+                  }}
+                  editable={!isSubmitting && !accountResolved && !isResolving}
+                />
+                {accountResolved && (
+                  <View style={styles.resolvedIcon}>
+                    <Check size={16} color={colors.success} />
+                  </View>
+                )}
+              </View>
+              {formErrors.accountName && (
+                <Text style={styles.fieldError}>{formErrors.accountName}</Text>
+              )}
+            </View>
+            
+            {accountResolved && (
+              <View style={styles.successContainer}>
+                <Check size={16} color={colors.success} />
+                <Text style={styles.successText}>Account details verified successfully</Text>
+              </View>
+            )}
+            
+            <View style={styles.infoContainer}>
+              <AlertTriangle size={16} color={colors.primary} />
+              <Text style={styles.infoText}>
+                Please ensure all details are correct. These details will be used for your payouts.
+              </Text>
+            </View>
+          </KeyboardAvoidingWrapper>
+          
+          <View style={styles.footer}>
+            <Button
+              title="Add Account"
+              onPress={handleAddAccount}
+              isLoading={isSubmitting}
+              style={styles.addButton}
+              hapticType="success"
+            />
+            <Button
+              title="Cancel"
+              onPress={handleClose}
+              variant="outline"
+              style={styles.cancelButton}
+              disabled={isSubmitting}
+              hapticType="light"
             />
           </View>
-          
-          {banksLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.loadingText}>Loading banks...</Text>
+        </View>
+      </View>
+
+      {/* Bank Selection Modal */}
+      <Modal
+        visible={showBankSelector}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowBankSelector(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.bankSelectorModal}>
+            <View style={styles.bankSelectorHeader}>
+              <Text style={styles.bankSelectorTitle}>Select Bank</Text>
+              <Pressable 
+                style={styles.closeButton}
+                onPress={() => setShowBankSelector(false)}
+              >
+                <X size={24} color={colors.text} />
+              </Pressable>
             </View>
-          ) : (
-            <ScrollView style={styles.banksList}>
-              {filteredBanks.map(bank => (
-                <Pressable
-                  key={bank.id}
-                  style={styles.bankItem}
-                  onPress={() => handleBankSelect(bank)}
-                >
-                  <Text style={styles.bankItemName}>{bank.name}</Text>
-                  {selectedBank?.id === bank.id && (
-                    <Check size={20} color={colors.primary} />
-                  )}
-                </Pressable>
-              ))}
-              {filteredBanks.length === 0 && (
-                <View style={styles.noResultsContainer}>
-                  <Text style={styles.noResultsText}>No banks found</Text>
-                </View>
-              )}
-            </ScrollView>
-          )}
-        </Animated.View>
-      </Animated.View>
-    </Animated.View>
+            
+            <View style={styles.searchContainer}>
+              <Search size={20} color={colors.textSecondary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search banks..."
+                placeholderTextColor={colors.textTertiary}
+                value={bankSearchQuery}
+                onChangeText={setBankSearchQuery}
+                autoFocus
+              />
+            </View>
+            
+            {banksLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingText}>Loading banks...</Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.banksList}>
+                {filteredBanks.map(bank => (
+                  <Pressable
+                    key={bank.id}
+                    style={styles.bankItem}
+                    onPress={() => handleBankSelect(bank)}
+                  >
+                    <Text style={styles.bankItemName}>{bank.name}</Text>
+                    {selectedBank?.id === bank.id && (
+                      <Check size={20} color={colors.primary} />
+                    )}
+                  </Pressable>
+                ))}
+                {filteredBanks.length === 0 && (
+                  <View style={styles.noResultsContainer}>
+                    <Text style={styles.noResultsText}>No banks found</Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </Modal>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-    zIndex: 1000,
-  },
-  overlayPressable: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
   },
   modalContent: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderRadius: 16,
     width: '100%',
+    maxWidth: 500,
+    maxHeight: '90%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
-    // Add shadow for iOS
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.1,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
-  },
-  dragIndicator: {
-    width: 40,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: colors.border,
-    alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 8,
   },
   header: {
     flexDirection: 'row',
@@ -710,7 +554,6 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
   },
   footer: {
     padding: 20,
-    paddingBottom: Math.max(20, insets.bottom),
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
@@ -723,23 +566,12 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
   },
   bankSelectorModal: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderRadius: 16,
     width: '100%',
+    maxWidth: 500,
+    maxHeight: '80%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
-    // Add shadow for iOS
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.1,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
   },
   bankSelectorHeader: {
     flexDirection: 'row',
