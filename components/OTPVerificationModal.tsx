@@ -358,7 +358,7 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
   },
   footer: {
     padding: 10,
-    paddingBottom: Math.max(80, insets.bottom),
+    paddingBottom: Math.max(20, insets.bottom),
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
