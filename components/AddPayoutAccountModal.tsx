@@ -1,6 +1,6 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, ScrollView } from 'react-native';
 import { useState, useEffect } from 'react';
-import { X, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
+import { X, Check, TriangleAlert as AlertTriangle, Search } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -35,6 +35,11 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Filter banks based on search query
+  const filteredBanks = banks?.filter(bank =>
+    bank.name.toLowerCase().includes(bankSearchQuery.toLowerCase())
+  ) || [];
 
   const handleAddAccount = async () => {
     if (!validateForm()) return;
@@ -99,6 +104,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     setAccountResolved(false);
     setFormErrors({});
     setResolutionError(null);
+    setBankSearchQuery('');
   };
   
   const handleClose = () => {
