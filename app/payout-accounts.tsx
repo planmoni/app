@@ -2,12 +2,12 @@ import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-nati
 import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
-import PlanmoniLoader from '@/components/PlanmoniLoader';
+import HorizontalLoader from '@/components/HorizontalLoader';
 import SafeFooter from '@/components/SafeFooter';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useRealtimePayoutAccounts } from '@/hooks/useRealtimePayoutAccounts';
+import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import EditPayoutAccountModal from '@/components/EditPayoutAccountModal';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -23,9 +23,10 @@ export default function PayoutAccountsScreen() {
     payoutAccounts, 
     isLoading, 
     error, 
+    fetchPayoutAccounts,
     setDefaultAccount,
     deleteAccount
-  } = useRealtimePayoutAccounts();
+  } = usePayoutAccounts();
 
   const handleEditAccount = (account: any) => {
     haptics.selection();
@@ -88,7 +89,7 @@ export default function PayoutAccountsScreen() {
         <Text style={styles.headerTitle}>Payout Accounts</Text>
       </View>
 
-      {isLoading && <PlanmoniLoader size="small" />}
+      {isLoading && <HorizontalLoader />}
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={styles.subtitle}>
