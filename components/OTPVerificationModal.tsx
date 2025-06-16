@@ -188,9 +188,9 @@ export default function OTPVerificationModal({
             Please enter the one-time password sent to your mobile number or email to verify your card.
           </Text>
           
-          <Text style={styles.referenceText}>
+          {/* <Text style={styles.referenceText}>
             Reference: {reference}
-          </Text>
+          </Text> */}
           
           {error && (
             <View style={styles.errorContainer}>
@@ -305,7 +305,7 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     alignItems: 'center',
   },
   content: {
-    padding: 20,
+    padding: 10,
   },
   description: {
     fontSize: 16,
@@ -334,7 +334,7 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 10,
   },
   otpInput: {
     width: 50,
@@ -357,12 +357,13 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     color: colors.textSecondary,
   },
   footer: {
-    padding: 20,
+    padding: 5,
     paddingBottom: Math.max(20, insets.bottom),
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   verifyButton: {
     backgroundColor: colors.primary,
+    marginBottom: 350,
   },
 });
