@@ -188,9 +188,9 @@ export default function OTPVerificationModal({
             Please enter the one-time password sent to your mobile number or email to verify your card.
           </Text>
           
-          <Text style={styles.referenceText}>
+          {/* <Text style={styles.referenceText}>
             Reference: {reference}
-          </Text>
+          </Text> */}
           
           {error && (
             <View style={styles.errorContainer}>
