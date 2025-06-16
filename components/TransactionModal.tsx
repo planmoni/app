@@ -55,6 +55,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
 
   return (
     <View style={styles.overlay}>
+      <Pressable style={styles.backdrop} onPress={handleClose} />
       <View style={styles.modal}>
         <View style={styles.header}>
           <View style={styles.headerContent}>
@@ -170,16 +171,23 @@ const createStyles = (colors: any) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.overlay,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
+    backgroundColor: 'transparent',
+    justifyContent: 'flex-end',
+    zIndex: 1000,
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modal: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     width: '100%',
-    maxWidth: 480,
     maxHeight: '90%',
     overflow: 'hidden',
   },
