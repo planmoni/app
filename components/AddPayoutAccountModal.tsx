@@ -422,7 +422,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       </Animated.View>
 
       {/* Bank Selection Modal */}
-      <Animated.View 
+      <View 
         style={[
           styles.overlay,
           { 
@@ -714,7 +714,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     width: '100%',
-    maxHeight: '100%',
+    maxHeight: '80%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
     // Add shadow for iOS
