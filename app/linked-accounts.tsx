@@ -138,8 +138,6 @@ export default function LinkedAccountsScreen() {
     accountName: string;
   }) => {
     try {
-      await addBankAccount({
-      haptics.success();
       const newAccount = await addBankAccount({
         bank_name: account.bankName,
         account_number: account.accountNumber,
@@ -244,53 +242,11 @@ export default function LinkedAccountsScreen() {
                         <Text style={styles.accountNumber}>•••• {account.account_number.slice(-4)}</Text>
                       </View>
                     </View>
-                    {/* {account.status === 'active' && (
-                      <View style={styles.statusTag}>
-                        <Check size={12} color="#22C55E" />
-                        <Text style={styles.statusText}>Verified</Text>
-                      </View>
-                    )}
-                    {account.status === 'pending' && (
-                      <View style={[styles.statusTag, styles.pendingTag]}>
-                        <Clock size={12} color="#D97706" />
-                        <Text style={[styles.statusText, styles.pendingText]}>Pending</Text>
-                      </View>
-                    )}
-                    {account.status === 'failed' && (
-                      <View style={[styles.statusTag, styles.failedTag]}>
-                        <AlertTriangle size={12} color="#EF4444" />
-                        <Text style={[styles.statusText, styles.failedText]}>Failed</Text>
-                      </View>
-                    )} */}
-                  </View>
-        <View style={styles.accountsList}>
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading bank accounts...</Text>
-            </View>
-          ) : bankAccounts.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No bank accounts found</Text>
-              <Text style={styles.emptySubtext}>Add a bank account to continue</Text>
-            </View>
-          ) : (
-            bankAccounts.map((account) => (
-              <View key={account.id} style={styles.accountCard}>
-                <View style={styles.accountHeader}>
-                  <View style={styles.bankInfo}>
-                    <View style={styles.bankIcon}>
-                      <Building2 size={24} color="#1E3A8A" />
-                    </View>
-                    <View style={styles.bankDetails}>
-                      <Text style={styles.bankName}>{account.bank_name}</Text>
-                      <Text style={styles.accountNumber}>•••• {account.account_number.slice(-4)}</Text>
+                    <View style={styles.statusTag}>
+                      <Check size={12} color="#22C55E" />
+                      <Text style={styles.statusText}>Verified</Text>
                     </View>
                   </View>
-                  <View style={styles.statusTag}>
-                    <Check size={12} color="#22C55E" />
-                    <Text style={styles.statusText}>Verified</Text>
-                  </View>
-                </View>
 
                   <View style={styles.accountContent}>
                     <Text style={styles.accountName}>{account.account_name}</Text>
@@ -299,40 +255,13 @@ export default function LinkedAccountsScreen() {
                     )}
                   </View>
 
-                  {/* {account.status === 'failed' && (
-                    <View style={styles.errorMessage}>
-                      <View style={styles.errorIconContainer}>
-                        <AlertTriangle size={16} color="#EF4444" />
-                      </View>
-                      <Text style={styles.errorText}>
-                        Verification failed. Please check your account details and try again.
-                      </Text>
-                    </View>
-                  )} */}
-                <View style={styles.accountContent}>
-                  <Text style={styles.accountName}>{account.account_name}</Text>
-                  {account.is_default && (
-                    <Text style={styles.defaultText}>Default Account</Text>
-                  )}
-                </View>
-
-                  {/* <View style={styles.accountActions}>
-                    {!account.is_default && account.status === 'active' && (
+                  <View style={styles.accountActions}>
+                    {!account.is_default && (
                       <Pressable
                         style={styles.actionButton}
                         onPress={() => handleMakeDefault(account.id)}
                       >
                         <Text style={styles.actionButtonText}>Make Default</Text>
-                      </Pressable>
-                    )}
-                    {account.status === 'failed' && (
-                      <Pressable
-                        style={[styles.actionButton, styles.retryButton]}
-                        onPress={() => handleRetryVerification(account.id)}
-                      >
-                        <Text style={[styles.actionButtonText, styles.retryButtonText]}>
-                          Retry Verification
-                        </Text>
                       </Pressable>
                     )}
                     {!account.is_default && (
@@ -346,42 +275,10 @@ export default function LinkedAccountsScreen() {
                         </Text>
                       </Pressable>
                     )}
-                  </View> */}
+                  </View>
                 </View>
               ))
             )}
-                <View style={styles.accountActions}>
-                  {!account.is_default && (
-                    <Pressable
-                      style={styles.actionButton}
-                      onPress={() => handleMakeDefault(account.id)}
-                    >
-                      <Text style={styles.actionButtonText}>Make Default</Text>
-                    </Pressable>
-                  )}
-                  {!account.is_default && (
-                    <Pressable
-                      style={[styles.actionButton, styles.removeButton]}
-                      onPress={() => handleRemoveAccount(account.id, account.account_name)}
-                    >
-                      <Trash2 size={16} color="#EF4444" />
-                      <Text style={[styles.actionButtonText, styles.removeButtonText]}>
-                        Remove
-                      </Text>
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-            ))
-          )}
-
-            {/* <Pressable
-              style={styles.addAccountButton}
-              onPress={() => setShowAddAccount(true)}
-            >
-              <Plus size={20} color={colors.primary} />
-              <Text style={styles.addAccountText}>Add New Bank Account</Text>
-            </Pressable> */}
           </View>
 
           <View style={styles.infoSection}>
@@ -397,7 +294,6 @@ export default function LinkedAccountsScreen() {
               </Text>
             </View>
           </View>
-
 
           {/* <View style={styles.footer}>
             <Text style={{textAlign: 'center'}}>
@@ -423,16 +319,16 @@ export default function LinkedAccountsScreen() {
             </Text>
           </View>
         </View>
-      </ScrollView>
+        {/* </ScrollView> */}
 
         <View style={styles.footer}>
           <Text style={{textAlign: 'center'}}>
-            To share you financial data with Mono Demo App, click the link or button below!
+            To share your financial data with Mono Demo App, click the link or button below!
           </Text>
 
-          <LinkAccount />
+            <LinkAccount />
 
-          {/* <MonoConnectButton accountId="684537772bc72b6bf0c95407" /> */}
+            {/* <MonoConnectButton accountId="684537772bc72b6bf0c95407" /> */}
         </View>
 
         {/* <View style={styles.footer}>
@@ -726,18 +622,18 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
     fontWeight: '500',
   },
-  statusTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#F0FDF4',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    color: '#22C55E',
-    fontWeight: '500',
-  },
+  // statusTag: {
+  //   flexDirection: 'row',
+  //   alignItems: 'center',
+  //   gap: 4,
+  //   backgroundColor: '#F0FDF4',
+  //   paddingHorizontal: 8,
+  //   paddingVertical: 4,
+  //   borderRadius: 12,
+  // },
+  // statusText: {
+  //   fontSize: 12,
+  //   color: '#22C55E',
+  //   fontWeight: '500',
+  // },
 });

@@ -10,6 +10,7 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import { usePaymentMethods } from '@/hooks/usePaymentMethods';
+import React from 'react';
 
 export default function PaymentMethodsScreen() {
   const { colors } = useTheme();

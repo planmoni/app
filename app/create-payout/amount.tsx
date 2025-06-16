@@ -7,11 +7,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useHaptics } from '@/hooks/useHaptics';
+import { useBalance } from '@/contexts/BalanceContext';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
   const [amount, setAmount] = useState('');
+  const [error, setError] = useState() as any;
   const [availableBalance, setAvailableBalance] = useState('15,750,000');
+  const haptics = useHaptics();
+  const balance = useBalance();
 
   const handleContinue = () => {
     router.push({
@@ -299,3 +304,4 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: '#1E3A8A',
   },
 });
+
