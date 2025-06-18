@@ -16,7 +16,7 @@ import { useEffect } from 'react';
 const SLIDES = [
   {
     id: '1',
-    title: 'Welcome to Planmoni',
+    title: 'Planmoni',
     description: 'Pace your spending - Achieve Financial Stability',
     image: require('@/assets/images/slider1 logo.png'),
     icon: null,
