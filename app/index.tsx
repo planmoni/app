@@ -25,7 +25,7 @@ const SLIDES = [
   },
   {
     id: '2',
-    title: 'Personalize salary structure',
+    title: 'Create a personalize salary structure',
     description: 'Split deposits into small, scheduled weekly, bi-weekly or monthly payouts - just like salary',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     icon: Calendar,
@@ -34,7 +34,7 @@ const SLIDES = [
   },
   {
     id: '3',
-    title: 'Steady income flow',
+    title: 'Receive a stable income flow',
     description: 'Secure your money, get paid on a schedule & say goodbye to irregular income. ',
     image: require('@/assets/images/SmartSavings.png'),
     icon: Wallet,
