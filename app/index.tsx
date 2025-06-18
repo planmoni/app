@@ -17,7 +17,7 @@ const SLIDES = [
   {
     id: '1',
     title: 'Planmoni',
-    description: 'Pace your spending; Get financially stable.',
+    description: 'Pace your spending and achieve financial stability.',
     image: require('@/assets/images/slider1 logo.png'),
     icon: null,
     color: '#EFF6FF',
