@@ -16,8 +16,8 @@ import { useEffect } from 'react';
 const SLIDES = [
   {
     id: '1',
-    title: 'Planmoni',
-    description: 'Pace your spending - Split deposits into small, scheduled weekly, bi-weekly or monthly payouts - just like salary.',
+    title: 'Pace your spending',
+    description: 'Split deposits into small, scheduled weekly, bi-weekly or monthly payouts - just like salary.',
     image: require('@/assets/images/slider1 logo.png'),
     icon: null,
     color: '#EFF6FF',
