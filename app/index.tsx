@@ -224,7 +224,6 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   slideImage: {
     width: '100%',
-    letterSpacing: -5,
     height: responsive.imageHeight,
     marginBottom: responsive.verticalPadding / 2,
   },
@@ -235,6 +234,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   slideTitle: {
     fontWeight: '800',
     fontSize: 25,
+    letterSpacing: -5,
     color: colors.text,
     marginBottom: 15,
     textAlign: 'center',
