@@ -91,7 +91,7 @@ export default function WelcomeScreen() {
   };
 
   // Calculate responsive dimensions
-  const isSmallScreen = height < 700;
+  const isSmallScreen = height < 500;
   const logoHeight = isSmallScreen ? 50 : 80;
   const imageHeight = Math.min(height * 0.3, 280);
   const verticalPadding = isSmallScreen ? 20 : 40;
@@ -228,7 +228,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     marginBottom: responsive.verticalPadding / 2,
   },
   firstSlideImage: {
-    width: '40%', // Reduce first slide image to 50% of the original size
+    width: '50%', // Reduce first slide image to 50% of the original size
     height: responsive.imageHeight / 2, // Reduce height proportionally
   },
   slideTitle: {
