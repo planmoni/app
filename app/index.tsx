@@ -34,7 +34,7 @@ const SLIDES = [
   },
   {
     id: '3',
-    title: 'Get paid as frequently as you the need money',
+    title: 'Create a personalize salary structure',
     description: 'Receive payouts weekly, monthly, or however you choose — just like a salary.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     icon: Calendar,
