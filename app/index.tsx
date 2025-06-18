@@ -25,7 +25,7 @@ const SLIDES = [
   },
   {
     id: '2',
-    title: 'Turn bulk money into steady income',
+    title: 'Create a steady income flow',
     description: 'Put some money aside, get paid on a schedule & say goodbye to irregular income. ',
     image: require('@/assets/images/SmartSavings.png'),
     icon: Wallet,
