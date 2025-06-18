@@ -25,7 +25,7 @@ const SLIDES = [
   },
   {
     id: '2',
-    title: 'Personalize a salary structure',
+    title: 'Create a personalized salary plan',
     description: 'Split deposits into small, scheduled weekly, bi-weekly or monthly payouts',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     icon: Calendar,
