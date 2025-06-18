@@ -35,7 +35,7 @@ const SLIDES = [
   {
     id: '3',
     title: 'Receive a stable income flow',
-    description: 'Secure your money, get paid on a schedule & say goodbye to irregular income. ',
+    description: 'Secure your money, automate payouts & say goodbye to irregular income. ',
     image: require('@/assets/images/SmartSavings.png'),
     icon: Wallet,
     color: '#EFF6FF',
