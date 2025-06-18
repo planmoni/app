@@ -232,7 +232,6 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     height: responsive.imageHeight / 2, // Reduce height proportionally
   },
   slideTitle: {
-    fontSize: responsive.titleSize,
     fontWeight: '800',
     fontSize: 30,
     color: colors.text,
