@@ -93,7 +93,7 @@ export default function WelcomeScreen() {
   // Calculate responsive dimensions
   const isSmallScreen = height < 700;
   const logoHeight = isSmallScreen ? 50 : 80;
-  const imageHeight = Math.min(height * 0.3, 480);
+  const imageHeight = Math.min(height * 0.3, 280);
   const verticalPadding = isSmallScreen ? 20 : 40;
   const buttonHeight = isSmallScreen ? 44 : 56;
   const titleSize = isSmallScreen ? 22 : 28;
@@ -223,7 +223,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     alignItems: 'center',
   },
   slideImage: {
-    width: '100%',
+    width: '80%',
     height: responsive.imageHeight,
     marginBottom: responsive.verticalPadding / 2,
   },
