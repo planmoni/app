@@ -234,7 +234,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   slideTitle: {
     fontWeight: '800',
     fontSize: 25,
-    letterSpacing: -5,
+    letterSpacing: -1,
     color: colors.text,
     marginBottom: 15,
     textAlign: 'center',
