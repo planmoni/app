@@ -239,7 +239,6 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     textAlign: 'center',
   },
   slideDescription: {
-    fontSize: responsive.descriptionSize,
     color: colors.textSecondary,
     textAlign: 'center',
     fontSize: 20,
