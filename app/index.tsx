@@ -228,7 +228,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     marginBottom: responsive.verticalPadding / 2,
   },
   firstSlideImage: {
-    width: '50%', // Reduce first slide image to 50% of the original size
+    width: '40%', // Reduce first slide image to 50% of the original size
     height: responsive.imageHeight / 2, // Reduce height proportionally
   },
   slideTitle: {
