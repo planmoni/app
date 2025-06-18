@@ -91,9 +91,9 @@ export default function WelcomeScreen() {
   };
 
   // Calculate responsive dimensions
-  const isSmallScreen = height < 500;
+  const isSmallScreen = height < 700;
   const logoHeight = isSmallScreen ? 50 : 80;
-  const imageHeight = Math.min(height * 0.3, 280);
+  const imageHeight = Math.min(height * 0.3, 480);
   const verticalPadding = isSmallScreen ? 20 : 40;
   const buttonHeight = isSmallScreen ? 44 : 56;
   const titleSize = isSmallScreen ? 22 : 28;
