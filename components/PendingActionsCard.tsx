@@ -2,7 +2,9 @@ import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { ChevronRight, X, Mail, Lock, Shield, Fingerprint, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useHaptics } from '@/hooks/useHaptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type PendingAction = {
   id: string;
@@ -15,9 +17,30 @@ type PendingAction = {
   priority: 'high' | 'medium' | 'low';
 };
 
+// Storage key for completed actions
+const COMPLETED_ACTIONS_KEY = 'completed_pending_actions';
+
 export default function PendingActionsCard() {
   const { colors, isDark } = useTheme();
   const [isHidden, setIsHidden] = useState(false);
+  const [completedActions, setCompletedActions] = useState<string[]>([]);
+  const haptics = useHaptics();
+
+  // Load completed actions from storage on mount
+  useEffect(() => {
+    const loadCompletedActions = async () => {
+      try {
+        const storedActions = await AsyncStorage.getItem(COMPLETED_ACTIONS_KEY);
+        if (storedActions) {
+          setCompletedActions(JSON.parse(storedActions));
+        }
+      } catch (error) {
+        console.error('Error loading completed actions:', error);
+      }
+    };
+
+    loadCompletedActions();
+  }, []);
 
   const pendingActions: PendingAction[] = [
     {
@@ -62,7 +85,40 @@ export default function PendingActionsCard() {
     },
   ];
 
+  // Mark an action as completed
+  const markActionAsCompleted = async (actionId: string) => {
+    try {
+      const updatedCompletedActions = [...completedActions, actionId];
+      setCompletedActions(updatedCompletedActions);
+      await AsyncStorage.setItem(COMPLETED_ACTIONS_KEY, JSON.stringify(updatedCompletedActions));
+      haptics.success();
+    } catch (error) {
+      console.error('Error marking action as completed:', error);
+    }
+  };
+
+  // Handle navigation to action route
+  const handleActionPress = (action: PendingAction) => {
+    haptics.mediumImpact();
+    router.push(action.route);
+  };
+
+  // Handle completing an action
+  const handleCompleteAction = (actionId: string, event: any) => {
+    event.stopPropagation();
+    markActionAsCompleted(actionId);
+    haptics.success();
+  };
+
   if (isHidden) {
+    return null;
+  }
+
+  // Filter out completed actions
+  const filteredActions = pendingActions.filter(action => !completedActions.includes(action.id));
+
+  // Don't render if there are no pending actions
+  if (filteredActions.length === 0) {
     return null;
   }
 
@@ -82,11 +138,11 @@ export default function PendingActionsCard() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {pendingActions.map((action) => (
+        {filteredActions.map((action) => (
           <Pressable 
             key={action.id} 
             style={styles.actionCard}
-            onPress={() => router.push(action.route)}
+            onPress={() => handleActionPress(action)}
           >
             <View style={[styles.iconContainer, { backgroundColor: action.iconBg }]}>
               <action.icon size={24} color={action.iconColor} />
@@ -95,8 +151,16 @@ export default function PendingActionsCard() {
               <Text style={styles.actionTitle}>{action.title}</Text>
               <Text style={styles.actionDescription}>{action.description}</Text>
             </View>
-            <View style={styles.actionArrow}>
-              <ChevronRight size={20} color={colors.textTertiary} />
+            <View style={styles.actionButtons}>
+              <Pressable 
+                style={styles.completeButton} 
+                onPress={(e) => handleCompleteAction(action.id, e)}
+              >
+                <Text style={styles.completeButtonText}>Done</Text>
+              </Pressable>
+              <View style={styles.actionArrow}>
+                <ChevronRight size={20} color={colors.textTertiary} />
+              </View>
             </View>
             {action.priority === 'high' && (
               <View style={styles.priorityBadge}>
@@ -178,6 +242,24 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     lineHeight: 16,
+  },
+  actionButtons: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  completeButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: colors.successLight,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.success,
+  },
+  completeButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.success,
   },
   actionArrow: {
     width: 24,
