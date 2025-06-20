@@ -10,6 +10,14 @@ const DOJAH_API_URL = 'https://api.dojah.io';
 const DOJAH_APP_ID = process.env.DOJAH_APP_ID;
 const DOJAH_PRIVATE_KEY = process.env.DOJAH_PRIVATE_KEY;
 
+// Debug logging for environment variables
+console.log('Dojah API credentials check:', {
+  hasAppId: !!DOJAH_APP_ID,
+  hasPrivateKey: !!DOJAH_PRIVATE_KEY,
+  appIdLength: DOJAH_APP_ID?.length || 0,
+  privateKeyLength: DOJAH_PRIVATE_KEY?.length || 0
+});
+
 // Verify user authentication
 async function verifyAuth(request: Request) {
   const authHeader = request.headers.get('Authorization');
@@ -26,6 +34,32 @@ async function verifyAuth(request: Request) {
   return data.user;
 }
 
+// Helper function to safely parse response
+async function safeParseResponse(response: Response) {
+  const contentType = response.headers.get('Content-Type') || '';
+  console.log('Response details:', {
+    status: response.status,
+    statusText: response.statusText,
+    contentType,
+    url: response.url
+  });
+
+  if (contentType.includes('application/json')) {
+    try {
+      return await response.json();
+    } catch (error) {
+      console.error('JSON parse error:', error);
+      const text = await response.text();
+      console.error('Response text:', text.substring(0, 500));
+      throw new Error(`Failed to parse JSON response: ${error}`);
+    }
+  } else {
+    const text = await response.text();
+    console.error('Non-JSON response received:', text.substring(0, 500));
+    throw new Error(`Expected JSON response but received ${contentType}. Response: ${text.substring(0, 200)}`);
+  }
+}
+
 // Verify BVN
 export async function POST(request: Request) {
   try {
@@ -40,8 +74,14 @@ export async function POST(request: Request) {
 
     // Check if Dojah API keys are available
     if (!DOJAH_APP_ID || !DOJAH_PRIVATE_KEY) {
-      console.error('Dojah API keys not configured');
-      return new Response(JSON.stringify({ error: 'KYC service not properly configured' }), {
+      console.error('Dojah API keys not configured:', {
+        hasAppId: !!DOJAH_APP_ID,
+        hasPrivateKey: !!DOJAH_PRIVATE_KEY
+      });
+      return new Response(JSON.stringify({ 
+        error: 'KYC service not properly configured. Please contact support.',
+        details: 'Missing Dojah API credentials'
+      }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -95,6 +135,12 @@ export async function POST(request: Request) {
         });
     }
 
+    console.log('Making request to Dojah API:', {
+      endpoint,
+      url: `${DOJAH_API_URL}${endpoint}`,
+      payload
+    });
+
     // Make request to Dojah API
     const response = await fetch(`${DOJAH_API_URL}${endpoint}`, {
       method: 'POST',
@@ -106,12 +152,31 @@ export async function POST(request: Request) {
       body: JSON.stringify(payload)
     });
 
-    const data = await response.json();
+    // Safely parse the response
+    let data;
+    try {
+      data = await safeParseResponse(response);
+    } catch (parseError) {
+      console.error('Error parsing Dojah API response:', parseError);
+      return new Response(JSON.stringify({ 
+        error: 'Invalid response from verification service',
+        details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
+      }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     // Check if the request was successful
     if (!response.ok) {
+      console.error('Dojah API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        data
+      });
       return new Response(JSON.stringify({ 
-        error: data.message || 'Failed to verify identity' 
+        error: data?.message || `Verification service error: ${response.status} ${response.statusText}`,
+        details: data
       }), {
         status: response.status,
         headers: { 'Content-Type': 'application/json' }
@@ -167,7 +232,11 @@ export async function PUT(request: Request) {
 
     // Check if Dojah API keys are available
     if (!DOJAH_APP_ID || !DOJAH_PRIVATE_KEY) {
-      return new Response(JSON.stringify({ error: 'KYC service not properly configured' }), {
+      console.error('Dojah API keys not configured for document verification');
+      return new Response(JSON.stringify({ 
+        error: 'KYC service not properly configured. Please contact support.',
+        details: 'Missing Dojah API credentials'
+      }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -182,6 +251,8 @@ export async function PUT(request: Request) {
         headers: { 'Content-Type': 'application/json' }
       });
     }
+
+    console.log('Making document verification request to Dojah API');
 
     // For document verification, we'll use Dojah's document analysis endpoint
     const response = await fetch(`${DOJAH_API_URL}/v1/kyc/document/analysis`, {
@@ -198,12 +269,31 @@ export async function PUT(request: Request) {
       })
     });
 
-    const data = await response.json();
+    // Safely parse the response
+    let data;
+    try {
+      data = await safeParseResponse(response);
+    } catch (parseError) {
+      console.error('Error parsing Dojah document verification response:', parseError);
+      return new Response(JSON.stringify({ 
+        error: 'Invalid response from document verification service',
+        details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
+      }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     // Check if the request was successful
     if (!response.ok) {
+      console.error('Dojah document verification error:', {
+        status: response.status,
+        statusText: response.statusText,
+        data
+      });
       return new Response(JSON.stringify({ 
-        error: data.message || 'Failed to verify document' 
+        error: data?.message || `Document verification service error: ${response.status} ${response.statusText}`,
+        details: data
       }), {
         status: response.status,
         headers: { 'Content-Type': 'application/json' }
@@ -265,7 +355,11 @@ export async function GET(request: Request) {
       .limit(1);
 
     if (verificationError) {
-      return new Response(JSON.stringify({ error: 'Failed to fetch verification status' }), {
+      console.error('Error fetching verification status:', verificationError);
+      return new Response(JSON.stringify({ 
+        error: 'Failed to fetch verification status',
+        details: verificationError.message
+      }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -280,7 +374,11 @@ export async function GET(request: Request) {
       .limit(1);
 
     if (documentError) {
-      return new Response(JSON.stringify({ error: 'Failed to fetch document verification status' }), {
+      console.error('Error fetching document verification status:', documentError);
+      return new Response(JSON.stringify({ 
+        error: 'Failed to fetch document verification status',
+        details: documentError.message
+      }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
