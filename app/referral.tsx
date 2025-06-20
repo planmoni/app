@@ -37,7 +37,7 @@ export default function ReferralScreen() {
       setError(null);
 
       // Fetch the user's referral code
-      const response = await fetch('/api/referral-code', {
+      const response = await fetch('/referral-code', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -46,7 +46,14 @@ export default function ReferralScreen() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch referral code');
+        throw new Error(`Failed to fetch referral code: ${response.status} ${response.statusText}`);
+      }
+
+      // Check if the response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text();
+        throw new Error(`Expected JSON response but received: ${contentType}. Response: ${textResponse.substring(0, 200)}`);
       }
 
       const data = await response.json();
