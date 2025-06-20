@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,23 +10,23 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useAuth } from '@/contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
+import { useWindowDimensions } from 'react-native';
 
 type KYCStep = 'personal' | 'identity' | 'verification' | 'review';
 type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
 
 export default function KYCUpgradeScreen() {
   const { colors, isDark } = useTheme();
+  const { width, height } = useWindowDimensions();
   const { showToast } = useToast();
   const { session } = useAuth();
-  const { width, height } = useWindowDimensions();
-  
-  // Determine if we're on a small screen
-  const isSmallScreen = width < 380 || height < 700;
-  
   const [currentStep, setCurrentStep] = useState<KYCStep>('personal');
   const [selectedIdentityType, setSelectedIdentityType] = useState<IdentityType>('bvn');
   const [isLoading, setIsLoading] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
   
   // Personal information
   const [firstName, setFirstName] = useState('');
@@ -72,6 +72,8 @@ export default function KYCUpgradeScreen() {
   
   const fetchVerificationStatus = async () => {
     try {
+      setIsLoading(true);
+      
       const response = await fetch('/api/dojah-kyc', {
         method: 'GET',
         headers: {
@@ -91,9 +93,15 @@ export default function KYCUpgradeScreen() {
           showToast('Your identity is verified. Please complete document verification', 'info');
           setCurrentStep('verification');
         }
+      } else {
+        console.error('Error response:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('Error details:', errorText);
       }
     } catch (error) {
       console.error('Error fetching verification status:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -250,11 +258,12 @@ export default function KYCUpgradeScreen() {
         })
       });
       
-      const data = await response.json();
-      
       if (!response.ok) {
-        throw new Error(data.error || 'Verification failed');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Verification failed');
       }
+      
+      const data = await response.json();
       
       showToast('Identity verified successfully', 'success');
       setCurrentStep('verification');
@@ -288,11 +297,12 @@ export default function KYCUpgradeScreen() {
         })
       });
       
-      const data = await response.json();
-      
       if (!response.ok) {
-        throw new Error(data.error || 'Document verification failed');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Document verification failed');
       }
+      
+      const data = await response.json();
       
       showToast('Documents verified successfully', 'success');
       setCurrentStep('review');
@@ -463,6 +473,13 @@ export default function KYCUpgradeScreen() {
   };
   
   const renderPersonalInfoStep = () => {
+    // Calculate responsive sizes
+    const inputHeight = isSmallScreen ? 50 : 56;
+    const iconSize = isSmallScreen ? 18 : 20;
+    const fontSize = isSmallScreen ? 14 : 16;
+    const labelSize = isSmallScreen ? 13 : 14;
+    const spacing = isSmallScreen ? 16 : 20;
+    
     return (
       <View style={styles.formContainer}>
         <Text style={styles.sectionTitle}>Basic Information</Text>
@@ -473,9 +490,9 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>First Name</Text>
           <View style={[styles.inputContainer, errors.firstName && styles.inputError]}>
-            <User size={20} color={colors.textSecondary} />
+            <User size={iconSize} color={colors.textSecondary} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { height: inputHeight, fontSize }]}
               placeholder="Enter your first name"
               placeholderTextColor={colors.textTertiary}
               value={firstName}
@@ -494,10 +511,10 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Last Name</Text>
           <View style={[styles.inputContainer, errors.lastName && styles.inputError]}>
-            <User size={20} color={colors.textSecondary} />
+            <User size={iconSize} color={colors.textSecondary} />
             <TextInput
               ref={lastNameInputRef}
-              style={styles.input}
+              style={[styles.input, { height: inputHeight, fontSize }]}
               placeholder="Enter your last name"
               placeholderTextColor={colors.textTertiary}
               value={lastName}
@@ -516,10 +533,10 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Middle Name (Optional)</Text>
           <View style={styles.inputContainer}>
-            <User size={20} color={colors.textSecondary} />
+            <User size={iconSize} color={colors.textSecondary} />
             <TextInput
               ref={middleNameInputRef}
-              style={styles.input}
+              style={[styles.input, { height: inputHeight, fontSize }]}
               placeholder="Enter your middle name"
               placeholderTextColor={colors.textTertiary}
               value={middleName}
@@ -534,10 +551,10 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Date of Birth</Text>
           <View style={[styles.inputContainer, errors.dateOfBirth && styles.inputError]}>
-            <Calendar size={20} color={colors.textSecondary} />
+            <Calendar size={iconSize} color={colors.textSecondary} />
             <TextInput
               ref={dobInputRef}
-              style={styles.input}
+              style={[styles.input, { height: inputHeight, fontSize }]}
               placeholder="DD/MM/YYYY"
               placeholderTextColor={colors.textTertiary}
               value={dateOfBirth}
@@ -553,10 +570,10 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Phone Number</Text>
           <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
-            <User size={20} color={colors.textSecondary} />
+            <User size={iconSize} color={colors.textSecondary} />
             <TextInput
               ref={phoneInputRef}
-              style={styles.input}
+              style={[styles.input, { height: inputHeight, fontSize }]}
               placeholder="Enter your phone number"
               placeholderTextColor={colors.textTertiary}
               value={phoneNumber}
@@ -575,10 +592,10 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Residential Address</Text>
           <View style={[styles.inputContainer, errors.address && styles.inputError]}>
-            <User size={20} color={colors.textSecondary} />
+            <User size={iconSize} color={colors.textSecondary} />
             <TextInput
               ref={addressInputRef}
-              style={styles.input}
+              style={[styles.input, styles.multilineInput, { fontSize }]}
               placeholder="Enter your address"
               placeholderTextColor={colors.textTertiary}
               value={address}
@@ -589,15 +606,14 @@ export default function KYCUpgradeScreen() {
               multiline
               numberOfLines={3}
               textAlignVertical="top"
-              style={[styles.input, styles.multilineInput]}
             />
           </View>
           {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
         </View>
         
         <View style={styles.infoContainer}>
-          <Info size={20} color={colors.primary} />
-          <Text style={styles.infoText}>
+          <Info size={iconSize} color={colors.primary} />
+          <Text style={[styles.infoText, { fontSize: isSmallScreen ? 13 : 14 }]}>
             Your personal information is securely stored and will only be used for verification purposes.
           </Text>
         </View>
@@ -606,6 +622,12 @@ export default function KYCUpgradeScreen() {
   };
   
   const renderIdentityStep = () => {
+    // Calculate responsive sizes
+    const iconSize = isSmallScreen ? 18 : 20;
+    const cardPadding = isSmallScreen ? 12 : 16;
+    const fontSize = isSmallScreen ? 14 : 16;
+    const descSize = isSmallScreen ? 13 : 14;
+    
     return (
       <View style={styles.formContainer}>
         <Text style={styles.sectionTitle}>Identity Verification</Text>
@@ -617,21 +639,23 @@ export default function KYCUpgradeScreen() {
           <Pressable
             style={[
               styles.identityOption,
-              selectedIdentityType === 'bvn' && styles.selectedIdentityOption
+              selectedIdentityType === 'bvn' && styles.selectedIdentityOption,
+              { padding: cardPadding }
             ]}
             onPress={() => setSelectedIdentityType('bvn')}
           >
             <View style={styles.identityHeader}>
-              <CreditCard size={isSmallScreen ? 20 : 24} color={selectedIdentityType === 'bvn' ? colors.primary : colors.textSecondary} />
+              <CreditCard size={iconSize} color={selectedIdentityType === 'bvn' ? colors.primary : colors.textSecondary} />
               <Text style={[
                 styles.identityTitle,
-                selectedIdentityType === 'bvn' && styles.selectedIdentityTitle
+                selectedIdentityType === 'bvn' && styles.selectedIdentityTitle,
+                { fontSize }
               ]}>BVN</Text>
             </View>
-            <Text style={styles.identityDescription}>Bank Verification Number</Text>
+            <Text style={[styles.identityDescription, { fontSize: descSize }]}>Bank Verification Number</Text>
             {selectedIdentityType === 'bvn' && (
               <View style={styles.checkmark}>
-                <Check size={16} color="#FFFFFF" />
+                <Check size={isSmallScreen ? 14 : 16} color="#FFFFFF" />
               </View>
             )}
           </Pressable>
@@ -639,21 +663,23 @@ export default function KYCUpgradeScreen() {
           <Pressable
             style={[
               styles.identityOption,
-              selectedIdentityType === 'nin' && styles.selectedIdentityOption
+              selectedIdentityType === 'nin' && styles.selectedIdentityOption,
+              { padding: cardPadding }
             ]}
             onPress={() => setSelectedIdentityType('nin')}
           >
             <View style={styles.identityHeader}>
-              <CreditCard size={isSmallScreen ? 20 : 24} color={selectedIdentityType === 'nin' ? colors.primary : colors.textSecondary} />
+              <CreditCard size={iconSize} color={selectedIdentityType === 'nin' ? colors.primary : colors.textSecondary} />
               <Text style={[
                 styles.identityTitle,
-                selectedIdentityType === 'nin' && styles.selectedIdentityTitle
+                selectedIdentityType === 'nin' && styles.selectedIdentityTitle,
+                { fontSize }
               ]}>NIN</Text>
             </View>
-            <Text style={styles.identityDescription}>National Identification Number</Text>
+            <Text style={[styles.identityDescription, { fontSize: descSize }]}>National Identification Number</Text>
             {selectedIdentityType === 'nin' && (
               <View style={styles.checkmark}>
-                <Check size={16} color="#FFFFFF" />
+                <Check size={isSmallScreen ? 14 : 16} color="#FFFFFF" />
               </View>
             )}
           </Pressable>
@@ -661,21 +687,23 @@ export default function KYCUpgradeScreen() {
           <Pressable
             style={[
               styles.identityOption,
-              selectedIdentityType === 'passport' && styles.selectedIdentityOption
+              selectedIdentityType === 'passport' && styles.selectedIdentityOption,
+              { padding: cardPadding }
             ]}
             onPress={() => setSelectedIdentityType('passport')}
           >
             <View style={styles.identityHeader}>
-              <CreditCard size={isSmallScreen ? 20 : 24} color={selectedIdentityType === 'passport' ? colors.primary : colors.textSecondary} />
+              <CreditCard size={iconSize} color={selectedIdentityType === 'passport' ? colors.primary : colors.textSecondary} />
               <Text style={[
                 styles.identityTitle,
-                selectedIdentityType === 'passport' && styles.selectedIdentityTitle
+                selectedIdentityType === 'passport' && styles.selectedIdentityTitle,
+                { fontSize }
               ]}>Passport</Text>
             </View>
-            <Text style={styles.identityDescription}>International Passport</Text>
+            <Text style={[styles.identityDescription, { fontSize: descSize }]}>International Passport</Text>
             {selectedIdentityType === 'passport' && (
               <View style={styles.checkmark}>
-                <Check size={16} color="#FFFFFF" />
+                <Check size={isSmallScreen ? 14 : 16} color="#FFFFFF" />
               </View>
             )}
           </Pressable>
@@ -683,21 +711,23 @@ export default function KYCUpgradeScreen() {
           <Pressable
             style={[
               styles.identityOption,
-              selectedIdentityType === 'drivers_license' && styles.selectedIdentityOption
+              selectedIdentityType === 'drivers_license' && styles.selectedIdentityOption,
+              { padding: cardPadding }
             ]}
             onPress={() => setSelectedIdentityType('drivers_license')}
           >
             <View style={styles.identityHeader}>
-              <CreditCard size={isSmallScreen ? 20 : 24} color={selectedIdentityType === 'drivers_license' ? colors.primary : colors.textSecondary} />
+              <CreditCard size={iconSize} color={selectedIdentityType === 'drivers_license' ? colors.primary : colors.textSecondary} />
               <Text style={[
                 styles.identityTitle,
-                selectedIdentityType === 'drivers_license' && styles.selectedIdentityTitle
+                selectedIdentityType === 'drivers_license' && styles.selectedIdentityTitle,
+                { fontSize }
               ]}>Driver's License</Text>
             </View>
-            <Text style={styles.identityDescription}>Driver's License Number</Text>
+            <Text style={[styles.identityDescription, { fontSize: descSize }]}>Driver's License Number</Text>
             {selectedIdentityType === 'drivers_license' && (
               <View style={styles.checkmark}>
-                <Check size={16} color="#FFFFFF" />
+                <Check size={isSmallScreen ? 14 : 16} color="#FFFFFF" />
               </View>
             )}
           </Pressable>
@@ -707,9 +737,9 @@ export default function KYCUpgradeScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Bank Verification Number (BVN)</Text>
             <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
-              <CreditCard size={20} color={colors.textSecondary} />
+              <CreditCard size={iconSize} color={colors.textSecondary} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { fontSize }]}
                 placeholder="Enter your 11-digit BVN"
                 placeholderTextColor={colors.textTertiary}
                 value={bvn}
@@ -728,8 +758,8 @@ export default function KYCUpgradeScreen() {
             {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
             
             <View style={styles.infoContainer}>
-              <Info size={20} color={colors.primary} />
-              <Text style={styles.infoText}>
+              <Info size={iconSize} color={colors.primary} />
+              <Text style={[styles.infoText, { fontSize: descSize }]}>
                 Your BVN is not stored and is only used for verification purposes.
               </Text>
             </View>
@@ -740,9 +770,9 @@ export default function KYCUpgradeScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>National Identification Number (NIN)</Text>
             <View style={[styles.inputContainer, errors.nin && styles.inputError]}>
-              <CreditCard size={20} color={colors.textSecondary} />
+              <CreditCard size={iconSize} color={colors.textSecondary} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { fontSize }]}
                 placeholder="Enter your 11-digit NIN"
                 placeholderTextColor={colors.textTertiary}
                 value={nin}
@@ -761,8 +791,8 @@ export default function KYCUpgradeScreen() {
             {errors.nin && <Text style={styles.errorText}>{errors.nin}</Text>}
             
             <View style={styles.infoContainer}>
-              <Info size={20} color={colors.primary} />
-              <Text style={styles.infoText}>
+              <Info size={iconSize} color={colors.primary} />
+              <Text style={[styles.infoText, { fontSize: descSize }]}>
                 Your NIN is not stored and is only used for verification purposes.
               </Text>
             </View>
@@ -773,9 +803,9 @@ export default function KYCUpgradeScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>International Passport Number</Text>
             <View style={[styles.inputContainer, errors.passportNumber && styles.inputError]}>
-              <CreditCard size={20} color={colors.textSecondary} />
+              <CreditCard size={iconSize} color={colors.textSecondary} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { fontSize }]}
                 placeholder="Enter your passport number"
                 placeholderTextColor={colors.textTertiary}
                 value={passportNumber}
@@ -794,9 +824,9 @@ export default function KYCUpgradeScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Driver's License Number</Text>
             <View style={[styles.inputContainer, errors.driversLicense && styles.inputError]}>
-              <CreditCard size={20} color={colors.textSecondary} />
+              <CreditCard size={iconSize} color={colors.textSecondary} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { fontSize }]}
                 placeholder="Enter your driver's license number"
                 placeholderTextColor={colors.textTertiary}
                 value={driversLicense}
@@ -815,6 +845,14 @@ export default function KYCUpgradeScreen() {
   };
   
   const renderVerificationStep = () => {
+    // Calculate responsive sizes
+    const iconSize = isSmallScreen ? 18 : 20;
+    const cardPadding = isSmallScreen ? 12 : 16;
+    const fontSize = isSmallScreen ? 14 : 16;
+    const descSize = isSmallScreen ? 13 : 14;
+    const buttonHeight = isSmallScreen ? 40 : 48;
+    const imagePreviewHeight = isSmallScreen ? 150 : 200;
+    
     return (
       <View style={styles.formContainer}>
         <Text style={styles.sectionTitle}>Document Verification</Text>
@@ -823,16 +861,16 @@ export default function KYCUpgradeScreen() {
         </Text>
         
         <View style={styles.documentSection}>
-          <Text style={styles.documentTitle}>Required Documents</Text>
+          <Text style={[styles.documentTitle, { fontSize }]}>Required Documents</Text>
           
-          <View style={styles.documentCard}>
+          <View style={[styles.documentCard, { padding: cardPadding }]}>
             <View style={styles.documentHeader}>
-              <Text style={styles.documentName}>Front of ID</Text>
+              <Text style={[styles.documentName, { fontSize }]}>Front of ID</Text>
               <View style={styles.documentStatus}>
-                <Text style={styles.documentStatusText}>Required</Text>
+                <Text style={[styles.documentStatusText, { fontSize: isSmallScreen ? 11 : 12 }]}>Required</Text>
               </View>
             </View>
-            <Text style={styles.documentDescription}>
+            <Text style={[styles.documentDescription, { fontSize: descSize }]}>
               Upload a clear photo of the front of your {
                 selectedIdentityType === 'bvn' ? 'any government-issued ID' :
                 selectedIdentityType === 'nin' ? 'NIN card' :
@@ -841,7 +879,7 @@ export default function KYCUpgradeScreen() {
             </Text>
             
             {documentFrontImage ? (
-              <View style={styles.imagePreviewContainer}>
+              <View style={[styles.imagePreviewContainer, { height: imagePreviewHeight }]}>
                 <Image 
                   source={{ uri: documentFrontImage }} 
                   style={styles.imagePreview} 
@@ -857,18 +895,18 @@ export default function KYCUpgradeScreen() {
             ) : (
               <View style={styles.documentActions}>
                 <Pressable 
-                  style={styles.documentButton}
+                  style={[styles.documentButton, { height: buttonHeight }]}
                   onPress={() => pickImage(setDocumentFrontImage, 'documentFront')}
                 >
-                  <Upload size={isSmallScreen ? 14 : 16} color={colors.primary} />
+                  <Upload size={iconSize} color={colors.primary} />
                   <Text style={styles.documentButtonText}>Upload</Text>
                 </Pressable>
                 
                 <Pressable 
-                  style={styles.documentButton}
+                  style={[styles.documentButton, { height: buttonHeight }]}
                   onPress={() => takePicture(setDocumentFrontImage, 'documentFront')}
                 >
-                  <Camera size={isSmallScreen ? 14 : 16} color={colors.primary} />
+                  <Camera size={iconSize} color={colors.primary} />
                   <Text style={styles.documentButtonText}>Take Photo</Text>
                 </Pressable>
               </View>
@@ -877,21 +915,21 @@ export default function KYCUpgradeScreen() {
           </View>
           
           {(selectedIdentityType === 'passport' || selectedIdentityType === 'drivers_license') && (
-            <View style={styles.documentCard}>
+            <View style={[styles.documentCard, { padding: cardPadding }]}>
               <View style={styles.documentHeader}>
-                <Text style={styles.documentName}>Back of ID</Text>
+                <Text style={[styles.documentName, { fontSize }]}>Back of ID</Text>
                 <View style={styles.documentStatus}>
-                  <Text style={styles.documentStatusText}>Required</Text>
+                  <Text style={[styles.documentStatusText, { fontSize: isSmallScreen ? 11 : 12 }]}>Required</Text>
                 </View>
               </View>
-              <Text style={styles.documentDescription}>
+              <Text style={[styles.documentDescription, { fontSize: descSize }]}>
                 Upload a clear photo of the back of your {
                   selectedIdentityType === 'passport' ? 'passport' : 'driver\'s license'
                 }
               </Text>
               
               {documentBackImage ? (
-                <View style={styles.imagePreviewContainer}>
+                <View style={[styles.imagePreviewContainer, { height: imagePreviewHeight }]}>
                   <Image 
                     source={{ uri: documentBackImage }} 
                     style={styles.imagePreview} 
@@ -907,18 +945,18 @@ export default function KYCUpgradeScreen() {
               ) : (
                 <View style={styles.documentActions}>
                   <Pressable 
-                    style={styles.documentButton}
+                    style={[styles.documentButton, { height: buttonHeight }]}
                     onPress={() => pickImage(setDocumentBackImage, 'documentBack')}
                   >
-                    <Upload size={isSmallScreen ? 14 : 16} color={colors.primary} />
+                    <Upload size={iconSize} color={colors.primary} />
                     <Text style={styles.documentButtonText}>Upload</Text>
                   </Pressable>
                   
                   <Pressable 
-                    style={styles.documentButton}
+                    style={[styles.documentButton, { height: buttonHeight }]}
                     onPress={() => takePicture(setDocumentBackImage, 'documentBack')}
                   >
-                    <Camera size={isSmallScreen ? 14 : 16} color={colors.primary} />
+                    <Camera size={iconSize} color={colors.primary} />
                     <Text style={styles.documentButtonText}>Take Photo</Text>
                   </Pressable>
                 </View>
@@ -927,19 +965,19 @@ export default function KYCUpgradeScreen() {
             </View>
           )}
           
-          <View style={styles.documentCard}>
+          <View style={[styles.documentCard, { padding: cardPadding }]}>
             <View style={styles.documentHeader}>
-              <Text style={styles.documentName}>Selfie Verification</Text>
+              <Text style={[styles.documentName, { fontSize }]}>Selfie Verification</Text>
               <View style={styles.documentStatus}>
-                <Text style={styles.documentStatusText}>Required</Text>
+                <Text style={[styles.documentStatusText, { fontSize: isSmallScreen ? 11 : 12 }]}>Required</Text>
               </View>
             </View>
-            <Text style={styles.documentDescription}>
+            <Text style={[styles.documentDescription, { fontSize: descSize }]}>
               Take a clear selfie holding your ID document
             </Text>
             
             {selfieImage ? (
-              <View style={styles.imagePreviewContainer}>
+              <View style={[styles.imagePreviewContainer, { height: imagePreviewHeight }]}>
                 <Image 
                   source={{ uri: selfieImage }} 
                   style={styles.imagePreview} 
@@ -955,18 +993,18 @@ export default function KYCUpgradeScreen() {
             ) : (
               <View style={styles.documentActions}>
                 <Pressable 
-                  style={styles.documentButton}
+                  style={[styles.documentButton, { height: buttonHeight }]}
                   onPress={() => pickImage(setSelfieImage, 'selfie')}
                 >
-                  <Upload size={isSmallScreen ? 14 : 16} color={colors.primary} />
+                  <Upload size={iconSize} color={colors.primary} />
                   <Text style={styles.documentButtonText}>Upload</Text>
                 </Pressable>
                 
                 <Pressable 
-                  style={styles.documentButton}
+                  style={[styles.documentButton, { height: buttonHeight }]}
                   onPress={() => takePicture(setSelfieImage, 'selfie')}
                 >
-                  <Camera size={isSmallScreen ? 14 : 16} color={colors.primary} />
+                  <Camera size={iconSize} color={colors.primary} />
                   <Text style={styles.documentButtonText}>Take Photo</Text>
                 </Pressable>
               </View>
@@ -976,8 +1014,8 @@ export default function KYCUpgradeScreen() {
         </View>
         
         <View style={styles.infoContainer}>
-          <Shield size={20} color={colors.primary} />
-          <Text style={styles.infoText}>
+          <Shield size={iconSize} color={colors.primary} />
+          <Text style={[styles.infoText, { fontSize: descSize }]}>
             Your documents are securely encrypted and will only be used for verification purposes. They will be deleted after verification is complete.
           </Text>
         </View>
@@ -986,6 +1024,13 @@ export default function KYCUpgradeScreen() {
   };
   
   const renderReviewStep = () => {
+    // Calculate responsive sizes
+    const cardPadding = isSmallScreen ? 12 : 16;
+    const fontSize = isSmallScreen ? 14 : 16;
+    const labelSize = isSmallScreen ? 13 : 14;
+    const valueSize = isSmallScreen ? 14 : 16;
+    const buttonSize = isSmallScreen ? 12 : 14;
+    
     return (
       <View style={styles.formContainer}>
         <Text style={styles.sectionTitle}>Review Your Information</Text>
@@ -994,45 +1039,45 @@ export default function KYCUpgradeScreen() {
         </Text>
         
         <View style={styles.reviewSection}>
-          <View style={styles.reviewCard}>
-            <Text style={styles.reviewSectionTitle}>Personal Information</Text>
+          <View style={[styles.reviewCard, { padding: cardPadding }]}>
+            <Text style={[styles.reviewSectionTitle, { fontSize }]}>Personal Information</Text>
             
             <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Full Name</Text>
-              <Text style={styles.reviewValue}>
+              <Text style={[styles.reviewLabel, { fontSize: labelSize }]}>Full Name</Text>
+              <Text style={[styles.reviewValue, { fontSize: valueSize }]}>
                 {firstName} {middleName ? `${middleName} ` : ''}{lastName}
               </Text>
             </View>
             
             <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Date of Birth</Text>
-              <Text style={styles.reviewValue}>{dateOfBirth || 'Not provided'}</Text>
+              <Text style={[styles.reviewLabel, { fontSize: labelSize }]}>Date of Birth</Text>
+              <Text style={[styles.reviewValue, { fontSize: valueSize }]}>{dateOfBirth || 'Not provided'}</Text>
             </View>
             
             <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Phone Number</Text>
-              <Text style={styles.reviewValue}>{phoneNumber || 'Not provided'}</Text>
+              <Text style={[styles.reviewLabel, { fontSize: labelSize }]}>Phone Number</Text>
+              <Text style={[styles.reviewValue, { fontSize: valueSize }]}>{phoneNumber || 'Not provided'}</Text>
             </View>
             
             <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Address</Text>
-              <Text style={styles.reviewValue}>{address || 'Not provided'}</Text>
+              <Text style={[styles.reviewLabel, { fontSize: labelSize }]}>Address</Text>
+              <Text style={[styles.reviewValue, { fontSize: valueSize }]}>{address || 'Not provided'}</Text>
             </View>
             
             <Pressable 
               style={styles.editButton}
               onPress={() => setCurrentStep('personal')}
             >
-              <Text style={styles.editButtonText}>Edit</Text>
+              <Text style={[styles.editButtonText, { fontSize: buttonSize }]}>Edit</Text>
             </Pressable>
           </View>
           
-          <View style={styles.reviewCard}>
-            <Text style={styles.reviewSectionTitle}>Identity Information</Text>
+          <View style={[styles.reviewCard, { padding: cardPadding }]}>
+            <Text style={[styles.reviewSectionTitle, { fontSize }]}>Identity Information</Text>
             
             <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Verification Method</Text>
-              <Text style={styles.reviewValue}>
+              <Text style={[styles.reviewLabel, { fontSize: labelSize }]}>Verification Method</Text>
+              <Text style={[styles.reviewValue, { fontSize: valueSize }]}>
                 {selectedIdentityType === 'bvn' ? 'Bank Verification Number (BVN)' :
                  selectedIdentityType === 'nin' ? 'National Identification Number (NIN)' :
                  selectedIdentityType === 'passport' ? 'International Passport' :
@@ -1041,13 +1086,13 @@ export default function KYCUpgradeScreen() {
             </View>
             
             <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>
+              <Text style={[styles.reviewLabel, { fontSize: labelSize }]}>
                 {selectedIdentityType === 'bvn' ? 'BVN' :
                  selectedIdentityType === 'nin' ? 'NIN' :
                  selectedIdentityType === 'passport' ? 'Passport Number' :
                  'License Number'}
               </Text>
-              <Text style={styles.reviewValue}>
+              <Text style={[styles.reviewValue, { fontSize: valueSize }]}>
                 {selectedIdentityType === 'bvn' ? bvn :
                  selectedIdentityType === 'nin' ? nin :
                  selectedIdentityType === 'passport' ? passportNumber :
@@ -1059,13 +1104,13 @@ export default function KYCUpgradeScreen() {
               style={styles.editButton}
               onPress={() => setCurrentStep('identity')}
             >
-              <Text style={styles.editButtonText}>Edit</Text>
+              <Text style={[styles.editButtonText, { fontSize: buttonSize }]}>Edit</Text>
             </Pressable>
           </View>
           
-          <View style={styles.reviewCard}>
-            <Text style={styles.reviewSectionTitle}>Documents</Text>
-            <Text style={styles.reviewValue}>
+          <View style={[styles.reviewCard, { padding: cardPadding }]}>
+            <Text style={[styles.reviewSectionTitle, { fontSize }]}>Documents</Text>
+            <Text style={[styles.reviewValue, { fontSize: valueSize }]}>
               Documents have been uploaded and are ready for verification.
             </Text>
             
@@ -1073,13 +1118,13 @@ export default function KYCUpgradeScreen() {
               style={styles.editButton}
               onPress={() => setCurrentStep('verification')}
             >
-              <Text style={styles.editButtonText}>Edit</Text>
+              <Text style={[styles.editButtonText, { fontSize: buttonSize }]}>Edit</Text>
             </Pressable>
           </View>
         </View>
         
         <View style={styles.termsContainer}>
-          <Text style={styles.termsText}>
+          <Text style={[styles.termsText, { fontSize: descSize }]}>
             By submitting this information, you confirm that all details provided are accurate and complete. You authorize Planmoni to verify your identity using the information provided.
           </Text>
         </View>
@@ -1100,16 +1145,11 @@ export default function KYCUpgradeScreen() {
     }
   };
   
-  // Calculate responsive sizes based on screen dimensions
+  // Calculate responsive header sizes
   const headerPadding = isSmallScreen ? 12 : 16;
-  const contentPadding = isSmallScreen ? 16 : 20;
-  const titleSize = isSmallScreen ? 20 : 24;
-  const subtitleSize = isSmallScreen ? 14 : 16;
-  const sectionTitleSize = isSmallScreen ? 18 : 20;
-  const labelSize = isSmallScreen ? 13 : 14;
-  const inputHeight = isSmallScreen ? 50 : 56;
-  const buttonHeight = isSmallScreen ? 48 : 56;
-  const iconSize = isSmallScreen ? 18 : 20;
+  const headerHeight = isSmallScreen ? 56 : 64;
+  const titleSize = isSmallScreen ? 18 : 20;
+  const backButtonSize = isSmallScreen ? 36 : 40;
   
   const styles = StyleSheet.create({
     container: {
@@ -1124,21 +1164,22 @@ export default function KYCUpgradeScreen() {
       backgroundColor: colors.surface,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
+      height: headerHeight,
     },
     backButton: {
-      width: 40,
-      height: 40,
+      width: backButtonSize,
+      height: backButtonSize,
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: 8,
     },
     headerTitle: {
-      fontSize: isSmallScreen ? 16 : 18,
+      fontSize: titleSize,
       fontWeight: '600',
       color: colors.text,
     },
     progressContainer: {
-      padding: contentPadding,
+      padding: isSmallScreen ? 16 : 20,
       paddingBottom: 0,
       backgroundColor: colors.surface,
     },
@@ -1154,36 +1195,36 @@ export default function KYCUpgradeScreen() {
       borderRadius: 2,
     },
     stepText: {
-      fontSize: 14,
+      fontSize: isSmallScreen ? 13 : 14,
       color: colors.textSecondary,
-      marginBottom: 20,
+      marginBottom: isSmallScreen ? 16 : 20,
     },
     scrollContent: {
       paddingBottom: 100, // Extra padding for the floating button
     },
     formContainer: {
-      padding: contentPadding,
+      padding: isSmallScreen ? 16 : 20,
     },
     sectionTitle: {
-      fontSize: sectionTitleSize,
+      fontSize: isSmallScreen ? 18 : 20,
       fontWeight: '600',
       color: colors.text,
-      marginBottom: 8,
+      marginBottom: isSmallScreen ? 6 : 8,
     },
     sectionDescription: {
-      fontSize: subtitleSize,
+      fontSize: isSmallScreen ? 13 : 14,
       color: colors.textSecondary,
-      marginBottom: 24,
-      lineHeight: subtitleSize * 1.5,
+      marginBottom: isSmallScreen ? 20 : 24,
+      lineHeight: isSmallScreen ? 18 : 20,
     },
     inputGroup: {
       marginBottom: isSmallScreen ? 16 : 20,
     },
     label: {
-      fontSize: labelSize,
+      fontSize: isSmallScreen ? 13 : 14,
       fontWeight: '500',
       color: colors.text,
-      marginBottom: 8,
+      marginBottom: isSmallScreen ? 6 : 8,
     },
     inputContainer: {
       flexDirection: 'row',
@@ -1193,7 +1234,7 @@ export default function KYCUpgradeScreen() {
       borderRadius: 12,
       backgroundColor: colors.surface,
       paddingHorizontal: 16,
-      height: inputHeight,
+      height: isSmallScreen ? 50 : 56,
     },
     inputError: {
       borderColor: colors.error,
@@ -1218,21 +1259,21 @@ export default function KYCUpgradeScreen() {
       flexDirection: 'row',
       backgroundColor: colors.backgroundTertiary,
       borderRadius: 12,
-      padding: 16,
+      padding: isSmallScreen ? 12 : 16,
       marginTop: 8,
       marginBottom: 16,
       alignItems: 'flex-start',
     },
     infoText: {
-      fontSize: isSmallScreen ? 12 : 14,
+      fontSize: isSmallScreen ? 13 : 14,
       color: colors.textSecondary,
       marginLeft: 12,
       flex: 1,
       lineHeight: isSmallScreen ? 18 : 20,
     },
     identityOptions: {
-      marginBottom: 24,
-      gap: isSmallScreen ? 10 : 12,
+      marginBottom: isSmallScreen ? 20 : 24,
+      gap: isSmallScreen ? 8 : 12,
     },
     identityOption: {
       backgroundColor: colors.surface,
@@ -1261,28 +1302,29 @@ export default function KYCUpgradeScreen() {
       color: colors.primary,
     },
     identityDescription: {
-      fontSize: isSmallScreen ? 12 : 14,
+      fontSize: isSmallScreen ? 13 : 14,
       color: colors.textSecondary,
     },
     checkmark: {
       position: 'absolute',
-      top: 16,
-      right: 16,
-      width: 24,
-      height: 24,
-      borderRadius: 12,
+      top: isSmallScreen ? 12 : 16,
+      right: isSmallScreen ? 12 : 16,
+      width: isSmallScreen ? 20 : 24,
+      height: isSmallScreen ? 20 : 24,
+      borderRadius: isSmallScreen ? 10 : 12,
       backgroundColor: colors.primary,
       justifyContent: 'center',
       alignItems: 'center',
     },
     documentSection: {
-      marginBottom: 24,
+      marginBottom: isSmallScreen ? 20 : 24,
+      gap: isSmallScreen ? 12 : 16,
     },
     documentTitle: {
       fontSize: isSmallScreen ? 14 : 16,
       fontWeight: '600',
       color: colors.text,
-      marginBottom: 16,
+      marginBottom: isSmallScreen ? 12 : 16,
     },
     documentCard: {
       backgroundColor: colors.surface,
@@ -1290,7 +1332,6 @@ export default function KYCUpgradeScreen() {
       borderColor: colors.border,
       borderRadius: 12,
       padding: 16,
-      marginBottom: 12,
     },
     documentHeader: {
       flexDirection: 'row',
@@ -1310,14 +1351,14 @@ export default function KYCUpgradeScreen() {
       borderRadius: 12,
     },
     documentStatusText: {
-      fontSize: isSmallScreen ? 10 : 12,
+      fontSize: 12,
       color: colors.primary,
       fontWeight: '500',
     },
     documentDescription: {
-      fontSize: isSmallScreen ? 12 : 14,
+      fontSize: isSmallScreen ? 13 : 14,
       color: colors.textSecondary,
-      marginBottom: 16,
+      marginBottom: isSmallScreen ? 12 : 16,
       lineHeight: isSmallScreen ? 18 : 20,
     },
     documentActions: {
@@ -1339,7 +1380,7 @@ export default function KYCUpgradeScreen() {
       paddingHorizontal: isSmallScreen ? 12 : 16,
     },
     documentButtonText: {
-      fontSize: isSmallScreen ? 12 : 14,
+      fontSize: isSmallScreen ? 13 : 14,
       fontWeight: '500',
       color: colors.primary,
     },
@@ -1365,11 +1406,11 @@ export default function KYCUpgradeScreen() {
     },
     retakeButtonText: {
       color: '#FFFFFF',
-      fontSize: isSmallScreen ? 10 : 12,
+      fontSize: isSmallScreen ? 11 : 12,
       fontWeight: '500',
     },
     reviewSection: {
-      marginBottom: 24,
+      marginBottom: isSmallScreen ? 20 : 24,
       gap: isSmallScreen ? 12 : 16,
     },
     reviewCard: {
@@ -1383,13 +1424,13 @@ export default function KYCUpgradeScreen() {
       fontSize: isSmallScreen ? 14 : 16,
       fontWeight: '600',
       color: colors.text,
-      marginBottom: 16,
+      marginBottom: isSmallScreen ? 12 : 16,
     },
     reviewItem: {
-      marginBottom: 12,
+      marginBottom: isSmallScreen ? 8 : 12,
     },
     reviewLabel: {
-      fontSize: isSmallScreen ? 12 : 14,
+      fontSize: isSmallScreen ? 13 : 14,
       color: colors.textSecondary,
       marginBottom: 4,
     },
@@ -1417,7 +1458,7 @@ export default function KYCUpgradeScreen() {
       marginBottom: 24,
     },
     termsText: {
-      fontSize: isSmallScreen ? 12 : 14,
+      fontSize: isSmallScreen ? 13 : 14,
       color: colors.textSecondary,
       lineHeight: isSmallScreen ? 18 : 20,
     },
