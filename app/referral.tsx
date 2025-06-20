@@ -35,7 +35,7 @@ export default function ReferralScreen() {
       setIsLoading(true);
       setError(null);
 
-      // Fetch the user's referral code directly from the database
+      // First check if user already has a referral code
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('referral_code')
@@ -44,11 +44,36 @@ export default function ReferralScreen() {
 
       if (profileError) throw profileError;
       
-      const code = profileData?.referral_code || '';
-      setReferralCode(code);
+      let code = profileData?.referral_code;
+      
+      // If no referral code exists, generate one
+      if (!code) {
+        // Get user's first name for code generation
+        const { data: userData, error: userError } = await supabase
+          .from('profiles')
+          .select('first_name')
+          .eq('id', session?.user?.id)
+          .single();
+          
+        if (userError) throw userError;
+        
+        // Generate a referral code
+        const firstName = userData?.first_name || '';
+        code = generateReferralCode(firstName, session?.user?.id || '');
+        
+        // Save the generated code
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ referral_code: code })
+          .eq('id', session?.user?.id);
+        
+        if (updateError) throw updateError;
+      }
+      
+      setReferralCode(code || '');
       setReferralLink(`https://planmoni.app/ref/${code}`);
 
-      // Fetch the count of users who used this referral code
+      // Fetch the count of users who were referred by this user
       const { count: referredCount, error: countError } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
@@ -78,6 +103,18 @@ export default function ReferralScreen() {
       setIsLoading(false);
     }
   };
+  
+  // Generate a unique referral code
+  const generateReferralCode = (firstName: string, userId: string): string => {
+    // Take first 3 characters of first name (or fewer if name is shorter)
+    const namePrefix = firstName.substring(0, 3).toUpperCase();
+    
+    // Take last 6 characters of user ID
+    const idSuffix = userId.substring(userId.length - 6).toUpperCase();
+    
+    // Combine to create a unique code
+    return `${namePrefix}${idSuffix}`;
+  };
 
   const handleCopyCode = async () => {
     try {
@@ -91,37 +128,14 @@ export default function ReferralScreen() {
   const handleShare = async () => {
     const shareMessage = `Join me on Planmoni! Use my referral code ${referralCode} to get started. Download the app at https://planmoni.app`;
     
-    if (Platform.OS === 'web') {
-      // Web sharing
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: 'Join me on Planmoni',
-            text: shareMessage,
-            url: referralLink,
-          });
-        } catch (error) {
-          console.error('Error sharing:', error);
-          // Fallback to copying to clipboard
-          await Clipboard.setStringAsync(shareMessage);
-          showToast('Share text copied to clipboard', 'success');
-        }
-      } else {
-        // Fallback for browsers that don't support sharing
-        await Clipboard.setStringAsync(shareMessage);
-        showToast('Share text copied to clipboard', 'success');
-      }
-    } else {
-      // Native sharing
-      try {
-        await Share.share({
-          message: shareMessage,
-          url: referralLink,
-        });
-      } catch (error) {
-        console.error('Error sharing:', error);
-        showToast('Failed to share referral code', 'error');
-      }
+    try {
+      await Share.share({
+        message: shareMessage,
+        url: referralLink,
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
+      showToast('Failed to share referral code', 'error');
     }
   };
 

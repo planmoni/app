@@ -8,6 +8,7 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
+import { supabase } from '@/lib/supabase';
 
 export default function ReferralCodeScreen() {
   const { colors } = useTheme();
@@ -23,6 +24,8 @@ export default function ReferralCodeScreen() {
 
   const [referralCode, setReferralCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [validReferrer, setValidReferrer] = useState<{id: string, name: string} | null>(null);
   const referralInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -32,8 +35,53 @@ export default function ReferralCodeScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleContinue = () => {
+  const validateReferralCode = async (code: string) => {
+    if (!code) return;
+    
+    setIsValidating(true);
+    setError(null);
+    
+    try {
+      // Check if the referral code exists
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .eq('referral_code', code.toUpperCase())
+        .single();
+      
+      if (error || !data) {
+        setError('Invalid referral code');
+        setValidReferrer(null);
+        return false;
+      }
+      
+      setValidReferrer({
+        id: data.id,
+        name: `${data.first_name} ${data.last_name}`
+      });
+      return true;
+    } catch (err) {
+      console.error('Error validating referral code:', err);
+      setError('Failed to validate referral code');
+      setValidReferrer(null);
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleContinue = async () => {
     haptics.mediumImpact();
+    
+    if (referralCode) {
+      // Validate the code before continuing
+      const isValid = await validateReferralCode(referralCode);
+      if (!isValid) {
+        haptics.error();
+        return;
+      }
+    }
+    
     router.push({
       pathname: '/onboarding/success',
       params: {
@@ -44,7 +92,7 @@ export default function ReferralCodeScreen() {
         bvn,
         pin,
         pinLength,
-        referralCode: referralCode.trim(),
+        referralCode: referralCode.trim().toUpperCase(),
       },
     });
   };
@@ -97,6 +145,14 @@ export default function ReferralCodeScreen() {
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
+            
+            {validReferrer && (
+              <View style={styles.successContainer}>
+                <Text style={styles.successText}>
+                  Valid code! You were referred by {validReferrer.name}
+                </Text>
+              </View>
+            )}
 
             <View style={styles.inputContainer}>
               <Gift size={20} color={colors.textSecondary} style={styles.inputIcon} />
@@ -109,11 +165,23 @@ export default function ReferralCodeScreen() {
                 onChangeText={(text) => {
                   setReferralCode(text);
                   setError(null);
+                  setValidReferrer(null);
+                }}
+                onBlur={() => {
+                  if (referralCode) {
+                    validateReferralCode(referralCode);
+                  }
                 }}
                 autoCapitalize="characters"
                 returnKeyType="done"
                 onSubmitEditing={handleContinue}
+                editable={!isValidating}
               />
+              {isValidating && (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Validating...</Text>
+                </View>
+              )}
             </View>
 
             <Pressable onPress={handleSkip} style={styles.skipButton}>
@@ -191,6 +259,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.error,
     fontSize: 14,
   },
+  successContainer: {
+    backgroundColor: colors.successLight,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  successText: {
+    color: colors.success,
+    fontSize: 14,
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -209,6 +287,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     height: '100%',
+  },
+  loadingContainer: {
+    marginLeft: 8,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   skipButton: {
     alignSelf: 'center',
