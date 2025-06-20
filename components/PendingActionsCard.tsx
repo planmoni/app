@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useState, useEffect } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 type PendingAction = {
   id: string;
@@ -30,7 +30,7 @@ export default function PendingActionsCard() {
   useEffect(() => {
     const loadCompletedActions = async () => {
       try {
-        const storedActions = await AsyncStorage.getItem(COMPLETED_ACTIONS_KEY);
+        const storedActions = await SecureStore.getItemAsync(COMPLETED_ACTIONS_KEY);
         if (storedActions) {
           setCompletedActions(JSON.parse(storedActions));
         }
@@ -90,7 +90,7 @@ export default function PendingActionsCard() {
     try {
       const updatedCompletedActions = [...completedActions, actionId];
       setCompletedActions(updatedCompletedActions);
-      await AsyncStorage.setItem(COMPLETED_ACTIONS_KEY, JSON.stringify(updatedCompletedActions));
+      await SecureStore.setItemAsync(COMPLETED_ACTIONS_KEY, JSON.stringify(updatedCompletedActions));
       haptics.success();
     } catch (error) {
       console.error('Error marking action as completed:', error);

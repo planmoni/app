@@ -30,7 +30,7 @@ import {
   Wallet
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -39,7 +39,7 @@ import NotificationSettingsModal from '@/components/NotificationSettingsModal';
 import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
-import { BiometricSetup } from '@/components/biometrics/BiometricSetup';
+import BiometricSetupModal from '@/components/settings/BiometricSetupModal';
 
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
@@ -64,6 +64,7 @@ export default function SettingsScreen() {
   const [showSupport, setShowSupport] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [showBiometricSetup, setShowBiometricSetup] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -218,7 +219,10 @@ export default function SettingsScreen() {
 
             <Pressable 
               style={styles.settingItem}
-              onPress={() => setBiometrics(true)}
+              onPress={() => {
+                haptics.selection();
+                setShowBiometricSetup(true);
+              }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
                 <Fingerprint size={20} color="#22C55E" />
@@ -229,35 +233,6 @@ export default function SettingsScreen() {
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
-
-            {/* Biometric Setup Modal */}
-            <Modal 
-              visible={biometrics} 
-              animationType="slide" 
-              presentationStyle="pageSheet"
-              statusBarTranslucent={true}
-              transparent={true}
-            >
-              <View style={{flex: 1, justifyContent: 'flex-end'}}>
-                <View style={[styles.biometricModal, { backgroundColor: isDark ? colors.backgroundSecondary : "#f8f9fa" }]}>
-                  <View style={[styles.biometricHeader, { 
-                    backgroundColor: isDark ? colors.surface : "white",
-                    borderBottomColor: isDark ? colors.border : "#e5e7eb"
-                  }]}>
-                    <TouchableOpacity onPress={() => setBiometrics(false)}>
-                      <Ionicons name="close" size={24} color={isDark ? colors.text : "#374151"} />
-                    </TouchableOpacity>
-                    <Text style={[styles.biometricTitle, { color: isDark ? colors.text : "#1f2937" }]}>
-                      Biometric Authentication
-                    </Text>
-                    <View style={{ width: 24 }} />
-                  </View>
-                  <ScrollView>
-                    <BiometricSetup />
-                  </ScrollView>
-                </View>
-              </View>
-            </Modal>
 
             <View style={styles.divider} />
 
@@ -656,6 +631,13 @@ export default function SettingsScreen() {
         }}
       />
       
+      <BiometricSetupModal
+        isVisible={showBiometricSetup}
+        onClose={() => {
+          haptics.lightImpact();
+          setShowBiometricSetup(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
