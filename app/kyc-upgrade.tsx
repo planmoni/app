@@ -755,7 +755,7 @@ export default function KYCUpgradeScreen() {
             <View style={styles.infoContainer}>
               <Info size={iconSize} color={colors.primary} />
               <Text style={[styles.infoText, { fontSize: descSize }]}>
-                Your BVN is not stored and is only used for verification purposes.
+                We use your BVN to verify your identity and ensure that your account is secure. This does not mean that we will be able to access your bank account.
               </Text>
             </View>
           </View>
