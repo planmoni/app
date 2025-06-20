@@ -788,7 +788,7 @@ export default function KYCUpgradeScreen() {
             <View style={styles.infoContainer}>
               <Info size={iconSize} color={colors.primary} />
               <Text style={[styles.infoText, { fontSize: descSize }]}>
-                Your NIN is not stored and is only used for verification purposes.
+                We need your NIN to verify your identity and ensure that your account is secure. This information is required by the Central Bank of Nigeria(CBN) to help banks identify you and prevent fraud.
               </Text>
             </View>
           </View>
