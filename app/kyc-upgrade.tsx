@@ -1,13 +1,15 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, CreditCard, User, Calendar, Info, Shield, ChevronRight, Check } from 'lucide-react-native';
+import { ArrowLeft, Shield, User, Calendar, Info, Lock, ChevronRight, Check, CreditCard, Camera, Upload } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import Button from '@/components/Button';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useAuth } from '@/contexts/AuthContext';
+import * as ImagePicker from 'expo-image-picker';
 
 type KYCStep = 'personal' | 'identity' | 'verification' | 'review';
 type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
@@ -15,9 +17,11 @@ type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
 export default function KYCUpgradeScreen() {
   const { colors, isDark } = useTheme();
   const { showToast } = useToast();
+  const { session } = useAuth();
   const [currentStep, setCurrentStep] = useState<KYCStep>('personal');
   const [selectedIdentityType, setSelectedIdentityType] = useState<IdentityType>('bvn');
   const [isLoading, setIsLoading] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   
   // Personal information
   const [firstName, setFirstName] = useState('');
@@ -33,6 +37,11 @@ export default function KYCUpgradeScreen() {
   const [passportNumber, setPassportNumber] = useState('');
   const [driversLicense, setDriversLicense] = useState('');
   
+  // Document verification
+  const [documentFrontImage, setDocumentFrontImage] = useState<string | null>(null);
+  const [documentBackImage, setDocumentBackImage] = useState<string | null>(null);
+  const [selfieImage, setSelfieImage] = useState<string | null>(null);
+  
   // Form validation
   const [errors, setErrors] = useState<Record<string, string>>({});
   
@@ -45,12 +54,43 @@ export default function KYCUpgradeScreen() {
   
   // Pre-fill form with user data if available
   useEffect(() => {
-    // In a real app, you would fetch user data from your backend
-    // For demo purposes, we'll use placeholder data
-    setFirstName('John');
-    setLastName('Doe');
-    setPhoneNumber('08012345678');
-  }, []);
+    if (session?.user?.user_metadata) {
+      const { first_name, last_name, phone } = session.user.user_metadata;
+      if (first_name) setFirstName(first_name);
+      if (last_name) setLastName(last_name);
+      if (phone) setPhoneNumber(phone);
+    }
+    
+    // Fetch current verification status
+    fetchVerificationStatus();
+  }, [session]);
+  
+  const fetchVerificationStatus = async () => {
+    try {
+      const response = await fetch('/api/dojah-kyc', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setVerificationStatus(data.overallStatus);
+        
+        // If user is already verified, show appropriate message
+        if (data.overallStatus === 'fully_verified') {
+          showToast('Your account is already fully verified', 'success');
+        } else if (data.overallStatus === 'partially_verified') {
+          showToast('Your identity is verified. Please complete document verification', 'info');
+          setCurrentStep('verification');
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching verification status:', error);
+    }
+  };
   
   const validatePersonalInfo = () => {
     const newErrors: Record<string, string> = {};
@@ -113,7 +153,33 @@ export default function KYCUpgradeScreen() {
     return true;
   };
   
-  const handleNextStep = () => {
+  const validateDocumentVerification = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!documentFrontImage) {
+      newErrors.documentFront = 'Front of document is required';
+    }
+    
+    if (selectedIdentityType !== 'bvn' && selectedIdentityType !== 'nin' && !documentBackImage) {
+      newErrors.documentBack = 'Back of document is required';
+    }
+    
+    if (!selfieImage) {
+      newErrors.selfie = 'Selfie is required';
+    }
+    
+    setErrors(newErrors);
+    
+    if (Object.keys(newErrors).length > 0) {
+      const firstError = Object.values(newErrors)[0];
+      showToast(firstError, 'error');
+      return false;
+    }
+    
+    return true;
+  };
+  
+  const handleNextStep = async () => {
     switch (currentStep) {
       case 'personal':
         if (validatePersonalInfo()) {
@@ -122,15 +188,115 @@ export default function KYCUpgradeScreen() {
         break;
       case 'identity':
         if (validateIdentityInfo()) {
-          setCurrentStep('verification');
+          // Verify identity with Dojah
+          await verifyIdentity();
         }
         break;
       case 'verification':
-        setCurrentStep('review');
+        if (validateDocumentVerification()) {
+          // Verify documents with Dojah
+          await verifyDocuments();
+        }
         break;
       case 'review':
-        handleSubmit();
+        await handleSubmit();
         break;
+    }
+  };
+  
+  const verifyIdentity = async () => {
+    try {
+      setIsLoading(true);
+      
+      let verificationData = {};
+      
+      switch (selectedIdentityType) {
+        case 'bvn':
+          verificationData = { bvn };
+          break;
+        case 'nin':
+          verificationData = { nin };
+          break;
+        case 'passport':
+          verificationData = { 
+            passportNumber,
+            firstName,
+            lastName
+          };
+          break;
+        case 'drivers_license':
+          verificationData = { 
+            licenseNumber: driversLicense,
+            firstName,
+            lastName
+          };
+          break;
+      }
+      
+      const response = await fetch('/api/dojah-kyc', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          verificationType: selectedIdentityType,
+          verificationData
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Verification failed');
+      }
+      
+      showToast('Identity verified successfully', 'success');
+      setCurrentStep('verification');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Verification failed';
+      showToast(errorMessage, 'error');
+      console.error('Error verifying identity:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const verifyDocuments = async () => {
+    try {
+      setIsLoading(true);
+      
+      // In a real app, you would upload the images to a storage service
+      // and then send the URLs to the Dojah API
+      // For this demo, we'll simulate a successful verification
+      
+      const response = await fetch('/api/dojah-kyc', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          documentType: selectedIdentityType,
+          documentImage: documentFrontImage,
+          selfieImage
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Document verification failed');
+      }
+      
+      showToast('Documents verified successfully', 'success');
+      setCurrentStep('review');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Document verification failed';
+      showToast(errorMessage, 'error');
+      console.error('Error verifying documents:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -154,13 +320,30 @@ export default function KYCUpgradeScreen() {
     setIsLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Fetch final verification status
+      const response = await fetch('/api/dojah-kyc', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
       
-      showToast('Verification submitted successfully!', 'success');
-      router.replace('/(tabs)');
+      if (!response.ok) {
+        throw new Error('Failed to get verification status');
+      }
+      
+      const data = await response.json();
+      
+      if (data.overallStatus === 'fully_verified') {
+        showToast('Verification completed successfully!', 'success');
+        router.replace('/(tabs)');
+      } else {
+        showToast('Verification is still in progress. We will notify you once completed.', 'info');
+        router.replace('/(tabs)');
+      }
     } catch (error) {
-      showToast('Failed to submit verification. Please try again.', 'error');
+      showToast('Failed to complete verification. Please try again.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -210,6 +393,67 @@ export default function KYCUpgradeScreen() {
       case 'identity': return 'Identity Verification';
       case 'verification': return 'Document Verification';
       case 'review': return 'Review & Submit';
+    }
+  };
+  
+  const pickImage = async (setImageFunction: React.Dispatch<React.SetStateAction<string | null>>, type: string) => {
+    // Request permissions
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (status !== 'granted') {
+      showToast('Permission to access media library is required', 'error');
+      return;
+    }
+    
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+        base64: true,
+      });
+      
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset.base64) {
+          setImageFunction(`data:image/jpeg;base64,${asset.base64}`);
+          setErrors(prev => ({ ...prev, [type]: '' }));
+        }
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      showToast('Failed to select image', 'error');
+    }
+  };
+  
+  const takePicture = async (setImageFunction: React.Dispatch<React.SetStateAction<string | null>>, type: string) => {
+    // Request permissions
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (status !== 'granted') {
+      showToast('Permission to access camera is required', 'error');
+      return;
+    }
+    
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+        base64: true,
+      });
+      
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset.base64) {
+          setImageFunction(`data:image/jpeg;base64,${asset.base64}`);
+          setErrors(prev => ({ ...prev, [type]: '' }));
+        }
+      }
+    } catch (error) {
+      console.error('Error taking picture:', error);
+      showToast('Failed to capture image', 'error');
     }
   };
   
@@ -578,35 +822,105 @@ export default function KYCUpgradeScreen() {
           
           <View style={styles.documentCard}>
             <View style={styles.documentHeader}>
-              <Text style={styles.documentName}>Proof of Identity</Text>
+              <Text style={styles.documentName}>Front of ID</Text>
               <View style={styles.documentStatus}>
                 <Text style={styles.documentStatusText}>Required</Text>
               </View>
             </View>
             <Text style={styles.documentDescription}>
-              Upload a clear photo of your government-issued ID (National ID, Passport, Driver's License)
+              Upload a clear photo of the front of your {
+                selectedIdentityType === 'bvn' ? 'any government-issued ID' :
+                selectedIdentityType === 'nin' ? 'NIN card' :
+                selectedIdentityType === 'passport' ? 'passport' : 'driver\'s license'
+              }
             </Text>
-            <Pressable style={styles.uploadButton}>
-              <Text style={styles.uploadButtonText}>Upload Document</Text>
-              <ChevronRight size={16} color={colors.primary} />
-            </Pressable>
+            
+            {documentFrontImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image 
+                  source={{ uri: documentFrontImage }} 
+                  style={styles.imagePreview} 
+                  resizeMode="cover"
+                />
+                <Pressable 
+                  style={styles.retakeButton}
+                  onPress={() => setDocumentFrontImage(null)}
+                >
+                  <Text style={styles.retakeButtonText}>Retake</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.documentActions}>
+                <Pressable 
+                  style={styles.documentButton}
+                  onPress={() => pickImage(setDocumentFrontImage, 'documentFront')}
+                >
+                  <Upload size={16} color={colors.primary} />
+                  <Text style={styles.documentButtonText}>Upload</Text>
+                </Pressable>
+                
+                <Pressable 
+                  style={styles.documentButton}
+                  onPress={() => takePicture(setDocumentFrontImage, 'documentFront')}
+                >
+                  <Camera size={16} color={colors.primary} />
+                  <Text style={styles.documentButtonText}>Take Photo</Text>
+                </Pressable>
+              </View>
+            )}
+            {errors.documentFront && <Text style={styles.errorText}>{errors.documentFront}</Text>}
           </View>
           
-          <View style={styles.documentCard}>
-            <View style={styles.documentHeader}>
-              <Text style={styles.documentName}>Proof of Address</Text>
-              <View style={styles.documentStatus}>
-                <Text style={styles.documentStatusText}>Required</Text>
+          {(selectedIdentityType === 'passport' || selectedIdentityType === 'drivers_license') && (
+            <View style={styles.documentCard}>
+              <View style={styles.documentHeader}>
+                <Text style={styles.documentName}>Back of ID</Text>
+                <View style={styles.documentStatus}>
+                  <Text style={styles.documentStatusText}>Required</Text>
+                </View>
               </View>
+              <Text style={styles.documentDescription}>
+                Upload a clear photo of the back of your {
+                  selectedIdentityType === 'passport' ? 'passport' : 'driver\'s license'
+                }
+              </Text>
+              
+              {documentBackImage ? (
+                <View style={styles.imagePreviewContainer}>
+                  <Image 
+                    source={{ uri: documentBackImage }} 
+                    style={styles.imagePreview} 
+                    resizeMode="cover"
+                  />
+                  <Pressable 
+                    style={styles.retakeButton}
+                    onPress={() => setDocumentBackImage(null)}
+                  >
+                    <Text style={styles.retakeButtonText}>Retake</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.documentActions}>
+                  <Pressable 
+                    style={styles.documentButton}
+                    onPress={() => pickImage(setDocumentBackImage, 'documentBack')}
+                  >
+                    <Upload size={16} color={colors.primary} />
+                    <Text style={styles.documentButtonText}>Upload</Text>
+                  </Pressable>
+                  
+                  <Pressable 
+                    style={styles.documentButton}
+                    onPress={() => takePicture(setDocumentBackImage, 'documentBack')}
+                  >
+                    <Camera size={16} color={colors.primary} />
+                    <Text style={styles.documentButtonText}>Take Photo</Text>
+                  </Pressable>
+                </View>
+              )}
+              {errors.documentBack && <Text style={styles.errorText}>{errors.documentBack}</Text>}
             </View>
-            <Text style={styles.documentDescription}>
-              Upload a utility bill or bank statement from the last 3 months showing your name and address
-            </Text>
-            <Pressable style={styles.uploadButton}>
-              <Text style={styles.uploadButtonText}>Upload Document</Text>
-              <ChevronRight size={16} color={colors.primary} />
-            </Pressable>
-          </View>
+          )}
           
           <View style={styles.documentCard}>
             <View style={styles.documentHeader}>
@@ -618,10 +932,41 @@ export default function KYCUpgradeScreen() {
             <Text style={styles.documentDescription}>
               Take a clear selfie holding your ID document
             </Text>
-            <Pressable style={styles.uploadButton}>
-              <Text style={styles.uploadButtonText}>Take Selfie</Text>
-              <ChevronRight size={16} color={colors.primary} />
-            </Pressable>
+            
+            {selfieImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image 
+                  source={{ uri: selfieImage }} 
+                  style={styles.imagePreview} 
+                  resizeMode="cover"
+                />
+                <Pressable 
+                  style={styles.retakeButton}
+                  onPress={() => setSelfieImage(null)}
+                >
+                  <Text style={styles.retakeButtonText}>Retake</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.documentActions}>
+                <Pressable 
+                  style={styles.documentButton}
+                  onPress={() => pickImage(setSelfieImage, 'selfie')}
+                >
+                  <Upload size={16} color={colors.primary} />
+                  <Text style={styles.documentButtonText}>Upload</Text>
+                </Pressable>
+                
+                <Pressable 
+                  style={styles.documentButton}
+                  onPress={() => takePicture(setSelfieImage, 'selfie')}
+                >
+                  <Camera size={16} color={colors.primary} />
+                  <Text style={styles.documentButtonText}>Take Photo</Text>
+                </Pressable>
+              </View>
+            )}
+            {errors.selfie && <Text style={styles.errorText}>{errors.selfie}</Text>}
           </View>
         </View>
         
@@ -959,10 +1304,17 @@ export default function KYCUpgradeScreen() {
       marginBottom: 16,
       lineHeight: 20,
     },
-    uploadButton: {
+    documentActions: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    documentButton: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
+      gap: 8,
       backgroundColor: colors.backgroundTertiary,
       borderWidth: 1,
       borderColor: colors.border,
@@ -970,11 +1322,35 @@ export default function KYCUpgradeScreen() {
       paddingVertical: 12,
       paddingHorizontal: 16,
     },
-    uploadButtonText: {
+    documentButtonText: {
       fontSize: 14,
       fontWeight: '500',
       color: colors.primary,
-      marginRight: 8,
+    },
+    imagePreviewContainer: {
+      width: '100%',
+      height: 200,
+      borderRadius: 8,
+      overflow: 'hidden',
+      marginBottom: 12,
+    },
+    imagePreview: {
+      width: '100%',
+      height: '100%',
+    },
+    retakeButton: {
+      position: 'absolute',
+      bottom: 12,
+      right: 12,
+      backgroundColor: colors.primary,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 6,
+    },
+    retakeButtonText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '500',
     },
     reviewSection: {
       marginBottom: 24,
