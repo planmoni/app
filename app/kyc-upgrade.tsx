@@ -1247,7 +1247,7 @@ export default function KYCUpgradeScreen() {
     },
     multilineInput: {
       height: isSmallScreen ? 14 : 16,
-      textAlignVertical: 'top',
+      textAlignVertical: 'center',
       paddingTop: 30,
     },
     errorText: {
