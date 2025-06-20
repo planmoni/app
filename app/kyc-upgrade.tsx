@@ -605,7 +605,7 @@ export default function KYCUpgradeScreen() {
               }}
               multiline
               numberOfLines={1}
-              textAlignVertical="top"
+              textAlignVertical="center"
             />
           </View>
           {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
