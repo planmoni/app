@@ -490,7 +490,6 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>First Name</Text>
           <View style={[styles.inputContainer, errors.firstName && styles.inputError]}>
-            <User size={iconSize} color={colors.textSecondary} />
             <TextInput
               style={[styles.input, { height: inputHeight, fontSize }]}
               placeholder="Enter your first name"
@@ -511,7 +510,6 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Last Name</Text>
           <View style={[styles.inputContainer, errors.lastName && styles.inputError]}>
-            <User size={iconSize} color={colors.textSecondary} />
             <TextInput
               ref={lastNameInputRef}
               style={[styles.input, { height: inputHeight, fontSize }]}
@@ -533,7 +531,6 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Middle Name (Optional)</Text>
           <View style={styles.inputContainer}>
-            <User size={iconSize} color={colors.textSecondary} />
             <TextInput
               ref={middleNameInputRef}
               style={[styles.input, { height: inputHeight, fontSize }]}
@@ -570,7 +567,6 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Phone Number</Text>
           <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
-            <User size={iconSize} color={colors.textSecondary} />
             <TextInput
               ref={phoneInputRef}
               style={[styles.input, { height: inputHeight, fontSize }]}
@@ -592,7 +588,6 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Residential Address</Text>
           <View style={[styles.inputContainer, errors.address && styles.inputError]}>
-            <User size={iconSize} color={colors.textSecondary} />
             <TextInput
               ref={addressInputRef}
               style={[styles.input, styles.multilineInput, { fontSize }]}
