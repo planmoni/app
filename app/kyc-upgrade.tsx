@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, Activi
 import { router } from 'expo-router';
 import { useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Shield, User, Calendar, Info, Lock, ChevronRight, Check, CreditCard, Camera, Upload } from 'lucide-react-native';
+import { ArrowLeft, Shield, User, Calendar, Info, Lock, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, FileText } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import Button from '@/components/Button';
@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
 import { useWindowDimensions } from 'react-native';
 
-type KYCStep = 'personal' | 'identity' | 'verification' | 'review';
+type KYCStep = 'personal' | 'bvn_verification' | 'id_face_match' | 'address_details' | 'review';
 type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
 
 export default function KYCUpgradeScreen() {
@@ -20,13 +20,25 @@ export default function KYCUpgradeScreen() {
   const { width, height } = useWindowDimensions();
   const { showToast } = useToast();
   const { session } = useAuth();
-  const [currentStep, setCurrentStep] = useState<KYCStep>('personal');
-  const [selectedIdentityType, setSelectedIdentityType] = useState<IdentityType>('bvn');
-  const [isLoading, setIsLoading] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
+  
+  // Step management
+  const [currentStep, setCurrentStep] = useState<KYCStep>('personal');
+  
+  // Identity verification
+  const [selectedIdentityType, setSelectedIdentityType] = useState<IdentityType>('bvn');
+  
+  // Loading states
+  const [isLoading, setIsLoading] = useState(false);
+  const [isResolvingBvn, setIsResolvingBvn] = useState(false);
+  const [isVerifyingDocuments, setIsVerifyingDocuments] = useState(false);
+  
+  // Verification status
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+  const [bvnVerified, setBvnVerified] = useState(false);
+  const [documentsVerified, setDocumentsVerified] = useState(false);
   
   // Personal information
   const [firstName, setFirstName] = useState('');
@@ -36,8 +48,14 @@ export default function KYCUpgradeScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [address, setAddress] = useState('');
   
+  // Address details
+  const [lga, setLga] = useState('');
+  const [state, setState] = useState('');
+  const [utilityBill, setUtilityBill] = useState<string | null>(null);
+  
   // Identity information
   const [bvn, setBvn] = useState('');
+  const [bvnMatchedName, setBvnMatchedName] = useState('');
   const [nin, setNin] = useState('');
   const [passportNumber, setPassportNumber] = useState('');
   const [driversLicense, setDriversLicense] = useState('');
@@ -89,17 +107,20 @@ export default function KYCUpgradeScreen() {
         // If user is already verified, show appropriate message
         if (data.overallStatus === 'fully_verified') {
           showToast('Your account is already fully verified', 'success');
+          setCurrentStep('review');
         } else if (data.overallStatus === 'partially_verified') {
           showToast('Your identity is verified. Please complete document verification', 'info');
-          setCurrentStep('verification');
+          setBvnVerified(true);
+          setCurrentStep('id_face_match');
         }
       } else {
-        console.error('Error response:', response.status, response.statusText);
-        const errorText = await response.text();
-        console.error('Error details:', errorText);
+        const errorData = await response.text();
+        console.error('Error fetching verification status:', errorData);
+        showToast('Failed to fetch verification status', 'error');
       }
     } catch (error) {
       console.error('Error fetching verification status:', error);
+      showToast('Failed to fetch verification status', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -135,24 +156,13 @@ export default function KYCUpgradeScreen() {
     return true;
   };
   
-  const validateIdentityInfo = () => {
+  const validateBvnVerification = () => {
     const newErrors: Record<string, string> = {};
     
-    switch (selectedIdentityType) {
-      case 'bvn':
-        if (!bvn.trim()) newErrors.bvn = 'BVN is required';
-        else if (bvn.length !== 11 || !/^\d+$/.test(bvn)) newErrors.bvn = 'BVN must be 11 digits';
-        break;
-      case 'nin':
-        if (!nin.trim()) newErrors.nin = 'NIN is required';
-        else if (nin.length !== 11 || !/^\d+$/.test(nin)) newErrors.nin = 'NIN must be 11 digits';
-        break;
-      case 'passport':
-        if (!passportNumber.trim()) newErrors.passportNumber = 'Passport number is required';
-        break;
-      case 'drivers_license':
-        if (!driversLicense.trim()) newErrors.driversLicense = 'Driver\'s license number is required';
-        break;
+    if (!bvn.trim()) {
+      newErrors.bvn = 'BVN is required';
+    } else if (bvn.length !== 11 || !/^\d+$/.test(bvn)) {
+      newErrors.bvn = 'BVN must be 11 digits';
     }
     
     setErrors(newErrors);
@@ -166,14 +176,27 @@ export default function KYCUpgradeScreen() {
     return true;
   };
   
-  const validateDocumentVerification = () => {
+  const validateIdFaceMatch = () => {
     const newErrors: Record<string, string> = {};
+    
+    switch (selectedIdentityType) {
+      case 'nin':
+        if (!nin.trim()) newErrors.nin = 'NIN is required';
+        else if (nin.length !== 11 || !/^\d+$/.test(nin)) newErrors.nin = 'NIN must be 11 digits';
+        break;
+      case 'passport':
+        if (!passportNumber.trim()) newErrors.passportNumber = 'Passport number is required';
+        break;
+      case 'drivers_license':
+        if (!driversLicense.trim()) newErrors.driversLicense = 'Driver\'s license number is required';
+        break;
+    }
     
     if (!documentFrontImage) {
       newErrors.documentFront = 'Front of document is required';
     }
     
-    if (selectedIdentityType !== 'bvn' && selectedIdentityType !== 'nin' && !documentBackImage) {
+    if ((selectedIdentityType === 'passport' || selectedIdentityType === 'drivers_license') && !documentBackImage) {
       newErrors.documentBack = 'Back of document is required';
     }
     
@@ -192,23 +215,46 @@ export default function KYCUpgradeScreen() {
     return true;
   };
   
+  const validateAddressDetails = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!address.trim()) newErrors.address = 'Address is required';
+    if (!lga.trim()) newErrors.lga = 'Local Government Area is required';
+    if (!state.trim()) newErrors.state = 'State is required';
+    
+    setErrors(newErrors);
+    
+    if (Object.keys(newErrors).length > 0) {
+      const firstError = Object.values(newErrors)[0];
+      showToast(firstError, 'error');
+      return false;
+    }
+    
+    return true;
+  };
+  
   const handleNextStep = async () => {
     switch (currentStep) {
       case 'personal':
         if (validatePersonalInfo()) {
-          setCurrentStep('identity');
+          setCurrentStep('bvn_verification');
         }
         break;
-      case 'identity':
-        if (validateIdentityInfo()) {
-          // Verify identity with Dojah
-          await verifyIdentity();
+      case 'bvn_verification':
+        if (validateBvnVerification()) {
+          // Verify BVN with Dojah
+          await verifyBvn();
         }
         break;
-      case 'verification':
-        if (validateDocumentVerification()) {
+      case 'id_face_match':
+        if (validateIdFaceMatch()) {
           // Verify documents with Dojah
           await verifyDocuments();
+        }
+        break;
+      case 'address_details':
+        if (validateAddressDetails()) {
+          setCurrentStep('review');
         }
         break;
       case 'review':
@@ -217,34 +263,10 @@ export default function KYCUpgradeScreen() {
     }
   };
   
-  const verifyIdentity = async () => {
+  const verifyBvn = async () => {
     try {
-      setIsLoading(true);
-      
-      let verificationData = {};
-      
-      switch (selectedIdentityType) {
-        case 'bvn':
-          verificationData = { bvn };
-          break;
-        case 'nin':
-          verificationData = { nin };
-          break;
-        case 'passport':
-          verificationData = { 
-            passportNumber,
-            firstName,
-            lastName
-          };
-          break;
-        case 'drivers_license':
-          verificationData = { 
-            licenseNumber: driversLicense,
-            firstName,
-            lastName
-          };
-          break;
-      }
+      setIsResolvingBvn(true);
+      setErrors({});
       
       const response = await fetch('/api/dojah-kyc', {
         method: 'POST',
@@ -253,36 +275,52 @@ export default function KYCUpgradeScreen() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          verificationType: selectedIdentityType,
-          verificationData
+          verificationType: 'bvn',
+          verificationData: { bvn }
         })
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Verification failed');
+        throw new Error(errorData.error || 'BVN verification failed');
       }
       
       const data = await response.json();
       
-      showToast('Identity verified successfully', 'success');
-      setCurrentStep('verification');
+      // Check if verification was successful
+      if (data.status === 'success') {
+        setBvnVerified(true);
+        
+        // If we have a name from the BVN verification, store it
+        if (data.data && data.data.firstName && data.data.lastName) {
+          setBvnMatchedName(`${data.data.firstName} ${data.data.lastName}`);
+          showToast('BVN matched! Let\'s continue.', 'success');
+        } else {
+          setBvnMatchedName('Verified');
+          showToast('BVN verified successfully', 'success');
+        }
+        
+        // Move to next step
+        setCurrentStep('id_face_match');
+      } else {
+        throw new Error('BVN verification failed');
+      }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Verification failed';
+      const errorMessage = error instanceof Error ? error.message : 'BVN verification failed';
       showToast(errorMessage, 'error');
-      console.error('Error verifying identity:', error);
+      setErrors({ bvn: errorMessage });
     } finally {
-      setIsLoading(false);
+      setIsResolvingBvn(false);
     }
   };
   
   const verifyDocuments = async () => {
     try {
-      setIsLoading(true);
+      setIsVerifyingDocuments(true);
+      setErrors({});
       
       // In a real app, you would upload the images to a storage service
       // and then send the URLs to the Dojah API
-      // For this demo, we'll simulate a successful verification
       
       const response = await fetch('/api/dojah-kyc', {
         method: 'PUT',
@@ -304,27 +342,38 @@ export default function KYCUpgradeScreen() {
       
       const data = await response.json();
       
-      showToast('Documents verified successfully', 'success');
-      setCurrentStep('review');
+      // Check if verification was successful
+      if (data.status === 'success') {
+        setDocumentsVerified(true);
+        showToast('Documents verified successfully', 'success');
+        
+        // Move to next step
+        setCurrentStep('address_details');
+      } else {
+        throw new Error('Document verification failed');
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Document verification failed';
       showToast(errorMessage, 'error');
-      console.error('Error verifying documents:', error);
+      setErrors({ documentVerification: errorMessage });
     } finally {
-      setIsLoading(false);
+      setIsVerifyingDocuments(false);
     }
   };
   
   const handlePreviousStep = () => {
     switch (currentStep) {
-      case 'identity':
+      case 'bvn_verification':
         setCurrentStep('personal');
         break;
-      case 'verification':
-        setCurrentStep('identity');
+      case 'id_face_match':
+        setCurrentStep('bvn_verification');
+        break;
+      case 'address_details':
+        setCurrentStep('id_face_match');
         break;
       case 'review':
-        setCurrentStep('verification');
+        setCurrentStep('address_details');
         break;
       default:
         router.back();
@@ -395,9 +444,10 @@ export default function KYCUpgradeScreen() {
   
   const getStepProgress = () => {
     switch (currentStep) {
-      case 'personal': return 25;
-      case 'identity': return 50;
-      case 'verification': return 75;
+      case 'personal': return 20;
+      case 'bvn_verification': return 40;
+      case 'id_face_match': return 60;
+      case 'address_details': return 80;
       case 'review': return 100;
     }
   };
@@ -405,8 +455,9 @@ export default function KYCUpgradeScreen() {
   const getStepTitle = () => {
     switch (currentStep) {
       case 'personal': return 'Personal Information';
-      case 'identity': return 'Identity Verification';
-      case 'verification': return 'Document Verification';
+      case 'bvn_verification': return 'BVN Verification';
+      case 'id_face_match': return 'ID & Face Verification';
+      case 'address_details': return 'Address Details';
       case 'review': return 'Review & Submit';
     }
   };
@@ -473,13 +524,6 @@ export default function KYCUpgradeScreen() {
   };
   
   const renderPersonalInfoStep = () => {
-    // Calculate responsive sizes
-    const inputHeight = isSmallScreen ? 50 : 56;
-    const iconSize = isSmallScreen ? 18 : 20;
-    const fontSize = isSmallScreen ? 14 : 16;
-    const labelSize = isSmallScreen ? 13 : 14;
-    const spacing = isSmallScreen ? 16 : 20;
-    
     return (
       <View style={styles.formContainer}>
         <Text style={styles.sectionTitle}>Basic Information</Text>
@@ -490,8 +534,9 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>First Name</Text>
           <View style={[styles.inputContainer, errors.firstName && styles.inputError]}>
+            <User size={20} color={colors.textSecondary} />
             <TextInput
-              style={[styles.input, { height: inputHeight, fontSize }]}
+              style={styles.input}
               placeholder="Enter your first name"
               placeholderTextColor={colors.textTertiary}
               value={firstName}
@@ -510,9 +555,10 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Last Name</Text>
           <View style={[styles.inputContainer, errors.lastName && styles.inputError]}>
+            <User size={20} color={colors.textSecondary} />
             <TextInput
               ref={lastNameInputRef}
-              style={[styles.input, { height: inputHeight, fontSize }]}
+              style={styles.input}
               placeholder="Enter your last name"
               placeholderTextColor={colors.textTertiary}
               value={lastName}
@@ -531,9 +577,10 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Middle Name (Optional)</Text>
           <View style={styles.inputContainer}>
+            <User size={20} color={colors.textSecondary} />
             <TextInput
               ref={middleNameInputRef}
-              style={[styles.input, { height: inputHeight, fontSize }]}
+              style={styles.input}
               placeholder="Enter your middle name"
               placeholderTextColor={colors.textTertiary}
               value={middleName}
@@ -548,10 +595,10 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Date of Birth</Text>
           <View style={[styles.inputContainer, errors.dateOfBirth && styles.inputError]}>
-            <Calendar size={iconSize} color={colors.textSecondary} />
+            <Calendar size={20} color={colors.textSecondary} />
             <TextInput
               ref={dobInputRef}
-              style={[styles.input, { height: inputHeight, fontSize }]}
+              style={styles.input}
               placeholder="DD/MM/YYYY"
               placeholderTextColor={colors.textTertiary}
               value={dateOfBirth}
@@ -567,10 +614,11 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Phone Number</Text>
           <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
+            <User size={20} color={colors.textSecondary} />
             <TextInput
               ref={phoneInputRef}
-              style={[styles.input, { height: inputHeight, fontSize }]}
-              placeholder="0812345678"
+              style={styles.input}
+              placeholder="Enter your phone number"
               placeholderTextColor={colors.textTertiary}
               value={phoneNumber}
               onChangeText={(text) => {
@@ -588,9 +636,10 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Residential Address</Text>
           <View style={[styles.inputContainer, errors.address && styles.inputError]}>
+            <MapPin size={20} color={colors.textSecondary} />
             <TextInput
               ref={addressInputRef}
-              style={[styles.input, styles.multilineInput, { fontSize }]}
+              style={[styles.input, styles.multilineInput]}
               placeholder="Enter your address"
               placeholderTextColor={colors.textTertiary}
               value={address}
@@ -607,8 +656,8 @@ export default function KYCUpgradeScreen() {
         </View>
         
         <View style={styles.infoContainer}>
-          <Info size={iconSize} color={colors.primary} />
-          <Text style={[styles.infoText, { fontSize: isSmallScreen ? 13 : 14 }]}>
+          <Info size={20} color={colors.primary} />
+          <Text style={styles.infoText}>
             Your personal information is securely stored and will only be used for verification purposes.
           </Text>
         </View>
@@ -616,158 +665,146 @@ export default function KYCUpgradeScreen() {
     );
   };
   
-  const renderIdentityStep = () => {
-    // Calculate responsive sizes
-    const iconSize = isSmallScreen ? 18 : 20;
-    const cardPadding = isSmallScreen ? 12 : 16;
-    const fontSize = isSmallScreen ? 14 : 16;
-    const descSize = isSmallScreen ? 13 : 14;
-    
+  const renderBvnVerificationStep = () => {
     return (
       <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>Identity Verification</Text>
+        <Text style={styles.sectionTitle}>BVN Verification</Text>
         <Text style={styles.sectionDescription}>
-          Please select a verification method and provide the required information.
+          Please enter your Bank Verification Number (BVN) for identity verification.
         </Text>
         
-        <View style={styles.identityOptions}>
-          <Pressable
-            style={[
-              styles.identityOption,
-              selectedIdentityType === 'bvn' && styles.selectedIdentityOption,
-              { padding: cardPadding }
-            ]}
-            onPress={() => setSelectedIdentityType('bvn')}
-          >
-            <View style={styles.identityHeader}>
-              <CreditCard size={iconSize} color={selectedIdentityType === 'bvn' ? colors.primary : colors.textSecondary} />
-              <Text style={[
-                styles.identityTitle,
-                selectedIdentityType === 'bvn' && styles.selectedIdentityTitle,
-                { fontSize }
-              ]}>BVN</Text>
-            </View>
-            <Text style={[styles.identityDescription, { fontSize: descSize }]}>Bank Verification Number</Text>
-            {selectedIdentityType === 'bvn' && (
-              <View style={styles.checkmark}>
-                <Check size={isSmallScreen ? 14 : 16} color="#FFFFFF" />
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Bank Verification Number (BVN)</Text>
+          <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
+            <CreditCard size={20} color={colors.textSecondary} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your 11-digit BVN"
+              placeholderTextColor={colors.textTertiary}
+              value={bvn}
+              onChangeText={(text) => {
+                // Only allow numbers and limit to 11 digits
+                const numericText = text.replace(/[^0-9]/g, '');
+                if (numericText.length <= 11) {
+                  setBvn(numericText);
+                  setErrors(prev => ({ ...prev, bvn: '' }));
+                }
+              }}
+              keyboardType="numeric"
+              maxLength={11}
+              editable={!isResolvingBvn && !bvnVerified}
+            />
+            {isResolvingBvn && (
+              <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
+            )}
+            {bvnVerified && (
+              <View style={styles.verifiedBadge}>
+                <Check size={16} color="#FFFFFF" />
               </View>
             )}
-          </Pressable>
+          </View>
+          {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
           
-          <Pressable
-            style={[
-              styles.identityOption,
-              selectedIdentityType === 'nin' && styles.selectedIdentityOption,
-              { padding: cardPadding }
-            ]}
-            onPress={() => setSelectedIdentityType('nin')}
-          >
-            <View style={styles.identityHeader}>
-              <CreditCard size={iconSize} color={selectedIdentityType === 'nin' ? colors.primary : colors.textSecondary} />
-              <Text style={[
-                styles.identityTitle,
-                selectedIdentityType === 'nin' && styles.selectedIdentityTitle,
-                { fontSize }
-              ]}>NIN</Text>
-            </View>
-            <Text style={[styles.identityDescription, { fontSize: descSize }]}>National Identification Number</Text>
-            {selectedIdentityType === 'nin' && (
-              <View style={styles.checkmark}>
-                <Check size={isSmallScreen ? 14 : 16} color="#FFFFFF" />
-              </View>
-            )}
-          </Pressable>
-          
-          <Pressable
-            style={[
-              styles.identityOption,
-              selectedIdentityType === 'passport' && styles.selectedIdentityOption,
-              { padding: cardPadding }
-            ]}
-            onPress={() => setSelectedIdentityType('passport')}
-          >
-            <View style={styles.identityHeader}>
-              <CreditCard size={iconSize} color={selectedIdentityType === 'passport' ? colors.primary : colors.textSecondary} />
-              <Text style={[
-                styles.identityTitle,
-                selectedIdentityType === 'passport' && styles.selectedIdentityTitle,
-                { fontSize }
-              ]}>Passport</Text>
-            </View>
-            <Text style={[styles.identityDescription, { fontSize: descSize }]}>International Passport</Text>
-            {selectedIdentityType === 'passport' && (
-              <View style={styles.checkmark}>
-                <Check size={isSmallScreen ? 14 : 16} color="#FFFFFF" />
-              </View>
-            )}
-          </Pressable>
-          
-          <Pressable
-            style={[
-              styles.identityOption,
-              selectedIdentityType === 'drivers_license' && styles.selectedIdentityOption,
-              { padding: cardPadding }
-            ]}
-            onPress={() => setSelectedIdentityType('drivers_license')}
-          >
-            <View style={styles.identityHeader}>
-              <CreditCard size={iconSize} color={selectedIdentityType === 'drivers_license' ? colors.primary : colors.textSecondary} />
-              <Text style={[
-                styles.identityTitle,
-                selectedIdentityType === 'drivers_license' && styles.selectedIdentityTitle,
-                { fontSize }
-              ]}>Driver's License</Text>
-            </View>
-            <Text style={[styles.identityDescription, { fontSize: descSize }]}>Driver's License Number</Text>
-            {selectedIdentityType === 'drivers_license' && (
-              <View style={styles.checkmark}>
-                <Check size={isSmallScreen ? 14 : 16} color="#FFFFFF" />
-              </View>
-            )}
-          </Pressable>
-        </View>
-        
-        {selectedIdentityType === 'bvn' && (
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Bank Verification Number (BVN)</Text>
-            <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
-              <CreditCard size={iconSize} color={colors.textSecondary} />
-              <TextInput
-                style={[styles.input, { fontSize }]}
-                placeholder="Enter your 11-digit BVN"
-                placeholderTextColor={colors.textTertiary}
-                value={bvn}
-                onChangeText={(text) => {
-                  // Only allow numbers and limit to 11 digits
-                  const numericText = text.replace(/[^0-9]/g, '');
-                  if (numericText.length <= 11) {
-                    setBvn(numericText);
-                    setErrors(prev => ({ ...prev, bvn: '' }));
-                  }
-                }}
-                keyboardType="numeric"
-                maxLength={11}
-              />
-            </View>
-            {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
-            
-            <View style={styles.infoContainer}>
-              <Info size={iconSize} color={colors.primary} />
-              <Text style={[styles.infoText, { fontSize: descSize }]}>
-                We use your BVN to verify your identity and ensure that your account is secure. This does not mean that we will be able to access your bank account.
+          {bvnVerified && bvnMatchedName && (
+            <View style={styles.matchedNameContainer}>
+              <Check size={16} color={colors.success} />
+              <Text style={styles.matchedNameText}>
+                BVN matched! Name: {bvnMatchedName}
               </Text>
             </View>
+          )}
+          
+          <View style={styles.infoContainer}>
+            <Info size={20} color={colors.primary} />
+            <Text style={styles.infoText}>
+              Your BVN is not stored and is only used for verification purposes. This helps us confirm your identity and protect your account.
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+  
+  const renderIDFaceMatchStep = () => {
+    return (
+      <View style={styles.formContainer}>
+        <Text style={styles.sectionTitle}>ID & Face Verification</Text>
+        <Text style={styles.sectionDescription}>
+          Please provide a government-issued ID and take a selfie for verification.
+        </Text>
+        
+        {!bvnVerified && (
+          <View style={styles.warningContainer}>
+            <Info size={20} color={colors.warning} />
+            <Text style={styles.warningText}>
+              You must complete BVN verification before proceeding with ID verification.
+            </Text>
           </View>
         )}
+        
+        <View style={styles.idTypeSelector}>
+          <Text style={styles.label}>Select ID Type</Text>
+          <View style={styles.idOptions}>
+            <Pressable
+              style={[
+                styles.idOption,
+                selectedIdentityType === 'nin' && styles.selectedIdOption
+              ]}
+              onPress={() => {
+                setSelectedIdentityType('nin');
+                setErrors({});
+              }}
+              disabled={isVerifyingDocuments || documentsVerified}
+            >
+              <Text style={[
+                styles.idOptionText,
+                selectedIdentityType === 'nin' && styles.selectedIdOptionText
+              ]}>NIN</Text>
+            </Pressable>
+            
+            <Pressable
+              style={[
+                styles.idOption,
+                selectedIdentityType === 'passport' && styles.selectedIdOption
+              ]}
+              onPress={() => {
+                setSelectedIdentityType('passport');
+                setErrors({});
+              }}
+              disabled={isVerifyingDocuments || documentsVerified}
+            >
+              <Text style={[
+                styles.idOptionText,
+                selectedIdentityType === 'passport' && styles.selectedIdOptionText
+              ]}>Passport</Text>
+            </Pressable>
+            
+            <Pressable
+              style={[
+                styles.idOption,
+                selectedIdentityType === 'drivers_license' && styles.selectedIdOption
+              ]}
+              onPress={() => {
+                setSelectedIdentityType('drivers_license');
+                setErrors({});
+              }}
+              disabled={isVerifyingDocuments || documentsVerified}
+            >
+              <Text style={[
+                styles.idOptionText,
+                selectedIdentityType === 'drivers_license' && styles.selectedIdOptionText
+              ]}>Driver's License</Text>
+            </Pressable>
+          </View>
+        </View>
         
         {selectedIdentityType === 'nin' && (
           <View style={styles.inputGroup}>
             <Text style={styles.label}>National Identification Number (NIN)</Text>
             <View style={[styles.inputContainer, errors.nin && styles.inputError]}>
-              <CreditCard size={iconSize} color={colors.textSecondary} />
+              <CreditCard size={20} color={colors.textSecondary} />
               <TextInput
-                style={[styles.input, { fontSize }]}
+                style={styles.input}
                 placeholder="Enter your 11-digit NIN"
                 placeholderTextColor={colors.textTertiary}
                 value={nin}
@@ -781,16 +818,10 @@ export default function KYCUpgradeScreen() {
                 }}
                 keyboardType="numeric"
                 maxLength={11}
+                editable={!isVerifyingDocuments && !documentsVerified}
               />
             </View>
             {errors.nin && <Text style={styles.errorText}>{errors.nin}</Text>}
-            
-            <View style={styles.infoContainer}>
-              <Info size={iconSize} color={colors.primary} />
-              <Text style={[styles.infoText, { fontSize: descSize }]}>
-                We need your NIN to verify your identity and ensure that your account is secure. This information is required by the Central Bank of Nigeria(CBN) to help banks identify you and prevent fraud.
-              </Text>
-            </View>
           </View>
         )}
         
@@ -798,9 +829,9 @@ export default function KYCUpgradeScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>International Passport Number</Text>
             <View style={[styles.inputContainer, errors.passportNumber && styles.inputError]}>
-              <CreditCard size={iconSize} color={colors.textSecondary} />
+              <CreditCard size={20} color={colors.textSecondary} />
               <TextInput
-                style={[styles.input, { fontSize }]}
+                style={styles.input}
                 placeholder="Enter your passport number"
                 placeholderTextColor={colors.textTertiary}
                 value={passportNumber}
@@ -809,6 +840,7 @@ export default function KYCUpgradeScreen() {
                   setErrors(prev => ({ ...prev, passportNumber: '' }));
                 }}
                 autoCapitalize="characters"
+                editable={!isVerifyingDocuments && !documentsVerified}
               />
             </View>
             {errors.passportNumber && <Text style={styles.errorText}>{errors.passportNumber}</Text>}
@@ -819,9 +851,9 @@ export default function KYCUpgradeScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Driver's License Number</Text>
             <View style={[styles.inputContainer, errors.driversLicense && styles.inputError]}>
-              <CreditCard size={iconSize} color={colors.textSecondary} />
+              <CreditCard size={20} color={colors.textSecondary} />
               <TextInput
-                style={[styles.input, { fontSize }]}
+                style={styles.input}
                 placeholder="Enter your driver's license number"
                 placeholderTextColor={colors.textTertiary}
                 value={driversLicense}
@@ -830,51 +862,32 @@ export default function KYCUpgradeScreen() {
                   setErrors(prev => ({ ...prev, driversLicense: '' }));
                 }}
                 autoCapitalize="characters"
+                editable={!isVerifyingDocuments && !documentsVerified}
               />
             </View>
             {errors.driversLicense && <Text style={styles.errorText}>{errors.driversLicense}</Text>}
           </View>
         )}
-      </View>
-    );
-  };
-  
-  const renderVerificationStep = () => {
-    // Calculate responsive sizes
-    const iconSize = isSmallScreen ? 18 : 20;
-    const cardPadding = isSmallScreen ? 12 : 16;
-    const fontSize = isSmallScreen ? 14 : 16;
-    const descSize = isSmallScreen ? 13 : 14;
-    const buttonHeight = isSmallScreen ? 40 : 48;
-    const imagePreviewHeight = isSmallScreen ? 150 : 200;
-    
-    return (
-      <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>Document Verification</Text>
-        <Text style={styles.sectionDescription}>
-          Please upload the required documents for verification.
-        </Text>
         
         <View style={styles.documentSection}>
-          <Text style={[styles.documentTitle, { fontSize }]}>Required Documents</Text>
+          <Text style={styles.documentSectionTitle}>Document Upload</Text>
           
-          <View style={[styles.documentCard, { padding: cardPadding }]}>
+          <View style={styles.documentCard}>
             <View style={styles.documentHeader}>
-              <Text style={[styles.documentName, { fontSize }]}>Front of ID</Text>
+              <Text style={styles.documentName}>Front of ID</Text>
               <View style={styles.documentStatus}>
-                <Text style={[styles.documentStatusText, { fontSize: isSmallScreen ? 11 : 12 }]}>Required</Text>
+                <Text style={styles.documentStatusText}>Required</Text>
               </View>
             </View>
-            <Text style={[styles.documentDescription, { fontSize: descSize }]}>
+            <Text style={styles.documentDescription}>
               Upload a clear photo of the front of your {
-                selectedIdentityType === 'bvn' ? 'any government-issued ID' :
-                selectedIdentityType === 'nin' ? 'NIN card' :
+                selectedIdentityType === 'nin' ? 'NIN slip' :
                 selectedIdentityType === 'passport' ? 'passport' : 'driver\'s license'
               }
             </Text>
             
             {documentFrontImage ? (
-              <View style={[styles.imagePreviewContainer, { height: imagePreviewHeight }]}>
+              <View style={styles.imagePreviewContainer}>
                 <Image 
                   source={{ uri: documentFrontImage }} 
                   style={styles.imagePreview} 
@@ -883,6 +896,7 @@ export default function KYCUpgradeScreen() {
                 <Pressable 
                   style={styles.retakeButton}
                   onPress={() => setDocumentFrontImage(null)}
+                  disabled={isVerifyingDocuments || documentsVerified}
                 >
                   <Text style={styles.retakeButtonText}>Retake</Text>
                 </Pressable>
@@ -890,18 +904,20 @@ export default function KYCUpgradeScreen() {
             ) : (
               <View style={styles.documentActions}>
                 <Pressable 
-                  style={[styles.documentButton, { height: buttonHeight }]}
+                  style={styles.documentButton}
                   onPress={() => pickImage(setDocumentFrontImage, 'documentFront')}
+                  disabled={isVerifyingDocuments || documentsVerified}
                 >
-                  <Upload size={iconSize} color={colors.primary} />
+                  <Upload size={16} color={colors.primary} />
                   <Text style={styles.documentButtonText}>Upload</Text>
                 </Pressable>
                 
                 <Pressable 
-                  style={[styles.documentButton, { height: buttonHeight }]}
+                  style={styles.documentButton}
                   onPress={() => takePicture(setDocumentFrontImage, 'documentFront')}
+                  disabled={isVerifyingDocuments || documentsVerified}
                 >
-                  <Camera size={iconSize} color={colors.primary} />
+                  <Camera size={16} color={colors.primary} />
                   <Text style={styles.documentButtonText}>Take Photo</Text>
                 </Pressable>
               </View>
@@ -910,21 +926,21 @@ export default function KYCUpgradeScreen() {
           </View>
           
           {(selectedIdentityType === 'passport' || selectedIdentityType === 'drivers_license') && (
-            <View style={[styles.documentCard, { padding: cardPadding }]}>
+            <View style={styles.documentCard}>
               <View style={styles.documentHeader}>
-                <Text style={[styles.documentName, { fontSize }]}>Back of ID</Text>
+                <Text style={styles.documentName}>Back of ID</Text>
                 <View style={styles.documentStatus}>
-                  <Text style={[styles.documentStatusText, { fontSize: isSmallScreen ? 11 : 12 }]}>Required</Text>
+                  <Text style={styles.documentStatusText}>Required</Text>
                 </View>
               </View>
-              <Text style={[styles.documentDescription, { fontSize: descSize }]}>
+              <Text style={styles.documentDescription}>
                 Upload a clear photo of the back of your {
                   selectedIdentityType === 'passport' ? 'passport' : 'driver\'s license'
                 }
               </Text>
               
               {documentBackImage ? (
-                <View style={[styles.imagePreviewContainer, { height: imagePreviewHeight }]}>
+                <View style={styles.imagePreviewContainer}>
                   <Image 
                     source={{ uri: documentBackImage }} 
                     style={styles.imagePreview} 
@@ -933,6 +949,7 @@ export default function KYCUpgradeScreen() {
                   <Pressable 
                     style={styles.retakeButton}
                     onPress={() => setDocumentBackImage(null)}
+                    disabled={isVerifyingDocuments || documentsVerified}
                   >
                     <Text style={styles.retakeButtonText}>Retake</Text>
                   </Pressable>
@@ -940,18 +957,20 @@ export default function KYCUpgradeScreen() {
               ) : (
                 <View style={styles.documentActions}>
                   <Pressable 
-                    style={[styles.documentButton, { height: buttonHeight }]}
+                    style={styles.documentButton}
                     onPress={() => pickImage(setDocumentBackImage, 'documentBack')}
+                    disabled={isVerifyingDocuments || documentsVerified}
                   >
-                    <Upload size={iconSize} color={colors.primary} />
+                    <Upload size={16} color={colors.primary} />
                     <Text style={styles.documentButtonText}>Upload</Text>
                   </Pressable>
                   
                   <Pressable 
-                    style={[styles.documentButton, { height: buttonHeight }]}
+                    style={styles.documentButton}
                     onPress={() => takePicture(setDocumentBackImage, 'documentBack')}
+                    disabled={isVerifyingDocuments || documentsVerified}
                   >
-                    <Camera size={iconSize} color={colors.primary} />
+                    <Camera size={16} color={colors.primary} />
                     <Text style={styles.documentButtonText}>Take Photo</Text>
                   </Pressable>
                 </View>
@@ -960,19 +979,19 @@ export default function KYCUpgradeScreen() {
             </View>
           )}
           
-          <View style={[styles.documentCard, { padding: cardPadding }]}>
+          <View style={styles.documentCard}>
             <View style={styles.documentHeader}>
-              <Text style={[styles.documentName, { fontSize }]}>Selfie Verification</Text>
+              <Text style={styles.documentName}>Selfie Verification</Text>
               <View style={styles.documentStatus}>
-                <Text style={[styles.documentStatusText, { fontSize: isSmallScreen ? 11 : 12 }]}>Required</Text>
+                <Text style={styles.documentStatusText}>Required</Text>
               </View>
             </View>
-            <Text style={[styles.documentDescription, { fontSize: descSize }]}>
-              Take a clear selfie holding your ID document
+            <Text style={styles.documentDescription}>
+              Take a clear selfie showing your face. Look straight at the camera with neutral expression.
             </Text>
             
             {selfieImage ? (
-              <View style={[styles.imagePreviewContainer, { height: imagePreviewHeight }]}>
+              <View style={styles.imagePreviewContainer}>
                 <Image 
                   source={{ uri: selfieImage }} 
                   style={styles.imagePreview} 
@@ -981,6 +1000,7 @@ export default function KYCUpgradeScreen() {
                 <Pressable 
                   style={styles.retakeButton}
                   onPress={() => setSelfieImage(null)}
+                  disabled={isVerifyingDocuments || documentsVerified}
                 >
                   <Text style={styles.retakeButtonText}>Retake</Text>
                 </Pressable>
@@ -988,19 +1008,21 @@ export default function KYCUpgradeScreen() {
             ) : (
               <View style={styles.documentActions}>
                 <Pressable 
-                  style={[styles.documentButton, { height: buttonHeight }]}
+                  style={styles.documentButton}
                   onPress={() => pickImage(setSelfieImage, 'selfie')}
+                  disabled={isVerifyingDocuments || documentsVerified}
                 >
-                  <Upload size={iconSize} color={colors.primary} />
+                  <Upload size={16} color={colors.primary} />
                   <Text style={styles.documentButtonText}>Upload</Text>
                 </Pressable>
                 
                 <Pressable 
-                  style={[styles.documentButton, { height: buttonHeight }]}
+                  style={styles.documentButton}
                   onPress={() => takePicture(setSelfieImage, 'selfie')}
+                  disabled={isVerifyingDocuments || documentsVerified}
                 >
-                  <Camera size={iconSize} color={colors.primary} />
-                  <Text style={styles.documentButtonText}>Take Photo</Text>
+                  <Camera size={16} color={colors.primary} />
+                  <Text style={styles.documentButtonText}>Take Selfie</Text>
                 </Pressable>
               </View>
             )}
@@ -1008,9 +1030,15 @@ export default function KYCUpgradeScreen() {
           </View>
         </View>
         
+        {errors.documentVerification && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{errors.documentVerification}</Text>
+          </View>
+        )}
+        
         <View style={styles.infoContainer}>
-          <Shield size={iconSize} color={colors.primary} />
-          <Text style={[styles.infoText, { fontSize: descSize }]}>
+          <Shield size={20} color={colors.primary} />
+          <Text style={styles.infoText}>
             Your documents are securely encrypted and will only be used for verification purposes. They will be deleted after verification is complete.
           </Text>
         </View>
@@ -1018,14 +1046,128 @@ export default function KYCUpgradeScreen() {
     );
   };
   
+  const renderAddressDetailsStep = () => {
+    return (
+      <View style={styles.formContainer}>
+        <Text style={styles.sectionTitle}>Address Details</Text>
+        <Text style={styles.sectionDescription}>
+          Please confirm your residential address and provide additional details.
+        </Text>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Residential Address</Text>
+          <View style={[styles.inputContainer, errors.address && styles.inputError]}>
+            <MapPin size={20} color={colors.textSecondary} />
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              placeholder="Enter your address"
+              placeholderTextColor={colors.textTertiary}
+              value={address}
+              onChangeText={(text) => {
+                setAddress(text);
+                setErrors(prev => ({ ...prev, address: '' }));
+              }}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+          </View>
+          {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Local Government Area (LGA)</Text>
+          <View style={[styles.inputContainer, errors.lga && styles.inputError]}>
+            <MapPin size={20} color={colors.textSecondary} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your LGA"
+              placeholderTextColor={colors.textTertiary}
+              value={lga}
+              onChangeText={(text) => {
+                setLga(text);
+                setErrors(prev => ({ ...prev, lga: '' }));
+              }}
+            />
+          </View>
+          {errors.lga && <Text style={styles.errorText}>{errors.lga}</Text>}
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>State</Text>
+          <View style={[styles.inputContainer, errors.state && styles.inputError]}>
+            <MapPin size={20} color={colors.textSecondary} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your state"
+              placeholderTextColor={colors.textTertiary}
+              value={state}
+              onChangeText={(text) => {
+                setState(text);
+                setErrors(prev => ({ ...prev, state: '' }));
+              }}
+            />
+          </View>
+          {errors.state && <Text style={styles.errorText}>{errors.state}</Text>}
+        </View>
+        
+        <View style={styles.documentCard}>
+          <View style={styles.documentHeader}>
+            <Text style={styles.documentName}>Utility Bill (Optional for Tier 3)</Text>
+            <View style={[styles.documentStatus, styles.optionalStatus]}>
+              <Text style={styles.optionalStatusText}>Optional</Text>
+            </View>
+          </View>
+          <Text style={styles.documentDescription}>
+            Upload a recent utility bill (electricity, water, etc.) for Tier 3 verification.
+          </Text>
+          
+          {utilityBill ? (
+            <View style={styles.imagePreviewContainer}>
+              <Image 
+                source={{ uri: utilityBill }} 
+                style={styles.imagePreview} 
+                resizeMode="cover"
+              />
+              <Pressable 
+                style={styles.retakeButton}
+                onPress={() => setUtilityBill(null)}
+              >
+                <Text style={styles.retakeButtonText}>Remove</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.documentActions}>
+              <Pressable 
+                style={styles.documentButton}
+                onPress={() => pickImage(setUtilityBill, 'utilityBill')}
+              >
+                <Upload size={16} color={colors.primary} />
+                <Text style={styles.documentButtonText}>Upload</Text>
+              </Pressable>
+              
+              <Pressable 
+                style={styles.documentButton}
+                onPress={() => takePicture(setUtilityBill, 'utilityBill')}
+              >
+                <Camera size={16} color={colors.primary} />
+                <Text style={styles.documentButtonText}>Take Photo</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+        
+        <View style={styles.infoContainer}>
+          <Info size={20} color={colors.primary} />
+          <Text style={styles.infoText}>
+            Your address information is used for verification purposes and to determine your transaction limits.
+          </Text>
+        </View>
+      </View>
+    );
+  };
+  
   const renderReviewStep = () => {
-    // Calculate responsive sizes
-    const cardPadding = isSmallScreen ? 12 : 16;
-    const fontSize = isSmallScreen ? 14 : 16;
-    const labelSize = isSmallScreen ? 13 : 14;
-    const valueSize = isSmallScreen ? 14 : 16;
-    const buttonSize = isSmallScreen ? 12 : 14;
-    
     return (
       <View style={styles.formContainer}>
         <Text style={styles.sectionTitle}>Review Your Information</Text>
@@ -1034,93 +1176,100 @@ export default function KYCUpgradeScreen() {
         </Text>
         
         <View style={styles.reviewSection}>
-          <View style={[styles.reviewCard, { padding: cardPadding }]}>
-            <Text style={[styles.reviewSectionTitle, { fontSize }]}>Personal Information</Text>
+          <View style={styles.reviewCard}>
+            <Text style={styles.reviewSectionTitle}>Personal Information</Text>
             
             <View style={styles.reviewItem}>
-              <Text style={[styles.reviewLabel, { fontSize: labelSize }]}>Full Name</Text>
-              <Text style={[styles.reviewValue, { fontSize: valueSize }]}>
+              <Text style={styles.reviewLabel}>Full Name</Text>
+              <Text style={styles.reviewValue}>
                 {firstName} {middleName ? `${middleName} ` : ''}{lastName}
               </Text>
             </View>
             
             <View style={styles.reviewItem}>
-              <Text style={[styles.reviewLabel, { fontSize: labelSize }]}>Date of Birth</Text>
-              <Text style={[styles.reviewValue, { fontSize: valueSize }]}>{dateOfBirth || 'Not provided'}</Text>
+              <Text style={styles.reviewLabel}>Date of Birth</Text>
+              <Text style={styles.reviewValue}>{dateOfBirth || 'Not provided'}</Text>
             </View>
             
             <View style={styles.reviewItem}>
-              <Text style={[styles.reviewLabel, { fontSize: labelSize }]}>Phone Number</Text>
-              <Text style={[styles.reviewValue, { fontSize: valueSize }]}>{phoneNumber || 'Not provided'}</Text>
+              <Text style={styles.reviewLabel}>Phone Number</Text>
+              <Text style={styles.reviewValue}>{phoneNumber || 'Not provided'}</Text>
             </View>
-            
-            <View style={styles.reviewItem}>
-              <Text style={[styles.reviewLabel, { fontSize: labelSize }]}>Address</Text>
-              <Text style={[styles.reviewValue, { fontSize: valueSize }]}>{address || 'Not provided'}</Text>
-            </View>
-            
-            <Pressable 
-              style={styles.editButton}
-              onPress={() => setCurrentStep('personal')}
-            >
-              <Text style={[styles.editButtonText, { fontSize: buttonSize }]}>Edit</Text>
-            </Pressable>
           </View>
           
-          <View style={[styles.reviewCard, { padding: cardPadding }]}>
-            <Text style={[styles.reviewSectionTitle, { fontSize }]}>Identity Information</Text>
+          <View style={styles.reviewCard}>
+            <Text style={styles.reviewSectionTitle}>Identity Verification</Text>
             
             <View style={styles.reviewItem}>
-              <Text style={[styles.reviewLabel, { fontSize: labelSize }]}>Verification Method</Text>
-              <Text style={[styles.reviewValue, { fontSize: valueSize }]}>
-                {selectedIdentityType === 'bvn' ? 'Bank Verification Number (BVN)' :
-                 selectedIdentityType === 'nin' ? 'National Identification Number (NIN)' :
+              <Text style={styles.reviewLabel}>BVN</Text>
+              <Text style={styles.reviewValue}>
+                •••• •••• {bvn.slice(-3)} {bvnVerified && <Check size={16} color={colors.success} />}
+              </Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>ID Type</Text>
+              <Text style={styles.reviewValue}>
+                {selectedIdentityType === 'nin' ? 'National ID (NIN)' :
                  selectedIdentityType === 'passport' ? 'International Passport' :
                  'Driver\'s License'}
               </Text>
             </View>
             
             <View style={styles.reviewItem}>
-              <Text style={[styles.reviewLabel, { fontSize: labelSize }]}>
-                {selectedIdentityType === 'bvn' ? 'BVN' :
-                 selectedIdentityType === 'nin' ? 'NIN' :
+              <Text style={styles.reviewLabel}>
+                {selectedIdentityType === 'nin' ? 'NIN' :
                  selectedIdentityType === 'passport' ? 'Passport Number' :
                  'License Number'}
               </Text>
-              <Text style={[styles.reviewValue, { fontSize: valueSize }]}>
-                {selectedIdentityType === 'bvn' ? bvn :
-                 selectedIdentityType === 'nin' ? nin :
+              <Text style={styles.reviewValue}>
+                {selectedIdentityType === 'nin' ? nin :
                  selectedIdentityType === 'passport' ? passportNumber :
                  driversLicense || 'Not provided'}
               </Text>
             </View>
             
-            <Pressable 
-              style={styles.editButton}
-              onPress={() => setCurrentStep('identity')}
-            >
-              <Text style={[styles.editButtonText, { fontSize: buttonSize }]}>Edit</Text>
-            </Pressable>
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>Document Verification</Text>
+              <Text style={[
+                styles.reviewValue,
+                documentsVerified ? styles.verifiedText : styles.pendingText
+              ]}>
+                {documentsVerified ? 'Verified' : 'Pending'}
+              </Text>
+            </View>
           </View>
           
-          <View style={[styles.reviewCard, { padding: cardPadding }]}>
-            <Text style={[styles.reviewSectionTitle, { fontSize }]}>Documents</Text>
-            <Text style={[styles.reviewValue, { fontSize: valueSize }]}>
-              Documents have been uploaded and are ready for verification.
-            </Text>
+          <View style={styles.reviewCard}>
+            <Text style={styles.reviewSectionTitle}>Address Information</Text>
             
-            <Pressable 
-              style={styles.editButton}
-              onPress={() => setCurrentStep('verification')}
-            >
-              <Text style={[styles.editButtonText, { fontSize: buttonSize }]}>Edit</Text>
-            </Pressable>
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>Residential Address</Text>
+              <Text style={styles.reviewValue}>{address}</Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>LGA</Text>
+              <Text style={styles.reviewValue}>{lga}</Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>State</Text>
+              <Text style={styles.reviewValue}>{state}</Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>Utility Bill</Text>
+              <Text style={styles.reviewValue}>
+                {utilityBill ? 'Uploaded' : 'Not provided (Optional for Tier 3)'}
+              </Text>
+            </View>
           </View>
         </View>
         
         <View style={styles.termsContainer}>
-          <Text style={[styles.termsText, { fontSize: descSize }]}>
-            By submitting this information, you confirm that all details provided are accurate and complete. You authorize Planmoni to verify your identity using the information provided.
+          <Text style={styles.termsText}>
+            By submitting this information, I confirm that all details provided are accurate and complete. I authorize Planmoni to verify my identity using the information provided.
           </Text>
         </View>
       </View>
@@ -1131,20 +1280,24 @@ export default function KYCUpgradeScreen() {
     switch (currentStep) {
       case 'personal':
         return renderPersonalInfoStep();
-      case 'identity':
-        return renderIdentityStep();
-      case 'verification':
-        return renderVerificationStep();
+      case 'bvn_verification':
+        return renderBvnVerificationStep();
+      case 'id_face_match':
+        return renderIDFaceMatchStep();
+      case 'address_details':
+        return renderAddressDetailsStep();
       case 'review':
         return renderReviewStep();
     }
   };
   
-  // Calculate responsive header sizes
+  // Calculate responsive sizes
   const headerPadding = isSmallScreen ? 12 : 16;
-  const headerHeight = isSmallScreen ? 56 : 64;
-  const titleSize = isSmallScreen ? 18 : 20;
-  const backButtonSize = isSmallScreen ? 36 : 40;
+  const contentPadding = isSmallScreen ? 16 : 24;
+  const titleSize = isSmallScreen ? 20 : 24;
+  const subtitleSize = isSmallScreen ? 14 : 16;
+  const labelSize = isSmallScreen ? 13 : 14;
+  const inputHeight = isSmallScreen ? 50 : 56;
   
   const styles = StyleSheet.create({
     container: {
@@ -1159,22 +1312,23 @@ export default function KYCUpgradeScreen() {
       backgroundColor: colors.surface,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
-      height: headerHeight,
     },
     backButton: {
-      width: backButtonSize,
-      height: backButtonSize,
+      width: 40,
+      height: 40,
       justifyContent: 'center',
       alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: 20,
       marginRight: 8,
     },
     headerTitle: {
-      fontSize: titleSize,
+      fontSize: isSmallScreen ? 16 : 18,
       fontWeight: '600',
       color: colors.text,
     },
     progressContainer: {
-      padding: isSmallScreen ? 16 : 20,
+      padding: contentPadding,
       paddingBottom: 0,
       backgroundColor: colors.surface,
     },
@@ -1190,36 +1344,36 @@ export default function KYCUpgradeScreen() {
       borderRadius: 2,
     },
     stepText: {
-      fontSize: isSmallScreen ? 13 : 14,
+      fontSize: 14,
       color: colors.textSecondary,
-      marginBottom: isSmallScreen ? 16 : 20,
+      marginBottom: 20,
     },
     scrollContent: {
       paddingBottom: 100, // Extra padding for the floating button
     },
     formContainer: {
-      padding: isSmallScreen ? 16 : 20,
+      padding: contentPadding,
     },
     sectionTitle: {
-      fontSize: isSmallScreen ? 18 : 20,
+      fontSize: titleSize,
       fontWeight: '600',
       color: colors.text,
-      marginBottom: isSmallScreen ? 6 : 8,
+      marginBottom: 8,
     },
     sectionDescription: {
-      fontSize: isSmallScreen ? 13 : 14,
+      fontSize: subtitleSize,
       color: colors.textSecondary,
-      marginBottom: isSmallScreen ? 20 : 24,
-      lineHeight: isSmallScreen ? 18 : 20,
+      marginBottom: 24,
+      lineHeight: subtitleSize * 1.5,
     },
     inputGroup: {
-      marginBottom: isSmallScreen ? 16 : 20,
+      marginBottom: 20,
     },
     label: {
-      fontSize: isSmallScreen ? 13 : 14,
+      fontSize: labelSize,
       fontWeight: '500',
       color: colors.text,
-      marginBottom: isSmallScreen ? 6 : 8,
+      marginBottom: 8,
     },
     inputContainer: {
       flexDirection: 'row',
@@ -1229,96 +1383,128 @@ export default function KYCUpgradeScreen() {
       borderRadius: 12,
       backgroundColor: colors.surface,
       paddingHorizontal: 16,
-      height: isSmallScreen ? 50 : 56,
+      height: inputHeight,
     },
     inputError: {
       borderColor: colors.error,
     },
     input: {
       flex: 1,
-      fontSize: isSmallScreen ? 14 : 16,
+      fontSize: 16,
       color: colors.text,
       marginLeft: 12,
     },
     multilineInput: {
-      height: isSmallScreen ? 14 : 16,
-      textAlignVertical: 'center',
+      height: inputHeight * 2,
+      textAlignVertical: 'top',
+      paddingTop: 16,
     },
     errorText: {
-      fontSize: isSmallScreen ? 11 : 12,
+      fontSize: 12,
       color: colors.error,
       marginTop: 4,
     },
+    errorContainer: {
+      backgroundColor: colors.errorLight,
+      padding: 12,
+      borderRadius: 8,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.error,
+    },
     infoContainer: {
       flexDirection: 'row',
-      backgroundColor: colors.backgroundTertiary,
-      borderRadius: 12,
-      padding: isSmallScreen ? 12 : 16,
-      marginTop: 8,
-      marginBottom: 16,
       alignItems: 'flex-start',
+      gap: 12,
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+      padding: 16,
+      borderRadius: 12,
+      marginTop: 16,
     },
     infoText: {
+      flex: 1,
       fontSize: isSmallScreen ? 13 : 14,
       color: colors.textSecondary,
-      marginLeft: 12,
-      flex: 1,
       lineHeight: isSmallScreen ? 18 : 20,
     },
-    identityOptions: {
-      marginBottom: isSmallScreen ? 20 : 24,
-      gap: isSmallScreen ? 8 : 12,
-    },
-    identityOption: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 12,
-      padding: 16,
-      position: 'relative',
-    },
-    selectedIdentityOption: {
-      borderColor: colors.primary,
-      backgroundColor: colors.backgroundTertiary,
-    },
-    identityHeader: {
+    warningContainer: {
       flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 8,
+      alignItems: 'flex-start',
+      gap: 12,
+      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FEF3C7',
+      padding: 16,
+      borderRadius: 12,
+      marginBottom: 16,
     },
-    identityTitle: {
-      fontSize: isSmallScreen ? 14 : 16,
-      fontWeight: '600',
-      color: colors.text,
-      marginLeft: 12,
-    },
-    selectedIdentityTitle: {
-      color: colors.primary,
-    },
-    identityDescription: {
+    warningText: {
+      flex: 1,
       fontSize: isSmallScreen ? 13 : 14,
-      color: colors.textSecondary,
+      color: colors.warning,
+      lineHeight: isSmallScreen ? 18 : 20,
     },
-    checkmark: {
-      position: 'absolute',
-      top: isSmallScreen ? 12 : 16,
-      right: isSmallScreen ? 12 : 16,
-      width: isSmallScreen ? 20 : 24,
-      height: isSmallScreen ? 20 : 24,
-      borderRadius: isSmallScreen ? 10 : 12,
-      backgroundColor: colors.primary,
+    activityIndicator: {
+      marginLeft: 8,
+    },
+    verifiedBadge: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: colors.success,
       justifyContent: 'center',
       alignItems: 'center',
     },
-    documentSection: {
-      marginBottom: isSmallScreen ? 20 : 24,
-      gap: isSmallScreen ? 12 : 16,
+    matchedNameContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
+      padding: 12,
+      borderRadius: 8,
+      marginTop: 12,
     },
-    documentTitle: {
-      fontSize: isSmallScreen ? 14 : 16,
+    matchedNameText: {
+      fontSize: 14,
+      color: colors.success,
+      fontWeight: '500',
+    },
+    idTypeSelector: {
+      marginBottom: 20,
+    },
+    idOptions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    idOption: {
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      backgroundColor: colors.surface,
+      minWidth: 100,
+      alignItems: 'center',
+    },
+    selectedIdOption: {
+      borderColor: colors.primary,
+      backgroundColor: colors.backgroundTertiary,
+    },
+    idOptionText: {
+      fontSize: 14,
+      color: colors.text,
+      fontWeight: '500',
+    },
+    selectedIdOptionText: {
+      color: colors.primary,
+    },
+    documentSection: {
+      marginBottom: 20,
+    },
+    documentSectionTitle: {
+      fontSize: 16,
       fontWeight: '600',
       color: colors.text,
-      marginBottom: isSmallScreen ? 12 : 16,
+      marginBottom: 16,
     },
     documentCard: {
       backgroundColor: colors.surface,
@@ -1326,6 +1512,7 @@ export default function KYCUpgradeScreen() {
       borderColor: colors.border,
       borderRadius: 12,
       padding: 16,
+      marginBottom: 16,
     },
     documentHeader: {
       flexDirection: 'row',
@@ -1334,7 +1521,7 @@ export default function KYCUpgradeScreen() {
       marginBottom: 8,
     },
     documentName: {
-      fontSize: isSmallScreen ? 14 : 16,
+      fontSize: 14,
       fontWeight: '500',
       color: colors.text,
     },
@@ -1349,11 +1536,17 @@ export default function KYCUpgradeScreen() {
       color: colors.primary,
       fontWeight: '500',
     },
-    documentDescription: {
-      fontSize: isSmallScreen ? 13 : 14,
+    optionalStatus: {
+      backgroundColor: isDark ? 'rgba(148, 163, 184, 0.2)' : '#F1F5F9',
+    },
+    optionalStatusText: {
       color: colors.textSecondary,
-      marginBottom: isSmallScreen ? 12 : 16,
-      lineHeight: isSmallScreen ? 18 : 20,
+    },
+    documentDescription: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginBottom: 16,
+      lineHeight: 20,
     },
     documentActions: {
       flexDirection: 'row',
@@ -1370,17 +1563,17 @@ export default function KYCUpgradeScreen() {
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 8,
-      paddingVertical: isSmallScreen ? 10 : 12,
-      paddingHorizontal: isSmallScreen ? 12 : 16,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
     },
     documentButtonText: {
-      fontSize: isSmallScreen ? 13 : 14,
-      fontWeight: '500',
+      fontSize: 14,
       color: colors.primary,
+      fontWeight: '500',
     },
     imagePreviewContainer: {
       width: '100%',
-      height: isSmallScreen ? 150 : 200,
+      height: 200,
       borderRadius: 8,
       overflow: 'hidden',
       marginBottom: 12,
@@ -1400,50 +1593,45 @@ export default function KYCUpgradeScreen() {
     },
     retakeButtonText: {
       color: '#FFFFFF',
-      fontSize: isSmallScreen ? 11 : 12,
+      fontSize: 12,
       fontWeight: '500',
     },
     reviewSection: {
-      marginBottom: isSmallScreen ? 20 : 24,
-      gap: isSmallScreen ? 12 : 16,
+      marginBottom: 24,
     },
     reviewCard: {
       backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
       borderRadius: 12,
       padding: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     reviewSectionTitle: {
-      fontSize: isSmallScreen ? 14 : 16,
+      fontSize: 16,
       fontWeight: '600',
       color: colors.text,
-      marginBottom: isSmallScreen ? 12 : 16,
+      marginBottom: 16,
     },
     reviewItem: {
-      marginBottom: isSmallScreen ? 8 : 12,
+      marginBottom: 12,
     },
     reviewLabel: {
-      fontSize: isSmallScreen ? 13 : 14,
+      fontSize: 14,
       color: colors.textSecondary,
       marginBottom: 4,
     },
     reviewValue: {
-      fontSize: isSmallScreen ? 14 : 16,
+      fontSize: 16,
       color: colors.text,
+      flexDirection: 'row',
+      alignItems: 'center',
     },
-    editButton: {
-      alignSelf: 'flex-start',
-      marginTop: 8,
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-      backgroundColor: colors.backgroundTertiary,
-      borderRadius: 6,
+    verifiedText: {
+      color: colors.success,
     },
-    editButtonText: {
-      fontSize: isSmallScreen ? 12 : 14,
-      color: colors.primary,
-      fontWeight: '500',
+    pendingText: {
+      color: colors.warning,
     },
     termsContainer: {
       backgroundColor: colors.backgroundTertiary,
@@ -1452,12 +1640,40 @@ export default function KYCUpgradeScreen() {
       marginBottom: 24,
     },
     termsText: {
-      fontSize: isSmallScreen ? 13 : 14,
+      fontSize: 14,
       color: colors.textSecondary,
-      lineHeight: isSmallScreen ? 18 : 20,
+      lineHeight: 20,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 40,
+    },
+    loadingText: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      marginTop: 16,
     },
   });
   
+  if (isLoading && !currentStep) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Account Verification</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading verification status...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -1479,9 +1695,16 @@ export default function KYCUpgradeScreen() {
       </KeyboardAvoidingWrapper>
       
       <FloatingButton 
-        title={currentStep === 'review' ? 'Submit Verification' : 'Continue'}
+        title={currentStep === 'review' ? "Submit Verification" : "Continue"}
         onPress={handleNextStep}
-        isLoading={isLoading}
+        disabled={
+          isLoading || 
+          isResolvingBvn || 
+          isVerifyingDocuments || 
+          (currentStep === 'bvn_verification' && bvnVerified) ||
+          (currentStep === 'id_face_match' && documentsVerified)
+        }
+        loading={isLoading || isResolvingBvn || isVerifyingDocuments}
       />
     </SafeAreaView>
   );
