@@ -1,22 +1,139 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { ArrowLeft, Gift, Copy, Share2, Users, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Gift, Copy, Share2, Users, Info } from 'lucide-react-native';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import * as Clipboard from 'expo-clipboard';
+import * as Sharing from 'expo-sharing';
+import { Platform } from 'react-native';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function ReferralScreen() {
   const { colors } = useTheme();
-  const referralCode = 'PLANMONI123';
-  const referralLink = 'https://planmoni.app/ref/PLANMONI123';
+  const { session } = useAuth();
+  const { showToast } = useToast();
+  
+  const [referralCode, setReferralCode] = useState('');
+  const [referralLink, setReferralLink] = useState('');
+  const [invitedCount, setInvitedCount] = useState(0);
+  const [totalEarned, setTotalEarned] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCopyCode = () => {
-    // Implement copy functionality
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetchReferralData();
+    }
+  }, [session?.user?.id]);
+
+  const fetchReferralData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Fetch the user's referral code
+      const response = await fetch('/api/referral-code', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch referral code');
+      }
+
+      const data = await response.json();
+      setReferralCode(data.referralCode);
+      setReferralLink(`https://planmoni.app/ref/${data.referralCode}`);
+
+      // Fetch the count of users who used this referral code
+      const { count: referredCount, error: countError } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('referral_code', data.referralCode);
+
+      if (countError) throw countError;
+      setInvitedCount(referredCount || 0);
+
+      // Fetch the total amount earned from referral bonuses
+      const { data: transactions, error: transactionsError } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('user_id', session?.user?.id)
+        .eq('type', 'referral_bonus')
+        .eq('status', 'completed');
+
+      if (transactionsError) throw transactionsError;
+
+      const earned = transactions?.reduce((sum, tx) => sum + tx.amount, 0) || 0;
+      setTotalEarned(earned);
+
+    } catch (err) {
+      console.error('Error fetching referral data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load referral data');
+      showToast('Failed to load referral data', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleShare = () => {
-    // Implement share functionality
+  const handleCopyCode = async () => {
+    try {
+      await Clipboard.setStringAsync(referralCode);
+      showToast('Referral code copied to clipboard', 'success');
+    } catch (error) {
+      showToast('Failed to copy to clipboard', 'error');
+    }
+  };
+
+  const handleShare = async () => {
+    const shareMessage = `Join me on Planmoni! Use my referral code ${referralCode} to get started. Download the app at https://planmoni.app`;
+    
+    if (Platform.OS === 'web') {
+      // Web sharing
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'Join me on Planmoni',
+            text: shareMessage,
+            url: referralLink,
+          });
+        } catch (error) {
+          console.error('Error sharing:', error);
+          // Fallback to copying to clipboard
+          await Clipboard.setStringAsync(shareMessage);
+          showToast('Share text copied to clipboard', 'success');
+        }
+      } else {
+        // Fallback for browsers that don't support sharing
+        await Clipboard.setStringAsync(shareMessage);
+        showToast('Share text copied to clipboard', 'success');
+      }
+    } else {
+      // Native sharing
+      try {
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(referralLink, {
+            dialogTitle: 'Share your referral code',
+            mimeType: 'text/plain',
+            UTI: 'public.plain-text',
+          });
+        } else {
+          await Clipboard.setStringAsync(shareMessage);
+          showToast('Share text copied to clipboard', 'success');
+        }
+      } catch (error) {
+        console.error('Error sharing:', error);
+        showToast('Failed to share referral code', 'error');
+      }
+    }
   };
 
   const styles = createStyles(colors);
@@ -41,40 +158,57 @@ export default function ReferralScreen() {
           </Text>
         </View>
 
-        <View style={styles.referralCard}>
-          <Text style={styles.cardLabel}>Your Referral Code</Text>
-          <View style={styles.codeContainer}>
-            <Text style={styles.referralCode}>{referralCode}</Text>
-            <Pressable style={styles.copyButton} onPress={handleCopyCode}>
-              <Copy size={20} color="#1E3A8A" />
-            </Pressable>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading your referral data...</Text>
           </View>
-        </View>
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <Button 
+              title="Try Again" 
+              onPress={fetchReferralData} 
+              style={styles.retryButton}
+            />
+          </View>
+        ) : (
+          <>
+            <View style={styles.referralCard}>
+              <Text style={styles.cardLabel}>Your Referral Code</Text>
+              <View style={styles.codeContainer}>
+                <Text style={styles.referralCode}>{referralCode}</Text>
+                <Pressable style={styles.copyButton} onPress={handleCopyCode}>
+                  <Copy size={20} color="#1E3A8A" />
+                </Pressable>
+              </View>
+            </View>
 
-        <View style={styles.referralCard}>
-          <Text style={styles.cardLabel}>Referral Link</Text>
-          <View style={styles.linkContainer}>
-            <Text style={styles.referralLink} numberOfLines={1}>
-              {referralLink}
-            </Text>
-            <Pressable style={styles.copyButton} onPress={handleCopyCode}>
-              <Copy size={20} color="#1E3A8A" />
-            </Pressable>
-          </View>
-        </View>
+            <View style={styles.referralCard}>
+              <Text style={styles.cardLabel}>Referral Link</Text>
+              <View style={styles.linkContainer}>
+                <Text style={styles.referralLink} numberOfLines={1}>
+                  {referralLink}
+                </Text>
+                <Pressable style={styles.copyButton} onPress={handleCopyCode}>
+                  <Copy size={20} color="#1E3A8A" />
+                </Pressable>
+              </View>
+            </View>
 
-        <View style={styles.statsSection}>
-          <View style={styles.statCard}>
-            <Users size={24} color="#1E3A8A" />
-            <Text style={styles.statValue}>12</Text>
-            <Text style={styles.statLabel}>Friends Invited</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Gift size={24} color="#EC4899" />
-            <Text style={styles.statValue}>₦8,000</Text>
-            <Text style={styles.statLabel}>Total Earned</Text>
-          </View>
-        </View>
+            <View style={styles.statsSection}>
+              <View style={styles.statCard}>
+                <Users size={24} color="#1E3A8A" />
+                <Text style={styles.statValue}>{invitedCount}</Text>
+                <Text style={styles.statLabel}>Friends Invited</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Gift size={24} color="#EC4899" />
+                <Text style={styles.statValue}>₦{totalEarned.toLocaleString()}</Text>
+                <Text style={styles.statLabel}>Total Earned</Text>
+              </View>
+            </View>
+          </>
+        )}
 
         <View style={styles.howItWorks}>
           <Text style={styles.sectionTitle}>How it Works</Text>
@@ -201,6 +335,30 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  errorContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.error,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    minWidth: 120,
+    backgroundColor: colors.primary,
   },
   referralCard: {
     backgroundColor: colors.card,
