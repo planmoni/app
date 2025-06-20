@@ -8,11 +8,16 @@ import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
+import { useAppLock } from '@/contexts/AppLockContext';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function ConfirmPinScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
   const { showToast } = useToast();
+  const { setAppLockPin } = useAppLock();
+  const haptics = useHaptics();
+  
   const params = useLocalSearchParams();
   const originalPin = params.pin as string;
   const pinLength = originalPin.length;
@@ -28,16 +33,27 @@ export default function ConfirmPinScreen() {
     
     // Automatically proceed when PIN is complete and matches
     if (confirmPin.length === pinLength) {
-      const timer = setTimeout(() => {
+      const timer = setTimeout(async () => {
         if (confirmPin === originalPin) {
-          // In a real app, you would save the PIN securely here
-          router.push({
-            pathname: '/app-lock-setup/success',
-            params: { pin: originalPin }
-          });
+          try {
+            // Save the PIN to secure storage
+            await setAppLockPin(originalPin);
+            haptics.success();
+            
+            // Navigate to success screen
+            router.push({
+              pathname: '/app-lock-setup/success',
+              params: { pin: originalPin }
+            });
+          } catch (error) {
+            console.error('Error saving PIN:', error);
+            setError('Failed to save PIN. Please try again.');
+            haptics.error();
+            setConfirmPin('');
+          }
         } else {
           setError('PINs do not match. Please try again.');
-          showToast('PINs do not match. Please try again.', 'error');
+          haptics.error();
           setConfirmPin('');
         }
       }, 300); // Small delay for better UX
@@ -48,17 +64,20 @@ export default function ConfirmPinScreen() {
 
   const handlePinChange = (digit: string) => {
     if (confirmPin.length < pinLength) {
+      haptics.selection();
       setConfirmPin(prev => prev + digit);
       setError(null);
     }
   };
 
   const handlePinDelete = () => {
+    haptics.lightImpact();
     setConfirmPin(prev => prev.slice(0, -1));
     setError(null);
   };
 
   const handleBackPress = () => {
+    haptics.lightImpact();
     if (router.canGoBack()) {
       router.back();
     } else {

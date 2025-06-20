@@ -15,6 +15,8 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import CustomSplashScreen from '@/components/SplashScreen';
+import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
+import LockScreen from '@/components/LockScreen';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
@@ -23,6 +25,7 @@ function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
+  const { isAppLocked, isAppLockEnabled, resetInactivityTimer } = useAppLock();
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
@@ -71,7 +74,10 @@ function RootLayoutNav() {
   }
 
   return (
-    <>
+    <View 
+      style={{ flex: 1 }}
+      onTouchStart={() => resetInactivityTimer()}
+    >
       <Stack screenOptions={{ headerShown: false }}>
         {session ? (
           <React.Fragment key="authenticated-screens">
@@ -101,7 +107,10 @@ function RootLayoutNav() {
         <Stack.Screen name="+not-found" options={{ title: 'Page Not Found' }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-    </>
+      
+      {/* Show lock screen if app is locked and lock is enabled */}
+      {isAppLocked && isAppLockEnabled && <LockScreen />}
+    </View>
   );
 }
 
@@ -113,7 +122,9 @@ export default function RootLayout() {
       <ToastProvider>
         <AuthProvider>
           <BalanceProvider>
-            <RootLayoutNav />
+            <AppLockProvider>
+              <RootLayoutNav />
+            </AppLockProvider>
           </BalanceProvider>
         </AuthProvider>
       </ToastProvider>

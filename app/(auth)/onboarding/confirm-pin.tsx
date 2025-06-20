@@ -9,9 +9,14 @@ import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
+import { useAppLock } from '@/contexts/AppLockContext';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function ConfirmPinScreen() {
   const { colors } = useTheme();
+  const haptics = useHaptics();
+  const { setAppLockPin } = useAppLock();
+  
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
   const lastName = params.lastName as string;
@@ -30,40 +35,54 @@ export default function ConfirmPinScreen() {
 
   const handlePinChange = (digit: string) => {
     if (confirmPin.length < pinLength) {
+      haptics.selection();
       setConfirmPin(prev => prev + digit);
       setError(null);
     }
   };
 
   const handlePinDelete = () => {
+    haptics.lightImpact();
     setConfirmPin(prev => prev.slice(0, -1));
     setError(null);
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (confirmPin.length !== pinLength) {
+      haptics.error();
       setError(`Please enter a ${pinLength}-digit PIN`);
       return;
     }
     
     if (confirmPin !== originalPin) {
+      haptics.error();
       setError('PINs do not match. Please try again.');
       setConfirmPin('');
       return;
     }
     
-    // In a real app, you would register the user here
-    router.push({
-      pathname: '/onboarding/success',
-      params: { 
-        firstName,
-        lastName,
-        email,
-        password,
-        bvn,
-        pin: originalPin
-      }
-    });
+    try {
+      // Save the PIN to secure storage
+      await setAppLockPin(originalPin);
+      haptics.success();
+      
+      // In a real app, you would register the user here
+      router.push({
+        pathname: '/onboarding/success',
+        params: { 
+          firstName,
+          lastName,
+          email,
+          password,
+          bvn,
+          pin: originalPin
+        }
+      });
+    } catch (error) {
+      console.error('Error saving PIN:', error);
+      setError('Failed to save PIN. Please try again.');
+      haptics.error();
+    }
   };
 
   const styles = createStyles(colors);
@@ -71,7 +90,13 @@ export default function ConfirmPinScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
       </View>
@@ -119,6 +144,7 @@ export default function ConfirmPinScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={confirmPin.length !== pinLength}
+        hapticType="medium"
       />
     </SafeAreaView>
   );

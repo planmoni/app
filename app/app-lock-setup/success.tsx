@@ -5,16 +5,19 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function AppLockSuccessScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
   const { showToast } = useToast();
+  const haptics = useHaptics();
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
   
   const handleGoToDashboard = () => {
+    haptics.success();
     showToast('App lock enabled successfully!', 'success');
     router.replace('/(tabs)');
   };
@@ -28,7 +31,7 @@ export default function AppLockSuccessScreen() {
         
         <Text style={styles.title}>App Lock Enabled!</Text>
         <Text style={styles.subtitle}>
-          Your app is now secured with a PIN. You'll need to enter this PIN each time you open the app.
+          Your app is now secured with a PIN. You'll need to enter this PIN each time you open the app or after 5 minutes of inactivity.
         </Text>
         
         <View style={styles.infoCard}>
@@ -42,12 +45,16 @@ export default function AppLockSuccessScreen() {
           <View style={styles.infoItem}>
             <Text style={styles.infoText}>• Change your PIN regularly for enhanced security</Text>
           </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoText}>• Your app will automatically lock after 5 minutes of inactivity</Text>
+          </View>
         </View>
         
         <Button
           title="Back to Dashboard"
           onPress={handleGoToDashboard}
           style={styles.dashboardButton}
+          hapticType="success"
         />
       </View>
     </SafeAreaView>

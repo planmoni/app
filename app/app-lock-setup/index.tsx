@@ -8,11 +8,16 @@ import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
+import { useAppLock } from '@/contexts/AppLockContext';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function AppLockSetupScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
   const { showToast } = useToast();
+  const { setAppLockPin } = useAppLock();
+  const haptics = useHaptics();
+  
   const [pinLength] = useState<number>(6);
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -38,17 +43,20 @@ export default function AppLockSetupScreen() {
 
   const handlePinChange = (digit: string) => {
     if (pin.length < pinLength) {
+      haptics.selection();
       setPin(prev => prev + digit);
       setError(null);
     }
   };
 
   const handlePinDelete = () => {
+    haptics.lightImpact();
     setPin(prev => prev.slice(0, -1));
     setError(null);
   };
 
   const handleBackPress = () => {
+    haptics.lightImpact();
     if (router.canGoBack()) {
       router.back();
     } else {

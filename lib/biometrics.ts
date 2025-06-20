@@ -1,7 +1,7 @@
 import * as LocalAuthentication from "expo-local-authentication"
-import * as SecureStore from "expo-secure-store"
 import { Alert, Platform } from "react-native"
 import * as Linking from 'expo-linking';
+import { saveItem, getItem, deleteItem, BIOMETRIC_ENABLED_KEY, BIOMETRIC_TOKEN_KEY } from '@/lib/secure-storage';
 
 export interface BiometricSettings {
   isEnabled: boolean
@@ -9,9 +9,6 @@ export interface BiometricSettings {
   isEnrolled: boolean
   isAvailable: boolean
 }
-
-const BIOMETRIC_SETTINGS_KEY = "biometric_settings"
-const BIOMETRIC_TOKEN_KEY = "biometric_token"
 
 export class BiometricService {
   static async checkBiometricSupport(): Promise<BiometricSettings> {
@@ -56,7 +53,7 @@ export class BiometricService {
     }
 
     try {
-      const settings = await SecureStore.getItemAsync(BIOMETRIC_SETTINGS_KEY)
+      const settings = await getItem(BIOMETRIC_ENABLED_KEY)
       return settings ? JSON.parse(settings) : { isEnabled: false }
     } catch (error) {
       console.error("Error getting biometric settings:", error)
@@ -100,11 +97,11 @@ export class BiometricService {
       }
 
       const settings = { isEnabled: enabled }
-      await SecureStore.setItemAsync(BIOMETRIC_SETTINGS_KEY, JSON.stringify(settings))
+      await saveItem(BIOMETRIC_ENABLED_KEY, JSON.stringify(settings))
 
       if (!enabled) {
         // Clear stored biometric token when disabled
-        await SecureStore.deleteItemAsync(BIOMETRIC_TOKEN_KEY)
+        await deleteItem(BIOMETRIC_TOKEN_KEY)
       }
 
       return true
@@ -174,7 +171,7 @@ export class BiometricService {
     }
 
     try {
-      await SecureStore.setItemAsync(BIOMETRIC_TOKEN_KEY, token)
+      await saveItem(BIOMETRIC_TOKEN_KEY, token)
     } catch (error) {
       console.error("Error storing biometric token:", error)
     }
@@ -187,7 +184,7 @@ export class BiometricService {
     }
 
     try {
-      return await SecureStore.getItemAsync(BIOMETRIC_TOKEN_KEY)
+      return await getItem(BIOMETRIC_TOKEN_KEY)
     } catch (error) {
       console.error("Error getting biometric token:", error)
       return null
