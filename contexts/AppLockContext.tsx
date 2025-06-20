@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { AppState, AppStateStatus, Platform } from 'react-native';
 import { saveItem, getItem, deleteItem, APP_LOCK_PIN_KEY, APP_LOCK_ENABLED_KEY } from '@/lib/secure-storage';
 import { BiometricService } from '@/lib/biometrics';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from './AuthContext';
+import { useOnlineStatus } from '@/components/OnlineStatusProvider';
 
 // Inactivity timeout in milliseconds (5 minutes)
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000;
@@ -32,6 +35,8 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   const [isAppLocked, setIsAppLocked] = useState(false);
   const [isAppLockEnabled, setIsAppLockEnabled] = useState(false);
   const [appLockPin, setAppLockPinState] = useState<string | null>(null);
+  const { session } = useAuth();
+  const { isOnline } = useOnlineStatus();
   
   // Ref for tracking inactivity
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -42,9 +47,35 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadAppLockState = async () => {
       try {
+        // First try to load from secure storage (for offline support)
         const pin = await getItem(APP_LOCK_PIN_KEY);
         const enabled = await getItem(APP_LOCK_ENABLED_KEY);
         
+        // If we're online and have a session, try to get from database
+        if (isOnline && session?.user?.id) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('app_lock_enabled')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (!error && data) {
+            setIsAppLockEnabled(data.app_lock_enabled);
+            
+            // If app lock is enabled in the database but we don't have a PIN,
+            // keep the app locked until PIN is set
+            if (data.app_lock_enabled && !pin) {
+              setIsAppLocked(true);
+            } else if (data.app_lock_enabled && pin) {
+              setAppLockPinState(pin);
+              setIsAppLocked(true);
+            }
+            
+            return;
+          }
+        }
+        
+        // Fallback to local storage if offline or database fetch failed
         setAppLockPinState(pin);
         setIsAppLockEnabled(enabled === 'true' && !!pin);
         
@@ -58,7 +89,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
     };
     
     loadAppLockState();
-  }, []);
+  }, [session?.user?.id, isOnline]);
   
   // Set up app state change listener
   useEffect(() => {
@@ -138,8 +169,17 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   // Set app lock PIN
   const setAppLockPin = async (pin: string) => {
     try {
+      // Save PIN to secure storage (for offline support)
       await saveItem(APP_LOCK_PIN_KEY, pin);
       await saveItem(APP_LOCK_ENABLED_KEY, 'true');
+      
+      // Update database if online
+      if (isOnline && session?.user?.id) {
+        await supabase
+          .from('profiles')
+          .update({ app_lock_enabled: true })
+          .eq('id', session.user.id);
+      }
       
       setAppLockPinState(pin);
       setIsAppLockEnabled(true);
@@ -173,7 +213,16 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   // Disable app lock
   const disableAppLock = async () => {
     try {
+      // Update local storage
       await saveItem(APP_LOCK_ENABLED_KEY, 'false');
+      
+      // Update database if online
+      if (isOnline && session?.user?.id) {
+        await supabase
+          .from('profiles')
+          .update({ app_lock_enabled: false })
+          .eq('id', session.user.id);
+      }
       
       setIsAppLockEnabled(false);
       setIsAppLocked(false);

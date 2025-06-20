@@ -4,7 +4,10 @@ import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useState, useEffect } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
-import { saveItem, getItem } from '@/lib/secure-storage';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { useOnlineStatus } from './OnlineStatusProvider';
+import OfflineNotice from './OfflineNotice';
 
 type PendingAction = {
   id: string;
@@ -17,30 +20,44 @@ type PendingAction = {
   priority: 'high' | 'medium' | 'low';
 };
 
-// Storage key for completed actions
-const COMPLETED_ACTIONS_KEY = 'completed_pending_actions';
-
 export default function PendingActionsCard() {
   const { colors, isDark } = useTheme();
   const [isHidden, setIsHidden] = useState(false);
-  const [completedActions, setCompletedActions] = useState<string[]>([]);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { session } = useAuth();
   const haptics = useHaptics();
+  const { isOnline } = useOnlineStatus();
 
-  // Load completed actions from storage on mount
+  // Load profile data from database on mount
   useEffect(() => {
-    const loadCompletedActions = async () => {
-      try {
-        const storedActions = await getItem(COMPLETED_ACTIONS_KEY);
-        if (storedActions) {
-          setCompletedActions(JSON.parse(storedActions));
-        }
-      } catch (error) {
-        console.error('Error loading completed actions:', error);
-      }
-    };
+    if (session?.user?.id) {
+      fetchProfileData();
+    }
+  }, [session?.user?.id]);
 
-    loadCompletedActions();
-  }, []);
+  const fetchProfileData = async () => {
+    if (!isOnline) {
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified, kyc_tier')
+        .eq('id', session?.user?.id)
+        .single();
+
+      if (error) throw error;
+      setProfileData(data);
+    } catch (error) {
+      console.error('Error loading profile data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const pendingActions: PendingAction[] = [
     {
@@ -85,15 +102,62 @@ export default function PendingActionsCard() {
     },
   ];
 
-  // Mark an action as completed
+  // Mark an action as completed in the database
   const markActionAsCompleted = async (actionId: string) => {
+    if (!isOnline) {
+      haptics.error();
+      return;
+    }
+    
     try {
-      const updatedCompletedActions = [...completedActions, actionId];
-      setCompletedActions(updatedCompletedActions);
-      await saveItem(COMPLETED_ACTIONS_KEY, JSON.stringify(updatedCompletedActions));
+      const updates: any = {};
+      
+      switch (actionId) {
+        case 'verify-email':
+          updates.email_verified = true;
+          break;
+        case 'setup-app-lock':
+          updates.app_lock_enabled = true;
+          break;
+        case 'account-verification':
+          updates.account_verified = true;
+          break;
+        case 'setup-2fa':
+          updates.two_factor_enabled = true;
+          break;
+      }
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', session?.user?.id);
+        
+      if (error) throw error;
+      
+      // Refresh profile data
+      await fetchProfileData();
       haptics.success();
     } catch (error) {
       console.error('Error marking action as completed:', error);
+      haptics.error();
+    }
+  };
+
+  // Check if an action is completed
+  const isActionCompleted = (actionId: string): boolean => {
+    if (!profileData) return false;
+    
+    switch (actionId) {
+      case 'verify-email':
+        return !!profileData.email_verified || !!session?.user?.email_confirmed_at;
+      case 'setup-app-lock':
+        return !!profileData.app_lock_enabled;
+      case 'account-verification':
+        return !!profileData.account_verified || (profileData.kyc_tier && profileData.kyc_tier > 1);
+      case 'setup-2fa':
+        return !!profileData.two_factor_enabled;
+      default:
+        return false;
     }
   };
 
@@ -104,10 +168,9 @@ export default function PendingActionsCard() {
   };
 
   // Handle completing an action
-  const handleCompleteAction = (actionId: string, event: any) => {
+  const handleCompleteAction = async (actionId: string, event: any) => {
     event.stopPropagation();
-    markActionAsCompleted(actionId);
-    haptics.success();
+    await markActionAsCompleted(actionId);
   };
 
   if (isHidden) {
@@ -115,14 +178,28 @@ export default function PendingActionsCard() {
   }
 
   // Filter out completed actions
-  const filteredActions = pendingActions.filter(action => !completedActions.includes(action.id));
+  const filteredActions = pendingActions.filter(action => !isActionCompleted(action.id));
 
   // Don't render if there are no pending actions
-  if (filteredActions.length === 0) {
+  if (filteredActions.length === 0 && !isLoading) {
     return null;
   }
 
   const styles = createStyles(colors, isDark);
+
+  if (!isOnline) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Pending Actions</Text>
+          <Pressable onPress={() => setIsHidden(true)} style={styles.hideButton}>
+            <X size={20} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+        <OfflineNotice message="Pending actions are unavailable while offline" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -133,43 +210,49 @@ export default function PendingActionsCard() {
         </Pressable>
       </View>
       
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {filteredActions.map((action) => (
-          <Pressable 
-            key={action.id} 
-            style={styles.actionCard}
-            onPress={() => handleActionPress(action)}
-          >
-            <View style={[styles.iconContainer, { backgroundColor: action.iconBg }]}>
-              <action.icon size={24} color={action.iconColor} />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>{action.title}</Text>
-              <Text style={styles.actionDescription}>{action.description}</Text>
-            </View>
-            <View style={styles.actionButtons}>
-              <Pressable 
-                style={styles.completeButton} 
-                onPress={(e) => handleCompleteAction(action.id, e)}
-              >
-                <Text style={styles.completeButtonText}>Done</Text>
-              </Pressable>
-              <View style={styles.actionArrow}>
-                <ChevronRight size={20} color={colors.textTertiary} />
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading pending actions...</Text>
+        </View>
+      ) : (
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {filteredActions.map((action) => (
+            <Pressable 
+              key={action.id} 
+              style={styles.actionCard}
+              onPress={() => handleActionPress(action)}
+            >
+              <View style={[styles.iconContainer, { backgroundColor: action.iconBg }]}>
+                <action.icon size={24} color={action.iconColor} />
               </View>
-            </View>
-            {action.priority === 'high' && (
-              <View style={styles.priorityBadge}>
-                <AlertCircle size={12} color="#FFFFFF" />
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>{action.title}</Text>
+                <Text style={styles.actionDescription}>{action.description}</Text>
               </View>
-            )}
-          </Pressable>
-        ))}
-      </ScrollView>
+              <View style={styles.actionButtons}>
+                <Pressable 
+                  style={styles.completeButton} 
+                  onPress={(e) => handleCompleteAction(action.id, e)}
+                >
+                  <Text style={styles.completeButtonText}>Done</Text>
+                </Pressable>
+                <View style={styles.actionArrow}>
+                  <ChevronRight size={20} color={colors.textTertiary} />
+                </View>
+              </View>
+              {action.priority === 'high' && (
+                <View style={styles.priorityBadge}>
+                  <AlertCircle size={12} color="#FFFFFF" />
+                </View>
+              )}
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -277,5 +360,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingContainer: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
 });
