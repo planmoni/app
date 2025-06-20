@@ -109,10 +109,10 @@ export default function SettingsScreen() {
     router.push('/payout-accounts');
   };
 
-  // const handleViewReferral = () => {
-  //   haptics.lightImpact();
-  //   router.push('/referral');
-  // };
+  const handleViewReferral = () => {
+    haptics.lightImpact();
+    router.push('/referral');
+  };
 
   const handleChangePassword = () => {
     haptics.lightImpact();
