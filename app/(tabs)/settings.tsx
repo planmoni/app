@@ -339,7 +339,7 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Transaction Limits</Text>
-                <Text style={styles.settingDescription}>Set daily and per-transaction limits</Text>
+                <Text style={styles.settingDescription}>See your transaction limits</Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
