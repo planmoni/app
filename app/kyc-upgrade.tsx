@@ -52,6 +52,12 @@ export default function KYCUpgradeScreen() {
   const phoneInputRef = useRef<TextInput>(null);
   const addressInputRef = useRef<TextInput>(null);
   
+  // Get API base URL
+  const getApiUrl = (endpoint: string) => {
+    const baseUrl = process.env.EXPO_PUBLIC_API_URL || '';
+    return `${baseUrl}${endpoint}`;
+  };
+  
   // Pre-fill form with user data if available
   useEffect(() => {
     if (session?.user?.user_metadata) {
@@ -67,7 +73,7 @@ export default function KYCUpgradeScreen() {
   
   const fetchVerificationStatus = async () => {
     try {
-      const response = await fetch('/api/dojah-kyc', {
+      const response = await fetch(getApiUrl('/api/dojah-kyc'), {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -233,7 +239,7 @@ export default function KYCUpgradeScreen() {
           break;
       }
       
-      const response = await fetch('/api/dojah-kyc', {
+      const response = await fetch(getApiUrl('/api/dojah-kyc'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -270,7 +276,7 @@ export default function KYCUpgradeScreen() {
       // and then send the URLs to the Dojah API
       // For this demo, we'll simulate a successful verification
       
-      const response = await fetch('/api/dojah-kyc', {
+      const response = await fetch(getApiUrl('/api/dojah-kyc'), {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -321,7 +327,7 @@ export default function KYCUpgradeScreen() {
     
     try {
       // Fetch final verification status
-      const response = await fetch('/api/dojah-kyc', {
+      const response = await fetch(getApiUrl('/api/dojah-kyc'), {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
