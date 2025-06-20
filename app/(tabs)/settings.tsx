@@ -109,10 +109,10 @@ export default function SettingsScreen() {
     router.push('/payout-accounts');
   };
 
-  const handleViewReferral = () => {
-    haptics.lightImpact();
-    router.push('/referral');
-  };
+  // const handleViewReferral = () => {
+  //   haptics.lightImpact();
+  //   router.push('/referral');
+  // };
 
   const handleChangePassword = () => {
     haptics.lightImpact();
@@ -344,7 +344,7 @@ export default function SettingsScreen() {
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
 
-            <View style={styles.divider} />
+            {/* <View style={styles.divider} />
 
             <Pressable 
               style={styles.settingItem}
@@ -360,7 +360,7 @@ export default function SettingsScreen() {
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
           </View>
-        </View>
+        </View> */}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Security</Text>
