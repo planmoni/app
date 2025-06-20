@@ -570,7 +570,7 @@ export default function KYCUpgradeScreen() {
             <TextInput
               ref={phoneInputRef}
               style={[styles.input, { height: inputHeight, fontSize }]}
-              placeholder="Enter your phone number"
+              placeholder="0812345678"
               placeholderTextColor={colors.textTertiary}
               value={phoneNumber}
               onChangeText={(text) => {
