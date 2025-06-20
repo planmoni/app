@@ -7,7 +7,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { Ionicons } from "@expo/vector-icons"
 import { 
   Bell, 
   Building2, 
@@ -30,7 +29,7 @@ import {
   Wallet
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -64,7 +63,7 @@ export default function SettingsScreen() {
   const [showSupport, setShowSupport] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
-  const [showBiometricSetup, setShowBiometricSetup] = useState(false);
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -221,7 +220,7 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={() => {
                 haptics.selection();
-                setShowBiometricSetup(true);
+                setShowBiometricModal(true);
               }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
@@ -632,10 +631,10 @@ export default function SettingsScreen() {
       />
       
       <BiometricSetupModal
-        isVisible={showBiometricSetup}
+        isVisible={showBiometricModal}
         onClose={() => {
           haptics.lightImpact();
-          setShowBiometricSetup(false);
+          setShowBiometricModal(false);
         }}
       />
     </SafeAreaView>
@@ -815,22 +814,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textTertiary,
     marginLeft: 8,
-  },
-  biometricModal: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '90%',
-  },
-  biometricHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    paddingTop: 20,
-    borderBottomWidth: 1,
-  },
-  biometricTitle: {
-    fontSize: 18,
-    fontWeight: "600",
   },
 });
