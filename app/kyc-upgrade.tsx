@@ -604,8 +604,8 @@ export default function KYCUpgradeScreen() {
                 setErrors(prev => ({ ...prev, address: '' }));
               }}
               multiline
-              numberOfLines={1}
-              textAlignVertical="center"
+              numberOfLines={3}
+              textAlignVertical="top"
             />
           </View>
           {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
