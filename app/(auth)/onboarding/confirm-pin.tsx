@@ -66,16 +66,17 @@ export default function ConfirmPinScreen() {
       await setAppLockPin(originalPin);
       haptics.success();
       
-      // In a real app, you would register the user here
+      // Navigate to referral-code screen instead of success
       router.push({
-        pathname: '/onboarding/success',
+        pathname: '/onboarding/referral-code',
         params: { 
           firstName,
           lastName,
           email,
           password,
           bvn,
-          pin: originalPin
+          pin: originalPin,
+          pinLength: pinLength.toString()
         }
       });
     } catch (error) {
@@ -101,7 +102,7 @@ export default function ConfirmPinScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={9} totalSteps={9} />
+      <OnboardingProgress currentStep={9} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer} disableScrollView={true}>
         <View style={styles.content}>

@@ -16,6 +16,7 @@ export default function SuccessScreen() {
   const lastName = params.lastName as string;
   const email = params.email as string;
   const password = params.password as string;
+  const referralCode = params.referralCode as string;
   
   const { signUp } = useAuth();
   const [isRegistering, setIsRegistering] = useState(true);
@@ -24,7 +25,7 @@ export default function SuccessScreen() {
   useEffect(() => {
     const registerUser = async () => {
       try {
-        await signUp(email, password, firstName, lastName);
+        await signUp(email, password, firstName, lastName, referralCode);
         setIsRegistering(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to create account');
@@ -47,7 +48,7 @@ export default function SuccessScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <OnboardingProgress currentStep={6} totalSteps={6} />
+      <OnboardingProgress currentStep={10} totalSteps={10} />
       
       <View style={styles.content}>
         <SuccessAnimation />
