@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +18,11 @@ export default function KYCUpgradeScreen() {
   const { colors, isDark } = useTheme();
   const { showToast } = useToast();
   const { session } = useAuth();
+  const { width, height } = useWindowDimensions();
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
+  
   const [currentStep, setCurrentStep] = useState<KYCStep>('personal');
   const [selectedIdentityType, setSelectedIdentityType] = useState<IdentityType>('bvn');
   const [isLoading, setIsLoading] = useState(false);
@@ -52,12 +57,6 @@ export default function KYCUpgradeScreen() {
   const phoneInputRef = useRef<TextInput>(null);
   const addressInputRef = useRef<TextInput>(null);
   
-  // Get API base URL
-  const getApiUrl = (endpoint: string) => {
-    const baseUrl = process.env.EXPO_PUBLIC_API_URL || '';
-    return `${baseUrl}${endpoint}`;
-  };
-  
   // Pre-fill form with user data if available
   useEffect(() => {
     if (session?.user?.user_metadata) {
@@ -73,7 +72,7 @@ export default function KYCUpgradeScreen() {
   
   const fetchVerificationStatus = async () => {
     try {
-      const response = await fetch(getApiUrl('/api/dojah-kyc'), {
+      const response = await fetch('/api/dojah-kyc', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -239,7 +238,7 @@ export default function KYCUpgradeScreen() {
           break;
       }
       
-      const response = await fetch(getApiUrl('/api/dojah-kyc'), {
+      const response = await fetch('/api/dojah-kyc', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -276,7 +275,7 @@ export default function KYCUpgradeScreen() {
       // and then send the URLs to the Dojah API
       // For this demo, we'll simulate a successful verification
       
-      const response = await fetch(getApiUrl('/api/dojah-kyc'), {
+      const response = await fetch('/api/dojah-kyc', {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -327,7 +326,7 @@ export default function KYCUpgradeScreen() {
     
     try {
       // Fetch final verification status
-      const response = await fetch(getApiUrl('/api/dojah-kyc'), {
+      const response = await fetch('/api/dojah-kyc', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -623,7 +622,7 @@ export default function KYCUpgradeScreen() {
             onPress={() => setSelectedIdentityType('bvn')}
           >
             <View style={styles.identityHeader}>
-              <CreditCard size={24} color={selectedIdentityType === 'bvn' ? colors.primary : colors.textSecondary} />
+              <CreditCard size={isSmallScreen ? 20 : 24} color={selectedIdentityType === 'bvn' ? colors.primary : colors.textSecondary} />
               <Text style={[
                 styles.identityTitle,
                 selectedIdentityType === 'bvn' && styles.selectedIdentityTitle
@@ -645,7 +644,7 @@ export default function KYCUpgradeScreen() {
             onPress={() => setSelectedIdentityType('nin')}
           >
             <View style={styles.identityHeader}>
-              <CreditCard size={24} color={selectedIdentityType === 'nin' ? colors.primary : colors.textSecondary} />
+              <CreditCard size={isSmallScreen ? 20 : 24} color={selectedIdentityType === 'nin' ? colors.primary : colors.textSecondary} />
               <Text style={[
                 styles.identityTitle,
                 selectedIdentityType === 'nin' && styles.selectedIdentityTitle
@@ -667,7 +666,7 @@ export default function KYCUpgradeScreen() {
             onPress={() => setSelectedIdentityType('passport')}
           >
             <View style={styles.identityHeader}>
-              <CreditCard size={24} color={selectedIdentityType === 'passport' ? colors.primary : colors.textSecondary} />
+              <CreditCard size={isSmallScreen ? 20 : 24} color={selectedIdentityType === 'passport' ? colors.primary : colors.textSecondary} />
               <Text style={[
                 styles.identityTitle,
                 selectedIdentityType === 'passport' && styles.selectedIdentityTitle
@@ -689,7 +688,7 @@ export default function KYCUpgradeScreen() {
             onPress={() => setSelectedIdentityType('drivers_license')}
           >
             <View style={styles.identityHeader}>
-              <CreditCard size={24} color={selectedIdentityType === 'drivers_license' ? colors.primary : colors.textSecondary} />
+              <CreditCard size={isSmallScreen ? 20 : 24} color={selectedIdentityType === 'drivers_license' ? colors.primary : colors.textSecondary} />
               <Text style={[
                 styles.identityTitle,
                 selectedIdentityType === 'drivers_license' && styles.selectedIdentityTitle
@@ -861,7 +860,7 @@ export default function KYCUpgradeScreen() {
                   style={styles.documentButton}
                   onPress={() => pickImage(setDocumentFrontImage, 'documentFront')}
                 >
-                  <Upload size={16} color={colors.primary} />
+                  <Upload size={isSmallScreen ? 14 : 16} color={colors.primary} />
                   <Text style={styles.documentButtonText}>Upload</Text>
                 </Pressable>
                 
@@ -869,7 +868,7 @@ export default function KYCUpgradeScreen() {
                   style={styles.documentButton}
                   onPress={() => takePicture(setDocumentFrontImage, 'documentFront')}
                 >
-                  <Camera size={16} color={colors.primary} />
+                  <Camera size={isSmallScreen ? 14 : 16} color={colors.primary} />
                   <Text style={styles.documentButtonText}>Take Photo</Text>
                 </Pressable>
               </View>
@@ -911,7 +910,7 @@ export default function KYCUpgradeScreen() {
                     style={styles.documentButton}
                     onPress={() => pickImage(setDocumentBackImage, 'documentBack')}
                   >
-                    <Upload size={16} color={colors.primary} />
+                    <Upload size={isSmallScreen ? 14 : 16} color={colors.primary} />
                     <Text style={styles.documentButtonText}>Upload</Text>
                   </Pressable>
                   
@@ -919,7 +918,7 @@ export default function KYCUpgradeScreen() {
                     style={styles.documentButton}
                     onPress={() => takePicture(setDocumentBackImage, 'documentBack')}
                   >
-                    <Camera size={16} color={colors.primary} />
+                    <Camera size={isSmallScreen ? 14 : 16} color={colors.primary} />
                     <Text style={styles.documentButtonText}>Take Photo</Text>
                   </Pressable>
                 </View>
@@ -959,7 +958,7 @@ export default function KYCUpgradeScreen() {
                   style={styles.documentButton}
                   onPress={() => pickImage(setSelfieImage, 'selfie')}
                 >
-                  <Upload size={16} color={colors.primary} />
+                  <Upload size={isSmallScreen ? 14 : 16} color={colors.primary} />
                   <Text style={styles.documentButtonText}>Upload</Text>
                 </Pressable>
                 
@@ -967,7 +966,7 @@ export default function KYCUpgradeScreen() {
                   style={styles.documentButton}
                   onPress={() => takePicture(setSelfieImage, 'selfie')}
                 >
-                  <Camera size={16} color={colors.primary} />
+                  <Camera size={isSmallScreen ? 14 : 16} color={colors.primary} />
                   <Text style={styles.documentButtonText}>Take Photo</Text>
                 </Pressable>
               </View>
@@ -1101,6 +1100,17 @@ export default function KYCUpgradeScreen() {
     }
   };
   
+  // Calculate responsive sizes based on screen dimensions
+  const headerPadding = isSmallScreen ? 12 : 16;
+  const contentPadding = isSmallScreen ? 16 : 20;
+  const titleSize = isSmallScreen ? 20 : 24;
+  const subtitleSize = isSmallScreen ? 14 : 16;
+  const sectionTitleSize = isSmallScreen ? 18 : 20;
+  const labelSize = isSmallScreen ? 13 : 14;
+  const inputHeight = isSmallScreen ? 50 : 56;
+  const buttonHeight = isSmallScreen ? 48 : 56;
+  const iconSize = isSmallScreen ? 18 : 20;
+  
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -1109,8 +1119,8 @@ export default function KYCUpgradeScreen() {
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 16,
+      paddingHorizontal: headerPadding,
+      paddingVertical: headerPadding,
       backgroundColor: colors.surface,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
@@ -1123,12 +1133,12 @@ export default function KYCUpgradeScreen() {
       marginRight: 8,
     },
     headerTitle: {
-      fontSize: 18,
+      fontSize: isSmallScreen ? 16 : 18,
       fontWeight: '600',
       color: colors.text,
     },
     progressContainer: {
-      padding: 20,
+      padding: contentPadding,
       paddingBottom: 0,
       backgroundColor: colors.surface,
     },
@@ -1152,25 +1162,25 @@ export default function KYCUpgradeScreen() {
       paddingBottom: 100, // Extra padding for the floating button
     },
     formContainer: {
-      padding: 20,
+      padding: contentPadding,
     },
     sectionTitle: {
-      fontSize: 20,
+      fontSize: sectionTitleSize,
       fontWeight: '600',
       color: colors.text,
       marginBottom: 8,
     },
     sectionDescription: {
-      fontSize: 14,
+      fontSize: subtitleSize,
       color: colors.textSecondary,
       marginBottom: 24,
-      lineHeight: 20,
+      lineHeight: subtitleSize * 1.5,
     },
     inputGroup: {
-      marginBottom: 20,
+      marginBottom: isSmallScreen ? 16 : 20,
     },
     label: {
-      fontSize: 14,
+      fontSize: labelSize,
       fontWeight: '500',
       color: colors.text,
       marginBottom: 8,
@@ -1183,24 +1193,24 @@ export default function KYCUpgradeScreen() {
       borderRadius: 12,
       backgroundColor: colors.surface,
       paddingHorizontal: 16,
-      height: 56,
+      height: inputHeight,
     },
     inputError: {
       borderColor: colors.error,
     },
     input: {
       flex: 1,
-      fontSize: 16,
+      fontSize: isSmallScreen ? 14 : 16,
       color: colors.text,
       marginLeft: 12,
     },
     multilineInput: {
-      height: 100,
+      height: isSmallScreen ? 80 : 100,
       textAlignVertical: 'top',
       paddingTop: 16,
     },
     errorText: {
-      fontSize: 12,
+      fontSize: isSmallScreen ? 11 : 12,
       color: colors.error,
       marginTop: 4,
     },
@@ -1214,14 +1224,15 @@ export default function KYCUpgradeScreen() {
       alignItems: 'flex-start',
     },
     infoText: {
-      fontSize: 14,
+      fontSize: isSmallScreen ? 12 : 14,
       color: colors.textSecondary,
       marginLeft: 12,
       flex: 1,
-      lineHeight: 20,
+      lineHeight: isSmallScreen ? 18 : 20,
     },
     identityOptions: {
       marginBottom: 24,
+      gap: isSmallScreen ? 10 : 12,
     },
     identityOption: {
       backgroundColor: colors.surface,
@@ -1229,7 +1240,6 @@ export default function KYCUpgradeScreen() {
       borderColor: colors.border,
       borderRadius: 12,
       padding: 16,
-      marginBottom: 12,
       position: 'relative',
     },
     selectedIdentityOption: {
@@ -1242,7 +1252,7 @@ export default function KYCUpgradeScreen() {
       marginBottom: 8,
     },
     identityTitle: {
-      fontSize: 16,
+      fontSize: isSmallScreen ? 14 : 16,
       fontWeight: '600',
       color: colors.text,
       marginLeft: 12,
@@ -1251,7 +1261,7 @@ export default function KYCUpgradeScreen() {
       color: colors.primary,
     },
     identityDescription: {
-      fontSize: 14,
+      fontSize: isSmallScreen ? 12 : 14,
       color: colors.textSecondary,
     },
     checkmark: {
@@ -1269,7 +1279,7 @@ export default function KYCUpgradeScreen() {
       marginBottom: 24,
     },
     documentTitle: {
-      fontSize: 16,
+      fontSize: isSmallScreen ? 14 : 16,
       fontWeight: '600',
       color: colors.text,
       marginBottom: 16,
@@ -1289,7 +1299,7 @@ export default function KYCUpgradeScreen() {
       marginBottom: 8,
     },
     documentName: {
-      fontSize: 16,
+      fontSize: isSmallScreen ? 14 : 16,
       fontWeight: '500',
       color: colors.text,
     },
@@ -1300,15 +1310,15 @@ export default function KYCUpgradeScreen() {
       borderRadius: 12,
     },
     documentStatusText: {
-      fontSize: 12,
+      fontSize: isSmallScreen ? 10 : 12,
       color: colors.primary,
       fontWeight: '500',
     },
     documentDescription: {
-      fontSize: 14,
+      fontSize: isSmallScreen ? 12 : 14,
       color: colors.textSecondary,
       marginBottom: 16,
-      lineHeight: 20,
+      lineHeight: isSmallScreen ? 18 : 20,
     },
     documentActions: {
       flexDirection: 'row',
@@ -1325,17 +1335,17 @@ export default function KYCUpgradeScreen() {
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 8,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
+      paddingVertical: isSmallScreen ? 10 : 12,
+      paddingHorizontal: isSmallScreen ? 12 : 16,
     },
     documentButtonText: {
-      fontSize: 14,
+      fontSize: isSmallScreen ? 12 : 14,
       fontWeight: '500',
       color: colors.primary,
     },
     imagePreviewContainer: {
       width: '100%',
-      height: 200,
+      height: isSmallScreen ? 150 : 200,
       borderRadius: 8,
       overflow: 'hidden',
       marginBottom: 12,
@@ -1355,11 +1365,12 @@ export default function KYCUpgradeScreen() {
     },
     retakeButtonText: {
       color: '#FFFFFF',
-      fontSize: 12,
+      fontSize: isSmallScreen ? 10 : 12,
       fontWeight: '500',
     },
     reviewSection: {
       marginBottom: 24,
+      gap: isSmallScreen ? 12 : 16,
     },
     reviewCard: {
       backgroundColor: colors.surface,
@@ -1367,10 +1378,9 @@ export default function KYCUpgradeScreen() {
       borderColor: colors.border,
       borderRadius: 12,
       padding: 16,
-      marginBottom: 16,
     },
     reviewSectionTitle: {
-      fontSize: 16,
+      fontSize: isSmallScreen ? 14 : 16,
       fontWeight: '600',
       color: colors.text,
       marginBottom: 16,
@@ -1379,12 +1389,12 @@ export default function KYCUpgradeScreen() {
       marginBottom: 12,
     },
     reviewLabel: {
-      fontSize: 14,
+      fontSize: isSmallScreen ? 12 : 14,
       color: colors.textSecondary,
       marginBottom: 4,
     },
     reviewValue: {
-      fontSize: 16,
+      fontSize: isSmallScreen ? 14 : 16,
       color: colors.text,
     },
     editButton: {
@@ -1396,7 +1406,7 @@ export default function KYCUpgradeScreen() {
       borderRadius: 6,
     },
     editButtonText: {
-      fontSize: 14,
+      fontSize: isSmallScreen ? 12 : 14,
       color: colors.primary,
       fontWeight: '500',
     },
@@ -1407,9 +1417,9 @@ export default function KYCUpgradeScreen() {
       marginBottom: 24,
     },
     termsText: {
-      fontSize: 14,
+      fontSize: isSmallScreen ? 12 : 14,
       color: colors.textSecondary,
-      lineHeight: 20,
+      lineHeight: isSmallScreen ? 18 : 20,
     },
   });
   
@@ -1417,7 +1427,7 @@ export default function KYCUpgradeScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Pressable onPress={handlePreviousStep} style={styles.backButton}>
-          <ArrowLeft size={24} color={colors.text} />
+          <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Account Verification</Text>
       </View>
