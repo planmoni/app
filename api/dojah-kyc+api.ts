@@ -1,14 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
+import Constants from 'expo-constants';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Dojah API configuration
+// Dojah API configuration - get from expo config
 const DOJAH_API_URL = 'https://api.dojah.io';
-const DOJAH_APP_ID = process.env.DOJAH_APP_ID;
-const DOJAH_PRIVATE_KEY = process.env.DOJAH_PRIVATE_KEY;
+const DOJAH_APP_ID = Constants.expoConfig?.extra?.DOJAH_APP_ID || process.env.DOJAH_APP_ID;
+const DOJAH_PRIVATE_KEY = Constants.expoConfig?.extra?.DOJAH_PRIVATE_KEY || process.env.DOJAH_PRIVATE_KEY;
 
 // Debug logging for environment variables
 console.log('Dojah API credentials check:', {
