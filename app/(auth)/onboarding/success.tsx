@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowRight, Chrome as Home } from 'lucide-react-native';
+import { ArrowRight, Chrome as Home, LogIn } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
@@ -21,6 +21,7 @@ export default function SuccessScreen() {
   const { signUp } = useAuth();
   const [isRegistering, setIsRegistering] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isUserAlreadyExists, setIsUserAlreadyExists] = useState(false);
 
   useEffect(() => {
     const registerUser = async () => {
@@ -28,7 +29,17 @@ export default function SuccessScreen() {
         await signUp(email, password, firstName, lastName, referralCode);
         setIsRegistering(false);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to create account');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to create account';
+        
+        // Check if the error is specifically about user already existing
+        if (errorMessage.includes('user_already_exists') || 
+            errorMessage.includes('User already registered') ||
+            errorMessage.includes('already registered')) {
+          setError('This email is already registered. Please sign in or use a different email.');
+          setIsUserAlreadyExists(true);
+        } else {
+          setError(errorMessage);
+        }
         setIsRegistering(false);
       }
     };
@@ -44,6 +55,10 @@ export default function SuccessScreen() {
     router.replace('/(tabs)');
   };
 
+  const handleGoToSignIn = () => {
+    router.replace('/(auth)/login');
+  };
+
   const styles = createStyles(colors);
 
   return (
@@ -53,9 +68,14 @@ export default function SuccessScreen() {
       <View style={styles.content}>
         <SuccessAnimation />
         
-        <Text style={styles.title}>Welcome to Planmoni!</Text>
+        <Text style={styles.title}>
+          {isUserAlreadyExists ? 'Account Already Exists' : 'Welcome to Planmoni!'}
+        </Text>
         <Text style={styles.subtitle}>
-          Your account has been created successfully. You're all set to start planning your finances.
+          {isUserAlreadyExists 
+            ? 'It looks like you already have an account with us. Please sign in to continue.'
+            : 'Your account has been created successfully. You\'re all set to start planning your finances.'
+          }
         </Text>
         
         {error && (
@@ -65,22 +85,34 @@ export default function SuccessScreen() {
         )}
         
         <View style={styles.buttonContainer}>
-          <Button
-            title="Start a Payout Plan"
-            onPress={handleCreatePayout}
-            style={styles.createButton}
-            icon={ArrowRight}
-            disabled={isRegistering}
-          />
-          
-          <Button
-            title="Go to Dashboard"
-            onPress={handleGoToDashboard}
-            variant="outline"
-            style={styles.dashboardButton}
-            icon={Home}
-            disabled={isRegistering}
-          />
+          {isUserAlreadyExists ? (
+            <Button
+              title="Go to Sign In"
+              onPress={handleGoToSignIn}
+              style={styles.signInButton}
+              icon={LogIn}
+              disabled={isRegistering}
+            />
+          ) : (
+            <>
+              <Button
+                title="Start a Payout Plan"
+                onPress={handleCreatePayout}
+                style={styles.createButton}
+                icon={ArrowRight}
+                disabled={isRegistering}
+              />
+              
+              <Button
+                title="Go to Dashboard"
+                onPress={handleGoToDashboard}
+                variant="outline"
+                style={styles.dashboardButton}
+                icon={Home}
+                disabled={isRegistering}
+              />
+            </>
+          )}
         </View>
       </View>
     </SafeAreaView>
@@ -133,5 +165,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   dashboardButton: {
     borderColor: colors.border,
+  },
+  signInButton: {
+    backgroundColor: colors.primary,
   },
 });
