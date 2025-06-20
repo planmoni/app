@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Share } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Gift, Copy, Share2, Users, Info } from 'lucide-react-native';
@@ -9,7 +9,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import * as Clipboard from 'expo-clipboard';
-import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -36,35 +35,24 @@ export default function ReferralScreen() {
       setIsLoading(true);
       setError(null);
 
-      // Fetch the user's referral code
-      const response = await fetch('/referral-code', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      // Fetch the user's referral code directly from the database
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('referral_code')
+        .eq('id', session?.user?.id)
+        .single();
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch referral code: ${response.status} ${response.statusText}`);
-      }
-
-      // Check if the response is JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const textResponse = await response.text();
-        throw new Error(`Expected JSON response but received: ${contentType}. Response: ${textResponse.substring(0, 200)}`);
-      }
-
-      const data = await response.json();
-      setReferralCode(data.referralCode);
-      setReferralLink(`https://planmoni.app/ref/${data.referralCode}`);
+      if (profileError) throw profileError;
+      
+      const code = profileData?.referral_code || '';
+      setReferralCode(code);
+      setReferralLink(`https://planmoni.app/ref/${code}`);
 
       // Fetch the count of users who used this referral code
       const { count: referredCount, error: countError } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('referral_code', data.referralCode);
+        .eq('referred_by', session?.user?.id);
 
       if (countError) throw countError;
       setInvitedCount(referredCount || 0);
@@ -126,16 +114,10 @@ export default function ReferralScreen() {
     } else {
       // Native sharing
       try {
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(referralLink, {
-            dialogTitle: 'Share your referral code',
-            mimeType: 'text/plain',
-            UTI: 'public.plain-text',
-          });
-        } else {
-          await Clipboard.setStringAsync(shareMessage);
-          showToast('Share text copied to clipboard', 'success');
-        }
+        await Share.share({
+          message: shareMessage,
+          url: referralLink,
+        });
       } catch (error) {
         console.error('Error sharing:', error);
         showToast('Failed to share referral code', 'error');
