@@ -97,15 +97,22 @@ export default function KYCUpgradeScreen() {
         showToast('Authentication required', 'error');
         return;
       }
+
+      const myHeaders = new Headers();
+      myHeaders.append("Appid", process.env.DOJAH_APP_ID!);
+      myHeaders.append("Authorization", process.env.DOJAH_PRIVATE_KEY!);
+
       
-      const response = await fetch('/api/dojah-kyc', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const requestOptions = {
+        method: "GET",
+        headers: myHeaders
+      };
+
       
+      const response = await fetch(`https://sandbox.dojah.io/api/v1/kyc/bvn/full?bvn=${bvn}`, requestOptions);
+      
+    
+      console.log('Response :', response);
       // Check content type before parsing
       const contentType = response.headers.get('content-type');
       console.log('Response status:', response.status);
