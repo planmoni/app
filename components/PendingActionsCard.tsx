@@ -44,29 +44,13 @@ export default function PendingActionsCard() {
     
     try {
       setIsLoading(true);
-      // First try with kyc_tier column
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
-        .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified, kyc_tier')
+        .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
         .eq('id', session?.user?.id)
         .single();
 
-      // If kyc_tier column doesn't exist, try without it
-      if (error && error.code === '42703') {
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('profiles')
-          .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
-          .eq('id', session?.user?.id)
-          .single();
-
-        if (fallbackError) throw fallbackError;
-        
-        // Add default kyc_tier value
-        data = { ...fallbackData, kyc_tier: 1 };
-      } else if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       setProfileData(data);
     } catch (error) {
       console.error('Error loading profile data:', error);
@@ -147,7 +131,7 @@ export default function PendingActionsCard() {
         .from('profiles')
         .update(updates)
         .eq('id', session?.user?.id);
-        
+          
       if (error) throw error;
       
       // Refresh profile data
@@ -169,7 +153,7 @@ export default function PendingActionsCard() {
       case 'setup-app-lock':
         return !!profileData.app_lock_enabled;
       case 'account-verification':
-        return !!profileData.account_verified || (profileData.kyc_tier && profileData.kyc_tier > 1);
+        return !!profileData.account_verified;
       case 'setup-2fa':
         return !!profileData.two_factor_enabled;
       default:

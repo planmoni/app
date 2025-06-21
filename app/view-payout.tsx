@@ -122,6 +122,29 @@ export default function ViewPayoutScreen() {
     }
   };
 
+  const handleEmergencyWithdrawal = () => {
+    haptics.notification(Haptics.NotificationFeedbackType.Warning);
+    
+    // Check if emergency withdrawal is enabled for this plan
+    if (!plan.emergency_withdrawal_enabled) {
+      Alert.alert(
+        "Emergency Withdrawal Not Available",
+        "This payout plan does not have emergency withdrawal enabled. You can enable this feature when creating new payout plans.",
+        [{ text: "OK", style: "default" }]
+      );
+      return;
+    }
+    
+    router.push({
+      pathname: '/emergency-withdrawal',
+      params: {
+        id: plan.id,
+        name: plan.name,
+        amount: formatCurrency(plan.total_amount - (plan.completed_payouts * plan.payout_amount))
+      }
+    });
+  };
+
   const formatCurrency = (amount: number) => {
     return showBalances ? `₦${amount.toLocaleString()}` : '••••••••';
   };
@@ -309,19 +332,31 @@ export default function ViewPayoutScreen() {
           <Card style={styles.emergencyCard}>
             <View style={styles.warningHeader}>
               <AlertTriangle size={20} color="#F97316" />
-              <Text style={styles.warningTitle}>Emergency Withdrawal Available</Text>
+              <Text style={styles.warningTitle}>
+                {plan.emergency_withdrawal_enabled 
+                  ? "Emergency Withdrawal Available" 
+                  : "Emergency Withdrawal Not Enabled"}
+              </Text>
             </View>
             <Text style={styles.warningDescription}>
-              You can withdraw your funds before the scheduled date, but this will attract a fee and a 72-hour processing time.
+              {plan.emergency_withdrawal_enabled 
+                ? "You can withdraw your funds before the scheduled date, but this may attract a fee depending on how quickly you need the funds."
+                : "This payout plan does not have emergency withdrawal enabled. You can enable this feature when creating new payout plans."}
             </Text>
             <Pressable 
-              style={styles.withdrawButton}
-              onPress={() => {
-                haptics.notification(Haptics.NotificationFeedbackType.Warning);
-                // Implement emergency withdrawal
-              }}
+              style={[
+                styles.withdrawButton,
+                !plan.emergency_withdrawal_enabled && styles.disabledButton
+              ]}
+              onPress={handleEmergencyWithdrawal}
+              disabled={!plan.emergency_withdrawal_enabled}
             >
-              <Text style={styles.withdrawButtonText}>Request Emergency Withdrawal</Text>
+              <Text style={[
+                styles.withdrawButtonText,
+                !plan.emergency_withdrawal_enabled && styles.disabledButtonText
+              ]}>
+                Request Emergency Withdrawal
+              </Text>
             </Pressable>
           </Card>
         </View>
@@ -611,5 +646,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#F97316',
+  },
+  disabledButton: {
+    backgroundColor: colors.backgroundTertiary,
+    opacity: 0.7,
+  },
+  disabledButtonText: {
+    color: colors.textTertiary,
   },
 });
