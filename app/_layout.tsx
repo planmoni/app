@@ -17,6 +17,8 @@ import {
 import CustomSplashScreen from '@/components/SplashScreen';
 import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
 import LockScreen from '@/components/LockScreen';
+import { OnlineStatusProvider } from '@/components/OnlineStatusProvider';
+import OfflineBanner from '@/components/OfflineBanner';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
@@ -78,6 +80,8 @@ function RootLayoutNav() {
       style={{ flex: 1 }}
       onTouchStart={() => resetInactivityTimer()}
     >
+      <OfflineBanner />
+      
       <Stack screenOptions={{ headerShown: false }}>
         {session ? (
           <React.Fragment key="authenticated-screens">
@@ -120,13 +124,15 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <AuthProvider>
-          <BalanceProvider>
-            <AppLockProvider>
-              <RootLayoutNav />
-            </AppLockProvider>
-          </BalanceProvider>
-        </AuthProvider>
+        <OnlineStatusProvider>
+          <AuthProvider>
+            <BalanceProvider>
+              <AppLockProvider>
+                <RootLayoutNav />
+              </AppLockProvider>
+            </BalanceProvider>
+          </AuthProvider>
+        </OnlineStatusProvider>
       </ToastProvider>
     </ThemeProvider>
   );

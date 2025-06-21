@@ -261,8 +261,8 @@ export function useInsightsData() {
           description: averagePayoutAmount > 0 ? 'Per payout plan' : 'No active plans',
           positive: true,
           details: [
-            { label: 'Lowest', value: formatCurrency(Math.min(...payoutPlans.map(p => p.payout_amount), 0)) },
-            { label: 'Highest', value: formatCurrency(Math.max(...payoutPlans.map(p => p.payout_amount), 0)) },
+            { label: 'Lowest', value: formatCurrency(payoutPlans?.length > 0 ? Math.min(...payoutPlans.map(p => p.payout_amount)) : 0) },
+            { label: 'Highest', value: formatCurrency(payoutPlans?.length > 0 ? Math.max(...payoutPlans.map(p => p.payout_amount)) : 0) },
           ],
         },
         {

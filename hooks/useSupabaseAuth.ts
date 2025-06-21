@@ -65,7 +65,7 @@ export function useSupabaseAuth() {
     }
   };
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string): Promise<AuthResult> => {
+  const signUp = async (email: string, password: string, firstName: string, lastName: string, referralCode?: string): Promise<AuthResult> => {
     try {
       setError(null);
       setIsLoading(true);
@@ -77,6 +77,7 @@ export function useSupabaseAuth() {
           data: {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
+            referral_code: referralCode?.trim() || null,
           },
         },
       });

@@ -92,13 +92,31 @@ export default function KYCUpgradeScreen() {
     try {
       setIsLoading(true);
       
+      if (!session?.access_token) {
+        console.error('No access token available');
+        showToast('Authentication required', 'error');
+        return;
+      }
+      
       const response = await fetch('/api/dojah-kyc', {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         }
       });
+      
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      console.log('Response status:', response.status);
+      console.log('Response content-type:', contentType);
+      
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Expected JSON but received:', contentType);
+        console.error('Response body:', text.substring(0, 500));
+        throw new Error(`API returned ${contentType || 'unknown content type'} instead of JSON. This usually means the API endpoint is not available or returning an error page.`);
+      }
       
       if (response.ok) {
         const data = await response.json();
@@ -114,13 +132,20 @@ export default function KYCUpgradeScreen() {
           setCurrentStep('id_face_match');
         }
       } else {
-        const errorData = await response.text();
-        console.error('Error fetching verification status:', errorData);
-        showToast('Failed to fetch verification status', 'error');
+        const errorData = await response.json();
+        console.error('API error response:', errorData);
+        throw new Error(errorData.error || `API request failed with status ${response.status}`);
       }
     } catch (error) {
       console.error('Error fetching verification status:', error);
-      showToast('Failed to fetch verification status', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      
+      // Show a more user-friendly error message
+      if (errorMessage.includes('JSON') || errorMessage.includes('content type')) {
+        showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
+      } else {
+        showToast('Failed to fetch verification status', 'error');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -268,10 +293,14 @@ export default function KYCUpgradeScreen() {
       setIsResolvingBvn(true);
       setErrors({});
       
+      if (!session?.access_token) {
+        throw new Error('Authentication required');
+      }
+      
       const response = await fetch('/api/dojah-kyc', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -279,6 +308,16 @@ export default function KYCUpgradeScreen() {
           verificationData: { bvn }
         })
       });
+      
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('BVN verification - Expected JSON but received:', contentType);
+        console.error('Response body:', text.substring(0, 500));
+        throw new Error('KYC service is temporarily unavailable. Please try again later.');
+      }
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -319,13 +358,17 @@ export default function KYCUpgradeScreen() {
       setIsVerifyingDocuments(true);
       setErrors({});
       
+      if (!session?.access_token) {
+        throw new Error('Authentication required');
+      }
+      
       // In a real app, you would upload the images to a storage service
       // and then send the URLs to the Dojah API
       
       const response = await fetch('/api/dojah-kyc', {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -334,6 +377,16 @@ export default function KYCUpgradeScreen() {
           selfieImage
         })
       });
+      
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Document verification - Expected JSON but received:', contentType);
+        console.error('Response body:', text.substring(0, 500));
+        throw new Error('KYC service is temporarily unavailable. Please try again later.');
+      }
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -384,14 +437,28 @@ export default function KYCUpgradeScreen() {
     setIsLoading(true);
     
     try {
+      if (!session?.access_token) {
+        throw new Error('Authentication required');
+      }
+      
       // Fetch final verification status
       const response = await fetch('/api/dojah-kyc', {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         }
       });
+      
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Final verification check - Expected JSON but received:', contentType);
+        console.error('Response body:', text.substring(0, 500));
+        throw new Error('KYC service is temporarily unavailable. Please try again later.');
+      }
       
       if (!response.ok) {
         throw new Error('Failed to get verification status');
@@ -407,7 +474,8 @@ export default function KYCUpgradeScreen() {
         router.replace('/(tabs)');
       }
     } catch (error) {
-      showToast('Failed to complete verification. Please try again.', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to complete verification. Please try again.';
+      showToast(errorMessage, 'error');
     } finally {
       setIsLoading(false);
     }

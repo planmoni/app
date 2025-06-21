@@ -10,6 +10,8 @@ import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 import { useAppLock } from '@/contexts/AppLockContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useOnlineStatus } from '@/components/OnlineStatusProvider';
+import OfflineNotice from '@/components/OfflineNotice';
 
 export default function AppLockSetupScreen() {
   const { colors, isDark } = useTheme();
@@ -17,6 +19,7 @@ export default function AppLockSetupScreen() {
   const { showToast } = useToast();
   const { setAppLockPin } = useAppLock();
   const haptics = useHaptics();
+  const { isOnline } = useOnlineStatus();
   
   const [pinLength] = useState<number>(6);
   const [pin, setPin] = useState('');
@@ -64,7 +67,7 @@ export default function AppLockSetupScreen() {
     }
   };
 
-  const styles = createStyles(colors, isDark, isSmallScreen, width);
+  const styles = createStyles(colors, isDark, isSmallScreen);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -81,6 +84,10 @@ export default function AppLockSetupScreen() {
             <Text style={styles.title}>Set up app lock</Text>
             <Text style={styles.subtitle}>Create a PIN to secure your account</Text>
           </View>
+
+          {!isOnline && (
+            <OfflineNotice message="You can set up app lock while offline, but it will only sync across devices when you're back online." />
+          )}
 
           <View style={styles.formContainer}>
             <Text style={styles.instruction}>Enter a 6-digit PIN</Text>
@@ -119,7 +126,7 @@ export default function AppLockSetupScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, screenWidth: number) => {
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => {
   // Calculate responsive sizes
   const headerPadding = isSmallScreen ? 12 : 16;
   const contentPadding = isSmallScreen ? 16 : 24;
@@ -212,7 +219,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, scre
       alignItems: 'center',
       marginVertical: isSmallScreen ? 16 : 24,
       width: '100%',
-      maxWidth: Math.min(screenWidth - contentPadding * 2, 320),
     },
     securityInfo: {
       flexDirection: 'row',

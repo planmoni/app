@@ -3,18 +3,72 @@ import { ArrowLeft, Shield, Smartphone, Mail, QrCode, Lock } from 'lucide-react-
 import { router } from 'expo-router';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { useOnlineStatus } from '@/components/OnlineStatusProvider';
+import OfflineNotice from '@/components/OfflineNotice';
 
 type AuthMethod = 'authenticator' | 'sms' | 'email';
 
 export default function TwoFactorAuthScreen() {
   const { colors } = useTheme();
   const [selectedMethod, setSelectedMethod] = useState<AuthMethod | null>(null);
+  const { session } = useAuth();
+  const { isOnline } = useOnlineStatus();
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleMethodSelect = (method: AuthMethod) => {
+  // Load two-factor status from database
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetchTwoFactorStatus();
+    }
+  }, [session?.user?.id]);
+
+  const fetchTwoFactorStatus = async () => {
+    if (!isOnline) {
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('two_factor_enabled')
+        .eq('id', session?.user?.id)
+        .single();
+
+      if (error) throw error;
+      setTwoFactorEnabled(!!data?.two_factor_enabled);
+    } catch (error) {
+      console.error('Error fetching two-factor status:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMethodSelect = async (method: AuthMethod) => {
     setSelectedMethod(method);
+    
+    // Update two-factor status in database
+    if (isOnline && session?.user?.id) {
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ two_factor_enabled: true })
+          .eq('id', session?.user?.id);
+          
+        if (error) throw error;
+        setTwoFactorEnabled(true);
+      } catch (error) {
+        console.error('Error updating two-factor status:', error);
+      }
+    }
+    
     // Navigate to setup flow for selected method
     router.push({
       pathname: '/two-factor-setup',
@@ -44,80 +98,115 @@ export default function TwoFactorAuthScreen() {
           </Text>
         </View>
 
-        <View style={styles.methodsSection}>
-          <Text style={styles.sectionTitle}>Choose Authentication Method</Text>
-          
-          <Pressable
-            style={[
-              styles.methodCard,
-              selectedMethod === 'authenticator' && styles.selectedMethod
-            ]}
-            onPress={() => handleMethodSelect('authenticator')}
-          >
-            <View style={[styles.methodIcon, { backgroundColor: '#F0FDF4' }]}>
-              <QrCode size={24} color="#22C55E" />
-            </View>
-            <View style={styles.methodInfo}>
-              <Text style={styles.methodTitle}>Authenticator App</Text>
-              <Text style={styles.methodDescription}>
-                Use an authenticator app like Google Authenticator or Authy
-              </Text>
-            </View>
-            <View style={styles.recommendedTag}>
-              <Text style={styles.recommendedText}>Recommended</Text>
-            </View>
-          </Pressable>
+        {!isOnline && (
+          <OfflineNotice message="Two-factor authentication setup requires an internet connection" />
+        )}
 
-          <Pressable
-            style={[
-              styles.methodCard,
-              selectedMethod === 'sms' && styles.selectedMethod
-            ]}
-            onPress={() => handleMethodSelect('sms')}
-          >
-            <View style={[styles.methodIcon, { backgroundColor: '#EFF6FF' }]}>
-              <Smartphone size={24} color="#1E3A8A" />
-            </View>
-            <View style={styles.methodInfo}>
-              <Text style={styles.methodTitle}>SMS Authentication</Text>
-              <Text style={styles.methodDescription}>
-                Receive verification codes via text message
-              </Text>
-            </View>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.methodCard,
-              selectedMethod === 'email' && styles.selectedMethod
-            ]}
-            onPress={() => handleMethodSelect('email')}
-          >
-            <View style={[styles.methodIcon, { backgroundColor: '#F0F9FF' }]}>
-              <Mail size={24} color="#0EA5E9" />
-            </View>
-            <View style={styles.methodInfo}>
-              <Text style={styles.methodTitle}>Email Authentication</Text>
-              <Text style={styles.methodDescription}>
-                Receive verification codes via email
-              </Text>
-            </View>
-          </Pressable>
-        </View>
-
-        <View style={styles.infoSection}>
-          <View style={styles.infoCard}>
-            <View style={styles.infoHeader}>
-              <View style={styles.infoIconContainer}>
-                <Lock size={20} color="#1E3A8A" />
-              </View>
-              <Text style={styles.infoTitle}>Why use 2FA?</Text>
-            </View>
-            <Text style={styles.infoDescription}>
-              Two-factor authentication adds an extra security layer to your account. Even if someone knows your password, they won't be able to access your account without the second factor.
-            </Text>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading authentication settings...</Text>
           </View>
-        </View>
+        ) : (
+          <>
+            {twoFactorEnabled ? (
+              <View style={styles.enabledContainer}>
+                <View style={styles.enabledIcon}>
+                  <Shield size={32} color="#22C55E" />
+                </View>
+                <Text style={styles.enabledTitle}>Two-Factor Authentication Enabled</Text>
+                <Text style={styles.enabledDescription}>
+                  Your account is protected with an additional layer of security.
+                </Text>
+                <Button
+                  title="Manage 2FA Settings"
+                  onPress={() => router.push('/two-factor-settings')}
+                  style={styles.manageButton}
+                />
+              </View>
+            ) : (
+              <View style={styles.methodsSection}>
+                <Text style={styles.sectionTitle}>Choose Authentication Method</Text>
+                
+                <Pressable
+                  style={[
+                    styles.methodCard,
+                    selectedMethod === 'authenticator' && styles.selectedMethod,
+                    !isOnline && styles.disabledMethod
+                  ]}
+                  onPress={() => isOnline && handleMethodSelect('authenticator')}
+                  disabled={!isOnline}
+                >
+                  <View style={[styles.methodIcon, { backgroundColor: '#F0FDF4' }]}>
+                    <QrCode size={24} color="#22C55E" />
+                  </View>
+                  <View style={styles.methodInfo}>
+                    <Text style={styles.methodTitle}>Authenticator App</Text>
+                    <Text style={styles.methodDescription}>
+                      Use an authenticator app like Google Authenticator or Authy
+                    </Text>
+                  </View>
+                  <View style={styles.recommendedTag}>
+                    <Text style={styles.recommendedText}>Recommended</Text>
+                  </View>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.methodCard,
+                    selectedMethod === 'sms' && styles.selectedMethod,
+                    !isOnline && styles.disabledMethod
+                  ]}
+                  onPress={() => isOnline && handleMethodSelect('sms')}
+                  disabled={!isOnline}
+                >
+                  <View style={[styles.methodIcon, { backgroundColor: '#EFF6FF' }]}>
+                    <Smartphone size={24} color="#1E3A8A" />
+                  </View>
+                  <View style={styles.methodInfo}>
+                    <Text style={styles.methodTitle}>SMS Authentication</Text>
+                    <Text style={styles.methodDescription}>
+                      Receive verification codes via text message
+                    </Text>
+                  </View>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.methodCard,
+                    selectedMethod === 'email' && styles.selectedMethod,
+                    !isOnline && styles.disabledMethod
+                  ]}
+                  onPress={() => isOnline && handleMethodSelect('email')}
+                  disabled={!isOnline}
+                >
+                  <View style={[styles.methodIcon, { backgroundColor: '#F0F9FF' }]}>
+                    <Mail size={24} color="#0EA5E9" />
+                  </View>
+                  <View style={styles.methodInfo}>
+                    <Text style={styles.methodTitle}>Email Authentication</Text>
+                    <Text style={styles.methodDescription}>
+                      Receive verification codes via email
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
+            )}
+
+            <View style={styles.infoSection}>
+              <View style={styles.infoCard}>
+                <View style={styles.infoHeader}>
+                  <View style={styles.infoIconContainer}>
+                    <Lock size={20} color="#1E3A8A" />
+                  </View>
+                  <Text style={styles.infoTitle}>Why use 2FA?</Text>
+                </View>
+                <Text style={styles.infoDescription}>
+                  Two-factor authentication adds an extra security layer to your account. Even if someone knows your password, they won't be able to access your account without the second factor.
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -125,7 +214,7 @@ export default function TwoFactorAuthScreen() {
           title="Continue Setup"
           onPress={() => handleMethodSelect(selectedMethod || 'authenticator')}
           style={styles.continueButton}
-          disabled={!selectedMethod}
+          disabled={!selectedMethod || !isOnline || isLoading || twoFactorEnabled}
         />
       </View>
       
@@ -193,6 +282,49 @@ const createStyles = (colors: any) => StyleSheet.create({
     lineHeight: 24,
     maxWidth: '80%',
   },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  enabledContainer: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 24,
+    marginVertical: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  enabledIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#F0FDF4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  enabledTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  enabledDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  manageButton: {
+    backgroundColor: colors.primary,
+    minWidth: 200,
+  },
   methodsSection: {
     marginBottom: 32,
   },
@@ -215,6 +347,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   selectedMethod: {
     borderColor: colors.primary,
     backgroundColor: colors.backgroundTertiary,
+  },
+  disabledMethod: {
+    opacity: 0.6,
   },
   methodIcon: {
     width: 48,

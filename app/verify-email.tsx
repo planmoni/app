@@ -1,11 +1,14 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, RefreshCw } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { useOnlineStatus } from '@/components/OnlineStatusProvider';
+import OfflineNotice from '@/components/OfflineNotice';
 
 export default function VerifyEmailScreen() {
   const { colors } = useTheme();
@@ -13,26 +16,70 @@ export default function VerifyEmailScreen() {
   const [isResending, setIsResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const { isOnline } = useOnlineStatus();
 
   const email = session?.user?.email || 'your email';
 
+  // Check if email is already verified
+  useEffect(() => {
+    if (session?.user?.email_confirmed_at) {
+      setEmailVerified(true);
+      updateProfileEmailVerified();
+    }
+  }, [session?.user?.email_confirmed_at]);
+
+  // Update profile to mark email as verified
+  const updateProfileEmailVerified = async () => {
+    if (!isOnline || !session?.user?.id) return;
+    
+    try {
+      await supabase
+        .from('profiles')
+        .update({ email_verified: true })
+        .eq('id', session.user.id);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+    }
+  };
+
   const handleResendEmail = async () => {
+    if (!isOnline) return;
+    
     setIsResending(true);
     setError(null);
     
     try {
       // In a real app, you would call your auth service to resend the verification email
-      // For demo purposes, we'll just simulate a successful resend
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: session?.user?.email || '',
+      });
+      
+      if (error) throw error;
       setResendSuccess(true);
     } catch (err) {
-      setError('Failed to resend verification email. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to resend verification email');
     } finally {
       setIsResending(false);
     }
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
+    if (emailVerified) {
+      // Update profile in database
+      if (isOnline && session?.user?.id) {
+        try {
+          await supabase
+            .from('profiles')
+            .update({ email_verified: true })
+            .eq('id', session.user.id);
+        } catch (error) {
+          console.error('Error updating profile:', error);
+        }
+      }
+    }
+    
     router.back();
   };
 
@@ -52,10 +99,25 @@ export default function VerifyEmailScreen() {
           <Mail size={40} color={colors.primary} />
         </View>
         
-        <Text style={styles.title}>Check your inbox</Text>
-        <Text style={styles.subtitle}>
-          We've sent a verification link to <Text style={styles.emailText}>{email}</Text>
-        </Text>
+        {emailVerified ? (
+          <>
+            <Text style={styles.title}>Email Verified!</Text>
+            <Text style={styles.subtitle}>
+              Your email address <Text style={styles.emailText}>{email}</Text> has been verified successfully.
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.title}>Check your inbox</Text>
+            <Text style={styles.subtitle}>
+              We've sent a verification link to <Text style={styles.emailText}>{email}</Text>
+            </Text>
+          </>
+        )}
+        
+        {!isOnline && (
+          <OfflineNotice message="Email verification requires an internet connection" />
+        )}
         
         {error && (
           <View style={styles.errorContainer}>
@@ -69,31 +131,35 @@ export default function VerifyEmailScreen() {
           </View>
         )}
         
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Next steps:</Text>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoText}>1. Open the email from Planmoni</Text>
+        {!emailVerified && (
+          <View style={styles.infoCard}>
+            <Text style={styles.infoTitle}>Next steps:</Text>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoText}>1. Open the email from Planmoni</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoText}>2. Click on the verification link</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoText}>3. Return to the app after verification</Text>
+            </View>
           </View>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoText}>2. Click on the verification link</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoText}>3. Return to the app after verification</Text>
-          </View>
-        </View>
+        )}
         
         <View style={styles.actions}>
-          <Button
-            title={isResending ? "Sending..." : "Resend Email"}
-            onPress={handleResendEmail}
-            disabled={isResending}
-            style={styles.resendButton}
-            variant="outline"
-            icon={RefreshCw}
-          />
+          {!emailVerified && (
+            <Button
+              title={isResending ? "Sending..." : "Resend Email"}
+              onPress={handleResendEmail}
+              disabled={isResending || !isOnline}
+              style={styles.resendButton}
+              variant="outline"
+              icon={RefreshCw}
+            />
+          )}
           
           <Button
-            title="I've Verified My Email"
+            title={emailVerified ? "Continue" : "I've Verified My Email"}
             onPress={handleContinue}
             style={styles.continueButton}
           />

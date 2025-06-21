@@ -2,14 +2,15 @@ import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Info, CreditCard } from 'lucide-react-native';
+import { ArrowLeft, Gift } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
+import { supabase } from '@/lib/supabase';
 
-export default function BVNScreen() {
+export default function ReferralCodeScreen() {
   const { colors } = useTheme();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
@@ -17,54 +18,99 @@ export default function BVNScreen() {
   const lastName = params.lastName as string;
   const email = params.email as string;
   const password = params.password as string;
-  
-  const [bvn, setBvn] = useState('');
+  const bvn = params.bvn as string;
+  const pin = params.pin as string;
+  const pinLength = params.pinLength as string;
+
+  const [referralCode, setReferralCode] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [isButtonEnabled, setIsButtonEnabled] = useState(false);
-  const bvnInputRef = useRef<TextInput>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [validReferrer, setValidReferrer] = useState<{id: string, name: string} | null>(null);
+  const referralInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      bvnInputRef.current?.focus();
+      referralInputRef.current?.focus();
     }, 300);
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    setIsButtonEnabled(bvn.length === 11 || bvn.length === 0);
-  }, [bvn]);
+  const validateReferralCode = async (code: string) => {
+    if (!code) return;
+    
+    setIsValidating(true);
+    setError(null);
+    
+    try {
+      // Check if the referral code exists
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .eq('referral_code', code.toUpperCase())
+        .single();
+      
+      if (error || !data) {
+        setError('Invalid referral code');
+        setValidReferrer(null);
+        return false;
+      }
+      
+      setValidReferrer({
+        id: data.id,
+        name: `${data.first_name} ${data.last_name}`
+      });
+      return true;
+    } catch (err) {
+      console.error('Error validating referral code:', err);
+      setError('Failed to validate referral code');
+      setValidReferrer(null);
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
+  };
 
-  const handleContinue = () => {
-    if (bvn && bvn.length !== 11) {
-      haptics.error();
-      setError('BVN must be 11 digits');
-      return;
+  const handleContinue = async () => {
+    haptics.mediumImpact();
+    
+    if (referralCode) {
+      // Validate the code before continuing
+      const isValid = await validateReferralCode(referralCode);
+      if (!isValid) {
+        haptics.error();
+        return;
+      }
     }
     
-    haptics.mediumImpact();
     router.push({
-      pathname: '/onboarding/app-lock',
-      params: { 
+      pathname: '/onboarding/success',
+      params: {
         firstName,
         lastName,
         email,
         password,
-        bvn: bvn || 'skipped'
-      }
+        bvn,
+        pin,
+        pinLength,
+        referralCode: referralCode.trim().toUpperCase(),
+      },
     });
   };
 
   const handleSkip = () => {
     haptics.lightImpact();
     router.push({
-      pathname: '/onboarding/app-lock',
-      params: { 
+      pathname: '/onboarding/success',
+      params: {
         firstName,
         lastName,
         email,
         password,
-        bvn: 'skipped'
-      }
+        bvn,
+        pin,
+        pinLength,
+        referralCode: '', // Explicitly pass empty string if skipped
+      },
     });
   };
 
@@ -73,74 +119,81 @@ export default function BVNScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable 
+        <Pressable
           onPress={() => {
             haptics.lightImpact();
             router.back();
-          }} 
+          }}
           style={styles.backButton}
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={7} totalSteps={10} />
+      <OnboardingProgress currentStep={9} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
-          <Text style={styles.title}>Verify your identity</Text>
-          <Text style={styles.subtitle}>This helps us keep your account secure</Text>
+          <Text style={styles.title}>Got a referral code?</Text>
+          <Text style={styles.subtitle}>Enter it below to get a bonus!</Text>
 
           <View style={styles.formContainer}>
-            <Text style={styles.question}>What's your BVN?</Text>
-            
+            <Text style={styles.question}>Enter referral code (optional)</Text>
+
             {error && (
               <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
             
+            {validReferrer && (
+              <View style={styles.successContainer}>
+                <Text style={styles.successText}>
+                  Valid code! You were referred by {validReferrer.name}
+                </Text>
+              </View>
+            )}
+
             <View style={styles.inputContainer}>
-              <CreditCard size={20} color={colors.textSecondary} style={styles.inputIcon} />
+              <Gift size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
-                ref={bvnInputRef}
+                ref={referralInputRef}
                 style={styles.input}
-                placeholder="Enter your 11-digit BVN"
+                placeholder="e.g., PLANMONI123"
                 placeholderTextColor={colors.textTertiary}
-                value={bvn}
+                value={referralCode}
                 onChangeText={(text) => {
-                  // Only allow numbers
-                  const numericText = text.replace(/[^0-9]/g, '');
-                  if (numericText.length <= 11) {
-                    setBvn(numericText);
-                    setError(null);
+                  setReferralCode(text);
+                  setError(null);
+                  setValidReferrer(null);
+                }}
+                onBlur={() => {
+                  if (referralCode) {
+                    validateReferralCode(referralCode);
                   }
                 }}
-                keyboardType="number-pad"
+                autoCapitalize="characters"
+                returnKeyType="done"
+                onSubmitEditing={handleContinue}
+                editable={!isValidating}
               />
+              {isValidating && (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Validating...</Text>
+                </View>
+              )}
             </View>
-            
-            <View style={styles.infoContainer}>
-              <Info size={16} color={colors.primary} />
-              <Text style={styles.infoText}>
-                Your BVN is not stored and is only used for verification purposes.
-              </Text>
-            </View>
-            
-            <Pressable 
-              onPress={handleSkip} 
-              style={styles.skipButton}
-            >
+
+            <Pressable onPress={handleSkip} style={styles.skipButton}>
               <Text style={styles.skipText}>Skip for now</Text>
             </Pressable>
           </View>
         </View>
       </KeyboardAvoidingWrapper>
 
-      <FloatingButton 
+      <FloatingButton
         title="Continue"
         onPress={handleContinue}
-        disabled={!isButtonEnabled}
         hapticType="medium"
       />
     </SafeAreaView>
@@ -206,6 +259,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.error,
     fontSize: 14,
   },
+  successContainer: {
+    backgroundColor: colors.successLight,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  successText: {
+    color: colors.success,
+    fontSize: 14,
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -225,17 +288,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
     height: '100%',
   },
-  infoContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginTop: 16,
+  loadingContainer: {
+    marginLeft: 8,
   },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
+  loadingText: {
+    fontSize: 12,
     color: colors.textSecondary,
-    lineHeight: 20,
   },
   skipButton: {
     alignSelf: 'center',

@@ -82,7 +82,7 @@ export default function AppLockScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={8} totalSteps={9} />
+      <OnboardingProgress currentStep={8} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer} disableScrollView={true}>
         <View style={styles.content}>

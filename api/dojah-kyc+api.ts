@@ -1,15 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
-import Constants from 'expo-constants';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Dojah API configuration - get from expo config
+// Dojah API configuration - use environment variables directly for server-side API routes
 const DOJAH_API_URL = 'https://api.dojah.io';
-const DOJAH_APP_ID = Constants.expoConfig?.extra?.DOJAH_APP_ID || process.env.DOJAH_APP_ID;
-const DOJAH_PRIVATE_KEY = Constants.expoConfig?.extra?.DOJAH_PRIVATE_KEY || process.env.DOJAH_PRIVATE_KEY;
+const DOJAH_APP_ID = process.env.DOJAH_APP_ID;
+const DOJAH_PRIVATE_KEY = process.env.DOJAH_PRIVATE_KEY;
 
 // Debug logging for environment variables
 console.log('Dojah API credentials check:', {
@@ -19,20 +18,33 @@ console.log('Dojah API credentials check:', {
   privateKeyLength: DOJAH_PRIVATE_KEY?.length || 0
 });
 
+// Helper function to ensure JSON response
+function createJsonResponse(data: any, status: number = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
 // Verify user authentication
 async function verifyAuth(request: Request) {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  try {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+
+    const token = authHeader.split(' ')[1];
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data.user) {
+      return null;
+    }
+
+    return data.user;
+  } catch (error) {
+    console.error('Auth verification error:', error);
     return null;
   }
-
-  const token = authHeader.split(' ')[1];
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) {
-    return null;
-  }
-
-  return data.user;
 }
 
 // Helper function to safely parse response
@@ -67,10 +79,7 @@ export async function POST(request: Request) {
     // Verify authentication
     const user = await verifyAuth(request);
     if (!user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return createJsonResponse({ error: 'Unauthorized' }, 401);
     }
 
     // Check if Dojah API keys are available
@@ -79,13 +88,10 @@ export async function POST(request: Request) {
         hasAppId: !!DOJAH_APP_ID,
         hasPrivateKey: !!DOJAH_PRIVATE_KEY
       });
-      return new Response(JSON.stringify({ 
+      return createJsonResponse({ 
         error: 'KYC service not properly configured. Please contact support.',
         details: 'Missing Dojah API credentials'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 500);
     }
 
     // Get verification data from request body
@@ -94,10 +100,7 @@ export async function POST(request: Request) {
 
     // Validate required fields
     if (!verificationType || !verificationData) {
-      return new Response(JSON.stringify({ error: 'Missing required verification details' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return createJsonResponse({ error: 'Missing required verification details' }, 400);
     }
 
     let endpoint = '';
@@ -130,10 +133,7 @@ export async function POST(request: Request) {
         };
         break;
       default:
-        return new Response(JSON.stringify({ error: 'Invalid verification type' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return createJsonResponse({ error: 'Invalid verification type' }, 400);
     }
 
     console.log('Making request to Dojah API:', {
@@ -159,13 +159,10 @@ export async function POST(request: Request) {
       data = await safeParseResponse(response);
     } catch (parseError) {
       console.error('Error parsing Dojah API response:', parseError);
-      return new Response(JSON.stringify({ 
+      return createJsonResponse({ 
         error: 'Invalid response from verification service',
         details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
-      }), {
-        status: 502,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 502);
     }
 
     // Check if the request was successful
@@ -175,33 +172,35 @@ export async function POST(request: Request) {
         statusText: response.statusText,
         data
       });
-      return new Response(JSON.stringify({ 
+      return createJsonResponse({ 
         error: data?.message || `Verification service error: ${response.status} ${response.statusText}`,
         details: data
-      }), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, response.status);
     }
 
     // Store verification result in database
-    const { error: dbError } = await supabase
-      .from('kyc_verifications')
-      .insert({
-        user_id: user.id,
-        verification_type: verificationType,
-        verification_data: verificationData,
-        verification_result: data,
-        status: data.entity?.verification_status || 'pending'
-      });
+    try {
+      const { error: dbError } = await supabase
+        .from('kyc_verifications')
+        .insert({
+          user_id: user.id,
+          verification_type: verificationType,
+          verification_data: verificationData,
+          verification_result: data,
+          status: data.entity?.verification_status || 'pending'
+        });
 
-    if (dbError) {
-      console.error('Error storing verification result:', dbError);
+      if (dbError) {
+        console.error('Error storing verification result:', dbError);
+        // Continue anyway, as the verification was successful
+      }
+    } catch (dbError) {
+      console.error('Database operation failed:', dbError);
       // Continue anyway, as the verification was successful
     }
 
     // Return the verification result
-    return Response.json({
+    return createJsonResponse({
       status: 'success',
       message: 'Identity verified successfully',
       data: data.entity
@@ -209,13 +208,10 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error verifying identity:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    return new Response(JSON.stringify({ 
+    return createJsonResponse({ 
       error: 'Internal server error during identity verification',
       details: errorMessage
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    }, 500);
   }
 }
 
@@ -225,32 +221,23 @@ export async function PUT(request: Request) {
     // Verify authentication
     const user = await verifyAuth(request);
     if (!user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return createJsonResponse({ error: 'Unauthorized' }, 401);
     }
 
     // Check if Dojah API keys are available
     if (!DOJAH_APP_ID || !DOJAH_PRIVATE_KEY) {
       console.error('Dojah API keys not configured for document verification');
-      return new Response(JSON.stringify({ 
+      return createJsonResponse({ 
         error: 'KYC service not properly configured. Please contact support.',
         details: 'Missing Dojah API credentials'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 500);
     }
 
     // Get document data from request body
     const { documentType, documentImage, selfieImage } = await request.json();
 
     if (!documentType || !documentImage) {
-      return new Response(JSON.stringify({ error: 'Document type and image are required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return createJsonResponse({ error: 'Document type and image are required' }, 400);
     }
 
     console.log('Making document verification request to Dojah API');
@@ -276,13 +263,10 @@ export async function PUT(request: Request) {
       data = await safeParseResponse(response);
     } catch (parseError) {
       console.error('Error parsing Dojah document verification response:', parseError);
-      return new Response(JSON.stringify({ 
+      return createJsonResponse({ 
         error: 'Invalid response from document verification service',
         details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
-      }), {
-        status: 502,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 502);
     }
 
     // Check if the request was successful
@@ -292,32 +276,34 @@ export async function PUT(request: Request) {
         statusText: response.statusText,
         data
       });
-      return new Response(JSON.stringify({ 
+      return createJsonResponse({ 
         error: data?.message || `Document verification service error: ${response.status} ${response.statusText}`,
         details: data
-      }), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, response.status);
     }
 
     // Store document verification result in database
-    const { error: dbError } = await supabase
-      .from('kyc_documents')
-      .insert({
-        user_id: user.id,
-        document_type: documentType,
-        verification_result: data,
-        status: data.entity?.verification_status || 'pending'
-      });
+    try {
+      const { error: dbError } = await supabase
+        .from('kyc_documents')
+        .insert({
+          user_id: user.id,
+          document_type: documentType,
+          verification_result: data,
+          status: data.entity?.verification_status || 'pending'
+        });
 
-    if (dbError) {
-      console.error('Error storing document verification result:', dbError);
+      if (dbError) {
+        console.error('Error storing document verification result:', dbError);
+        // Continue anyway, as the verification was successful
+      }
+    } catch (dbError) {
+      console.error('Database operation failed:', dbError);
       // Continue anyway, as the verification was successful
     }
 
     // Return the verification result
-    return Response.json({
+    return createJsonResponse({
       status: 'success',
       message: 'Document verified successfully',
       data: data.entity
@@ -325,13 +311,10 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error('Error verifying document:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    return new Response(JSON.stringify({ 
+    return createJsonResponse({ 
       error: 'Internal server error during document verification',
       details: errorMessage
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    }, 500);
   }
 }
 
@@ -341,10 +324,7 @@ export async function GET(request: Request) {
     // Verify authentication
     const user = await verifyAuth(request);
     if (!user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return createJsonResponse({ error: 'Unauthorized' }, 401);
     }
 
     // Get the latest verification status from the database
@@ -357,13 +337,10 @@ export async function GET(request: Request) {
 
     if (verificationError) {
       console.error('Error fetching verification status:', verificationError);
-      return new Response(JSON.stringify({ 
+      return createJsonResponse({ 
         error: 'Failed to fetch verification status',
         details: verificationError.message
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 500);
     }
 
     // Get the latest document verification status
@@ -376,13 +353,10 @@ export async function GET(request: Request) {
 
     if (documentError) {
       console.error('Error fetching document verification status:', documentError);
-      return new Response(JSON.stringify({ 
+      return createJsonResponse({ 
         error: 'Failed to fetch document verification status',
         details: documentError.message
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      }, 500);
     }
 
     // Determine overall verification status
@@ -406,17 +380,22 @@ export async function GET(request: Request) {
     }
 
     // Update user's KYC tier in the database
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ kyc_tier: tier })
-      .eq('id', user.id);
+    try {
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ kyc_tier: tier })
+        .eq('id', user.id);
 
-    if (updateError) {
-      console.error('Error updating user KYC tier:', updateError);
+      if (updateError) {
+        console.error('Error updating user KYC tier:', updateError);
+        // Continue anyway
+      }
+    } catch (updateError) {
+      console.error('Database update failed:', updateError);
       // Continue anyway
     }
 
-    return Response.json({
+    return createJsonResponse({
       status: 'success',
       verification: verificationData && verificationData.length > 0 ? verificationData[0] : null,
       document: documentData && documentData.length > 0 ? documentData[0] : null,
@@ -426,12 +405,9 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error fetching verification status:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    return new Response(JSON.stringify({ 
+    return createJsonResponse({ 
       error: 'Internal server error while fetching verification status',
       details: errorMessage
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    }, 500);
   }
 }

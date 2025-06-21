@@ -25,6 +25,7 @@ export interface Database {
           status: 'active' | 'paused' | 'completed' | 'cancelled'
           completed_payouts: number
           next_payout_date: string | null
+          emergency_withdrawal_enabled: boolean
           created_at: string
           updated_at: string
         }
@@ -43,6 +44,7 @@ export interface Database {
           status?: 'active' | 'paused' | 'completed' | 'cancelled'
           completed_payouts?: number
           next_payout_date?: string | null
+          emergency_withdrawal_enabled?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -61,6 +63,7 @@ export interface Database {
           status?: 'active' | 'paused' | 'completed' | 'cancelled'
           completed_payouts?: number
           next_payout_date?: string | null
+          emergency_withdrawal_enabled?: boolean
           created_at?: string
           updated_at?: string
         }
