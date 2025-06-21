@@ -9,7 +9,7 @@ export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
-  const { lockFunds, refreshWallet } = useBalance();
+  const { lockFunds, refreshWallet, balance } = useBalance();
   const { showToast } = useToast();
 
   const createPayout = async ({
@@ -43,6 +43,12 @@ export function useCreatePayout() {
 
       if (!session?.user?.id) {
         throw new Error('User not authenticated');
+      }
+
+      // Check if there's enough balance
+      const availableBalance = balance;
+      if (totalAmount > availableBalance) {
+        throw new Error('Insufficient available balance');
       }
 
       // Parse the start date string to a Date object

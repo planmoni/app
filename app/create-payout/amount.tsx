@@ -13,10 +13,15 @@ import * as Haptics from 'expo-haptics';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
-  const { balance, lockedBalance = 0 } = useBalance();
+  const { balance, lockedBalance = 0, refreshWallet } = useBalance();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
+
+  // Refresh wallet balance when component mounts
+  useEffect(() => {
+    refreshWallet();
+  }, []);
 
   // Calculate available balance (total balance minus locked balance)
   const availableBalance = balance - lockedBalance;

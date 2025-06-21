@@ -9,12 +9,13 @@ import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useBalance } from '@/contexts/BalanceContext';
+import { useEffect } from 'react';
 
 export default function ReviewScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const { createPayout, isLoading, error } = useCreatePayout();
-  const { balance } = useBalance();
+  const { balance, refreshWallet } = useBalance();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -29,6 +30,11 @@ export default function ReviewScreen() {
   const payoutAccountId = params.payoutAccountId as string;
   const emergencyWithdrawal = params.emergencyWithdrawal === 'true';
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
+
+  // Refresh wallet balance when component mounts
+  useEffect(() => {
+    refreshWallet();
+  }, []);
 
   // Format values for display
   const formattedTotal = `₦${totalAmount}`;
@@ -72,6 +78,7 @@ export default function ReviewScreen() {
       bankAccountId: bankAccountId || null,
       payoutAccountId: payoutAccountId || null,
       customDates,
+      emergencyWithdrawalEnabled: emergencyWithdrawal
     });
   };
 
