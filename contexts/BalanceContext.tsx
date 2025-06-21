@@ -23,6 +23,12 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
     setShowBalances(prev => !prev);
   };
 
+  // Log balance changes for debugging
+  console.log('BalanceContext - Current wallet state:');
+  console.log('- Balance:', wallet.balance);
+  console.log('- Locked Balance:', wallet.lockedBalance);
+  console.log('- Available Balance:', wallet.balance - wallet.lockedBalance);
+
   return (
     <BalanceContext.Provider 
       value={{ 

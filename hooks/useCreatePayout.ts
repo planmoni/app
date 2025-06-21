@@ -45,9 +45,35 @@ export function useCreatePayout() {
         throw new Error('User not authenticated');
       }
 
+      // Add detailed logging for debugging
+      console.log('Creating payout plan with the following details:');
+      console.log('- Total Amount:', totalAmount);
+      console.log('- Current Balance:', balance);
+      console.log('- Available Balance (balance - lockedBalance):', balance);
+      
+      // Fetch current wallet data directly from the database for verification
+      const { data: walletData, error: walletError } = await supabase
+        .from('wallets')
+        .select('balance, locked_balance')
+        .eq('user_id', session.user.id)
+        .single();
+        
+      if (walletError) {
+        console.error('Error fetching wallet data:', walletError);
+        throw walletError;
+      }
+      
+      console.log('Wallet data from database:');
+      console.log('- DB Balance:', walletData?.balance);
+      console.log('- DB Locked Balance:', walletData?.locked_balance);
+      console.log('- DB Available Balance:', walletData ? (walletData.balance - walletData.locked_balance) : 'N/A');
+
       // Check if there's enough balance
       const availableBalance = balance;
       if (totalAmount > availableBalance) {
+        console.error('Insufficient balance error:');
+        console.error('- Required amount:', totalAmount);
+        console.error('- Available balance:', availableBalance);
         throw new Error('Insufficient available balance');
       }
 
@@ -68,9 +94,19 @@ export function useCreatePayout() {
       // Format the next payout date as ISO string
       const nextPayoutDateStr = nextPayoutDate.toISOString();
 
+      console.log('About to lock funds:', totalAmount);
+      
       // Lock the funds in the wallet
-      await lockFunds(totalAmount);
+      try {
+        await lockFunds(totalAmount);
+        console.log('Funds locked successfully');
+      } catch (lockError) {
+        console.error('Error locking funds:', lockError);
+        throw lockError;
+      }
 
+      console.log('Creating payout plan in database');
+      
       // Create payout plan
       const { data: payoutPlan, error: payoutError } = await supabase
         .from('payout_plans')
@@ -93,10 +129,17 @@ export function useCreatePayout() {
         .select()
         .single();
 
-      if (payoutError) throw payoutError;
+      if (payoutError) {
+        console.error('Error creating payout plan:', payoutError);
+        throw payoutError;
+      }
+
+      console.log('Payout plan created successfully:', payoutPlan.id);
 
       // If custom frequency, insert custom dates
       if (frequency === 'custom' && customDates && customDates.length > 0) {
+        console.log('Adding custom payout dates:', customDates.length);
+        
         const { error: datesError } = await supabase
           .from('custom_payout_dates')
           .insert(
@@ -106,9 +149,14 @@ export function useCreatePayout() {
             }))
           );
 
-        if (datesError) throw datesError;
+        if (datesError) {
+          console.error('Error adding custom dates:', datesError);
+          throw datesError;
+        }
       }
 
+      console.log('Creating success event');
+      
       // Create success event
       await supabase.from('events').insert({
         user_id: session.user.id,
@@ -119,12 +167,16 @@ export function useCreatePayout() {
         payout_plan_id: payoutPlan.id,
       });
 
+      console.log('Refreshing wallet');
+      
       // Explicitly refresh the wallet to update UI immediately
       await refreshWallet();
 
       // Show success toast
       showToast?.('Payout plan created successfully!', 'success');
 
+      console.log('Navigating to success screen');
+      
       // Navigate to success screen
       router.replace({
         pathname: '/create-payout/success',

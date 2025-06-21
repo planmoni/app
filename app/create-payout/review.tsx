@@ -39,7 +39,9 @@ export default function ReviewScreen() {
     const fetchBalance = async () => {
       setIsRefreshing(true);
       try {
+        console.log('Refreshing wallet balance before creating payout plan');
         await refreshWallet();
+        console.log('Wallet balance refreshed successfully');
       } catch (error) {
         console.error('Error refreshing wallet:', error);
       } finally {
@@ -76,10 +78,19 @@ export default function ReviewScreen() {
   const handleStartPlan = async () => {
     // Check if there's enough balance
     const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+    
+    console.log('Starting payout plan:');
+    console.log('- Total amount:', numericTotal);
+    console.log('- Current balance:', balance);
+    
     if (numericTotal > balance) {
       if (Platform.OS !== 'web') {
         haptics.error();
       }
+      console.error('Insufficient balance detected:');
+      console.error('- Required amount:', numericTotal);
+      console.error('- Available balance:', balance);
+      
       Alert.alert(
         "Insufficient Balance",
         "You don't have enough funds in your wallet. Would you like to add funds?",
@@ -102,6 +113,18 @@ export default function ReviewScreen() {
     }
     
     try {
+      console.log('Creating payout plan with the following parameters:');
+      console.log('- Name:', `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`);
+      console.log('- Total amount:', parseFloat(totalAmount.replace(/[^0-9.]/g, '')));
+      console.log('- Payout amount:', parseFloat(payoutAmount.replace(/[^0-9.]/g, '')));
+      console.log('- Frequency:', frequency);
+      console.log('- Duration:', parseInt(duration));
+      console.log('- Start date:', startDate);
+      console.log('- Bank account ID:', bankAccountId || null);
+      console.log('- Payout account ID:', payoutAccountId || null);
+      console.log('- Custom dates:', customDates);
+      console.log('- Emergency withdrawal enabled:', emergencyWithdrawal);
+      
       await createPayout({
         name: `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`,
         description: `${frequency} payout of ${payoutAmount}`,
