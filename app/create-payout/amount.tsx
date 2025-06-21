@@ -13,10 +13,13 @@ import * as Haptics from 'expo-haptics';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
-  const { balance } = useBalance();
+  const { balance, lockedBalance = 0 } = useBalance();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
+
+  // Calculate available balance (total balance minus locked balance)
+  const availableBalance = balance - lockedBalance;
 
   const handleContinue = () => {
     if (!amount) {
@@ -32,7 +35,8 @@ export default function AmountScreen() {
       return;
     }
 
-    if (numericAmount > balance) {
+    // Check against available balance instead of total balance
+    if (numericAmount > availableBalance) {
       setError('Amount exceeds your available balance');
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       return;
@@ -58,7 +62,7 @@ export default function AmountScreen() {
 
   const handleMaxPress = () => {
     haptics.selection();
-    setAmount(balance.toLocaleString());
+    setAmount(availableBalance.toLocaleString());
     setError(null);
   };
 
@@ -125,11 +129,18 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
+              <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
               <Pressable style={styles.maxButton} onPress={handleMaxPress}>
                 <Text style={styles.maxButtonText}>Max</Text>
               </Pressable>
             </View>
+            {lockedBalance > 0 && (
+              <View style={styles.lockedBalanceContainer}>
+                <Text style={styles.lockedBalanceText}>
+                  Locked in plans: ₦{lockedBalance.toLocaleString()}
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.notice}>
@@ -300,6 +311,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '500',
+  },
+  lockedBalanceContainer: {
+    marginTop: 4,
+  },
+  lockedBalanceText: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    fontStyle: 'italic',
   },
   notice: {
     flexDirection: 'row',
