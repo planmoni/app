@@ -13,7 +13,7 @@ export interface Database {
         Row: {
           id: string
           user_id: string
-          available_balance: number
+          balance: number
           locked_balance: number
           created_at: string
           updated_at: string
@@ -21,7 +21,7 @@ export interface Database {
         Insert: {
           id?: string
           user_id: string
-          available_balance?: number
+          balance?: number
           locked_balance?: number
           created_at?: string
           updated_at?: string
@@ -29,7 +29,7 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string
-          available_balance?: number
+          balance?: number
           locked_balance?: number
           created_at?: string
           updated_at?: string
