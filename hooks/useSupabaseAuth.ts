@@ -70,16 +70,10 @@ export function useSupabaseAuth() {
       setError(null);
       setIsLoading(true);
       
-      const { error: signUpError, data } = await supabase.auth.signUp({
+      // First, create the user account without custom metadata
+      const { error: signUpError, data: authData } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
-        options: {
-          data: {
-            first_name: firstName.trim(),
-            last_name: lastName.trim(),
-            referral_code: referralCode?.trim() || null,
-          },
-        },
       });
       
       if (signUpError) {
@@ -97,7 +91,25 @@ export function useSupabaseAuth() {
         return { success: false, error: errorMessage };
       }
 
-      // The trigger will automatically create the profile and wallet
+      // If user was created successfully, update the profile
+      if (authData.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            email: email.toLowerCase().trim(),
+            referral_code: referralCode?.trim() || null,
+          })
+          .eq('id', authData.user.id);
+
+        if (profileError) {
+          console.error('Profile update error:', profileError);
+          // Don't fail the signup if profile update fails, as the user account was created
+          // The profile will be created by the database trigger
+        }
+      }
+
       return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create account';
