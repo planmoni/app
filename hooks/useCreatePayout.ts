@@ -68,7 +68,8 @@ export function useCreatePayout() {
       console.log('DB Locked:', dbLocked);
       console.log('DB Available:', dbAvailable);
 
-      if (totalAmount < dbAvailable) {
+      // FIX: Changed condition from < to > to correctly check if totalAmount exceeds available balance
+      if (totalAmount > dbAvailable) {
         throw new Error('Insufficient available balance to create this payout plan.');
       }
 
@@ -118,7 +119,7 @@ export function useCreatePayout() {
 
       console.log('Payout plan created:', payoutPlan.id);
 
-      // 🔒 Lock funds via RPC
+      // 🔒 Lock funds via RPC - FIX: Changed function name from direct_lock_funds to lock_funds
       const { error: lockError } = await supabase.rpc('lock_funds', {
         p_amount: totalAmount,
         p_user_id: session.user.id
