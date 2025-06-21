@@ -35,7 +35,7 @@ export function useRealtimeWallet() {
               console.log('Wallet change received:', payload);
               
               if (payload.eventType === 'UPDATE' && payload.new) {
-                setBalance(payload.new.balance || 0);
+                setBalance(payload.new.available_balance || 0);
                 setLockedBalance(payload.new.locked_balance || 0);
               }
             }
@@ -64,7 +64,7 @@ export function useRealtimeWallet() {
       
       const { data, error: walletError } = await supabase
         .from('wallets')
-        .select('balance, locked_balance')
+        .select('available_balance, locked_balance')
         .eq('user_id', session?.user?.id)
         .single();
 
@@ -75,11 +75,11 @@ export function useRealtimeWallet() {
       
       if (data) {
         console.log('Wallet data fetched successfully:');
-        console.log('- Balance:', data.balance || 0);
+        console.log('- Available Balance:', data.available_balance || 0);
         console.log('- Locked Balance:', data.locked_balance || 0);
-        console.log('- Available Balance:', (data.balance || 0) - (data.locked_balance || 0));
+        console.log('- Total Available:', (data.available_balance || 0) - (data.locked_balance || 0));
         
-        setBalance(data.balance || 0);
+        setBalance(data.available_balance || 0);
         setLockedBalance(data.locked_balance || 0);
       } else {
         console.log('No wallet data found');

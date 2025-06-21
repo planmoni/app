@@ -9,6 +9,32 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      wallets: {
+        Row: {
+          id: string
+          user_id: string
+          available_balance: number
+          locked_balance: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          available_balance?: number
+          locked_balance?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          available_balance?: number
+          locked_balance?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
       payout_plans: {
         Row: {
           id: string
