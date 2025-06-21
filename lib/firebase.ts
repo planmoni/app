@@ -14,7 +14,7 @@ const firebaseConfig = {
   appId: Platform.OS === 'ios'
     ? '1:355142174582:ios:abcb903ab52233cfbc9c57'
     : '1:355142174582:android:a5602dca3caf5bb5bc9c57',
-  measurementId: 'G-XXXXXXXXXX', // IMPORTANT: Replace with your actual measurement ID from Firebase console
+  measurementId: 'G-LF79E01J2Z', // IMPORTANT: Replace with your actual measurement ID from Firebase console
 };
 
 // Initialize Firebase
