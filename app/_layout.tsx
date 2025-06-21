@@ -19,6 +19,7 @@ import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
 import LockScreen from '@/components/LockScreen';
 import { OnlineStatusProvider } from '@/components/OnlineStatusProvider';
 import OfflineBanner from '@/components/OfflineBanner';
+import { initializeAnalytics, logAnalyticsEvent } from '@/lib/firebase';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
@@ -48,6 +49,17 @@ function RootLayoutNav() {
       SplashScreen.hideAsync().catch(e => console.warn("Failed to hide splash screen:", e));
     }
   }, [fontsLoaded, isLoading]);
+
+  // Initialize Firebase Analytics
+  useEffect(() => {
+    const setupAnalytics = async () => {
+      await initializeAnalytics();
+      // Log app_open event
+      logAnalyticsEvent('app_open');
+    };
+    
+    setupAnalytics();
+  }, []);
 
   // Show error screen if there's a critical error
   if (error && !fontsLoaded) {
