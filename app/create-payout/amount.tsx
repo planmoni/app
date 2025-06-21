@@ -13,13 +13,10 @@ import * as Haptics from 'expo-haptics';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
-  const { balance, lockedBalance, showBalances } = useBalance();
+  const { balance } = useBalance();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
-
-  // Calculate available balance (total balance minus locked funds)
-  const availableBalance = Math.max(0, balance - lockedBalance);
 
   const handleContinue = () => {
     if (!amount) {
@@ -35,8 +32,8 @@ export default function AmountScreen() {
       return;
     }
 
-    if (numericAmount > availableBalance) {
-      setError('Amount exceeds your available balance for new payouts');
+    if (numericAmount > balance) {
+      setError('Amount exceeds your available balance');
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       return;
     }
@@ -61,7 +58,7 @@ export default function AmountScreen() {
 
   const handleMaxPress = () => {
     haptics.selection();
-    setAmount(availableBalance.toLocaleString());
+    setAmount(balance.toLocaleString());
     setError(null);
   };
 
@@ -104,7 +101,7 @@ export default function AmountScreen() {
           {error && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>
-              {error === 'Amount exceeds your available balance for new payouts' && (
+              {error === 'Amount exceeds your available balance' && (
                 <Pressable style={styles.addFundsButton} onPress={handleAddFunds}>
                   <Plus size={16} color="#FFFFFF" />
                   <Text style={styles.addFundsButtonText}>Add Funds</Text>
@@ -128,16 +125,11 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>{showBalances ? `₦${availableBalance.toLocaleString()}` : '••••••••'}</Text>
+              <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
               <Pressable style={styles.maxButton} onPress={handleMaxPress}>
                 <Text style={styles.maxButtonText}>Max</Text>
               </Pressable>
             </View>
-            {lockedBalance > 0 && (
-              <Text style={styles.lockedBalanceText}>
-                {showBalances ? `₦${lockedBalance.toLocaleString()}` : '••••••••'} locked in existing plans
-              </Text>
-            )}
           </View>
 
           <View style={styles.notice}>
@@ -228,8 +220,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
-    padding: 12,
     borderRadius: 8,
+    padding: 12,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.error,
@@ -308,11 +300,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '500',
-  },
-  lockedBalanceText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 4,
   },
   notice: {
     flexDirection: 'row',

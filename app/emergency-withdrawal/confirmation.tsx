@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Clock, CircleCheck as CheckCircle } from 'lucide-react-native';
@@ -6,11 +6,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { supabase } from '@/lib/supabase';
-import { useBalance } from '@/contexts/BalanceContext';
-import PlanmoniLoader from '@/components/PlanmoniLoader';
 
 export default function EmergencyWithdrawalConfirmationScreen() {
   const { colors, isDark } = useTheme();
@@ -22,77 +19,10 @@ export default function EmergencyWithdrawalConfirmationScreen() {
   const feeAmount = params.feeAmount as string;
   const netAmount = params.netAmount as string;
   const haptics = useHaptics();
-  const { refreshWallet } = useBalance();
-  
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   
   // Trigger success haptic feedback when the screen loads
   useEffect(() => {
-    if (!isSuccess) {
-      haptics.notification(Haptics.NotificationFeedbackType.Success);
-    }
-  }, []);
-  
-  const processEmergencyWithdrawal = async () => {
-    try {
-      setIsProcessing(true);
-      setError(null);
-      
-      // Get the current session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('You must be logged in to process a withdrawal');
-      }
-      
-      // Call the emergency withdrawal API
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || ''}/api/emergency-withdrawal`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          planId,
-          option,
-          amount: planAmount,
-          feeAmount,
-          netAmount
-        })
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to process emergency withdrawal');
-      }
-      
-      // Refresh wallet balance
-      await refreshWallet();
-      
-      // Set success state
-      setIsSuccess(true);
-      haptics.notification(Haptics.NotificationFeedbackType.Success);
-      
-    } catch (err) {
-      console.error('Error processing emergency withdrawal:', err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
-      haptics.notification(Haptics.NotificationFeedbackType.Error);
-      
-      Alert.alert(
-        'Withdrawal Failed',
-        err instanceof Error ? err.message : 'Failed to process your emergency withdrawal. Please try again.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-  
-  useEffect(() => {
-    // Process the withdrawal when the screen loads
-    processEmergencyWithdrawal();
+    haptics.notification(Haptics.NotificationFeedbackType.Success);
   }, []);
   
   const getOptionDetails = () => {
@@ -137,20 +67,6 @@ export default function EmergencyWithdrawalConfirmationScreen() {
   };
   
   const styles = createStyles(colors, isDark);
-  
-  if (isProcessing) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Processing Withdrawal</Text>
-        </View>
-        
-        <View style={styles.loadingContainer}>
-          <PlanmoniLoader size="medium" description="Processing your emergency withdrawal..." />
-        </View>
-      </SafeAreaView>
-    );
-  }
   
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -396,10 +312,5 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   dashboardButton: {
     borderColor: colors.border,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });

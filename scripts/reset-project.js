@@ -4,9 +4,8 @@
  * This script cleans up the project by:
  * 1. Clearing Metro bundler cache
  * 2. Removing node_modules
- * 3. Removing package-lock.json to ensure clean dependency resolution
- * 4. Removing any temporary files
- * 5. Reinstalling dependencies
+ * 3. Removing any temporary files
+ * 4. Reinstalling dependencies
  */
 
 const { execSync } = require('child_process');
@@ -32,16 +31,6 @@ try {
   } catch (e) {
     console.error('❌ Failed to remove node_modules:', e.message);
     process.exit(1);
-  }
-
-  // Remove package-lock.json to ensure clean dependency resolution
-  console.log('🗑️  Removing package-lock.json...');
-  try {
-    if (fs.existsSync('package-lock.json')) {
-      execSync('rm -f package-lock.json');
-    }
-  } catch (e) {
-    console.log('⚠️  Could not remove package-lock.json (non-critical)');
   }
 
   // Remove temporary directories that might cause issues
