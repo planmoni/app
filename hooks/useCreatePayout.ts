@@ -3,14 +3,12 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { useBalance } from '@/contexts/BalanceContext';
-import { useToast } from '@/contexts/ToastContext';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
   const { lockFunds, refreshWallet } = useBalance();
-  const { showToast } = useToast();
 
   const createPayout = async ({
     name,
@@ -23,7 +21,6 @@ export function useCreatePayout() {
     bankAccountId,
     payoutAccountId,
     customDates,
-    emergencyWithdrawalEnabled = false
   }: {
     name: string;
     description?: string;
@@ -35,7 +32,6 @@ export function useCreatePayout() {
     bankAccountId?: string | null;
     payoutAccountId?: string | null;
     customDates?: string[];
-    emergencyWithdrawalEnabled?: boolean;
   }) => {
     try {
       setIsLoading(true);
@@ -81,7 +77,6 @@ export function useCreatePayout() {
           payout_account_id: payoutAccountId || null,
           status: 'active',
           completed_payouts: 0,
-          emergency_withdrawal_enabled: emergencyWithdrawalEnabled,
           next_payout_date: frequency === 'custom' ? (customDates && customDates.length > 0 ? customDates[0] : startDate) : nextPayoutDateStr,
         })
         .select()
@@ -116,9 +111,6 @@ export function useCreatePayout() {
       // Explicitly refresh the wallet to update UI immediately
       await refreshWallet();
 
-      // Show success toast
-      showToast?.('Payout plan created successfully!', 'success');
-
       // Navigate to success screen
       router.replace({
         pathname: '/create-payout/success',
@@ -127,16 +119,13 @@ export function useCreatePayout() {
           frequency,
           payoutAmount: payoutAmount.toString(),
           startDate,
-          bankName: bankAccountId || payoutAccountId ? 'Your bank account' : '',
-          emergencyWithdrawalEnabled: emergencyWithdrawalEnabled.toString()
+          bankAccountId: bankAccountId || '',
+          payoutAccountId: payoutAccountId || '',
         }
       });
 
     } catch (err) {
-      console.error('Error creating payout plan:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create payout plan';
-      setError(errorMessage);
-      showToast?.(errorMessage, 'error');
+      setError(err instanceof Error ? err.message : 'Failed to create payout plan');
     } finally {
       setIsLoading(false);
     }
