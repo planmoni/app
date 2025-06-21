@@ -75,10 +75,7 @@ export default function AmountScreen() {
   const handleQuickAmount = (value: string) => {
     setAmount(value);
   };
-  setAmount(availableBalance.toLocaleString());
-    setError(null);
-  };
-
+  
   const styles = createStyles(colors);
 
   return (
