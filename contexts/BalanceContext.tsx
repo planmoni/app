@@ -7,6 +7,7 @@ type BalanceContextType = {
   toggleBalances: () => void;
   balance: number;
   lockedBalance: number;
+  availableBalance: number;
   isLoading: boolean;
   error: string | null;
   addFunds: (amount: number) => Promise<void>;
@@ -26,10 +27,10 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
       logAnalyticsEvent('wallet_balance_update', {
         balance: wallet.balance,
         locked_balance: wallet.lockedBalance,
-        available_balance: wallet.balance - wallet.lockedBalance
+        available_balance: wallet.availableBalance
       });
     }
-  }, [wallet.balance, wallet.lockedBalance]);
+  }, [wallet.balance, wallet.lockedBalance, wallet.availableBalance]);
 
   const toggleBalances = () => {
     const newState = !showBalances;
@@ -41,7 +42,7 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
   console.log('BalanceContext - Current wallet state:');
   console.log('- Balance:', wallet.balance);
   console.log('- Locked Balance:', wallet.lockedBalance);
-  console.log('- Available Balance:', wallet.balance - wallet.lockedBalance);
+  console.log('- Available Balance:', wallet.availableBalance);
 
   return (
     <BalanceContext.Provider 
@@ -50,6 +51,7 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
         toggleBalances,
         balance: wallet.balance,
         lockedBalance: wallet.lockedBalance,
+        availableBalance: wallet.availableBalance,
         isLoading: wallet.isLoading,
         error: wallet.error,
         addFunds: wallet.addFunds,

@@ -19,7 +19,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { logAnalyticsEvent } from '@/lib/firebase';
 
 export default function HomeScreen() {
-  const { showBalances, toggleBalances, balance, lockedBalance } = useBalance();
+  const { showBalances, toggleBalances, balance, lockedBalance, availableBalance } = useBalance();
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
@@ -32,7 +32,6 @@ export default function HomeScreen() {
   const route = useRoute();
   const params = useLocalSearchParams();
   const scrollY = route.params?.scrollY || new Animated.Value(0);
-  const availableBalance = balance - lockedBalance; //the avialable balance logic
 
   // Get user info from session
   const firstName = session?.user?.user_metadata?.first_name || 'User';
