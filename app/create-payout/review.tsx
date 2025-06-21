@@ -34,6 +34,10 @@ export default function ReviewScreen() {
   const emergencyWithdrawal = params.emergencyWithdrawal === 'true';
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
 
+  // Parse total amount for comparison
+  const totalAmountNumber = parseFloat(totalAmount.replace(/[^0-9.]/g, ''));
+  const hasInsufficientBalance = balance < totalAmountNumber;
+
   // Refresh wallet balance when component mounts
   useEffect(() => {
     const fetchBalance = async () => {
@@ -149,6 +153,17 @@ export default function ReviewScreen() {
             </Text>
 
             {error && <ErrorMessage message={error} />}
+
+            {hasInsufficientBalance && (
+              <View style={styles.insufficientBalanceBox}>
+                <View style={styles.warningIcon}>
+                  <AlertTriangle size={20} color="#F59E0B" />
+                </View>
+                <Text style={styles.insufficientBalanceText}>
+                  Insufficient balance. You need ₦{totalAmountNumber.toLocaleString()} but only have ₦{balance.toLocaleString()} available.
+                </Text>
+              </View>
+            )}
 
             <View style={styles.detailsList}>
               <View style={styles.detailItem}>
@@ -304,7 +319,7 @@ export default function ReviewScreen() {
       <FloatingButton 
         title={isLoading ? "Processing..." : "Start Payout Plan"}
         onPress={handleStartPlan}
-        disabled={isLoading || isRefreshing}
+        disabled={isLoading || isRefreshing || hasInsufficientBalance}
         loading={isLoading}
       />
     </SafeAreaView>
@@ -374,6 +389,31 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 32,
+  },
+  insufficientBalanceBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FED7AA',
+    marginBottom: 24,
+  },
+  warningIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FED7AA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  insufficientBalanceText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
   },
   detailsList: {
     gap: 16,
