@@ -105,10 +105,10 @@ export function useCreatePayout() {
 
       console.log('Payout plan created:', payoutPlan.id);
 
-      // 🔒 Lock funds via RPC
-      const { error: lockError } = await supabase.rpc('lock_funds', {
-        p_amount: totalAmount,
-        p_user_id: session.user.id
+      // 🔒 Lock funds via RPC with consistent parameter order
+      const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
+        p_user_id: session.user.id,
+        p_amount: totalAmount
       });
 
       if (lockError) {
@@ -121,6 +121,19 @@ export function useCreatePayout() {
           .eq('id', payoutPlan.id);
 
         throw lockError;
+      }
+
+      // Check if the lock operation was successful
+      if (lockResult && !lockResult.success) {
+        console.error('Lock funds failed:', lockResult.error);
+
+        // Clean up payout plan on failure
+        await supabase
+          .from('payout_plans')
+          .delete()
+          .eq('id', payoutPlan.id);
+
+        throw new Error(lockResult.error || 'Failed to lock funds');
       }
 
       console.log('Funds locked successfully.');
@@ -158,6 +171,34 @@ export function useCreatePayout() {
       // ✅ Show toast
       showToast?.('Payout plan created successfully!', 'success');
 
+      // Get account details for success page
+      let accountNumber = '';
+      let bankName = '';
+
+      if (payoutAccountId) {
+        const { data: payoutAccount } = await supabase
+          .from('payout_accounts')
+          .select('account_number, bank_name')
+          .eq('id', payoutAccountId)
+          .single();
+        
+        if (payoutAccount) {
+          accountNumber = payoutAccount.account_number;
+          bankName = payoutAccount.bank_name;
+        }
+      } else if (bankAccountId) {
+        const { data: bankAccount } = await supabase
+          .from('bank_accounts')
+          .select('account_number, bank_name')
+          .eq('id', bankAccountId)
+          .single();
+        
+        if (bankAccount) {
+          accountNumber = bankAccount.account_number;
+          bankName = bankAccount.bank_name;
+        }
+      }
+
       // 📲 Redirect
       router.replace({
         pathname: '/create-payout/success',
@@ -166,7 +207,7 @@ export function useCreatePayout() {
           frequency,
           payoutAmount: payoutAmount.toString(),
           startDate,
-          bankName: bankAccountId || payoutAccountId ? 'Your bank account' : '',
+          bankName: bankName || 'Your bank account',
           accountNumber: accountNumber || '',
           emergencyWithdrawalEnabled: emergencyWithdrawalEnabled.toString()
         }
