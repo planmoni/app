@@ -135,18 +135,22 @@ export default function ViewPayoutScreen() {
       return;
     }
     
+    // Calculate remaining amount in the plan
+    const remainingAmount = plan.total_amount - (plan.completed_payouts * plan.payout_amount);
+    
     router.push({
       pathname: '/emergency-withdrawal',
       params: {
         id: plan.id,
         name: plan.name,
-        amount: formatCurrency(plan.total_amount - (plan.completed_payouts * plan.payout_amount))
+        amount: formatCurrency(remainingAmount, true)
       }
     });
   };
 
-  const formatCurrency = (amount: number) => {
-    return showBalances ? `₦${amount.toLocaleString()}` : '••••••••';
+  const formatCurrency = (amount: number, stripSymbol = false) => {
+    if (!showBalances) return '••••••••';
+    return stripSymbol ? `${amount.toLocaleString()}` : `₦${amount.toLocaleString()}`;
   };
 
   const getStatusColor = (status: string) => {
@@ -189,43 +193,20 @@ export default function ViewPayoutScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.payoutNameContainer}>
           <View style={styles.payoutNameHeader}>
-            {isEditing ? (
-              <View style={styles.editContainer}>
-                <TextInput
-                  style={styles.nameInput}
-                  value={payoutName}
-                  onChangeText={setPayoutName}
-                  autoFocus
-                />
-                <TextInput
-                  style={styles.descriptionInput}
-                  value={payoutDescription}
-                  onChangeText={setPayoutDescription}
-                  placeholder="Add a description"
-                  placeholderTextColor={colors.textTertiary}
-                />
-                <Pressable style={styles.saveButton} onPress={handleSave}>
-                  <Text style={styles.saveButtonText}>Save</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <>
-                <View style={styles.nameContainer}>
-                  <Text style={styles.payoutName}>{plan.name}</Text>
-                  <Pressable 
-                    style={styles.editButton} 
-                    onPress={() => {
-                      haptics.selection();
-                      setIsEditing(true);
-                    }}
-                  >
-                    <PencilLine size={20} color={colors.textSecondary} />
-                  </Pressable>
-                </View>
-                {plan.description && (
-                  <Text style={styles.payoutDescription}>{plan.description}</Text>
-                )}
-              </>
+            <View style={styles.nameContainer}>
+              <Text style={styles.payoutName}>{plan.name}</Text>
+              <Pressable 
+                style={styles.editButton} 
+                onPress={() => {
+                  haptics.selection();
+                  setIsEditing(true);
+                }}
+              >
+                <PencilLine size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            {plan.description && (
+              <Text style={styles.payoutDescription}>{plan.description}</Text>
             )}
           </View>
         </View>
@@ -349,7 +330,7 @@ export default function ViewPayoutScreen() {
                 !plan.emergency_withdrawal_enabled && styles.disabledButton
               ]}
               onPress={handleEmergencyWithdrawal}
-              disabled={!plan.emergency_withdrawal_enabled}
+              disabled={!plan.emergency_withdrawal_enabled || plan.status === 'completed' || plan.status === 'cancelled'}
             >
               <Text style={[
                 styles.withdrawButtonText,

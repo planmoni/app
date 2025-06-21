@@ -55,7 +55,6 @@ export default function EmergencyWithdrawalScreen() {
     
     haptics.mediumImpact();
     
-    // In a real app, this would call an API to process the emergency withdrawal
     router.replace({
       pathname: '/emergency-withdrawal/confirmation',
       params: {
