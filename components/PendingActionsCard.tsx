@@ -44,6 +44,7 @@ export default function PendingActionsCard() {
     
     try {
       setIsLoading(true);
+      // Modify the query to exclude kyc_tier which doesn't exist yet
       const { data, error } = await supabase
         .from('profiles')
         .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
