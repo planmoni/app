@@ -59,7 +59,7 @@ export default function AmountScreen() {
 
   const handleMaxPress = () => {
     haptics.selection();
-    setAmount(balance.toLocaleString());
+    setAmount(availableBalance.toLocaleString());
     setError(null);
   };
 
