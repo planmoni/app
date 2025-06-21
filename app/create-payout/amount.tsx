@@ -10,6 +10,7 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
+import { logAnalyticsEvent } from '@/lib/firebase';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
@@ -17,13 +18,35 @@ export default function AmountScreen() {
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Refresh wallet balance when component mounts
   useEffect(() => {
-    refreshWallet();
+    const fetchBalance = async () => {
+      setIsRefreshing(true);
+      try {
+        await refreshWallet();
+        console.log('Wallet balance refreshed in amount.tsx');
+        console.log('Current balance:', balance);
+        console.log('Current locked balance:', lockedBalance);
+        console.log('Available balance:', balance - lockedBalance);
+      } catch (error) {
+        console.error('Error refreshing wallet in amount.tsx:', error);
+      } finally {
+        setIsRefreshing(false);
+      }
+    };
+    
+    fetchBalance();
+    
+    // Log screen view for analytics
+    logAnalyticsEvent('screen_view', {
+      screen_name: 'Create Payout - Amount',
+      screen_class: 'CreatePayoutAmountScreen',
+    });
   }, []);
 
-  // Calculate available balance
+  // Calculate available balance - ensure it's never negative
   const availableBalance = Math.max(0, balance - lockedBalance);
 
   const handleContinue = () => {
@@ -47,6 +70,7 @@ export default function AmountScreen() {
     }
 
     haptics.mediumImpact();
+    logAnalyticsEvent('create_payout_amount_set', { amount: numericAmount });
     router.push({
       pathname: '/create-payout/schedule',
       params: { totalAmount: amount }
@@ -68,10 +92,12 @@ export default function AmountScreen() {
     haptics.selection();
     setAmount(availableBalance.toLocaleString());
     setError(null);
+    logAnalyticsEvent('max_amount_selected', { amount: availableBalance });
   };
 
   const handleAddFunds = () => {
     haptics.mediumImpact();
+    logAnalyticsEvent('add_funds_from_payout');
     router.push('/add-funds');
   };
 
@@ -127,6 +153,7 @@ export default function AmountScreen() {
               keyboardType="numeric"
               value={amount}
               onChangeText={handleAmountChange}
+              editable={!isRefreshing}
             />
           </View>
 
@@ -134,7 +161,7 @@ export default function AmountScreen() {
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
-              <Pressable style={styles.maxButton} onPress={handleMaxPress}>
+              <Pressable style={styles.maxButton} onPress={handleMaxPress} disabled={isRefreshing}>
                 <Text style={styles.maxButtonText}>Max</Text>
               </Pressable>
             </View>
@@ -154,7 +181,7 @@ export default function AmountScreen() {
       <FloatingButton 
         title="Continue"
         onPress={handleContinue}
-        disabled={!amount}
+        disabled={!amount || isRefreshing}
         hapticType="medium"
       />
     </SafeAreaView>
