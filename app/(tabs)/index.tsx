@@ -32,6 +32,7 @@ export default function HomeScreen() {
   const route = useRoute();
   const params = useLocalSearchParams();
   const scrollY = route.params?.scrollY || new Animated.Value(0);
+  const availableBalance = balance - lockedBalance; //the avialable balance logic
 
   // Get user info from session
   const firstName = session?.user?.user_metadata?.first_name || 'User';
@@ -95,7 +96,7 @@ export default function HomeScreen() {
   });
 
   const formatBalance = (amount: number) => {
-    return showBalances ? `₦${amount.toLocaleString()}` : '••••••••';
+    return showBalances ? `₦${availableBalance.toLocaleString()}` : '••••••••';
   };
 
   const handleAddFunds = () => {
