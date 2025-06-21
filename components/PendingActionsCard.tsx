@@ -44,13 +44,29 @@ export default function PendingActionsCard() {
     
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
+      // First try with kyc_tier column
+      let { data, error } = await supabase
         .from('profiles')
         .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified, kyc_tier')
         .eq('id', session?.user?.id)
         .single();
 
-      if (error) throw error;
+      // If kyc_tier column doesn't exist, try without it
+      if (error && error.code === '42703') {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('profiles')
+          .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
+          .eq('id', session?.user?.id)
+          .single();
+
+        if (fallbackError) throw fallbackError;
+        
+        // Add default kyc_tier value
+        data = { ...fallbackData, kyc_tier: 1 };
+      } else if (error) {
+        throw error;
+      }
+
       setProfileData(data);
     } catch (error) {
       console.error('Error loading profile data:', error);
