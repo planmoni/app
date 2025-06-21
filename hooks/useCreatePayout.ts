@@ -49,7 +49,6 @@ export function useCreatePayout() {
       console.log('Creating payout plan with the following details:');
       console.log('- Total Amount:', totalAmount);
       console.log('- Current Balance:', balance);
-      console.log('- Available Balance (balance - lockedBalance):', balance);
       
       // Fetch current wallet data directly from the database for verification
       const { data: walletData, error: walletError } = await supabase
@@ -69,7 +68,7 @@ export function useCreatePayout() {
       console.log('- DB Available Balance:', walletData ? (walletData.balance - walletData.locked_balance) : 'N/A');
 
       // Check if there's enough balance
-      const availableBalance = balance;
+      const availableBalance = walletData ? (walletData.balance - walletData.locked_balance) : 0;
       if (totalAmount > availableBalance) {
         console.error('Insufficient balance error:');
         console.error('- Required amount:', totalAmount);
@@ -96,18 +95,9 @@ export function useCreatePayout() {
 
       console.log('About to lock funds:', totalAmount);
       
-      // Lock the funds in the wallet
-      try {
-        await lockFunds(totalAmount);
-        console.log('Funds locked successfully');
-      } catch (lockError) {
-        console.error('Error locking funds:', lockError);
-        throw lockError;
-      }
-
+      // Create payout plan first without locking funds
       console.log('Creating payout plan in database');
       
-      // Create payout plan
       const { data: payoutPlan, error: payoutError } = await supabase
         .from('payout_plans')
         .insert({
@@ -135,6 +125,39 @@ export function useCreatePayout() {
       }
 
       console.log('Payout plan created successfully:', payoutPlan.id);
+      
+      // Now lock the funds directly using a custom RPC function
+      try {
+        console.log('Locking funds using direct_lock_funds RPC...');
+        const { error: lockError } = await supabase.rpc('direct_lock_funds', {
+          p_amount: totalAmount,
+          p_user_id: session.user.id
+        });
+        
+        if (lockError) {
+          console.error('Error locking funds:', lockError);
+          
+          // If locking fails, delete the payout plan
+          await supabase
+            .from('payout_plans')
+            .delete()
+            .eq('id', payoutPlan.id);
+            
+          throw lockError;
+        }
+        
+        console.log('Funds locked successfully');
+      } catch (lockError) {
+        console.error('Exception in locking funds:', lockError);
+        
+        // If locking fails, delete the payout plan
+        await supabase
+          .from('payout_plans')
+          .delete()
+          .eq('id', payoutPlan.id);
+          
+        throw lockError;
+      }
 
       // If custom frequency, insert custom dates
       if (frequency === 'custom' && customDates && customDates.length > 0) {
