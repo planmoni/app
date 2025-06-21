@@ -88,7 +88,7 @@ export default function EmergencyWithdrawalScreen() {
       
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
         <View style={styles.warningCard}>
-          <AlertTriangle size={24} color="#F97316" />
+          <AlertTriangle size={24} color={isDark ? '#FCD34D' : '#F97316'} />
           <Text style={styles.warningText}>
             Emergency withdrawals allow you to access your funds before the scheduled payout date, but may incur fees depending on the option you choose.
           </Text>
@@ -260,19 +260,19 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    backgroundColor: '#FFF7ED',
+    backgroundColor: isDark ? 'rgba(249, 115, 22, 0.15)' : '#FFF7ED',
     padding: 16,
     borderRadius: 12,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#FFEDD5',
+    borderColor: isDark ? 'rgba(249, 115, 22, 0.3)' : '#FFEDD5',
     borderLeftWidth: 4,
-    borderLeftColor: '#F97316',
+    borderLeftColor: isDark ? '#F97316' : '#F97316',
   },
   warningText: {
     flex: 1,
     fontSize: 14,
-    color: isDark ? '#FFEDD5' : '#9A3412',
+    color: isDark ? '#FCD34D' : '#9A3412',
     lineHeight: 20,
   },
   sectionTitle: {

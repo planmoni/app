@@ -39,6 +39,7 @@ import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
 import BiometricSetupModal from '@/components/settings/BiometricSetupModal';
+import { logAnalyticsEvent } from '@/lib/firebase';
 
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
@@ -65,6 +66,14 @@ export default function SettingsScreen() {
   const [showTerms, setShowTerms] = useState(false);
   const [showBiometricModal, setShowBiometricModal] = useState(false);
 
+  // Log screen view for analytics
+  useEffect(() => {
+    logAnalyticsEvent('screen_view', {
+      screen_name: 'Settings',
+      screen_class: 'SettingsScreen',
+    });
+  }, []);
+
   const handleSignOut = async () => {
     try {
       haptics.notification(Haptics.NotificationFeedbackType.Warning);
@@ -82,6 +91,7 @@ export default function SettingsScreen() {
             style: "destructive",
             onPress: async () => {
               haptics.heavyImpact();
+              logAnalyticsEvent('sign_out');
               await signOut();
               router.replace('/');
             }
@@ -97,46 +107,58 @@ export default function SettingsScreen() {
   const handleViewProfile = () => {
     haptics.lightImpact();
     router.push('/profile');
+    logAnalyticsEvent('view_profile');
   };
 
   const handleViewLinkedAccounts = () => {
     haptics.lightImpact();
     router.push('/linked-accounts');
+    logAnalyticsEvent('view_linked_accounts');
   };
   
   const handleViewPayoutAccounts = () => {
     haptics.lightImpact();
     router.push('/payout-accounts');
+    logAnalyticsEvent('view_payout_accounts');
   };
 
   const handleViewReferral = () => {
     haptics.lightImpact();
     router.push('/referral');
+    logAnalyticsEvent('view_referral');
   };
 
   const handleChangePassword = () => {
     haptics.lightImpact();
     router.push('/change-password');
+    logAnalyticsEvent('change_password');
   };
 
   const handleTwoFactorAuth = () => {
     haptics.lightImpact();
     router.push('/two-factor-auth');
+    logAnalyticsEvent('two_factor_auth');
   };
 
   const handleTransactionLimits = () => {
     haptics.lightImpact();
     router.push('/transaction-limits');
+    logAnalyticsEvent('transaction_limits');
   };
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     haptics.selection();
     setTheme(newTheme);
+    logAnalyticsEvent('change_theme', { theme: newTheme });
   };
 
-  const handleToggleSwitch = (setter: React.Dispatch<React.SetStateAction<boolean>>) => {
+  const handleToggleSwitch = (setter: React.Dispatch<React.SetStateAction<boolean>>, settingName: string) => {
     haptics.selection();
-    setter(prev => !prev);
+    setter(prev => {
+      const newValue = !prev;
+      logAnalyticsEvent('toggle_setting', { setting: settingName, value: newValue });
+      return newValue;
+    });
   };
 
   const handleDeleteAccount = () => {
@@ -155,6 +177,7 @@ export default function SettingsScreen() {
           style: "destructive",
           onPress: () => {
             haptics.heavyImpact();
+            logAnalyticsEvent('delete_account_attempt');
             // Implement account deletion logic here
             Alert.alert("Account Deletion", "Please contact support to complete account deletion.");
           }
@@ -208,6 +231,7 @@ export default function SettingsScreen() {
                 onValueChange={() => {
                   haptics.selection();
                   toggleBalances();
+                  logAnalyticsEvent('toggle_balance_visibility', { show_balances: !showBalances });
                 }}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                 thumbColor={showBalances ? '#1E3A8A' : colors.backgroundTertiary}
@@ -221,6 +245,7 @@ export default function SettingsScreen() {
               onPress={() => {
                 haptics.selection();
                 setShowBiometricModal(true);
+                logAnalyticsEvent('open_biometric_settings');
               }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
@@ -284,6 +309,7 @@ export default function SettingsScreen() {
               onPress={() => {
                 haptics.lightImpact();
                 setShowAccountStatement(true);
+                logAnalyticsEvent('view_account_statement');
               }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}>
@@ -412,7 +438,7 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={vaultAlerts}
-                onValueChange={() => handleToggleSwitch(setVaultAlerts)}
+                onValueChange={() => handleToggleSwitch(setVaultAlerts, 'vault_alerts')}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                 thumbColor={vaultAlerts ? '#1E3A8A' : colors.backgroundTertiary}
               />
@@ -430,7 +456,7 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={loginAlerts}
-                onValueChange={() => handleToggleSwitch(setLoginAlerts)}
+                onValueChange={() => handleToggleSwitch(setLoginAlerts, 'login_alerts')}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                 thumbColor={loginAlerts ? '#1E3A8A' : colors.backgroundTertiary}
               />
@@ -448,7 +474,7 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={expiryReminders}
-                onValueChange={() => handleToggleSwitch(setExpiryReminders)}
+                onValueChange={() => handleToggleSwitch(setExpiryReminders, 'expiry_reminders')}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                 thumbColor={expiryReminders ? '#1E3A8A' : colors.backgroundTertiary}
               />
@@ -461,6 +487,7 @@ export default function SettingsScreen() {
               onPress={() => {
                 haptics.lightImpact();
                 setShowNotificationSettings(true);
+                logAnalyticsEvent('view_notification_settings');
               }}
             >
               <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
@@ -484,6 +511,7 @@ export default function SettingsScreen() {
               onPress={() => {
                 haptics.lightImpact();
                 setShowHelpCenter(true);
+                logAnalyticsEvent('view_help_center');
               }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
@@ -503,6 +531,7 @@ export default function SettingsScreen() {
               onPress={() => {
                 haptics.lightImpact();
                 setShowSupport(true);
+                logAnalyticsEvent('contact_support');
               }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
@@ -522,6 +551,7 @@ export default function SettingsScreen() {
               onPress={() => {
                 haptics.lightImpact();
                 setShowLanguage(true);
+                logAnalyticsEvent('language_preference');
               }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
@@ -541,6 +571,7 @@ export default function SettingsScreen() {
               onPress={() => {
                 haptics.lightImpact();
                 setShowTerms(true);
+                logAnalyticsEvent('view_terms');
               }}
             >
               <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>

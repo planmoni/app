@@ -132,11 +132,6 @@ export function useRealtimeWallet() {
       console.log('- Current locked balance:', lockedBalance);
       console.log('- Available balance:', balance - lockedBalance);
       
-      // Optimistically update the balances immediately for better UX
-      setBalance(prevBalance => prevBalance - amount);
-      setLockedBalance(prevLocked => prevLocked + amount);
-      
-      console.log('Making RPC call to lock_funds...');
       const { error: walletError } = await supabase.rpc('lock_funds', {
         p_amount: amount,
         p_user_id: session?.user?.id
@@ -144,9 +139,6 @@ export function useRealtimeWallet() {
 
       if (walletError) {
         console.error('Error locking funds:', walletError);
-        // Revert the optimistic update if there's an error
-        setBalance(prevBalance => prevBalance + amount);
-        setLockedBalance(prevLocked => prevLocked - amount);
         throw walletError;
       }
       

@@ -16,6 +16,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
+import { logAnalyticsEvent } from '@/lib/firebase';
 
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance } = useBalance();
@@ -36,8 +37,17 @@ export default function HomeScreen() {
   const firstName = session?.user?.user_metadata?.first_name || 'User';
   const lastName = session?.user?.user_metadata?.last_name || '';
 
+  // Log screen view for analytics
+  useEffect(() => {
+    logAnalyticsEvent('screen_view', {
+      screen_name: 'Home',
+      screen_class: 'HomeScreen',
+    });
+  }, []);
+
   const handleProfilePress = () => {
     router.push('/profile');
+    logAnalyticsEvent('profile_click');
   };
 
   useEffect(() => {
@@ -92,12 +102,14 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     router.push('/add-funds');
+    logAnalyticsEvent('add_funds_click');
   };
 
   const handleCreatePayout = () => {
     // Trigger medium impact haptic feedback
     impact();
     router.push('/create-payout/amount');
+    logAnalyticsEvent('create_payout_click');
   };
 
   const handleViewPayout = (id?: string) => {
@@ -108,13 +120,16 @@ export default function HomeScreen() {
         pathname: '/view-payout',
         params: { id }
       });
+      logAnalyticsEvent('view_payout', { payout_id: id });
     } else {
       router.push('/view-payout');
+      logAnalyticsEvent('view_payout');
     }
   };
 
   const handleViewAllPayouts = () => {
     router.push('/all-payouts');
+    logAnalyticsEvent('view_all_payouts');
   };
 
   const handleTransactionPress = (transaction) => {
@@ -139,6 +154,7 @@ export default function HomeScreen() {
     
     setSelectedTransaction(formattedTransaction);
     setIsTransactionModalVisible(true);
+    logAnalyticsEvent('view_transaction', { transaction_id: transaction.id, transaction_type: transaction.type });
   };
 
   // Get active payout plans for display
@@ -361,7 +377,10 @@ export default function HomeScreen() {
           )}
           <Pressable 
             style={styles.seeMoreButton} 
-            onPress={() => setIsSummaryExpanded(!isSummaryExpanded)}
+            onPress={() => {
+              setIsSummaryExpanded(!isSummaryExpanded);
+              logAnalyticsEvent('toggle_summary', { expanded: !isSummaryExpanded });
+            }}
           >
             <Text style={styles.seeMoreText}>
               {isSummaryExpanded ? 'Show less' : 'See more'}
@@ -527,7 +546,13 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Transactions</Text>
-            <Pressable style={styles.viewAllButton} onPress={() => router.push('/transactions')}>
+            <Pressable 
+              style={styles.viewAllButton} 
+              onPress={() => {
+                router.push('/transactions');
+                logAnalyticsEvent('view_all_transactions');
+              }}
+            >
               <Text style={styles.viewAllText}>View All</Text>
             </Pressable>
           </View>
@@ -604,7 +629,10 @@ export default function HomeScreen() {
           {recentTransactions.length > 0 && (
             <Pressable 
               style={styles.viewAllTransactionsButton}
-              onPress={() => router.push('/transactions')}
+              onPress={() => {
+                router.push('/transactions');
+                logAnalyticsEvent('view_all_transactions_button');
+              }}
             >
               <Text style={styles.viewAllTransactionsText}>View All Transactions</Text>
               <ChevronRight size={20} color={colors.primary} />
