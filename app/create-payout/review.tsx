@@ -14,7 +14,7 @@ export default function ReviewScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const { createPayout, isLoading, error } = useCreatePayout();
-  const { balance, lockedBalance } = useBalance();
+  const { balance } = useBalance();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -29,9 +29,6 @@ export default function ReviewScreen() {
   const payoutAccountId = params.payoutAccountId as string;
   const emergencyWithdrawal = params.emergencyWithdrawal === 'true';
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
-
-  // Calculate available balance (total balance minus locked funds)
-  const availableBalance = balance - (lockedBalance || 0);
 
   // Format values for display
   const formattedTotal = `₦${totalAmount}`;
@@ -57,9 +54,9 @@ export default function ReviewScreen() {
   };
 
   const handleStartPlan = async () => {
-    // Check if there's enough available balance (excluding locked funds)
+    // Check if there's enough balance
     const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
-    if (numericTotal > availableBalance) {
+    if (numericTotal > balance) {
       router.push('/add-funds');
       return;
     }
