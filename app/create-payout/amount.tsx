@@ -22,7 +22,7 @@ export default function AmountScreen() {
   const handleContinue = () => {
     if (!amount) {
       setError('Please enter an amount');
-      haptics.notification(Haptics.NotificationFeedbackType.Error);
+      haptics.notification(Haptics.NotificationFeedbackType.Error);lockedBalance
       return;
     }
 
