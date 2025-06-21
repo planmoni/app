@@ -299,13 +299,13 @@ export default function ReviewScreen() {
 
             <View style={styles.balanceInfo}>
               <Text style={styles.balanceInfoText}>
-                Current wallet balance: <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
+                Current wallet balance: <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
               </Text>
               <Text style={styles.balanceInfoText}>
                 Available balance: <Text style={[
                   styles.balanceAmount, 
                   hasInsufficientBalance && styles.insufficientBalance
-                ]}>₦{balance.toLocaleString()}</Text>
+                ]}>₦{availableBalance.toLocaleString()}</Text>
               </Text>
             </View>
           </View>
