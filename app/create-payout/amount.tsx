@@ -10,51 +10,13 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
-import { supabase } from '@/lib/supabase';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
-  const { balance, lockedBalance, refreshWallet } = useBalance();
+  const { balance } = useBalance();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [realTimeBalance, setRealTimeBalance] = useState<number | null>(null);
-  const [realTimeLockedBalance, setRealTimeLockedBalance] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const haptics = useHaptics();
-
-  // Fetch real-time balance directly from the database
-  useEffect(() => {
-    const fetchRealTimeBalance = async () => {
-      try {
-        setIsLoading(true);
-        const { data, error } = await supabase
-          .from('wallets')
-          .select('balance, locked_balance')
-          .single();
-          
-        if (error) throw error;
-        
-        if (data) {
-          setRealTimeBalance(data.balance);
-          setRealTimeLockedBalance(data.locked_balance);
-        }
-      } catch (err) {
-        console.error('Error fetching real-time balance:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchRealTimeBalance();
-    
-    // Also refresh the wallet context
-    refreshWallet();
-  }, []);
-
-  // Calculate available balance using real-time data if available, otherwise use context
-  const availableBalance = realTimeBalance !== null && realTimeLockedBalance !== null
-    ? realTimeBalance - realTimeLockedBalance
-    : balance - lockedBalance;
 
   const handleContinue = () => {
     if (!amount) {
@@ -70,7 +32,7 @@ export default function AmountScreen() {
       return;
     }
 
-    if (numericAmount > availableBalance) {
+    if (numericAmount > balance) {
       setError('Amount exceeds your available balance');
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       return;
@@ -96,7 +58,7 @@ export default function AmountScreen() {
 
   const handleMaxPress = () => {
     haptics.selection();
-    setAmount(availableBalance.toLocaleString());
+    setAmount(balance.toLocaleString());
     setError(null);
   };
 
@@ -163,7 +125,7 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
+              <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
               <Pressable style={styles.maxButton} onPress={handleMaxPress}>
                 <Text style={styles.maxButtonText}>Max</Text>
               </Pressable>
