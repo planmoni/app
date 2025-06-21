@@ -100,6 +100,7 @@ function RootLayoutNav() {
             <Stack.Screen name="two-factor-auth" options={{ headerShown: false }} />
             <Stack.Screen name="view-payout" options={{ headerShown: false }} />
             <Stack.Screen name="app-lock-setup" options={{ headerShown: false }} />
+            <Stack.Screen name="emergency-withdrawal" options={{ headerShown: false }} />
           </React.Fragment>
         ) : (
           <React.Fragment key="unauthenticated-screens">
