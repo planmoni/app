@@ -76,42 +76,6 @@ export default function ReviewScreen() {
   };
 
   const handleStartPlan = async () => {
-    // Check if there's enough balance
-    const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
-    
-    console.log('Starting payout plan:');
-    console.log('- Total amount:', numericTotal);
-    console.log('- Current balance:', balance);
-    
-    if (numericTotal > balance) {
-      if (Platform.OS !== 'web') {
-        haptics.error();
-      }
-      console.error('Insufficient balance detected:');
-      console.error('- Required amount:', numericTotal);
-      console.error('- Available balance:', balance);
-      
-      Alert.alert(
-        "Insufficient Balance",
-        "You don't have enough funds in your wallet. Would you like to add funds?",
-        [
-          {
-            text: "Cancel",
-            style: "cancel"
-          },
-          {
-            text: "Add Funds",
-            onPress: () => router.push('/add-funds')
-          }
-        ]
-      );
-      return;
-    }
-    
-    if (Platform.OS !== 'web') {
-      haptics.mediumImpact();
-    }
-    
     try {
       console.log('Creating payout plan with the following parameters:');
       console.log('- Name:', `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`);
@@ -124,6 +88,10 @@ export default function ReviewScreen() {
       console.log('- Payout account ID:', payoutAccountId || null);
       console.log('- Custom dates:', customDates);
       console.log('- Emergency withdrawal enabled:', emergencyWithdrawal);
+      
+      if (Platform.OS !== 'web') {
+        haptics.mediumImpact();
+      }
       
       await createPayout({
         name: `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`,

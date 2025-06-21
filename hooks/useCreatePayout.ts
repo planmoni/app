@@ -67,15 +67,6 @@ export function useCreatePayout() {
       console.log('- DB Locked Balance:', walletData?.locked_balance);
       console.log('- DB Available Balance:', walletData ? (walletData.balance - walletData.locked_balance) : 'N/A');
 
-      // Check if there's enough balance
-      const availableBalance = walletData ? (walletData.balance - walletData.locked_balance) : 0;
-      if (totalAmount > availableBalance) {
-        console.error('Insufficient balance error:');
-        console.error('- Required amount:', totalAmount);
-        console.error('- Available balance:', availableBalance);
-        throw new Error('Insufficient available balance');
-      }
-
       // Parse the start date string to a Date object
       const startDateObj = new Date(startDate);
       
