@@ -17,6 +17,7 @@ export default function AmountScreen() {
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
+  const availableBalance = balance - lockedBalance;
 
   const handleContinue = () => {
     if (!amount) {
@@ -125,7 +126,7 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
+              <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
               <Pressable style={styles.maxButton} onPress={handleMaxPress}>
                 <Text style={styles.maxButtonText}>Max</Text>
               </Pressable>
