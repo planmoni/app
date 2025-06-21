@@ -13,7 +13,7 @@ import * as Haptics from 'expo-haptics';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
-   const { balance, lockedBalance, refreshWallet } = useBalance();
+   const { balance, lockedBalance, refreshWallet } = useBalance(); //the function to update the avialable balance
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
