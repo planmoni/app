@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Clock, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, Clock, CircleCheck as CheckCircle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
