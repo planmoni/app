@@ -147,6 +147,25 @@ export function useCreatePayout() {
 
       console.log('Funds locked successfully.');
 
+      // Create a transaction record with proper source and destination
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: session.user.id,
+          type: 'payout',
+          amount: totalAmount,
+          status: 'pending',
+          source: 'wallet',  // Explicitly set source
+          destination: 'locked_balance',  // Explicitly set destination
+          description: `Funds locked for payout plan: ${name}`,
+          reference: `payout_lock_${payoutPlan.id}`,
+          payout_plan_id: payoutPlan.id,
+        });
+
+      if (transactionError) {
+        console.error('Error recording transaction:', transactionError);
+      }
+
       // 📆 Insert custom dates if needed
       if (frequency === 'custom' && customDates?.length) {
         const { error: datesError } = await supabase
