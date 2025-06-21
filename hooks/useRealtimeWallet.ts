@@ -35,8 +35,8 @@ export function useRealtimeWallet() {
               console.log('Wallet change received:', payload);
               
               if (payload.eventType === 'UPDATE' && payload.new) {
-                setBalance(payload.new.balance);
-                setLockedBalance(payload.new.locked_balance);
+                setBalance(payload.new.balance || 0);
+                setLockedBalance(payload.new.locked_balance || 0);
               }
             }
           )
@@ -75,14 +75,17 @@ export function useRealtimeWallet() {
       
       if (data) {
         console.log('Wallet data fetched successfully:');
-        console.log('- Balance:', data.balance);
-        console.log('- Locked Balance:', data.locked_balance);
-        console.log('- Available Balance:', data.balance - data.locked_balance);
+        console.log('- Balance:', data.balance || 0);
+        console.log('- Locked Balance:', data.locked_balance || 0);
+        console.log('- Available Balance:', (data.balance || 0) - (data.locked_balance || 0));
         
-        setBalance(data.balance);
-        setLockedBalance(data.locked_balance);
+        setBalance(data.balance || 0);
+        setLockedBalance(data.locked_balance || 0);
       } else {
         console.log('No wallet data found');
+        // Initialize with zeros if no wallet found
+        setBalance(0);
+        setLockedBalance(0);
       }
     } catch (err) {
       console.error('Error in fetchWallet:', err);
@@ -132,14 +135,27 @@ export function useRealtimeWallet() {
       console.log('- Current locked balance:', lockedBalance);
       console.log('- Available balance:', balance - lockedBalance);
       
-      const { error: walletError } = await supabase.rpc('lock_funds', {
-        p_amount: amount,
-        p_user_id: session?.user?.id
+      // Optimistically update the locked balance for better UX
+      setLockedBalance(prevLocked => prevLocked + amount);
+      
+      const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
+        p_user_id: session?.user?.id,
+        p_amount: amount
       });
 
-      if (walletError) {
-        console.error('Error locking funds:', walletError);
-        throw walletError;
+      if (lockError) {
+        console.error('Error locking funds:', lockError);
+        // Revert the optimistic update if there's an error
+        setLockedBalance(prevLocked => prevLocked - amount);
+        throw lockError;
+      }
+      
+      // Check if the lock operation was successful
+      if (lockResult && !lockResult.success) {
+        console.error('Lock funds failed:', lockResult.error);
+        // Revert the optimistic update if there's an error
+        setLockedBalance(prevLocked => prevLocked - amount);
+        throw new Error(lockResult.error || 'Failed to lock funds');
       }
       
       console.log('Funds locked successfully');
