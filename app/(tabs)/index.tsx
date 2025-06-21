@@ -312,7 +312,7 @@ export default function HomeScreen() {
                 )}
               </Pressable>
             </View>
-            <Text style={styles.balanceAmount}>{formatBalance(balance)}</Text>
+            <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
             <View style={styles.lockedSection}>
               <View style={styles.lockedLabelContainer}>
                 <Lock size={16} color={colors.textSecondary} />
