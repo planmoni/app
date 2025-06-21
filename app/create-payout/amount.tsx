@@ -13,13 +13,13 @@ import * as Haptics from 'expo-haptics';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
-  const { balance, lockedBalance } = useBalance();
+  const { balance, lockedBalance, showBalances } = useBalance();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
 
   // Calculate available balance (total balance minus locked funds)
-  const availableBalance = Math.max(0, balance - (lockedBalance || 0));
+  const availableBalance = Math.max(0, balance - lockedBalance);
 
   const handleContinue = () => {
     if (!amount) {
@@ -128,14 +128,14 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
+              <Text style={styles.balanceAmount}>{showBalances ? `₦${availableBalance.toLocaleString()}` : '••••••••'}</Text>
               <Pressable style={styles.maxButton} onPress={handleMaxPress}>
                 <Text style={styles.maxButtonText}>Max</Text>
               </Pressable>
             </View>
             {lockedBalance > 0 && (
               <Text style={styles.lockedBalanceText}>
-                ₦{lockedBalance.toLocaleString()} locked in existing plans
+                {showBalances ? `₦${lockedBalance.toLocaleString()}` : '••••••••'} locked in existing plans
               </Text>
             )}
           </View>
@@ -228,8 +228,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
-    borderRadius: 8,
     padding: 12,
+    borderRadius: 8,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.error,

@@ -88,6 +88,9 @@ export default function HomeScreen() {
     return showBalances ? `₦${amount.toLocaleString()}` : '••••••••';
   };
 
+  // Calculate available balance (total balance minus locked funds)
+  const availableBalance = Math.max(0, balance - lockedBalance);
+
   const handleAddFunds = () => {
     // Trigger medium impact haptic feedback
     impact();
@@ -295,7 +298,7 @@ export default function HomeScreen() {
                 )}
               </Pressable>
             </View>
-            <Text style={styles.balanceAmount}>{formatBalance(balance)}</Text>
+            <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
             <View style={styles.lockedSection}>
               <View style={styles.lockedLabelContainer}>
                 <Lock size={16} color={colors.textSecondary} />

@@ -63,7 +63,14 @@ export function useCreatePayout() {
       const nextPayoutDateStr = nextPayoutDate.toISOString();
 
       // Lock the funds in the wallet
-      await lockFunds(totalAmount);
+      try {
+        await lockFunds(totalAmount);
+      } catch (lockError) {
+        if (lockError instanceof Error && lockError.message.includes('Insufficient available balance')) {
+          throw new Error('Insufficient available balance for this payout plan');
+        }
+        throw lockError;
+      }
 
       // Create payout plan
       const { data: payoutPlan, error: payoutError } = await supabase

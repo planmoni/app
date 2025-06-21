@@ -16,7 +16,7 @@ export default function ReviewScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const { createPayout, isLoading, error } = useCreatePayout();
-  const { balance, lockedBalance } = useBalance();
+  const { balance, lockedBalance, showBalances } = useBalance();
   const haptics = useHaptics();
   const { showToast } = useToast();
   
@@ -35,11 +35,11 @@ export default function ReviewScreen() {
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
 
   // Calculate available balance (total balance minus locked funds)
-  const availableBalance = Math.max(0, balance - (lockedBalance || 0));
+  const availableBalance = Math.max(0, balance - lockedBalance);
 
   // Format values for display
-  const formattedTotal = `₦${totalAmount}`;
-  const formattedPayout = `₦${payoutAmount}`;
+  const formattedTotal = showBalances ? `₦${totalAmount}` : '••••••••';
+  const formattedPayout = showBalances ? `₦${payoutAmount}` : '••••••••';
   const numberOfPayouts = parseInt(duration);
   const formattedFrequency = frequency.charAt(0).toUpperCase() + frequency.slice(1);
 
