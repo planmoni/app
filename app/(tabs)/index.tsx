@@ -96,7 +96,7 @@ export default function HomeScreen() {
   });
 
   const formatBalance = (amount: number) => {
-    return showBalances ? `₦${availableBalance.toLocaleString()}` : '••••••••';
+    return showBalances ? `₦${amount.toLocaleString()}` : '••••••••';
   };
 
   const handleAddFunds = () => {
