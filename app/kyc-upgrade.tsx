@@ -297,10 +297,11 @@ export default function KYCUpgradeScreen() {
         throw new Error('Authentication required');
       }
       
-      const response = await fetch('/api/dojah-kyc', {
+      const response = await fetch('https://sandbox.dojah.io/api/v1/kyc/bvn', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'AppId': `Bearer ${process.env.DOJAH_APP_ID}`,
+          'Authorization': `Bearer ${process.env.DOJAH_PRIVATE_KEY}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
