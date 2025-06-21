@@ -105,10 +105,10 @@ export function useCreatePayout() {
 
       console.log('Payout plan created:', payoutPlan.id);
 
-      // 🔒 Lock funds via RPC with consistent parameter order
+      // 🔒 Lock funds via RPC with unambiguous parameter names
       const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
-        p_user_id: session.user.id,
-        p_amount: totalAmount
+        arg_user_id: session.user.id,
+        arg_amount: totalAmount
       });
 
       if (lockError) {

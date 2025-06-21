@@ -104,8 +104,8 @@ export function useRealtimeWallet() {
       setBalance(prevBalance => prevBalance + amount);
       
       const { data: result, error: walletError } = await supabase.rpc('add_funds', {
-        p_user_id: session?.user?.id,
-        p_amount: amount
+        arg_user_id: session?.user?.id,
+        arg_amount: amount
       });
 
       if (walletError) {
@@ -147,8 +147,8 @@ export function useRealtimeWallet() {
       setLockedBalance(prevLocked => prevLocked + amount);
       
       const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
-        p_user_id: session?.user?.id,
-        p_amount: amount
+        arg_user_id: session?.user?.id,
+        arg_amount: amount
       });
 
       if (lockError) {
