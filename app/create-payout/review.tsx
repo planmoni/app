@@ -1,8 +1,8 @@
-import { View, Text, StyleSheet, Pressable, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Check, Shield } from 'lucide-react-native';
+import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, PencilLine, Pause, Play, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCreatePayout } from '@/hooks/useCreatePayout';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -34,10 +34,14 @@ export default function ReviewScreen() {
   const emergencyWithdrawal = params.emergencyWithdrawal === 'true';
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
 
-  // Parse total amount for comparison
-  const totalAmountNumber = parseFloat(totalAmount.replace(/[^0-9.]/g, ''));
+  // Calculate available balance
   const availableBalance = balance - lockedBalance;
-  const hasInsufficientBalance = availableBalance < totalAmountNumber;
+  
+  // Parse total amount to number for comparison
+  const numericTotalAmount = parseFloat(totalAmount.replace(/,/g, ''));
+  
+  // Check if user has enough balance
+  const hasInsufficientBalance = numericTotalAmount > availableBalance;
 
   // Refresh wallet balance when component mounts
   useEffect(() => {
@@ -57,30 +61,17 @@ export default function ReviewScreen() {
     fetchBalance();
   }, []);
 
-  // Format values for display
-  const formattedTotal = `₦${totalAmount}`;
-  const formattedPayout = `₦${payoutAmount}`;
-  const numberOfPayouts = parseInt(duration);
-  const formattedFrequency = frequency.charAt(0).toUpperCase() + frequency.slice(1);
-
-  // Format date for display (Month Day, Year)
-  const formatDisplayDate = (dateString: string): string => {
-    // Check if the date is already in the format "Month Day, Year"
-    if (/[A-Za-z]+ \d+, \d{4}/.test(dateString)) {
-      return dateString;
+  const handleStartPlan = async () => {
+    if (hasInsufficientBalance) {
+      haptics.error();
+      Alert.alert(
+        "Insufficient Balance",
+        `You need ₦${numericTotalAmount.toLocaleString()} but only have ₦${availableBalance.toLocaleString()} available.`,
+        [{ text: "OK" }]
+      );
+      return;
     }
     
-    // Otherwise, convert from ISO format (YYYY-MM-DD)
-    const date = new Date(dateString);
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    
-    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-  };
-
-  const handleStartPlan = async () => {
     try {
       console.log('Creating payout plan with the following parameters:');
       console.log('- Name:', `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`);
@@ -93,7 +84,6 @@ export default function ReviewScreen() {
       console.log('- Payout account ID:', payoutAccountId || null);
       console.log('- Custom dates:', customDates);
       console.log('- Emergency withdrawal enabled:', emergencyWithdrawal);
-      console.log('- Current available balance:', availableBalance);
       
       if (Platform.OS !== 'web') {
         haptics.mediumImpact();
@@ -110,8 +100,7 @@ export default function ReviewScreen() {
         bankAccountId: bankAccountId || null,
         payoutAccountId: payoutAccountId || null,
         customDates,
-        emergencyWithdrawalEnabled: emergencyWithdrawal,
-        currentAvailableBalance: availableBalance
+        emergencyWithdrawalEnabled: emergencyWithdrawal
       });
     } catch (err) {
       console.error('Error in handleStartPlan:', err);
@@ -156,14 +145,12 @@ export default function ReviewScreen() {
             </Text>
 
             {error && <ErrorMessage message={error} />}
-
+            
             {hasInsufficientBalance && (
-              <View style={styles.insufficientBalanceBox}>
-                <View style={styles.warningIcon}>
-                  <AlertTriangle size={20} color="#F59E0B" />
-                </View>
-                <Text style={styles.insufficientBalanceText}>
-                  Insufficient balance. You need ₦{totalAmountNumber.toLocaleString()} but only have ₦{availableBalance.toLocaleString()} available.
+              <View style={styles.warningBox}>
+                <AlertTriangle size={20} color={colors.error} />
+                <Text style={styles.warningText}>
+                  Insufficient balance. You need ₦{numericTotalAmount.toLocaleString()} but only have ₦{availableBalance.toLocaleString()} available.
                 </Text>
               </View>
             )}
@@ -175,7 +162,7 @@ export default function ReviewScreen() {
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Total Amount</Text>
-                  <Text style={styles.detailValue}>{formattedTotal}</Text>
+                  <Text style={styles.detailValue}>{`₦${totalAmount}`}</Text>
                 </View>
                 <Pressable 
                   style={styles.editButton} 
@@ -196,8 +183,8 @@ export default function ReviewScreen() {
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Payout Frequency</Text>
-                  <Text style={styles.detailValue}>{formattedFrequency}</Text>
-                  <Text style={styles.detailSubtext}>{formattedPayout} per payout</Text>
+                  <Text style={styles.detailValue}>{frequency.charAt(0).toUpperCase() + frequency.slice(1)}</Text>
+                  <Text style={styles.detailSubtext}>{`₦${payoutAmount}`} per payout</Text>
                 </View>
                 <Pressable 
                   style={styles.editButton} 
@@ -262,17 +249,17 @@ export default function ReviewScreen() {
               
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Total Amount</Text>
-                <Text style={styles.summaryValue}>{formattedTotal}</Text>
+                <Text style={styles.summaryValue}>{`₦${totalAmount}`}</Text>
               </View>
               
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Number of Payouts</Text>
-                <Text style={styles.summaryValue}>{numberOfPayouts}</Text>
+                <Text style={styles.summaryValue}>{parseInt(duration)}</Text>
               </View>
               
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Amount per Payout</Text>
-                <Text style={styles.summaryValue}>{formattedPayout}</Text>
+                <Text style={styles.summaryValue}>{`₦${payoutAmount}`}</Text>
               </View>
 
               {emergencyWithdrawal && (
@@ -295,7 +282,7 @@ export default function ReviewScreen() {
                 <Check size={20} color="#22C55E" />
               </View>
               <Text style={styles.confirmationText}>
-                By continuing, you agree to lock {formattedTotal} in your vault for the duration of this payout plan.
+                By continuing, you agree to lock {`₦${totalAmount}`} in your vault for the duration of this payout plan.
               </Text>
             </View>
 
@@ -312,7 +299,13 @@ export default function ReviewScreen() {
 
             <View style={styles.balanceInfo}>
               <Text style={styles.balanceInfoText}>
-                Current available balance: <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
+                Current wallet balance: <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
+              </Text>
+              <Text style={styles.balanceInfoText}>
+                Available balance: <Text style={[
+                  styles.balanceAmount, 
+                  hasInsufficientBalance && styles.insufficientBalance
+                ]}>₦{availableBalance.toLocaleString()}</Text>
               </Text>
             </View>
           </View>
@@ -328,6 +321,23 @@ export default function ReviewScreen() {
     </SafeAreaView>
   );
 }
+
+// Format date for display (Month Day, Year)
+const formatDisplayDate = (dateString: string): string => {
+  // Check if the date is already in the format "Month Day, Year"
+  if (/[A-Za-z]+ \d+, \d{4}/.test(dateString)) {
+    return dateString;
+  }
+  
+  // Otherwise, convert from ISO format (YYYY-MM-DD)
+  const date = new Date(dateString);
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  
+  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+};
 
 const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
@@ -393,29 +403,21 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 32,
   },
-  insufficientBalanceBox: {
+  warningBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FFFBEB',
+    backgroundColor: colors.errorLight,
     padding: 16,
     borderRadius: 12,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FED7AA',
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.error,
+    gap: 12,
   },
-  warningIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FED7AA',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  insufficientBalanceText: {
+  warningText: {
     flex: 1,
     fontSize: 14,
-    color: colors.text,
+    color: colors.error,
     lineHeight: 20,
   },
   detailsList: {
@@ -579,14 +581,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    alignItems: 'center',
+    marginBottom: 16,
   },
   balanceInfoText: {
     fontSize: 14,
     color: colors.textSecondary,
+    marginBottom: 4,
   },
   balanceAmount: {
     fontWeight: '600',
     color: colors.text,
+  },
+  insufficientBalance: {
+    color: colors.error,
   },
 });

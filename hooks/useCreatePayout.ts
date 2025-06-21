@@ -9,7 +9,7 @@ export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
-  const { refreshWallet } = useBalance();
+  const { balance, lockedBalance, refreshWallet } = useBalance();
   const { showToast } = useToast();
 
   const createPayout = async ({
@@ -23,8 +23,7 @@ export function useCreatePayout() {
     bankAccountId,
     payoutAccountId,
     customDates,
-    emergencyWithdrawalEnabled = false,
-    currentAvailableBalance
+    emergencyWithdrawalEnabled = false
   }: {
     name: string;
     description?: string;
@@ -37,7 +36,6 @@ export function useCreatePayout() {
     payoutAccountId?: string | null;
     customDates?: string[];
     emergencyWithdrawalEnabled?: boolean;
-    currentAvailableBalance: number;
   }) => {
     try {
       setIsLoading(true);
@@ -49,11 +47,16 @@ export function useCreatePayout() {
 
       console.log('Creating payout plan...');
       console.log('- Total Amount:', totalAmount);
-      console.log('- Current Available Balance:', currentAvailableBalance);
+      console.log('- Current Balance:', balance);
+      console.log('- Locked Balance:', lockedBalance);
+      
+      // Calculate available balance from context
+      const availableBalance = balance - lockedBalance;
+      console.log('- Available Balance:', availableBalance);
 
-      // Use the current available balance from context instead of fetching from DB
-      if (totalAmount > currentAvailableBalance) {
-        throw new Error('Insufficient available balance to create this payout plan.');
+      // Check if user has enough available balance
+      if (totalAmount > availableBalance) {
+        throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${availableBalance.toLocaleString()} available.`);
       }
 
       // 📅 Calculate next payout date
@@ -164,6 +167,7 @@ export function useCreatePayout() {
           payoutAmount: payoutAmount.toString(),
           startDate,
           bankName: bankAccountId || payoutAccountId ? 'Your bank account' : '',
+          accountNumber: accountNumber || '',
           emergencyWithdrawalEnabled: emergencyWithdrawalEnabled.toString()
         }
       });
