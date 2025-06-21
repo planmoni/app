@@ -4,7 +4,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useToast } from '@/contexts/ToastContext';
-import { logAnalyticsEvent } from '@/lib/firebase';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
@@ -48,14 +47,6 @@ export function useCreatePayout() {
 
       console.log('Creating payout plan...');
       console.log('- Total Amount:', totalAmount);
-
-      // Log analytics event
-      logAnalyticsEvent('create_payout_plan', {
-        amount: totalAmount,
-        frequency,
-        duration,
-        emergency_withdrawal_enabled: emergencyWithdrawalEnabled
-      });
 
       // 🔥 Fetch real-time balance from DB
       const { data: walletData, error: walletError } = await supabase
@@ -147,25 +138,6 @@ export function useCreatePayout() {
 
       console.log('Funds locked successfully.');
 
-      // Create a transaction record with proper source and destination
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: session.user.id,
-          type: 'payout',
-          amount: totalAmount,
-          status: 'pending',
-          source: 'wallet',  // Explicitly set source
-          destination: 'locked_balance',  // Explicitly set destination
-          description: `Funds locked for payout plan: ${name}`,
-          reference: `payout_lock_${payoutPlan.id}`,
-          payout_plan_id: payoutPlan.id,
-        });
-
-      if (transactionError) {
-        console.error('Error recording transaction:', transactionError);
-      }
-
       // 📆 Insert custom dates if needed
       if (frequency === 'custom' && customDates?.length) {
         const { error: datesError } = await supabase
@@ -199,14 +171,6 @@ export function useCreatePayout() {
       // ✅ Show toast
       showToast?.('Payout plan created successfully!', 'success');
 
-      // Log successful creation
-      logAnalyticsEvent('payout_plan_created', {
-        plan_id: payoutPlan.id,
-        amount: totalAmount,
-        frequency,
-        duration
-      });
-
       // 📲 Redirect
       router.replace({
         pathname: '/create-payout/success',
@@ -225,11 +189,6 @@ export function useCreatePayout() {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create payout plan';
       setError(errorMessage);
       showToast?.(errorMessage, 'error');
-      
-      // Log error
-      logAnalyticsEvent('payout_plan_creation_error', {
-        error_message: errorMessage
-      });
     } finally {
       setIsLoading(false);
     }
