@@ -91,21 +91,23 @@ export function useSupabaseAuth() {
         return { success: false, error: errorMessage };
       }
 
-      // If user was created successfully, update the profile
+      // If user was created successfully, upsert the profile
       if (authData.user) {
         const { error: profileError } = await supabase
           .from('profiles')
-          .update({
+          .upsert({
+            id: authData.user.id,
             first_name: firstName.trim(),
             last_name: lastName.trim(),
             email: email.toLowerCase().trim(),
             referral_code: referralCode?.trim() || null,
-          })
-          .eq('id', authData.user.id);
+          }, {
+            onConflict: 'id'
+          });
 
         if (profileError) {
-          console.error('Profile update error:', profileError);
-          // Don't fail the signup if profile update fails, as the user account was created
+          console.error('Profile upsert error:', profileError);
+          // Don't fail the signup if profile upsert fails, as the user account was created
           // The profile will be created by the database trigger
         }
       }
