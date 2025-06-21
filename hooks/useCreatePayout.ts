@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useToast } from '@/contexts/ToastContext';
+import { logAnalyticsEvent } from '@/lib/firebase';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
@@ -48,6 +49,14 @@ export function useCreatePayout() {
       console.log('Creating payout plan...');
       console.log('- Total Amount:', totalAmount);
 
+      // Log analytics event
+      logAnalyticsEvent('create_payout_plan', {
+        amount: totalAmount,
+        frequency,
+        duration,
+        emergency_withdrawal_enabled: emergencyWithdrawalEnabled
+      });
+
       // 🔥 Fetch real-time balance from DB
       const { data: walletData, error: walletError } = await supabase
         .from('wallets')
@@ -68,7 +77,6 @@ export function useCreatePayout() {
       console.log('DB Locked:', dbLocked);
       console.log('DB Available:', dbAvailable);
 
-      // FIX: Changed condition from < to > to correctly check if totalAmount exceeds available balance
       if (totalAmount > dbAvailable) {
         throw new Error('Insufficient available balance to create this payout plan.');
       }
@@ -119,7 +127,7 @@ export function useCreatePayout() {
 
       console.log('Payout plan created:', payoutPlan.id);
 
-      // 🔒 Lock funds via RPC - FIX: Changed function name from direct_lock_funds to lock_funds
+      // 🔒 Lock funds via RPC
       const { error: lockError } = await supabase.rpc('lock_funds', {
         p_amount: totalAmount,
         p_user_id: session.user.id
@@ -138,25 +146,6 @@ export function useCreatePayout() {
       }
 
       console.log('Funds locked successfully.');
-
-      // 🧾 Log transaction - FIX: Added required source and destination fields
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: session.user.id,
-          type: 'payout',
-          amount: totalAmount,
-          description: `Funds locked for payout plan: ${name}`,
-          status: 'completed',
-          reference: `payout_lock_${payoutPlan.id}`,
-          payout_plan_id: payoutPlan.id,
-          source: 'wallet',
-          destination: 'payout_vault',
-        });
-
-      if (transactionError) {
-        console.error('Error recording transaction:', transactionError);
-      }
 
       // 📆 Insert custom dates if needed
       if (frequency === 'custom' && customDates?.length) {
@@ -191,6 +180,14 @@ export function useCreatePayout() {
       // ✅ Show toast
       showToast?.('Payout plan created successfully!', 'success');
 
+      // Log successful creation
+      logAnalyticsEvent('payout_plan_created', {
+        plan_id: payoutPlan.id,
+        amount: totalAmount,
+        frequency,
+        duration
+      });
+
       // 📲 Redirect
       router.replace({
         pathname: '/create-payout/success',
@@ -209,6 +206,11 @@ export function useCreatePayout() {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create payout plan';
       setError(errorMessage);
       showToast?.(errorMessage, 'error');
+      
+      // Log error
+      logAnalyticsEvent('payout_plan_creation_error', {
+        error_message: errorMessage
+      });
     } finally {
       setIsLoading(false);
     }
