@@ -9,12 +9,16 @@ import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useBalance } from '@/contexts/BalanceContext';
+import { useHaptics } from '@/hooks/useHaptics';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function ReviewScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const { createPayout, isLoading, error } = useCreatePayout();
-  const { balance } = useBalance();
+  const { balance, lockedBalance } = useBalance();
+  const haptics = useHaptics();
+  const { showToast } = useToast();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -29,6 +33,9 @@ export default function ReviewScreen() {
   const payoutAccountId = params.payoutAccountId as string;
   const emergencyWithdrawal = params.emergencyWithdrawal === 'true';
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
+
+  // Calculate available balance (total balance minus locked funds)
+  const availableBalance = Math.max(0, balance - (lockedBalance || 0));
 
   // Format values for display
   const formattedTotal = `₦${totalAmount}`;
@@ -54,13 +61,16 @@ export default function ReviewScreen() {
   };
 
   const handleStartPlan = async () => {
-    // Check if there's enough balance
+    // Check if there's enough available balance (excluding locked funds)
     const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
-    if (numericTotal > balance) {
+    if (numericTotal > availableBalance) {
+      haptics.error();
+      showToast('Insufficient available balance for this payout plan', 'error');
       router.push('/add-funds');
       return;
     }
     
+    haptics.mediumImpact();
     await createPayout({
       name: `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`,
       description: `${frequency} payout of ${payoutAmount}`,
@@ -72,6 +82,7 @@ export default function ReviewScreen() {
       bankAccountId: bankAccountId || null,
       payoutAccountId: payoutAccountId || null,
       customDates,
+      emergencyWithdrawalEnabled: emergencyWithdrawal
     });
   };
 
@@ -80,7 +91,13 @@ export default function ReviewScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
@@ -111,7 +128,13 @@ export default function ReviewScreen() {
                 <Text style={styles.detailLabel}>Total Amount</Text>
                 <Text style={styles.detailValue}>{formattedTotal}</Text>
               </View>
-              <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/amount')}>
+              <Pressable 
+                style={styles.editButton} 
+                onPress={() => {
+                  haptics.selection();
+                  router.push('/create-payout/amount');
+                }}
+              >
                 <Text style={styles.editButtonText}>Edit</Text>
               </Pressable>
             </View>
@@ -125,7 +148,13 @@ export default function ReviewScreen() {
                 <Text style={styles.detailValue}>{formattedFrequency}</Text>
                 <Text style={styles.detailSubtext}>{formattedPayout} per payout</Text>
               </View>
-              <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/schedule')}>
+              <Pressable 
+                style={styles.editButton} 
+                onPress={() => {
+                  haptics.selection();
+                  router.push('/create-payout/schedule');
+                }}
+              >
                 <Text style={styles.editButtonText}>Edit</Text>
               </Pressable>
             </View>
@@ -139,7 +168,13 @@ export default function ReviewScreen() {
                 <Text style={styles.detailValue}>{duration} {frequency === 'custom' ? 'payouts' : 'months'}</Text>
                 <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
               </View>
-              <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/schedule')}>
+              <Pressable 
+                style={styles.editButton} 
+                onPress={() => {
+                  haptics.selection();
+                  router.push('/create-payout/schedule');
+                }}
+              >
                 <Text style={styles.editButtonText}>Edit</Text>
               </Pressable>
             </View>
@@ -153,7 +188,13 @@ export default function ReviewScreen() {
                 <Text style={styles.detailValue}>{bankName} •••• {accountNumber.slice(-4)}</Text>
                 <Text style={styles.detailSubtext}>{accountName}</Text>
               </View>
-              <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/destination')}>
+              <Pressable 
+                style={styles.editButton} 
+                onPress={() => {
+                  haptics.selection();
+                  router.push('/create-payout/destination');
+                }}
+              >
                 <Text style={styles.editButtonText}>Edit</Text>
               </Pressable>
             </View>
@@ -205,6 +246,7 @@ export default function ReviewScreen() {
         title="Start Payout Plan"
         onPress={handleStartPlan}
         loading={isLoading}
+        hapticType="medium"
       />
     </SafeAreaView>
   );
@@ -314,8 +356,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
   },
   editButton: {
-    paddingHorizontal: 12,
     paddingVertical: 6,
+    paddingHorizontal: 12,
     backgroundColor: colors.backgroundTertiary,
     borderRadius: 6,
   },
