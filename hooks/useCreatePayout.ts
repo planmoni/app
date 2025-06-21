@@ -68,7 +68,7 @@ export function useCreatePayout() {
       console.log('DB Locked:', dbLocked);
       console.log('DB Available:', dbAvailable);
 
-      if (totalAmount > dbAvailable) {
+      if (totalAmount < dbAvailable) {
         throw new Error('Insufficient available balance to create this payout plan.');
       }
 
