@@ -10,44 +10,51 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
-import { logAnalyticsEvent } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
   const { balance, lockedBalance, refreshWallet } = useBalance();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [realTimeBalance, setRealTimeBalance] = useState<number | null>(null);
+  const [realTimeLockedBalance, setRealTimeLockedBalance] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const haptics = useHaptics();
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Refresh wallet balance when component mounts
+  // Fetch real-time balance directly from the database
   useEffect(() => {
-    const fetchBalance = async () => {
-      setIsRefreshing(true);
+    const fetchRealTimeBalance = async () => {
       try {
-        await refreshWallet();
-        console.log('Wallet balance refreshed in amount.tsx');
-        console.log('Current balance:', balance);
-        console.log('Current locked balance:', lockedBalance);
-        console.log('Available balance:', balance - lockedBalance);
-      } catch (error) {
-        console.error('Error refreshing wallet in amount.tsx:', error);
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('wallets')
+          .select('balance, locked_balance')
+          .single();
+          
+        if (error) throw error;
+        
+        if (data) {
+          setRealTimeBalance(data.balance);
+          setRealTimeLockedBalance(data.locked_balance);
+        }
+      } catch (err) {
+        console.error('Error fetching real-time balance:', err);
       } finally {
-        setIsRefreshing(false);
+        setIsLoading(false);
       }
     };
     
-    fetchBalance();
+    fetchRealTimeBalance();
     
-    // Log screen view for analytics
-    logAnalyticsEvent('screen_view', {
-      screen_name: 'Create Payout - Amount',
-      screen_class: 'CreatePayoutAmountScreen',
-    });
+    // Also refresh the wallet context
+    refreshWallet();
   }, []);
 
-  // Calculate available balance - ensure it's never negative
-  const availableBalance = Math.max(0, balance - lockedBalance);
+  // Calculate available balance using real-time data if available, otherwise use context
+  const availableBalance = realTimeBalance !== null && realTimeLockedBalance !== null
+    ? realTimeBalance - realTimeLockedBalance
+    : balance - lockedBalance;
 
   const handleContinue = () => {
     if (!amount) {
@@ -70,7 +77,6 @@ export default function AmountScreen() {
     }
 
     haptics.mediumImpact();
-    logAnalyticsEvent('create_payout_amount_set', { amount: numericAmount });
     router.push({
       pathname: '/create-payout/schedule',
       params: { totalAmount: amount }
@@ -92,12 +98,10 @@ export default function AmountScreen() {
     haptics.selection();
     setAmount(availableBalance.toLocaleString());
     setError(null);
-    logAnalyticsEvent('max_amount_selected', { amount: availableBalance });
   };
 
   const handleAddFunds = () => {
     haptics.mediumImpact();
-    logAnalyticsEvent('add_funds_from_payout');
     router.push('/add-funds');
   };
 
@@ -153,7 +157,6 @@ export default function AmountScreen() {
               keyboardType="numeric"
               value={amount}
               onChangeText={handleAmountChange}
-              editable={!isRefreshing}
             />
           </View>
 
@@ -161,7 +164,7 @@ export default function AmountScreen() {
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
-              <Pressable style={styles.maxButton} onPress={handleMaxPress} disabled={isRefreshing}>
+              <Pressable style={styles.maxButton} onPress={handleMaxPress}>
                 <Text style={styles.maxButtonText}>Max</Text>
               </Pressable>
             </View>
@@ -181,7 +184,7 @@ export default function AmountScreen() {
       <FloatingButton 
         title="Continue"
         onPress={handleContinue}
-        disabled={!amount || isRefreshing}
+        disabled={!amount}
         hapticType="medium"
       />
     </SafeAreaView>

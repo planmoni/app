@@ -4,7 +4,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useToast } from '@/contexts/ToastContext';
-import { logAnalyticsEvent } from '@/lib/firebase';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
@@ -49,14 +48,6 @@ export function useCreatePayout() {
       console.log('Creating payout plan...');
       console.log('- Total Amount:', totalAmount);
 
-      // Log analytics event
-      logAnalyticsEvent('create_payout_start', {
-        amount: totalAmount,
-        frequency,
-        duration,
-        emergency_withdrawal: emergencyWithdrawalEnabled
-      });
-
       // 🔥 Fetch real-time balance from DB
       const { data: walletData, error: walletError } = await supabase
         .from('wallets')
@@ -78,10 +69,6 @@ export function useCreatePayout() {
       console.log('DB Available:', dbAvailable);
 
       if (totalAmount > dbAvailable) {
-        logAnalyticsEvent('create_payout_insufficient_balance', {
-          required: totalAmount,
-          available: dbAvailable
-        });
         throw new Error('Insufficient available balance to create this payout plan.');
       }
 
@@ -126,10 +113,6 @@ export function useCreatePayout() {
 
       if (payoutError) {
         console.error('Error creating payout plan:', payoutError);
-        logAnalyticsEvent('create_payout_error', {
-          error_type: 'db_insert_error',
-          error_message: payoutError.message
-        });
         throw payoutError;
       }
 
@@ -143,10 +126,6 @@ export function useCreatePayout() {
 
       if (lockError) {
         console.error('Error locking funds:', lockError);
-        logAnalyticsEvent('create_payout_error', {
-          error_type: 'lock_funds_error',
-          error_message: lockError.message
-        });
 
         // Clean up payout plan on failure
         await supabase
@@ -172,10 +151,6 @@ export function useCreatePayout() {
 
         if (datesError) {
           console.error('Error adding custom dates:', datesError);
-          logAnalyticsEvent('create_payout_error', {
-            error_type: 'custom_dates_error',
-            error_message: datesError.message
-          });
           throw datesError;
         }
       }
@@ -192,14 +167,6 @@ export function useCreatePayout() {
 
       // ♻️ Refresh wallet
       await refreshWallet();
-
-      // Log successful creation
-      logAnalyticsEvent('create_payout_success', {
-        payout_id: payoutPlan.id,
-        amount: totalAmount,
-        frequency,
-        duration
-      });
 
       // ✅ Show toast
       showToast?.('Payout plan created successfully!', 'success');
@@ -222,10 +189,6 @@ export function useCreatePayout() {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create payout plan';
       setError(errorMessage);
       showToast?.(errorMessage, 'error');
-      logAnalyticsEvent('create_payout_error', {
-        error_type: 'general_error',
-        error_message: errorMessage
-      });
     } finally {
       setIsLoading(false);
     }

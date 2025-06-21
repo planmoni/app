@@ -132,8 +132,6 @@ export function useRealtimeWallet() {
       console.log('- Current locked balance:', lockedBalance);
       console.log('- Available balance:', balance - lockedBalance);
       
-      // Make the RPC call to lock_funds
-      console.log('Making RPC call to lock_funds...');
       const { error: walletError } = await supabase.rpc('lock_funds', {
         p_amount: amount,
         p_user_id: session?.user?.id
