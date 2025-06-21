@@ -10,15 +10,39 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
+import { useFocusEffect } from 'expo-router';
+import { logAnalyticsEvent } from '@/lib/firebase';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
-  const { balance, lockedBalance } = useBalance();
+  const { balance, lockedBalance, refreshWallet } = useBalance();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
 
   const availableBalance = balance - lockedBalance;
+
+  // Log screen view for analytics
+  useEffect(() => {
+    logAnalyticsEvent('screen_view', {
+      screen_name: 'Create Payout - Amount',
+      screen_class: 'AmountScreen',
+    });
+  }, []);
+
+  // Refresh wallet balance when screen comes into focus
+  useFocusEffect(() => {
+    const fetchBalance = async () => {
+      try {
+        console.log('Refreshing wallet balance on amount screen focus');
+        await refreshWallet();
+      } catch (error) {
+        console.error('Error refreshing wallet balance:', error);
+      }
+    };
+    
+    fetchBalance();
+  });
 
   const handleContinue = () => {
     if (!amount) {
@@ -41,6 +65,7 @@ export default function AmountScreen() {
     }
 
     haptics.mediumImpact();
+    logAnalyticsEvent('set_payout_amount', { amount: numericAmount });
     router.push({
       pathname: '/create-payout/schedule',
       params: { totalAmount: amount }
@@ -62,10 +87,12 @@ export default function AmountScreen() {
     haptics.selection();
     setAmount(availableBalance.toLocaleString());
     setError(null);
+    logAnalyticsEvent('use_max_amount', { amount: availableBalance });
   };
 
   const handleAddFunds = () => {
     haptics.mediumImpact();
+    logAnalyticsEvent('add_funds_from_payout', { current_balance: balance });
     router.push('/add-funds');
   };
 
