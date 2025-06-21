@@ -139,17 +139,19 @@ export function useCreatePayout() {
 
       console.log('Funds locked successfully.');
 
-      // 🧾 Log transaction
+      // 🧾 Log transaction - FIX: Added required source and destination fields
       const { error: transactionError } = await supabase
         .from('transactions')
         .insert({
           user_id: session.user.id,
-          type: 'debit',
+          type: 'payout',
           amount: totalAmount,
           description: `Funds locked for payout plan: ${name}`,
           status: 'completed',
           reference: `payout_lock_${payoutPlan.id}`,
           payout_plan_id: payoutPlan.id,
+          source: 'wallet',
+          destination: 'payout_vault',
         });
 
       if (transactionError) {
