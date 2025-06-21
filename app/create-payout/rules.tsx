@@ -1,23 +1,36 @@
 import { View, Text, StyleSheet, Pressable, Switch, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, TriangleAlert as AlertTriangle, Clock, Info } from 'lucide-react-native';
-import Button from '@/components/Button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ArrowLeft, TriangleAlert as AlertTriangle, Clock, Info, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
+import { Platform } from 'react-native';
 
 export default function RulesScreen() {
   const { colors, isDark } = useTheme();
   const params = useLocalSearchParams();
   const [emergencyWithdrawal, setEmergencyWithdrawal] = useState(false);
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const haptics = useHaptics();
 
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
+
+  // Set initial state based on params if available
+  useEffect(() => {
+    if (params.emergencyWithdrawal === 'true') {
+      setEmergencyWithdrawal(true);
+    }
+  }, [params.emergencyWithdrawal]);
+
   const handleContinue = () => {
-    haptics.mediumImpact();
+    if (Platform.OS !== 'web') {
+      haptics.mediumImpact();
+    }
+    
     router.push({
       pathname: '/create-payout/review',
       params: {
@@ -27,17 +40,23 @@ export default function RulesScreen() {
     });
   };
 
-  // Responsive styles based on screen width
-  const isSmallScreen = width < 380;
+  const handleToggleEmergencyWithdrawal = () => {
+    if (Platform.OS !== 'web') {
+      haptics.selection();
+    }
+    setEmergencyWithdrawal(!emergencyWithdrawal);
+  };
 
-  const styles = createStyles(colors, isSmallScreen);
+  const styles = createStyles(colors, isDark, isSmallScreen);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Pressable 
           onPress={() => {
-            haptics.lightImpact();
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
             router.back();
           }} 
           style={styles.backButton}
@@ -76,10 +95,7 @@ export default function RulesScreen() {
               </View>
               <Switch
                 value={emergencyWithdrawal}
-                onValueChange={(value) => {
-                  haptics.selection();
-                  setEmergencyWithdrawal(value);
-                }}
+                onValueChange={handleToggleEmergencyWithdrawal}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                 thumbColor={emergencyWithdrawal ? '#1E3A8A' : colors.backgroundTertiary}
               />
@@ -148,6 +164,15 @@ export default function RulesScreen() {
               </Text>
             </View>
           )}
+
+          <View style={styles.securityInfo}>
+            <View style={styles.securityIconContainer}>
+              <Shield size={isSmallScreen ? 16 : 20} color={colors.primary} />
+            </View>
+            <Text style={styles.securityInfoText}>
+              Your funds are securely locked in your vault until your scheduled payout dates. This helps maintain financial discipline and ensures your money lasts longer.
+            </Text>
+          </View>
         </View>
       </KeyboardAvoidingWrapper>
 
@@ -160,7 +185,7 @@ export default function RulesScreen() {
   );
 }
 
-const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -227,6 +252,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   },
   settingsContainer: {
     gap: 16,
+    marginBottom: 24,
   },
   setting: {
     flexDirection: 'row',
@@ -368,11 +394,34 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     padding: 16,
     borderRadius: 12,
     marginTop: 16,
+    marginBottom: 16,
   },
   infoIcon: {
     marginTop: 2,
   },
   infoText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  securityInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    padding: 16,
+    borderRadius: 12,
+  },
+  securityIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#DBEAFE',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  securityInfoText: {
     flex: 1,
     fontSize: 14,
     color: colors.textSecondary,

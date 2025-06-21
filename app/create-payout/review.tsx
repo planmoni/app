@@ -1,21 +1,24 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Check } from 'lucide-react-native';
-import Button from '@/components/Button';
-import { useCreatePayout } from '@/hooks/useCreatePayout';
-import ErrorMessage from '@/components/ErrorMessage';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Check, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useCreatePayout } from '@/hooks/useCreatePayout';
+import { useBalance } from '@/contexts/BalanceContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
-import { useBalance } from '@/contexts/BalanceContext';
-import { useEffect } from 'react';
+import ErrorMessage from '@/components/ErrorMessage';
+import { Platform } from 'react-native';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function ReviewScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const params = useLocalSearchParams();
   const { createPayout, isLoading, error } = useCreatePayout();
   const { balance, refreshWallet } = useBalance();
+  const haptics = useHaptics();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -33,7 +36,18 @@ export default function ReviewScreen() {
 
   // Refresh wallet balance when component mounts
   useEffect(() => {
-    refreshWallet();
+    const fetchBalance = async () => {
+      setIsRefreshing(true);
+      try {
+        await refreshWallet();
+      } catch (error) {
+        console.error('Error refreshing wallet:', error);
+      } finally {
+        setIsRefreshing(false);
+      }
+    };
+    
+    fetchBalance();
   }, []);
 
   // Format values for display
@@ -63,31 +77,66 @@ export default function ReviewScreen() {
     // Check if there's enough balance
     const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
     if (numericTotal > balance) {
-      router.push('/add-funds');
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
+      Alert.alert(
+        "Insufficient Balance",
+        "You don't have enough funds in your wallet. Would you like to add funds?",
+        [
+          {
+            text: "Cancel",
+            style: "cancel"
+          },
+          {
+            text: "Add Funds",
+            onPress: () => router.push('/add-funds')
+          }
+        ]
+      );
       return;
     }
     
-    await createPayout({
-      name: `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`,
-      description: `${frequency} payout of ${payoutAmount}`,
-      totalAmount: parseFloat(totalAmount.replace(/[^0-9.]/g, '')),
-      payoutAmount: parseFloat(payoutAmount.replace(/[^0-9.]/g, '')),
-      frequency: frequency as 'weekly' | 'biweekly' | 'monthly' | 'custom',
-      duration: parseInt(duration),
-      startDate,
-      bankAccountId: bankAccountId || null,
-      payoutAccountId: payoutAccountId || null,
-      customDates,
-      emergencyWithdrawalEnabled: emergencyWithdrawal
-    });
+    if (Platform.OS !== 'web') {
+      haptics.mediumImpact();
+    }
+    
+    try {
+      await createPayout({
+        name: `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`,
+        description: `${frequency} payout of ${payoutAmount}`,
+        totalAmount: parseFloat(totalAmount.replace(/[^0-9.]/g, '')),
+        payoutAmount: parseFloat(payoutAmount.replace(/[^0-9.]/g, '')),
+        frequency: frequency as 'weekly' | 'biweekly' | 'monthly' | 'custom',
+        duration: parseInt(duration),
+        startDate,
+        bankAccountId: bankAccountId || null,
+        payoutAccountId: payoutAccountId || null,
+        customDates,
+        emergencyWithdrawalEnabled: emergencyWithdrawal
+      });
+    } catch (err) {
+      console.error('Error in handleStartPlan:', err);
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
+    }
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
@@ -101,123 +150,177 @@ export default function ReviewScreen() {
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
-        <View style={styles.content}>
-          <Text style={styles.title}>Review & Confirm</Text>
-          <Text style={styles.description}>
-            Review your payout plan details before confirming
-          </Text>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={styles.content}>
+            <Text style={styles.title}>Review & Confirm</Text>
+            <Text style={styles.description}>
+              Review your payout plan details before confirming
+            </Text>
 
-          {error && <ErrorMessage message={error} />}
+            {error && <ErrorMessage message={error} />}
 
-          <View style={styles.detailsList}>
-            <View style={styles.detailItem}>
-              <View style={[styles.detailIcon, { backgroundColor: '#F0FDF4' }]}>
-                <Wallet size={20} color="#22C55E" />
+            <View style={styles.detailsList}>
+              <View style={styles.detailItem}>
+                <View style={[styles.detailIcon, { backgroundColor: '#F0FDF4' }]}>
+                  <Wallet size={20} color="#22C55E" />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Total Amount</Text>
+                  <Text style={styles.detailValue}>{formattedTotal}</Text>
+                </View>
+                <Pressable 
+                  style={styles.editButton} 
+                  onPress={() => {
+                    if (Platform.OS !== 'web') {
+                      haptics.selection();
+                    }
+                    router.push('/create-payout/amount');
+                  }}
+                >
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </Pressable>
               </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Total Amount</Text>
-                <Text style={styles.detailValue}>{formattedTotal}</Text>
+
+              <View style={styles.detailItem}>
+                <View style={[styles.detailIcon, { backgroundColor: '#EFF6FF' }]}>
+                  <Calendar size={20} color="#1E3A8A" />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Payout Frequency</Text>
+                  <Text style={styles.detailValue}>{formattedFrequency}</Text>
+                  <Text style={styles.detailSubtext}>{formattedPayout} per payout</Text>
+                </View>
+                <Pressable 
+                  style={styles.editButton} 
+                  onPress={() => {
+                    if (Platform.OS !== 'web') {
+                      haptics.selection();
+                    }
+                    router.push('/create-payout/schedule');
+                  }}
+                >
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </Pressable>
               </View>
-              <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/amount')}>
-                <Text style={styles.editButtonText}>Edit</Text>
-              </Pressable>
+
+              <View style={styles.detailItem}>
+                <View style={[styles.detailIcon, { backgroundColor: '#F5F3FF' }]}>
+                  <Clock size={20} color="#8B5CF6" />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Duration</Text>
+                  <Text style={styles.detailValue}>{duration} {frequency === 'custom' ? 'payouts' : 'months'}</Text>
+                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
+                </View>
+                <Pressable 
+                  style={styles.editButton} 
+                  onPress={() => {
+                    if (Platform.OS !== 'web') {
+                      haptics.selection();
+                    }
+                    router.push('/create-payout/schedule');
+                  }}
+                >
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.detailItem}>
+                <View style={[styles.detailIcon, { backgroundColor: '#F0F9FF' }]}>
+                  <Building2 size={20} color="#0EA5E9" />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailLabel}>Destination Account</Text>
+                  <Text style={styles.detailValue}>{bankName} •••• {accountNumber.slice(-4)}</Text>
+                  <Text style={styles.detailSubtext}>{accountName}</Text>
+                </View>
+                <Pressable 
+                  style={styles.editButton} 
+                  onPress={() => {
+                    if (Platform.OS !== 'web') {
+                      haptics.selection();
+                    }
+                    router.push('/create-payout/destination');
+                  }}
+                >
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </Pressable>
+              </View>
             </View>
 
-            <View style={styles.detailItem}>
-              <View style={[styles.detailIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Calendar size={20} color="#1E3A8A" />
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryTitle}>Plan Summary</Text>
+              
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Total Amount</Text>
+                <Text style={styles.summaryValue}>{formattedTotal}</Text>
               </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Payout Frequency</Text>
-                <Text style={styles.detailValue}>{formattedFrequency}</Text>
-                <Text style={styles.detailSubtext}>{formattedPayout} per payout</Text>
+              
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Number of Payouts</Text>
+                <Text style={styles.summaryValue}>{numberOfPayouts}</Text>
               </View>
-              <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/schedule')}>
-                <Text style={styles.editButtonText}>Edit</Text>
-              </Pressable>
+              
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Amount per Payout</Text>
+                <Text style={styles.summaryValue}>{formattedPayout}</Text>
+              </View>
+
+              {emergencyWithdrawal && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Emergency Access</Text>
+                  <View style={styles.emergencyBadge}>
+                    <Text style={styles.emergencyBadgeText}>Enabled</Text>
+                  </View>
+                </View>
+              )}
+
+              <View style={[styles.summaryRow, styles.totalRow]}>
+                <Text style={styles.totalLabel}>Total Fees</Text>
+                <Text style={styles.totalValue}>₦0.00</Text>
+              </View>
             </View>
 
-            <View style={styles.detailItem}>
-              <View style={[styles.detailIcon, { backgroundColor: '#F5F3FF' }]}>
-                <Clock size={20} color="#8B5CF6" />
+            <View style={styles.confirmationBox}>
+              <View style={styles.checkIcon}>
+                <Check size={20} color="#22C55E" />
               </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Duration</Text>
-                <Text style={styles.detailValue}>{duration} {frequency === 'custom' ? 'payouts' : 'months'}</Text>
-                <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
-              </View>
-              <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/schedule')}>
-                <Text style={styles.editButtonText}>Edit</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.detailItem}>
-              <View style={[styles.detailIcon, { backgroundColor: '#F0F9FF' }]}>
-                <Building2 size={20} color="#0EA5E9" />
-              </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Destination Account</Text>
-                <Text style={styles.detailValue}>{bankName} •••• {accountNumber.slice(-4)}</Text>
-                <Text style={styles.detailSubtext}>{accountName}</Text>
-              </View>
-              <Pressable style={styles.editButton} onPress={() => router.push('/create-payout/destination')}>
-                <Text style={styles.editButtonText}>Edit</Text>
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Plan Summary</Text>
-            
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Total Amount</Text>
-              <Text style={styles.summaryValue}>{formattedTotal}</Text>
-            </View>
-            
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Number of Payouts</Text>
-              <Text style={styles.summaryValue}>{numberOfPayouts}</Text>
-            </View>
-            
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Amount per Payout</Text>
-              <Text style={styles.summaryValue}>{formattedPayout}</Text>
+              <Text style={styles.confirmationText}>
+                By continuing, you agree to lock {formattedTotal} in your vault for the duration of this payout plan.
+              </Text>
             </View>
 
             {emergencyWithdrawal && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Emergency Access</Text>
-                <Text style={styles.summaryValue}>Enabled</Text>
+              <View style={styles.emergencyInfoBox}>
+                <View style={styles.emergencyInfoIcon}>
+                  <Shield size={20} color="#1E3A8A" />
+                </View>
+                <Text style={styles.emergencyInfoText}>
+                  You've enabled emergency withdrawals for this plan. You can access your funds before the scheduled dates if needed, subject to applicable fees.
+                </Text>
               </View>
             )}
 
-            <View style={[styles.summaryRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>Total Fees</Text>
-              <Text style={styles.totalValue}>₦0.00</Text>
+            <View style={styles.balanceInfo}>
+              <Text style={styles.balanceInfoText}>
+                Current wallet balance: <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
+              </Text>
             </View>
           </View>
-
-          <View style={styles.confirmationBox}>
-            <View style={styles.checkIcon}>
-              <Check size={20} color="#22C55E" />
-            </View>
-            <Text style={styles.confirmationText}>
-              By continuing, you agree to lock {formattedTotal} in your vault for the duration of this payout plan.
-            </Text>
-          </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title="Start Payout Plan"
+        title={isLoading ? "Processing..." : "Start Payout Plan"}
         onPress={handleStartPlan}
+        disabled={isLoading || isRefreshing}
         loading={isLoading}
       />
     </SafeAreaView>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -321,10 +424,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
   },
   editButton: {
-    paddingHorizontal: 12,
     paddingVertical: 6,
+    paddingHorizontal: 12,
     backgroundColor: colors.backgroundTertiary,
     borderRadius: 6,
+    marginLeft: 8,
   },
   editButtonText: {
     fontSize: 14,
@@ -358,6 +462,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '500',
     color: colors.text,
   },
+  emergencyBadge: {
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : '#DCFCE7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  emergencyBadgeText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#22C55E',
+  },
   totalRow: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
@@ -377,20 +492,19 @@ const createStyles = (colors: any) => StyleSheet.create({
   confirmationBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.successLight,
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
     padding: 16,
     borderRadius: 12,
     gap: 12,
     borderWidth: 1,
-    borderColor: colors.success,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.success,
+    borderColor: isDark ? 'rgba(34, 197, 94, 0.3)' : '#DCFCE7',
+    marginBottom: 16,
   },
   checkIcon: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: colors.success,
+    backgroundColor: '#22C55E',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -399,5 +513,46 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+  },
+  emergencyInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : '#DBEAFE',
+    marginBottom: 16,
+  },
+  emergencyInfoIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#DBEAFE',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emergencyInfoText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  balanceInfo: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  balanceInfoText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  balanceAmount: {
+    fontWeight: '600',
+    color: colors.text,
   },
 });
