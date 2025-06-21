@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "355142174582",
+    "project_id": "planmoni-7e669",
+    "storage_bucket": "planmoni-7e669.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:355142174582:android:a5602dca3caf5bb5bc9c57",
+        "android_client_info": {
+          "package_name": "com.planmoni"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBhtjKTOiy6bk0b6Ev6iBwTkFM_Kv08768"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
