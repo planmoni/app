@@ -117,10 +117,10 @@ export function useCreatePayout() {
 
       console.log('Payout plan created successfully:', payoutPlan.id);
       
-      // Now lock the funds directly using a custom RPC function
+      // Now lock the funds using the correct RPC function
       try {
-        console.log('Locking funds using direct_lock_funds RPC...');
-        const { error: lockError } = await supabase.rpc('direct_lock_funds', {
+        console.log('Locking funds using lock_funds RPC...');
+        const { error: lockError } = await supabase.rpc('lock_funds', {
           p_amount: totalAmount,
           p_user_id: session.user.id
         });
@@ -138,6 +138,25 @@ export function useCreatePayout() {
         }
         
         console.log('Funds locked successfully');
+        
+        // Record the transaction for locking funds
+        const { error: transactionError } = await supabase
+          .from('transactions')
+          .insert({
+            user_id: session.user.id,
+            type: 'debit',
+            amount: totalAmount,
+            description: `Funds locked for payout plan: ${name}`,
+            status: 'completed',
+            reference: `payout_lock_${payoutPlan.id}`,
+            payout_plan_id: payoutPlan.id,
+          });
+          
+        if (transactionError) {
+          console.error('Error recording lock transaction:', transactionError);
+          // Don't throw here as the main operation succeeded
+        }
+        
       } catch (lockError) {
         console.error('Exception in locking funds:', lockError);
         
