@@ -305,7 +305,7 @@ export default function ReviewScreen() {
                 Available balance: <Text style={[
                   styles.balanceAmount, 
                   hasInsufficientBalance && styles.insufficientBalance
-                ]}>₦{availableBalance.toLocaleString()}</Text>
+                ]}>₦{Balance.toLocaleString()}</Text>
               </Text>
             </View>
           </View>
