@@ -17,7 +17,7 @@ export default function AmountScreen() {
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
-  const availableBalance = balance - lockedBalance;
+  const availableBalance = balance - lockedBalance; //the avialable balance logic
 
   const handleContinue = () => {
     if (!amount) {
