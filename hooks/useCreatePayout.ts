@@ -23,7 +23,8 @@ export function useCreatePayout() {
     bankAccountId,
     payoutAccountId,
     customDates,
-    emergencyWithdrawalEnabled = false
+    emergencyWithdrawalEnabled = false,
+    currentAvailableBalance
   }: {
     name: string;
     description?: string;
@@ -36,6 +37,7 @@ export function useCreatePayout() {
     payoutAccountId?: string | null;
     customDates?: string[];
     emergencyWithdrawalEnabled?: boolean;
+    currentAvailableBalance: number;
   }) => {
     try {
       setIsLoading(true);
@@ -47,28 +49,10 @@ export function useCreatePayout() {
 
       console.log('Creating payout plan...');
       console.log('- Total Amount:', totalAmount);
+      console.log('- Current Available Balance:', currentAvailableBalance);
 
-      // 🔥 Fetch real-time balance from DB
-      const { data: walletData, error: walletError } = await supabase
-        .from('wallets')
-        .select('balance, locked_balance')
-        .eq('user_id', session.user.id)
-        .single();
-
-      if (walletError || !walletData) {
-        console.error('Error fetching wallet data:', walletError);
-        throw new Error('Unable to fetch wallet balance');
-      }
-
-      const dbBalance = walletData.balance ?? 0;
-      const dbLocked = walletData.locked_balance ?? 0;
-      const dbAvailable = dbBalance - dbLocked;
-
-      console.log('DB Balance:', dbBalance);
-      console.log('DB Locked:', dbLocked);
-      console.log('DB Available:', dbAvailable);
-
-      if (totalAmount > dbAvailable) {
+      // Use the current available balance from context instead of fetching from DB
+      if (totalAmount > currentAvailableBalance) {
         throw new Error('Insufficient available balance to create this payout plan.');
       }
 

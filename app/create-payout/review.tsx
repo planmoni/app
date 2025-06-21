@@ -16,7 +16,7 @@ export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
   const params = useLocalSearchParams();
   const { createPayout, isLoading, error } = useCreatePayout();
-  const { balance, refreshWallet } = useBalance();
+  const { balance, lockedBalance, refreshWallet } = useBalance();
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
   
@@ -36,7 +36,8 @@ export default function ReviewScreen() {
 
   // Parse total amount for comparison
   const totalAmountNumber = parseFloat(totalAmount.replace(/[^0-9.]/g, ''));
-  const hasInsufficientBalance = balance < totalAmountNumber;
+  const availableBalance = balance - lockedBalance;
+  const hasInsufficientBalance = availableBalance < totalAmountNumber;
 
   // Refresh wallet balance when component mounts
   useEffect(() => {
@@ -92,6 +93,7 @@ export default function ReviewScreen() {
       console.log('- Payout account ID:', payoutAccountId || null);
       console.log('- Custom dates:', customDates);
       console.log('- Emergency withdrawal enabled:', emergencyWithdrawal);
+      console.log('- Current available balance:', availableBalance);
       
       if (Platform.OS !== 'web') {
         haptics.mediumImpact();
@@ -108,7 +110,8 @@ export default function ReviewScreen() {
         bankAccountId: bankAccountId || null,
         payoutAccountId: payoutAccountId || null,
         customDates,
-        emergencyWithdrawalEnabled: emergencyWithdrawal
+        emergencyWithdrawalEnabled: emergencyWithdrawal,
+        currentAvailableBalance: availableBalance
       });
     } catch (err) {
       console.error('Error in handleStartPlan:', err);
@@ -160,7 +163,7 @@ export default function ReviewScreen() {
                   <AlertTriangle size={20} color="#F59E0B" />
                 </View>
                 <Text style={styles.insufficientBalanceText}>
-                  Insufficient balance. You need ₦{totalAmountNumber.toLocaleString()} but only have ₦{balance.toLocaleString()} available.
+                  Insufficient balance. You need ₦{totalAmountNumber.toLocaleString()} but only have ₦{availableBalance.toLocaleString()} available.
                 </Text>
               </View>
             )}
@@ -309,7 +312,7 @@ export default function ReviewScreen() {
 
             <View style={styles.balanceInfo}>
               <Text style={styles.balanceInfoText}>
-                Current wallet balance: <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
+                Current available balance: <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
               </Text>
             </View>
           </View>
