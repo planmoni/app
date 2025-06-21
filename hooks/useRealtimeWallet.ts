@@ -103,9 +103,9 @@ export function useRealtimeWallet() {
       // Optimistically update the balance immediately for better UX
       setBalance(prevBalance => prevBalance + amount);
       
-      const { error: walletError } = await supabase.rpc('add_funds', {
-        p_amount: amount,
-        p_user_id: session?.user?.id
+      const { data: result, error: walletError } = await supabase.rpc('add_funds', {
+        p_user_id: session?.user?.id,
+        p_amount: amount
       });
 
       if (walletError) {
@@ -113,6 +113,14 @@ export function useRealtimeWallet() {
         // Revert the optimistic update if there's an error
         setBalance(prevBalance => prevBalance - amount);
         throw walletError;
+      }
+      
+      // Check if the operation was successful
+      if (result && !result.success) {
+        console.error('Add funds failed:', result.error);
+        // Revert the optimistic update if there's an error
+        setBalance(prevBalance => prevBalance - amount);
+        throw new Error(result.error || 'Failed to add funds');
       }
       
       console.log('Funds added successfully');
