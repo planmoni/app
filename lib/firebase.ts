@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAnalytics, isSupported, logEvent } from 'firebase/analytics';
 import { Platform } from 'react-native';
 
@@ -17,8 +17,8 @@ const firebaseConfig = {
   measurementId: 'G-LF79E01J2Z', // IMPORTANT: Replace with your actual measurement ID from Firebase console
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase - check if app already exists to prevent duplicate app error
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 // Initialize Analytics with a check for web platform support
 let analytics: any = null;
