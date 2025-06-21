@@ -33,7 +33,7 @@ export default function AmountScreen() {
       return;
     }
 
-    if (numericAmount > balance) {
+    if (numericAmount > availableBalance) {
       setError('Amount exceeds your available balance');
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       return;
