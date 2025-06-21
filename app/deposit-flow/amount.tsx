@@ -18,7 +18,7 @@ export default function AmountScreen() {
   const newMethodType = params.newMethodType as string;
   
   const [amount, setAmount] = useState('');
-  const { balance } = useBalance();
+  const { balance, lockedBalance } = useBalance();
   const availableBalance = balance - lockedBalance; //the avialable balance logic
 
   const handleContinue = () => {
