@@ -19,7 +19,7 @@ export default function AmountScreen() {
   const haptics = useHaptics();
 
   // Calculate available balance (total balance minus locked funds)
-  const availableBalance = balance - (lockedBalance || 0);
+  const availableBalance = Math.max(0, balance - (lockedBalance || 0));
 
   const handleContinue = () => {
     if (!amount) {
