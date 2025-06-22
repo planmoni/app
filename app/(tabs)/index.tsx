@@ -1244,6 +1244,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderTopColor: colors.border,
   },
   bottomPadding: {
-    height: 10,
+    height: 1,
   },
 });
