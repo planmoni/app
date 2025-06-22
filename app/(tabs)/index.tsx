@@ -750,7 +750,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 8,
   },
   balanceLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.textSecondary,
   },
   eyeIconButton: {
