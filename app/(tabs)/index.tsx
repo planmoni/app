@@ -760,6 +760,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   balanceAmount: {
     fontSize: 20,
     fontWeight: '800',
+    letterSpacing: -2,
     color: colors.text,
     marginBottom: 16,
   },
