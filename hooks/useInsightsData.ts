@@ -212,7 +212,7 @@ export function useInsightsData() {
         {
           title: 'Payouts',
           value: formatCurrency(totalPayouts),
-          change: `${payoutGrowthPercentage >= 0 ? '+' : ''}${Math.abs(payoutGrowthPercentage).toFixed(1)}%`,
+          change: `${payoutGrowthPercentage >= 0 ? '+' : ''}${Math.abs(payoutGrowthPercentage).toFixed(2)}%`,
           positive: payoutGrowthPercentage >= 0,
           icon: 'Send',
           description: 'Total payouts this month',
@@ -220,7 +220,7 @@ export function useInsightsData() {
         {
           title: 'Deposits',
           value: formatCurrency(totalDeposits),
-          change: `${depositGrowthPercentage >= 0 ? '+' : ''}${Math.abs(depositGrowthPercentage).toFixed(1)}%`,
+          change: `${depositGrowthPercentage >= 0 ? '+' : ''}${Math.abs(depositGrowthPercentage).toFixed(2)}%`,
           positive: depositGrowthPercentage >= 0,
           icon: 'Wallet',
           description: 'Total deposits this month',
@@ -236,7 +236,7 @@ export function useInsightsData() {
         {
           title: 'Txns',
           value: totalTransactions.toString(),
-          change: `${transactionGrowthPercentage >= 0 ? '+' : ''}${Math.abs(transactionGrowthPercentage).toFixed(1)}%`,
+          change: `${transactionGrowthPercentage >= 0 ? '+' : ''}${Math.abs(transactionGrowthPercentage).toFixed(2)}%`,
           positive: transactionGrowthPercentage >= 0,
           icon: 'TrendingUp',
           description: 'Total payout transactions',
@@ -247,7 +247,7 @@ export function useInsightsData() {
       const trendsData = [
         {
           title: 'Monthly Growth',
-          value: `${payoutGrowthPercentage >= 0 ? '+' : ''}${payoutGrowthPercentage.toFixed(1)}%`,
+          value: `${payoutGrowthPercentage >= 0 ? '+' : ''}${payoutGrowthPercentage.toFixed(2)}%`,
           description: 'Compared to last month',
           positive: payoutGrowthPercentage >= 0,
           details: [
