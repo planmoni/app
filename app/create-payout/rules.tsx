@@ -138,9 +138,7 @@ export default function RulesScreen() {
               <View style={styles.cooldownDetails}>
                 <Text style={styles.cooldownTitle}>Emergency Withdrawal Period</Text>
                 <Text style={styles.cooldownValue}>72 hours. No processing fees</Text>
-                <Text style={styles.cooldownDescription}>
-                  Free wait period for emergency withdrawals
-                </Text>
+                
               </View>
             </View>
 
