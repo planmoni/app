@@ -70,10 +70,17 @@ export function useSupabaseAuth() {
       setError(null);
       setIsLoading(true);
       
-      // First, create the user account without custom metadata
+      // Create the user account with metadata that will be used by the database trigger
       const { error: signUpError, data: authData } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
+        options: {
+          data: {
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            referral_code: referralCode?.trim() || null,
+          }
+        }
       });
       
       if (signUpError) {
@@ -89,27 +96,6 @@ export function useSupabaseAuth() {
         
         setError(errorMessage);
         return { success: false, error: errorMessage };
-      }
-
-      // If user was created successfully, upsert the profile
-      if (authData.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: authData.user.id,
-            first_name: firstName.trim(),
-            last_name: lastName.trim(),
-            email: email.toLowerCase().trim(),
-            referral_code: referralCode?.trim() || null,
-          }, {
-            onConflict: 'id'
-          });
-
-        if (profileError) {
-          console.error('Profile upsert error:', profileError);
-          // Don't fail the signup if profile upsert fails, as the user account was created
-          // The profile will be created by the database trigger
-        }
       }
 
       return { success: true };
