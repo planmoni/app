@@ -287,7 +287,11 @@ export default function HomeScreen() {
                 fontSize={18}
               />
             </Pressable>
+            <Text style={styles.date}>{formatDate(currentDate)}</Text>
           </View>
+          <View style={styles.greetingContainer}>
+            <Text style={styles.greeting}>Hi, {firstName}.</Text>
+            <Text style={styles.subGreeting}>{getGreeting()}, let's plan some payments</Text>
           </View>
         </View>
 
