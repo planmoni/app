@@ -338,60 +338,7 @@ export default function HomeScreen() {
           </View>
         </Card>
 
-        <Card style={styles.summaryCard}>
-          <View style={styles.summaryHeader}>
-            <Text style={styles.summaryTitle}>Current Month's Summary</Text>
-            <Calendar size={20} color={colors.textSecondary} />
-          </View>
-          <View style={styles.summaryItems}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Total Paid Out</Text>
-              <Text style={styles.summaryValue}>{formatBalance(totalPaidOut)}</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Pending payouts</Text>
-              <Text style={styles.summaryValue}>{formatBalance(pendingPayouts)}</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Completion Rate</Text>
-              <Text style={styles.summaryValue}>{completionRate}%</Text>
-            </View>
-          </View>
-          {isSummaryExpanded && (
-            <View style={styles.expandedContent}>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Active Plans</Text>
-                <Text style={styles.summaryValue}>{activePlans.length}</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Total Plans</Text>
-                <Text style={styles.summaryValue}>{payoutPlans.length}</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Last payout date</Text>
-                <Text style={styles.summaryValue}>
-                  {getLastPayoutDate()}
-                </Text>
-              </View>
-            </View>
-          )}
-          <Pressable 
-            style={styles.seeMoreButton} 
-            onPress={() => {
-              setIsSummaryExpanded(!isSummaryExpanded);
-              logAnalyticsEvent('toggle_summary', { expanded: !isSummaryExpanded });
-            }}
-          >
-            <Text style={styles.seeMoreText}>
-              {isSummaryExpanded ? 'Show less' : 'See more'}
-            </Text>
-            {isSummaryExpanded ? (
-              <ChevronUp size={16} color={colors.primary} />
-            ) : (
-              <ChevronDown size={16} color={colors.primary} />
-            )}
-          </Pressable>
-        </Card>
+        
 
         <PendingActionsCard />
 
@@ -678,6 +625,60 @@ export default function HomeScreen() {
           transaction={selectedTransaction}
         />
       )}
+      <Card style={styles.summaryCard}>
+          <View style={styles.summaryHeader}>
+            <Text style={styles.summaryTitle}>Current Month's Summary</Text>
+            <Calendar size={20} color={colors.textSecondary} />
+          </View>
+          <View style={styles.summaryItems}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Total Paid Out</Text>
+              <Text style={styles.summaryValue}>{formatBalance(totalPaidOut)}</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Pending payouts</Text>
+              <Text style={styles.summaryValue}>{formatBalance(pendingPayouts)}</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Completion Rate</Text>
+              <Text style={styles.summaryValue}>{completionRate}%</Text>
+            </View>
+          </View>
+          {isSummaryExpanded && (
+            <View style={styles.expandedContent}>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>Active Plans</Text>
+                <Text style={styles.summaryValue}>{activePlans.length}</Text>
+              </View>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>Total Plans</Text>
+                <Text style={styles.summaryValue}>{payoutPlans.length}</Text>
+              </View>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>Last payout date</Text>
+                <Text style={styles.summaryValue}>
+                  {getLastPayoutDate()}
+                </Text>
+              </View>
+            </View>
+          )}
+          <Pressable 
+            style={styles.seeMoreButton} 
+            onPress={() => {
+              setIsSummaryExpanded(!isSummaryExpanded);
+              logAnalyticsEvent('toggle_summary', { expanded: !isSummaryExpanded });
+            }}
+          >
+            <Text style={styles.seeMoreText}>
+              {isSummaryExpanded ? 'Show less' : 'See more'}
+            </Text>
+            {isSummaryExpanded ? (
+              <ChevronUp size={16} color={colors.primary} />
+            ) : (
+              <ChevronDown size={16} color={colors.primary} />
+            )}
+          </Pressable>
+        </Card>
       
     </SafeAreaView>
   );
