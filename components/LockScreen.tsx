@@ -6,11 +6,13 @@ import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 import { Lock, Fingerprint } from 'lucide-react-native';
 import { BiometricService } from '@/lib/biometrics';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function LockScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
   const { unlockApp, checkPin, appLockPin } = useAppLock();
+  const { showToast } = useToast();
   
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -59,10 +61,13 @@ export default function LockScreen() {
   // Verify PIN
   const handleVerifyPin = (pinToCheck: string = pin) => {
     if (checkPin(pinToCheck)) {
+      setError(null);
       unlockApp();
+      showToast?.('App unlocked successfully', 'success');
     } else {
       setError('Incorrect PIN. Please try again.');
       setPin('');
+      showToast?.('Incorrect PIN', 'error');
     }
   };
   
@@ -75,12 +80,15 @@ export default function LockScreen() {
       
       if (result.success) {
         unlockApp();
+        showToast?.('App unlocked successfully', 'success');
       } else if (result.error) {
         setError(result.error);
+        showToast?.('Biometric authentication failed', 'error');
       }
     } catch (error) {
       console.error('Error authenticating with biometrics:', error);
       setError('Biometric authentication failed. Please use your PIN.');
+      showToast?.('Biometric authentication failed', 'error');
     }
   };
   

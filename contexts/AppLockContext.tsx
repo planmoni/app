@@ -5,6 +5,7 @@ import { BiometricService } from '@/lib/biometrics';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
 import { useOnlineStatus } from '@/components/OnlineStatusProvider';
+import { useToast } from './ToastContext';
 
 // Inactivity timeout in milliseconds (5 minutes)
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000;
@@ -37,6 +38,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   const [appLockPin, setAppLockPinState] = useState<string | null>(null);
   const { session } = useAuth();
   const { isOnline } = useOnlineStatus();
+  const { showToast } = useToast();
   
   // Ref for tracking inactivity
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -186,8 +188,11 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
       
       // Reset inactivity timer
       resetInactivityTimer();
+      
+      showToast?.('App lock PIN set successfully', 'success');
     } catch (error) {
       console.error('Error setting app lock PIN:', error);
+      showToast?.('Failed to set app lock PIN', 'error');
       throw error;
     }
   };
@@ -232,8 +237,11 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
         clearTimeout(inactivityTimerRef.current);
         inactivityTimerRef.current = null;
       }
+      
+      showToast?.('App lock disabled successfully', 'success');
     } catch (error) {
       console.error('Error disabling app lock:', error);
+      showToast?.('Failed to disable app lock', 'error');
       throw error;
     }
   };
