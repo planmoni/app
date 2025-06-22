@@ -1,5 +1,5 @@
 import { Modal, View, Text, StyleSheet, Pressable, Switch, ScrollView, useWindowDimensions } from 'react-native';
-import { X, Bell, Shield, Clock, Mail, Wallet } from 'lucide-react-native';
+import { X, Bell, Shield, Clock, Mail, Wallet, Calendar } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEmailNotifications, EmailNotificationSettings } from '@/hooks/useEmailNotifications';
