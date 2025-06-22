@@ -1,15 +1,16 @@
-import Button from '@/components/Button';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions, ToastAndroid, Modal } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, Info } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions, ToastAndroid } from 'react-native';
+import { ArrowLeft, Copy, Info, ChevronRight, CreditCard, Smartphone, Building2, Check } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import { useToast } from '@/contexts/ToastContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Clipboard from 'expo-clipboard';
-import { useEffect, useState } from 'react';
+import Button from '@/components/Button';
 import { supabase } from '@/lib/supabase';
 
+const { width } = Dimensions.get('window');
 type VirtualAccount = {
   account_number: string;
   bank_name: string;
@@ -17,46 +18,80 @@ type VirtualAccount = {
 };
 
 export default function AddFundsScreen() {
-  const { colors } = useTheme();
-  const { width, height } = useWindowDimensions();
+  const { colors, isDark } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const { showToast } = useToast();
   const haptics = useHaptics();
 
   // const styles = createStyles(colors);
   const [virtualAccount, setVirtualAccount] = useState<VirtualAccount | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [selectedBank, setSelectedBank] = useState<string>('wema');
   
-  // Determine if we're on a small screen
-  const isSmallScreen = width < 380 || height < 700;
+  const [activeTab, setActiveTab] = useState(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
 
-  const handleCopyAccountNumber = () => {
+  // Determine if we're on a small screen
+  const isSmallScreen = screenWidth < 380;
+
+  const banks = [
+    { id: 'wema', name: 'Wema Bank', code: 'wema-bank' },
+    { id: 'paystack', name: 'Paystack Titan', code: 'test-bank' }
+  ];
+
+  const handleCopyAccountNumber = async () => {
     haptics.selection();
-    // Implement copy functionality
-    // if (virtualAccount?.account_number) {
-    //   Clipboard.setStringAsync(virtualAccount.account_number);
-    //   ToastAndroid.show('Account number copied to clipboard', ToastAndroid.SHORT);
-    // }
-    Clipboard.setStringAsync("muhammed@gmail.com");
-    ToastAndroid.show('Account number copied to clipboard', ToastAndroid.SHORT);
+    try {
+      await Clipboard.setStringAsync("9002893892");
+      showToast('Account number copied to clipboard', 'success');
+    } catch (error) {
+      showToast('Failed to copy to clipboard', 'error');
+    }
   };
-  
+
+  const handleBankSelection = (bankId: string) => {
+    setSelectedBank(bankId);
+    setShowBankModal(false);
+  };
+
   const handleCreateVirtualAccount = async () => {
     setIsLoading(true);
+  
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log("dvf ", process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY!)
+      console.log("dvf ", user?.email!)
 
-    try{
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/create-virtual-account`, {
+      const selectedBankData = banks.find(bank => bank.id === selectedBank);
+      
+      const data = {
+        email: user?.email,
+        first_name: 'Jane',
+        middle_name: 'Karen',
+        last_name: 'Doe',
+        phone: '+2348100000000',
+        preferred_bank: selectedBankData?.code || 'test-bank',
+        country: 'NG',
+      };
+
+      const mem = JSON.stringify(data)
+      console.log("data ", mem);
+  
+      const response = await fetch('https://api.paystack.co/dedicated_account/assign', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY!}`
         },
-        body: JSON.stringify({
-          user_id: (await supabase.auth.getUser()).data.user?.id,
-        }),
+        body: mem,
       });
-
+  
       const result = await response.json();
       if (response.ok) {
-        setVirtualAccount(result.virtualAccount);
+        setVirtualAccount(result.data); // Or result.data if that's where Paystack puts the result
         ToastAndroid.show('Virtual account created successfully', ToastAndroid.SHORT);
       } else {
         ToastAndroid.show(result.message || 'Failed to create account', ToastAndroid.SHORT);
@@ -68,12 +103,13 @@ export default function AddFundsScreen() {
       setIsLoading(false);
     }
   };
+  
 
   const handleMoreDepositMethods = () => {
     haptics.mediumImpact();
     router.push('/deposit-flow/payment-methods');
   };
-
+  
   
   const fetchVirtualAccount = async () => {
 
@@ -113,10 +149,45 @@ export default function AddFundsScreen() {
     router.back();
   };
 
-  const styles = createStyles(colors, isSmallScreen);
+  const handleTabPress = (index: number) => {
+    haptics.selection();
+    setActiveTab(index);
+    scrollViewRef.current?.scrollTo({ x: index * screenWidth, animated: true });
+  };
 
-  // Calculate footer height including safe area
+  const handleScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+    { useNativeDriver: false }
+  );
+
+  const handleScrollEnd = (event: any) => {
+    const newIndex = Math.round(event.nativeEvent.contentOffset.x / screenWidth);
+    if (newIndex !== activeTab) {
+      setActiveTab(newIndex);
+    }
+  };
+
+  // Handle navigation to deposit flow with payment method type
+  const handleNavigateToDepositFlow = (methodType: string) => {
+    haptics.mediumImpact();
+    router.push({
+      pathname: '/deposit-flow/amount',
+      params: {
+        newMethodType: methodType
+      }
+    });
+  };
+
+  const styles = createStyles(colors, isDark, isSmallScreen);
+
   const footerHeight = 80 + insets.bottom;
+
+  // Calculate tab indicator position and width
+  const tabWidth = screenWidth / 2;
+  const indicatorTranslateX = Animated.multiply(
+    Animated.divide(scrollX, screenWidth),
+    tabWidth
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -127,23 +198,59 @@ export default function AddFundsScreen() {
         <Text style={styles.headerTitle}>Add Funds</Text>
       </View>
 
-      <KeyboardAvoidingWrapper 
+      <View style={styles.tabContainer}>
+        <Pressable 
+          style={[styles.tab, activeTab === 0 && styles.activeTab]} 
+          onPress={() => handleTabPress(0)}
+        >
+          <Text style={[styles.tabText, activeTab === 0 && styles.activeTabText]}>
+            Bank Transfer
+          </Text>
+        </Pressable>
+        <Pressable 
+          style={[styles.tab, activeTab === 1 && styles.activeTab]} 
+          onPress={() => handleTabPress(1)}
+        >
+          <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
+            Cards/Bank/USSD
+          </Text>
+        </Pressable>
+        <Animated.View 
+          style={[
+            styles.tabIndicator, 
+            { 
+              transform: [{ translateX: indicatorTranslateX }] 
+            }
+          ]} 
+        />
+      </View>
+
+      <Animated.ScrollView
+        ref={scrollViewRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={handleScroll}
+        onMomentumScrollEnd={handleScrollEnd}
+        scrollEventThrottle={16}
+        style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: footerHeight } // Add padding to account for fixed footer
+          { paddingBottom: footerHeight }
         ]}
       >
-        <View style={styles.content}>
-          <Text style={styles.title}>Add funds via <Text style={styles.highlight}>Bank Transfer</Text></Text>
-          <Text style={styles.description}>
-            Money Transfers sent to this bank account number will automatically top up your Planmoni available wallet.
-          </Text>
+        {/* Bank Transfer Tab */}
+        <View style={[styles.tabContent, { width: screenWidth }]}>
+          <View style={styles.content}>
+            <Text style={styles.title}>Add funds via <Text style={styles.highlight}>Bank Transfer</Text></Text>
+            <Text style={styles.description}>
+              Money transfered to these account details will automatically appear on your available balance.
+            </Text>
 
-          {virtualAccount ? (
+            {virtualAccount ? (
             <View style={styles.accountDetailsCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>9PBS Account Details</Text>
-                <Text style={styles.cardDescription}>Use these details to receive funds directly</Text>
               </View>
 
               <View style={styles.fieldsContainer}>
@@ -172,33 +279,88 @@ export default function AddFundsScreen() {
                 </View>
               </View>
             </View>
-          ) : (
-            <View style={{ marginTop: 40, marginBottom: 24 }}>
-              <Text style={{ fontWeight: 900, color: "#f3f3f3" }}>Create Vituals Account</Text>
-              <Button
-                title="Create Account"
-                onPress={handleCreateVirtualAccount}
-                isLoading={isLoading}
-                // style={[commonStyles.buttonBase, commonStyles.primaryButton]}
-              />
-            </View>
-          )}
+             ) : (
+              <View style={{ marginTop: 40, marginBottom: 24 }}>
+                <Text style={{ fontWeight: 900, color: "#f3f3f3" }}>Create Virtual Account</Text>
+                
+                {/* Bank Selection Button */}
+                <Pressable 
+                  style={styles.bankSelectionButton}
+                  onPress={() => setShowBankModal(true)}
+                >
+                  <View style={styles.bankSelectionContent}>
+                    <Text style={styles.bankSelectionText}>
+                      Create A {banks.find(bank => bank.id === selectedBank)?.name} Account
+                    </Text>
+                    <ChevronRight size={20} color={colors.textSecondary} />
+                  </View>
+                </Pressable>
 
-          <View style={styles.infoSection}>
-            <View style={styles.infoCard}>
-              <View style={styles.infoHeader}>
-                <View style={styles.infoIconContainer}>
-                  <Info size={20} color={colors.primary} />
-                </View>
-                <Text style={styles.infoTitle}>Security Notice</Text>
+                <Button
+                  title="Create Account"
+                  onPress={handleCreateVirtualAccount}
+                  isLoading={isLoading}
+                  // style={[commonStyles.buttonBase, commonStyles.primaryButton]}
+                />
               </View>
-              <Text style={styles.infoText}>
-                Funds will be added to your secure wallet and can be used for transactions or investments. Processing time is typically instant to 5 minutes.
-              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Cards/Bank/USSD Tab */}
+        <View style={[styles.tabContent, { width: screenWidth }]}>
+          <View style={styles.content}>
+            <Text style={styles.title}>Choose a <Text style={styles.highlight}>Payment Method</Text></Text>
+            <Text style={styles.description}>
+              Select your preferred payment option to add funds to your wallet.
+            </Text>
+
+            <View style={styles.paymentMethodsContainer}>
+              <Pressable 
+                style={styles.paymentMethod}
+                onPress={() => handleNavigateToDepositFlow('card')}
+              >
+                <View style={styles.paymentMethodIcon}>
+                  <CreditCard size={24} color={colors.primary} />
+                </View>
+                <View style={styles.paymentMethodInfo}>
+                  <Text style={styles.paymentMethodTitle}>Debit/Credit Card</Text>
+                  <Text style={styles.paymentMethodDescription}>Add funds using your card</Text>
+                </View>
+                <ChevronRight size={20} color={colors.textSecondary} />
+              </Pressable>
+
+              <Pressable 
+                style={styles.paymentMethod}
+                onPress={() => handleNavigateToDepositFlow('ussd')}
+              >
+                <View style={styles.paymentMethodIcon}>
+                  <Smartphone size={24} color={colors.primary} />
+                </View>
+                <View style={styles.paymentMethodInfo}>
+                  <Text style={styles.paymentMethodTitle}>USSD Transfer</Text>
+                  <Text style={styles.paymentMethodDescription}>Add funds using USSD code</Text>
+                </View>
+                <ChevronRight size={20} color={colors.textSecondary} />
+              </Pressable>
+
+              <Pressable 
+                style={styles.paymentMethod}
+                onPress={() => handleNavigateToDepositFlow('bank-account')}
+              >
+                <View style={styles.paymentMethodIcon}>
+                  <Building2 size={24} color={colors.primary} />
+                </View>
+                <View style={styles.paymentMethodInfo}>
+                  <Text style={styles.paymentMethodTitle}>Bank Account</Text>
+                  <Text style={styles.paymentMethodDescription}>Add funds from your bank account</Text>
+                </View>
+                <ChevronRight size={20} color={colors.textSecondary} />
+              </Pressable>
             </View>
           </View>
         </View>
-      </KeyboardAvoidingWrapper>
+      </Animated.ScrollView>
 
       {/* Fixed footer with safe area padding */}
       <View style={[
@@ -211,15 +373,51 @@ export default function AddFundsScreen() {
           style={styles.doneButton}
           hapticType="medium"
         />
-        <Pressable onPress={handleMoreDepositMethods} style={styles.moreMethodsButton}>
-          <Text style={styles.moreMethodsText}>More deposit methods</Text>
-        </Pressable>
       </View>
+
+      {/* Bank Selection Modal */}
+      <Modal
+        visible={showBankModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowBankModal(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setShowBankModal(false)}
+        >
+          <Pressable style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Bank</Text>
+              <Pressable onPress={() => setShowBankModal(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </Pressable>
+            </View>
+            
+            <View style={styles.bankList}>
+              {banks.map((bank) => (
+                <Pressable
+                  key={bank.id}
+                  style={styles.bankOption}
+                  onPress={() => handleBankSelection(bank.id)}
+                >
+                  <View style={styles.bankOptionContent}>
+                    <Text style={styles.bankOptionName}>{bank.name}</Text>
+                    {selectedBank === bank.id && (
+                      <Check size={20} color={colors.primary} />
+                    )}
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -245,11 +443,52 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     fontWeight: '600',
     color: colors.text,
   },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    position: 'relative',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  activeTab: {
+    backgroundColor: 'transparent',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  activeTabText: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  tabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    height: 3,
+    width: '25%', // 50% of tab width (which is 50% of screen)
+    backgroundColor: colors.primary,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+    left: '12.5%', // Center in first tab by default
+  },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
-    padding: isSmallScreen ? 16 : 20,
+    flexGrow: 1,
+  },
+  tabContent: {
+    flex: 1,
   },
   content: {
     flex: 1,
+    padding: isSmallScreen ? 16 : 20,
   },
   title: {
     fontSize: isSmallScreen ? 20 : 24,
@@ -341,41 +580,39 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     fontWeight: '500',
     color: colors.text,
   },
-  infoSection: {
-    marginBottom: isSmallScreen ? 24 : 32,
+  paymentMethodsContainer: {
+    gap: 16,
   },
-  infoCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: isSmallScreen ? 16 : 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-  },
-  infoHeader: {
+  paymentMethod: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  infoIconContainer: {
-    width: 32,
-    height: 32,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 16,
-    backgroundColor: colors.backgroundTertiary,
+    padding: 16,
+  },
+  paymentMethodIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
-  infoTitle: {
-    fontSize: isSmallScreen ? 14 : 16,
+  paymentMethodInfo: {
+    flex: 1,
+  },
+  paymentMethodTitle: {
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+    marginBottom: 4,
   },
-  infoText: {
-    fontSize: isSmallScreen ? 13 : 14,
+  paymentMethodDescription: {
+    fontSize: 14,
     color: colors.textSecondary,
-    lineHeight: 20,
   },
   footer: {
     position: 'absolute',
@@ -393,13 +630,71 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     width: '100%',
     backgroundColor: colors.primary,
   },
-  moreMethodsButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+  bankSelectionButton: {
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
   },
-  moreMethodsText: {
+  bankSelectionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bankSelectionText: {
     fontSize: 14,
-    color: colors.primary,
     fontWeight: '500',
+    color: colors.text,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    width: '80%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  modalClose: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  bankList: {
+    gap: 16,
+  },
+  bankOption: {
+    padding: 12,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+  },
+  bankOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bankOptionName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
   },
 });
