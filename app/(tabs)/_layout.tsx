@@ -1,10 +1,12 @@
 import { Tabs } from 'expo-router';
+// import CustomAppLayout from '@/components/CustomAppLayout';
 import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings } from 'lucide-react-native'; //Do not change the Home to Chrome
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import CustomAppLayout from '../components/CustomAppLayout';
 
 export default function TabLayout() {
   const { colors } = useTheme();
@@ -38,7 +40,7 @@ export default function TabLayout() {
           table: 'events',
           filter: `user_id=eq.${session.user.id}`,
         },
-        (payload) => {
+        (payload: any) => {
           console.log('Events change received:', payload);
           // Refresh unread count when events change
           fetchUnreadNotificationsCount();
@@ -47,7 +49,7 @@ export default function TabLayout() {
 
     // Only subscribe if the channel is not already subscribed
     if (channel.state === 'closed' || channel.state === 'leaving') {
-      channel.subscribe((status) => {
+      channel.subscribe((status: any) => {
         console.log('Events subscription status:', status);
       });
     }
@@ -79,57 +81,59 @@ export default function TabLayout() {
   };
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
-        tabBarLabelStyle: styles.tabBarLabel,
-        headerShown: false,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+    // <CustomAppLayout>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textSecondary,
+          tabBarStyle: { backgroundColor: colors.background },
         }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: 'Calendar',
-          tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="insights"
-        options={{
-          title: 'Insights',
-          tabBarIcon: ({ color, size }) => <PieChart size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="notifications"
-        options={{
-          title: 'Notifications',
-          tabBarIcon: ({ color, size }) => (
-            <View>
-              <Bell size={size} color={color} />
-              {unreadNotifications > 0 && (
-                <View style={styles.notificationBadge} />
-              )}
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="calendar"
+          options={{
+            title: 'Calendar',
+            tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="insights"
+          options={{
+            title: 'Insights',
+            tabBarIcon: ({ color, size }) => <PieChart size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="notifications"
+          options={{
+            title: 'Notifications',
+            tabBarIcon: ({ color, size }) => (
+              <View>
+                <Bell size={size} color={color} />
+                {unreadNotifications > 0 && (
+                  <View style={styles.notificationBadge} />
+                )}
+              </View>
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: 'Settings',
+            tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
+          }}
+        />
+      </Tabs>
+    // </CustomAppLayout>
   );
 }
 

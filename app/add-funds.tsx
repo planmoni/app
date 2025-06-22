@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions, ToastAndroid } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Copy, Info, ChevronRight, CreditCard, Smartphone, Building2 } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,8 +8,15 @@ import { useToast } from '@/contexts/ToastContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Clipboard from 'expo-clipboard';
 import Button from '@/components/Button';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
+type VirtualAccount = {
+  account_number: string;
+  bank_name: string;
+  account_name: string;
+};
 
 export default function AddFundsScreen() {
   const { colors, isDark } = useTheme();
@@ -18,12 +25,32 @@ export default function AddFundsScreen() {
   const { showToast } = useToast();
   const haptics = useHaptics();
   
+  const { session, signOut } = useAuth();
+
+  
+  const firstName = session?.user?.user_metadata?.first_name || '';
+  const lastName = session?.user?.user_metadata?.last_name || '';
+  const middleName = session?.user?.user_metadata?.middle_name || '';
+  const phoneNumber = session?.user?.user_metadata?.phone_number || +2347034000000;
+  const email = session?.user?.email || '';
+
+  // const styles = createStyles(colors);
+  const [virtualAccount, setVirtualAccount] = useState<VirtualAccount | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [selectedBank, setSelectedBank] = useState<string>('wema');
+  
   const [activeTab, setActiveTab] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Determine if we're on a small screen
   const isSmallScreen = screenWidth < 380;
+
+  const banks = [
+    { id: 'wema', name: 'Wema Bank', code: 'wema-bank' },
+    { id: 'paystack', name: 'Paystack Titan', code: 'titan-paystack' }
+  ];
 
   const handleCopyAccountNumber = async () => {
     haptics.selection();
@@ -34,11 +61,67 @@ export default function AddFundsScreen() {
       showToast('Failed to copy to clipboard', 'error');
     }
   };
+  
+  const handleBankSelection = (bankId: string) => {
+    setSelectedBank(bankId);
+    setShowBankModal(false);
+  };
+
+  const handleCreateVirtualAccount = async () => {
+    setIsLoading(true);
+  
+    try {
+      // const { data: { user } } = await supabase.auth.getUser();
+      console.log("dvf ", process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY!)
+      console.log("dvf ", email)
+
+      const selectedBankData = banks.find(bank => bank.id === selectedBank);
+      
+      const data = {
+        email: email,
+        first_name: firstName,
+        middle_name: middleName,
+        last_name: lastName,
+        phone: phoneNumber,
+        preferred_bank: selectedBankData?.code || 'test-bank',
+        country: 'NG',
+      };
+
+      const mem = JSON.stringify(data)
+      console.log("data ", mem);
+  
+      const response = await fetch('https://api.paystack.co/dedicated_account/assign', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY!}`
+        },
+        body: mem,
+      });
+  
+      const result = await response.json();
+      if (response.ok) {
+        setVirtualAccount(result.data); // Or result.data if that's where Paystack puts the result
+        ToastAndroid.show('Virtual account created successfully', ToastAndroid.SHORT);
+      } else {
+        ToastAndroid.show(result.message || 'Failed to create account', ToastAndroid.SHORT);
+      }
+    } catch (error) {
+      console.error('Something went wrong', error);
+      ToastAndroid.show('Something went wrong', ToastAndroid.SHORT);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleMoreDepositMethods = () => {
     haptics.mediumImpact();
     router.push('/deposit-flow/payment-methods');
   };
+
+  const fetchVirtualAccount = async () => {
+
+  }
 
   const handleBack = () => {
     haptics.lightImpact();
