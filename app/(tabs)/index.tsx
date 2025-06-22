@@ -850,7 +850,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   expandedContent: {
     paddingHorizontal: 1,
     paddingTop: 16,
-    gap: 16,
+    gap: 10,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     marginTop: 16,
