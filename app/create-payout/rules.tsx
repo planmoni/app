@@ -122,6 +122,12 @@ export default function RulesScreen() {
                   </Text>
                 </View>
                 
+                <View style={styles.optionItem}>
+                  <View style={[styles.optionDot, { backgroundColor: '#22C55E' }]} />
+                  <Text style={styles.optionText}>
+                    <Text style={styles.optionHighlight}>72-hour withdrawal:</Text> No processing fee
+                  </Text>
+                </View>
               </View>
             )}
 
