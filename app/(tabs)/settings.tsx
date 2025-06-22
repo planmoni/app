@@ -43,7 +43,7 @@ import { logAnalyticsEvent } from '@/lib/firebase';
 import { Platform } from 'react-native';
 
 export default function SettingsScreen() {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, theme, setTheme } = useTheme();
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
   const haptics = useHaptics();
