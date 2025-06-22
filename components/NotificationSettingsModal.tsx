@@ -314,8 +314,9 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
             </View>
             
             <View style={styles.infoContainer}>
+              <Mail size={16} color={colors.primary} />
               <Text style={styles.infoText}>
-                You can change these settings at any time. Some security-related notifications cannot be disabled as they are essential for account security.
+                Email notifications help you stay informed about important account activities and updates.
               </Text>
             </View>
           </ScrollView>
