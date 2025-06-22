@@ -624,7 +624,6 @@ export default function HomeScreen() {
           onClose={() => setIsTransactionModalVisible(false)}
           transaction={selectedTransaction}
         />
-      )}
       <Card style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
             <Text style={styles.summaryTitle}>Current Month's Summary</Text>
@@ -679,6 +678,8 @@ export default function HomeScreen() {
             )}
           </Pressable>
         </Card>
+      )}
+      
       
     </SafeAreaView>
   );
