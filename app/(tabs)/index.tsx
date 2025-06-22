@@ -758,7 +758,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     margin: -8,
   },
   balanceAmount: {
-    fontSize: 32,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 16,
