@@ -279,19 +279,19 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
+            {/* <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
               <InitialsAvatar 
                 firstName={firstName} 
                 lastName={lastName} 
                 size={48}
                 fontSize={18}
               />
-            </Pressable>
-            <Text style={styles.date}>{formatDate(currentDate)}</Text>
+            </Pressable> */}
+            {/* <Text style={styles.date}>{formatDate(currentDate)}</Text> */}
           </View>
           <View style={styles.greetingContainer}>
-            <Text style={styles.greeting}>Hi, {firstName}.</Text>
-            <Text style={styles.subGreeting}>{getGreeting()}, let's plan some payments</Text>
+            {/* <Text style={styles.greeting}>Hi, {firstName}.</Text> */}
+            {/* <Text style={styles.subGreeting}>{getGreeting()}, let's plan some payments</Text> */}
           </View>
         </View>
 
