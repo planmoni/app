@@ -321,4 +321,65 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
-    <boltArtifact id="fix-environment-variables" title="Fix Environment Variables and Security Issues">
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    width: '100%',
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  successContainer: {
+    backgroundColor: colors.successLight,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    width: '100%',
+  },
+  successText: {
+    color: colors.success,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  infoCard: {
+    backgroundColor: colors.surface,
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 32,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  infoItem: {
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  actions: {
+    width: '100%',
+    gap: 12,
+  },
+  resendButton: {
+    marginBottom: 8,
+  },
+  verifyButton: {
+    marginBottom: 8,
+  },
+  continueButton: {
+    marginTop: 8,
+  },
+  laterButton: {
+    marginTop: 8,
+  },
+});
