@@ -588,43 +588,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.bottomPadding} />
-      </ScrollView>
-
-      <Animated.View style={[
-        styles.stickyButtons,
-        {
-          opacity: buttonOpacity,
-          transform: [{
-            translateY: buttonOpacity.interpolate({
-              inputRange: [0, 1],
-              outputRange: [100, 0],
-            }),
-          }],
-        },
-      ]}>
-        <Pressable 
-          style={styles.createButton} 
-          onPress={handleCreatePayout}
-        >
-          <Send size={20} color="#FFFFFF" />
-          <Text style={styles.createButtonText}>New</Text>
-        </Pressable>
-        <Pressable 
-          style={styles.addFundsButton} 
-          onPress={handleAddFunds}
-        >
-          <Wallet size={20} color={colors.text} />
-          <Text style={styles.addFundsText}>Add Funds</Text>
-        </Pressable>
-      </Animated.View>
-
-      {selectedTransaction && (
-        <TransactionModal
-          isVisible={isTransactionModalVisible}
-          onClose={() => setIsTransactionModalVisible(false)}
-          transaction={selectedTransaction}
-        />
-      <Card style={styles.summaryCard}>
+        <Card style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
             <Text style={styles.summaryTitle}>Current Month's Summary</Text>
             <Calendar size={20} color={colors.textSecondary} />
@@ -678,6 +642,43 @@ export default function HomeScreen() {
             )}
           </Pressable>
         </Card>
+      </ScrollView>
+
+      <Animated.View style={[
+        styles.stickyButtons,
+        {
+          opacity: buttonOpacity,
+          transform: [{
+            translateY: buttonOpacity.interpolate({
+              inputRange: [0, 1],
+              outputRange: [100, 0],
+            }),
+          }],
+        },
+      ]}>
+        <Pressable 
+          style={styles.createButton} 
+          onPress={handleCreatePayout}
+        >
+          <Send size={20} color="#FFFFFF" />
+          <Text style={styles.createButtonText}>New</Text>
+        </Pressable>
+        <Pressable 
+          style={styles.addFundsButton} 
+          onPress={handleAddFunds}
+        >
+          <Wallet size={20} color={colors.text} />
+          <Text style={styles.addFundsText}>Add Funds</Text>
+        </Pressable>
+      </Animated.View>
+
+      {selectedTransaction && (
+        <TransactionModal
+          isVisible={isTransactionModalVisible}
+          onClose={() => setIsTransactionModalVisible(false)}
+          transaction={selectedTransaction}
+        />
+      
       )}
       
       
