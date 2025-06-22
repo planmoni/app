@@ -22,7 +22,6 @@ import {
   Languages, 
   Lock, 
   LogOut, 
-  Mail,
   MessageSquare, 
   Moon, 
   Shield, 
@@ -44,9 +43,9 @@ import { logAnalyticsEvent } from '@/lib/firebase';
 import { Platform } from 'react-native';
 
 export default function SettingsScreen() {
+  const { colors, isDark } = useTheme();
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
-  const { theme, setTheme, colors, isDark } = useTheme();
   const haptics = useHaptics();
   
   const firstName = session?.user?.user_metadata?.first_name || '';
@@ -170,14 +169,6 @@ export default function SettingsScreen() {
     }
     router.push('/transaction-limits');
     logAnalyticsEvent('transaction_limits');
-  };
-  
-  const handleEmailPreferences = () => {
-    if (Platform.OS !== 'web') {
-      haptics.lightImpact();
-    }
-    router.push('/email-preferences');
-    logAnalyticsEvent('email_preferences');
   };
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
@@ -550,22 +541,6 @@ export default function SettingsScreen() {
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Customize Notifications</Text>
                 <Text style={styles.settingDescription}>Fine-tune your notification preferences</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
-            
-            <View style={styles.divider} />
-
-            <Pressable 
-              style={styles.settingItem}
-              onPress={handleEmailPreferences}
-            >
-              <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}>
-                <Mail size={20} color="#0EA5E9" />
-              </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingLabel}>Email Preferences</Text>
-                <Text style={styles.settingDescription}>Manage email notifications</Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
