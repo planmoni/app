@@ -3,6 +3,7 @@ import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { Session, User } from '@supabase/supabase-js';
 import { BiometricService } from '@/lib/biometrics';
 import { Platform } from 'react-native';
+import { useEmailNotifications } from '@/hooks/useEmailNotifications';
 
 interface BiometricSettings {
   isEnabled: boolean;
@@ -59,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     session,
     user,
     isLoading,
-    signIn,
+    signIn: supabaseSignIn,
     signUp,
     resetPassword,
     signOut,
@@ -67,6 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   } = useSupabaseAuth();
 
   const [biometricSettings, setBiometricSettings] = useState<BiometricSettings | null>(null);
+  const { sendNotification } = useEmailNotifications();
 
   useEffect(() => {
     refreshBiometricSettings();
@@ -102,6 +104,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Failed to set biometric enabled:', error);
       return false;
     }
+  };
+
+  // Enhanced signIn function that sends login notification
+  const signIn = async (email: string, password: string) => {
+    const result = await supabaseSignIn(email, password);
+    
+    if (result.success) {
+      // Get device and location info
+      const deviceInfo = {
+        device: Platform.OS === 'web' ? 'Web Browser' : Platform.OS === 'ios' ? 'iOS Device' : 'Android Device',
+        location: 'Unknown Location', // In a real app, you would use geolocation
+        time: new Date().toLocaleString(),
+        ip: '0.0.0.0' // In a real app, you would get the IP from the server
+      };
+      
+      // Send login notification email
+      try {
+        await sendNotification('new_login', {
+          ...deviceInfo,
+          firstName: user?.user_metadata?.first_name || 'User'
+        });
+      } catch (error) {
+        console.error('Failed to send login notification:', error);
+      }
+    }
+    
+    return result;
   };
 
   return (
