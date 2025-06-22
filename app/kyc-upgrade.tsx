@@ -303,19 +303,32 @@ export default function KYCUpgradeScreen() {
       if (!session?.access_token) {
         throw new Error('Authentication required');
       }
+
       
-      const response = await fetch('https://sandbox.dojah.io/api/v1/kyc/bvn', {
-        method: 'POST',
-        headers: {
-          'AppId': `Bearer ${process.env.DOJAH_APP_ID}`,
-          'Authorization': `Bearer ${process.env.DOJAH_PRIVATE_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          verificationType: 'bvn',
-          verificationData: { bvn }
-        })
-      });
+
+      const myHeaders = new Headers();
+      myHeaders.append("Appid", process.env.DOJAH_APP_ID!);
+      myHeaders.append("Authorization", process.env.DOJAH_PRIVATE_KEY!);
+
+      
+      const requestOptions = {
+        method: "GET",
+        headers: myHeaders
+      };
+
+      
+      const response = await fetch(`https://sandbox.dojah.io/api/v1/kyc/bvn?bvn=${bvn}`, requestOptions);
+      
+    
+      
+      // const response = await fetch(`https://sandbox.dojah.io/api/v1/kyc/bvn?bvn=${bvn}`, {
+      //   method: 'GET',
+      //   headers: {
+      //     'AppId': `${process.env.DOJAH_APP_ID}`,
+      //     'Authorization': `Bearer ${process.env.DOJAH_PRIVATE_KEY}`,
+      //     'Content-Type': 'application/json'
+      //   },
+      // });
       
       // Check content type before parsing
       const contentType = response.headers.get('content-type');
