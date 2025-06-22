@@ -75,6 +75,11 @@ export default function SettingsScreen() {
     });
   }, []);
 
+  const handleProfilePress = () => {
+    router.push('/profile');
+    logAnalyticsEvent('profile_click');
+  };
+
   const handleSignOut = async () => {
     try {
       if (Platform.OS !== 'web') {
