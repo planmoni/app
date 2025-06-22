@@ -1,6 +1,3 @@
-// Load environment variables first
-require('dotenv').config();
-
 // app.config.js
 export default {
   expo: {
