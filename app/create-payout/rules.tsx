@@ -139,7 +139,7 @@ export default function RulesScreen() {
                 <Text style={styles.cooldownTitle}>Emergency Withdrawal Period</Text>
                 <Text style={styles.cooldownValue}>72 hours</Text>
                 <Text style={styles.cooldownDescription}>
-                  Standard waiting period for withdrawals without fees
+                  If you allow emergency withdrawals, you will have to wait 72 hours in order to get your money out for free
                 </Text>
               </View>
             </View>
