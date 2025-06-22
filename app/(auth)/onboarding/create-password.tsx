@@ -2,63 +2,45 @@ import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Eye, EyeOff, Lock, Shield } from 'lucide-react-native';
+import { ArrowLeft, Eye, EyeOff, Lock } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 
-export default function CreatePasswordScreen() {
+export default function ConfirmPasswordScreen() {
   const { colors } = useTheme();
-  const { showToast } = useToast();
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
   const lastName = params.lastName as string;
   const email = params.email as string;
+  const password = params.password as string;
   
-  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
-  const passwordInputRef = useRef<TextInput>(null);
+  const confirmPasswordInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      passwordInputRef.current?.focus();
+      confirmPasswordInputRef.current?.focus();
     }, 300);
     return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    setIsButtonEnabled(password.length >= 8);
-  }, [password]);
-
-  const getPasswordStrength = () => {
-    if (password.length === 0) return { strength: 0, label: '' };
-    if (password.length < 6) return { strength: 1, label: 'Weak' };
-    if (password.length < 8) return { strength: 2, label: 'Fair' };
-    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) return { strength: 2, label: 'Fair' };
-    return { strength: 3, label: 'Strong' };
-  };
-
-  const passwordStrength = getPasswordStrength();
+    setIsButtonEnabled(confirmPassword.length >= 8);
+  }, [confirmPassword]);
 
   const handleContinue = () => {
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
-      showToast('Password must be at least 8 characters', 'error');
-      return;
-    }
-    
-    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
-      setError('Password must contain uppercase, lowercase, and number');
-      showToast('Password must contain uppercase, lowercase, and number', 'error');
+    if (confirmPassword !== password) {
+      setError('Passwords do not match');
       return;
     }
     
     router.push({
-      pathname: '/onboarding/confirm-password',
+      pathname: '/onboarding/success',
       params: { 
         firstName,
         lastName,
@@ -81,15 +63,15 @@ export default function CreatePasswordScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={4} totalSteps={6} />
+      <OnboardingProgress currentStep={5} totalSteps={6} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
-          <Text style={styles.title}>Create a secure password</Text>
-          <Text style={styles.subtitle}>Make sure it's strong and memorable</Text>
+          <Text style={styles.title}>Confirm your password</Text>
+          <Text style={styles.subtitle}>Make sure your passwords match</Text>
 
           <View style={styles.formContainer}>
-            <Text style={styles.question}>Enter your password</Text>
+            <Text style={styles.question}>Re-enter your password</Text>
             
             {error && (
               <View style={styles.errorContainer}>
@@ -100,13 +82,13 @@ export default function CreatePasswordScreen() {
             <View style={styles.inputContainer}>
               <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
-                ref={passwordInputRef}
+                ref={confirmPasswordInputRef}
                 style={styles.input}
-                placeholder="Create a password"
+                placeholder="Confirm your password"
                 placeholderTextColor={colors.textTertiary}
-                value={password}
+                value={confirmPassword}
                 onChangeText={(text) => {
-                  setPassword(text);
+                  setConfirmPassword(text);
                   setError(null);
                 }}
                 secureTextEntry={!showPassword}
@@ -122,59 +104,6 @@ export default function CreatePasswordScreen() {
                   <Eye size={20} color={colors.textSecondary} />
                 )}
               </Pressable>
-            </View>
-            
-            {password.length > 0 && (
-              <View style={styles.passwordStrength}>
-                <View style={styles.strengthBar}>
-                  <View 
-                    style={[
-                      styles.strengthFill,
-                      { 
-                        width: `${(passwordStrength.strength / 3) * 100}%`,
-                        backgroundColor: passwordStrength.strength === 1 ? colors.error : 
-                                       passwordStrength.strength === 2 ? colors.warning : colors.success
-                      }
-                    ]} 
-                  />
-                </View>
-                <Text style={[
-                  styles.strengthLabel,
-                  { 
-                    color: passwordStrength.strength === 1 ? colors.error : 
-                           passwordStrength.strength === 2 ? colors.warning : colors.success
-                  }
-                ]}>
-                  {passwordStrength.label}
-                </Text>
-              </View>
-            )}
-            
-            <View style={styles.requirements}>
-              <View style={styles.requirementsHeader}>
-                <View style={styles.requirementsIconContainer}>
-                  <Shield size={20} color="#1E3A8A" />
-                </View>
-                <Text style={styles.requirementsTitle}>Password Requirements</Text>
-              </View>
-              <View style={styles.requirementsList}>
-                <Text style={[
-                  styles.requirementItem,
-                  password.length >= 8 && styles.requirementMet
-                ]}>• At least 8 characters long</Text>
-                <Text style={[
-                  styles.requirementItem,
-                  /[A-Z]/.test(password) && styles.requirementMet
-                ]}>• Contains at least one uppercase letter</Text>
-                <Text style={[
-                  styles.requirementItem,
-                  /[a-z]/.test(password) && styles.requirementMet
-                ]}>• Contains at least one lowercase letter</Text>
-                <Text style={[
-                  styles.requirementItem,
-                  /\d/.test(password) && styles.requirementMet
-                ]}>• Contains at least one number</Text>
-              </View>
             </View>
           </View>
         </View>
@@ -283,62 +212,5 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   eyeButton: {
     padding: 8,
-  },
-  passwordStrength: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 12,
-  },
-  strengthBar: {
-    flex: 1,
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-  },
-  strengthFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  strengthLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  requirements: {
-    marginTop: 24,
-    backgroundColor: colors.backgroundTertiary,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  requirementsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  requirementsIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.backgroundSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  requirementsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  requirementsList: {
-    gap: 8,
-  },
-  requirementItem: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  requirementMet: {
-    color: colors.success,
   },
 });
