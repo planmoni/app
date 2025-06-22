@@ -149,7 +149,7 @@ export default function RulesScreen() {
                 <AlertTriangle size={isSmallScreen ? 16 : 20} color="#EF4444" />
               </View>
               <Text style={styles.warningText}>
-                To enforce discipline, emergency withdrawals may incur fees based on the processing time you select. Faster withdrawals have higher fees.
+                By default, emergency withdrawals are turned off, turn it on if you feel you might encounter situations where by you might need to pull out your funds.
               </Text>
             </View>
           </View>
