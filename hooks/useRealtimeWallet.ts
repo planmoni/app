@@ -85,19 +85,36 @@ export function useRealtimeWallet() {
         console.log('- Balance:', data.balance || 0);
         console.log('- Locked Balance:', data.locked_balance || 0);
         
-        setBalance(data.balance || 0);
-        setLockedBalance(data.locked_balance || 0);
+        const newBalance = data.balance || 0;
+        const newLockedBalance = data.locked_balance || 0;
+        
+        setBalance(newBalance);
+        setLockedBalance(newLockedBalance);
         // availableBalance will be calculated automatically via useEffect
+        
+        // Return the fetched values for immediate use
+        return {
+          balance: newBalance,
+          lockedBalance: newLockedBalance,
+          availableBalance: newBalance - newLockedBalance
+        };
       } else {
         console.log('No wallet data found');
         // Initialize with zeros if no wallet found
         setBalance(0);
         setLockedBalance(0);
         // availableBalance will be calculated automatically via useEffect
+        
+        return {
+          balance: 0,
+          lockedBalance: 0,
+          availableBalance: 0
+        };
       }
     } catch (err) {
       console.error('Error in fetchWallet:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch wallet');
+      throw err;
     } finally {
       setIsLoading(false);
     }

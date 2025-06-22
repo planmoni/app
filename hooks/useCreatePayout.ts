@@ -9,7 +9,7 @@ export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
-  const { balance, lockedBalance, refreshWallet } = useBalance();
+  const { refreshWallet } = useBalance();
   const { showToast } = useToast();
 
   const createPayout = async ({
@@ -47,14 +47,21 @@ export function useCreatePayout() {
 
       console.log('Creating payout plan...');
       console.log('- Total Amount:', totalAmount);
+
+      // Get the most up-to-date wallet data from the database
+      const walletData = await refreshWallet();
+      
+      if (!walletData) {
+        throw new Error('Unable to fetch current wallet balance. Please try again.');
+      }
+
+      const { balance, lockedBalance, availableBalance } = walletData;
+      
       console.log('- Current Balance:', balance);
       console.log('- Locked Balance:', lockedBalance);
-      
-      // Calculate available balance from context
-      const availableBalance = balance - lockedBalance;
       console.log('- Available Balance:', availableBalance);
 
-      // Check if user has enough available balance
+      // Check if user has enough available balance using fresh data
       if (totalAmount > availableBalance) {
         throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${availableBalance.toLocaleString()} available.`);
       }
@@ -120,6 +127,11 @@ export function useCreatePayout() {
           .delete()
           .eq('id', payoutPlan.id);
 
+        // Check for specific constraint violation and provide user-friendly message
+        if (lockError.message?.includes('wallets_available_balance_check')) {
+          throw new Error('Insufficient available balance. Your wallet balance may have changed. Please refresh and try again.');
+        }
+        
         throw lockError;
       }
 
@@ -132,6 +144,11 @@ export function useCreatePayout() {
           .from('payout_plans')
           .delete()
           .eq('id', payoutPlan.id);
+
+        // Check for specific constraint violation and provide user-friendly message
+        if (lockResult.error?.includes('wallets_available_balance_check')) {
+          throw new Error('Insufficient available balance. Your wallet balance may have changed. Please refresh and try again.');
+        }
 
         throw new Error(lockResult.error || 'Failed to lock funds');
       }
@@ -215,7 +232,17 @@ export function useCreatePayout() {
 
     } catch (err) {
       console.error('Error creating payout plan:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create payout plan';
+      let errorMessage = 'Failed to create payout plan';
+      
+      if (err instanceof Error) {
+        // Check for specific database constraint violations
+        if (err.message.includes('wallets_available_balance_check')) {
+          errorMessage = 'Insufficient available balance. Your wallet balance may have changed. Please refresh and try again.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
       showToast?.(errorMessage, 'error');
     } finally {
