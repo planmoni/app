@@ -1,12 +1,3 @@
-// Load environment variables in Node.js environment (for API routes)
-if (typeof process !== 'undefined' && process.env && !process.env.EXPO_PUBLIC_SUPABASE_URL) {
-  try {
-    require('dotenv').config();
-  } catch (error) {
-    // dotenv might not be available in all environments, ignore the error
-  }
-}
-
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '@/types/supabase';
