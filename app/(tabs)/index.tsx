@@ -1047,7 +1047,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
   emptyPayoutsText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 16,
   },
@@ -1060,7 +1060,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
   emptyTransactionsText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textSecondary,
   },
   createFirstPayoutButton: {
@@ -1101,7 +1101,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
   },
   planAmount: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
