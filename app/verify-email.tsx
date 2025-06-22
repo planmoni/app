@@ -9,15 +9,23 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useOnlineStatus } from '@/components/OnlineStatusProvider';
 import OfflineNotice from '@/components/OfflineNotice';
+import { useToast } from '@/contexts/ToastContext';
+import { useHaptics } from '@/hooks/useHaptics';
+import { Platform } from 'react-native';
 
 export default function VerifyEmailScreen() {
   const { colors } = useTheme();
   const { session } = useAuth();
+  const { isOnline } = useOnlineStatus();
+  const { showToast } = useToast();
+  const haptics = useHaptics();
+  
   const [isResending, setIsResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emailVerified, setEmailVerified] = useState(false);
-  const { isOnline } = useOnlineStatus();
+  const [isLoading, setIsLoading] = useState(false);
+  const [timer, setTimer] = useState(0);
 
   const email = session?.user?.email || 'your email';
 
@@ -43,25 +51,88 @@ export default function VerifyEmailScreen() {
     }
   };
 
+  // Timer for resend cooldown
+  useEffect(() => {
+    if (timer <= 0) return;
+    
+    const interval = setInterval(() => {
+      setTimer(prev => prev - 1);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [timer]);
+
   const handleResendEmail = async () => {
-    if (!isOnline) return;
+    if (!isOnline || timer > 0) return;
     
     setIsResending(true);
     setError(null);
+    setResendSuccess(false);
     
     try {
-      // In a real app, you would call your auth service to resend the verification email
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: session?.user?.email || '',
+      if (Platform.OS !== 'web') {
+        haptics.mediumImpact();
+      }
+      
+      // Send OTP to the user's email
+      const response = await fetch('/api/otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({ email }),
       });
       
-      if (error) throw error;
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send verification email');
+      }
+      
       setResendSuccess(true);
+      showToast('Verification code sent to your email', 'success');
+      
+      // Set cooldown timer
+      setTimer(60);
+      
+      if (Platform.OS !== 'web') {
+        haptics.success();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to resend verification email');
+      showToast('Failed to send verification email', 'error');
+      
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
     } finally {
       setIsResending(false);
+    }
+  };
+
+  const handleVerifyEmail = async () => {
+    setIsLoading(true);
+    
+    try {
+      if (Platform.OS !== 'web') {
+        haptics.mediumImpact();
+      }
+      
+      // Navigate to OTP verification screen
+      router.push({
+        pathname: '/verify-otp',
+        params: { email }
+      });
+    } catch (error) {
+      setError('An error occurred. Please try again.');
+      showToast('An error occurred. Please try again.', 'error');
+      
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -88,7 +159,15 @@ export default function VerifyEmailScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Verify Email</Text>
@@ -110,7 +189,7 @@ export default function VerifyEmailScreen() {
           <>
             <Text style={styles.title}>Check your inbox</Text>
             <Text style={styles.subtitle}>
-              We've sent a verification link to <Text style={styles.emailText}>{email}</Text>
+              We've sent a verification code to <Text style={styles.emailText}>{email}</Text>
             </Text>
           </>
         )}
@@ -127,7 +206,7 @@ export default function VerifyEmailScreen() {
         
         {resendSuccess && (
           <View style={styles.successContainer}>
-            <Text style={styles.successText}>Verification email resent successfully!</Text>
+            <Text style={styles.successText}>Verification code sent successfully!</Text>
           </View>
         )}
         
@@ -138,30 +217,41 @@ export default function VerifyEmailScreen() {
               <Text style={styles.infoText}>1. Open the email from Planmoni</Text>
             </View>
             <View style={styles.infoItem}>
-              <Text style={styles.infoText}>2. Click on the verification link</Text>
+              <Text style={styles.infoText}>2. Enter the verification code on the next screen</Text>
             </View>
             <View style={styles.infoItem}>
-              <Text style={styles.infoText}>3. Return to the app after verification</Text>
+              <Text style={styles.infoText}>3. Your email will be verified automatically</Text>
             </View>
           </View>
         )}
         
         <View style={styles.actions}>
           {!emailVerified && (
-            <Button
-              title={isResending ? "Sending..." : "Resend Email"}
-              onPress={handleResendEmail}
-              disabled={isResending || !isOnline}
-              style={styles.resendButton}
-              variant="outline"
-              icon={RefreshCw}
-            />
+            <>
+              <Button
+                title={isResending ? "Sending..." : timer > 0 ? `Resend in ${timer}s` : "Resend Code"}
+                onPress={handleResendEmail}
+                disabled={isResending || timer > 0 || !isOnline}
+                style={styles.resendButton}
+                variant="outline"
+                icon={RefreshCw}
+              />
+              
+              <Button
+                title="Enter Verification Code"
+                onPress={handleVerifyEmail}
+                style={styles.verifyButton}
+                disabled={isLoading || !isOnline}
+                isLoading={isLoading}
+              />
+            </>
           )}
           
           <Button
-            title={emailVerified ? "Continue" : "I've Verified My Email"}
+            title={emailVerified ? "Continue" : "I'll do this later"}
             onPress={handleContinue}
-            style={styles.continueButton}
+            style={emailVerified ? styles.continueButton : styles.laterButton}
+            variant={emailVerified ? "primary" : "outline"}
           />
         </View>
       </View>
@@ -231,9 +321,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
-    borderRadius: 8,
     padding: 12,
-    marginBottom: 24,
+    borderRadius: 8,
+    marginBottom: 16,
     width: '100%',
   },
   errorText: {
@@ -243,9 +333,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   successContainer: {
     backgroundColor: colors.successLight,
-    borderRadius: 8,
     padding: 12,
-    marginBottom: 24,
+    borderRadius: 8,
+    marginBottom: 16,
     width: '100%',
   },
   successText: {
@@ -254,11 +344,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     textAlign: 'center',
   },
   infoCard: {
-    width: '100%',
-    backgroundColor: colors.backgroundTertiary,
-    borderRadius: 16,
+    backgroundColor: colors.surface,
     padding: 20,
+    borderRadius: 12,
     marginBottom: 32,
+    width: '100%',
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -266,10 +356,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   infoItem: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   infoText: {
     fontSize: 14,
@@ -278,12 +368,18 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   actions: {
     width: '100%',
-    gap: 16,
+    gap: 12,
   },
   resendButton: {
-    borderColor: colors.border,
+    marginBottom: 8,
+  },
+  verifyButton: {
+    marginBottom: 8,
   },
   continueButton: {
-    backgroundColor: colors.primary,
+    marginTop: 8,
+  },
+  laterButton: {
+    marginTop: 8,
   },
 });

@@ -40,11 +40,12 @@ import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
 import BiometricSetupModal from '@/components/settings/BiometricSetupModal';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { Platform } from 'react-native';
 
 export default function SettingsScreen() {
+  const { colors, isDark, theme, setTheme } = useTheme();
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
-  const { theme, setTheme, colors, isDark } = useTheme();
   const haptics = useHaptics();
   
   const firstName = session?.user?.user_metadata?.first_name || '';
@@ -74,9 +75,16 @@ export default function SettingsScreen() {
     });
   }, []);
 
+  const handleProfilePress = () => {
+    router.push('/profile');
+    logAnalyticsEvent('profile_click');
+  };
+
   const handleSignOut = async () => {
     try {
-      haptics.notification(Haptics.NotificationFeedbackType.Warning);
+      if (Platform.OS !== 'web') {
+        haptics.notification(Haptics.NotificationFeedbackType.Warning);
+      }
       Alert.alert(
         "Sign Out",
         "Are you sure you want to sign out?",
@@ -84,13 +92,19 @@ export default function SettingsScreen() {
           {
             text: "Cancel",
             style: "cancel",
-            onPress: () => haptics.lightImpact()
+            onPress: () => {
+              if (Platform.OS !== 'web') {
+                haptics.lightImpact();
+              }
+            }
           },
           {
             text: "Sign Out",
             style: "destructive",
             onPress: async () => {
-              haptics.heavyImpact();
+              if (Platform.OS !== 'web') {
+                haptics.heavyImpact();
+              }
               logAnalyticsEvent('sign_out');
               await signOut();
               router.replace('/');
@@ -99,61 +113,81 @@ export default function SettingsScreen() {
         ]
       );
     } catch (error) {
-      haptics.notification(Haptics.NotificationFeedbackType.Error);
+      if (Platform.OS !== 'web') {
+        haptics.notification(Haptics.NotificationFeedbackType.Error);
+      }
       Alert.alert("Error", "Failed to sign out. Please try again.");
     }
   };
 
   const handleViewProfile = () => {
-    haptics.lightImpact();
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
     router.push('/profile');
     logAnalyticsEvent('view_profile');
   };
 
   const handleViewLinkedAccounts = () => {
-    haptics.lightImpact();
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
     router.push('/linked-accounts');
     logAnalyticsEvent('view_linked_accounts');
   };
   
   const handleViewPayoutAccounts = () => {
-    haptics.lightImpact();
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
     router.push('/payout-accounts');
     logAnalyticsEvent('view_payout_accounts');
   };
 
   const handleViewReferral = () => {
-    haptics.lightImpact();
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
     router.push('/referral');
     logAnalyticsEvent('view_referral');
   };
 
   const handleChangePassword = () => {
-    haptics.lightImpact();
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
     router.push('/change-password');
     logAnalyticsEvent('change_password');
   };
 
   const handleTwoFactorAuth = () => {
-    haptics.lightImpact();
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
     router.push('/two-factor-auth');
     logAnalyticsEvent('two_factor_auth');
   };
 
   const handleTransactionLimits = () => {
-    haptics.lightImpact();
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
     router.push('/transaction-limits');
     logAnalyticsEvent('transaction_limits');
   };
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
-    haptics.selection();
+    if (Platform.OS !== 'web') {
+      haptics.selection();
+    }
     setTheme(newTheme);
     logAnalyticsEvent('change_theme', { theme: newTheme });
   };
 
   const handleToggleSwitch = (setter: React.Dispatch<React.SetStateAction<boolean>>, settingName: string) => {
-    haptics.selection();
+    if (Platform.OS !== 'web') {
+      haptics.selection();
+    }
     setter(prev => {
       const newValue = !prev;
       logAnalyticsEvent('toggle_setting', { setting: settingName, value: newValue });
@@ -162,7 +196,9 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteAccount = () => {
-    haptics.notification(Haptics.NotificationFeedbackType.Error);
+    if (Platform.OS !== 'web') {
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
+    }
     Alert.alert(
       "Delete Account",
       "Are you sure you want to delete your account? This action cannot be undone.",
@@ -170,13 +206,19 @@ export default function SettingsScreen() {
         {
           text: "Cancel",
           style: "cancel",
-          onPress: () => haptics.lightImpact()
+          onPress: () => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+          }
         },
         {
           text: "Delete",
           style: "destructive",
           onPress: () => {
-            haptics.heavyImpact();
+            if (Platform.OS !== 'web') {
+              haptics.heavyImpact();
+            }
             logAnalyticsEvent('delete_account_attempt');
             // Implement account deletion logic here
             Alert.alert("Account Deletion", "Please contact support to complete account deletion.");
@@ -229,7 +271,9 @@ export default function SettingsScreen() {
               <Switch
                 value={showBalances}
                 onValueChange={() => {
-                  haptics.selection();
+                  if (Platform.OS !== 'web') {
+                    haptics.selection();
+                  }
                   toggleBalances();
                   logAnalyticsEvent('toggle_balance_visibility', { show_balances: !showBalances });
                 }}
@@ -243,7 +287,9 @@ export default function SettingsScreen() {
             <Pressable 
               style={styles.settingItem}
               onPress={() => {
-                haptics.selection();
+                if (Platform.OS !== 'web') {
+                  haptics.selection();
+                }
                 setShowBiometricModal(true);
                 logAnalyticsEvent('open_biometric_settings');
               }}
@@ -307,7 +353,9 @@ export default function SettingsScreen() {
             <Pressable 
               style={styles.settingItem}
               onPress={() => {
-                haptics.lightImpact();
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                }
                 setShowAccountStatement(true);
                 logAnalyticsEvent('view_account_statement');
               }}
@@ -485,7 +533,9 @@ export default function SettingsScreen() {
             <Pressable 
               style={styles.settingItem}
               onPress={() => {
-                haptics.lightImpact();
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                }
                 setShowNotificationSettings(true);
                 logAnalyticsEvent('view_notification_settings');
               }}
@@ -509,7 +559,9 @@ export default function SettingsScreen() {
             <Pressable 
               style={styles.settingItem}
               onPress={() => {
-                haptics.lightImpact();
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                }
                 setShowHelpCenter(true);
                 logAnalyticsEvent('view_help_center');
               }}
@@ -529,7 +581,9 @@ export default function SettingsScreen() {
             <Pressable 
               style={styles.settingItem}
               onPress={() => {
-                haptics.lightImpact();
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                }
                 setShowSupport(true);
                 logAnalyticsEvent('contact_support');
               }}
@@ -549,7 +603,9 @@ export default function SettingsScreen() {
             <Pressable 
               style={styles.settingItem}
               onPress={() => {
-                haptics.lightImpact();
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                }
                 setShowLanguage(true);
                 logAnalyticsEvent('language_preference');
               }}
@@ -569,7 +625,9 @@ export default function SettingsScreen() {
             <Pressable 
               style={styles.settingItem}
               onPress={() => {
-                haptics.lightImpact();
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                }
                 setShowTerms(true);
                 logAnalyticsEvent('view_terms');
               }}
@@ -608,7 +666,9 @@ export default function SettingsScreen() {
       <AccountStatementModal
         isVisible={showAccountStatement}
         onClose={() => {
-          haptics.lightImpact();
+          if (Platform.OS !== 'web') {
+            haptics.lightImpact();
+          }
           setShowAccountStatement(false);
         }}
       />
@@ -616,7 +676,9 @@ export default function SettingsScreen() {
       <NotificationSettingsModal
         isVisible={showNotificationSettings}
         onClose={() => {
-          haptics.lightImpact();
+          if (Platform.OS !== 'web') {
+            haptics.lightImpact();
+          }
           setShowNotificationSettings(false);
         }}
       />
@@ -624,7 +686,9 @@ export default function SettingsScreen() {
       <SecurityModal
         isVisible={showSecurity}
         onClose={() => {
-          haptics.lightImpact();
+          if (Platform.OS !== 'web') {
+            haptics.lightImpact();
+          }
           setShowSecurity(false);
         }}
       />
@@ -632,7 +696,9 @@ export default function SettingsScreen() {
       <HelpCenterModal
         isVisible={showHelpCenter}
         onClose={() => {
-          haptics.lightImpact();
+          if (Platform.OS !== 'web') {
+            haptics.lightImpact();
+          }
           setShowHelpCenter(false);
         }}
       />
@@ -640,7 +706,9 @@ export default function SettingsScreen() {
       <SupportModal
         isVisible={showSupport}
         onClose={() => {
-          haptics.lightImpact();
+          if (Platform.OS !== 'web') {
+            haptics.lightImpact();
+          }
           setShowSupport(false);
         }}
       />
@@ -648,7 +716,9 @@ export default function SettingsScreen() {
       <LanguageModal
         isVisible={showLanguage}
         onClose={() => {
-          haptics.lightImpact();
+          if (Platform.OS !== 'web') {
+            haptics.lightImpact();
+          }
           setShowLanguage(false);
         }}
       />
@@ -656,7 +726,9 @@ export default function SettingsScreen() {
       <TermsModal
         isVisible={showTerms}
         onClose={() => {
-          haptics.lightImpact();
+          if (Platform.OS !== 'web') {
+            haptics.lightImpact();
+          }
           setShowTerms(false);
         }}
       />
@@ -664,7 +736,9 @@ export default function SettingsScreen() {
       <BiometricSetupModal
         isVisible={showBiometricModal}
         onClose={() => {
-          haptics.lightImpact();
+          if (Platform.OS !== 'web') {
+            haptics.lightImpact();
+          }
           setShowBiometricModal(false);
         }}
       />

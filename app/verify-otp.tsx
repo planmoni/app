@@ -1,30 +1,31 @@
-import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Mail } from 'lucide-react-native';
+import { ArrowLeft, Mail, Check } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
-import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Platform } from 'react-native';
 
-export default function OTPScreen() {
+export default function VerifyOTPScreen() {
   const { colors } = useTheme();
   const { showToast } = useToast();
+  const { session } = useAuth();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const firstName = params.firstName as string;
-  const lastName = params.lastName as string;
-  const email = params.email as string;
+  const email = params.email as string || session?.user?.email;
   
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
-  const [timer, setTimer] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [timer, setTimer] = useState(60);
   const [isResending, setIsResending] = useState(false);
   
   const inputRefs = useRef<Array<TextInput | null>>([]);
@@ -44,11 +45,6 @@ export default function OTPScreen() {
   useEffect(() => {
     setIsButtonEnabled(otp.every(digit => digit !== ''));
   }, [otp]);
-
-  useEffect(() => {
-    // Send OTP when component mounts
-    sendOTP();
-  }, []);
 
   useEffect(() => {
     if (timer <= 0) return;
@@ -80,6 +76,13 @@ export default function OTPScreen() {
     if (text !== '' && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
+    
+    // Auto-submit when all digits are entered
+    if (index === 5 && text !== '' && newOtp.every(digit => digit !== '')) {
+      setTimeout(() => {
+        handleVerify();
+      }, 300);
+    }
   };
 
   const handleKeyPress = (e: any, index: number) => {
@@ -96,15 +99,23 @@ export default function OTPScreen() {
     }
   };
 
-  const sendOTP = async () => {
+  const handleResendOtp = async () => {
+    if (timer > 0) return;
+    
+    setIsResending(true);
+    setError(null);
+    
     try {
-      setIsResending(true);
-      setError(null);
+      if (Platform.OS !== 'web') {
+        haptics.mediumImpact();
+      }
       
+      // Send OTP to the user's email
       const response = await fetch('/api/otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`,
         },
         body: JSON.stringify({ email }),
       });
@@ -112,20 +123,19 @@ export default function OTPScreen() {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to send OTP');
+        throw new Error(data.error || 'Failed to send verification code');
       }
+      
+      showToast('Verification code sent to your email', 'success');
       
       // Reset timer
       setTimer(60);
       
-      // Show success toast
-      showToast('Verification code sent to your email', 'success');
-      
       if (Platform.OS !== 'web') {
         haptics.success();
       }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to send OTP');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send verification code');
       showToast('Failed to send verification code', 'error');
       
       if (Platform.OS !== 'web') {
@@ -136,7 +146,7 @@ export default function OTPScreen() {
     }
   };
 
-  const handleContinue = async () => {
+  const handleVerify = async () => {
     const otpValue = otp.join('');
     
     if (otpValue.length !== 6) {
@@ -157,6 +167,7 @@ export default function OTPScreen() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`,
         },
         body: JSON.stringify({ email, otp: otpValue }),
       });
@@ -164,27 +175,25 @@ export default function OTPScreen() {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to verify OTP');
+        throw new Error(data.error || 'Failed to verify code');
       }
       
-      // Show success toast
+      // Update profile in database
+      if (session?.user?.id) {
+        await supabase
+          .from('profiles')
+          .update({ email_verified: true })
+          .eq('id', session.user.id);
+      }
+      
+      setIsVerified(true);
       showToast('Email verified successfully', 'success');
       
       if (Platform.OS !== 'web') {
         haptics.success();
       }
-      
-      // Navigate to the next screen
-      router.push({
-        pathname: '/onboarding/create-password',
-        params: { 
-          firstName,
-          lastName,
-          email
-        }
-      });
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to verify OTP');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to verify code');
       showToast('Failed to verify code', 'error');
       
       if (Platform.OS !== 'web') {
@@ -195,9 +204,11 @@ export default function OTPScreen() {
     }
   };
 
-  const handleResendOtp = () => {
-    if (timer > 0) return;
-    sendOTP();
+  const handleContinue = () => {
+    if (Platform.OS !== 'web') {
+      haptics.mediumImpact();
+    }
+    router.back();
   };
 
   const styles = createStyles(colors);
@@ -216,66 +227,80 @@ export default function OTPScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
+        <Text style={styles.headerTitle}>Verify Email</Text>
       </View>
-
-      <OnboardingProgress currentStep={4} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
-          <Text style={styles.title}>Verify your email</Text>
-          <Text style={styles.subtitle}>
-            We've sent a verification code to {email}
-          </Text>
-
-          <View style={styles.formContainer}>
-            <Text style={styles.question}>Enter the verification code</Text>
-            
-            {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
+          {isVerified ? (
+            <View style={styles.verifiedContainer}>
+              <View style={styles.verifiedIconContainer}>
+                <Check size={40} color={colors.success} />
               </View>
-            )}
-            
-            <View style={styles.otpContainer}>
-              {otp.map((digit, index) => (
-                <TextInput
-                  key={index}
-                  ref={(el) => setInputRef(el, index)}
-                  style={styles.otpInput}
-                  value={digit}
-                  onChangeText={(text) => handleOtpChange(text, index)}
-                  onKeyPress={(e) => handleKeyPress(e, index)}
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  editable={!isLoading}
-                />
-              ))}
+              <Text style={styles.title}>Email Verified!</Text>
+              <Text style={styles.subtitle}>
+                Your email address <Text style={styles.emailText}>{email}</Text> has been successfully verified.
+              </Text>
             </View>
-            
-            <View style={styles.resendContainer}>
-              {timer > 0 ? (
-                <Text style={styles.timerText}>
-                  Resend code in {timer} seconds
-                </Text>
-              ) : (
-                <Pressable 
-                  onPress={handleResendOtp}
-                  disabled={isResending}
-                >
-                  <Text style={styles.resendText}>
-                    {isResending ? 'Sending...' : 'Resend verification code'}
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-          </View>
+          ) : (
+            <>
+              <Text style={styles.title}>Enter Verification Code</Text>
+              <Text style={styles.subtitle}>
+                We've sent a verification code to <Text style={styles.emailText}>{email}</Text>
+              </Text>
+
+              <View style={styles.formContainer}>
+                {error && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                )}
+                
+                <View style={styles.otpContainer}>
+                  {otp.map((digit, index) => (
+                    <TextInput
+                      key={index}
+                      ref={(el) => setInputRef(el, index)}
+                      style={styles.otpInput}
+                      value={digit}
+                      onChangeText={(text) => handleOtpChange(text, index)}
+                      onKeyPress={(e) => handleKeyPress(e, index)}
+                      keyboardType="number-pad"
+                      maxLength={1}
+                      editable={!isLoading && !isVerified}
+                    />
+                  ))}
+                </View>
+                
+                <View style={styles.resendContainer}>
+                  {timer > 0 ? (
+                    <Text style={styles.timerText}>
+                      Resend code in {timer} seconds
+                    </Text>
+                  ) : (
+                    <Pressable 
+                      onPress={handleResendOtp}
+                      disabled={isResending || isVerified}
+                    >
+                      <Text style={[
+                        styles.resendText,
+                        isVerified && styles.disabledText
+                      ]}>
+                        {isResending ? 'Sending...' : 'Resend verification code'}
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+            </>
+          )}
         </View>
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title={isLoading ? "Verifying..." : "Continue"}
-        onPress={handleContinue}
-        disabled={!isButtonEnabled || isLoading}
+        title={isVerified ? "Continue" : isLoading ? "Verifying..." : "Verify"}
+        onPress={isVerified ? handleContinue : handleVerify}
+        disabled={(!isButtonEnabled && !isVerified) || isLoading}
       />
     </SafeAreaView>
   );
@@ -287,8 +312,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 16,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   backButton: {
     width: 40,
@@ -297,6 +327,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: 20,
+    marginRight: 12,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
   },
   contentContainer: {
     flexGrow: 1,
@@ -305,44 +341,47 @@ const createStyles = (colors: any) => StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'flex-start',
-    paddingTop: 20,
+    paddingTop: 40,
+    alignItems: 'center',
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 8,
-    textAlign: 'left',
+    marginBottom: 12,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
     marginBottom: 40,
-    textAlign: 'left',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  emailText: {
+    fontWeight: '600',
+    color: colors.text,
   },
   formContainer: {
     width: '100%',
-  },
-  question: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 24,
-    textAlign: 'left',
+    alignItems: 'center',
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
+    width: '100%',
   },
   errorText: {
     color: colors.error,
     fontSize: 14,
+    textAlign: 'center',
   },
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    width: '100%',
     marginBottom: 24,
   },
   otpInput: {
@@ -369,5 +408,22 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
     fontWeight: '500',
+  },
+  disabledText: {
+    color: colors.textTertiary,
+  },
+  verifiedContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  verifiedIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.successLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
   },
 });

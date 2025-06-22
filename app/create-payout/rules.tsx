@@ -131,25 +131,12 @@ export default function RulesScreen() {
               </View>
             )}
 
-            <View style={styles.cooldownSetting}>
-              <View style={styles.settingIcon}>
-                <Clock size={isSmallScreen ? 20 : 24} color="#1E3A8A" />
-              </View>
-              <View style={styles.cooldownDetails}>
-                <Text style={styles.cooldownTitle}>Standard Cooldown</Text>
-                <Text style={styles.cooldownValue}>72 hours</Text>
-                <Text style={styles.cooldownDescription}>
-                  Standard waiting period for withdrawals without fees
-                </Text>
-              </View>
-            </View>
-
             <View style={styles.warning}>
               <View style={styles.warningIcon}>
                 <AlertTriangle size={isSmallScreen ? 16 : 20} color="#EF4444" />
               </View>
               <Text style={styles.warningText}>
-                To enforce discipline, emergency withdrawals may incur fees based on the processing time you select. Faster withdrawals have higher fees.
+                Only turn emergency withdrawals option ON if you feel there might be situations where you might need to pull out your funds before payout expiry, when turned off, you will not be able to pull out your funds at any point until payout date is complete.
               </Text>
             </View>
           </View>

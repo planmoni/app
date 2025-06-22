@@ -106,6 +106,9 @@ export function useInsightsData() {
       let payoutGrowthPercentage = 0;
       if (lastMonthPayouts > 0) {
         payoutGrowthPercentage = ((currentMonthPayouts - lastMonthPayouts) / lastMonthPayouts) * 100;
+      } else if (currentMonthPayouts > 0) {
+        // If last month was 0 but this month has value, show 100% growth
+        payoutGrowthPercentage = 100;
       }
       
       // Calculate current month's deposits and previous month's deposits
@@ -133,6 +136,9 @@ export function useInsightsData() {
       let depositGrowthPercentage = 0;
       if (lastMonthDeposits > 0) {
         depositGrowthPercentage = ((currentMonthDeposits - lastMonthDeposits) / lastMonthDeposits) * 100;
+      } else if (currentMonthDeposits > 0) {
+        // If last month was 0 but this month has value, show 100% growth
+        depositGrowthPercentage = 100;
       }
       
       // Calculate transaction count growth
@@ -154,6 +160,9 @@ export function useInsightsData() {
       let transactionGrowthPercentage = 0;
       if (lastMonthTransactionCount > 0) {
         transactionGrowthPercentage = ((currentMonthTransactionCount - lastMonthTransactionCount) / lastMonthTransactionCount) * 100;
+      } else if (currentMonthTransactionCount > 0) {
+        // If last month was 0 but this month has value, show 100% growth
+        transactionGrowthPercentage = 100;
       }
       
       // Calculate average payout amount
@@ -212,7 +221,7 @@ export function useInsightsData() {
         {
           title: 'Payouts',
           value: formatCurrency(totalPayouts),
-          change: `${payoutGrowthPercentage >= 0 ? '+' : ''}${Math.abs(payoutGrowthPercentage).toFixed(1)}%`,
+          change: `${payoutGrowthPercentage >= 0 ? '+' : ''}${Math.abs(payoutGrowthPercentage).toFixed(2)}%`,
           positive: payoutGrowthPercentage >= 0,
           icon: 'Send',
           description: 'Total payouts this month',
@@ -220,7 +229,7 @@ export function useInsightsData() {
         {
           title: 'Deposits',
           value: formatCurrency(totalDeposits),
-          change: `${depositGrowthPercentage >= 0 ? '+' : ''}${Math.abs(depositGrowthPercentage).toFixed(1)}%`,
+          change: `${depositGrowthPercentage >= 0 ? '+' : ''}${Math.abs(depositGrowthPercentage).toFixed(2)}%`,
           positive: depositGrowthPercentage >= 0,
           icon: 'Wallet',
           description: 'Total deposits this month',
@@ -236,23 +245,24 @@ export function useInsightsData() {
         {
           title: 'Txns',
           value: totalTransactions.toString(),
-          change: `${transactionGrowthPercentage >= 0 ? '+' : ''}${Math.abs(transactionGrowthPercentage).toFixed(1)}%`,
+          change: `${transactionGrowthPercentage >= 0 ? '+' : ''}${Math.abs(transactionGrowthPercentage).toFixed(2)}%`,
           positive: transactionGrowthPercentage >= 0,
           icon: 'TrendingUp',
           description: 'Total payout transactions',
         },
       ];
 
-      // Set trends data
+      // Set trends data with absolute values for comparison
       const trendsData = [
         {
           title: 'Monthly Growth',
-          value: `${payoutGrowthPercentage >= 0 ? '+' : ''}${payoutGrowthPercentage.toFixed(1)}%`,
+          value: `${payoutGrowthPercentage >= 0 ? '+' : ''}${payoutGrowthPercentage.toFixed(2)}%`,
           description: 'Compared to last month',
           positive: payoutGrowthPercentage >= 0,
           details: [
             { label: 'Last Month', value: formatCurrency(lastMonthPayouts) },
             { label: 'This Month', value: formatCurrency(currentMonthPayouts) },
+            { label: 'Difference', value: formatCurrency(Math.abs(currentMonthPayouts - lastMonthPayouts)) },
           ],
         },
         {
