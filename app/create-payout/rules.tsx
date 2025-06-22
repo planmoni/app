@@ -149,7 +149,7 @@ export default function RulesScreen() {
                 <AlertTriangle size={isSmallScreen ? 16 : 20} color="#EF4444" />
               </View>
               <Text style={styles.warningText}>
-                Only turn emergency withdrawals on if you feel there might be situations where by you might need to pull out your funds before payout expiry.
+                Only turn emergency withdrawals on if you feel there might be situations where you might need to pull out your funds before payout expiry.
               </Text>
             </View>
           </View>
