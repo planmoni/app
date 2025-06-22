@@ -99,8 +99,8 @@ export default function KYCUpgradeScreen() {
       }
 
       const myHeaders = new Headers();
-      myHeaders.append("Appid", process.env.DOJAH_APP_ID!);
-      myHeaders.append("Authorization", process.env.DOJAH_PRIVATE_KEY!);
+      myHeaders.append("AppId", "6851588214c1dd6f885eb191");
+      myHeaders.append("Authorization", 'test_sk_Rl0gwx5uRkfjCWvoOIV8PxEBL');
 
       
       const requestOptions = {
@@ -109,10 +109,10 @@ export default function KYCUpgradeScreen() {
       };
 
       
-      const response = await fetch(`https://sandbox.dojah.io/api/v1/kyc/bvn/full?bvn=${bvn}`, requestOptions);
+      const response = await fetch('https://sandbox.dojah.io/api/v1/kyc/bvn/full?bvn=22222222222', requestOptions);
       
-    
-      console.log('Response :', response);
+      const data = await response.json();
+      console.log('Response :', data);
       // Check content type before parsing
       const contentType = response.headers.get('content-type');
       console.log('Response status:', response.status);
@@ -126,7 +126,6 @@ export default function KYCUpgradeScreen() {
       }
       
       if (response.ok) {
-        const data = await response.json();
         setVerificationStatus(data.overallStatus);
         
         // If user is already verified, show appropriate message
@@ -307,8 +306,9 @@ export default function KYCUpgradeScreen() {
       
 
       const myHeaders = new Headers();
-      myHeaders.append("Appid", process.env.DOJAH_APP_ID!);
-      myHeaders.append("Authorization", process.env.DOJAH_PRIVATE_KEY!);
+      myHeaders.append("AppId", "6851588214c1dd6f885eb191");
+      myHeaders.append("Authorization", 'test_sk_Rl0gwx5uRkfjCWvoOIV8PxEBL');
+      // test_sk_Rl0gwx5uRkfjCWvoOIV8PxEBL
 
       
       const requestOptions = {
@@ -318,7 +318,8 @@ export default function KYCUpgradeScreen() {
 
       
       const response = await fetch(`https://sandbox.dojah.io/api/v1/kyc/bvn?bvn=${bvn}`, requestOptions);
-      
+      const data = await response.json();
+      console.log('Response :', data);
     
       
       // const response = await fetch(`https://sandbox.dojah.io/api/v1/kyc/bvn?bvn=${bvn}`, {
@@ -345,7 +346,7 @@ export default function KYCUpgradeScreen() {
         throw new Error(errorData.error || 'BVN verification failed');
       }
       
-      const data = await response.json();
+      // const data = await response.json();
       
       // Check if verification was successful
       if (data.status === 'success') {
