@@ -131,12 +131,6 @@ export default function RulesScreen() {
               </View>
             )}
 
-            <View style={styles.cooldownSetting}>
-              <View style={styles.settingIcon}>
-                <Clock size={isSmallScreen ? 20 : 24} color="#1E3A8A" />
-              </View>
-            </View>
-
             <View style={styles.warning}>
               <View style={styles.warningIcon}>
                 <AlertTriangle size={isSmallScreen ? 16 : 20} color="#EF4444" />
