@@ -175,21 +175,6 @@ export default function AddUSSDScreen() {
               </ScrollView>
             </View>
 
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Amount</Text>
-              <View style={styles.amountContainer}>
-                <Text style={styles.currencySymbol}>₦</Text>
-                <TextInput
-                  style={styles.amountInput}
-                  placeholder="Enter amount"
-                  placeholderTextColor={colors.textTertiary}
-                  value={amount}
-                  onChangeText={handleAmountChange}
-                  keyboardType="numeric"
-                  editable={!fromDepositFlow} // Disable editing if amount is passed from deposit flow
-                />
-              </View>
-            </View>
 
             {ussdCode && (
               <View style={styles.ussdCodeContainer}>
@@ -263,8 +248,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
   },
