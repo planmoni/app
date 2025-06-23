@@ -299,7 +299,7 @@ export default function HomeScreen() {
         <Card style={styles.balanceCard}>
           <View style={styles.balanceCardContent}>
             <View style={styles.balanceLabelContainer}>
-              <Text style={styles.balanceLabel}>Available Wallet Balance</Text>
+              <Text style={styles.balanceLabel}>Available Balance</Text>
               <Pressable 
                 onPress={toggleBalances}
                 style={styles.eyeIconButton}
@@ -325,14 +325,14 @@ export default function HomeScreen() {
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
-                <Send size={20} color="#FFFFFF" />
+                <ArrowUpRight size={20} color="#FFFFFF" />
                 <Text style={styles.createButtonText}>New</Text>
               </Pressable>
               <Pressable 
                 style={styles.addFundsButton} 
                 onPress={handleAddFunds}
               >
-                <Wallet size={20} color={colors.text} />
+                <Plus size={20} color={colors.text} />
                 <Text style={styles.addFundsText}>Add Funds</Text>
               </Pressable>
             </View>
@@ -501,8 +501,8 @@ export default function HomeScreen() {
           {recentTransactions.length > 0 ? (
             recentTransactions.map((transaction) => {
               const isPositive = transaction.type === 'deposit';
-              const Icon = isPositive ? ArrowUpRight : 
-                          transaction.type === 'payout' ? ArrowDownRight : ArrowDown;
+              const Icon = isPositive ? ArrowDownRight : 
+                          transaction.type === 'payout' ? ArrowUpRight : ArrowDownRight;
               
               // Format date and time
               const txDate = new Date(transaction.created_at);
@@ -654,7 +654,7 @@ export default function HomeScreen() {
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <Send size={20} color="#FFFFFF" />
+          <ArrowUpRight size={20} color="#FFFFFF" />
           <Text style={styles.createButtonText}>New</Text>
         </Pressable>
         <Pressable 
