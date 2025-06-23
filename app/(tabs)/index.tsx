@@ -918,7 +918,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '500',
   },
   payoutDetails: {
-    marginBottom: 16,
+    marginBottom: 5,
   },
   payoutInfo: {
     marginBottom: 16,
