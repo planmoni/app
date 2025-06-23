@@ -279,7 +279,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 16,
   },
   emptyTitle: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
   },
