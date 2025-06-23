@@ -23,7 +23,8 @@ export function useCreatePayout() {
     bankAccountId,
     payoutAccountId,
     customDates,
-    emergencyWithdrawalEnabled = false
+    emergencyWithdrawalEnabled = false,
+    dayOfWeek
   }: {
     name: string;
     description?: string;
@@ -36,6 +37,7 @@ export function useCreatePayout() {
     payoutAccountId?: string | null;
     customDates?: string[];
     emergencyWithdrawalEnabled?: boolean;
+    dayOfWeek?: number;
   }) => {
     try {
       setIsLoading(true);
@@ -67,6 +69,7 @@ export function useCreatePayout() {
       }
 
       // Map frequency values to database-compatible values
+      // The database only accepts: 'weekly', 'biweekly', 'monthly', 'custom'
       let dbFrequency: 'weekly' | 'biweekly' | 'monthly' | 'custom';
       
       switch (frequency) {
@@ -88,13 +91,35 @@ export function useCreatePayout() {
 
       if (frequency === 'weekly') {
         nextPayoutDate.setDate(startDateObj.getDate() + 7);
+      } else if (frequency === 'weekly_specific' && dayOfWeek !== undefined) {
+        // Calculate the next occurrence of the specified day of week
+        const currentDayOfWeek = startDateObj.getDay();
+        const daysToAdd = (7 + dayOfWeek - currentDayOfWeek) % 7;
+        nextPayoutDate.setDate(startDateObj.getDate() + (daysToAdd === 0 ? 7 : daysToAdd));
       } else if (frequency === 'biweekly') {
         nextPayoutDate.setDate(startDateObj.getDate() + 14);
       } else if (frequency === 'monthly') {
         nextPayoutDate.setMonth(startDateObj.getMonth() + 1);
+      } else if (frequency === 'end_of_month') {
+        // Set to the last day of the next month
+        nextPayoutDate.setMonth(startDateObj.getMonth() + 1);
+        nextPayoutDate.setDate(0); // Setting to 0 gets the last day of the previous month
+      } else if (frequency === 'quarterly') {
+        nextPayoutDate.setMonth(startDateObj.getMonth() + 3);
+      } else if (frequency === 'biannual') {
+        nextPayoutDate.setMonth(startDateObj.getMonth() + 6);
       }
 
       const nextPayoutDateStr = nextPayoutDate.toISOString();
+
+      // Store the original frequency in the description for display purposes
+      const enhancedDescription = description || '';
+      
+      // Store additional metadata for special frequency types
+      const metadata = {
+        originalFrequency: frequency,
+        dayOfWeek: dayOfWeek
+      };
 
       // ➕ Insert payout plan into DB
       const { data: payoutPlan, error: payoutError } = await supabase
@@ -102,7 +127,7 @@ export function useCreatePayout() {
         .insert({
           user_id: session.user.id,
           name,
-          description,
+          description: enhancedDescription,
           total_amount: totalAmount,
           payout_amount: payoutAmount,
           frequency: dbFrequency, // Use the mapped frequency value
@@ -117,6 +142,7 @@ export function useCreatePayout() {
             dbFrequency === 'custom' && customDates?.length
               ? customDates[0]
               : nextPayoutDateStr,
+          metadata: metadata // Store additional frequency metadata
         })
         .select()
         .single();
@@ -254,6 +280,8 @@ export function useCreatePayout() {
         // Check for specific database constraint violations
         if (err.message.includes('wallets_available_balance_check')) {
           errorMessage = 'Insufficient available balance. Your wallet balance may have changed. Please refresh and try again.';
+        } else if (err.message.includes('payout_plans_frequency_check')) {
+          errorMessage = 'Invalid frequency value. Please select a different frequency.';
         } else {
           errorMessage = err.message;
         }

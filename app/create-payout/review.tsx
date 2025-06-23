@@ -11,6 +11,7 @@ import FloatingButton from '@/components/FloatingButton';
 import ErrorMessage from '@/components/ErrorMessage';
 import { Platform } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
+import { formatDisplayDate, formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -75,7 +76,7 @@ export default function ReviewScreen() {
     
     try {
       console.log('Creating payout plan with the following parameters:');
-      console.log('- Name:', `${getFrequencyDisplayName(frequency)} Payout Plan`);
+      console.log('- Name:', `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`);
       console.log('- Total amount:', parseFloat(totalAmount.replace(/[^0-9.]/g, '')));
       console.log('- Payout amount:', parseFloat(payoutAmount.replace(/[^0-9.]/g, '')));
       console.log('- Frequency:', frequency);
@@ -92,8 +93,8 @@ export default function ReviewScreen() {
       }
       
       await createPayout({
-        name: `${getFrequencyDisplayName(frequency)} Payout Plan`,
-        description: `${frequency} payout of ${payoutAmount}`,
+        name: `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`,
+        description: `${formatPayoutFrequency(frequency, dayOfWeek)} payout of ${payoutAmount}`,
         totalAmount: parseFloat(totalAmount.replace(/[^0-9.]/g, '')),
         payoutAmount: parseFloat(payoutAmount.replace(/[^0-9.]/g, '')),
         frequency: frequency as any,
@@ -110,59 +111,6 @@ export default function ReviewScreen() {
       if (Platform.OS !== 'web') {
         haptics.error();
       }
-    }
-  };
-
-  const getFrequencyDisplayName = (freq: string): string => {
-    switch (freq) {
-      case 'weekly':
-        return 'Weekly';
-      case 'weekly_specific':
-        return getDayOfWeekName(dayOfWeek) || 'Weekly';
-      case 'biweekly':
-        return 'Bi-weekly';
-      case 'monthly':
-        return 'Monthly';
-      case 'end_of_month':
-        return 'Month End';
-      case 'quarterly':
-        return 'Quarterly';
-      case 'biannual':
-        return 'Bi-annual';
-      case 'custom':
-        return 'Custom';
-      default:
-        return freq.charAt(0).toUpperCase() + freq.slice(1);
-    }
-  };
-
-  const getDayOfWeekName = (day?: number): string | null => {
-    if (day === undefined) return null;
-    
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return days[day];
-  };
-
-  const getFrequencyDescription = (freq: string): string => {
-    switch (freq) {
-      case 'weekly':
-        return 'Every week';
-      case 'weekly_specific':
-        return `Every ${getDayOfWeekName(dayOfWeek)}`;
-      case 'biweekly':
-        return 'Every two weeks';
-      case 'monthly':
-        return 'Every month';
-      case 'end_of_month':
-        return 'End of every month';
-      case 'quarterly':
-        return 'Every three months';
-      case 'biannual':
-        return 'Every six months';
-      case 'custom':
-        return `${customDates.length} custom dates`;
-      default:
-        return '';
     }
   };
 
@@ -239,7 +187,7 @@ export default function ReviewScreen() {
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Payout Frequency</Text>
-                  <Text style={styles.detailValue}>{getFrequencyDisplayName(frequency)}</Text>
+                  <Text style={styles.detailValue}>{formatPayoutFrequency(frequency, dayOfWeek)}</Text>
                   <Text style={styles.detailSubtext}>{`₦${payoutAmount}`} per payout</Text>
                 </View>
                 <Pressable 
@@ -320,7 +268,7 @@ export default function ReviewScreen() {
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Frequency</Text>
-                <Text style={styles.summaryValue}>{getFrequencyDescription(frequency)}</Text>
+                <Text style={styles.summaryValue}>{formatPayoutFrequency(frequency, dayOfWeek)}</Text>
               </View>
 
               {emergencyWithdrawal && (
@@ -382,23 +330,6 @@ export default function ReviewScreen() {
     </SafeAreaView>
   );
 }
-
-// Format date for display (Month Day, Year)
-const formatDisplayDate = (dateString: string): string => {
-  // Check if the date is already in the format "Month Day, Year"
-  if (/[A-Za-z]+ \d+, \d{4}/.test(dateString)) {
-    return dateString;
-  }
-  
-  // Otherwise, convert from ISO format (YYYY-MM-DD)
-  const date = new Date(dateString);
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-  
-  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-};
 
 const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {

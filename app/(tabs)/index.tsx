@@ -17,6 +17,7 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance } = useBalance();
@@ -411,6 +412,10 @@ export default function HomeScreen() {
                 const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
                 const completedAmount = plan.completed_payouts * plan.payout_amount;
                 
+                // Get the day of week from metadata if available
+                const dayOfWeek = plan.metadata?.dayOfWeek;
+                const originalFrequency = plan.metadata?.originalFrequency || plan.frequency;
+                
                 return (
                   <Pressable
                     key={plan.id}
@@ -428,7 +433,7 @@ export default function HomeScreen() {
                     <Text style={styles.planAmount}>{formatBalance(plan.total_amount)}</Text>
                     <View style={styles.planDetails}>
                       <Text style={styles.planFrequency}>
-                        {plan.frequency.charAt(0).toUpperCase() + plan.frequency.slice(1)}
+                        {formatPayoutFrequency(originalFrequency, dayOfWeek)}
                       </Text>
                       <Text style={styles.planDot}>•</Text>
                       <Text style={styles.planValue}>{formatBalance(plan.payout_amount)}</Text>

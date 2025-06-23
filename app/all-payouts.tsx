@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
+import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 
 export default function AllPayoutsScreen() {
   const { colors } = useTheme();
@@ -127,6 +128,10 @@ export default function AllPayoutsScreen() {
             const statusColors = getStatusColor(plan.status);
             const progress = calculateProgress(plan);
             
+            // Get the day of week from metadata if available
+            const dayOfWeek = plan.metadata?.dayOfWeek;
+            const originalFrequency = plan.metadata?.originalFrequency || plan.frequency;
+            
             return (
               <Pressable 
                 key={plan.id} 
@@ -168,7 +173,7 @@ export default function AllPayoutsScreen() {
                     <View style={styles.detail}>
                       <Calendar size={16} color={colors.textSecondary} />
                       <Text style={styles.detailText}>
-                        {plan.frequency.charAt(0).toUpperCase() + plan.frequency.slice(1)}
+                        {formatPayoutFrequency(originalFrequency, dayOfWeek)}
                       </Text>
                     </View>
                     <View style={styles.detail}>
@@ -304,6 +309,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     padding: 1,
     borderRadius: 16,
     overflow: 'hidden',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   payoutContent: {
     padding: 20,
