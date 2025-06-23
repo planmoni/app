@@ -209,7 +209,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
 export default function ScheduleScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
-  const [selectedSchedule, setSelectedSchedule] = useState('weekly');
+  const [selectedSchedule, setSelectedSchedule] = useState(NULL);
   const [totalAmount, setTotalAmount] = useState('0');
   const [payoutAmount, setPayoutAmount] = useState('0');
   const [customDates, setCustomDates] = useState<string[]>([]);
