@@ -209,7 +209,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
 export default function ScheduleScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
-  const [selectedSchedule, setSelectedSchedule] = useState();
+  const [selectedSchedule, setSelectedSchedule] = useState('monthly');
   const [totalAmount, setTotalAmount] = useState('0');
   const [payoutAmount, setPayoutAmount] = useState('0');
   const [customDates, setCustomDates] = useState<string[]>([]);
@@ -280,6 +280,13 @@ export default function ScheduleScreen() {
           { value: 2, label: '1 Year', description: '2 bi-annual payments' },
           { value: 4, label: '2 Years', description: '4 bi-annual payments' },
           { value: 6, label: '3 Years', description: '6 bi-annual payments' }
+        ];
+      case 'annually':
+        return [
+          { value: 1, label: '1 Year', description: '1 annual payment' },
+          { value: 2, label: '2 Years', description: '2 annual payments' },
+          { value: 3, label: '3 Years', description: '3 annual payments' },
+          { value: 5, label: '5 Years', description: '5 annual payments' }
         ];
       case 'custom':
         return [
@@ -366,6 +373,8 @@ export default function ScheduleScreen() {
         return 'Amount per Quarter';
       case 'biannual':
         return 'Amount per 6 Months';
+      case 'annually':
+        return 'Amount per Year';
       case 'custom':
         return `Amount per Payout (${customDates.length} dates)`;
       default:
@@ -644,6 +653,25 @@ export default function ScheduleScreen() {
                 styles.optionText,
                 selectedSchedule === 'biannual' && styles.selectedOptionText
               ]}>Bi-annual</Text>
+            </Pressable>
+
+            <Pressable 
+              style={[
+                styles.scheduleOption,
+                selectedSchedule === 'annually' && styles.selectedOption
+              ]}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  haptics.selection();
+                }
+                handleScheduleSelect('annually');
+              }}
+            >
+              <Calendar size={isSmallScreen ? 18 : 20} color={selectedSchedule === 'annually' ? '#1E3A8A' : colors.text} />
+              <Text style={[
+                styles.optionText,
+                selectedSchedule === 'annually' && styles.selectedOptionText
+              ]}>Annually</Text>
             </Pressable>
 
             <Pressable 

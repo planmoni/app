@@ -21,6 +21,8 @@ export function formatPayoutFrequency(frequency: string, dayOfWeek?: number | nu
       return 'Quarterly';
     case 'biannual':
       return 'Bi-annual';
+    case 'annually':
+      return 'Annually';
     case 'custom':
       return 'Custom';
     default:

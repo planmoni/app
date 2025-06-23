@@ -30,7 +30,7 @@ export function useCreatePayout() {
     description?: string;
     totalAmount: number;
     payoutAmount: number;
-    frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom' | 'weekly_specific' | 'end_of_month' | 'quarterly' | 'biannual';
+    frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom' | 'weekly_specific' | 'end_of_month' | 'quarterly' | 'biannual' | 'annually';
     duration: number;
     startDate: string;
     bankAccountId?: string | null;
@@ -47,8 +47,18 @@ export function useCreatePayout() {
         throw new Error('User not authenticated');
       }
 
-      console.log('Creating payout plan...');
-      console.log('- Total Amount:', totalAmount);
+      console.log('Creating payout plan with the following parameters:');
+      console.log('- Name:', name);
+      console.log('- Total amount:', totalAmount);
+      console.log('- Payout amount:', payoutAmount);
+      console.log('- Frequency:', frequency);
+      console.log('- Day of week:', dayOfWeek);
+      console.log('- Duration:', duration);
+      console.log('- Start date:', startDate);
+      console.log('- Bank account ID:', bankAccountId || null);
+      console.log('- Payout account ID:', payoutAccountId || null);
+      console.log('- Custom dates:', customDates);
+      console.log('- Emergency withdrawal enabled:', emergencyWithdrawalEnabled);
 
       // Get the most up-to-date wallet data from the database
       const walletData = await refreshWallet();
@@ -77,6 +87,7 @@ export function useCreatePayout() {
         case 'end_of_month':
         case 'quarterly':
         case 'biannual':
+        case 'annually':
           // These special frequencies should be stored as 'custom' in the database
           dbFrequency = 'custom';
           break;
@@ -108,6 +119,8 @@ export function useCreatePayout() {
         nextPayoutDate.setMonth(startDateObj.getMonth() + 3);
       } else if (frequency === 'biannual') {
         nextPayoutDate.setMonth(startDateObj.getMonth() + 6);
+      } else if (frequency === 'annually') {
+        nextPayoutDate.setFullYear(startDateObj.getFullYear() + 1);
       }
 
       const nextPayoutDateStr = nextPayoutDate.toISOString();
