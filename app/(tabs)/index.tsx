@@ -898,7 +898,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   payoutTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.text,
   },
   headerActions: {
