@@ -879,9 +879,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '500',
   },
   payoutCard: {
-    marginBottom: 24,
+    marginBottom: 15,
     borderRadius: 16,
-    paddingHorizontal: 10,
+    padding: 10,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
