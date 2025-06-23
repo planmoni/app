@@ -141,9 +141,9 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
           <View style={styles.amountSection}>
             <View style={[styles.amountIcon, { backgroundColor: isPositive ? '#DCFCE7' : '#FEE2E2' }]}>
               {isPositive ? (
-                <ArrowUpRight size={24} color="#22C55E" />
+                <ArrowDownRight size={24} color="#22C55E" />
               ) : (
-                <ArrowDownRight size={24} color="#EF4444" />
+                <ArrowUpRight size={24} color="#EF4444" />
               )}
             </View>
             <View>
