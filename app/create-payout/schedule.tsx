@@ -209,7 +209,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
 export default function ScheduleScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
-  const [selectedSchedule, setSelectedSchedule] = useState('monthly');
+  const [selectedSchedule, setSelectedSchedule] = useState<string>('');
   const [totalAmount, setTotalAmount] = useState('0');
   const [payoutAmount, setPayoutAmount] = useState('0');
   const [customDates, setCustomDates] = useState<string[]>([]);
@@ -311,7 +311,7 @@ export default function ScheduleScreen() {
   
   // Update duration options when frequency changes
   useEffect(() => {
-    const durationOptions = getDurationOptions(selectedSchedule);
+    const durationOptions = getDurationOptions(selectedSchedule || '');
     setSelectedDuration(durationOptions[durationOptions.length - 1]); // Default to the longest duration
     setNumberOfPayouts(durationOptions[durationOptions.length - 1].value);
     
@@ -358,7 +358,7 @@ export default function ScheduleScreen() {
   };
 
   const getPayoutLabel = () => {
-    switch (selectedSchedule) {
+    switch (selectedSchedule || '') {
       case 'monthly':
         return 'Amount per Month';
       case 'biweekly':
@@ -391,7 +391,7 @@ export default function ScheduleScreen() {
     setSelectedSchedule(schedule);
     
     // Reset duration options based on new frequency
-    const durationOptions = getDurationOptions(schedule);
+    const durationOptions = getDurationOptions(schedule || '');
     setSelectedDuration(durationOptions[durationOptions.length - 1]);
     setNumberOfPayouts(durationOptions[durationOptions.length - 1].value);
     
@@ -400,7 +400,7 @@ export default function ScheduleScreen() {
     }
     
     // Show day of week picker if weekly_specific is selected
-    if (schedule === 'weekly_specific') {
+    if ((schedule || '') === 'weekly_specific') {
       if (Platform.OS !== 'web') {
         haptics.selection();
       }
@@ -456,17 +456,30 @@ export default function ScheduleScreen() {
 
   const handleContinue = () => {
     // Validate day of week is selected for weekly_specific
-    if (selectedSchedule === 'weekly_specific' && selectedDayOfWeek === null) {
+    if ((selectedSchedule || '') === 'weekly_specific' && selectedDayOfWeek === null) {
       if (Platform.OS !== 'web') {
         haptics.error();
       }
       return;
     }
     
-    // Get the first custom date or calculate start date based on frequency
-    const startDate = customDates.length > 0 
-      ? customDates[0]
-      : new Date().toISOString().split('T')[0]; // Today's date in YYYY-MM-DD format
+    // For custom dates, use the first custom date as startDate
+    // For weekly_specific, calculate the first occurrence of the selected day
+    let startDate: string;
+    if ((selectedSchedule || '') === 'custom' && customDates.length > 0) {
+      startDate = customDates[0];
+    } else if ((selectedSchedule || '') === 'weekly_specific' && typeof selectedDayOfWeek === 'number') {
+      const today = new Date();
+      const currentDay = today.getDay();
+      let daysToAdd = (selectedDayOfWeek - currentDay + 7) % 7;
+      // If today is the selected day, use today
+      if (daysToAdd === 0) daysToAdd = 0;
+      const firstPayoutDate = new Date(today);
+      firstPayoutDate.setDate(today.getDate() + daysToAdd);
+      startDate = firstPayoutDate.toISOString().split('T')[0];
+    } else {
+      startDate = new Date().toISOString().split('T')[0];
+    }
     
     if (Platform.OS !== 'web') {
       haptics.mediumImpact();
@@ -787,7 +800,7 @@ export default function ScheduleScreen() {
               
               {showDurationPicker && (
                 <View style={styles.durationOptions}>
-                  {getDurationOptions(selectedSchedule).map((option) => (
+                  {getDurationOptions(selectedSchedule || '').map((option) => (
                     <Pressable
                       key={option.value}
                       style={[
@@ -989,7 +1002,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     paddingTop: 0,
   },
   title: {
-    fontSize: isSmallScreen ? 20 : 24,
+    fontSize: isSmallScreen ? 15 : 18,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
