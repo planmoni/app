@@ -20,7 +20,7 @@ export default function ReviewScreen() {
   const { balance, lockedBalance, refreshWallet } = useBalance();
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const nextPayoutDate = new Date(plan.next_payout_date);
+  const nextPayoutDate = new Date(next_payout_date);
       return nextPayoutDate > new Date();
   
   // Get values from route params
