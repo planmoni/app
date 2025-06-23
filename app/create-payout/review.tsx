@@ -20,7 +20,7 @@ export default function ReviewScreen() {
   const { balance, lockedBalance, refreshWallet } = useBalance();
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const nextPayoutDate = new Date(next_payout_date);
+  const nextPayoutDate = new Date(StartDate);
       return nextPayoutDate > new Date();
   
   // Get values from route params
@@ -102,7 +102,7 @@ export default function ReviewScreen() {
         frequency: frequency as any,
         dayOfWeek: dayOfWeek,
         duration: parseInt(duration),
-        nextPayoutDate,
+        startDate,
         bankAccountId: bankAccountId || null,
         payoutAccountId: payoutAccountId || null,
         customDates,
