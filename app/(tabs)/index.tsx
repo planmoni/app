@@ -321,20 +321,21 @@ export default function HomeScreen() {
               <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text>
             </View>
             <View style={styles.buttonGroup}>
+            <Pressable 
+                style={styles.addFundsButton} 
+                onPress={handleAddFunds}
+              >
+                <ArrowDownRight size={20} color={colors.text} />
+                <Text style={styles.addFundsText}>Deposit</Text>
+              </Pressable>
               <Pressable 
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
                 <ArrowUpRight size={20} color="#FFFFFF" />
-                <Text style={styles.createButtonText}>New</Text>
+                <Text style={styles.createButtonText}>New Plan</Text>
               </Pressable>
-              <Pressable 
-                style={styles.addFundsButton} 
-                onPress={handleAddFunds}
-              >
-                <Plus size={20} color={colors.text} />
-                <Text style={styles.addFundsText}>Add Funds</Text>
-              </Pressable>
+              
             </View>
           </View>
         </Card>
@@ -651,19 +652,20 @@ export default function HomeScreen() {
         },
       ]}>
         <Pressable 
+          style={styles.addFundsButton} 
+          onPress={handleAddFunds}
+        >
+          <ArrowDownRight size={20} color={colors.text} />
+          <Text style={styles.addFundsText}>Deposit</Text>
+        </Pressable>
+        <Pressable 
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
           <ArrowUpRight size={20} color="#FFFFFF" />
-          <Text style={styles.createButtonText}>New</Text>
+          <Text style={styles.createButtonText}>New Plan</Text>
         </Pressable>
-        <Pressable 
-          style={styles.addFundsButton} 
-          onPress={handleAddFunds}
-        >
-          <Wallet size={20} color={colors.text} />
-          <Text style={styles.addFundsText}>Add Funds</Text>
-        </Pressable>
+        
       </Animated.View>
 
       {selectedTransaction && (
