@@ -1078,7 +1078,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     width: 300,
     marginRight: 16,
     borderRadius: 16,
-    padding: 1,
+    padding: 10,
     marginBottom: 10,
     backgroundColor: colors.card,
     borderWidth: 1,
