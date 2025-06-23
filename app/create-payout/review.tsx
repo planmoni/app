@@ -143,6 +143,42 @@ export default function ReviewScreen() {
         return `${durationNum} payouts`;
     }
   };
+  function getNextPayoutDate(startDate: string, frequency: string, customDates: string[] = []): string {
+  if (frequency === 'custom' && customDates.length > 0) {
+    return formatDisplayDate(customDates[0]);
+  }
+
+  const start = new Date(startDate);
+  const next = new Date(start);
+
+  switch (frequency) {
+    case 'weekly':
+    case 'weekly_specific':
+      next.setDate(start.getDate() + 7);
+      break;
+    case 'biweekly':
+      next.setDate(start.getDate() + 14);
+      break;
+    case 'monthly':
+    case 'end_of_month':
+      next.setMonth(start.getMonth() + 1);
+      break;
+    case 'quarterly':
+      next.setMonth(start.getMonth() + 3);
+      break;
+    case 'biannual':
+      next.setMonth(start.getMonth() + 6);
+      break;
+    case 'annually':
+      next.setFullYear(start.getFullYear() + 1);
+      break;
+    default:
+      next.setDate(start.getDate() + 7); // fallback
+  }
+
+  return formatDisplayDate(next.toISOString());
+};
+
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -238,7 +274,7 @@ export default function ReviewScreen() {
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Duration</Text>
                   <Text style={styles.detailValue}>{getDurationDisplay()}</Text>
-                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
+                  <Text style={styles.detailSubtext}>First payout on {getNextPayoutDate(startDate, frequency, customDates)}</Text>
                 </View>
                 <Pressable 
                   style={styles.editButton} 
