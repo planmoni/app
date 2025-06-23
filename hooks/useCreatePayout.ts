@@ -66,6 +66,22 @@ export function useCreatePayout() {
         throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${availableBalance.toLocaleString()} available.`);
       }
 
+      // Map frequency values to database-compatible values
+      let dbFrequency: 'weekly' | 'biweekly' | 'monthly' | 'custom';
+      
+      switch (frequency) {
+        case 'weekly_specific':
+        case 'end_of_month':
+        case 'quarterly':
+        case 'biannual':
+          // These special frequencies should be stored as 'custom' in the database
+          dbFrequency = 'custom';
+          break;
+        default:
+          // weekly, biweekly, monthly, custom are already valid
+          dbFrequency = frequency as 'weekly' | 'biweekly' | 'monthly' | 'custom';
+      }
+
       // 📅 Calculate next payout date
       const startDateObj = new Date(startDate);
       let nextPayoutDate = new Date(startDateObj);
@@ -89,7 +105,7 @@ export function useCreatePayout() {
           description,
           total_amount: totalAmount,
           payout_amount: payoutAmount,
-          frequency,
+          frequency: dbFrequency, // Use the mapped frequency value
           duration,
           start_date: startDate,
           bank_account_id: bankAccountId || null,
@@ -98,7 +114,7 @@ export function useCreatePayout() {
           completed_payouts: 0,
           emergency_withdrawal_enabled: emergencyWithdrawalEnabled,
           next_payout_date:
-            frequency === 'custom' && customDates?.length
+            dbFrequency === 'custom' && customDates?.length
               ? customDates[0]
               : nextPayoutDateStr,
         })
@@ -156,7 +172,7 @@ export function useCreatePayout() {
       console.log('Funds locked successfully.');
 
       // 📆 Insert custom dates if needed
-      if (frequency === 'custom' && customDates?.length) {
+      if (dbFrequency === 'custom' && customDates?.length) {
         const { error: datesError } = await supabase
           .from('custom_payout_dates')
           .insert(
