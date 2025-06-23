@@ -450,7 +450,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 8,
   },
   payoutName: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
   },
@@ -463,7 +463,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   payoutDescription: {
-    fontSize: 16,
+    fontSize: 13,
     color: colors.textSecondary,
   },
   editContainer: {
@@ -516,7 +516,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '500',
   },
   amount: {
-    fontSize: 32,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -604,7 +604,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   pauseTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
@@ -631,7 +631,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 8,
   },
   warningTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
     color: '#F97316',
   },
