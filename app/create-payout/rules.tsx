@@ -227,7 +227,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     paddingTop: 0,
   },
   title: {
-    fontSize: isSmallScreen ? 22 : 24,
+    fontSize: isSmallScreen ? 15 : 18,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
