@@ -350,8 +350,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     padding: 16,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
   },
