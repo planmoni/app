@@ -102,7 +102,7 @@ export default function ReviewScreen() {
         frequency: frequency as any,
         dayOfWeek: dayOfWeek,
         duration: parseInt(duration),
-        startDate,
+        nextPayoutDate,
         bankAccountId: bankAccountId || null,
         payoutAccountId: payoutAccountId || null,
         customDates,
@@ -240,7 +240,7 @@ export default function ReviewScreen() {
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Duration</Text>
                   <Text style={styles.detailValue}>{getDurationDisplay()}</Text>
-                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
+                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(nextPayoutDate)}</Text>
                 </View>
                 <Pressable 
                   style={styles.editButton} 
