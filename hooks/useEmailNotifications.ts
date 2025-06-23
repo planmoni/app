@@ -72,21 +72,24 @@ export function useEmailNotifications() {
     }
   };
 
-  const sendNotification = async (type: 'new_login' | 'payout_completed' | 'plan_expiry' | 'wallet_summary', data: any) => {
+  const sendNotification = async (type: 'new_login' | 'payout_completed' | 'plan_expiry' | 'wallet_summary', data: any, explicitToken?: string) => {
     if (Platform.OS === 'web' && !window.fetch) {
       console.warn('Fetch API not available in this environment');
       return false;
     }
     
     try {
-      if (!session?.access_token) {
+      // Use explicit token if provided, otherwise fall back to session token
+      const token = explicitToken || session?.access_token;
+      
+      if (!token) {
         throw new Error('User not authenticated');
       }
       
       const response = await fetch('/api/email-notifications', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ type, data })

@@ -20,6 +20,7 @@ import LockScreen from '@/components/LockScreen';
 import { OnlineStatusProvider } from '@/components/OnlineStatusProvider';
 import OfflineBanner from '@/components/OfflineBanner';
 import { initializeAnalytics, logAnalyticsEvent } from '@/lib/firebase';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
@@ -134,19 +135,21 @@ export default function RootLayout() {
   useFrameworkReady();
 
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <OnlineStatusProvider>
-          <AuthProvider>
-            <BalanceProvider>
-              <AppLockProvider>
-                <RootLayoutNav />
-              </AppLockProvider>
-            </BalanceProvider>
-          </AuthProvider>
-        </OnlineStatusProvider>
-      </ToastProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <ToastProvider>
+          <OnlineStatusProvider>
+            <AuthProvider>
+              <BalanceProvider>
+                <AppLockProvider>
+                  <RootLayoutNav />
+                </AppLockProvider>
+              </BalanceProvider>
+            </AuthProvider>
+          </OnlineStatusProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 

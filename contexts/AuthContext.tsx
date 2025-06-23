@@ -110,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     const result = await supabaseSignIn(email, password);
     
-    if (result.success) {
+    if (result.success && result.data?.session?.access_token) {
       // Get device and location info
       const deviceInfo = {
         device: Platform.OS === 'web' ? 'Web Browser' : Platform.OS === 'ios' ? 'iOS Device' : 'Android Device',
@@ -119,12 +119,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ip: '0.0.0.0' // In a real app, you would get the IP from the server
       };
       
-      // Send login notification email
+      // Send login notification email with explicit token
       try {
         await sendNotification('new_login', {
           ...deviceInfo,
-          firstName: user?.user_metadata?.first_name || 'User'
-        });
+          firstName: result.data.session.user?.user_metadata?.first_name || 'User'
+        }, result.data.session.access_token);
       } catch (error) {
         console.error('Failed to send login notification:', error);
       }
