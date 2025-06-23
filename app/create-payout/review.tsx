@@ -22,12 +22,6 @@ export default function ReviewScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const nextPayoutDate = new Date(plan.next_payout_date);
       return nextPayoutDate > new Date();
-    })
-    .sort((a, b) => {
-      const dateA = new Date(a.next_payout_date!);
-      const dateB = new Date(b.next_payout_date!);
-      return dateA.getTime() - dateB.getTime();
-    })[0]; // Get the first one (earliest date)
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
