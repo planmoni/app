@@ -317,12 +317,22 @@ export default function DestinationScreen() {
       {accountType === 'payout' ? (
         <AddPayoutAccountModal
           isVisible={showAddAccount}
-          onClose={(newAccountId) => {
+          onClose={(newAccount) => {
             haptics.lightImpact();
             setShowAddAccount(false);
-            // If a new account was added, select it
-            if (newAccountId) {
-              setSelectedAccountId(newAccountId);
+            // If a new account was added, select it and auto-advance
+            if (newAccount && newAccount.id) {
+              setSelectedAccountId(newAccount.id);
+              router.push({
+                pathname: '/create-payout/rules',
+                params: {
+                  ...params,
+                  payoutAccountId: newAccount.id,
+                  bankName: newAccount.bank_name,
+                  accountNumber: newAccount.account_number,
+                  accountName: newAccount.account_name
+                }
+              });
             }
           }}
         />
@@ -398,7 +408,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     paddingTop: 0,
   },
   title: {
-    fontSize: isSmallScreen ? 22 : 24,
+    fontSize: isSmallScreen ? 15 : 18,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
