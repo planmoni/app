@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import Toast from '@/components/Toast';
 import { useHaptics } from '@/hooks/useHaptics';
+import * as Haptics from 'expo-haptics';
+import { Platform } from 'react-native';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -29,19 +31,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setVisible(true);
     
     // Trigger appropriate haptic feedback based on toast type
-    switch (type) {
-      case 'success':
-        haptics.success();
-        break;
-      case 'error':
-        haptics.error();
-        break;
-      case 'warning':
-        haptics.warning();
-        break;
-      case 'info':
-        haptics.selection();
-        break;
+    if (Platform.OS !== 'web') {
+      switch (type) {
+        case 'success':
+          haptics.notification(Haptics.NotificationFeedbackType.Success);
+          break;
+        case 'error':
+          haptics.notification(Haptics.NotificationFeedbackType.Error);
+          break;
+        case 'warning':
+          haptics.notification(Haptics.NotificationFeedbackType.Warning);
+          break;
+        case 'info':
+          haptics.selection();
+          break;
+      }
     }
   };
 

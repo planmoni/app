@@ -17,6 +17,7 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance } = useBalance();
@@ -290,7 +291,7 @@ export default function HomeScreen() {
             <Text style={styles.date}>{formatDate(currentDate)}</Text>
           </View>
           <View style={styles.greetingContainer}>
-            <Text style={styles.greeting}>Hi, {firstName}.</Text>
+            <Text style={styles.greeting}>Hello, {firstName}.</Text>
             <Text style={styles.subGreeting}>{getGreeting()}, let's plan some payments</Text>
           </View>
         </View>
@@ -338,65 +339,15 @@ export default function HomeScreen() {
           </View>
         </Card>
 
-        <Card style={styles.summaryCard}>
-          <View style={styles.summaryHeader}>
-            <Text style={styles.summaryTitle}>Current Month's Summary</Text>
-            <Calendar size={20} color={colors.textSecondary} />
-          </View>
-          <View style={styles.summaryItems}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Total Paid Out</Text>
-              <Text style={styles.summaryValue}>{formatBalance(totalPaidOut)}</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Pending payouts</Text>
-              <Text style={styles.summaryValue}>{formatBalance(pendingPayouts)}</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Completion Rate</Text>
-              <Text style={styles.summaryValue}>{completionRate}%</Text>
-            </View>
-          </View>
-          {isSummaryExpanded && (
-            <View style={styles.expandedContent}>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Active Plans</Text>
-                <Text style={styles.summaryValue}>{activePlans.length}</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Total Plans</Text>
-                <Text style={styles.summaryValue}>{payoutPlans.length}</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Last payout date</Text>
-                <Text style={styles.summaryValue}>
-                  {getLastPayoutDate()}
-                </Text>
-              </View>
-            </View>
-          )}
-          <Pressable 
-            style={styles.seeMoreButton} 
-            onPress={() => {
-              setIsSummaryExpanded(!isSummaryExpanded);
-              logAnalyticsEvent('toggle_summary', { expanded: !isSummaryExpanded });
-            }}
-          >
-            <Text style={styles.seeMoreText}>
-              {isSummaryExpanded ? 'Show less' : 'See more'}
-            </Text>
-            {isSummaryExpanded ? (
-              <ChevronUp size={16} color={colors.primary} />
-            ) : (
-              <ChevronDown size={16} color={colors.primary} />
-            )}
-          </Pressable>
-        </Card>
+        
 
         <PendingActionsCard />
 
         {nextPayout && (
-          <Card style={styles.payoutCard}>
+          <Pressable 
+            style={styles.payoutCard}
+            onPress={() => handleViewPayout(nextPayout.id)}
+          >
             <View style={styles.payoutCardContent}>
               <View style={styles.payoutHeader}>
                 <Text style={styles.payoutTitle}>Upcoming Payout</Text>
@@ -439,18 +390,8 @@ export default function HomeScreen() {
                   </View>
                 </View>
               </View>
-              
-              <View style={styles.payoutActions}>
-                <Pressable 
-                  style={styles.viewButton} 
-                  onPress={() => handleViewPayout(nextPayout.id)}
-                >
-                  <Text style={styles.viewButtonText}>View Details</Text>
-                  <ChevronRight size={20} color={colors.text} />
-                </Pressable>
-              </View>
             </View>
-          </Card>
+          </Pressable>
         )}
 
         <View style={styles.section}>
@@ -471,8 +412,16 @@ export default function HomeScreen() {
                 const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
                 const completedAmount = plan.completed_payouts * plan.payout_amount;
                 
+                // Get the day of week from metadata if available
+                const dayOfWeek = plan.metadata?.dayOfWeek;
+                const originalFrequency = plan.metadata?.originalFrequency || plan.frequency;
+                
                 return (
-                  <Card key={plan.id} style={styles.payoutPlanCard}>
+                  <Pressable
+                    key={plan.id}
+                    style={styles.payoutPlanCard}
+                    onPress={() => handleViewPayout(plan.id)}
+                  >
                     <View style={styles.planHeader}>
                       <Text style={styles.planType}>{plan.name}</Text>
                       <View style={styles.activeTag}>
@@ -484,7 +433,7 @@ export default function HomeScreen() {
                     <Text style={styles.planAmount}>{formatBalance(plan.total_amount)}</Text>
                     <View style={styles.planDetails}>
                       <Text style={styles.planFrequency}>
-                        {plan.frequency.charAt(0).toUpperCase() + plan.frequency.slice(1)}
+                        {formatPayoutFrequency(originalFrequency, dayOfWeek)}
                       </Text>
                       <Text style={styles.planDot}>•</Text>
                       <Text style={styles.planValue}>{formatBalance(plan.payout_amount)}</Text>
@@ -510,15 +459,7 @@ export default function HomeScreen() {
                         })}
                       </Text>
                     )}
-                    
-                    <Pressable 
-                      style={styles.planViewButton}
-                      onPress={() => handleViewPayout(plan.id)}
-                    >
-                      <Text style={styles.planViewButtonText}>View</Text>
-                      <ChevronRight size={16} color={colors.primary} />
-                    </Pressable>
-                  </Card>
+                  </Pressable>
                 );
               })}
               <Pressable 
@@ -641,6 +582,60 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.bottomPadding} />
+        <Card style={styles.summaryCard}>
+          <View style={styles.summaryHeader}>
+            <Text style={styles.summaryTitle}>Current Month's Summary</Text>
+            <Calendar size={20} color={colors.textSecondary} />
+          </View>
+          <View style={styles.summaryItems}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Total Paid Out</Text>
+              <Text style={styles.summaryValue}>{formatBalance(totalPaidOut)}</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Pending payouts</Text>
+              <Text style={styles.summaryValue}>{formatBalance(pendingPayouts)}</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Completion Rate</Text>
+              <Text style={styles.summaryValue}>{completionRate}%</Text>
+            </View>
+          </View>
+          {isSummaryExpanded && (
+            <View style={styles.expandedContent}>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>Active Plans</Text>
+                <Text style={styles.summaryValue}>{activePlans.length}</Text>
+              </View>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>Total Plans</Text>
+                <Text style={styles.summaryValue}>{payoutPlans.length}</Text>
+              </View>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>Last payout date</Text>
+                <Text style={styles.summaryValue}>
+                  {getLastPayoutDate()}
+                </Text>
+              </View>
+            </View>
+          )}
+          <Pressable 
+            style={styles.seeMoreButton} 
+            onPress={() => {
+              setIsSummaryExpanded(!isSummaryExpanded);
+              logAnalyticsEvent('toggle_summary', { expanded: !isSummaryExpanded });
+            }}
+          >
+            <Text style={styles.seeMoreText}>
+              {isSummaryExpanded ? 'Show less' : 'See more'}
+            </Text>
+            {isSummaryExpanded ? (
+              <ChevronUp size={16} color={colors.primary} />
+            ) : (
+              <ChevronDown size={16} color={colors.primary} />
+            )}
+          </Pressable>
+        </Card>
       </ScrollView>
 
       <Animated.View style={[
@@ -677,7 +672,9 @@ export default function HomeScreen() {
           onClose={() => setIsTransactionModalVisible(false)}
           transaction={selectedTransaction}
         />
+      
       )}
+      
       
     </SafeAreaView>
   );
@@ -693,7 +690,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100,
+    paddingBottom: 150,
   },
   header: {
     marginBottom: 24,
@@ -714,7 +711,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginLeft: 0,
   },
   greeting: {
-    fontSize: 24,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
@@ -747,7 +744,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 8,
   },
   balanceLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.textSecondary,
   },
   eyeIconButton: {
@@ -755,7 +752,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     margin: -8,
   },
   balanceAmount: {
-    fontSize: 32,
+    fontSize: 20,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 16,
@@ -831,12 +828,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 18,
     paddingHorizontal: 1,
     paddingTop: 5,
   },
   summaryTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.text,
   },
@@ -847,7 +844,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   expandedContent: {
     paddingHorizontal: 1,
     paddingTop: 16,
-    gap: 16,
+    gap: 10,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     marginTop: 16,
@@ -882,8 +879,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '500',
   },
   payoutCard: {
-    marginBottom: 24,
+    marginBottom: 30,
     borderRadius: 16,
+    padding: 15,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -896,12 +894,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   payoutTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#22C55E',
   },
   headerActions: {
     flexDirection: 'row',
@@ -920,19 +918,19 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '500',
   },
   payoutDetails: {
-    marginBottom: 16,
+    marginBottom: 5,
   },
   payoutInfo: {
     marginBottom: 16,
   },
   payoutName: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
   },
   payoutAmount: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 12,
@@ -1014,7 +1012,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.text,
   },
@@ -1044,7 +1042,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
   emptyPayoutsText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 16,
   },
@@ -1057,7 +1055,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
   emptyTransactionsText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.textSecondary,
   },
   createFirstPayoutButton: {
@@ -1081,7 +1079,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     width: 300,
     marginRight: 16,
     borderRadius: 16,
-    padding: 1,
+    padding: 15,
     marginBottom: 10,
     backgroundColor: colors.card,
     borderWidth: 1,
@@ -1098,7 +1096,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
   },
   planAmount: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -1241,6 +1239,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderTopColor: colors.border,
   },
   bottomPadding: {
-    height: 100,
+    height: 1,
   },
 });

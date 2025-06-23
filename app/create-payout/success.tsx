@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEffect } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
+import { formatDisplayDate, formatPayoutFrequency } from '@/lib/formatters';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
@@ -19,23 +20,7 @@ export default function SuccessScreen() {
   const startDate = params.startDate as string || '';
   const bankName = params.bankName as string || '';
   const accountNumber = (params.accountNumber as string) || '';
-
-  // Format date for display (Month Day, Year)
-  const formatDisplayDate = (dateString: string): string => {
-    // Check if the date is already in the format "Month Day, Year"
-    if (/[A-Za-z]+ \d+, \d{4}/.test(dateString)) {
-      return dateString;
-    }
-    
-    // Otherwise, convert from ISO format (YYYY-MM-DD)
-    const date = new Date(dateString);
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    
-    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-  };
+  const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
 
   // Trigger success haptic feedback when the screen loads
   useEffect(() => {
@@ -70,7 +55,7 @@ export default function SuccessScreen() {
         <View style={styles.summaryCard}>
           <Text style={styles.amount}>₦{totalAmount}</Text>
           <Text style={styles.description}>
-            will be paid out in {frequency.toLowerCase()} installments of{'\n'}
+            will be paid out in {formatPayoutFrequency(frequency, dayOfWeek).toLowerCase()} installments of{'\n'}
             <Text style={styles.highlight}>₦{payoutAmount}</Text>
           </Text>
 
