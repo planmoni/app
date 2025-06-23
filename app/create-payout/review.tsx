@@ -143,42 +143,50 @@ export default function ReviewScreen() {
         return `${durationNum} payouts`;
     }
   };
-  function getNextPayoutDate(startDate: string, frequency: string, customDates: string[] = []): string {
-  if (frequency === 'custom' && customDates.length > 0) {
-    return formatDisplayDate(customDates[0]);
+  function getNextPayoutDate(startDate: string, frequency: string, customDates: string[] = [], dayOfWeek?: number): string {
+    if (frequency === 'custom' && customDates.length > 0) {
+      return formatDisplayDate(customDates[0]);
+    }
+
+    const start = new Date(startDate);
+    const next = new Date(start);
+
+    if (frequency === 'weekly_specific' && typeof dayOfWeek === 'number') {
+      // Find the next occurrence of the selected dayOfWeek (0=Sunday, 6=Saturday) on or after startDate
+      const currentDay = start.getDay();
+      let daysToAdd = (dayOfWeek - currentDay + 7) % 7;
+      // If startDate is already the correct day, keep it as the first payout
+      if (daysToAdd === 0) daysToAdd = 0;
+      next.setDate(start.getDate() + daysToAdd);
+      return formatDisplayDate(next.toISOString());
+    }
+
+    switch (frequency) {
+      case 'weekly':
+        next.setDate(start.getDate() + 7);
+        break;
+      case 'biweekly':
+        next.setDate(start.getDate() + 14);
+        break;
+      case 'monthly':
+      case 'end_of_month':
+        next.setMonth(start.getMonth() + 1);
+        break;
+      case 'quarterly':
+        next.setMonth(start.getMonth() + 3);
+        break;
+      case 'biannual':
+        next.setMonth(start.getMonth() + 6);
+        break;
+      case 'annually':
+        next.setFullYear(start.getFullYear() + 1);
+        break;
+      default:
+        next.setDate(start.getDate() + 7); // fallback
+    }
+
+    return formatDisplayDate(next.toISOString());
   }
-
-  const start = new Date(startDate);
-  const next = new Date(start);
-
-  switch (frequency) {
-    case 'weekly':
-    case 'weekly_specific':
-      next.setDate(start.getDate() + 7);
-      break;
-    case 'biweekly':
-      next.setDate(start.getDate() + 14);
-      break;
-    case 'monthly':
-    case 'end_of_month':
-      next.setMonth(start.getMonth() + 1);
-      break;
-    case 'quarterly':
-      next.setMonth(start.getMonth() + 3);
-      break;
-    case 'biannual':
-      next.setMonth(start.getMonth() + 6);
-      break;
-    case 'annually':
-      next.setFullYear(start.getFullYear() + 1);
-      break;
-    default:
-      next.setDate(start.getDate() + 7); // fallback
-  }
-
-  return formatDisplayDate(next.toISOString());
-};
-
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -274,7 +282,7 @@ export default function ReviewScreen() {
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Duration</Text>
                   <Text style={styles.detailValue}>{getDurationDisplay()}</Text>
-                  <Text style={styles.detailSubtext}>First payout on {getNextPayoutDate(startDate, frequency, customDates)}</Text>
+                  <Text style={styles.detailSubtext}>First payout on {getNextPayoutDate(startDate, frequency, customDates, dayOfWeek)}</Text>
                 </View>
                 <Pressable 
                   style={styles.editButton} 
@@ -449,7 +457,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 24,
   },
   title: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
