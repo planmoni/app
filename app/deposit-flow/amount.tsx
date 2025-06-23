@@ -235,7 +235,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
   },
