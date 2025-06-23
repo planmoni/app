@@ -128,7 +128,11 @@ export default function AllPayoutsScreen() {
             const progress = calculateProgress(plan);
             
             return (
-              <Card key={plan.id} style={styles.payoutCard}>
+              <Pressable 
+                key={plan.id} 
+                style={styles.payoutCard}
+                onPress={() => handleViewPayout(plan.id)}
+              >
                 <View style={styles.payoutContent}>
                   <View style={styles.payoutHeader}>
                     <View style={styles.planInfo}>
@@ -197,16 +201,9 @@ export default function AllPayoutsScreen() {
                           : 'Plan paused'
                       }
                     </Text>
-                    <Pressable 
-                      style={styles.viewButton}
-                      onPress={() => handleViewPayout(plan.id)}
-                    >
-                      <Text style={styles.viewButtonText}>View</Text>
-                      <ChevronRight size={16} color="#1E3A8A" />
-                    </Pressable>
                   </View>
                 </View>
-              </Card>
+              </Pressable>
             );
           })
         )}

@@ -343,7 +343,10 @@ export default function HomeScreen() {
         <PendingActionsCard />
 
         {nextPayout && (
-          <Card style={styles.payoutCard}>
+          <Pressable 
+            style={styles.payoutCard}
+            onPress={() => handleViewPayout(nextPayout.id)}
+          >
             <View style={styles.payoutCardContent}>
               <View style={styles.payoutHeader}>
                 <Text style={styles.payoutTitle}>Upcoming Payout</Text>
@@ -386,18 +389,8 @@ export default function HomeScreen() {
                   </View>
                 </View>
               </View>
-              
-              <View style={styles.payoutActions}>
-                <Pressable 
-                  style={styles.viewButton} 
-                  onPress={() => handleViewPayout(nextPayout.id)}
-                >
-                  <Text style={styles.viewButtonText}>View Details</Text>
-                  <ChevronRight size={20} color={colors.text} />
-                </Pressable>
-              </View>
             </View>
-          </Card>
+          </Pressable>
         )}
 
         <View style={styles.section}>
@@ -419,7 +412,11 @@ export default function HomeScreen() {
                 const completedAmount = plan.completed_payouts * plan.payout_amount;
                 
                 return (
-                  <Card key={plan.id} style={styles.payoutPlanCard}>
+                  <Pressable
+                    key={plan.id}
+                    style={styles.payoutPlanCard}
+                    onPress={() => handleViewPayout(plan.id)}
+                  >
                     <View style={styles.planHeader}>
                       <Text style={styles.planType}>{plan.name}</Text>
                       <View style={styles.activeTag}>
@@ -457,15 +454,7 @@ export default function HomeScreen() {
                         })}
                       </Text>
                     )}
-                    
-                    <Pressable 
-                      style={styles.planViewButton}
-                      onPress={() => handleViewPayout(plan.id)}
-                    >
-                      <Text style={styles.planViewButtonText}>View</Text>
-                      <ChevronRight size={16} color={colors.primary} />
-                    </Pressable>
-                  </Card>
+                  </Pressable>
                 );
               })}
               <Pressable 
