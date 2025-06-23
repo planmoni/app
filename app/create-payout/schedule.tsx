@@ -31,12 +31,12 @@ type DurationOption = {
 
 const DAYS_OF_WEEK: DayOfWeekOption[] = [
   { value: 0, label: 'Every Sunday' },
-  { value: 1, label: 'Monday' },
-  { value: 2, label: 'Tuesday' },
-  { value: 3, label: 'Wednesday' },
-  { value: 4, label: 'Thursday' },
-  { value: 5, label: 'Friday' },
-  { value: 6, label: 'Saturday' },
+  { value: 1, label: 'Every Monday' },
+  { value: 2, label: 'Every Tuesday' },
+  { value: 3, label: 'Every Wednesday' },
+  { value: 4, label: 'Every Thursday' },
+  { value: 5, label: 'Every Friday' },
+  { value: 6, label: 'Every Saturday' },
 ];
 
 function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerProps) {
