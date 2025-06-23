@@ -279,7 +279,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 16,
   },
   emptyTitle: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
   },
@@ -327,7 +327,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   planName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
   },
@@ -354,8 +354,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   amount: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 16,
   },
