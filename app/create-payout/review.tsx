@@ -116,6 +116,34 @@ export default function ReviewScreen() {
 
   const styles = createStyles(colors, isDark);
 
+  // Get duration display text based on frequency
+  const getDurationDisplay = () => {
+    const durationNum = parseInt(duration);
+    
+    switch (frequency) {
+      case 'weekly':
+        return durationNum === 1 ? '1 week' : `${durationNum} weeks`;
+      case 'weekly_specific':
+        return durationNum === 1 ? '1 week' : `${durationNum} weeks`;
+      case 'biweekly':
+        return durationNum === 1 ? '2 weeks' : `${durationNum * 2} weeks`;
+      case 'monthly':
+        return durationNum === 1 ? '1 month' : `${durationNum} months`;
+      case 'end_of_month':
+        return durationNum === 1 ? '1 month' : `${durationNum} months`;
+      case 'quarterly':
+        return durationNum === 1 ? '3 months' : `${durationNum * 3} months`;
+      case 'biannual':
+        return durationNum === 1 ? '6 months' : `${durationNum * 6} months`;
+      case 'annually':
+        return durationNum === 1 ? '1 year' : `${durationNum} years`;
+      case 'custom':
+        return durationNum === 1 ? '1 payout' : `${durationNum} payouts`;
+      default:
+        return `${durationNum} payouts`;
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -209,7 +237,7 @@ export default function ReviewScreen() {
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Duration</Text>
-                  <Text style={styles.detailValue}>{duration} {frequency === 'custom' ? 'payouts' : 'months'}</Text>
+                  <Text style={styles.detailValue}>{getDurationDisplay()}</Text>
                   <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
                 </View>
                 <Pressable 
