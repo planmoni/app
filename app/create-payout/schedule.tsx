@@ -605,7 +605,7 @@ export default function ScheduleScreen() {
               <Text style={[
                 styles.optionText,
                 selectedSchedule === 'end_of_month' && styles.selectedOptionText
-              ]}>Month End</Text>
+              ]}>Every Month End</Text>
             </Pressable>
 
             <Pressable 
