@@ -33,6 +33,7 @@ export default function ReviewScreen() {
   const payoutAccountId = params.payoutAccountId as string;
   const emergencyWithdrawal = params.emergencyWithdrawal === 'true';
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
+  const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
 
   // Calculate available balance
   const availableBalance = balance - lockedBalance;
@@ -74,10 +75,11 @@ export default function ReviewScreen() {
     
     try {
       console.log('Creating payout plan with the following parameters:');
-      console.log('- Name:', `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`);
+      console.log('- Name:', `${getFrequencyDisplayName(frequency)} Payout Plan`);
       console.log('- Total amount:', parseFloat(totalAmount.replace(/[^0-9.]/g, '')));
       console.log('- Payout amount:', parseFloat(payoutAmount.replace(/[^0-9.]/g, '')));
       console.log('- Frequency:', frequency);
+      console.log('- Day of week:', dayOfWeek);
       console.log('- Duration:', parseInt(duration));
       console.log('- Start date:', startDate);
       console.log('- Bank account ID:', bankAccountId || null);
@@ -90,11 +92,12 @@ export default function ReviewScreen() {
       }
       
       await createPayout({
-        name: `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`,
+        name: `${getFrequencyDisplayName(frequency)} Payout Plan`,
         description: `${frequency} payout of ${payoutAmount}`,
         totalAmount: parseFloat(totalAmount.replace(/[^0-9.]/g, '')),
         payoutAmount: parseFloat(payoutAmount.replace(/[^0-9.]/g, '')),
-        frequency: frequency as 'weekly' | 'biweekly' | 'monthly' | 'custom',
+        frequency: frequency as any,
+        dayOfWeek: dayOfWeek,
         duration: parseInt(duration),
         startDate,
         bankAccountId: bankAccountId || null,
@@ -107,6 +110,59 @@ export default function ReviewScreen() {
       if (Platform.OS !== 'web') {
         haptics.error();
       }
+    }
+  };
+
+  const getFrequencyDisplayName = (freq: string): string => {
+    switch (freq) {
+      case 'weekly':
+        return 'Weekly';
+      case 'weekly_specific':
+        return getDayOfWeekName(dayOfWeek) || 'Weekly';
+      case 'biweekly':
+        return 'Bi-weekly';
+      case 'monthly':
+        return 'Monthly';
+      case 'end_of_month':
+        return 'Month End';
+      case 'quarterly':
+        return 'Quarterly';
+      case 'biannual':
+        return 'Bi-annual';
+      case 'custom':
+        return 'Custom';
+      default:
+        return freq.charAt(0).toUpperCase() + freq.slice(1);
+    }
+  };
+
+  const getDayOfWeekName = (day?: number): string | null => {
+    if (day === undefined) return null;
+    
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[day];
+  };
+
+  const getFrequencyDescription = (freq: string): string => {
+    switch (freq) {
+      case 'weekly':
+        return 'Every week';
+      case 'weekly_specific':
+        return `Every ${getDayOfWeekName(dayOfWeek)}`;
+      case 'biweekly':
+        return 'Every two weeks';
+      case 'monthly':
+        return 'Every month';
+      case 'end_of_month':
+        return 'End of every month';
+      case 'quarterly':
+        return 'Every three months';
+      case 'biannual':
+        return 'Every six months';
+      case 'custom':
+        return `${customDates.length} custom dates`;
+      default:
+        return '';
     }
   };
 
@@ -183,7 +239,7 @@ export default function ReviewScreen() {
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Payout Frequency</Text>
-                  <Text style={styles.detailValue}>{frequency.charAt(0).toUpperCase() + frequency.slice(1)}</Text>
+                  <Text style={styles.detailValue}>{getFrequencyDisplayName(frequency)}</Text>
                   <Text style={styles.detailSubtext}>{`₦${payoutAmount}`} per payout</Text>
                 </View>
                 <Pressable 
@@ -260,6 +316,11 @@ export default function ReviewScreen() {
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Amount per Payout</Text>
                 <Text style={styles.summaryValue}>{`₦${payoutAmount}`}</Text>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Frequency</Text>
+                <Text style={styles.summaryValue}>{getFrequencyDescription(frequency)}</Text>
               </View>
 
               {emergencyWithdrawal && (

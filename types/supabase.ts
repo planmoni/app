@@ -15,6 +15,7 @@ export interface Database {
           user_id: string
           balance: number
           locked_balance: number
+          available_balance: number
           created_at: string
           updated_at: string
         }
@@ -23,6 +24,7 @@ export interface Database {
           user_id: string
           balance?: number
           locked_balance?: number
+          available_balance?: number
           created_at?: string
           updated_at?: string
         }
@@ -31,6 +33,7 @@ export interface Database {
           user_id?: string
           balance?: number
           locked_balance?: number
+          available_balance?: number
           created_at?: string
           updated_at?: string
         }
@@ -43,7 +46,8 @@ export interface Database {
           description: string | null
           total_amount: number
           payout_amount: number
-          frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom'
+          frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom' | 'weekly_specific' | 'end_of_month' | 'quarterly' | 'biannual'
+          day_of_week: number | null
           duration: number
           start_date: string
           bank_account_id: string | null
@@ -62,7 +66,8 @@ export interface Database {
           description?: string | null
           total_amount: number
           payout_amount: number
-          frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom'
+          frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom' | 'weekly_specific' | 'end_of_month' | 'quarterly' | 'biannual'
+          day_of_week?: number | null
           duration: number
           start_date: string
           bank_account_id?: string | null
@@ -81,7 +86,8 @@ export interface Database {
           description?: string | null
           total_amount?: number
           payout_amount?: number
-          frequency?: 'weekly' | 'biweekly' | 'monthly' | 'custom'
+          frequency?: 'weekly' | 'biweekly' | 'monthly' | 'custom' | 'weekly_specific' | 'end_of_month' | 'quarterly' | 'biannual'
+          day_of_week?: number | null
           duration?: number
           start_date?: string
           bank_account_id?: string | null
