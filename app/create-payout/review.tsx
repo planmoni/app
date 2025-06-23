@@ -136,7 +136,7 @@ export default function ReviewScreen() {
       case 'biannual':
         return durationNum === 1 ? '6 months' : `${durationNum * 6} months`;
       case 'annually':
-        return durationNum === 1 ? '1 year' : `${durationNum} years`;
+        return durationNum === 1 ? '1 year' : `${durationNum * 12} years`;
       case 'custom':
         return durationNum === 1 ? '1 payout' : `${durationNum} payouts`;
       default:
