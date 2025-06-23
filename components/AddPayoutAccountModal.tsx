@@ -1,793 +1,592 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Animated, Dimensions, Platform } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
-import { X, Check, TriangleAlert as AlertTriangle, ChevronDown } from 'lucide-react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ArrowLeft, Building2, Plus, Info, Check } from 'lucide-react-native';
 import Button from '@/components/Button';
+import { useState, useEffect } from 'react';
+import AddBankAccountModal from '@/components/AddBankAccountModal';
+import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useHaptics } from '@/hooks/useHaptics';
-import * as Haptics from 'expo-haptics';
+import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
-import { useBanks, Bank } from '@/hooks/useBanks';
-import { useAccountResolution } from '@/hooks/useAccountResolution';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useWindowDimensions } from 'react-native';
+import FloatingButton from '@/components/FloatingButton';
+import { useHaptics } from '@/hooks/useHaptics';
 
-interface AddPayoutAccountModalProps {
-  isVisible: boolean;
-  onClose: (newAccountId?: string) => void;
-}
-
-export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutAccountModalProps) {
-  const { colors, isDark } = useTheme();
-  const { width, height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+export default function DestinationScreen() {
+  const { colors } = useTheme();
+  const params = useLocalSearchParams();
+  const [showAddAccount, setShowAddAccount] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [accountType, setAccountType] = useState<'payout' | 'linked'>('payout');
+  const { width } = useWindowDimensions();
   const haptics = useHaptics();
-  const { addPayoutAccount } = usePayoutAccounts();
-  const { banks, isLoading: banksLoading } = useBanks();
-  const { resolveAccount, isResolving, error: resolutionError, setError: setResolutionError } = useAccountResolution();
   
-  // Determine if we're on a small screen
-  const isSmallScreen = width < 380 || height < 700;
+  // Get both account types
+  const { 
+    payoutAccounts, 
+    isLoading: payoutAccountsLoading, 
+    error: payoutAccountsError 
+  } = usePayoutAccounts();
   
-  const [formData, setFormData] = useState({
-    accountName: '',
-    accountNumber: '',
-    bankName: ''
-  });
-  
-  const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
-  const [showBankSelector, setShowBankSelector] = useState(false);
-  const [bankSearchQuery, setBankSearchQuery] = useState('');
-  const [accountResolved, setAccountResolved] = useState(false);
-  
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { 
+    bankAccounts, 
+    isLoading: bankAccountsLoading, 
+    error: bankAccountsError 
+  } = useRealtimeBankAccounts();
 
-  // Animation values
-  const slideAnim = useRef(new Animated.Value(height)).current;
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
-  const bankListSlideAnim = useRef(new Animated.Value(height)).current;
+  // Combine loading and error states
+  const isLoading = payoutAccountsLoading || bankAccountsLoading;
+  const error = payoutAccountsError || bankAccountsError;
 
-  // Filter banks based on search query
-  const filteredBanks = banks.filter(bank => 
-    bank.name.toLowerCase().includes(bankSearchQuery.toLowerCase())
-  );
-
+  // Set default selection based on the active tab type
   useEffect(() => {
-    if (isVisible) {
-      // Animate modal in
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          tension: 65,
-          friction: 11,
-          useNativeDriver: true,
-        })
-      ]).start();
+    if (accountType === 'payout' && payoutAccounts.length > 0 && !selectedAccountId) {
+      const defaultAccount = payoutAccounts.find(account => account.is_default);
+      setSelectedAccountId(defaultAccount?.id || payoutAccounts[0].id);
+    } else if (accountType === 'linked' && bankAccounts.length > 0 && !selectedAccountId) {
+      const defaultAccount = bankAccounts.find(account => account.is_default);
+      setSelectedAccountId(defaultAccount?.id || bankAccounts[0].id);
     }
-  }, [isVisible]);
+  }, [payoutAccounts, bankAccounts, selectedAccountId, accountType]);
 
-  useEffect(() => {
-    if (showBankSelector) {
-      // Animate bank list in
-      Animated.spring(bankListSlideAnim, {
-        toValue: 0,
-        tension: 65,
-        friction: 11,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      // Animate bank list out
-      Animated.timing(bankListSlideAnim, {
-        toValue: height,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [showBankSelector]);
-
-  const handleAddAccount = async () => {
-    if (!validateForm()) {
-      haptics.error();
-      return;
-    }
-    
-    try {
-      setIsSubmitting(true);
-      haptics.impact();
+  const handleContinue = () => {
+    if (selectedAccountId) {
+      haptics.mediumImpact();
       
-      const newAccount = await addPayoutAccount({
-        account_name: formData.accountName.trim(),
-        account_number: formData.accountNumber.trim(),
-        bank_name: selectedBank?.name || formData.bankName.trim()
-      });
+      let selectedAccount;
+      let accountName, bankName, accountNumber;
       
-      haptics.notification(Haptics.NotificationFeedbackType.Success);
-      resetForm();
-      onClose(newAccount?.id);
-    } catch (error) {
-      haptics.notification(Haptics.NotificationFeedbackType.Error);
-      setFormErrors({
-        general: error instanceof Error ? error.message : 'Failed to add account'
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  const validateForm = () => {
-    const errors: Record<string, string> = {};
-    
-    if (!formData.accountName.trim()) {
-      errors.accountName = 'Account name is required';
-    }
-    
-    if (!formData.accountNumber.trim()) {
-      errors.accountNumber = 'Account number is required';
-    } else if (!/^\d{10}$/.test(formData.accountNumber)) {
-      errors.accountNumber = 'Account number must be 10 digits';
-    }
-    
-    if (!selectedBank && !formData.bankName.trim()) {
-      errors.bankName = 'Bank name is required';
-    }
-    
-    setFormErrors(errors);
-    
-    if (Object.keys(errors).length > 0) {
-      haptics.notification(Haptics.NotificationFeedbackType.Error);
-    }
-    
-    return Object.keys(errors).length === 0;
-  };
-  
-  const resetForm = () => {
-    setFormData({
-      accountName: '',
-      accountNumber: '',
-      bankName: ''
-    });
-    setSelectedBank(null);
-    setAccountResolved(false);
-    setFormErrors({});
-    setResolutionError(null);
-  };
-  
-  const handleClose = () => {
-    if (isSubmitting) return;
-    
-    // Animate out before closing
-    Animated.parallel([
-      Animated.timing(overlayOpacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: height,
-        duration: 250,
-        useNativeDriver: true,
-      })
-    ]).start(() => {
-      resetForm();
-      onClose();
-    });
-  };
-
-  const handleBankSelect = (bank: Bank) => {
-    setSelectedBank(bank);
-    setFormData(prev => ({ ...prev, bankName: bank.name }));
-    setShowBankSelector(false);
-    haptics.selection();
-    
-    // If account number is already entered, try to resolve account
-    if (formData.accountNumber.length === 10) {
-      handleResolveAccount(formData.accountNumber, bank.code);
-    }
-  };
-
-  const handleAccountNumberChange = (text: string) => {
-    // Only allow numbers and limit to 10 digits
-    const numericText = text.replace(/[^0-9]/g, '');
-    if (numericText.length <= 10) {
-      setFormData({...formData, accountNumber: numericText});
-      
-      if (formErrors.accountNumber) {
-        setFormErrors({...formErrors, accountNumber: ''});
+      if (accountType === 'payout') {
+        selectedAccount = payoutAccounts.find(account => account.id === selectedAccountId);
+        if (selectedAccount) {
+          accountName = selectedAccount.account_name;
+          bankName = selectedAccount.bank_name;
+          accountNumber = selectedAccount.account_number;
+        }
+      } else {
+        selectedAccount = bankAccounts.find(account => account.id === selectedAccountId);
+        if (selectedAccount) {
+          accountName = selectedAccount.account_name;
+          bankName = selectedAccount.bank_name;
+          accountNumber = selectedAccount.account_number;
+        }
       }
       
-      // Reset account resolution if account number changes
-      if (accountResolved) {
-        setAccountResolved(false);
-        setFormData(prev => ({ ...prev, accountName: '' }));
-      }
-      
-      // If account number is 10 digits and bank is selected, try to resolve
-      if (numericText.length === 10 && selectedBank) {
-        handleResolveAccount(numericText, selectedBank.code);
+      if (selectedAccount) {
+        router.push({
+          pathname: '/create-payout/rules',
+          params: {
+            ...params,
+            bankAccountId: accountType === 'linked' ? selectedAccountId : null,
+            payoutAccountId: accountType === 'payout' ? selectedAccountId : null,
+            bankName,
+            accountNumber,
+            accountName
+          }
+        });
       }
     }
   };
 
-  const handleResolveAccount = async (accountNumber: string, bankCode: string) => {
-    if (accountNumber.length !== 10 || !bankCode) {
-      return;
-    }
-    
-    haptics.impact(Haptics.ImpactFeedbackStyle.Medium);
-    
-    try {
-      const accountDetails = await resolveAccount(accountNumber, bankCode);
-      
-      if (accountDetails) {
-        setFormData(prev => ({
-          ...prev,
-          accountName: accountDetails.account_name
-        }));
-        setAccountResolved(true);
-        haptics.notification(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error) {
-      haptics.notification(Haptics.NotificationFeedbackType.Error);
-    }
-  };
+  // Responsive styles based on screen width
+  const isSmallScreen = width < 380;
 
-  const styles = createStyles(colors, isDark, isSmallScreen, insets);
+  const styles = createStyles(colors, isSmallScreen);
 
   return (
-    <Modal
-      animationType="none"
-      transparent={true}
-      visible={isVisible}
-      onRequestClose={handleClose}
-      statusBarTranslucent={true}
-    >
-      <Animated.View 
-        style={[
-          styles.overlay,
-          { opacity: overlayOpacity }
-        ]}
-        pointerEvents={isVisible ? 'auto' : 'none'}
-      >
-        <Pressable style={styles.overlayPressable} onPress={handleClose} />
-        
-        <Animated.View 
-          style={[
-            styles.modal,
-            { 
-              transform: [{ translateY: slideAnim }]
-            }
-          ]}
-        >
-          <View style={styles.dragIndicator} />
-          
-          <View style={styles.header}>
-            <Text style={styles.title}>Add Payout Account</Text>
-            <Pressable 
-              style={styles.closeButton} 
-              onPress={handleClose}
-              disabled={isSubmitting}
-            >
-              <X size={isSmallScreen ? 20 : 24} color={colors.text} />
-            </Pressable>
-          </View>
-
-          <KeyboardAvoidingWrapper style={styles.content} disableScrollView={false}>
-            <View style={styles.contentInner}>
-              <Text style={styles.subtitle}>Enter your bank account details</Text>
-              
-              {formErrors.general && (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>{formErrors.general}</Text>
-                </View>
-              )}
-              
-              {resolutionError && (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>{resolutionError}</Text>
-                </View>
-              )}
-
-              <View style={styles.field}>
-                <Text style={styles.label}>Account Number</Text>
-                <View style={[
-                  styles.inputContainer, 
-                  formErrors.accountNumber && styles.inputError,
-                  accountResolved && styles.resolvedInput
-                ]}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter 10-digit account number"
-                    placeholderTextColor={colors.textTertiary}
-                    keyboardType="numeric"
-                    value={formData.accountNumber}
-                    onChangeText={handleAccountNumberChange}
-                    maxLength={10}
-                    editable={!isSubmitting && !accountResolved}
-                  />
-                  {isResolving && (
-                    <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
-                  )}
-                  {accountResolved && (
-                    <View style={styles.resolvedIcon}>
-                      <Check size={16} color={colors.success} />
-                    </View>
-                  )}
-                </View>
-                {formErrors.accountNumber && (
-                  <Text style={styles.fieldError}>{formErrors.accountNumber}</Text>
-                )}
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.label}>Select Bank</Text>
-                <Pressable 
-                  style={[
-                    styles.bankSelector,
-                    formErrors.bankName && styles.inputError,
-                    selectedBank && styles.selectedInput
-                  ]}
-                  onPress={() => {
-                    if (!isSubmitting && !accountResolved) {
-                      haptics.selection();
-                      setShowBankSelector(true);
-                    }
-                  }}
-                  disabled={isSubmitting || accountResolved}
-                >
-                  {selectedBank ? (
-                    <Text style={styles.selectedBankText}>{selectedBank.name}</Text>
-                  ) : (
-                    <Text style={styles.placeholderText}>Choose your bank</Text>
-                  )}
-                  <ChevronDown size={20} color={colors.textSecondary} />
-                </Pressable>
-                {formErrors.bankName && (
-                  <Text style={styles.fieldError}>{formErrors.bankName}</Text>
-                )}
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.label}>Account Name</Text>
-                <View style={[
-                  styles.inputContainer, 
-                  formErrors.accountName && styles.inputError,
-                  accountResolved && styles.resolvedInput
-                ]}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={isResolving ? "Resolving account name..." : "Enter account holder name"}
-                    placeholderTextColor={colors.textTertiary}
-                    value={formData.accountName}
-                    onChangeText={(text) => {
-                      if (!accountResolved) {
-                        setFormData({...formData, accountName: text});
-                        if (formErrors.accountName) {
-                          setFormErrors({...formErrors, accountName: ''});
-                        }
-                      }
-                    }}
-                    editable={!isSubmitting && !accountResolved && !isResolving}
-                  />
-                  {accountResolved && (
-                    <View style={styles.resolvedIcon}>
-                      <Check size={16} color={colors.success} />
-                    </View>
-                  )}
-                </View>
-                {formErrors.accountName && (
-                  <Text style={styles.fieldError}>{formErrors.accountName}</Text>
-                )}
-              </View>
-              
-              {accountResolved && (
-                <View style={styles.successContainer}>
-                  <Check size={16} color={colors.success} />
-                  <Text style={styles.successText}>Account details verified successfully</Text>
-                </View>
-              )}
-              
-              <View style={styles.infoContainer}>
-                <AlertTriangle size={16} color={colors.primary} />
-                <Text style={styles.infoText}>
-                  Please ensure all details are correct. These details will be used for your payouts.
-                </Text>
-              </View>
-            </View>
-          </KeyboardAvoidingWrapper>
-          
-          <View style={styles.footer}>
-            <Button
-              title="Add Account"
-              onPress={handleAddAccount}
-              isLoading={isSubmitting}
-              style={styles.addButton}
-              hapticType="success"
-            />
-            <Button
-              title="Cancel"
-              onPress={handleClose}
-              variant="outline"
-              style={styles.cancelButton}
-              disabled={isSubmitting}
-              hapticType="light"
-            />
-          </View>
-        </Animated.View>
-      </Animated.View>
-
-      {/* Bank Selection Modal */}
-      <Animated.View 
-        style={[
-          styles.overlay,
-          { 
-            opacity: showBankSelector ? 1 : 0,
-            zIndex: showBankSelector ? 1100 : -1,
-          }
-        ]}
-        pointerEvents={showBankSelector ? 'auto' : 'none'}
-      >
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
         <Pressable 
-          style={styles.overlayPressable} 
           onPress={() => {
-            setShowBankSelector(false);
             haptics.lightImpact();
+            router.back();
           }} 
-        />
-        
-        <Animated.View 
-          style={[
-            styles.bankListModal,
-            { 
-              transform: [{ translateY: bankListSlideAnim }]
-            }
-          ]}
+          style={styles.backButton}
         >
-          <View style={styles.dragIndicator} />
-          
-          <View style={styles.bankListHeader}>
-            <Text style={styles.bankListTitle}>Select Bank</Text>
-            <Pressable 
-              style={styles.closeButton}
+          <ArrowLeft size={24} color={colors.text} />
+        </Pressable>
+        <Text style={styles.headerTitle}>New Payout plan</Text>
+      </View>
+
+      <View style={styles.progressContainer}>
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: '60%' }]} />
+        </View>
+        <Text style={styles.stepText}>Step 3 of 5</Text>
+      </View>
+
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Choose Payout Destination</Text>
+          <Text style={styles.description}>
+            Select a bank account to receive your payouts
+          </Text>
+
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          <View style={styles.accountTypeSelector}>
+            <Pressable
+              style={[
+                styles.accountTypeOption,
+                accountType === 'payout' && styles.activeAccountType
+              ]}
               onPress={() => {
-                setShowBankSelector(false);
-                haptics.lightImpact();
+                haptics.selection();
+                setAccountType('payout');
+                setSelectedAccountId(null);
               }}
             >
-              <X size={isSmallScreen ? 20 : 24} color={colors.text} />
+              <Text style={[
+                styles.accountTypeText,
+                accountType === 'payout' && styles.activeAccountTypeText
+              ]}>
+                Payout Accounts
+              </Text>
+            </Pressable>
+            
+            <Pressable
+              style={[
+                styles.accountTypeOption,
+                accountType === 'linked' && styles.activeAccountType
+              ]}
+              onPress={() => {
+                haptics.selection();
+                setAccountType('linked');
+                setSelectedAccountId(null);
+              }}
+            >
+              <Text style={[
+                styles.accountTypeText,
+                accountType === 'linked' && styles.activeAccountTypeText
+              ]}>
+                Linked Accounts
+              </Text>
             </Pressable>
           </View>
-          
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search banks..."
-              placeholderTextColor={colors.textTertiary}
-              value={bankSearchQuery}
-              onChangeText={setBankSearchQuery}
-              autoFocus
-            />
-          </View>
-          
-          <ScrollView style={styles.bankList} nestedScrollEnabled>
-            {banksLoading ? (
+
+          <View style={styles.accountsList}>
+            {isLoading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={styles.loadingText}>Loading banks...</Text>
+                <Text style={styles.loadingText}>Loading bank accounts...</Text>
               </View>
+            ) : accountType === 'payout' ? (
+              payoutAccounts.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No payout accounts found</Text>
+                  <Text style={styles.emptySubtext}>Add a payout account to continue</Text>
+                </View>
+              ) : (
+                payoutAccounts.map((account) => (
+                  <Pressable
+                    key={account.id}
+                    style={[
+                      styles.accountOption,
+                      selectedAccountId === account.id && styles.selectedAccount
+                    ]}
+                    onPress={() => {
+                      haptics.selection();
+                      setSelectedAccountId(account.id);
+                      setAccountType('payout');
+                    }}
+                  >
+                    <View style={styles.accountInfo}>
+                      <View style={[
+                        styles.bankIcon,
+                        selectedAccountId === account.id && styles.selectedBankIcon
+                      ]}>
+                        <Building2 size={isSmallScreen ? 20 : 24} color={selectedAccountId === account.id ? '#1E3A8A' : colors.textSecondary} />
+                      </View>
+                      <View style={styles.accountDetails}>
+                        <Text style={[
+                          styles.accountName,
+                          selectedAccountId === account.id && styles.selectedText
+                        ]}>
+                          {account.bank_name} •••• {account.account_number.slice(-4)}
+                        </Text>
+                        <Text style={styles.accountHolder}>{account.account_name}</Text>
+                        {account.is_default && (
+                          <View style={styles.defaultTag}>
+                            <Text style={styles.defaultText}>Default Account</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <View style={[
+                      styles.radioOuter,
+                      selectedAccountId === account.id && styles.radioOuterSelected
+                    ]}>
+                      {selectedAccountId === account.id && (
+                        <Check size={16} color="#1E3A8A" />
+                      )}
+                    </View>
+                  </Pressable>
+                ))
+              )
             ) : (
-              filteredBanks.map((bank) => (
-                <Pressable
-                  key={bank.id}
-                  style={styles.bankOption}
-                  onPress={() => handleBankSelect(bank)}
-                >
-                  <Text style={styles.bankOptionText}>{bank.name}</Text>
-                  {selectedBank?.id === bank.id && (
-                    <Check size={20} color={colors.primary} />
-                  )}
-                </Pressable>
-              ))
+              bankAccounts.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No linked accounts found</Text>
+                  <Text style={styles.emptySubtext}>Add a linked account to continue</Text>
+                </View>
+              ) : (
+                bankAccounts.map((account) => (
+                  <Pressable
+                    key={account.id}
+                    style={[
+                      styles.accountOption,
+                      selectedAccountId === account.id && styles.selectedAccount
+                    ]}
+                    onPress={() => {
+                      haptics.selection();
+                      setSelectedAccountId(account.id);
+                      setAccountType('linked');
+                    }}
+                  >
+                    <View style={styles.accountInfo}>
+                      <View style={[
+                        styles.bankIcon,
+                        selectedAccountId === account.id && styles.selectedBankIcon
+                      ]}>
+                        <Building2 size={isSmallScreen ? 20 : 24} color={selectedAccountId === account.id ? '#1E3A8A' : colors.textSecondary} />
+                      </View>
+                      <View style={styles.accountDetails}>
+                        <Text style={[
+                          styles.accountName,
+                          selectedAccountId === account.id && styles.selectedText
+                        ]}>
+                          {account.bank_name} •••• {account.account_number.slice(-4)}
+                        </Text>
+                        <Text style={styles.accountHolder}>{account.account_name}</Text>
+                        {account.is_default && (
+                          <View style={styles.defaultTag}>
+                            <Text style={styles.defaultText}>Default Account</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <View style={[
+                      styles.radioOuter,
+                      selectedAccountId === account.id && styles.radioOuterSelected
+                    ]}>
+                      {selectedAccountId === account.id && (
+                        <Check size={16} color="#1E3A8A" />
+                      )}
+                    </View>
+                  </Pressable>
+                ))
+              )
             )}
-            
-            {filteredBanks.length === 0 && !banksLoading && (
-              <View style={styles.noResultsContainer}>
-                <Text style={styles.noResultsText}>No banks found</Text>
-              </View>
-            )}
-          </ScrollView>
-        </Animated.View>
-      </Animated.View>
-    </Modal>
+
+            <Pressable
+              style={styles.addAccountButton}
+              onPress={() => {
+                haptics.mediumImpact();
+                setShowAddAccount(true);
+              }}
+            >
+              <Plus size={20} color={colors.primary} />
+              <Text style={styles.addAccountText}>
+                Add New {accountType === 'payout' ? 'Payout' : 'Bank'} Account
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.notice}>
+            <View style={styles.noticeIcon}>
+              <Info size={20} color={colors.primary} />
+            </View>
+            <Text style={styles.noticeText}>
+              Your funds will be securely transferred to your selected bank account on the scheduled dates.
+            </Text>
+          </View>
+        </View>
+      </KeyboardAvoidingWrapper>
+
+      <FloatingButton 
+        title="Continue"
+        onPress={handleContinue}
+        disabled={selectedAccountId === null || isLoading}
+        hapticType="medium"
+      />
+
+      {accountType === 'payout' ? (
+        <AddPayoutAccountModal
+          isVisible={showAddAccount}
+          onClose={(newAccount) => {
+            haptics.lightImpact();
+            setShowAddAccount(false);
+            // If a new account was added, select it and auto-advance
+            if (newAccount && newAccount.id) {
+              setSelectedAccountId(newAccount.id);
+              router.push({
+                pathname: '/create-payout/rules',
+                params: {
+                  ...params,
+                  payoutAccountId: newAccount.id,
+                  bankName: newAccount.bank_name,
+                  accountNumber: newAccount.account_number,
+                  accountName: newAccount.account_name
+                }
+              });
+            }
+          }}
+        />
+      ) : (
+        <AddBankAccountModal
+          isVisible={showAddAccount}
+          onClose={() => {
+            haptics.lightImpact();
+            setShowAddAccount(false);
+          }}
+          onAdd={async (account) => {
+            // This is handled by the modal
+          }}
+          loading={isLoading}
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, insets: any) => StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-    zIndex: 1000,
-  },
-  overlayPressable: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  modal: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    width: '100%',
-    height: '90%',
-    borderWidth: isDark ? 1 : 0,
-    borderColor: isDark ? colors.border : 'transparent',
-    // Add shadow for iOS
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.1,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
-  },
-  dragIndicator: {
-    width: 40,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: colors.border,
-    alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 8,
+const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.backgroundSecondary,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: isSmallScreen ? 16 : 20,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  title: {
-    fontSize: isSmallScreen ? 18 : 20,
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
   },
-  subtitle: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: colors.textSecondary,
-    marginBottom: isSmallScreen ? 16 : 24,
+  progressContainer: {
+    padding: 20,
+    paddingBottom: 0,
+    backgroundColor: colors.surface,
   },
-  closeButton: {
-    width: isSmallScreen ? 36 : 40,
-    height: isSmallScreen ? 36 : 40,
-    borderRadius: isSmallScreen ? 18 : 20,
-    backgroundColor: colors.backgroundTertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
+  progressBar: {
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#1E3A8A',
+    borderRadius: 2,
+  },
+  stepText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 20,
+  },
+  scrollContent: {
+    paddingBottom: 100, // Extra padding for the floating button
   },
   content: {
-    flex: 1,
-    // Removed maxHeight property to allow content to expand properly
+    padding: 20,
+    paddingTop: 0,
   },
-  contentInner: {
-    padding: isSmallScreen ? 16 : 20,
-  },
-  errorContainer: {
-    backgroundColor: colors.errorLight,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.error,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: isSmallScreen ? 12 : 14,
-  },
-  field: {
-    marginBottom: isSmallScreen ? 16 : 20,
-  },
-  label: {
-    fontSize: isSmallScreen ? 13 : 14,
-    fontWeight: '500',
-    color: colors.text,
-    marginBottom: isSmallScreen ? 6 : 8,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: isSmallScreen ? 12 : 16,
-    backgroundColor: colors.backgroundTertiary,
-  },
-  input: {
-    flex: 1,
-    fontSize: isSmallScreen ? 14 : 16,
-    color: colors.text,
-  },
-  bankSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: isSmallScreen ? 12 : 16,
-    backgroundColor: colors.backgroundTertiary,
-  },
-  placeholderText: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: colors.textTertiary,
-  },
-  selectedBankText: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: colors.text,
-  },
-  inputError: {
-    borderColor: colors.error,
-  },
-  selectedInput: {
-    borderColor: colors.primary,
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#F0F9FF',
-  },
-  resolvedInput: {
-    borderColor: colors.success,
-    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
-  },
-  fieldError: {
-    fontSize: isSmallScreen ? 11 : 12,
-    color: colors.error,
-    marginTop: 4,
-  },
-  activityIndicator: {
-    marginLeft: 8,
-  },
-  resolvedIcon: {
-    width: isSmallScreen ? 20 : 24,
-    height: isSmallScreen ? 20 : 24,
-    borderRadius: isSmallScreen ? 10 : 12,
-    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : '#DCFCE7',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  successContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  successText: {
-    flex: 1,
-    fontSize: isSmallScreen ? 12 : 14,
-    color: colors.success,
-  },
-  infoContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
-    padding: 12,
-    borderRadius: 8,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: isSmallScreen ? 12 : 14,
-    color: colors.textSecondary,
-    lineHeight: isSmallScreen ? 18 : 20,
-  },
-  footer: {
-    padding: isSmallScreen ? 16 : 20,
-    paddingBottom: Math.max(isSmallScreen ? 16 : 20, insets.bottom),
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  addButton: {
-    backgroundColor: colors.primary,
-  },
-  cancelButton: {
-    borderColor: colors.border,
-  },
-  bankListModal: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    width: '100%',
-    maxHeight: '80%',
-    borderWidth: isDark ? 1 : 0,
-    borderColor: isDark ? colors.border : 'transparent',
-    // Add shadow for iOS
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.1,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 5,
-      },
-    }),
-  },
-  bankListHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: isSmallScreen ? 16 : 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  bankListTitle: {
-    fontSize: isSmallScreen ? 18 : 20,
+  title: {
+    fontSize: isSmallScreen ? 15 : 18,
     fontWeight: '600',
     color: colors.text,
+    marginBottom: 8,
   },
-  searchContainer: {
+  description: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 24,
+  },
+  accountTypeSelector: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: isSmallScreen ? 12 : 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    marginBottom: 20,
     backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    padding: 4,
   },
-  searchInput: {
+  accountTypeOption: {
     flex: 1,
-    fontSize: isSmallScreen ? 14 : 16,
-    color: colors.text,
-  },
-  bankList: {
-    maxHeight: '60%',
-  },
-  bankOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    paddingVertical: 8,
     alignItems: 'center',
-    padding: isSmallScreen ? 12 : 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderRadius: 6,
   },
-  bankOptionText: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: colors.text,
+  activeAccountType: {
+    backgroundColor: colors.primary,
+  },
+  accountTypeText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  activeAccountTypeText: {
+    color: '#FFFFFF',
+  },
+  errorContainer: {
+    backgroundColor: '#FEE2E2',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 14,
   },
   loadingContainer: {
-    padding: isSmallScreen ? 32 : 40,
+    padding: 20,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   loadingText: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: 16,
     color: colors.textSecondary,
-    marginTop: 16,
   },
-  noResultsContainer: {
-    padding: isSmallScreen ? 32 : 40,
+  emptyContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  accountsList: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  accountOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: isSmallScreen ? 12 : 16,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  selectedAccount: {
+    backgroundColor: '#F0F9FF',
+    borderColor: '#1E3A8A',
+  },
+  accountInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: isSmallScreen ? 12 : 16,
+    flex: 1,
+  },
+  bankIcon: {
+    width: isSmallScreen ? 40 : 48,
+    height: isSmallScreen ? 40 : 48,
+    borderRadius: isSmallScreen ? 20 : 24,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedBankIcon: {
+    backgroundColor: '#EFF6FF',
+  },
+  accountDetails: {
+    gap: 4,
+    flex: 1,
+  },
+  accountName: {
+    fontSize: isSmallScreen ? 14 : 16,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  selectedText: {
+    color: '#1E3A8A',
+  },
+  accountHolder: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: colors.textSecondary,
+  },
+  defaultTag: {
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  defaultText: {
+    fontSize: 12,
+    color: '#1E3A8A',
+    fontWeight: '500',
+  },
+  radioOuter: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.borderSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  radioOuterSelected: {
+    borderColor: '#1E3A8A',
+  },
+  addAccountButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.primary,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundTertiary,
   },
-  noResultsText: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: colors.textSecondary,
+  addAccountText: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+    padding: 16,
+    borderRadius: 12,
+  },
+  noticeIcon: {
+    marginTop: 2,
+  },
+  noticeText: {
+    flex: 1,
+    fontSize: isSmallScreen ? 13 : 14,
+    color: colors.text,
+    lineHeight: 20,
   },
 });
