@@ -263,7 +263,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
