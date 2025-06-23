@@ -202,7 +202,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
