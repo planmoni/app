@@ -29,7 +29,7 @@ export function useCreatePayout() {
     description?: string;
     totalAmount: number;
     payoutAmount: number;
-    frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom';
+    frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom' | 'weekly_specific' | 'end_of_month' | 'quarterly' | 'biannual';
     duration: number;
     startDate: string;
     bankAccountId?: string | null;
