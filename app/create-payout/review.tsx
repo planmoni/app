@@ -21,7 +21,7 @@ export default function ReviewScreen() {
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const startDate = params.startDate as string;
-  const nextPayoutDate = new Date(StartDate);
+  const nextPayoutDate = new Date(startDate);
       return nextPayoutDate > new Date();
   
   // Get values from route params
