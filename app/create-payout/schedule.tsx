@@ -23,6 +23,12 @@ type DayOfWeekOption = {
   label: string;
 };
 
+type DurationOption = {
+  value: number;
+  label: string;
+  description: string;
+};
+
 const DAYS_OF_WEEK: DayOfWeekOption[] = [
   { value: 0, label: 'Sunday' },
   { value: 1, label: 'Monday' },
@@ -218,6 +224,14 @@ export default function ScheduleScreen() {
   // New state for day of week selection
   const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<number | null>(null);
   const [showDayOfWeekPicker, setShowDayOfWeekPicker] = useState(false);
+  
+  // New state for duration selection
+  const [selectedDuration, setSelectedDuration] = useState<DurationOption>({
+    value: 12,
+    label: '1 Year',
+    description: '12 monthly payments'
+  });
+  const [showDurationPicker, setShowDurationPicker] = useState(false);
 
   // Responsive styles based on screen width
   const isSmallScreen = width < 380;
@@ -226,6 +240,57 @@ export default function ScheduleScreen() {
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
+  
+  // Duration options based on frequency
+  const getDurationOptions = (frequency: string): DurationOption[] => {
+    switch (frequency) {
+      case 'weekly':
+      case 'weekly_specific':
+        return [
+          { value: 4, label: '1 Month', description: '4 weekly payments' },
+          { value: 12, label: '3 Months', description: '12 weekly payments' },
+          { value: 24, label: '6 Months', description: '24 weekly payments' },
+          { value: 52, label: '1 Year', description: '52 weekly payments' }
+        ];
+      case 'biweekly':
+        return [
+          { value: 2, label: '1 Month', description: '2 bi-weekly payments' },
+          { value: 6, label: '3 Months', description: '6 bi-weekly payments' },
+          { value: 12, label: '6 Months', description: '12 bi-weekly payments' },
+          { value: 26, label: '1 Year', description: '26 bi-weekly payments' }
+        ];
+      case 'monthly':
+      case 'end_of_month':
+        return [
+          { value: 1, label: '1 Month', description: '1 monthly payment' },
+          { value: 3, label: '3 Months', description: '3 monthly payments' },
+          { value: 6, label: '6 Months', description: '6 monthly payments' },
+          { value: 12, label: '1 Year', description: '12 monthly payments' }
+        ];
+      case 'quarterly':
+        return [
+          { value: 1, label: '3 Months', description: '1 quarterly payment' },
+          { value: 2, label: '6 Months', description: '2 quarterly payments' },
+          { value: 4, label: '1 Year', description: '4 quarterly payments' },
+          { value: 8, label: '2 Years', description: '8 quarterly payments' }
+        ];
+      case 'biannual':
+        return [
+          { value: 1, label: '6 Months', description: '1 bi-annual payment' },
+          { value: 2, label: '1 Year', description: '2 bi-annual payments' },
+          { value: 4, label: '2 Years', description: '4 bi-annual payments' },
+          { value: 6, label: '3 Years', description: '6 bi-annual payments' }
+        ];
+      case 'custom':
+        return [
+          { value: customDates.length || 1, label: 'Custom', description: `${customDates.length || 1} custom payments` }
+        ];
+      default:
+        return [
+          { value: 12, label: '1 Year', description: '12 monthly payments' }
+        ];
+    }
+  };
 
   useEffect(() => {
     if (params.totalAmount) {
@@ -236,6 +301,17 @@ export default function ScheduleScreen() {
       }
     }
   }, [params.totalAmount]);
+  
+  // Update duration options when frequency changes
+  useEffect(() => {
+    const durationOptions = getDurationOptions(selectedSchedule);
+    setSelectedDuration(durationOptions[durationOptions.length - 1]); // Default to the longest duration
+    setNumberOfPayouts(durationOptions[durationOptions.length - 1].value);
+    
+    if (isYearlySplit && totalAmount) {
+      calculatePayoutAmount(totalAmount, durationOptions[durationOptions.length - 1].value);
+    }
+  }, [selectedSchedule]);
 
   const calculatePayoutAmount = (total: string, payouts: number) => {
     const numericTotal = parseFloat(total.replace(/,/g, ''));
@@ -268,8 +344,8 @@ export default function ScheduleScreen() {
   const handleYearlySplitToggle = () => {
     setIsYearlySplit(!isYearlySplit);
     if (!isYearlySplit) {
-      setNumberOfPayouts(12);
-      calculatePayoutAmount(totalAmount, 12);
+      setNumberOfPayouts(selectedDuration.value);
+      calculatePayoutAmount(totalAmount, selectedDuration.value);
       setCustomAmount('');
     }
   };
@@ -304,40 +380,14 @@ export default function ScheduleScreen() {
 
   const handleScheduleSelect = (schedule: string) => {
     setSelectedSchedule(schedule);
-    let newNumberOfPayouts = numberOfPayouts;
-
-    switch (schedule) {
-      case 'monthly':
-        newNumberOfPayouts = 12;
-        break;
-      case 'biweekly':
-        newNumberOfPayouts = 24;
-        break;
-      case 'weekly':
-        newNumberOfPayouts = 48;
-        break;
-      case 'weekly_specific':
-        newNumberOfPayouts = 48;
-        // Reset selected day of week when switching to this option
-        setSelectedDayOfWeek(null);
-        break;
-      case 'end_of_month':
-        newNumberOfPayouts = 12;
-        break;
-      case 'quarterly':
-        newNumberOfPayouts = 4;
-        break;
-      case 'biannual':
-        newNumberOfPayouts = 2;
-        break;
-      case 'custom':
-        newNumberOfPayouts = customDates.length || 1;
-        break;
-    }
-
-    setNumberOfPayouts(newNumberOfPayouts);
-    if (isYearlySplit) {
-      calculatePayoutAmount(totalAmount, newNumberOfPayouts);
+    
+    // Reset duration options based on new frequency
+    const durationOptions = getDurationOptions(schedule);
+    setSelectedDuration(durationOptions[durationOptions.length - 1]);
+    setNumberOfPayouts(durationOptions[durationOptions.length - 1].value);
+    
+    if (isYearlySplit && totalAmount) {
+      calculatePayoutAmount(totalAmount, durationOptions[durationOptions.length - 1].value);
     }
     
     // Show day of week picker if weekly_specific is selected
@@ -379,6 +429,20 @@ export default function ScheduleScreen() {
     }
     setSelectedDayOfWeek(dayValue);
     setShowDayOfWeekPicker(false);
+  };
+  
+  const handleDurationSelect = (duration: DurationOption) => {
+    if (Platform.OS !== 'web') {
+      haptics.selection();
+    }
+    setSelectedDuration(duration);
+    setNumberOfPayouts(duration.value);
+    
+    if (isYearlySplit && totalAmount) {
+      calculatePayoutAmount(totalAmount, duration.value);
+    }
+    
+    setShowDurationPicker(false);
   };
 
   const handleContinue = () => {
@@ -672,6 +736,63 @@ export default function ScheduleScreen() {
               </Pressable>
             </View>
           )}
+          
+          {/* Duration Selector */}
+          {selectedSchedule !== 'custom' && (
+            <View style={styles.durationSection}>
+              <Text style={styles.durationTitle}>Select Duration</Text>
+              <Pressable 
+                style={styles.durationSelector}
+                onPress={() => {
+                  if (Platform.OS !== 'web') {
+                    haptics.selection();
+                  }
+                  setShowDurationPicker(!showDurationPicker);
+                }}
+              >
+                <View style={styles.durationSelectorContent}>
+                  <Text style={styles.durationText}>{selectedDuration.label}</Text>
+                  <Text style={styles.durationDescription}>{selectedDuration.description}</Text>
+                </View>
+                <ChevronDown size={20} color={colors.textSecondary} />
+              </Pressable>
+              
+              {showDurationPicker && (
+                <View style={styles.durationOptions}>
+                  {getDurationOptions(selectedSchedule).map((option) => (
+                    <Pressable
+                      key={option.value}
+                      style={[
+                        styles.durationOption,
+                        selectedDuration.value === option.value && styles.selectedDurationOption
+                      ]}
+                      onPress={() => handleDurationSelect(option)}
+                    >
+                      <View>
+                        <Text style={[
+                          styles.durationOptionText,
+                          selectedDuration.value === option.value && styles.selectedDurationOptionText
+                        ]}>
+                          {option.label}
+                        </Text>
+                        <Text style={[
+                          styles.durationOptionDescription,
+                          selectedDuration.value === option.value && styles.selectedDurationOptionDescription
+                        ]}>
+                          {option.description}
+                        </Text>
+                      </View>
+                      {selectedDuration.value === option.value && (
+                        <View style={styles.durationCheckmark}>
+                          <Check size={16} color="#1E3A8A" />
+                        </View>
+                      )}
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
 
           <View style={styles.amountContainer}>
             <View style={styles.amountHeader}>
@@ -684,7 +805,7 @@ export default function ScheduleScreen() {
                   styles.splitToggleText,
                   isYearlySplit && styles.splitToggleTextActive
                 ]}>
-                  1 Year Split
+                  {selectedDuration.label} Split
                 </Text>
               </Pressable>
             </View>
@@ -926,6 +1047,82 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   selectedDayOfWeekText: {
     color: colors.primary,
     fontWeight: '500',
+  },
+  durationSection: {
+    marginTop: 24,
+    marginBottom: 24,
+  },
+  durationTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  durationSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.backgroundTertiary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 16,
+  },
+  durationSelectorContent: {
+    flex: 1,
+  },
+  durationText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  durationDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  durationOptions: {
+    marginTop: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  durationOption: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectedDurationOption: {
+    backgroundColor: colors.backgroundTertiary,
+  },
+  durationOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  selectedDurationOptionText: {
+    color: colors.primary,
+  },
+  durationOptionDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  selectedDurationOptionDescription: {
+    color: colors.primary,
+  },
+  durationCheckmark: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   customDatesSection: {
     marginBottom: 24,
