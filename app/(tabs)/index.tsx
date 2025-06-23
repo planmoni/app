@@ -899,7 +899,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   payoutTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.text,
+    color: '#5AE04F',
   },
   headerActions: {
     flexDirection: 'row',
