@@ -20,13 +20,13 @@ export default function ReviewScreen() {
   const { balance, lockedBalance, refreshWallet } = useBalance();
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const startDate = params.startDate as string;
+  
   // Get values from route params
   const totalAmount = params.totalAmount as string;
   const frequency = params.frequency as string;
   const payoutAmount = params.payoutAmount as string;
   const duration = params.duration as string;
-  
+  const startDate = params.startDate as string;
   const bankName = params.bankName as string;
   const accountNumber = (params.accountNumber as string) || '';
   const accountName = params.accountName as string;
