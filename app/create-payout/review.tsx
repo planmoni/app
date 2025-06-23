@@ -21,9 +21,6 @@ export default function ReviewScreen() {
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const startDate = params.startDate as string;
-  const nextPayoutDate = new Date(startDate);
-      return nextPayoutDate > new Date();
-  
   // Get values from route params
   const totalAmount = params.totalAmount as string;
   const frequency = params.frequency as string;
@@ -241,7 +238,7 @@ export default function ReviewScreen() {
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Duration</Text>
                   <Text style={styles.detailValue}>{getDurationDisplay()}</Text>
-                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(nextPayoutDate)}</Text>
+                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
                 </View>
                 <Pressable 
                   style={styles.editButton} 
