@@ -30,7 +30,7 @@ type DurationOption = {
 };
 
 const DAYS_OF_WEEK: DayOfWeekOption[] = [
-  { value: 0, label: 'Sunday' },
+  { value: 0, label: 'Every Sunday' },
   { value: 1, label: 'Monday' },
   { value: 2, label: 'Tuesday' },
   { value: 3, label: 'Wednesday' },
