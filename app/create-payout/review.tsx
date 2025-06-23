@@ -238,7 +238,7 @@ export default function ReviewScreen() {
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Duration</Text>
                   <Text style={styles.detailValue}>{getDurationDisplay()}</Text>
-                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate * 2)}</Text>
+                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
                 </View>
                 <Pressable 
                   style={styles.editButton} 
