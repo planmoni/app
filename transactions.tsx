@@ -1,6 +1,7 @@
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import SafeFooter from '@/components/SafeFooter';
 import TransactionModal from '@/components/TransactionModal';
+import DateRangeModal from '@/components/DateRangeModal';
 import { router } from 'expo-router';
 import { ArrowDownRight, ArrowLeft, ArrowUpRight, Ban as Bank, Calendar, Search, X } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
@@ -68,8 +69,14 @@ export default function TransactionsScreen() {
     return `${formatDate(dateRange.start)} - ${formatDate(dateRange.end)}`;
   };
 
+  const typeMap = {
+    deposits: 'deposit',
+    payouts: 'payout',
+    withdrawals: 'withdrawal',
+  };
+
   const filteredTransactions = transactions.filter(transaction => {
-    if (activeType !== 'all' && transaction.type !== activeType) {
+    if (activeType !== 'all' && transaction.type !== typeMap[activeType]) {
       return false;
     }
 
@@ -93,7 +100,7 @@ export default function TransactionsScreen() {
       .filter(t => t.type === 'deposit')
       .reduce((sum, t) => sum + t.amount, 0)
       .toLocaleString()}`,
-    outflows: `₦${filteredTransactions
+    outflows: `-₦${filteredTransactions
       .filter(t => t.type === 'payout' || t.type === 'withdrawal')
       .reduce((sum, t) => sum + t.amount, 0)
       .toLocaleString()}`,
@@ -227,7 +234,7 @@ export default function TransactionsScreen() {
           style={styles.dateRangeButton}
           onPress={() => setIsDateRangeModalVisible(true)}
         >
-          <Calendar size={20} color="#1E3A8A" />
+          <Calendar size={20} color={colors.text} />
           <Text style={styles.dateRangeText}>{formatDateRange()}</Text>
         </Pressable>
 
@@ -268,9 +275,9 @@ export default function TransactionsScreen() {
               </Text>
               {transactions.map((transaction) => {
                 const isPositive = transaction.type === 'deposit';
-                const Icon = isPositive ? ArrowUpRight : transaction.type === 'payout' ? ArrowDownRight : Bank;
-                const iconBg = isPositive ? '#DCFCE7' : transaction.type === 'payout' ? '#FEE2E2' : '#EFF6FF';
-                const iconColor = isPositive ? '#22C55E' : transaction.type === 'payout' ? '#EF4444' : '#1E3A8A';
+                const Icon = isPositive ? ArrowDownRight : transaction.type === 'payout' ? ArrowUpRight : ArrowDownRight;
+                const iconBg = isPositive ? colors.textTertiary : transaction.type === 'payout' ? colors.textTertiary : colors.textSecondary;
+                const iconColor = isPositive ? colors.text : transaction.type === 'payout' ? colors.text : colors.textTertiary;
                 
                 // Format date and time
                 const txDate = new Date(transaction.created_at);
@@ -297,7 +304,7 @@ export default function TransactionsScreen() {
                         <Text style={[
                           styles.transactionAmount,
                           isPositive ? styles.positiveAmount : styles.negativeAmount
-                        ]}>₦{transaction.amount.toLocaleString()}</Text>
+                        ]}>{`${isPositive ? '' : '-'}₦${transaction.amount.toLocaleString()}`}</Text>
                       </View>
                       <View style={styles.transactionDetails}>
                         <Text style={styles.transactionDate}>
@@ -337,6 +344,13 @@ export default function TransactionsScreen() {
         />
       )}
       
+      <DateRangeModal
+        isVisible={isDateRangeModalVisible}
+        onClose={() => setIsDateRangeModalVisible(false)}
+        onSelect={handleDateRangeSelect}
+        initialStartDate={dateRange.start || undefined}
+        initialEndDate={dateRange.end || undefined}
+      />
       <SafeFooter />
     </SafeAreaView>
   );
@@ -436,7 +450,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   dateRangeText: {
     fontSize: 14,
-    color: '#1E3A8A',
+    color: colors.text,
     fontWeight: '500',
   },
   statsContainer: {
@@ -458,10 +472,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '600',
   },
   positiveValue: {
-    color: '#22C55E',
+    color: colors.text,
   },
   negativeValue: {
-    color: '#EF4444',
+    color: colors.text,
   },
   content: {
     flex: 1,
@@ -542,10 +556,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '600',
   },
   positiveAmount: {
-    color: '#22C55E',
+    color: colors.text,
   },
   negativeAmount: {
-    color: '#EF4444',
+    color: colors.text,
   },
   loadMoreButton: {
     paddingVertical: 16,

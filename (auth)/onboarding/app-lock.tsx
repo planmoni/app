@@ -25,13 +25,14 @@ export default function AppLockScreen() {
   const [pinLength, setPinLength] = useState<4 | 6>(4);
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     setError(null);
   }, [pin]);
 
   const handlePinChange = (digit: string) => {
-    if (pin.length < pinLength) {
+    if (pin.length < pinLength && !isProcessing) {
       haptics.selection();
       setPin(prev => prev + digit);
       setError(null);
@@ -39,19 +40,23 @@ export default function AppLockScreen() {
   };
 
   const handlePinDelete = () => {
-    haptics.lightImpact();
-    setPin(prev => prev.slice(0, -1));
-    setError(null);
+    if (!isProcessing) {
+      haptics.lightImpact();
+      setPin(prev => prev.slice(0, -1));
+      setError(null);
+    }
   };
 
   const handleContinue = () => {
+    if (isProcessing) return;
     if (pin.length !== pinLength) {
       haptics.error();
       setError(`Please enter a ${pinLength}-digit PIN`);
       return;
     }
-    
+    setIsProcessing(true);
     haptics.success();
+    console.log('[OnboardingAppLock] PIN entry complete, navigating to confirm.');
     router.push({
       pathname: '/onboarding/confirm-pin',
       params: { 
@@ -64,6 +69,7 @@ export default function AppLockScreen() {
         pinLength: pinLength.toString()
       }
     });
+    setIsProcessing(false);
   };
 
   const styles = createStyles(colors);
@@ -72,11 +78,12 @@ export default function AppLockScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Pressable 
-          onPress={() => {
+          onPress={isProcessing ? () => {} : () => {
             haptics.lightImpact();
             router.back();
           }} 
           style={styles.backButton}
+          disabled={isProcessing}
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
@@ -141,9 +148,9 @@ export default function AppLockScreen() {
               />
               
               <PinKeypad 
-                onKeyPress={handlePinChange}
-                onDelete={handlePinDelete}
-                disabled={pin.length >= pinLength}
+                onKeyPress={isProcessing ? () => {} : handlePinChange}
+                onDelete={isProcessing ? () => {} : handlePinDelete}
+                disabled={isProcessing || pin.length >= pinLength}
               />
             </View>
             

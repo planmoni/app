@@ -533,11 +533,11 @@ export default function HomeScreen() {
                     <View style={styles.transaction}>
                       <View style={[
                         styles.transactionIcon,
-                        { backgroundColor: isPositive ? '#DCFCE7' : '#FEE2E2' }
+                        { backgroundColor: isPositive ? colors.textTertiary : colors.textTertiary }
                       ]}>
                         <Icon
                           size={20}
-                          color={isPositive ? '#22C55E' : '#EF4444'}
+                          color={isPositive ? colors.text : colors.text}
                         />
                       </View>
                       <View style={styles.transactionInfo}>
@@ -553,9 +553,9 @@ export default function HomeScreen() {
                       </View>
                       <Text style={[
                         styles.transactionAmount,
-                        { color: isPositive ? '#22C55E' : '#EF4444' }
+                        { color: isPositive ? colors.text : colors.text }
                       ]}>
-                        {formatBalance(transaction.amount)}
+                        {`${isPositive ? '' : '-'}${formatBalance(transaction.amount)}`}
                       </Text>
                     </View>
                   </Card>
@@ -901,7 +901,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   payoutTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#22C55E',
+    color: colors.text,
   },
   headerActions: {
     flexDirection: 'row',

@@ -28,13 +28,14 @@ export default function ConfirmPinScreen() {
   
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     setError(null);
   }, [confirmPin]);
 
   const handlePinChange = (digit: string) => {
-    if (confirmPin.length < pinLength) {
+    if (confirmPin.length < pinLength && !isProcessing) {
       haptics.selection();
       setConfirmPin(prev => prev + digit);
       setError(null);
@@ -42,48 +43,40 @@ export default function ConfirmPinScreen() {
   };
 
   const handlePinDelete = () => {
-    haptics.lightImpact();
-    setConfirmPin(prev => prev.slice(0, -1));
-    setError(null);
+    if (!isProcessing) {
+      haptics.lightImpact();
+      setConfirmPin(prev => prev.slice(0, -1));
+      setError(null);
+    }
   };
 
   const handleContinue = async () => {
+    if (isProcessing) return;
     if (confirmPin.length !== pinLength) {
       haptics.error();
       setError(`Please enter a ${pinLength}-digit PIN`);
       return;
     }
-    
-    if (confirmPin !== originalPin) {
-      haptics.error();
+    setIsProcessing(true);
+    if (confirmPin === originalPin) {
+      try {
+        await setAppLockPin(originalPin);
+        haptics.success();
+        console.log('[OnboardingConfirmPin] PIN confirmed and saved. Navigating to next step.');
+        // Navigate to next onboarding step or dashboard
+        // router.push(...)
+      } catch (error) {
+        console.error('Error saving PIN:', error);
+        setError('Failed to save PIN. Please try again.');
+        haptics.error();
+        setConfirmPin('');
+      }
+    } else {
       setError('PINs do not match. Please try again.');
-      setConfirmPin('');
-      return;
-    }
-    
-    try {
-      // Save the PIN to secure storage
-      await setAppLockPin(originalPin);
-      haptics.success();
-      
-      // Navigate to referral-code screen instead of success
-      router.push({
-        pathname: '/onboarding/referral-code',
-        params: { 
-          firstName,
-          lastName,
-          email,
-          password,
-          bvn,
-          pin: originalPin,
-          pinLength: pinLength.toString()
-        }
-      });
-    } catch (error) {
-      console.error('Error saving PIN:', error);
-      setError('Failed to save PIN. Please try again.');
       haptics.error();
+      setConfirmPin('');
     }
+    setIsProcessing(false);
   };
 
   const styles = createStyles(colors);
@@ -92,11 +85,12 @@ export default function ConfirmPinScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Pressable 
-          onPress={() => {
+          onPress={isProcessing ? () => {} : () => {
             haptics.lightImpact();
             router.back();
           }} 
           style={styles.backButton}
+          disabled={isProcessing}
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
@@ -123,9 +117,9 @@ export default function ConfirmPinScreen() {
               />
               
               <PinKeypad 
-                onKeyPress={handlePinChange}
-                onDelete={handlePinDelete}
-                disabled={confirmPin.length >= pinLength}
+                onKeyPress={isProcessing ? () => {} : handlePinChange}
+                onDelete={isProcessing ? () => {} : handlePinDelete}
+                disabled={isProcessing || confirmPin.length >= pinLength}
               />
             </View>
             
