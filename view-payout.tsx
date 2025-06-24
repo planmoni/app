@@ -470,8 +470,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 12,
   },
   nameInput: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '500',
     color: colors.text,
     padding: 0,
   },
