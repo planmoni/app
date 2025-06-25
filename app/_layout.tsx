@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { BalanceProvider } from '@/contexts/BalanceContext';
-import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
-import { ToastProvider } from '@/contexts/ToastContext';
-import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { BalanceProvider } from '../contexts/BalanceContext';
+import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
+import { ToastProvider } from '../contexts/ToastContext';
+import { useFrameworkReady } from '../hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -14,12 +14,12 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
-import CustomSplashScreen from '@/components/SplashScreen';
-import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
-import LockScreen from '@/components/LockScreen';
-import { OnlineStatusProvider } from '@/components/OnlineStatusProvider';
-import OfflineBanner from '@/components/OfflineBanner';
-import { initializeAnalytics, logAnalyticsEvent } from '@/lib/firebase';
+import CustomSplashScreen from '../components/SplashScreen';
+import { AppLockProvider, useAppLock } from '../contexts/AppLockContext';
+import LockScreen from '../components/LockScreen';
+import { OnlineStatusProvider } from '../components/OnlineStatusProvider';
+import OfflineBanner from '../components/OfflineBanner';
+import { initializeAnalytics, logAnalyticsEvent } from '../lib/firebase';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { OverlayProvider } from 'stream-chat-expo';
