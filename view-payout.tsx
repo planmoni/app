@@ -471,7 +471,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   nameInput: {
     fontSize: 18,
-    fontWeight: '500',
+    fontWeight: '700',
     color: colors.text,
     padding: 0,
   },

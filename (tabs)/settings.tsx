@@ -567,33 +567,11 @@ export default function SettingsScreen() {
               }}
             >
               <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
-                <HelpCircle size={20} color="#F97316" />
+                <MessageSquare size={20} color="#F97316" />
               </View>
               <View style={styles.settingContent}>
-                <Text style={styles.settingLabel}>Help Center</Text>
-                <Text style={styles.settingDescription}>Find answers to common questions</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
-
-            <View style={styles.divider} />
-
-            <Pressable 
-              style={styles.settingItem}
-              onPress={() => {
-                if (Platform.OS !== 'web') {
-                  haptics.lightImpact();
-                }
-                setShowSupport(true);
-                logAnalyticsEvent('contact_support');
-              }}
-            >
-              <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
-                <MessageSquare size={20} color="#1E3A8A" />
-              </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingLabel}>Contact Support</Text>
-                <Text style={styles.settingDescription}>Get help with your account</Text>
+                <Text style={styles.settingLabel}>Help & Support</Text>
+                <Text style={styles.settingDescription}>FAQ, chat with support, submit a ticket, knowledge base, </Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>

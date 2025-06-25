@@ -106,7 +106,7 @@ export default function LoginPasswordScreen() {
               </View>
             )}
             
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, error && { borderColor: colors.error }]}>
               <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 ref={passwordInputRef}

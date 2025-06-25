@@ -22,6 +22,7 @@ import OfflineBanner from '@/components/OfflineBanner';
 import { initializeAnalytics, logAnalyticsEvent } from '@/lib/firebase';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { OverlayProvider } from 'stream-chat-expo';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
@@ -137,21 +138,23 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <BottomSheetModalProvider>
-        <ThemeProvider>
-          <ToastProvider>
-            <OnlineStatusProvider>
-              <AuthProvider>
-                <BalanceProvider>
-                  <AppLockProvider>
-                    <RootLayoutNav />
-                  </AppLockProvider>
-                </BalanceProvider>
-              </AuthProvider>
-            </OnlineStatusProvider>
-          </ToastProvider>
-        </ThemeProvider>
-      </BottomSheetModalProvider>
+      <OverlayProvider>
+        <BottomSheetModalProvider>
+          <ThemeProvider>
+            <ToastProvider>
+              <OnlineStatusProvider>
+                <AuthProvider>
+                  <BalanceProvider>
+                    <AppLockProvider>
+                      <RootLayoutNav />
+                    </AppLockProvider>
+                  </BalanceProvider>
+                </AuthProvider>
+              </OnlineStatusProvider>
+            </ToastProvider>
+          </ThemeProvider>
+        </BottomSheetModalProvider>
+      </OverlayProvider>
     </GestureHandlerRootView>
   );
 }
