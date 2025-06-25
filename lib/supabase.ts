@@ -57,7 +57,30 @@ if (configError) {
     }),
   };
 } else {
-  supabase = createClient<Database>(supabaseUrl!, supabaseAnonKey!);
+  try {
+    supabase = createClient<Database>(supabaseUrl!, supabaseAnonKey!);
+  } catch (error) {
+    console.error('Failed to create Supabase client:', error);
+    // Create a fallback mock client
+    supabase = {
+      auth: {
+        signUp: () => Promise.reject(new Error('Failed to initialize Supabase client')),
+        signInWithPassword: () => Promise.reject(new Error('Failed to initialize Supabase client')),
+        signOut: () => Promise.reject(new Error('Failed to initialize Supabase client')),
+        getSession: () => Promise.resolve({ data: { session: null }, error: new Error('Failed to initialize Supabase client') }),
+        onAuthStateChange: () => ({ 
+          data: { subscription: { unsubscribe: () => {} } }, 
+          error: null 
+        }),
+      },
+      from: () => ({
+        select: () => Promise.reject(new Error('Failed to initialize Supabase client')),
+        insert: () => Promise.reject(new Error('Failed to initialize Supabase client')),
+        update: () => Promise.reject(new Error('Failed to initialize Supabase client')),
+        delete: () => Promise.reject(new Error('Failed to initialize Supabase client')),
+      }),
+    };
+  }
 }
 
 // Export at top level
@@ -66,12 +89,17 @@ export { supabase };
 // Export validation function for use in components if needed
 export const getSupabaseConfigError = () => configError;
 
-// Add global error handler for unhandled promise rejections
+// Add comprehensive global error handlers for unhandled promise rejections
 // Only add event listener if we're in a browser environment and addEventListener exists
 if (Platform.OS === 'web' && typeof window !== 'undefined' && window.addEventListener) {
   window.addEventListener('unhandledrejection', (event) => {
     console.error('Unhandled promise rejection:', event.reason);
     // Prevent the default behavior (which would crash the app)
+    event.preventDefault();
+  });
+  
+  window.addEventListener('error', (event) => {
+    console.error('Global error:', event.error);
     event.preventDefault();
   });
 }
@@ -80,5 +108,11 @@ if (Platform.OS === 'web' && typeof window !== 'undefined' && window.addEventLis
 if (typeof process !== 'undefined' && process.on) {
   process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    // Don't exit the process, just log the error
+  });
+  
+  process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    // Don't exit the process, just log the error
   });
 }
