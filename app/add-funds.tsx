@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions, ToastAndroid, Modal } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, Info, ChevronRight, CreditCard, Smartphone, Building2 } from 'lucide-react-native';
+import { ArrowLeft, Copy, Info, ChevronRight, CreditCard, Smartphone, Building2, CheckCircle, Clock } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -10,6 +10,7 @@ import * as Clipboard from 'expo-clipboard';
 import Button from '@/components/Button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
 
 const { width } = Dimensions.get('window');
 type VirtualAccount = {
@@ -26,6 +27,7 @@ export default function AddFundsScreen() {
   const haptics = useHaptics();
   
   const { session, signOut } = useAuth();
+  const { account: paystackAccount, isLoading: accountLoading } = useRealtimePaystackAccount();
 
   
   const firstName = session?.user?.user_metadata?.first_name || '';
@@ -51,6 +53,19 @@ export default function AddFundsScreen() {
     { id: 'wema', name: 'Wema Bank', code: 'wema-bank' },
     { id: 'paystack', name: 'Paystack Titan', code: 'titan-paystack' }
   ];
+
+  // Update virtual account state when paystack account changes
+  useEffect(() => {
+    if (paystackAccount && paystackAccount.account_number) {
+      setVirtualAccount({
+        account_number: paystackAccount.account_number,
+        bank_name: paystackAccount.bank_name,
+        account_name: paystackAccount.account_name,
+      });
+    } else {
+      setVirtualAccount(null);
+    }
+  }, [paystackAccount]);
 
   const handleCopyAccountNumber = async (accountNumber : string) => {
     console.log("Account number to copy:", accountNumber); // ✅ Debug
@@ -136,7 +151,6 @@ export default function AddFundsScreen() {
 
       const accountData = accountResult.data;
       
-      
       // 3. Insert into Supabase
       const { error } = await supabase
         .from('paystack_accounts')
@@ -147,23 +161,30 @@ export default function AddFundsScreen() {
           account_number: accountData.account_number,
           account_name: accountData.account_name,
           accountId: accountData.id,
-          is_active: false,
+          is_active: accountData.active || false, // Check if account is immediately active
         }])
         .select();
-      console.log("error is: ", error);
+      
+      console.log("Database error:", error);
       if (error) {
         ToastAndroid.show('Failed to save account to database', ToastAndroid.SHORT);
         setIsLoading(false);
         return;
       }
 
+      // Set virtual account state
       setVirtualAccount({
         account_number: accountData.account_number,
         bank_name: accountData.bank.name,
         account_name: accountData.account_name,
       });
 
-      ToastAndroid.show('Virtual account created successfully', ToastAndroid.SHORT);
+      // Show appropriate message based on account status
+      if (accountData.active) {
+        ToastAndroid.show('Virtual account created and activated successfully', ToastAndroid.SHORT);
+      } else {
+        ToastAndroid.show('Virtual account created successfully. It will be activated shortly.', ToastAndroid.SHORT);
+      }
 
     } catch (error) {
       console.error('Something went wrong', error);
@@ -177,33 +198,6 @@ export default function AddFundsScreen() {
     haptics.mediumImpact();
     router.push('/deposit-flow/payment-methods');
   };
-
-  const fetchVirtualAccount = async () => {
-    const { data: paystack_accounts, error } = await supabase
-    .from('paystack_accounts')
-    .select('*')
-    .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
-    .single();
-
-    if (paystack_accounts && paystack_accounts.account_number) {
-      setVirtualAccount(
-        {
-          account_number: paystack_accounts.account_number,
-          bank_name: paystack_accounts.bank_name,
-          account_name: paystack_accounts.account_name,
-        }
-      );
-    }
-    
-
-    if (error) {
-      console.error('Error fetching virtual account:', error);
-    }
-  }
-
-  useEffect(() => {
-    fetchVirtualAccount();
-  }, []);
 
   const handleBack = () => {
     haptics.lightImpact();
@@ -318,6 +312,24 @@ export default function AddFundsScreen() {
             <View style={styles.accountDetailsCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>{virtualAccount.bank_name} Account Details</Text>
+                {paystackAccount && (
+                  <View style={[
+                    styles.statusIndicator,
+                    paystackAccount.is_active ? styles.statusActive : styles.statusPending
+                  ]}>
+                    {paystackAccount.is_active ? (
+                      <CheckCircle size={16} color="#22C55E" />
+                    ) : (
+                      <Clock size={16} color="#F59E0B" />
+                    )}
+                    <Text style={[
+                      styles.statusText,
+                      paystackAccount.is_active ? styles.statusTextActive : styles.statusTextPending
+                    ]}>
+                      {paystackAccount.is_active ? 'Active' : 'Pending Activation'}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.fieldsContainer}>
@@ -345,6 +357,15 @@ export default function AddFundsScreen() {
                   </View>
                 </View>
               </View>
+
+              {paystackAccount && !paystackAccount.is_active && (
+                <View style={styles.pendingNotice}>
+                  <Info size={16} color="#F59E0B" />
+                  <Text style={styles.pendingNoticeText}>
+                    Your virtual account is being activated. You'll be able to receive funds once it's active.
+                  </Text>
+                </View>
+              )}
             </View>
             ) : (
               <View style={{ marginTop: 40, marginBottom: 24 }}>
@@ -899,5 +920,52 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontSize: 16,
     fontWeight: '500',
     color: colors.surface,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundTertiary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  statusActive: {
+    borderColor: colors.primary,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+  },
+  statusPending: {
+    borderColor: colors.textSecondary,
+    backgroundColor: colors.backgroundTertiary,
+  },
+  statusText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginLeft: 8,
+  },
+  statusTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  statusTextPending: {
+    color: colors.textSecondary,
+  },
+  pendingNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundTertiary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 8,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  pendingNoticeText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginLeft: 8,
   },
 });

@@ -7,31 +7,34 @@ import CountdownTimer from '@/components/CountdownTimer';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
+import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet, RefreshCw } from 'lucide-react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
+import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { logAnalyticsEvent } from '@/lib/firebase';
 
 export default function HomeScreen() {
-  const { showBalances, toggleBalances, balance, lockedBalance, availableBalance } = useBalance();
+  const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
   const { transactions, isLoading: transactionsLoading } = useRealtimeTransactions();
+  const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const route = useRoute();
   const params = useLocalSearchParams();
-  const scrollY = route.params?.scrollY || new Animated.Value(0);
+  const scrollY = (route.params as any)?.scrollY || new Animated.Value(0);
 
   // Get user info from session
   const firstName = session?.user?.user_metadata?.first_name || 'User';
@@ -48,6 +51,23 @@ export default function HomeScreen() {
   const handleProfilePress = () => {
     router.push('/profile');
     logAnalyticsEvent('profile_click');
+  };
+
+  // Handle pull-to-refresh
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // Refresh wallet balance
+      await refreshWallet();
+      // Fetch latest Paystack transactions
+      await fetchPaystackTransactions();
+      // Add haptic feedback for successful refresh
+      impact();
+    } catch (error) {
+      console.error('Error refreshing:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   useEffect(() => {
@@ -132,7 +152,7 @@ export default function HomeScreen() {
     logAnalyticsEvent('view_all_payouts');
   };
 
-  const handleTransactionPress = (transaction) => {
+  const handleTransactionPress = (transaction: any) => {
     // Format transaction data for the modal
     const formattedTransaction = {
       amount: `₦${transaction.amount.toLocaleString()}`,
@@ -145,8 +165,8 @@ export default function HomeScreen() {
       transactionId: transaction.id,
       planRef: transaction.payout_plan_id || '',
       paymentMethod: transaction.type === 'deposit' ? 'Bank Transfer' : 
-                    transaction.bank_accounts ? 
-                    `${transaction.bank_accounts.bank_name} •••• ${transaction.bank_accounts.account_number.slice(-4)}` : 
+                    transaction.bank_account_id ? 
+                    `Bank Account •••• ${transaction.bank_account_id.slice(-4)}` : 
                     'Bank Account',
       initiatedBy: 'You',
       processingTime: transaction.status === 'completed' ? 'Instant' : '2-3 business days',
@@ -276,6 +296,12 @@ export default function HomeScreen() {
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+          />
+        }
       >
         <View style={styles.header}>
           <View style={styles.headerTop}>
@@ -299,17 +325,32 @@ export default function HomeScreen() {
           <View style={styles.balanceCardContent}>
             <View style={styles.balanceLabelContainer}>
               <Text style={styles.balanceLabel}>Available Wallet Balance</Text>
-              <Pressable 
-                onPress={toggleBalances}
-                style={styles.eyeIconButton}
-                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-              >
-                {showBalances ? (
-                  <EyeOff size={16} color={colors.textSecondary} />
-                ) : (
-                  <Eye size={16} color={colors.textSecondary} />
-                )}
-              </Pressable>
+              <View style={styles.balanceActions}>
+                <Pressable 
+                  onPress={handleRefresh}
+                  style={styles.refreshButton}
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                >
+                  <RefreshCw 
+                    size={16} 
+                    color={colors.textSecondary} 
+                    style={[
+                      (balanceLoading || paystackLoading || isRefreshing) && { transform: [{ rotate: '360deg' }] }
+                    ]}
+                  />
+                </Pressable>
+                <Pressable 
+                  onPress={toggleBalances}
+                  style={styles.eyeIconButton}
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                >
+                  {showBalances ? (
+                    <EyeOff size={16} color={colors.textSecondary} />
+                  ) : (
+                    <Eye size={16} color={colors.textSecondary} />
+                  )}
+                </Pressable>
+              </View>
             </View>
             <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
             <View style={styles.lockedSection}>
@@ -578,8 +619,8 @@ export default function HomeScreen() {
               
               // Determine transaction method
               const transactionMethod = isPositive ? 'Bank Transfer' : 
-                                       transaction.bank_accounts ? 
-                                       `${transaction.bank_accounts.bank_name} •••• ${transaction.bank_accounts.account_number.slice(-4)}` : 
+                                       transaction.bank_account_id ? 
+                                       `Bank Account •••• ${transaction.bank_account_id.slice(-4)}` : 
                                        'Bank Account';
               
               return (
@@ -707,8 +748,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   avatarButton: {
     borderRadius: 24,
     overflow: 'hidden',
-    // Add subtle feedback for the touchable area
-    activeOpacity: 0.8,
   },
   greetingContainer: {
     marginLeft: 0,
@@ -749,6 +788,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   balanceLabel: {
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  balanceActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  refreshButton: {
+    padding: 8,
+    margin: -8,
   },
   eyeIconButton: {
     padding: 8,
@@ -1130,10 +1178,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
     marginBottom: 16,
-  },
-  progressCount: {
-    fontSize: 12,
-    color: colors.textSecondary,
   },
   planViewButton: {
     flexDirection: 'row',
