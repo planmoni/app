@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Planmoni",
+    "slug": "planmoni",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/AppIcon.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1E3A8A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mosodi.planmoni",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/AppIcon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d01818de-e1dd-41c4-8b3d-5d1cfbf2696b"
+      }
+    },
+    "owner": "mosodi"
+  }
+}
