@@ -10,7 +10,6 @@ import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Platform } from 'react-native';
-import { supabase } from '@/lib/supabase';
 
 export default function EmailScreen() {
   const { colors } = useTheme();
@@ -58,17 +57,19 @@ export default function EmailScreen() {
     setIsLoading(true);
     
     try {
-      // Call the Supabase function to send OTP
-      const { data, error: otpError } = await supabase.rpc('send_otp_email', {
-        p_email: email.trim().toLowerCase()
+      // Call the API endpoint to send OTP
+      const response = await fetch('/api/otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: email.trim().toLowerCase() })
       });
       
-      if (otpError) {
-        throw new Error(otpError.message || 'Failed to send verification code');
-      }
+      const data = await response.json();
       
-      if (!data) {
-        throw new Error('Failed to send verification code');
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send verification code');
       }
       
       showToast('Verification code sent to your email', 'success');

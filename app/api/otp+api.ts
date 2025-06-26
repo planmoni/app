@@ -45,17 +45,30 @@ export async function POST(request: Request) {
       return createJsonResponse({ error: 'Email is required' }, 400);
     }
     
-    // Call the Supabase function to send OTP
-    const { data, error: otpError } = await supabase.rpc('send_otp_email', { p_email: email });
+    // Call the Supabase Edge Function to send OTP
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
     
-    if (otpError) {
-      console.error('[OTP API] Error sending OTP:', otpError);
-      return createJsonResponse({ error: otpError.message || 'Failed to send OTP' }, 500);
+    if (!supabaseUrl) {
+      return createJsonResponse({ error: 'Supabase URL not configured' }, 500);
     }
     
-    if (!data) {
-      console.error('[OTP API] Failed to send OTP email');
-      return createJsonResponse({ error: 'Failed to send OTP' }, 500);
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-otp-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`
+      },
+      body: JSON.stringify({ email })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      console.error('[OTP API] Error from Edge Function:', data);
+      return createJsonResponse({ 
+        error: data.error || 'Failed to send OTP' 
+      }, response.status);
     }
     
     console.log('[OTP API] OTP sent successfully');
