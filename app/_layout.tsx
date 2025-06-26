@@ -15,14 +15,6 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import CustomSplashScreen from '@/components/SplashScreen';
-import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
-import LockScreen from '@/components/LockScreen';
-import { OnlineStatusProvider } from '@/components/OnlineStatusProvider';
-import OfflineBanner from '@/components/OfflineBanner';
-import { initializeAnalytics, logAnalyticsEvent } from '@/lib/firebase';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-import { OverlayProvider } from 'stream-chat-expo';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
@@ -31,7 +23,6 @@ function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
-  const { isAppLocked, isAppLockEnabled, resetInactivityTimer } = useAppLock();
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
@@ -52,17 +43,6 @@ function RootLayoutNav() {
       SplashScreen.hideAsync().catch(e => console.warn("Failed to hide splash screen:", e));
     }
   }, [fontsLoaded, isLoading]);
-
-  // Initialize Firebase Analytics
-  useEffect(() => {
-    const setupAnalytics = async () => {
-      await initializeAnalytics();
-      // Log app_open event
-      logAnalyticsEvent('app_open');
-    };
-    
-    setupAnalytics();
-  }, []);
 
   // Show error screen if there's a critical error
   if (error && !fontsLoaded) {
@@ -91,12 +71,7 @@ function RootLayoutNav() {
   }
 
   return (
-    <View 
-      style={{ flex: 1 }}
-      onTouchStart={() => resetInactivityTimer()}
-    >
-      <OfflineBanner />
-      
+    <>
       <Stack screenOptions={{ headerShown: false }}>
         {session ? (
           <React.Fragment key="authenticated-screens">
@@ -126,10 +101,7 @@ function RootLayoutNav() {
         <Stack.Screen name="+not-found" options={{ title: 'Page Not Found' }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      
-      {/* Show lock screen if app is locked and lock is enabled */}
-      {isAppLocked && isAppLockEnabled && <LockScreen />}
-    </View>
+    </>
   );
 }
 
@@ -137,25 +109,15 @@ export default function RootLayout() {
   useFrameworkReady();
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <OverlayProvider>
-        <BottomSheetModalProvider>
-          <ThemeProvider>
-            <ToastProvider>
-              <OnlineStatusProvider>
-                <AuthProvider>
-                  <BalanceProvider>
-                    <AppLockProvider>
-                      <RootLayoutNav />
-                    </AppLockProvider>
-                  </BalanceProvider>
-                </AuthProvider>
-              </OnlineStatusProvider>
-            </ToastProvider>
-          </ThemeProvider>
-        </BottomSheetModalProvider>
-      </OverlayProvider>
-    </GestureHandlerRootView>
+    <ThemeProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <BalanceProvider>
+            <RootLayoutNav />
+          </BalanceProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }
 
