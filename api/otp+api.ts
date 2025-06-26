@@ -1,14 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
-import { randomBytes } from 'crypto';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// OTP configuration
-const OTP_EXPIRY_MINUTES = 10;
-const OTP_LENGTH = 6;
 
 // Helper function to ensure JSON response
 function createJsonResponse(data: any, status: number = 200) {
@@ -17,6 +11,19 @@ function createJsonResponse(data: any, status: number = 200) {
     headers: { 'Content-Type': 'application/json' }
   });
 }
+
+// Verify environment variables are set
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables:', {
+    hasUrl: !!supabaseUrl,
+    hasAnonKey: !!supabaseAnonKey
+  });
+}
+
+// Initialize Supabase client only if environment variables are available
+const supabase = supabaseUrl && supabaseAnonKey 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
 
 // Verify user authentication
 async function verifyAuth(request: Request) {
@@ -27,6 +34,12 @@ async function verifyAuth(request: Request) {
     }
 
     const token = authHeader.split(' ')[1];
+    
+    if (!supabase) {
+      console.error('Supabase client not initialized due to missing environment variables');
+      return null;
+    }
+    
     const { data, error } = await supabase.auth.getUser(token);
     if (error || !data.user) {
       return null;
@@ -40,14 +53,14 @@ async function verifyAuth(request: Request) {
 }
 
 // Generate a random OTP
-function generateOTP(length: number = OTP_LENGTH): string {
+function generateOTP(length: number = 6): string {
   const digits = '0123456789';
   let otp = '';
   
   // Generate random bytes and use them to select digits
-  const randomBytesBuffer = randomBytes(length);
   for (let i = 0; i < length; i++) {
-    otp += digits[randomBytesBuffer[i] % digits.length];
+    const randomIndex = Math.floor(Math.random() * digits.length);
+    otp += digits[randomIndex];
   }
   
   return otp;
@@ -61,8 +74,13 @@ async function sendOTPEmail(email: string, otp: string): Promise<boolean> {
     console.log(`Sending OTP ${otp} to ${email}`);
     
     // For demo purposes, we'll store the OTP in the database
+    if (!supabase) {
+      console.error('Supabase client not initialized due to missing environment variables');
+      return false;
+    }
+    
     const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + OTP_EXPIRY_MINUTES);
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
     
     // First, delete any existing OTPs for this email
     await supabase
@@ -83,8 +101,8 @@ async function sendOTPEmail(email: string, otp: string): Promise<boolean> {
     if (error) throw error;
     
     return true;
-  } catch (error) {
-    console.error('Error sending OTP email:', error);
+  } catch (err) {
+    console.error('Error sending OTP email:', err);
     return false;
   }
 }
@@ -92,6 +110,11 @@ async function sendOTPEmail(email: string, otp: string): Promise<boolean> {
 // Verify OTP
 async function verifyOTP(email: string, otp: string): Promise<boolean> {
   try {
+    if (!supabase) {
+      console.error('Supabase client not initialized due to missing environment variables');
+      return false;
+    }
+    
     // Get the OTP record from the database
     const { data, error } = await supabase
       .from('otps')
@@ -128,9 +151,23 @@ async function verifyOTP(email: string, otp: string): Promise<boolean> {
 
 // POST endpoint to send OTP
 export async function POST(request: Request) {
+  // Check if Supabase client is initialized
+  if (!supabase) {
+    return createJsonResponse({ 
+      error: 'API configuration error: Missing Supabase credentials',
+      details: 'Please check your environment variables'
+    }, 500);
+  }
+  
   try {
     // Get email from request body
-    const { email } = await request.json();
+    let email;
+    try {
+      const body = await request.json();
+      email = body.email;
+    } catch (error) {
+      return createJsonResponse({ error: 'Invalid request body' }, 400);
+    }
     
     if (!email) {
       return createJsonResponse({ error: 'Email is required' }, 400);
@@ -149,7 +186,7 @@ export async function POST(request: Request) {
     return createJsonResponse({ 
       success: true, 
       message: 'OTP sent successfully',
-      expiresInMinutes: OTP_EXPIRY_MINUTES
+      expiresInMinutes: 10
     });
   } catch (error) {
     console.error('Error sending OTP:', error);
@@ -162,9 +199,24 @@ export async function POST(request: Request) {
 
 // PUT endpoint to verify OTP
 export async function PUT(request: Request) {
+  // Check if Supabase client is initialized
+  if (!supabase) {
+    return createJsonResponse({ 
+      error: 'API configuration error: Missing Supabase credentials',
+      details: 'Please check your environment variables'
+    }, 500);
+  }
+  
   try {
     // Get email and OTP from request body
-    const { email, otp } = await request.json();
+    let email, otp;
+    try {
+      const body = await request.json();
+      email = body.email;
+      otp = body.otp;
+    } catch (error) {
+      return createJsonResponse({ error: 'Invalid request body' }, 400);
+    }
     
     if (!email || !otp) {
       return createJsonResponse({ error: 'Email and OTP are required' }, 400);
