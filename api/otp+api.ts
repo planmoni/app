@@ -59,7 +59,7 @@ function generateOTP(length: number = OTP_LENGTH): string {
 // Send email using Resend
 async function sendEmail(to: string, subject: string, html: string) {
   try {
-    console.log(`[OTP API] Attempting to send email to ${to} with subject "${subject}"`);
+    console.log(`[OTP API] Attempting to send email to ${to} with subject: ${subject}`);
     console.log(`[OTP API] Using Resend API key: ${RESEND_API_KEY ? 'Available (length: ' + RESEND_API_KEY.length + ')' : 'Missing'}`);
     
     const response = await fetch('https://api.resend.com/emails', {
@@ -80,12 +80,12 @@ async function sendEmail(to: string, subject: string, html: string) {
     
     if (!response.ok) {
       const errorData = await response.json();
-      console.error(`[OTP API] Failed to send email:`, errorData);
+      console.error(`[OTP API] Resend API error:`, errorData);
       throw new Error(`Failed to send email: ${JSON.stringify(errorData)}`);
     }
 
     const responseData = await response.json();
-    console.log(`[OTP API] Email sent successfully:`, responseData);
+    console.log(`[OTP API] Email sent successfully, response:`, responseData);
     return responseData;
   } catch (error) {
     console.error('[OTP API] Error sending email:', error);
@@ -153,20 +153,20 @@ async function sendOTPEmail(email: string, otp: string): Promise<boolean> {
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + OTP_EXPIRY_MINUTES);
     
-    console.log(`[OTP API] Storing OTP in database with expiry: ${expiresAt.toISOString()}`);
-    
     // First, delete any existing OTPs for this email
+    console.log(`[OTP API] Deleting existing OTPs for ${email}`);
     const { error: deleteError } = await supabase
       .from('otps')
       .delete()
       .eq('email', email);
     
     if (deleteError) {
-      console.error('[OTP API] Error deleting existing OTPs:', deleteError);
+      console.error(`[OTP API] Error deleting existing OTPs:`, deleteError);
     }
     
     // Then, insert the new OTP
-    const { data: insertData, error: insertError } = await supabase
+    console.log(`[OTP API] Inserting new OTP for ${email}, expires at ${expiresAt.toISOString()}`);
+    const { error } = await supabase
       .from('otps')
       .insert({
         email,
@@ -175,12 +175,12 @@ async function sendOTPEmail(email: string, otp: string): Promise<boolean> {
         is_used: false
       });
     
-    if (insertError) {
-      console.error('[OTP API] Error inserting OTP into database:', insertError);
-      throw insertError;
+    if (error) {
+      console.error(`[OTP API] Error inserting OTP into database:`, error);
+      throw error;
     }
     
-    console.log('[OTP API] OTP stored successfully in database');
+    console.log(`[OTP API] OTP stored successfully in database`);
     return true;
   } catch (error) {
     console.error('[OTP API] Error sending OTP email:', error);
@@ -203,23 +203,23 @@ async function verifyOTP(email: string, otp: string): Promise<boolean> {
       .single();
     
     if (error) {
-      console.error('[OTP API] Error retrieving OTP from database:', error);
+      console.error(`[OTP API] Error retrieving OTP from database:`, error);
       return false;
     }
     
     if (!data) {
-      console.log('[OTP API] No matching OTP found');
+      console.log(`[OTP API] No matching OTP found for ${email}`);
       return false;
     }
     
-    console.log(`[OTP API] Found OTP record: ${JSON.stringify(data)}`);
+    console.log(`[OTP API] Found OTP record:`, data);
     
     // Check if the OTP has expired
     const expiresAt = new Date(data.expires_at);
     const now = new Date();
     
     if (now > expiresAt) {
-      console.log('[OTP API] OTP has expired');
+      console.log(`[OTP API] OTP has expired. Expiry: ${expiresAt.toISOString()}, Now: ${now.toISOString()}`);
       return false;
     }
     
@@ -230,9 +230,9 @@ async function verifyOTP(email: string, otp: string): Promise<boolean> {
       .eq('id', data.id);
     
     if (updateError) {
-      console.error('[OTP API] Error marking OTP as used:', updateError);
+      console.error(`[OTP API] Error marking OTP as used:`, updateError);
     } else {
-      console.log('[OTP API] OTP marked as used successfully');
+      console.log(`[OTP API] OTP marked as used successfully`);
     }
     
     return true;
@@ -251,10 +251,10 @@ export async function POST(request: Request) {
     const requestBody = await request.json();
     const { email } = requestBody;
     
-    console.log(`[OTP API] Email from request: ${email}`);
+    console.log(`[OTP API] Request body:`, requestBody);
     
     if (!email) {
-      console.error('[OTP API] Email is required but was not provided');
+      console.log('[OTP API] Email is required but was not provided');
       return createJsonResponse({ error: 'Email is required' }, 400);
     }
     
@@ -288,16 +288,16 @@ export async function POST(request: Request) {
 // PUT endpoint to verify OTP
 export async function PUT(request: Request) {
   try {
-    console.log('[OTP API] PUT request received for OTP verification');
+    console.log('[OTP API] PUT request received');
     
     // Get email and OTP from request body
     const requestBody = await request.json();
     const { email, otp } = requestBody;
     
-    console.log(`[OTP API] Verification request for email: ${email}, OTP: ${otp}`);
+    console.log(`[OTP API] Verification request:`, { email, otp: otp ? '******' : 'missing' });
     
     if (!email || !otp) {
-      console.error('[OTP API] Email and OTP are required but one or both were not provided');
+      console.log('[OTP API] Email and OTP are required but one or both were not provided');
       return createJsonResponse({ error: 'Email and OTP are required' }, 400);
     }
     
@@ -305,14 +305,14 @@ export async function PUT(request: Request) {
     const isValid = await verifyOTP(email, otp);
     
     if (!isValid) {
-      console.error('[OTP API] Invalid or expired OTP');
+      console.log('[OTP API] Invalid or expired OTP');
       return createJsonResponse({ error: 'Invalid or expired OTP' }, 400);
     }
     
     // If the user is already authenticated, update their profile
     const user = await verifyAuth(request);
     if (user) {
-      console.log(`[OTP API] Updating profile for authenticated user: ${user.id}`);
+      console.log(`[OTP API] User is authenticated, updating profile for user ID: ${user.id}`);
       // Update the user's profile to mark email as verified
       const { error: updateError } = await supabase
         .from('profiles')
@@ -320,10 +320,12 @@ export async function PUT(request: Request) {
         .eq('id', user.id);
         
       if (updateError) {
-        console.error('[OTP API] Error updating profile:', updateError);
+        console.error(`[OTP API] Error updating profile:`, updateError);
       } else {
-        console.log('[OTP API] Profile updated successfully');
+        console.log(`[OTP API] Profile updated successfully`);
       }
+    } else {
+      console.log(`[OTP API] User is not authenticated, skipping profile update`);
     }
     
     console.log('[OTP API] OTP verified successfully');
