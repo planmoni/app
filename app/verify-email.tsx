@@ -74,20 +74,17 @@ export default function VerifyEmailScreen() {
         haptics.mediumImpact();
       }
       
-      // Send OTP to the user's email
-      const response = await fetch('/api/otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`,
-        },
-        body: JSON.stringify({ email }),
+      // Call the Supabase function to send OTP
+      const { data, error: otpError } = await supabase.rpc('send_otp_email', {
+        p_email: email.trim().toLowerCase()
       });
       
-      const data = await response.json();
+      if (otpError) {
+        throw new Error(otpError.message || 'Failed to send verification code');
+      }
       
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send verification email');
+      if (!data) {
+        throw new Error('Failed to send verification code');
       }
       
       setResendSuccess(true);
@@ -305,14 +302,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: 'center',
     marginBottom: 24,
+    textAlign: 'center',
     lineHeight: 24,
   },
   emailText: {
