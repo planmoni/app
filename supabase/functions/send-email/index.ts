@@ -30,7 +30,7 @@ serve(async (req) => {
     const SMTP_PORT = parseInt(Deno.env.get("SMTP_PORT") || "587");
     const SMTP_USERNAME = Deno.env.get("SMTP_USERNAME") || "";
     const SMTP_PASSWORD = Deno.env.get("SMTP_PASSWORD") || "";
-    const SMTP_FROM = Deno.env.get("SMTP_FROM") || "verification@planmoni.app";
+    const SMTP_FROM = Deno.env.get("SMTP_FROM") || "noreply@planmoni.com";
 
     // Validate SMTP configuration
     if (!SMTP_HOSTNAME || !SMTP_USERNAME || !SMTP_PASSWORD) {
