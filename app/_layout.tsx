@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   errorMessage: {
     fontSize: 16,
     color: '#666',
-    marginBottom: 16,
+    marginBottom: 16,i
     textAlign: 'center',
     lineHeight: 24,
   },
