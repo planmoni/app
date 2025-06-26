@@ -8,6 +8,7 @@ import { useFonts } from 'expo-font';
 import { SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -71,7 +72,7 @@ function RootLayoutNav() {
   }
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false }}>
         {session ? (
           <React.Fragment key="authenticated-screens">
@@ -101,7 +102,7 @@ function RootLayoutNav() {
         <Stack.Screen name="+not-found" options={{ title: 'Page Not Found' }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-    </>
+    </GestureHandlerRootView>
   );
 }
 
