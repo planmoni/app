@@ -26,6 +26,10 @@ export type PaystackTransaction = {
     account_name: string;
     bank_code: string;
   };
+  metadata?: {
+    receiver_account_number?: string;
+    [key: string]: any;
+  };
 };
 
 export function usePaystackTransactions() {
@@ -82,7 +86,6 @@ export function usePaystackTransactions() {
             tx.channel === 'dedicated_nuban'
           );
         });
-        console.log("this is a user transra: ", userTransactions);
 
         console.log(`Found ${userTransactions.length} transactions for user`);
         setTransactions(userTransactions);
@@ -103,7 +106,6 @@ export function usePaystackTransactions() {
   const processNewTransactions = async (paystackTransactions: PaystackTransaction[], userId: string) => {
     try {
         
-        console.log("transactions: ", paystackTransactions);
       // Get existing transaction references from our database
       const { data: existingTransactions } = await supabase
         .from('transactions')
@@ -111,7 +113,7 @@ export function usePaystackTransactions() {
         .eq('user_id', userId)
         .eq('type', 'deposit');
 
-        console.log("refrence: ", existingTransactions);
+        console.log("refrences: ", existingTransactions);
 
       const existingReferences = new Set(existingTransactions?.map((t: { reference: any; }) => t.reference) || []);
 
@@ -123,14 +125,14 @@ export function usePaystackTransactions() {
           reference: tx.reference,
           status: tx.status,
           channel: tx.channel,
-          account_number: tx.authorization?.account_number
+          account_number: tx.metadata?.receiver_account_number
         });
       });
       // Find new transactions that haven't been processed 
       const newTransactions = paystackTransactions.filter(tx => 
         tx.status === 'success' && 
         !existingReferences.has(tx.reference) &&
-        tx.authorization?.account_number // Only virtual account transactions
+        tx.metadata?.receiver_account_number // Only virtual account transactions
       );
 
       console.log(`Processing ${newTransactions.length} new transactions`);
@@ -175,13 +177,9 @@ export function usePaystackTransactions() {
             amount: amountInNaira,
             status: 'completed',
             source: 'Paystack Virtual Account',
-            destination: 'Wallet',
+            destination: 'wallet',
             reference: transaction.reference,
-            metadata: {
-              paystack_transaction_id: transaction.id,
-              paystack_reference: transaction.reference,
-              account_number: transaction.authorization?.account_number
-            }
+            description: 'Funds added to wallet',
           });
 
         // Update user's wallet available_balance

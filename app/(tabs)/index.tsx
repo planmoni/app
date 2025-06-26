@@ -332,7 +332,7 @@ export default function HomeScreen() {
                   hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                 >
                   <RefreshCw 
-                    size={16} 
+                    size={20} 
                     color={colors.textSecondary} 
                     style={[
                       (balanceLoading || paystackLoading || isRefreshing) && { transform: [{ rotate: '360deg' }] }
@@ -345,9 +345,9 @@ export default function HomeScreen() {
                   hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                 >
                   {showBalances ? (
-                    <EyeOff size={16} color={colors.textSecondary} />
+                    <EyeOff size={20} color={colors.textSecondary} />
                   ) : (
-                    <Eye size={16} color={colors.textSecondary} />
+                    <Eye size={20} color={colors.textSecondary} />
                   )}
                 </Pressable>
               </View>
@@ -800,6 +800,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   eyeIconButton: {
     padding: 8,
+    paddingLeft: 10,
     margin: -8,
   },
   balanceAmount: {

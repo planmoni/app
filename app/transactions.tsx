@@ -27,7 +27,8 @@ export default function TransactionsScreen() {
   });
 
   const handleTransactionPress = (transaction: Transaction) => {
-    setSelectedTransaction({
+    setSelectedTransaction((prevState: any) => ({
+      ...prevState,
       amount: `₦${transaction.amount.toLocaleString()}`,
       status: transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1),
       date: new Date(transaction.created_at).toLocaleDateString(),
@@ -40,7 +41,7 @@ export default function TransactionsScreen() {
       paymentMethod: 'Bank Transfer',
       initiatedBy: 'You',
       processingTime: transaction.status === 'completed' ? 'Instant' : '2-3 business days',
-    });
+    }));
     setIsTransactionModalVisible(true);
   };
 
@@ -69,8 +70,19 @@ export default function TransactionsScreen() {
   };
 
   const filteredTransactions = transactions.filter(transaction => {
-    if (activeType !== 'all' && transaction.type !== activeType) {
-      return false;
+    // Map UI tab type to transaction type
+    let typeMatch = true;
+    if (activeType !== 'all') {
+      // Map plural tab types to singular transaction types
+      let mappedType = '';
+      if (activeType === 'deposits') mappedType = 'deposit';
+      else if (activeType === 'payouts') mappedType = 'payout';
+      else if (activeType === 'withdrawals') mappedType = 'withdrawal';
+      else mappedType = activeType;
+
+      if (transaction.type !== mappedType) {
+        return false;
+      }
     }
 
     if (searchQuery) {
@@ -110,12 +122,16 @@ export default function TransactionsScreen() {
       day: 'numeric',
       year: 'numeric'
     });
-    
-    if (!groups[date]) {
-      groups[date] = [];
+
+    // Fix: Add index signature to groups for type safety
+    type GroupsType = { [key: string]: typeof transaction[] };
+    const groupsTyped = groups as GroupsType;
+
+    if (!groupsTyped[date]) {
+      groupsTyped[date] = [];
     }
-    groups[date].push(transaction);
-    return groups;
+    groupsTyped[date].push(transaction);
+    return groupsTyped;
   }, {});
 
   const styles = createStyles(colors);
@@ -233,6 +249,7 @@ export default function TransactionsScreen() {
 
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
+            
             <Text style={styles.statLabel}>Total Inflows</Text>
             <Text style={[styles.statValue, styles.positiveValue]}>{stats.inflows}</Text>
           </View>
@@ -266,7 +283,7 @@ export default function TransactionsScreen() {
                     ? 'Yesterday'
                     : date}
               </Text>
-              {transactions.map((transaction) => {
+              {(transactions as Transaction[]).map((transaction: Transaction) => {
                 const isPositive = transaction.type === 'deposit';
                 const Icon = isPositive ? ArrowUpRight : transaction.type === 'payout' ? ArrowDownRight : Bank;
                 const iconBg = isPositive ? '#DCFCE7' : transaction.type === 'payout' ? '#FEE2E2' : '#EFF6FF';
