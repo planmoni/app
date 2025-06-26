@@ -1,157 +1,190 @@
-import { Tabs } from 'expo-router';
-import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings } from 'lucide-react-native'; //Do not change the Home to Chrome
-import { StyleSheet, View } from 'react-native';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useEffect, useState, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
+import React, { useEffect, useState } from 'react';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { BalanceProvider } from '@/contexts/BalanceContext';
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { ToastProvider } from '@/contexts/ToastContext';
+import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import { useFonts } from 'expo-font';
+import { SplashScreen, Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
+import CustomSplashScreen from '@/components/SplashScreen';
+import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
+import LockScreen from '@/components/LockScreen';
+import { OnlineStatusProvider } from '@/components/OnlineStatusProvider';
+import OfflineBanner from '@/components/OfflineBanner';
+import { initializeAnalytics, logAnalyticsEvent } from '@/lib/firebase';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { OverlayProvider } from 'stream-chat-expo';
 
-export default function TabLayout() {
-  const { colors } = useTheme();
-  const { session } = useAuth();
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const channelRef = useRef<any>(null);
+// Prevent the splash screen from auto-hiding
+SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
+
+function RootLayoutNav() {
+  const { session, isLoading, error } = useAuth();
+  const { isDark } = useTheme();
+  const [showSplash, setShowSplash] = useState(true);
+  const { isAppLocked, isAppLockEnabled, resetInactivityTimer } = useAppLock();
+
+  const [fontsLoaded, fontError] = useFonts({
+    'Inter-Regular': Inter_400Regular,
+    'Inter-Medium': Inter_500Medium,
+    'Inter-SemiBold': Inter_600SemiBold,
+    'Inter-Bold': Inter_700Bold,
+  });
 
   useEffect(() => {
-    if (!session?.user?.id) return;
-
-    // Clean up any existing channel before creating a new one
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
+    if (fontError) {
+      console.error('Font loading error:', fontError);
     }
+  }, [fontError]);
 
-    // Initial fetch of unread notifications count
-    fetchUnreadNotificationsCount();
-
-    // Create a unique channel name per user to prevent conflicts
-    const channelName = `events-changes-${session.user.id}`;
-
-    // Set up real-time subscription for events table
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'events',
-          filter: `user_id=eq.${session.user.id}`,
-        },
-        (payload) => {
-          console.log('Events change received:', payload);
-          // Refresh unread count when events change
-          fetchUnreadNotificationsCount();
-        }
-      );
-
-    // Only subscribe if the channel is not already subscribed
-    if (channel.state === 'closed' || channel.state === 'leaving') {
-      channel.subscribe((status) => {
-        console.log('Events subscription status:', status);
-      });
+  useEffect(() => {
+    if (fontsLoaded && !isLoading) {
+      // Hide the native splash screen
+      SplashScreen.hideAsync().catch(e => console.warn("Failed to hide splash screen:", e));
     }
+  }, [fontsLoaded, isLoading]);
 
-    // Store the channel reference
-    channelRef.current = channel;
-
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
+  // Initialize Firebase Analytics
+  useEffect(() => {
+    const setupAnalytics = async () => {
+      await initializeAnalytics();
+      // Log app_open event
+      logAnalyticsEvent('app_open');
     };
-  }, [session?.user?.id]);
+    
+    setupAnalytics();
+  }, []);
 
-  const fetchUnreadNotificationsCount = async () => {
-    try {
-      const { count, error } = await supabase
-        .from('events')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', session?.user?.id)
-        .eq('status', 'unread');
+  // Show error screen if there's a critical error
+  if (error && !fontsLoaded) {
+    return null; // Keep splash screen while fonts load
+  }
 
-      if (error) throw error;
-      setUnreadNotifications(count || 0);
-    } catch (error) {
-      console.error('Error fetching unread notifications count:', error);
-    }
-  };
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorTitle}>Configuration Error</Text>
+        <Text style={styles.errorMessage}>{error}</Text>
+        <Text style={styles.errorInstructions}>
+          Please check your environment configuration and database setup as described in the README.md file.
+        </Text>
+      </View>
+    );
+  }
+
+  if (!fontsLoaded || isLoading) {
+    return null; // Keep native splash screen visible
+  }
+
+  // Show our custom splash screen
+  if (showSplash) {
+    return <CustomSplashScreen onFinish={() => setShowSplash(false)} />;
+  }
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
-        tabBarLabelStyle: styles.tabBarLabel,
-        headerShown: false,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: 'Calendar',
-          tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="insights"
-        options={{
-          title: 'Insights',
-          tabBarIcon: ({ color, size }) => <PieChart size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="notifications"
-        options={{
-          title: 'Notifications',
-          tabBarIcon: ({ color, size }) => (
-            <View>
-              <Bell size={size} color={color} />
-              {unreadNotifications > 0 && (
-                <View style={styles.notificationBadge} />
-              )}
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
-        }}
-      />
-    </Tabs>
+    <View 
+      style={{ flex: 1 }}
+      onTouchStart={() => resetInactivityTimer()}
+    >
+      <OfflineBanner />
+      
+      <Stack screenOptions={{ headerShown: false }}>
+        {session ? (
+          <React.Fragment key="authenticated-screens">
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="profile" options={{ headerShown: false }} />
+            <Stack.Screen name="add-funds" options={{ headerShown: false }} />
+            <Stack.Screen name="all-payouts" options={{ headerShown: false }} />
+            <Stack.Screen name="change-password" options={{ headerShown: false }} />
+            <Stack.Screen name="create-payout" options={{ headerShown: false }} />
+            <Stack.Screen name="deposit-flow" options={{ headerShown: false }} />
+            <Stack.Screen name="linked-accounts" options={{ headerShown: false }} />
+            <Stack.Screen name="pause-confirmation" options={{ headerShown: false }} />
+            <Stack.Screen name="referral" options={{ headerShown: false }} />
+            <Stack.Screen name="transaction-limits" options={{ headerShown: false }} />
+            <Stack.Screen name="transactions" options={{ headerShown: false }} />
+            <Stack.Screen name="two-factor-auth" options={{ headerShown: false }} />
+            <Stack.Screen name="view-payout" options={{ headerShown: false }} />
+            <Stack.Screen name="app-lock-setup" options={{ headerShown: false }} />
+          </React.Fragment>
+        ) : (
+          <React.Fragment key="unauthenticated-screens">
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="login" options={{ headerShown: false }} />
+          </React.Fragment>
+        )}
+        <Stack.Screen name="+not-found" options={{ title: 'Page Not Found' }} />
+      </Stack>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      
+      {/* Show lock screen if app is locked and lock is enabled */}
+      {isAppLocked && isAppLockEnabled && <LockScreen />}
+    </View>
+  );
+}
+
+export default function RootLayout() {
+  useFrameworkReady();
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <OverlayProvider>
+        <BottomSheetModalProvider>
+          <ThemeProvider>
+            <ToastProvider>
+              <OnlineStatusProvider>
+                <AuthProvider>
+                  <BalanceProvider>
+                    <AppLockProvider>
+                      <RootLayoutNav />
+                    </AppLockProvider>
+                  </BalanceProvider>
+                </AuthProvider>
+              </OnlineStatusProvider>
+            </ToastProvider>
+          </ThemeProvider>
+        </BottomSheetModalProvider>
+      </OverlayProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    height: 100,
-    paddingBottom: 20,
-    paddingTop: 8,
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f5f5f5',
   },
-  tabBarLabel: {
-    fontSize: 12,
-    fontWeight: '500',
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#d32f2f',
+    marginBottom: 16,
+    textAlign: 'center',
   },
-  notificationBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+  errorMessage: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  errorInstructions: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
