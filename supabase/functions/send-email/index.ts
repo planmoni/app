@@ -26,10 +26,10 @@ serve(async (req) => {
     }
 
     // Get SMTP credentials from environment variables
-    const SMTP_HOSTNAME = Deno.env.get("SMTP_HOSTNAME") || "";
-    const SMTP_PORT = parseInt(Deno.env.get("SMTP_PORT") || "587");
-    const SMTP_USERNAME = Deno.env.get("SMTP_USERNAME") || "";
-    const SMTP_PASSWORD = Deno.env.get("SMTP_PASSWORD") || "";
+    const SMTP_HOSTNAME = Deno.env.get("SMTP_HOSTNAME") || "smtp.resend.com";
+    const SMTP_PORT = parseInt(Deno.env.get("SMTP_PORT") || "465");
+    const SMTP_USERNAME = Deno.env.get("SMTP_USERNAME") || "resend";
+    const SMTP_PASSWORD = Deno.env.get("SMTP_PASSWORD") || "re_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu";
     const SMTP_FROM = Deno.env.get("SMTP_FROM") || "noreply@planmoni.com";
 
     // Validate SMTP configuration
