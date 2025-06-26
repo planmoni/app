@@ -1,3 +1,4 @@
+import 'react-native-url-polyfill/auto';
 import React, { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { BalanceProvider } from '@/contexts/BalanceContext';
