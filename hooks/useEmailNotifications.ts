@@ -38,7 +38,12 @@ export function useEmailNotifications() {
         throw new Error('No access token available');
       }
       
-      const response = await fetch('/api/email-notifications', {
+      // Fix: Use absolute URL instead of relative URL
+      const apiUrl = typeof window !== 'undefined' 
+        ? `${window.location.origin}/api/email-notifications` 
+        : '/api/email-notifications';
+      
+      const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -46,11 +51,14 @@ export function useEmailNotifications() {
         }
       });
       
-      const data = await response.json();
-      
+      // Check if response is OK before trying to parse JSON
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch notification settings');
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Server responded with ${response.status}: ${errorText}`);
       }
+      
+      const data = await response.json();
       
       if (data.settings) {
         setSettings(data.settings);
@@ -76,7 +84,12 @@ export function useEmailNotifications() {
         throw new Error('No access token available');
       }
       
-      const response = await fetch('/api/email-notifications', {
+      // Fix: Use absolute URL instead of relative URL
+      const apiUrl = typeof window !== 'undefined' 
+        ? `${window.location.origin}/api/email-notifications` 
+        : '/api/email-notifications';
+      
+      const response = await fetch(apiUrl, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -85,11 +98,14 @@ export function useEmailNotifications() {
         body: JSON.stringify({ settings: newSettings })
       });
       
-      const data = await response.json();
-      
+      // Check if response is OK before trying to parse JSON
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to update notification settings');
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Server responded with ${response.status}: ${errorText}`);
       }
+      
+      const data = await response.json();
       
       setSettings(newSettings);
       showToast?.('Notification settings updated successfully', 'success');
@@ -116,10 +132,36 @@ export function useEmailNotifications() {
         return false;
       }
       
-      // Use the new email service
-      return await sendNotificationEmail(type, data, token);
-    } catch (err) {
-      console.error('Error sending notification:', err);
+      // Fix: Use absolute URL instead of relative URL
+      const apiUrl = typeof window !== 'undefined' 
+        ? `${window.location.origin}/api/email-notifications` 
+        : '/api/email-notifications';
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          type,
+          data
+        })
+      });
+      
+      // Check if response is OK before trying to parse JSON
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        return false;
+      }
+      
+      const responseData = await response.json();
+      
+      console.log('Notification sent successfully');
+      return true;
+    } catch (error) {
+      console.error('Error sending notification:', error);
       return false;
     }
   };
