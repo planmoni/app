@@ -55,7 +55,7 @@ export function generateLoginNotificationHtml(data: {
           </tr>
         </table>
         
-        <a href="https://planmoni.app/change-password" class="button">Secure Your Account</a>
+        <a href="https://planmoni.com/change-password" class="button">Secure Your Account</a>
         
         <p>If you have any questions, please contact our support team.</p>
       </div>
