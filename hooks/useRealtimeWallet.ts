@@ -96,7 +96,6 @@ export function useRealtimeWallet() {
         return {
           balance: newBalance - newLockedBalance,
           lockedBalance: newLockedBalance,
-          availableBalance: newBalance - newLockedBalance
         };
       } else {
         console.log('No wallet data found');
