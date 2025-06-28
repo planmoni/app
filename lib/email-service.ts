@@ -52,32 +52,65 @@ export async function sendOtpEmail(email: string) {
   try {
     console.log(`Sending OTP email to ${email}`);
     
-    // Call the Supabase Edge Function to send OTP
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    // Generate a 6-digit OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     
-    if (!supabaseUrl) {
-      throw new Error('Supabase URL not configured');
+    // Set expiration time (10 minutes from now)
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+    
+    // Store OTP in database
+    const { error: insertError } = await supabase
+      .from('otps')
+      .insert({
+        email: email.toLowerCase().trim(),
+        otp_code: otpCode,
+        expires_at: expiresAt.toISOString(),
+        is_used: false
+      });
+      
+    if (insertError) {
+      console.error("Error inserting OTP:", insertError);
+      throw new Error("Failed to generate OTP");
     }
     
-    const response = await fetch(`${supabaseUrl}/functions/v1/send-otp-email`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`
-      },
-      body: JSON.stringify({ email: email.trim().toLowerCase() })
-    });
+    // Send email with OTP
+    const subject = "Your Planmoni Verification Code";
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #1E3A8A; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+          .content { padding: 20px; border: 1px solid #ddd; border-top: none; border-radius: 0 0 5px 5px; }
+          .code { font-size: 32px; font-weight: bold; text-align: center; margin: 20px 0; letter-spacing: 5px; color: #1E3A8A; }
+          .footer { margin-top: 20px; font-size: 12px; color: #666; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>Your Verification Code</h2>
+        </div>
+        <div class="content">
+          <p>Hello,</p>
+          <p>Your verification code is:</p>
+          <div class="code">${otpCode}</div>
+          <p>This code will expire in 10 minutes.</p>
+          <p>If you did not request this code, please ignore this email.</p>
+        </div>
+        <div class="footer">
+          <p>This is an automated message, please do not reply directly to this email.</p>
+          <p>&copy; ${new Date().getFullYear()} Planmoni. All rights reserved.</p>
+        </div>
+      </body>
+      </html>
+    `;
     
-    const data = await response.json();
-    
-    if (!response.ok) {
-      console.error('Error from Edge Function:', data);
-      throw new Error(data.error || 'Failed to send verification code');
-    }
+    await sendEmail(email.toLowerCase().trim(), subject, html);
     
     console.log('OTP email sent successfully');
-    return data;
+    return { success: true, message: "OTP sent successfully", expiresInMinutes: 10 };
   } catch (error) {
     console.error('Error sending OTP email:', error);
     throw error;
@@ -94,15 +127,21 @@ export async function verifyOtp(email: string, otp: string) {
   try {
     console.log(`Verifying OTP for ${email}`);
     
-    // Call the Supabase function to verify OTP
-    const { data, error } = await supabase.rpc('verify_otp', {
-      p_email: email.trim().toLowerCase(),
-      p_otp: otp
-    });
+    // Get the OTP record from the database
+    const { data, error } = await supabase
+      .from('otps')
+      .select('*')
+      .eq('email', email.toLowerCase().trim())
+      .eq('otp_code', otp)
+      .eq('is_used', false)
+      .gte('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
     
     if (error) {
-      console.error('Error verifying OTP:', error);
-      throw error;
+      console.error('Error retrieving OTP:', error);
+      return false;
     }
     
     if (!data) {
@@ -110,11 +149,22 @@ export async function verifyOtp(email: string, otp: string) {
       return false;
     }
     
+    // Mark the OTP as used
+    const { error: updateError } = await supabase
+      .from('otps')
+      .update({ is_used: true })
+      .eq('id', data.id);
+    
+    if (updateError) {
+      console.error('Error marking OTP as used:', updateError);
+      // Continue anyway, as the verification was successful
+    }
+    
     console.log('OTP verified successfully');
     return true;
   } catch (error) {
     console.error('Error verifying OTP:', error);
-    throw error;
+    return false;
   }
 }
 
