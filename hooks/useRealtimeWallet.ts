@@ -6,11 +6,15 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 export function useRealtimeWallet() {
   const [balance, setBalance] = useState(0);
   const [lockedBalance, setLockedBalance] = useState(0);
+  const [availableBalance, setAvailableBalance] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
 
   // Calculate available balance whenever balance or locked balance changes
+  useEffect(() => {
+    setAvailableBalance(balance - lockedBalance);
+  }, [balance, lockedBalance]);
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -92,6 +96,7 @@ export function useRealtimeWallet() {
         return {
           balance: newBalance - newLockedBalance,
           lockedBalance: newLockedBalance,
+          availableBalance: newBalance - newLockedBalance
         };
       } else {
         console.log('No wallet data found');
@@ -103,6 +108,7 @@ export function useRealtimeWallet() {
         return {
           balance: 0,
           lockedBalance: 0,
+          availableBalance: 0
         };
       }
     } catch (err) {
@@ -200,6 +206,7 @@ export function useRealtimeWallet() {
   return {
     balance,
     lockedBalance,
+    availableBalance,
     isLoading,
     error,
     addFunds,
