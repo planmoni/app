@@ -5,10 +5,12 @@ import { Session } from '@supabase/supabase-js';
 type AuthResult = {
   success: boolean;
   error?: string;
+  data?: any;
 };
 
 export function useSupabaseAuth() {
   const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,12 +18,14 @@ export function useSupabaseAuth() {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      setUser(session?.user || null);
       setIsLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      setUser(session?.user || null);
       setIsLoading(false);
     });
 
@@ -55,7 +59,7 @@ export function useSupabaseAuth() {
         return { success: false, error: errorMessage };
       }
       
-      return { success: true };
+      return { success: true, data };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign in';
       setError(message);
@@ -98,7 +102,7 @@ export function useSupabaseAuth() {
         return { success: false, error: errorMessage };
       }
 
-      return { success: true };
+      return { success: true, data: authData };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create account';
       setError(message);
@@ -152,6 +156,7 @@ export function useSupabaseAuth() {
 
   return {
     session,
+    user,
     isLoading,
     error,
     signIn,

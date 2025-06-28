@@ -44,7 +44,7 @@ export default function BVNScreen() {
     
     haptics.mediumImpact();
     router.push({
-      pathname: '/onboarding/app-lock',
+      pathname: '/onboarding/referral-code',
       params: { 
         firstName,
         lastName,
@@ -59,7 +59,7 @@ export default function BVNScreen() {
   const handleSkip = () => {
     haptics.lightImpact();
     router.push({
-      pathname: '/onboarding/app-lock',
+      pathname: '/onboarding/referral-code',
       params: { 
         firstName,
         lastName,
@@ -87,7 +87,7 @@ export default function BVNScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={7} totalSteps={10} />
+      <OnboardingProgress currentStep={6} totalSteps={7} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>

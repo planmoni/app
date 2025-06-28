@@ -19,8 +19,6 @@ export default function ReferralCodeScreen() {
   const email = params.email as string;
   const password = params.password as string;
   const bvn = params.bvn as string;
-  const pin = params.pin as string;
-  const pinLength = params.pinLength as string;
   const emailVerified = params.emailVerified === 'true';
 
   const [referralCode, setReferralCode] = useState('');
@@ -91,8 +89,6 @@ export default function ReferralCodeScreen() {
         email,
         password,
         bvn,
-        pin,
-        pinLength,
         referralCode: referralCode.trim().toUpperCase(),
         emailVerified: emailVerified ? 'true' : 'false'
       },
@@ -109,8 +105,6 @@ export default function ReferralCodeScreen() {
         email,
         password,
         bvn,
-        pin,
-        pinLength,
         referralCode: '', // Explicitly pass empty string if skipped
         emailVerified: emailVerified ? 'true' : 'false'
       },
@@ -133,7 +127,7 @@ export default function ReferralCodeScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={9} totalSteps={10} />
+      <OnboardingProgress currentStep={7} totalSteps={7} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
