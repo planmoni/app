@@ -59,7 +59,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
             .from('profiles')
             .select('app_lock_enabled')
             .eq('id', session.user.id)
-            .single();
+            .maybeSingle(); // Use maybeSingle() instead of single() to handle cases where no profile exists
             
           if (!error && data) {
             setIsAppLockEnabled(data.app_lock_enabled);
@@ -74,6 +74,12 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
             }
             
             return;
+          } else if (error) {
+            console.warn('Error fetching profile app lock setting:', error);
+            // Continue with fallback to local storage
+          } else {
+            console.log('No profile found - user may be new');
+            // Continue with fallback to local storage
           }
         }
         

@@ -66,6 +66,12 @@ export function useEmailNotifications() {
         throw new Error(errorMessage);
       }
       
+      // Check content type before parsing as JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Expected JSON response but received ${contentType || 'unknown content type'}`);
+      }
+      
       const data = await response.json();
       
       if (data.settings) {
@@ -116,6 +122,12 @@ export function useEmailNotifications() {
           console.error('Error parsing error response:', parseError);
         }
         throw new Error(errorMessage);
+      }
+      
+      // Check content type before parsing as JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Expected JSON response but received ${contentType || 'unknown content type'}`);
       }
       
       const data = await response.json();
