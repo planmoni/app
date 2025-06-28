@@ -137,7 +137,7 @@ export function generatePayoutNotificationHtml(data: {
         </div>
         ` : ''}
         
-        <a href="https://planmoni.app/transactions" class="button">View Transaction Details</a>
+        <a href="https://planmoni.com/transactions" class="button">View Transaction Details</a>
         
         <p>Thank you for using Planmoni to manage your finances!</p>
       </div>
