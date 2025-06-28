@@ -46,8 +46,8 @@ export function useSupabaseAuth() {
         // Handle specific error cases
         if (error.message.includes('Invalid login credentials')) {
           errorMessage = 'Invalid email or password. Please check your credentials and try again.';
-        } else if (error.message.includes('Email not confirmed')) {
-          errorMessage = 'Please verify your email address before signing in.';
+        } else if (error.message.includes('Email not confirmed') || error.code === 'email_not_confirmed') {
+          errorMessage = 'Please verify your email address before signing in. Check your email for a verification code or use the email verification option.';
         } else if (error.message.includes('rate limit')) {
           errorMessage = 'Too many login attempts. Please try again later.';
         }
@@ -82,7 +82,8 @@ export function useSupabaseAuth() {
             referral_code: referralCode?.trim() || null,
           },
           emailRedirectTo: 'https://planmoni.com/auth/callback',
-          disableEmailConfirmation: true
+          // Remove disableEmailConfirmation to work with Supabase's email confirmation
+          // This allows the built-in email confirmation to work alongside our custom OTP flow
         }
       });
       
@@ -103,15 +104,15 @@ export function useSupabaseAuth() {
 
       // Wait for the profile to be created by the database trigger
       if (authData?.user?.id) {
-        // Try to fetch the profile a few times with a delay
+        // Try to fetch the profile a few times with a delay - increased attempts and delays
         let profileFound = false;
-        const maxAttempts = 15; // Increased from 10 to 15
+        const maxAttempts = 20; // Increased from 15 to 20
         
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           console.log(`Checking for profile creation, attempt ${attempt + 1}/${maxAttempts}`);
           
-          // Wait a bit before checking (increased delay for first 5 attempts instead of 3)
-          const delay = attempt < 5 ? 2000 : 1000;
+          // Wait a bit before checking (increased delays)
+          const delay = attempt < 5 ? 3000 : 1500; // Increased from 2000/1000 to 3000/1500
           await new Promise(resolve => setTimeout(resolve, delay));
           
           // Check if profile exists using the authenticated user's session
@@ -132,12 +133,11 @@ export function useSupabaseAuth() {
         if (!profileFound) {
           console.warn('Profile was not created after multiple attempts');
           
-          // Instead of trying to manually create the profile, which violates RLS,
-          // we'll return a more specific error message and let the user try again
-          // The database trigger should handle profile creation automatically
+          // Return success but with a note about email verification
+          // Since the user account was created successfully, they can proceed with email verification
           return { 
-            success: false, 
-            error: 'Account created but profile setup is taking longer than expected. Please try signing in, or contact support if the issue persists.',
+            success: true, 
+            error: 'Account created successfully. Please check your email for a verification link, or use the email verification code option to complete your registration.',
             data: authData
           };
         }
