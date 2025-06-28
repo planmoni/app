@@ -9,9 +9,11 @@ import FloatingButton from '@/components/FloatingButton';
 import SafeFooter from '@/components/SafeFooter';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { supabase } from '@/lib/supabase';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 
 export default function LoginEmailScreen() {
   const { colors } = useTheme();
+  const { checkUserExists } = useSupabaseAuth();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
@@ -66,14 +68,20 @@ export default function LoginEmailScreen() {
         return;
       }
       
-      // Check if user exists in auth system
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password: 'dummy-password-for-check'
-      });
+      // Check if user exists using the improved method
+      const { exists, error: checkError } = await checkUserExists(email.trim().toLowerCase());
       
-      // If no error about invalid credentials, user exists
-      if (!signInError || !signInError.message.includes('Invalid login credentials')) {
+      if (checkError) {
+        console.warn('Error checking user existence:', checkError);
+        // Default to password screen if there's an error
+        router.push({
+          pathname: '/login/password',
+          params: { email: email.trim().toLowerCase() }
+        });
+        return;
+      }
+      
+      if (exists) {
         // User exists, proceed to password screen
         router.push({
           pathname: '/login/password',

@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
-import { useAuth } from '@/contexts/AuthContext';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
@@ -17,7 +17,7 @@ import { sendOtpEmail } from '@/lib/email-service';
 export default function EmailScreen() {
   const { colors } = useTheme();
   const { showToast } = useToast();
-  const { signIn } = useAuth();
+  const { checkUserExists } = useSupabaseAuth();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
@@ -84,12 +84,13 @@ export default function EmailScreen() {
         return;
       }
       
-      // Check if user already exists using the useAuth hook's signIn method
-      // This method handles the "Invalid login credentials" error gracefully
-      const result = await signIn(email.trim().toLowerCase(), 'dummy-password-for-check');
+      // Check if user already exists using the improved method
+      const { exists, error: checkError } = await checkUserExists(email.trim().toLowerCase());
       
-      // If signIn succeeds (no error), user exists
-      if (result.success) {
+      if (checkError) {
+        console.warn('Error checking user existence:', checkError);
+        // Continue with registration flow if there's an error checking
+      } else if (exists) {
         setError('This email is already registered. Please sign in.');
         showToast('This email is already registered', 'error');
         if (Platform.OS !== 'web') {

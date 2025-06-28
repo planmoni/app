@@ -32,6 +32,34 @@ export function useSupabaseAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const checkUserExists = async (email: string): Promise<{ exists: boolean; error?: string }> => {
+    try {
+      // Use password reset to check if user exists without triggering auth errors
+      // This method doesn't actually send an email if the user doesn't exist
+      const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
+        redirectTo: 'planmoni://reset-password',
+      });
+      
+      // If no error, user exists
+      if (!error) {
+        return { exists: true };
+      }
+      
+      // Check for specific error messages that indicate user doesn't exist
+      if (error.message.includes('User not found') || 
+          error.message.includes('Unable to validate email address') ||
+          error.message.includes('Invalid email')) {
+        return { exists: false };
+      }
+      
+      // For other errors, assume user might exist to be safe
+      return { exists: true, error: error.message };
+    } catch (err) {
+      // On any error, assume user exists to be safe
+      return { exists: true, error: err instanceof Error ? err.message : 'Unknown error' };
+    }
+  };
+
   const signIn = async (email: string, password: string): Promise<AuthResult> => {
     try {
       setError(null);
@@ -163,5 +191,6 @@ export function useSupabaseAuth() {
     signUp,
     signOut,
     resetPassword,
+    checkUserExists,
   };
 }
