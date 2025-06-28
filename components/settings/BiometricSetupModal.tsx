@@ -18,6 +18,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { BiometricService } from '@/lib/biometrics';
 import { useAppLock } from '@/contexts/AppLockContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { router } from 'expo-router';
 
 interface BiometricSetupModalProps {
   isVisible: boolean;

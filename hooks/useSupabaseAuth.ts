@@ -72,7 +72,6 @@ export function useSupabaseAuth() {
       setIsLoading(true);
       
       // Create the user account with metadata that will be used by the database trigger
-      // Add disableEmailConfirmation: true to prevent the default confirmation email
       const { error: signUpError, data: authData } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
@@ -100,6 +99,72 @@ export function useSupabaseAuth() {
         
         setError(errorMessage);
         return { success: false, error: errorMessage };
+      }
+
+      // Wait for the profile to be created
+      // This is necessary because the database trigger might take some time
+      if (authData?.user?.id) {
+        // Try to fetch the profile a few times with a delay
+        let profileFound = false;
+        const maxAttempts = 5;
+        
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          console.log(`Checking for profile creation, attempt ${attempt + 1}/${maxAttempts}`);
+          
+          // Wait a bit before checking
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Check if profile exists
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', authData.user.id)
+            .single();
+          
+          if (!profileError && profile) {
+            console.log('Profile created successfully:', profile);
+            profileFound = true;
+            break;
+          }
+          
+          console.log('Profile not found yet, waiting...');
+        }
+        
+        if (!profileFound) {
+          console.error('Profile was not created after multiple attempts');
+          
+          // Try to create the profile manually as a fallback
+          try {
+            console.log('Attempting to create profile manually');
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert({
+                id: authData.user.id,
+                first_name: firstName.trim(),
+                last_name: lastName.trim(),
+                email: email.toLowerCase().trim(),
+                referral_code: referralCode?.trim() || null,
+              });
+            
+            if (insertError) {
+              console.error('Failed to manually create profile:', insertError);
+              return { 
+                success: false, 
+                error: 'Your account was created but profile setup failed. Please contact support.',
+                data: authData
+              };
+            }
+            
+            console.log('Profile created manually successfully');
+          } catch (manualError) {
+            console.error('Error during manual profile creation:', manualError);
+            return { 
+              success: false, 
+              error: 'Your account was created but profile setup failed. Please contact support.',
+              data: authData
+            };
+          }
+        }
       }
 
       return { success: true, data: authData };
