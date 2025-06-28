@@ -327,7 +327,7 @@ export function generateWalletSummaryHtml(data: {
         </table>
         ` : ''}
         
-        <a href="https://planmoni.app/transactions" class="button">View All Transactions</a>
+        <a href="https://planmoni.com/transactions" class="button">View All Transactions</a>
       </div>
       <div class="footer">
         <p>This is an automated message, please do not reply directly to this email.</p>
