@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
@@ -16,6 +17,7 @@ import { sendOtpEmail } from '@/lib/email-service';
 export default function EmailScreen() {
   const { colors } = useTheme();
   const { showToast } = useToast();
+  const { signIn } = useAuth();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
@@ -82,14 +84,12 @@ export default function EmailScreen() {
         return;
       }
       
-      // Check if user already exists in auth system
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password: 'dummy-password-for-check'
-      });
+      // Check if user already exists using the useAuth hook's signIn method
+      // This method handles the "Invalid login credentials" error gracefully
+      const result = await signIn(email.trim().toLowerCase(), 'dummy-password-for-check');
       
-      // If no error about invalid credentials, user exists
-      if (!signInError || !signInError.message.includes('Invalid login credentials')) {
+      // If signIn succeeds (no error), user exists
+      if (result.success) {
         setError('This email is already registered. Please sign in.');
         showToast('This email is already registered', 'error');
         if (Platform.OS !== 'web') {
@@ -98,6 +98,7 @@ export default function EmailScreen() {
         return;
       }
       
+      // If we get here, the user doesn't exist (which is what we want for registration)
       setIsLoading(true);
       
       // Send OTP email (this will also handle storing in verification cache)
