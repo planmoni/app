@@ -4,6 +4,26 @@ import { supabase } from './supabase';
 const RESEND_API_KEY = process.env.RESEND_API_KEY || 're_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu';
 
 /**
+ * Safely parse response as JSON, handling non-JSON responses
+ */
+async function safeParseResponse(response: Response) {
+  const contentType = response.headers.get('content-type');
+  
+  if (!contentType || !contentType.includes('application/json')) {
+    // If it's not JSON, get the text content for error reporting
+    const textContent = await response.text();
+    throw new Error(`Expected JSON response but received ${contentType || 'unknown content type'}. Response: ${textContent.substring(0, 200)}`);
+  }
+  
+  try {
+    return await response.json();
+  } catch (parseError) {
+    const textContent = await response.text();
+    throw new Error(`Failed to parse JSON response. Content: ${textContent.substring(0, 200)}`);
+  }
+}
+
+/**
  * Send an email using the Resend API
  * @param to Recipient email address
  * @param subject Email subject
@@ -29,12 +49,17 @@ export async function sendEmail(to: string, subject: string, html: string) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      let errorData;
+      try {
+        errorData = await safeParseResponse(response);
+      } catch (parseError) {
+        throw new Error(`Failed to send email: HTTP ${response.status} - ${response.statusText}`);
+      }
       console.error('Failed to send email:', errorData);
       throw new Error(`Failed to send email: ${JSON.stringify(errorData)}`);
     }
 
-    const data = await response.json();
+    const data = await safeParseResponse(response);
     console.log('Email sent successfully:', data);
     return data;
   } catch (error) {
@@ -233,23 +258,30 @@ export async function sendNotificationEmail(
       })
     });
     
-    // Check if response is ok before attempting to parse JSON
+    // Check if response is ok before attempting to parse
     if (!response.ok) {
-      console.error(`Error sending notification: HTTP ${response.status}`);
+      console.error(`Error sending notification: HTTP ${response.status} - ${response.statusText}`);
+      
+      // Try to get error details
+      try {
+        const errorData = await safeParseResponse(response);
+        console.error('Error details:', errorData);
+      } catch (parseError) {
+        console.error('Could not parse error response:', parseError);
+      }
+      
       return false;
     }
     
-    // Check content type before parsing as JSON
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      console.error(`Expected JSON response but received ${contentType || 'unknown content type'}`);
+    // Parse the successful response
+    try {
+      const responseData = await safeParseResponse(response);
+      console.log('Notification sent successfully:', responseData);
+      return true;
+    } catch (parseError) {
+      console.error('Error parsing successful response:', parseError);
       return false;
     }
-    
-    const responseData = await response.json();
-    
-    console.log('Notification sent successfully');
-    return true;
   } catch (error) {
     console.error('Error sending notification:', error);
     return false;
