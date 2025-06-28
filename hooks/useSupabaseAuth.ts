@@ -5,6 +5,7 @@ import { Session } from '@supabase/supabase-js';
 type AuthResult = {
   success: boolean;
   error?: string;
+  data?: any;
 };
 
 export function useSupabaseAuth() {
@@ -55,7 +56,7 @@ export function useSupabaseAuth() {
         return { success: false, error: errorMessage };
       }
       
-      return { success: true };
+      return { success: true, data };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign in';
       setError(message);
@@ -71,6 +72,7 @@ export function useSupabaseAuth() {
       setIsLoading(true);
       
       // Create the user account with metadata that will be used by the database trigger
+      // Add disableEmailConfirmation: true to prevent the default confirmation email
       const { error: signUpError, data: authData } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
@@ -79,7 +81,9 @@ export function useSupabaseAuth() {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
             referral_code: referralCode?.trim() || null,
-          }
+          },
+          emailRedirectTo: 'https://planmoni.com/auth/callback',
+          disableEmailConfirmation: true
         }
       });
       
@@ -98,7 +102,7 @@ export function useSupabaseAuth() {
         return { success: false, error: errorMessage };
       }
 
-      return { success: true };
+      return { success: true, data: authData };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create account';
       setError(message);
@@ -152,6 +156,7 @@ export function useSupabaseAuth() {
 
   return {
     session,
+    user: session?.user || null,
     isLoading,
     error,
     signIn,
