@@ -9,6 +9,59 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          id: string
+          first_name: string | null
+          last_name: string | null
+          email: string | null
+          created_at: string | null
+          updated_at: string | null
+          is_admin: boolean
+          referral_code: string | null
+          referred_by: string | null
+          app_lock_enabled: boolean | null
+          two_factor_enabled: boolean | null
+          email_verified: boolean | null
+          account_verified: boolean | null
+          kyc_tier: number | null
+          email_notifications: Json | null
+        }
+        Insert: {
+          id: string
+          first_name?: string | null
+          last_name?: string | null
+          email?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          is_admin?: boolean
+          referral_code?: string | null
+          referred_by?: string | null
+          app_lock_enabled?: boolean | null
+          two_factor_enabled?: boolean | null
+          email_verified?: boolean | null
+          account_verified?: boolean | null
+          kyc_tier?: number | null
+          email_notifications?: Json | null
+        }
+        Update: {
+          id?: string
+          first_name?: string | null
+          last_name?: string | null
+          email?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          is_admin?: boolean
+          referral_code?: string | null
+          referred_by?: string | null
+          app_lock_enabled?: boolean | null
+          two_factor_enabled?: boolean | null
+          email_verified?: boolean | null
+          account_verified?: boolean | null
+          kyc_tier?: number | null
+          email_notifications?: Json | null
+        }
+      }
       wallets: {
         Row: {
           id: string
