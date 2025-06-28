@@ -105,13 +105,13 @@ export function useSupabaseAuth() {
       if (authData?.user?.id) {
         // Try to fetch the profile a few times with a delay
         let profileFound = false;
-        const maxAttempts = 10; // Increased attempts
+        const maxAttempts = 15; // Increased from 10 to 15
         
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           console.log(`Checking for profile creation, attempt ${attempt + 1}/${maxAttempts}`);
           
-          // Wait a bit before checking (increased delay for first few attempts)
-          const delay = attempt < 3 ? 2000 : 1000;
+          // Wait a bit before checking (increased delay for first 5 attempts instead of 3)
+          const delay = attempt < 5 ? 2000 : 1000;
           await new Promise(resolve => setTimeout(resolve, delay));
           
           // Check if profile exists using the authenticated user's session
