@@ -218,7 +218,7 @@ export function generateExpiryReminderHtml(data: {
         
         <p>Would you like to set up a new payout plan to continue receiving regular payouts?</p>
         
-        <a href="https://planmoni.app/create-payout" class="button">Create New Payout Plan</a>
+        <a href="https://planmoni.com/create-payout" class="button">Create New Payout Plan</a>
       </div>
       <div class="footer">
         <p>This is an automated message, please do not reply directly to this email.</p>
