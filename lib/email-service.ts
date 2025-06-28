@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import Constants from 'expo-constants';
 import { 
   generateLoginNotificationHtml, 
   generatePayoutNotificationHtml, 
@@ -60,22 +61,37 @@ export async function sendOtpEmail(email: string, firstName?: string, lastName?:
   try {
     console.log(`Sending OTP email to ${email}`);
     
-    // Call the Supabase function to send OTP
-    const { data, error } = await supabase.rpc('send_otp_email', {
-      p_email: email.trim().toLowerCase(),
-      p_first_name: firstName || null,
-      p_last_name: lastName || null
+    // Get Supabase URL from environment variables
+    const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL;
+    
+    if (!supabaseUrl) {
+      throw new Error('Supabase URL not found in environment variables');
+    }
+    
+    // Get the current session to include authorization header
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    // Call the Supabase Edge Function directly via fetch
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-otp-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        firstName: firstName || null,
+        lastName: lastName || null
+      })
     });
     
-    if (error) {
-      console.error('Error sending OTP:', error);
-      throw error;
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Error sending OTP:', errorData);
+      throw new Error(`Failed to send verification code: ${errorData}`);
     }
     
-    if (!data) {
-      throw new Error('Failed to send verification code');
-    }
-    
+    const data = await response.json();
     console.log('OTP email sent successfully');
     return data;
   } catch (error) {
