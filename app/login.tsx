@@ -1,29 +1,24 @@
-import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
-import { router, Link } from 'expo-router';
-import { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-native';
+import { router } from 'expo-router';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, ArrowRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
-import SafeFooter from '@/components/SafeFooter';
-import OnboardingProgress from '@/components/OnboardingProgress';
 import { supabase } from '@/lib/supabase';
 
-export default function LoginEmailScreen() {
+export default function LoginScreen() {
   const { colors } = useTheme();
+  const { signIn } = useAuth();
+  const { showToast } = useToast();
+  
   const [email, setEmail] = useState('');
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
-  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
-  const emailInputRef = useRef<TextInput>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      emailInputRef.current?.focus();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     setIsButtonEnabled(email.trim().length > 0 && /\S+@\S+\.\S+/.test(email));
@@ -106,21 +101,14 @@ export default function LoginEmailScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Pressable onPress={() => router.push('/(auth)/onboarding/first-name')} style={styles.signUpButton}>
-          <Text style={styles.signUpText}>Sign up instead</Text>
-        </Pressable>
       </View>
-
-      <OnboardingProgress currentStep={1} totalSteps={2} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>Sign in to your Planmoni account</Text>
+          <Text style={styles.title}>Welcome to Planmoni</Text>
+          <Text style={styles.subtitle}>Enter your email to continue</Text>
 
           <View style={styles.formContainer}>
-            <Text style={styles.question}>What's your email address?</Text>
-            
             {error && (
               <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>{error}</Text>
@@ -130,7 +118,6 @@ export default function LoginEmailScreen() {
             <View style={styles.inputContainer}>
               <Mail size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
-                ref={emailInputRef}
                 style={styles.input}
                 placeholder="Enter your email address"
                 placeholderTextColor={colors.textTertiary}
@@ -147,6 +134,10 @@ export default function LoginEmailScreen() {
                 editable={!isCheckingEmail}
               />
             </View>
+            
+            <Text style={styles.helperText}>
+              We'll check if you have an account or help you create one
+            </Text>
           </View>
         </View>
       </KeyboardAvoidingWrapper>
@@ -157,8 +148,6 @@ export default function LoginEmailScreen() {
         disabled={!isButtonEnabled || isCheckingEmail}
         icon={ArrowRight}
       />
-      
-      <SafeFooter />
     </SafeAreaView>
   );
 }
@@ -169,9 +158,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
@@ -183,48 +169,31 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 20,
   },
-  signUpButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: colors.backgroundTertiary,
-  },
-  signUpText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.primary,
-  },
   contentContainer: {
     flexGrow: 1,
     paddingHorizontal: 24,
   },
   content: {
     flex: 1,
-    justifyContent: 'flex-start',
-    paddingTop: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
-    textAlign: 'left',
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
     marginBottom: 40,
-    textAlign: 'left',
+    textAlign: 'center',
   },
   formContainer: {
     width: '100%',
-  },
-  question: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 24,
-    textAlign: 'left',
+    maxWidth: 400,
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
@@ -245,7 +214,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
     paddingHorizontal: 16,
     height: 56,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   inputIcon: {
     marginRight: 12,
@@ -255,5 +224,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     height: '100%',
+  },
+  helperText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
 });

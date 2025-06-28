@@ -10,6 +10,8 @@ import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Platform } from 'react-native';
+import { supabase } from '@/lib/supabase';
+import { sendOtpEmail } from '@/lib/email-service';
 
 export default function EmailScreen() {
   const { colors } = useTheme();
@@ -22,6 +24,7 @@ export default function EmailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const emailInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -54,32 +57,69 @@ export default function EmailScreen() {
       return;
     }
     
-    setIsLoading(true);
+    setIsCheckingEmail(true);
     
     try {
-      // Call the Edge Function to send OTP
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+      // Check if this email is already in the verification cache
+      const { data: verificationData, error: verificationError } = await supabase
+        .from('email_verification_cache')
+        .select('*')
+        .eq('email', email.trim().toLowerCase())
+        .eq('verified', true)
+        .single();
       
-      if (!supabaseUrl) {
-        throw new Error('Supabase URL not configured');
+      if (verificationData && !verificationError) {
+        // Email is already verified, skip to password creation
+        router.push({
+          pathname: '/onboarding/create-password',
+          params: { 
+            firstName,
+            lastName,
+            email: email.trim().toLowerCase(),
+            emailVerified: 'true'
+          }
+        });
+        return;
       }
       
-      const response = await fetch(`${supabaseUrl}/functions/v1/send-otp-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`
-        },
-        body: JSON.stringify({ email: email.trim().toLowerCase() })
+      // Check if user already exists in auth system
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: 'dummy-password-for-check'
       });
       
-      const data = await response.json();
-      
-      if (!response.ok) {
-        console.error('Error from Edge Function:', data);
-        throw new Error(data.error || 'Failed to send verification code');
+      // If no error about invalid credentials, user exists
+      if (!signInError || !signInError.message.includes('Invalid login credentials')) {
+        setError('This email is already registered. Please sign in.');
+        showToast('This email is already registered', 'error');
+        if (Platform.OS !== 'web') {
+          haptics.error();
+        }
+        return;
       }
+      
+      // Store the email in the verification cache (unverified)
+      try {
+        await supabase
+          .from('email_verification_cache')
+          .upsert([
+            { 
+              email: email.trim().toLowerCase(),
+              first_name: firstName,
+              last_name: lastName,
+              verified: false,
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours expiry
+            }
+          ]);
+      } catch (storageError) {
+        console.error('Error storing email in verification cache:', storageError);
+        // Continue anyway as this is not critical
+      }
+      
+      setIsLoading(true);
+      
+      // Send OTP email
+      await sendOtpEmail(email.trim().toLowerCase());
       
       showToast('Verification code sent to your email', 'success');
       
@@ -104,6 +144,7 @@ export default function EmailScreen() {
       }
     } finally {
       setIsLoading(false);
+      setIsCheckingEmail(false);
     }
   };
 
@@ -136,7 +177,7 @@ export default function EmailScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={3} totalSteps={10} />
+      <OnboardingProgress currentStep={3} totalSteps={7} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -167,7 +208,7 @@ export default function EmailScreen() {
                 autoCapitalize="none"
                 keyboardType="email-address"
                 textContentType="emailAddress"
-                editable={!isLoading}
+                editable={!isLoading && !isCheckingEmail}
               />
             </View>
             
@@ -179,9 +220,9 @@ export default function EmailScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title={isLoading ? "Processing..." : "Continue"}
+        title={isLoading || isCheckingEmail ? "Processing..." : "Continue"}
         onPress={handleContinue}
-        disabled={!isButtonEnabled || isLoading}
+        disabled={!isButtonEnabled || isLoading || isCheckingEmail}
       />
     </SafeAreaView>
   );
