@@ -101,20 +101,20 @@ export function useSupabaseAuth() {
         return { success: false, error: errorMessage };
       }
 
-      // Wait for the profile to be created
-      // This is necessary because the database trigger might take some time
+      // Wait for the profile to be created by the database trigger
       if (authData?.user?.id) {
         // Try to fetch the profile a few times with a delay
         let profileFound = false;
-        const maxAttempts = 5;
+        const maxAttempts = 10; // Increased attempts
         
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           console.log(`Checking for profile creation, attempt ${attempt + 1}/${maxAttempts}`);
           
-          // Wait a bit before checking
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Wait a bit before checking (increased delay for first few attempts)
+          const delay = attempt < 3 ? 2000 : 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
           
-          // Check if profile exists - removed .single() to avoid error when no rows found
+          // Check if profile exists using the authenticated user's session
           const { data: profiles, error: profileError } = await supabase
             .from('profiles')
             .select('id')
@@ -130,42 +130,16 @@ export function useSupabaseAuth() {
         }
         
         if (!profileFound) {
-          console.warn('Profile was not created after multiple attempts, attempting manual creation');
+          console.warn('Profile was not created after multiple attempts');
           
-          // Try to create the profile manually as a fallback using upsert to avoid duplicate key errors
-          try {
-            console.log('Attempting to create profile manually');
-            const { error: upsertError } = await supabase
-              .from('profiles')
-              .upsert({
-                id: authData.user.id,
-                first_name: firstName.trim(),
-                last_name: lastName.trim(),
-                email: email.toLowerCase().trim(),
-                referral_code: referralCode?.trim() || null,
-              }, {
-                onConflict: 'id'
-              });
-            
-            if (upsertError) {
-              console.error('Failed to manually create profile:', upsertError);
-              return { 
-                success: false, 
-                error: 'Your account was created but profile setup failed. Please contact support.',
-                data: authData
-              };
-            }
-            
-            console.log('Profile created manually successfully');
-            profileFound = true; // Update the flag to indicate success
-          } catch (manualError) {
-            console.error('Error during manual profile creation:', manualError);
-            return { 
-              success: false, 
-              error: 'Your account was created but profile setup failed. Please contact support.',
-              data: authData
-            };
-          }
+          // Instead of trying to manually create the profile, which violates RLS,
+          // we'll return a more specific error message and let the user try again
+          // The database trigger should handle profile creation automatically
+          return { 
+            success: false, 
+            error: 'Account created but profile setup is taking longer than expected. Please try signing in, or contact support if the issue persists.',
+            data: authData
+          };
         }
       }
 
