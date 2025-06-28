@@ -127,7 +127,7 @@ export async function POST(request: Request) {
     
     return createJsonResponse({
       referralCode,
-      shareText: `Join me on Planmoni! Use my referral code ${referralCode} to get started. Download the app at https://planmoni.app`
+      shareText: `Join me on Planmoni! Use my referral code ${referralCode} to get started. Download the app at https://planmoni.com`
     });
   } catch (error) {
     console.error('Error generating referral code:', error);
