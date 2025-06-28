@@ -11,6 +11,7 @@ import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { verifyOtp } from '@/lib/email-service';
 
 export default function OTPScreen() {
   const { colors } = useTheme();
@@ -102,17 +103,19 @@ export default function OTPScreen() {
       setIsResending(true);
       setError(null);
       
-      // Call the Supabase function to send OTP
-      const { data, error: otpError } = await supabase.rpc('send_otp_email', {
-        p_email: email.trim().toLowerCase()
+      // Call the API to send OTP
+      const response = await fetch('/api/otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: email.trim().toLowerCase() })
       });
       
-      if (otpError) {
-        throw new Error(otpError.message || 'Failed to send verification code');
-      }
+      const data = await response.json();
       
-      if (!data) {
-        throw new Error('Failed to send verification code');
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send verification code');
       }
       
       // Reset timer
@@ -153,18 +156,22 @@ export default function OTPScreen() {
     setError(null);
     
     try {
-      // Call the Supabase function to verify OTP
-      const { data, error: verifyError } = await supabase.rpc('verify_otp', {
-        p_email: email.trim().toLowerCase(),
-        p_otp: otpValue
+      // Call the API to verify OTP
+      const response = await fetch('/api/otp', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          otp: otpValue
+        })
       });
       
-      if (verifyError) {
-        throw new Error(verifyError.message || 'Failed to verify OTP');
-      }
+      const data = await response.json();
       
-      if (!data) {
-        throw new Error('Invalid or expired verification code');
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to verify OTP');
       }
       
       // Show success toast
@@ -219,7 +226,7 @@ export default function OTPScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={4} totalSteps={10} />
+      <OnboardingProgress currentStep={4} totalSteps={7} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
