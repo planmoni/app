@@ -10,8 +10,6 @@ import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Platform } from 'react-native';
-import { supabase } from '@/lib/supabase';
-import { sendOtpEmail, verifyOtp } from '@/lib/email-service';
 
 export default function OTPScreen() {
   const { colors } = useTheme();
@@ -103,8 +101,21 @@ export default function OTPScreen() {
       setIsResending(true);
       setError(null);
       
-      // Use the email service to send OTP directly
-      await sendOtpEmail(email.trim().toLowerCase());
+      // Make API request to send OTP
+      const response = await fetch('/api/otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send OTP');
+      }
       
       // Reset timer
       setTimer(60);
@@ -144,11 +155,21 @@ export default function OTPScreen() {
     setError(null);
     
     try {
-      // Use the email service to verify OTP directly
-      const isValid = await verifyOtp(email.trim().toLowerCase(), otpValue);
-      
-      if (!isValid) {
-        throw new Error('Invalid or expired verification code');
+      // Make API request to verify OTP
+      const response = await fetch('/api/otp', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          otp: otpValue,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Invalid or expired verification code');
       }
       
       // Show success toast
