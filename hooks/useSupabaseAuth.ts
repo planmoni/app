@@ -114,15 +114,14 @@ export function useSupabaseAuth() {
           // Wait a bit before checking
           await new Promise(resolve => setTimeout(resolve, 1000));
           
-          // Check if profile exists
-          const { data: profile, error: profileError } = await supabase
+          // Check if profile exists - removed .single() to avoid error when no rows found
+          const { data: profiles, error: profileError } = await supabase
             .from('profiles')
             .select('id')
-            .eq('id', authData.user.id)
-            .single();
+            .eq('id', authData.user.id);
           
-          if (!profileError && profile) {
-            console.log('Profile created successfully:', profile);
+          if (!profileError && profiles && profiles.length > 0) {
+            console.log('Profile created successfully:', profiles[0]);
             profileFound = true;
             break;
           }
@@ -131,7 +130,7 @@ export function useSupabaseAuth() {
         }
         
         if (!profileFound) {
-          console.error('Profile was not created after multiple attempts');
+          console.warn('Profile was not created after multiple attempts, attempting manual creation');
           
           // Try to create the profile manually as a fallback
           try {
@@ -156,6 +155,7 @@ export function useSupabaseAuth() {
             }
             
             console.log('Profile created manually successfully');
+            profileFound = true; // Update the flag to indicate success
           } catch (manualError) {
             console.error('Error during manual profile creation:', manualError);
             return { 
