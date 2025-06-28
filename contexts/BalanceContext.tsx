@@ -27,7 +27,6 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
       logAnalyticsEvent('wallet_balance_update', {
         balance: wallet.balance,
         locked_balance: wallet.lockedBalance,
-        available_balance: wallet.availableBalance
       });
     }
   }, [wallet.balance, wallet.lockedBalance, wallet.availableBalance]);
