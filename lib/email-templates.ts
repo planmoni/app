@@ -331,7 +331,7 @@ export function generateWalletSummaryHtml(data: {
       </div>
       <div class="footer">
         <p>This is an automated message, please do not reply directly to this email.</p>
-        <p>You can manage your email preferences in your <a href="https://planmoni.app/settings">account settings</a>.</p>
+        <p>You can manage your email preferences in your <a href="https://planmoni.com/settings">account settings</a>.</p>
         <p>&copy; ${new Date().getFullYear()} Planmoni. All rights reserved.</p>
       </div>
     </body>
