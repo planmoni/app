@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Building2, Clock, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -9,7 +10,6 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useState } from 'react-native';
 
 export default function AuthorizationScreen() {
   const { colors } = useTheme();
