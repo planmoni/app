@@ -88,8 +88,8 @@ export default function EmailScreen() {
           email: email.trim().toLowerCase()
         }
       });
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'An error occurred. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred. Please try again.');
       showToast('An error occurred. Please try again.', 'error');
       if (Platform.OS !== 'web') {
         haptics.error();

@@ -14,6 +14,10 @@ export async function sendEmail(to: string, subject: string, html: string) {
   try {
     console.log(`Sending email to ${to} with subject: ${subject}`);
     
+    if (!RESEND_API_KEY) {
+      throw new Error('Resend API key is not configured');
+    }
+    
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
