@@ -1,10 +1,4 @@
 import { supabase } from './supabase';
-import { 
-  generateLoginNotificationHtml, 
-  generatePayoutNotificationHtml, 
-  generateExpiryReminderHtml, 
-  generateWalletSummaryHtml 
-} from './email-templates';
 
 // Resend API key for sending emails
 const RESEND_API_KEY = process.env.RESEND_API_KEY || 're_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu';
@@ -156,10 +150,10 @@ export async function sendNotificationEmail(
   }
 }
 
-// Export email template generators
+// Email template generators
 export { 
   generateLoginNotificationHtml,
   generatePayoutNotificationHtml,
   generateExpiryReminderHtml,
   generateWalletSummaryHtml
-} from './email-templates';
+} from '@/lib/email-templates';

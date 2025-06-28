@@ -90,7 +90,7 @@ export default function SuccessScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <OnboardingProgress currentStep={7} totalSteps={7} />
+      <OnboardingProgress currentStep={10} totalSteps={10} />
       
       <View style={styles.content}>
         <SuccessAnimation />
