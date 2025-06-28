@@ -61,37 +61,38 @@ export async function sendOtpEmail(email: string, firstName?: string, lastName?:
   try {
     console.log(`Sending OTP email to ${email}`);
     
-    // Get Supabase URL from environment variables
-    const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL;
-    
-    if (!supabaseUrl) {
-      throw new Error('Supabase URL not found in environment variables');
-    }
-    
-    // Get the current session to include authorization header
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    // Call the Supabase Edge Function directly via fetch
-    const response = await fetch(`${supabaseUrl}/functions/v1/send-otp-email`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access_token || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`
-      },
-      body: JSON.stringify({
-        email: email.trim().toLowerCase(),
-        firstName: firstName || null,
-        lastName: lastName || null
-      })
+    // Call the Supabase function to send OTP
+    const { data, error } = await supabase.rpc('send_otp_email', {
+      p_email: email.trim().toLowerCase()
     });
     
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Error sending OTP:', errorData);
-      throw new Error(`Failed to send verification code: ${errorData}`);
+    if (error) {
+      console.error('Error sending OTP:', error);
+      throw new Error(error.message || 'Failed to send verification code');
     }
     
-    const data = await response.json();
+    if (!data) {
+      throw new Error('Failed to send verification code');
+    }
+    
+    // Store the email in the verification cache (unverified)
+    try {
+      await supabase
+        .from('email_verification_cache')
+        .upsert([
+          { 
+            email: email.trim().toLowerCase(),
+            first_name: firstName || null,
+            last_name: lastName || null,
+            verified: false,
+            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours expiry
+          }
+        ]);
+    } catch (storageError) {
+      console.error('Error storing email in verification cache:', storageError);
+      // Continue anyway as this is not critical for OTP sending
+    }
+    
     console.log('OTP email sent successfully');
     return data;
   } catch (error) {
@@ -124,6 +125,22 @@ export async function verifyOtp(email: string, otp: string) {
     if (!data) {
       console.log('Invalid or expired OTP');
       return false;
+    }
+    
+    // Update the verification cache to mark email as verified
+    try {
+      await supabase
+        .from('email_verification_cache')
+        .upsert([
+          { 
+            email: email.trim().toLowerCase(),
+            verified: true,
+            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours expiry
+          }
+        ]);
+    } catch (storageError) {
+      console.error('Error updating verification cache:', storageError);
+      // Continue anyway as the OTP was successfully verified
     }
     
     console.log('OTP verified successfully');
