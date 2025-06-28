@@ -22,12 +22,19 @@ export default function SuccessScreen() {
   const [isRegistering, setIsRegistering] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUserAlreadyExists, setIsUserAlreadyExists] = useState(false);
+  const [registrationComplete, setRegistrationComplete] = useState(false);
 
   useEffect(() => {
     const registerUser = async () => {
       try {
         await signUp(email, password, firstName, lastName, referralCode);
         setIsRegistering(false);
+        setRegistrationComplete(true);
+        
+        // Add a delay before navigation to allow the success animation to be seen
+        setTimeout(() => {
+          router.replace('/(tabs)');
+        }, 2000);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create account';
         
@@ -37,6 +44,11 @@ export default function SuccessScreen() {
             errorMessage.includes('already registered')) {
           setError('This email is already registered. Please sign in or use a different email.');
           setIsUserAlreadyExists(true);
+          
+          // Add a delay before redirecting to login
+          setTimeout(() => {
+            router.replace('/(auth)/login');
+          }, 2000);
         } else {
           setError(errorMessage);
         }
@@ -100,7 +112,7 @@ export default function SuccessScreen() {
                 onPress={handleCreatePayout}
                 style={styles.createButton}
                 icon={ArrowRight}
-                disabled={isRegistering}
+                disabled={isRegistering || !registrationComplete}
               />
               
               <Button
@@ -109,7 +121,7 @@ export default function SuccessScreen() {
                 variant="outline"
                 style={styles.dashboardButton}
                 icon={Home}
-                disabled={isRegistering}
+                disabled={isRegistering || !registrationComplete}
               />
             </>
           )}
