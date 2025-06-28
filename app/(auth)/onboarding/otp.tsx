@@ -137,11 +137,6 @@ export default function OTPScreen() {
     }
   };
 
-  const handleResendOtp = () => {
-    if (timer > 0) return;
-    sendOTP();
-  };
-
   const handleVerify = async () => {
     const otpValue = otp.join('');
     
@@ -202,6 +197,11 @@ export default function OTPScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleResendOtp = () => {
+    if (timer > 0) return;
+    sendOTP();
   };
 
   const styles = createStyles(colors);

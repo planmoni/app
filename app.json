@@ -22,7 +22,7 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "server",
+      "output": "single",
       "favicon": "./assets/images/AppIcon.png"
     },
     "plugins": [
