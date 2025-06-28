@@ -21,7 +21,7 @@ export async function sendEmail(to: string, subject: string, html: string) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: 'Planmoni <notifications@planmoni.app>',
+        from: 'Planmoni <notifications@planmoni.com>',
         to,
         subject,
         html
@@ -133,22 +133,15 @@ export async function sendNotificationEmail(
   try {
     console.log(`Sending ${type} notification`);
     
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    
-    if (!supabaseUrl) {
-      throw new Error('Supabase URL not configured');
-    }
-    
-    const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+    const response = await fetch('/api/email-notifications', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`
       },
       body: JSON.stringify({ 
-        to: data.email || data.recipientEmail,
-        subject: getSubjectForNotificationType(type),
-        html: getHtmlForNotificationType(type, data)
+        type,
+        data
       })
     });
     
@@ -168,45 +161,9 @@ export async function sendNotificationEmail(
 }
 
 /**
- * Get the subject line for a notification type
- */
-function getSubjectForNotificationType(type: string): string {
-  switch (type) {
-    case 'new_login':
-      return 'New Login Detected - Planmoni';
-    case 'payout_completed':
-      return 'Payout Successful - Planmoni';
-    case 'plan_expiry':
-      return 'Payout Plan Expiring Soon - Planmoni';
-    case 'wallet_summary':
-      return 'Wallet Summary - Planmoni';
-    default:
-      return 'Notification from Planmoni';
-  }
-}
-
-/**
- * Get the HTML content for a notification type
- */
-function getHtmlForNotificationType(type: string, data: any): string {
-  switch (type) {
-    case 'new_login':
-      return generateLoginNotificationHtml(data);
-    case 'payout_completed':
-      return generatePayoutNotificationHtml(data);
-    case 'plan_expiry':
-      return generateExpiryReminderHtml(data);
-    case 'wallet_summary':
-      return generateWalletSummaryHtml(data);
-    default:
-      return `<p>Notification from Planmoni</p>`;
-  }
-}
-
-/**
  * Generate HTML for login notification
  */
-function generateLoginNotificationHtml(data: {
+export function generateLoginNotificationHtml(data: {
   firstName: string;
   device: string;
   location: string;
@@ -262,7 +219,7 @@ function generateLoginNotificationHtml(data: {
           </tr>
         </table>
         
-        <a href="https://planmoni.app/change-password" class="button">Secure Your Account</a>
+        <a href="https://planmoni.com/change-password" class="button">Secure Your Account</a>
         
         <p>If you have any questions, please contact our support team.</p>
       </div>
@@ -278,7 +235,7 @@ function generateLoginNotificationHtml(data: {
 /**
  * Generate HTML for payout notification
  */
-function generatePayoutNotificationHtml(data: {
+export function generatePayoutNotificationHtml(data: {
   firstName: string;
   amount: string;
   planName: string;
@@ -346,7 +303,7 @@ function generatePayoutNotificationHtml(data: {
         </div>
         ` : ''}
         
-        <a href="https://planmoni.app/transactions" class="button">View Transaction Details</a>
+        <a href="https://planmoni.com/transactions" class="button">View Transaction Details</a>
         
         <p>Thank you for using Planmoni to manage your finances!</p>
       </div>
@@ -362,7 +319,7 @@ function generatePayoutNotificationHtml(data: {
 /**
  * Generate HTML for plan expiry reminder
  */
-function generateExpiryReminderHtml(data: {
+export function generateExpiryReminderHtml(data: {
   firstName: string;
   planName: string;
   expiryDate: string;
@@ -429,7 +386,7 @@ function generateExpiryReminderHtml(data: {
         
         <p>Would you like to set up a new payout plan to continue receiving regular payouts?</p>
         
-        <a href="https://planmoni.app/create-payout" class="button">Create New Payout Plan</a>
+        <a href="https://planmoni.com/create-payout" class="button">Create New Payout Plan</a>
       </div>
       <div class="footer">
         <p>This is an automated message, please do not reply directly to this email.</p>
@@ -443,7 +400,7 @@ function generateExpiryReminderHtml(data: {
 /**
  * Generate HTML for wallet summary
  */
-function generateWalletSummaryHtml(data: {
+export function generateWalletSummaryHtml(data: {
   firstName: string;
   period: 'daily' | 'weekly' | 'monthly';
   balance: string;
@@ -540,11 +497,11 @@ function generateWalletSummaryHtml(data: {
         </table>
         ` : ''}
         
-        <a href="https://planmoni.app/transactions" class="button">View All Transactions</a>
+        <a href="https://planmoni.com/transactions" class="button">View All Transactions</a>
       </div>
       <div class="footer">
         <p>This is an automated message, please do not reply directly to this email.</p>
-        <p>You can manage your email preferences in your <a href="https://planmoni.app/settings">account settings</a>.</p>
+        <p>You can manage your email preferences in your <a href="https://planmoni.com/settings">account settings</a>.</p>
         <p>&copy; ${new Date().getFullYear()} Planmoni. All rights reserved.</p>
       </div>
     </body>

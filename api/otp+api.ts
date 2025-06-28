@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     }
     
     try {
-      // Use the new email service to send OTP
+      // Use the email service to send OTP
       const result = await sendOtpEmail(email);
       
       console.log('[OTP API] OTP sent successfully');
@@ -89,7 +89,7 @@ export async function PUT(request: Request) {
     }
     
     try {
-      // Use the new email service to verify OTP
+      // Use the email service to verify OTP
       const isValid = await verifyOtp(email, otp);
       
       if (!isValid) {

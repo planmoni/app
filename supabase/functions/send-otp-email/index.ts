@@ -81,7 +81,7 @@ serve(async (req) => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        from: "Planmoni <verification@planmoni.app>",
+        from: "Planmoni <verification@planmoni.com>",
         to: email.toLowerCase(),
         subject: "Your Planmoni Verification Code",
         html: `
