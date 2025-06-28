@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import { sendEmail, sendNotificationEmail } from '@/lib/email-service';
 
 export type EmailNotificationSettings = {
   login_alerts: boolean;
@@ -115,23 +116,8 @@ export function useEmailNotifications() {
         return false;
       }
       
-      const response = await fetch('/api/email-notifications', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ type, data })
-      });
-      
-      const responseData = await response.json();
-      
-      if (!response.ok) {
-        console.error('Failed to send notification:', responseData.error);
-        return false;
-      }
-      
-      return true;
+      // Use the new email service
+      return await sendNotificationEmail(type, data, token);
     } catch (err) {
       console.error('Error sending notification:', err);
       return false;

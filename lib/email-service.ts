@@ -1,43 +1,218 @@
-import { supabase } from '@/lib/supabase';
-import { sendEmail } from '@/lib/email-service';
+import { supabase } from './supabase';
 
-// Helper function to ensure JSON response
-function createJsonResponse(data: any, status: number = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' }
-  });
-}
+// Resend API key for sending emails
+const RESEND_API_KEY = process.env.RESEND_API_KEY || 're_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu';
 
-// Verify user authentication
-async function verifyAuth(request: Request) {
+/**
+ * Send an email using the Resend API
+ * @param to Recipient email address
+ * @param subject Email subject
+ * @param html Email HTML content
+ * @returns Response from the Resend API
+ */
+export async function sendEmail(to: string, subject: string, html: string) {
   try {
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return null;
+    console.log(`Sending email to ${to} with subject: ${subject}`);
+    
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'Planmoni <notifications@planmoni.app>',
+        to,
+        subject,
+        html
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Failed to send email:', errorData);
+      throw new Error(`Failed to send email: ${JSON.stringify(errorData)}`);
     }
 
-    const token = authHeader.split(' ')[1];
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data.user) {
-      return null;
-    }
-
-    return data.user;
+    const data = await response.json();
+    console.log('Email sent successfully:', data);
+    return data;
   } catch (error) {
-    console.error('Auth verification error:', error);
-    return null;
+    console.error('Error sending email:', error);
+    throw error;
   }
 }
 
-// Generate HTML for new login notification
+/**
+ * Send an OTP email to a user
+ * @param email Recipient email address
+ * @returns Response indicating success or failure
+ */
+export async function sendOtpEmail(email: string) {
+  try {
+    console.log(`Sending OTP email to ${email}`);
+    
+    // Call the Supabase Edge Function to send OTP
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl) {
+      throw new Error('Supabase URL not configured');
+    }
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-otp-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`
+      },
+      body: JSON.stringify({ email: email.trim().toLowerCase() })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      console.error('Error from Edge Function:', data);
+      throw new Error(data.error || 'Failed to send verification code');
+    }
+    
+    console.log('OTP email sent successfully');
+    return data;
+  } catch (error) {
+    console.error('Error sending OTP email:', error);
+    throw error;
+  }
+}
+
+/**
+ * Verify an OTP code
+ * @param email User's email address
+ * @param otp OTP code to verify
+ * @returns Boolean indicating if the OTP is valid
+ */
+export async function verifyOtp(email: string, otp: string) {
+  try {
+    console.log(`Verifying OTP for ${email}`);
+    
+    // Call the Supabase function to verify OTP
+    const { data, error } = await supabase.rpc('verify_otp', {
+      p_email: email.trim().toLowerCase(),
+      p_otp: otp
+    });
+    
+    if (error) {
+      console.error('Error verifying OTP:', error);
+      throw error;
+    }
+    
+    if (!data) {
+      console.log('Invalid or expired OTP');
+      return false;
+    }
+    
+    console.log('OTP verified successfully');
+    return true;
+  } catch (error) {
+    console.error('Error verifying OTP:', error);
+    throw error;
+  }
+}
+
+/**
+ * Send a notification email
+ * @param type Type of notification
+ * @param data Data for the notification
+ * @param accessToken User's access token
+ * @returns Boolean indicating success or failure
+ */
+export async function sendNotificationEmail(
+  type: 'new_login' | 'payout_completed' | 'plan_expiry' | 'wallet_summary',
+  data: any,
+  accessToken: string
+) {
+  try {
+    console.log(`Sending ${type} notification`);
+    
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    
+    if (!supabaseUrl) {
+      throw new Error('Supabase URL not configured');
+    }
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({ 
+        to: data.email || data.recipientEmail,
+        subject: getSubjectForNotificationType(type),
+        html: getHtmlForNotificationType(type, data)
+      })
+    });
+    
+    const responseData = await response.json();
+    
+    if (!response.ok) {
+      console.error('Failed to send notification:', responseData);
+      return false;
+    }
+    
+    console.log('Notification sent successfully');
+    return true;
+  } catch (error) {
+    console.error('Error sending notification:', error);
+    return false;
+  }
+}
+
+/**
+ * Get the subject line for a notification type
+ */
+function getSubjectForNotificationType(type: string): string {
+  switch (type) {
+    case 'new_login':
+      return 'New Login Detected - Planmoni';
+    case 'payout_completed':
+      return 'Payout Successful - Planmoni';
+    case 'plan_expiry':
+      return 'Payout Plan Expiring Soon - Planmoni';
+    case 'wallet_summary':
+      return 'Wallet Summary - Planmoni';
+    default:
+      return 'Notification from Planmoni';
+  }
+}
+
+/**
+ * Get the HTML content for a notification type
+ */
+function getHtmlForNotificationType(type: string, data: any): string {
+  switch (type) {
+    case 'new_login':
+      return generateLoginNotificationHtml(data);
+    case 'payout_completed':
+      return generatePayoutNotificationHtml(data);
+    case 'plan_expiry':
+      return generateExpiryReminderHtml(data);
+    case 'wallet_summary':
+      return generateWalletSummaryHtml(data);
+    default:
+      return `<p>Notification from Planmoni</p>`;
+  }
+}
+
+/**
+ * Generate HTML for login notification
+ */
 function generateLoginNotificationHtml(data: {
   firstName: string;
   device: string;
   location: string;
   time: string;
   ip: string;
-}) {
+}): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -100,7 +275,9 @@ function generateLoginNotificationHtml(data: {
   `;
 }
 
-// Generate HTML for payout notification
+/**
+ * Generate HTML for payout notification
+ */
 function generatePayoutNotificationHtml(data: {
   firstName: string;
   amount: string;
@@ -110,7 +287,7 @@ function generatePayoutNotificationHtml(data: {
   accountNumber: string;
   date: string;
   nextPayoutDate?: string;
-}) {
+}): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -182,7 +359,9 @@ function generatePayoutNotificationHtml(data: {
   `;
 }
 
-// Generate HTML for plan expiry reminder
+/**
+ * Generate HTML for plan expiry reminder
+ */
 function generateExpiryReminderHtml(data: {
   firstName: string;
   planName: string;
@@ -191,7 +370,7 @@ function generateExpiryReminderHtml(data: {
   amount: string;
   totalPaid: string;
   remainingPayouts: number;
-}) {
+}): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -261,7 +440,9 @@ function generateExpiryReminderHtml(data: {
   `;
 }
 
-// Generate HTML for wallet summary
+/**
+ * Generate HTML for wallet summary
+ */
 function generateWalletSummaryHtml(data: {
   firstName: string;
   period: 'daily' | 'weekly' | 'monthly';
@@ -273,7 +454,7 @@ function generateWalletSummaryHtml(data: {
   totalDeposits: string;
   totalPayouts: string;
   date: string;
-}) {
+}): string {
   const periodTitle = data.period === 'daily' ? 'Daily' : data.period === 'weekly' ? 'Weekly' : 'Monthly';
   
   return `
@@ -369,221 +550,4 @@ function generateWalletSummaryHtml(data: {
     </body>
     </html>
   `;
-}
-
-// POST endpoint to send email notifications
-export async function POST(request: Request) {
-  try {
-    // Verify authentication
-    const user = await verifyAuth(request);
-    if (!user) {
-      return createJsonResponse({ error: 'Unauthorized' }, 401);
-    }
-
-    // Get notification data from request body
-    const { type, data } = await request.json();
-    
-    if (!type || !data) {
-      return createJsonResponse({ error: 'Missing required notification details' }, 400);
-    }
-
-    // Get user profile to get first name
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('first_name, email, email_notifications')
-      .eq('id', user.id)
-      .single();
-    
-    if (profileError) {
-      return createJsonResponse({ error: 'Failed to retrieve user profile' }, 500);
-    }
-
-    const email = profile.email || user.email;
-    const firstName = profile.first_name || 'User';
-    const emailNotifications = profile.email_notifications || {
-      login_alerts: true,
-      payout_alerts: true,
-      expiry_reminders: true,
-      wallet_summary: 'weekly'
-    };
-
-    // Check if the user has enabled this type of notification
-    let shouldSend = true;
-    if (type === 'new_login' && !emailNotifications.login_alerts) shouldSend = false;
-    if (type === 'payout_completed' && !emailNotifications.payout_alerts) shouldSend = false;
-    if (type === 'plan_expiry' && !emailNotifications.expiry_reminders) shouldSend = false;
-    if (type === 'wallet_summary' && emailNotifications.wallet_summary === 'never') shouldSend = false;
-
-    if (!shouldSend) {
-      return createJsonResponse({
-        success: true,
-        message: 'Notification skipped - user has disabled this notification type'
-      });
-    }
-
-    // Generate email content based on notification type
-    let subject = '';
-    let html = '';
-
-    switch (type) {
-      case 'new_login':
-        subject = 'New Login Detected - Planmoni';
-        html = generateLoginNotificationHtml({
-          firstName,
-          device: data.device || 'Unknown Device',
-          location: data.location || 'Unknown Location',
-          time: data.time || new Date().toLocaleString(),
-          ip: data.ip || 'Unknown IP'
-        });
-        break;
-        
-      case 'payout_completed':
-        subject = 'Payout Successful - Planmoni';
-        html = generatePayoutNotificationHtml({
-          firstName,
-          amount: data.amount || '₦0.00',
-          planName: data.planName || 'Payout Plan',
-          accountName: data.accountName || 'Your Account',
-          bankName: data.bankName || 'Your Bank',
-          accountNumber: data.accountNumber || '****',
-          date: data.date || new Date().toLocaleDateString(),
-          nextPayoutDate: data.nextPayoutDate
-        });
-        break;
-        
-      case 'plan_expiry':
-        subject = 'Payout Plan Expiring Soon - Planmoni';
-        html = generateExpiryReminderHtml({
-          firstName,
-          planName: data.planName || 'Payout Plan',
-          expiryDate: data.expiryDate || 'Unknown',
-          daysRemaining: data.daysRemaining || 0,
-          amount: data.amount || '₦0.00',
-          totalPaid: data.totalPaid || '₦0.00',
-          remainingPayouts: data.remainingPayouts || 0
-        });
-        break;
-        
-      case 'wallet_summary':
-        subject = `${data.period === 'daily' ? 'Daily' : data.period === 'weekly' ? 'Weekly' : 'Monthly'} Wallet Summary - Planmoni`;
-        html = generateWalletSummaryHtml({
-          firstName,
-          period: data.period || 'daily',
-          balance: data.balance || '₦0.00',
-          lockedBalance: data.lockedBalance || '₦0.00',
-          availableBalance: data.availableBalance || '₦0.00',
-          deposits: data.deposits || [],
-          payouts: data.payouts || [],
-          totalDeposits: data.totalDeposits || '₦0.00',
-          totalPayouts: data.totalPayouts || '₦0.00',
-          date: data.date || new Date().toLocaleDateString()
-        });
-        break;
-        
-      default:
-        return createJsonResponse({ error: 'Invalid notification type' }, 400);
-    }
-
-    // Send email using Resend API
-    try {
-      const result = await sendEmail(email, subject, html);
-      
-      return createJsonResponse({
-        success: true,
-        message: 'Email notification sent successfully',
-        data: result
-      });
-    } catch (error) {
-      console.error('Error sending email via Resend:', error);
-      return createJsonResponse({ 
-        error: 'Failed to send email notification',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      }, 500);
-    }
-  } catch (error) {
-    console.error('Error sending email notification:', error);
-    return createJsonResponse({ 
-      error: 'Failed to send email notification',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, 500);
-  }
-}
-
-// GET endpoint to check email notification settings
-export async function GET(request: Request) {
-  try {
-    // Verify authentication
-    const user = await verifyAuth(request);
-    if (!user) {
-      return createJsonResponse({ error: 'Unauthorized' }, 401);
-    }
-
-    // Get user's email notification settings
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('email_notifications')
-      .eq('id', user.id)
-      .single();
-    
-    if (error) {
-      return createJsonResponse({ error: 'Failed to retrieve notification settings' }, 500);
-    }
-
-    // Return notification settings
-    return createJsonResponse({
-      success: true,
-      settings: data.email_notifications || {
-        login_alerts: true,
-        payout_alerts: true,
-        expiry_reminders: true,
-        wallet_summary: 'weekly'
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching email notification settings:', error);
-    return createJsonResponse({ 
-      error: 'Failed to fetch email notification settings',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, 500);
-  }
-}
-
-// PUT endpoint to update email notification settings
-export async function PUT(request: Request) {
-  try {
-    // Verify authentication
-    const user = await verifyAuth(request);
-    if (!user) {
-      return createJsonResponse({ error: 'Unauthorized' }, 401);
-    }
-
-    // Get updated settings from request body
-    const { settings } = await request.json();
-    
-    if (!settings) {
-      return createJsonResponse({ error: 'Missing notification settings' }, 400);
-    }
-
-    // Update user's email notification settings
-    const { error } = await supabase
-      .from('profiles')
-      .update({ email_notifications: settings })
-      .eq('id', user.id);
-    
-    if (error) {
-      return createJsonResponse({ error: 'Failed to update notification settings' }, 500);
-    }
-
-    // Return success
-    return createJsonResponse({
-      success: true,
-      message: 'Email notification settings updated successfully'
-    });
-  } catch (error) {
-    console.error('Error updating email notification settings:', error);
-    return createJsonResponse({ 
-      error: 'Failed to update email notification settings',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, 500);
-  }
 }

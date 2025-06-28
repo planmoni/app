@@ -63,9 +63,9 @@ serve(async (req) => {
     }
 
     // Get Resend API key from environment variables
-    const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "re_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu";
     
-    if (!resendApiKey) {
+    if (!RESEND_API_KEY) {
       console.error("Resend API key not configured");
       return new Response(
         JSON.stringify({ error: "Email service not properly configured" }),
@@ -73,11 +73,11 @@ serve(async (req) => {
       );
     }
 
-    // Send email using Resend API
+    // Send email using Resend API directly
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${resendApiKey}`,
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({

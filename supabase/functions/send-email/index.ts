@@ -1,6 +1,5 @@
 // Follow Deno's ES modules convention
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,43 +24,49 @@ serve(async (req) => {
       );
     }
 
-    // Get SMTP credentials from environment variables
-    const SMTP_HOSTNAME = Deno.env.get("SMTP_HOSTNAME") || "smtp.resend.com";
-    const SMTP_PORT = parseInt(Deno.env.get("SMTP_PORT") || "465");
-    const SMTP_USERNAME = Deno.env.get("SMTP_USERNAME") || "resend";
-    const SMTP_PASSWORD = Deno.env.get("SMTP_PASSWORD") || "re_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu";
-    const SMTP_FROM = Deno.env.get("SMTP_FROM") || "noreply@planmoni.com";
+    // Get Resend API key from environment variables
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "re_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu";
 
-    // Validate SMTP configuration
-    if (!SMTP_HOSTNAME || !SMTP_USERNAME || !SMTP_PASSWORD) {
+    if (!RESEND_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "SMTP configuration is incomplete" }),
+        JSON.stringify({ error: "Resend API key is not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Configure SMTP client
-    const client = new SmtpClient();
-    await client.connectTLS({
-      hostname: SMTP_HOSTNAME,
-      port: SMTP_PORT,
-      username: SMTP_USERNAME,
-      password: SMTP_PASSWORD,
+    // Send email using Resend API
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: "Planmoni <notifications@planmoni.app>",
+        to: to,
+        subject: subject,
+        html: html
+      })
     });
 
-    // Send email
-    await client.send({
-      from: SMTP_FROM,
-      to: to,
-      subject: subject,
-      content: html,
-      html: html,
-    });
+    const responseData = await response.json();
 
-    await client.close();
+    if (!response.ok) {
+      console.error("Error from Resend API:", responseData);
+      return new Response(
+        JSON.stringify({ 
+          error: "Failed to send email", 
+          details: responseData 
+        }),
+        { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ 
+        success: true, 
+        id: responseData.id 
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
