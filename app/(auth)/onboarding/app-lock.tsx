@@ -21,6 +21,7 @@ export default function AppLockScreen() {
   const email = params.email as string;
   const password = params.password as string;
   const bvn = params.bvn as string;
+  const emailVerified = params.emailVerified === 'true';
   
   const [pinLength, setPinLength] = useState<4 | 6>(4);
   const [pin, setPin] = useState('');
@@ -66,7 +67,8 @@ export default function AppLockScreen() {
         password,
         bvn,
         pin,
-        pinLength: pinLength.toString()
+        pinLength: pinLength.toString(),
+        emailVerified: emailVerified ? 'true' : 'false'
       }
     });
     setIsProcessing(false);

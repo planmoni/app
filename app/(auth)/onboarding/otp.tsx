@@ -174,13 +174,14 @@ export default function OTPScreen() {
         haptics.success();
       }
       
-      // Navigate to the next screen
+      // Navigate to the next screen with emailVerified flag
       router.push({
         pathname: '/onboarding/create-password',
         params: { 
           firstName,
           lastName,
-          email
+          email,
+          emailVerified: 'true'
         }
       });
     } catch (error) {

@@ -8,6 +8,7 @@ import SuccessAnimation from '@/components/SuccessAnimation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import OnboardingProgress from '@/components/OnboardingProgress';
+import { supabase } from '@/lib/supabase';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
@@ -17,6 +18,7 @@ export default function SuccessScreen() {
   const email = params.email as string;
   const password = params.password as string;
   const referralCode = params.referralCode as string;
+  const emailVerified = params.emailVerified === 'true';
   
   const { signUp } = useAuth();
   const [isRegistering, setIsRegistering] = useState(true);
@@ -26,7 +28,32 @@ export default function SuccessScreen() {
   useEffect(() => {
     const registerUser = async () => {
       try {
-        await signUp(email, password, firstName, lastName, referralCode);
+        // Sign up the user
+        const result = await signUp(email, password, firstName, lastName, referralCode);
+        
+        if (result.success) {
+          // If email was verified during onboarding, update the profile
+          if (emailVerified && result.data?.session?.user?.id) {
+            try {
+              console.log('Updating email_verified status to true');
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ email_verified: true })
+                .eq('id', result.data.session.user.id);
+                
+              if (updateError) {
+                console.error('Error updating email_verified status:', updateError);
+              } else {
+                console.log('Email verified status updated successfully');
+              }
+            } catch (updateError) {
+              console.error('Failed to update email_verified status:', updateError);
+            }
+          }
+        } else {
+          throw new Error(result.error || 'Failed to create account');
+        }
+        
         setIsRegistering(false);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create account';

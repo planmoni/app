@@ -17,6 +17,7 @@ export default function BVNScreen() {
   const lastName = params.lastName as string;
   const email = params.email as string;
   const password = params.password as string;
+  const emailVerified = params.emailVerified === 'true';
   
   const [bvn, setBvn] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +50,8 @@ export default function BVNScreen() {
         lastName,
         email,
         password,
-        bvn: bvn || 'skipped'
+        bvn: bvn || 'skipped',
+        emailVerified: emailVerified ? 'true' : 'false'
       }
     });
   };
@@ -63,7 +65,8 @@ export default function BVNScreen() {
         lastName,
         email,
         password,
-        bvn: 'skipped'
+        bvn: 'skipped',
+        emailVerified: emailVerified ? 'true' : 'false'
       }
     });
   };

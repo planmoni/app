@@ -21,6 +21,7 @@ export default function ReferralCodeScreen() {
   const bvn = params.bvn as string;
   const pin = params.pin as string;
   const pinLength = params.pinLength as string;
+  const emailVerified = params.emailVerified === 'true';
 
   const [referralCode, setReferralCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +94,7 @@ export default function ReferralCodeScreen() {
         pin,
         pinLength,
         referralCode: referralCode.trim().toUpperCase(),
+        emailVerified: emailVerified ? 'true' : 'false'
       },
     });
   };
@@ -110,6 +112,7 @@ export default function ReferralCodeScreen() {
         pin,
         pinLength,
         referralCode: '', // Explicitly pass empty string if skipped
+        emailVerified: emailVerified ? 'true' : 'false'
       },
     });
   };
