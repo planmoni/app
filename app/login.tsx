@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,11 +9,14 @@ import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { supabase } from '@/lib/supabase';
+import { useHaptics } from '@/hooks/useHaptics';
+import { Platform } from 'react-native';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
-  const { signIn } = useAuth();
+  const { checkUserExists } = useAuth();
   const { showToast } = useToast();
+  const haptics = useHaptics();
   
   const [email, setEmail] = useState('');
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
@@ -27,11 +30,17 @@ export default function LoginScreen() {
   const handleContinue = async () => {
     if (!email.trim()) {
       setError('Please enter your email address');
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
       return;
     }
 
     if (!/\S+@\S+\.\S+/.test(email)) {
       setError('Please enter a valid email address');
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
       return;
     }
     
@@ -49,11 +58,14 @@ export default function LoginScreen() {
       if (verificationData && !verificationError) {
         // Email is verified but user hasn't completed signup
         // Redirect to password creation
+        if (Platform.OS !== 'web') {
+          haptics.mediumImpact();
+        }
         router.push({
           pathname: '/onboarding/create-password',
           params: { 
-            firstName: verificationData.first_name,
-            lastName: verificationData.last_name,
+            firstName: verificationData.first_name || '',
+            lastName: verificationData.last_name || '',
             email: email.trim().toLowerCase(),
             emailVerified: 'true'
           }
@@ -62,28 +74,49 @@ export default function LoginScreen() {
       }
       
       // Check if user exists in auth system
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password: 'dummy-password-for-check'
-      });
-      
-      // If no error about invalid credentials, user exists
-      if (!signInError || !signInError.message.includes('Invalid login credentials')) {
-        // User exists, proceed to password screen
+      try {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password: 'dummy-password-for-check'
+        });
+        
+        // If no error about invalid credentials, user exists
+        if (!signInError || !signInError.message.includes('Invalid login credentials')) {
+          // User exists, proceed to password screen
+          if (Platform.OS !== 'web') {
+            haptics.mediumImpact();
+          }
+          router.push({
+            pathname: '/login/password',
+            params: { email: email.trim().toLowerCase() }
+          });
+        } else {
+          // User doesn't exist, start onboarding
+          if (Platform.OS !== 'web') {
+            haptics.mediumImpact();
+          }
+          router.push({
+            pathname: '/onboarding/first-name',
+            params: { email: email.trim().toLowerCase() }
+          });
+        }
+      } catch (signInError) {
+        console.error('Error checking user existence:', signInError);
+        // Default to password screen if there's an error
+        if (Platform.OS !== 'web') {
+          haptics.mediumImpact();
+        }
         router.push({
           pathname: '/login/password',
-          params: { email: email.trim().toLowerCase() }
-        });
-      } else {
-        // User doesn't exist, start onboarding
-        router.push({
-          pathname: '/onboarding/first-name',
           params: { email: email.trim().toLowerCase() }
         });
       }
     } catch (error) {
       console.error('Error checking email:', error);
       // Default to password screen if there's an error
+      if (Platform.OS !== 'web') {
+        haptics.mediumImpact();
+      }
       router.push({
         pathname: '/login/password',
         params: { email: email.trim().toLowerCase() }
@@ -98,7 +131,15 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
       </View>
@@ -147,6 +188,7 @@ export default function LoginScreen() {
         onPress={handleContinue}
         disabled={!isButtonEnabled || isCheckingEmail}
         icon={ArrowRight}
+        hapticType="medium"
       />
     </SafeAreaView>
   );
