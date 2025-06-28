@@ -3,7 +3,6 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { BalanceProvider } from '@/contexts/BalanceContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
-import { AppLockProvider } from '@/contexts/AppLockContext';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack } from 'expo-router';
@@ -114,11 +113,9 @@ export default function RootLayout() {
     <ThemeProvider>
       <ToastProvider>
         <AuthProvider>
-          <AppLockProvider>
-            <BalanceProvider>
-              <RootLayoutNav />
-            </BalanceProvider>
-          </AppLockProvider>
+          <BalanceProvider>
+            <RootLayoutNav />
+          </BalanceProvider>
         </AuthProvider>
       </ToastProvider>
     </ThemeProvider>

@@ -10,7 +10,6 @@ import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Platform } from 'react-native';
-import { sendOtpEmail } from '@/lib/email-service';
 
 export default function EmailScreen() {
   const { colors } = useTheme();
@@ -58,8 +57,29 @@ export default function EmailScreen() {
     setIsLoading(true);
     
     try {
-      // Use the email service to send OTP
-      await sendOtpEmail(email.trim().toLowerCase());
+      // Call the Edge Function to send OTP
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL not configured');
+      }
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-otp-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`
+        },
+        body: JSON.stringify({ email: email.trim().toLowerCase() })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('Error from Edge Function:', data);
+        throw new Error(data.error || 'Failed to send verification code');
+      }
       
       showToast('Verification code sent to your email', 'success');
       
@@ -152,7 +172,7 @@ export default function EmailScreen() {
             </View>
             
             <Text style={styles.helperText}>
-              We'll use this email for account verification and communication. You'll receive both a verification code and a confirmation link.
+              We'll use this email for account verification and communication
             </Text>
           </View>
         </View>

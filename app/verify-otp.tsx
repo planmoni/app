@@ -11,7 +11,6 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Platform } from 'react-native';
-import { sendOtpEmail, verifyOtp } from '@/lib/email-service';
 
 export default function VerifyOTPScreen() {
   const { colors } = useTheme();
@@ -77,6 +76,13 @@ export default function VerifyOTPScreen() {
     if (text !== '' && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
+    
+    // Auto-submit when all digits are entered
+    if (index === 5 && text !== '' && newOtp.every(digit => digit !== '')) {
+      setTimeout(() => {
+        handleVerify();
+      }, 300);
+    }
   };
 
   const handleKeyPress = (e: any, index: number) => {
@@ -100,19 +106,33 @@ export default function VerifyOTPScreen() {
     setError(null);
     
     try {
-      // Use the email service to send OTP directly
-      await sendOtpEmail(email.trim().toLowerCase());
+      if (Platform.OS !== 'web') {
+        haptics.mediumImpact();
+      }
+      
+      // Call the Supabase function to send OTP
+      const { data, error: otpError } = await supabase.rpc('send_otp_email', {
+        p_email: email.trim().toLowerCase()
+      });
+      
+      if (otpError) {
+        throw new Error(otpError.message || 'Failed to send verification code');
+      }
+      
+      if (!data) {
+        throw new Error('Failed to send verification code');
+      }
+      
+      showToast('Verification code sent to your email', 'success');
       
       // Reset timer
       setTimer(60);
-      
-      showToast('Verification code sent to your email', 'success');
       
       if (Platform.OS !== 'web') {
         haptics.success();
       }
     } catch (err) {
-      setError(err instanceof Error ? error.message : 'Failed to send verification code');
+      setError(err instanceof Error ? err.message : 'Failed to send verification code');
       showToast('Failed to send verification code', 'error');
       
       if (Platform.OS !== 'web') {
@@ -140,10 +160,17 @@ export default function VerifyOTPScreen() {
     setError(null);
     
     try {
-      // Use the email service to verify OTP directly
-      const isValid = await verifyOtp(email.trim().toLowerCase(), otpValue);
+      // Call the Supabase function to verify OTP
+      const { data, error: verifyError } = await supabase.rpc('verify_otp', {
+        p_email: email.trim().toLowerCase(),
+        p_otp: otpValue
+      });
       
-      if (!isValid) {
+      if (verifyError) {
+        throw new Error(verifyError.message || 'Failed to verify code');
+      }
+      
+      if (!data) {
         throw new Error('Invalid or expired verification code');
       }
       

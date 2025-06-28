@@ -10,6 +10,7 @@ import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Platform } from 'react-native';
+import { supabase } from '@/lib/supabase';
 
 export default function OTPScreen() {
   const { colors } = useTheme();
@@ -101,20 +102,17 @@ export default function OTPScreen() {
       setIsResending(true);
       setError(null);
       
-      // Make API request to send OTP
-      const response = await fetch('/api/otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-        }),
+      // Call the Supabase function to send OTP
+      const { data, error: otpError } = await supabase.rpc('send_otp_email', {
+        p_email: email.trim().toLowerCase()
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send OTP');
+      
+      if (otpError) {
+        throw new Error(otpError.message || 'Failed to send verification code');
+      }
+      
+      if (!data) {
+        throw new Error('Failed to send verification code');
       }
       
       // Reset timer
@@ -126,8 +124,8 @@ export default function OTPScreen() {
       if (Platform.OS !== 'web') {
         haptics.success();
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send verification code');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to send OTP');
       showToast('Failed to send verification code', 'error');
       
       if (Platform.OS !== 'web') {
@@ -155,21 +153,18 @@ export default function OTPScreen() {
     setError(null);
     
     try {
-      // Make API request to verify OTP
-      const response = await fetch('/api/otp', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          otp: otpValue,
-        }),
+      // Call the Supabase function to verify OTP
+      const { data, error: verifyError } = await supabase.rpc('verify_otp', {
+        p_email: email.trim().toLowerCase(),
+        p_otp: otpValue
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Invalid or expired verification code');
+      
+      if (verifyError) {
+        throw new Error(verifyError.message || 'Failed to verify OTP');
+      }
+      
+      if (!data) {
+        throw new Error('Invalid or expired verification code');
       }
       
       // Show success toast
@@ -188,8 +183,8 @@ export default function OTPScreen() {
           email
         }
       });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to verify code');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to verify OTP');
       showToast('Failed to verify code', 'error');
       
       if (Platform.OS !== 'web') {
@@ -264,7 +259,6 @@ export default function OTPScreen() {
                 </Text>
               ) : (
                 <Pressable 
-                  style={styles.resendButton}
                   onPress={handleResendOtp}
                   disabled={isResending}
                 >
@@ -370,9 +364,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   timerText: {
     fontSize: 14,
     color: colors.textSecondary,
-  },
-  resendButton: {
-    padding: 10,
   },
   resendText: {
     fontSize: 14,

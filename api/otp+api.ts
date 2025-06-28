@@ -94,7 +94,7 @@ export async function PUT(request: Request) {
       
       if (!isValid) {
         console.log('[OTP API] Invalid or expired OTP');
-        return createJsonResponse({ error: 'Invalid or expired verification code' }, 400);
+        return createJsonResponse({ error: 'Invalid or expired OTP' }, 400);
       }
       
       // If the user is already authenticated, update their profile

@@ -5,7 +5,6 @@ import { Session } from '@supabase/supabase-js';
 type AuthResult = {
   success: boolean;
   error?: string;
-  data?: any;
 };
 
 export function useSupabaseAuth() {
@@ -46,8 +45,8 @@ export function useSupabaseAuth() {
         // Handle specific error cases
         if (error.message.includes('Invalid login credentials')) {
           errorMessage = 'Invalid email or password. Please check your credentials and try again.';
-        } else if (error.message.includes('Email not confirmed') || error.code === 'email_not_confirmed') {
-          errorMessage = 'Please verify your email address before signing in. Check your email for a verification code or use the email verification option.';
+        } else if (error.message.includes('Email not confirmed')) {
+          errorMessage = 'Please verify your email address before signing in.';
         } else if (error.message.includes('rate limit')) {
           errorMessage = 'Too many login attempts. Please try again later.';
         }
@@ -56,7 +55,7 @@ export function useSupabaseAuth() {
         return { success: false, error: errorMessage };
       }
       
-      return { success: true, data };
+      return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign in';
       setError(message);
@@ -80,10 +79,7 @@ export function useSupabaseAuth() {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
             referral_code: referralCode?.trim() || null,
-          },
-          emailRedirectTo: 'https://planmoni.com/auth/callback',
-          // Remove disableEmailConfirmation to work with Supabase's email confirmation
-          // This allows the built-in email confirmation to work alongside our custom OTP flow
+          }
         }
       });
       
@@ -102,48 +98,7 @@ export function useSupabaseAuth() {
         return { success: false, error: errorMessage };
       }
 
-      // Wait for the profile to be created by the database trigger
-      if (authData?.user?.id) {
-        // Try to fetch the profile a few times with a delay - increased attempts and delays
-        let profileFound = false;
-        const maxAttempts = 20; // Increased from 15 to 20
-        
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          console.log(`Checking for profile creation, attempt ${attempt + 1}/${maxAttempts}`);
-          
-          // Wait a bit before checking (increased delays)
-          const delay = attempt < 5 ? 3000 : 1500; // Increased from 2000/1000 to 3000/1500
-          await new Promise(resolve => setTimeout(resolve, delay));
-          
-          // Check if profile exists using the authenticated user's session
-          const { data: profiles, error: profileError } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', authData.user.id);
-          
-          if (!profileError && profiles && profiles.length > 0) {
-            console.log('Profile created successfully:', profiles[0]);
-            profileFound = true;
-            break;
-          }
-          
-          console.log('Profile not found yet, waiting...');
-        }
-        
-        if (!profileFound) {
-          console.warn('Profile was not created after multiple attempts');
-          
-          // Return success but with a note about email verification
-          // Since the user account was created successfully, they can proceed with email verification
-          return { 
-            success: true, 
-            error: 'Account created successfully. Please check your email for a verification link, or use the email verification code option to complete your registration.',
-            data: authData
-          };
-        }
-      }
-
-      return { success: true, data: authData };
+      return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create account';
       setError(message);
@@ -197,7 +152,6 @@ export function useSupabaseAuth() {
 
   return {
     session,
-    user: session?.user || null,
     isLoading,
     error,
     signIn,
