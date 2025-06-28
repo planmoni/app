@@ -96,6 +96,7 @@ export default function EmailScreen() {
         if (Platform.OS !== 'web') {
           haptics.error();
         }
+        setIsCheckingEmail(false);
         return;
       }
       

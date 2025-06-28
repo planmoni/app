@@ -108,6 +108,14 @@ export function useSupabaseAuth() {
       setError(null);
       setIsLoading(true);
       
+      // First check if this email is in the verification cache
+      const { data: verificationData, error: verificationError } = await supabase
+        .from('email_verification_cache')
+        .select('*')
+        .eq('email', email.toLowerCase().trim())
+        .eq('verified', true)
+        .maybeSingle();
+      
       // Create the user account with metadata that will be used by the database trigger
       const { error: signUpError, data: authData } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
@@ -140,6 +148,22 @@ export function useSupabaseAuth() {
         
         setError(errorMessage);
         return { success: false, error: errorMessage };
+      }
+
+      // If email was verified during onboarding, update the profile
+      if (verificationData && !verificationError && authData?.user?.id) {
+        try {
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ email_verified: true })
+            .eq('id', authData.user.id);
+            
+          if (updateError) {
+            console.error('Error updating email_verified status:', updateError);
+          }
+        } catch (updateError) {
+          console.error('Failed to update email_verified status:', updateError);
+        }
       }
 
       return { success: true, data: authData };

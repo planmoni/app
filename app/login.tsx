@@ -73,41 +73,35 @@ export default function LoginScreen() {
         return;
       }
       
-      // Check if user exists in auth system
-      try {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
-          password: 'dummy-password-for-check'
-        });
-        
-        // If no error about invalid credentials, user exists
-        if (!signInError || !signInError.message.includes('Invalid login credentials')) {
-          // User exists, proceed to password screen
-          if (Platform.OS !== 'web') {
-            haptics.mediumImpact();
-          }
-          router.push({
-            pathname: '/login/password',
-            params: { email: email.trim().toLowerCase() }
-          });
-        } else {
-          // User doesn't exist, start onboarding
-          if (Platform.OS !== 'web') {
-            haptics.mediumImpact();
-          }
-          router.push({
-            pathname: '/onboarding/first-name',
-            params: { email: email.trim().toLowerCase() }
-          });
-        }
-      } catch (signInError) {
-        console.error('Error checking user existence:', signInError);
+      // Check if user exists using the improved method
+      const { exists, error: checkError } = await checkUserExists(email.trim().toLowerCase());
+      
+      if (checkError) {
+        console.warn('Error checking user existence:', checkError);
         // Default to password screen if there's an error
+        router.push({
+          pathname: '/login/password',
+          params: { email: email.trim().toLowerCase() }
+        });
+        return;
+      }
+      
+      if (exists) {
+        // User exists, proceed to password screen
         if (Platform.OS !== 'web') {
           haptics.mediumImpact();
         }
         router.push({
           pathname: '/login/password',
+          params: { email: email.trim().toLowerCase() }
+        });
+      } else {
+        // User doesn't exist, start onboarding
+        if (Platform.OS !== 'web') {
+          haptics.mediumImpact();
+        }
+        router.push({
+          pathname: '/onboarding/first-name',
           params: { email: email.trim().toLowerCase() }
         });
       }
