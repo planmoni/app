@@ -83,7 +83,7 @@ export default function CreatePasswordScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={4} totalSteps={7} />
+      <OnboardingProgress currentStep={4} totalSteps={6} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
