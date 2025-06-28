@@ -8,6 +8,8 @@ import SuccessAnimation from '@/components/SuccessAnimation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import OnboardingProgress from '@/components/OnboardingProgress';
+import { useToast } from '@/contexts/ToastContext';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
@@ -19,6 +21,8 @@ export default function SuccessScreen() {
   const referralCode = params.referralCode as string;
   
   const { signUp } = useAuth();
+  const { showToast } = useToast();
+  const haptics = useHaptics();
   const [isRegistering, setIsRegistering] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUserAlreadyExists, setIsUserAlreadyExists] = useState(false);
@@ -27,16 +31,25 @@ export default function SuccessScreen() {
   useEffect(() => {
     const registerUser = async () => {
       try {
-        await signUp(email, password, firstName, lastName, referralCode);
-        setIsRegistering(false);
-        setRegistrationComplete(true);
+        console.log('Starting user registration...');
+        const result = await signUp(email, password, firstName, lastName, referralCode);
         
-        // Add a delay before navigation to allow the success animation to be seen
-        setTimeout(() => {
-          router.replace('/(tabs)');
-        }, 2000);
+        if (result.success) {
+          console.log('User registration successful');
+          setRegistrationComplete(true);
+          showToast('Account created successfully!', 'success');
+          haptics.success();
+          
+          // Add a delay before navigation to allow the success animation to be seen
+          setTimeout(() => {
+            router.replace('/(tabs)');
+          }, 2000);
+        } else {
+          throw new Error(result.error || 'Failed to create account');
+        }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create account';
+        console.error('Registration error:', errorMessage);
         
         // Check if the error is specifically about user already existing
         if (errorMessage.includes('user_already_exists') || 
@@ -44,6 +57,8 @@ export default function SuccessScreen() {
             errorMessage.includes('already registered')) {
           setError('This email is already registered. Please sign in or use a different email.');
           setIsUserAlreadyExists(true);
+          showToast('This email is already registered', 'error');
+          haptics.error();
           
           // Add a delay before redirecting to login
           setTimeout(() => {
@@ -51,7 +66,10 @@ export default function SuccessScreen() {
           }, 2000);
         } else {
           setError(errorMessage);
+          showToast(errorMessage, 'error');
+          haptics.error();
         }
+      } finally {
         setIsRegistering(false);
       }
     };

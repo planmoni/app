@@ -104,7 +104,7 @@ export default function OTPScreen() {
       setError(null);
       
       // Use the email service to send OTP directly
-      const result = await sendOtpEmail(email.trim().toLowerCase());
+      await sendOtpEmail(email.trim().toLowerCase());
       
       // Reset timer
       setTimer(60);
@@ -243,6 +243,7 @@ export default function OTPScreen() {
                 </Text>
               ) : (
                 <Pressable 
+                  style={styles.resendButton}
                   onPress={handleResendOtp}
                   disabled={isResending}
                 >
@@ -348,6 +349,9 @@ const createStyles = (colors: any) => StyleSheet.create({
   timerText: {
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  resendButton: {
+    padding: 10,
   },
   resendText: {
     fontSize: 14,

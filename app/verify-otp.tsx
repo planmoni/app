@@ -112,7 +112,7 @@ export default function VerifyOTPScreen() {
         haptics.success();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send verification code');
+      setError(err instanceof Error ? error.message : 'Failed to send verification code');
       showToast('Failed to send verification code', 'error');
       
       if (Platform.OS !== 'web') {

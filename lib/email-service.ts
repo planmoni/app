@@ -136,15 +136,14 @@ export async function verifyOtp(email: string, otp: string) {
       .eq('is_used', false)
       .gte('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
     
     if (error) {
       console.error('Error retrieving OTP:', error);
       return false;
     }
     
-    if (!data) {
+    if (!data || data.length === 0) {
       console.log('Invalid or expired OTP');
       return false;
     }
@@ -153,7 +152,7 @@ export async function verifyOtp(email: string, otp: string) {
     const { error: updateError } = await supabase
       .from('otps')
       .update({ is_used: true })
-      .eq('id', data.id);
+      .eq('id', data[0].id);
     
     if (updateError) {
       console.error('Error marking OTP as used:', updateError);
