@@ -15,7 +15,7 @@ serve(async (req) => {
 
   try {
     // Get request data
-    const { email } = await req.json();
+    const { email, first_name, last_name } = await req.json();
 
     if (!email) {
       return new Response(
@@ -36,6 +36,24 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Store the email in the verification cache (unverified) with service role permissions
+    try {
+      await supabase
+        .from('email_verification_cache')
+        .upsert([
+          { 
+            email: email.toLowerCase(),
+            first_name: first_name || null,
+            last_name: last_name || null,
+            verified: false,
+            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours expiry
+          }
+        ]);
+    } catch (storageError) {
+      console.error('Error storing email in verification cache:', storageError);
+      // Continue anyway as this is not critical for OTP sending
+    }
 
     // Generate OTP code (6 digits)
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -101,7 +119,7 @@ serve(async (req) => {
               <h2>Your Verification Code</h2>
             </div>
             <div class="content">
-              <p>Hello,</p>
+              <p>Hello${first_name ? ` ${first_name}` : ''},</p>
               <p>Your verification code is:</p>
               <div class="code">${otpCode}</div>
               <p>This code will expire in 10 minutes.</p>

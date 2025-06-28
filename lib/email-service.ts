@@ -52,15 +52,19 @@ export async function sendEmail(to: string, subject: string, html: string) {
 /**
  * Send an OTP email to a user
  * @param email Recipient email address
+ * @param firstName User's first name
+ * @param lastName User's last name
  * @returns Response indicating success or failure
  */
-export async function sendOtpEmail(email: string) {
+export async function sendOtpEmail(email: string, firstName?: string, lastName?: string) {
   try {
     console.log(`Sending OTP email to ${email}`);
     
     // Call the Supabase function to send OTP
     const { data, error } = await supabase.rpc('send_otp_email', {
-      p_email: email.trim().toLowerCase()
+      p_email: email.trim().toLowerCase(),
+      p_first_name: firstName || null,
+      p_last_name: lastName || null
     });
     
     if (error) {

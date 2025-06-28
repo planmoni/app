@@ -66,7 +66,7 @@ export default function EmailScreen() {
         .select('*')
         .eq('email', email.trim().toLowerCase())
         .eq('verified', true)
-        .single();
+        .maybeSingle();
       
       if (verificationData && !verificationError) {
         // Email is already verified, skip to password creation
@@ -98,28 +98,10 @@ export default function EmailScreen() {
         return;
       }
       
-      // Store the email in the verification cache (unverified)
-      try {
-        await supabase
-          .from('email_verification_cache')
-          .upsert([
-            { 
-              email: email.trim().toLowerCase(),
-              first_name: firstName,
-              last_name: lastName,
-              verified: false,
-              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours expiry
-            }
-          ]);
-      } catch (storageError) {
-        console.error('Error storing email in verification cache:', storageError);
-        // Continue anyway as this is not critical
-      }
-      
       setIsLoading(true);
       
-      // Send OTP email
-      await sendOtpEmail(email.trim().toLowerCase());
+      // Send OTP email (this will also handle storing in verification cache)
+      await sendOtpEmail(email.trim().toLowerCase(), firstName, lastName);
       
       showToast('Verification code sent to your email', 'success');
       
