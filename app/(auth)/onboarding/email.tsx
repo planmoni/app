@@ -57,11 +57,19 @@ export default function EmailScreen() {
     setIsLoading(true);
     
     try {
-      // Call the API endpoint to send OTP
-      const response = await fetch('/api/otp', {
+      // Call the Edge Function to send OTP
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL not configured');
+      }
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-otp-email`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`
         },
         body: JSON.stringify({ email: email.trim().toLowerCase() })
       });
@@ -69,7 +77,7 @@ export default function EmailScreen() {
       const data = await response.json();
       
       if (!response.ok) {
-        console.error('Error from API:', data);
+        console.error('Error from Edge Function:', data);
         throw new Error(data.error || 'Failed to send verification code');
       }
       

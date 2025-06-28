@@ -120,13 +120,14 @@ export default function OTPScreen() {
       // Reset timer
       setTimer(60);
       
+      // Show success toast
       showToast('Verification code sent to your email', 'success');
       
       if (Platform.OS !== 'web') {
         haptics.success();
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send verification code');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to send OTP');
       showToast('Failed to send verification code', 'error');
       
       if (Platform.OS !== 'web') {
@@ -137,7 +138,7 @@ export default function OTPScreen() {
     }
   };
 
-  const handleVerify = async () => {
+  const handleContinue = async () => {
     const otpValue = otp.join('');
     
     if (otpValue.length !== 6) {
@@ -187,8 +188,8 @@ export default function OTPScreen() {
           email
         }
       });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to verify code');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to verify OTP');
       showToast('Failed to verify code', 'error');
       
       if (Platform.OS !== 'web') {
@@ -279,7 +280,7 @@ export default function OTPScreen() {
 
       <FloatingButton 
         title={isLoading ? "Verifying..." : "Continue"}
-        onPress={handleVerify}
+        onPress={handleContinue}
         disabled={!isButtonEnabled || isLoading}
       />
     </SafeAreaView>

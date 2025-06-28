@@ -13,8 +13,6 @@ import { useHaptics } from '@/hooks/useHaptics';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
-  const { showToast } = useToast();
-  const haptics = useHaptics();
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
   const lastName = params.lastName as string;
@@ -23,6 +21,8 @@ export default function SuccessScreen() {
   const referralCode = params.referralCode as string;
   
   const { signUp } = useAuth();
+  const { showToast } = useToast();
+  const haptics = useHaptics();
   const [isRegistering, setIsRegistering] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUserAlreadyExists, setIsUserAlreadyExists] = useState(false);
