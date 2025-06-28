@@ -74,8 +74,14 @@ export function useSupabaseAuth() {
         // Format error message for better user experience
         let errorMessage = error.message;
         
-        // Handle specific error cases
-        if (error.message.includes('Invalid login credentials')) {
+        // Handle specific error codes first, then fall back to message checks
+        if (error.code === 'invalid_credentials') {
+          errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (error.code === 'email_not_confirmed') {
+          errorMessage = 'Please verify your email address before signing in.';
+        } else if (error.code === 'too_many_requests') {
+          errorMessage = 'Too many login attempts. Please try again later.';
+        } else if (error.message.includes('Invalid login credentials')) {
           errorMessage = 'Invalid email or password. Please check your credentials and try again.';
         } else if (error.message.includes('Email not confirmed')) {
           errorMessage = 'Please verify your email address before signing in.';
@@ -119,8 +125,14 @@ export function useSupabaseAuth() {
         // Format error message for better user experience
         let errorMessage = signUpError.message;
         
-        // Handle specific error cases
-        if (signUpError.message.includes('already registered')) {
+        // Handle specific error codes first, then fall back to message checks
+        if (signUpError.code === 'user_already_exists') {
+          errorMessage = 'This email is already registered. Please sign in or use a different email.';
+        } else if (signUpError.code === 'weak_password') {
+          errorMessage = 'Password is too weak. Please use a stronger password.';
+        } else if (signUpError.code === 'invalid_credentials') {
+          errorMessage = 'Invalid email or password format. Please check your information and try again.';
+        } else if (signUpError.message.includes('already registered')) {
           errorMessage = 'This email is already registered. Please sign in or use a different email.';
         } else if (signUpError.message.includes('password')) {
           errorMessage = 'Password is too weak. Please use a stronger password.';
