@@ -9,6 +9,7 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useState } from 'react-native';
 
 export default function AuthorizationScreen() {
   const { colors } = useTheme();
@@ -19,11 +20,14 @@ export default function AuthorizationScreen() {
   const newMethodType = params.newMethodType as string;
   const { addFunds } = useBalance();
   const haptics = useHaptics();
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleFundWallet = async () => {
     try {
+      setIsProcessing(true);
       // Process the deposit
       const numericAmount = parseFloat(amount.replace(/,/g, ''));
+      console.log('Funding wallet with amount:', numericAmount);
       await addFunds(numericAmount);
       haptics.success();
       
@@ -38,6 +42,7 @@ export default function AuthorizationScreen() {
     } catch (error) {
       haptics.error();
       console.error('Error funding wallet:', error);
+      setIsProcessing(false);
     }
   };
 
@@ -132,8 +137,9 @@ export default function AuthorizationScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title="Fund wallet now"
+        title={isProcessing ? "Processing..." : "Fund wallet now"}
         onPress={handleFundWallet}
+        disabled={isProcessing}
       />
       
       <SafeFooter />
