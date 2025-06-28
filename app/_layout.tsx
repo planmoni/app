@@ -5,7 +5,6 @@ import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { AppLockProvider } from '@/contexts/AppLockContext';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
-import { getSupabaseConfigError } from '@/lib/supabase';
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -52,9 +51,7 @@ function RootLayoutNav() {
     return null; // Keep splash screen while fonts load
   }
 
-  // Only show configuration error screen for actual configuration issues
-  const configError = getSupabaseConfigError();
-  if (error && error === configError) {
+  if (error) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorTitle}>Configuration Error</Text>

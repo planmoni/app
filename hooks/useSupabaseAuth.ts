@@ -32,34 +32,6 @@ export function useSupabaseAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkUserExists = async (email: string): Promise<{ exists: boolean; error?: string }> => {
-    try {
-      // Use password reset to check if user exists without triggering auth errors
-      // This method doesn't actually send an email if the user doesn't exist
-      const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
-        redirectTo: 'planmoni://reset-password',
-      });
-      
-      // If no error, user exists
-      if (!error) {
-        return { exists: true };
-      }
-      
-      // Check for specific error messages that indicate user doesn't exist
-      if (error.message.includes('User not found') || 
-          error.message.includes('Unable to validate email address') ||
-          error.message.includes('Invalid email')) {
-        return { exists: false };
-      }
-      
-      // For other errors, assume user might exist to be safe
-      return { exists: true, error: error.message };
-    } catch (err) {
-      // On any error, assume user exists to be safe
-      return { exists: true, error: err instanceof Error ? err.message : 'Unknown error' };
-    }
-  };
-
   const signIn = async (email: string, password: string): Promise<AuthResult> => {
     try {
       setError(null);
@@ -74,14 +46,8 @@ export function useSupabaseAuth() {
         // Format error message for better user experience
         let errorMessage = error.message;
         
-        // Handle specific error codes first, then fall back to message checks
-        if (error.code === 'invalid_credentials') {
-          errorMessage = 'Invalid email or password. Please check your credentials and try again.';
-        } else if (error.code === 'email_not_confirmed') {
-          errorMessage = 'Please verify your email address before signing in.';
-        } else if (error.code === 'too_many_requests') {
-          errorMessage = 'Too many login attempts. Please try again later.';
-        } else if (error.message.includes('Invalid login credentials')) {
+        // Handle specific error cases
+        if (error.message.includes('Invalid login credentials')) {
           errorMessage = 'Invalid email or password. Please check your credentials and try again.';
         } else if (error.message.includes('Email not confirmed')) {
           errorMessage = 'Please verify your email address before signing in.';
@@ -108,14 +74,6 @@ export function useSupabaseAuth() {
       setError(null);
       setIsLoading(true);
       
-      // First check if this email is in the verification cache
-      const { data: verificationData, error: verificationError } = await supabase
-        .from('email_verification_cache')
-        .select('*')
-        .eq('email', email.toLowerCase().trim())
-        .eq('verified', true)
-        .maybeSingle();
-      
       // Create the user account with metadata that will be used by the database trigger
       const { error: signUpError, data: authData } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
@@ -133,14 +91,8 @@ export function useSupabaseAuth() {
         // Format error message for better user experience
         let errorMessage = signUpError.message;
         
-        // Handle specific error codes first, then fall back to message checks
-        if (signUpError.code === 'user_already_exists') {
-          errorMessage = 'This email is already registered. Please sign in or use a different email.';
-        } else if (signUpError.code === 'weak_password') {
-          errorMessage = 'Password is too weak. Please use a stronger password.';
-        } else if (signUpError.code === 'invalid_credentials') {
-          errorMessage = 'Invalid email or password format. Please check your information and try again.';
-        } else if (signUpError.message.includes('already registered')) {
+        // Handle specific error cases
+        if (signUpError.message.includes('already registered')) {
           errorMessage = 'This email is already registered. Please sign in or use a different email.';
         } else if (signUpError.message.includes('password')) {
           errorMessage = 'Password is too weak. Please use a stronger password.';
@@ -148,22 +100,6 @@ export function useSupabaseAuth() {
         
         setError(errorMessage);
         return { success: false, error: errorMessage };
-      }
-
-      // If email was verified during onboarding, update the profile
-      if (verificationData && !verificationError && authData?.user?.id) {
-        try {
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ email_verified: true })
-            .eq('id', authData.user.id);
-            
-          if (updateError) {
-            console.error('Error updating email_verified status:', updateError);
-          }
-        } catch (updateError) {
-          console.error('Failed to update email_verified status:', updateError);
-        }
       }
 
       return { success: true, data: authData };
@@ -227,6 +163,5 @@ export function useSupabaseAuth() {
     signUp,
     signOut,
     resetPassword,
-    checkUserExists,
   };
 }

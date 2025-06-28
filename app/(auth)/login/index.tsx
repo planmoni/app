@@ -8,16 +8,12 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import SafeFooter from '@/components/SafeFooter';
 import OnboardingProgress from '@/components/OnboardingProgress';
-import { supabase } from '@/lib/supabase';
-import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 
 export default function LoginEmailScreen() {
   const { colors } = useTheme();
-  const { checkUserExists } = useSupabaseAuth();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
-  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const emailInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -31,7 +27,7 @@ export default function LoginEmailScreen() {
     setIsButtonEnabled(email.trim().length > 0 && /\S+@\S+\.\S+/.test(email));
   }, [email]);
 
-  const handleContinue = async () => {
+  const handleContinue = () => {
     if (!email.trim()) {
       setError('Please enter your email address');
       return;
@@ -42,68 +38,10 @@ export default function LoginEmailScreen() {
       return;
     }
     
-    setIsCheckingEmail(true);
-    
-    try {
-      // Check if this email is in the verification cache
-      const { data: verificationData, error: verificationError } = await supabase
-        .from('email_verification_cache')
-        .select('*')
-        .eq('email', email.trim().toLowerCase())
-        .eq('verified', true)
-        .maybeSingle();
-      
-      if (verificationData && !verificationError) {
-        // Email is verified but user hasn't completed signup
-        // Redirect to password creation
-        router.push({
-          pathname: '/onboarding/create-password',
-          params: { 
-            firstName: verificationData.first_name,
-            lastName: verificationData.last_name,
-            email: email.trim().toLowerCase(),
-            emailVerified: 'true'
-          }
-        });
-        return;
-      }
-      
-      // Check if user exists using the improved method
-      const { exists, error: checkError } = await checkUserExists(email.trim().toLowerCase());
-      
-      if (checkError) {
-        console.warn('Error checking user existence:', checkError);
-        // Default to password screen if there's an error
-        router.push({
-          pathname: '/login/password',
-          params: { email: email.trim().toLowerCase() }
-        });
-        return;
-      }
-      
-      if (exists) {
-        // User exists, proceed to password screen
-        router.push({
-          pathname: '/login/password',
-          params: { email: email.trim().toLowerCase() }
-        });
-      } else {
-        // User doesn't exist, start onboarding
-        router.push({
-          pathname: '/onboarding/first-name',
-          params: { email: email.trim().toLowerCase() }
-        });
-      }
-    } catch (error) {
-      console.error('Error checking email:', error);
-      // Default to password screen if there's an error
-      router.push({
-        pathname: '/login/password',
-        params: { email: email.trim().toLowerCase() }
-      });
-    } finally {
-      setIsCheckingEmail(false);
-    }
+    router.push({
+      pathname: '/login/password',
+      params: { email: email.trim().toLowerCase() }
+    });
   };
 
   const styles = createStyles(colors);
@@ -152,7 +90,6 @@ export default function LoginEmailScreen() {
                 textContentType="emailAddress"
                 returnKeyType="next"
                 onSubmitEditing={handleContinue}
-                editable={!isCheckingEmail}
               />
             </View>
           </View>
@@ -160,9 +97,9 @@ export default function LoginEmailScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title={isCheckingEmail ? "Checking..." : "Continue"}
+        title="Continue"
         onPress={handleContinue}
-        disabled={!isButtonEnabled || isCheckingEmail}
+        disabled={!isButtonEnabled}
         icon={ArrowRight}
       />
       

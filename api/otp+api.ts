@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     
     // Get email from request body
     const requestBody = await request.json();
-    const { email, firstName, lastName } = requestBody;
+    const { email } = requestBody;
     
     console.log(`[OTP API] Request body:`, requestBody);
     
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     
     try {
       // Use the email service to send OTP
-      const result = await sendOtpEmail(email, firstName, lastName);
+      const result = await sendOtpEmail(email);
       
       console.log('[OTP API] OTP sent successfully');
       return createJsonResponse({ 

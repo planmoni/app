@@ -11,7 +11,6 @@ import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
-import { verifyOtp, sendOtpEmail } from '@/lib/email-service';
 
 export default function OTPScreen() {
   const { colors } = useTheme();
@@ -103,8 +102,18 @@ export default function OTPScreen() {
       setIsResending(true);
       setError(null);
       
-      // Send OTP email
-      await sendOtpEmail(email.trim().toLowerCase(), firstName, lastName);
+      // Call the Supabase function to send OTP
+      const { data, error: otpError } = await supabase.rpc('send_otp_email', {
+        p_email: email.trim().toLowerCase()
+      });
+      
+      if (otpError) {
+        throw new Error(otpError.message || 'Failed to send verification code');
+      }
+      
+      if (!data) {
+        throw new Error('Failed to send verification code');
+      }
       
       // Reset timer
       setTimer(60);
@@ -144,53 +153,18 @@ export default function OTPScreen() {
     setError(null);
     
     try {
-      // Verify the OTP
-      const isValid = await verifyOtp(email.trim().toLowerCase(), otpValue);
+      // Call the Supabase function to verify OTP
+      const { data, error: verifyError } = await supabase.rpc('verify_otp', {
+        p_email: email.trim().toLowerCase(),
+        p_otp: otpValue
+      });
       
-      if (!isValid) {
+      if (verifyError) {
+        throw new Error(verifyError.message || 'Failed to verify OTP');
+      }
+      
+      if (!data) {
         throw new Error('Invalid or expired verification code');
-      }
-      
-      // Check if user already exists in the database
-      const { data: existingUser, error: userError } = await supabase.auth
-        .signInWithPassword({
-          email: email.trim().toLowerCase(),
-          password: 'dummy-password-for-check'
-        });
-      
-      // If user exists (no error about invalid credentials), redirect to login
-      if (existingUser && existingUser.user) {
-        showToast('This email is already registered. Please sign in.', 'info');
-        
-        if (Platform.OS !== 'web') {
-          haptics.notification();
-        }
-        
-        router.replace('/login');
-        return;
-      }
-      
-      // Store the verified email in the database for later retrieval
-      try {
-        const { error: storageError } = await supabase
-          .from('email_verification_cache')
-          .upsert([
-            { 
-              email: email.trim().toLowerCase(),
-              first_name: firstName,
-              last_name: lastName,
-              verified: true,
-              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours expiry
-            }
-          ]);
-          
-        if (storageError) {
-          console.error('Error storing verification data:', storageError);
-          // Continue anyway as this is not critical
-        }
-      } catch (storageError) {
-        console.error('Error storing verification data:', storageError);
-        // Continue anyway as this is not critical
       }
       
       // Show success toast
@@ -211,7 +185,7 @@ export default function OTPScreen() {
         }
       });
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to verify code');
+      setError(error instanceof Error ? error.message : 'Failed to verify OTP');
       showToast('Failed to verify code', 'error');
       
       if (Platform.OS !== 'web') {
@@ -245,7 +219,7 @@ export default function OTPScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={4} totalSteps={7} />
+      <OnboardingProgress currentStep={4} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>

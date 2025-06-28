@@ -46,33 +46,11 @@ export function useEmailNotifications() {
         }
       });
       
-      // Check if response is ok before attempting to parse JSON
-      if (!response.ok) {
-        // Try to get error message from response
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        try {
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-          } else {
-            // If response is not JSON (e.g., HTML error page), use status text
-            errorMessage = `Server returned ${response.status}: ${response.statusText}`;
-          }
-        } catch (parseError) {
-          // If we can't parse the error response, use the status
-          console.error('Error parsing error response:', parseError);
-        }
-        throw new Error(errorMessage);
-      }
-      
-      // Check content type before parsing as JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(`Expected JSON response but received ${contentType || 'unknown content type'}`);
-      }
-      
       const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch notification settings');
+      }
       
       if (data.settings) {
         setSettings(data.settings);
@@ -107,30 +85,11 @@ export function useEmailNotifications() {
         body: JSON.stringify({ settings: newSettings })
       });
       
-      // Check if response is ok before attempting to parse JSON
-      if (!response.ok) {
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        try {
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-          } else {
-            errorMessage = `Server returned ${response.status}: ${response.statusText}`;
-          }
-        } catch (parseError) {
-          console.error('Error parsing error response:', parseError);
-        }
-        throw new Error(errorMessage);
-      }
-      
-      // Check content type before parsing as JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(`Expected JSON response but received ${contentType || 'unknown content type'}`);
-      }
-      
       const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update notification settings');
+      }
       
       setSettings(newSettings);
       showToast?.('Notification settings updated successfully', 'success');

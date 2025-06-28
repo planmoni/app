@@ -73,7 +73,7 @@ export function useRealtimeWallet() {
         .from('wallets')
         .select('balance, locked_balance')
         .eq('user_id', session?.user?.id)
-        .maybeSingle(); // Use maybeSingle() instead of single() to handle cases where no wallet exists
+        .single();
 
       if (walletError) {
         console.error('Error fetching wallet:', walletError);
@@ -99,7 +99,7 @@ export function useRealtimeWallet() {
           availableBalance: newBalance - newLockedBalance
         };
       } else {
-        console.log('No wallet data found - wallet may not exist yet');
+        console.log('No wallet data found');
         // Initialize with zeros if no wallet found
         setBalance(0);
         setLockedBalance(0);

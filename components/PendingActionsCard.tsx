@@ -44,36 +44,17 @@ export default function PendingActionsCard() {
     
     try {
       setIsLoading(true);
-      // Use .maybeSingle() instead of .single() to handle cases where no profile exists
+      // Modify the query to exclude kyc_tier which doesn't exist yet
       const { data, error } = await supabase
         .from('profiles')
         .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
         .eq('id', session?.user?.id)
-        .maybeSingle();
+        .single();
 
       if (error) throw error;
-      
-      // If no profile exists, create default values
-      if (!data) {
-        console.log('No profile found for user, using default values');
-        setProfileData({
-          email_verified: false,
-          app_lock_enabled: false,
-          two_factor_enabled: false,
-          account_verified: false
-        });
-      } else {
-        setProfileData(data);
-      }
+      setProfileData(data);
     } catch (error) {
       console.error('Error loading profile data:', error);
-      // Set default values on error to prevent app from breaking
-      setProfileData({
-        email_verified: false,
-        app_lock_enabled: false,
-        two_factor_enabled: false,
-        account_verified: false
-      });
     } finally {
       setIsLoading(false);
     }

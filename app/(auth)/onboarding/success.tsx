@@ -9,8 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { supabase } from '@/lib/supabase';
-import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
@@ -21,7 +19,6 @@ export default function SuccessScreen() {
   const password = params.password as string;
   const referralCode = params.referralCode as string;
   const emailVerified = params.emailVerified === 'true';
-  const haptics = useHaptics();
   
   const { signUp } = useAuth();
   const [isRegistering, setIsRegistering] = useState(true);
@@ -53,10 +50,6 @@ export default function SuccessScreen() {
               console.error('Failed to update email_verified status:', updateError);
             }
           }
-          
-          if (Platform.OS !== 'web') {
-            haptics.success();
-          }
         } else {
           throw new Error(result.error || 'Failed to create account');
         }
@@ -71,14 +64,8 @@ export default function SuccessScreen() {
             errorMessage.includes('already registered')) {
           setError('This email is already registered. Please sign in or use a different email.');
           setIsUserAlreadyExists(true);
-          if (Platform.OS !== 'web') {
-            haptics.error();
-          }
         } else {
           setError(errorMessage);
-          if (Platform.OS !== 'web') {
-            haptics.error();
-          }
         }
         setIsRegistering(false);
       }
@@ -88,23 +75,14 @@ export default function SuccessScreen() {
   }, []);
 
   const handleCreatePayout = () => {
-    if (Platform.OS !== 'web') {
-      haptics.mediumImpact();
-    }
     router.replace('/create-payout/amount');
   };
 
   const handleGoToDashboard = () => {
-    if (Platform.OS !== 'web') {
-      haptics.mediumImpact();
-    }
     router.replace('/(tabs)');
   };
 
   const handleGoToSignIn = () => {
-    if (Platform.OS !== 'web') {
-      haptics.mediumImpact();
-    }
     router.replace('/(auth)/login');
   };
 
@@ -141,7 +119,6 @@ export default function SuccessScreen() {
               style={styles.signInButton}
               icon={LogIn}
               disabled={isRegistering}
-              hapticType="medium"
             />
           ) : (
             <>
@@ -151,7 +128,6 @@ export default function SuccessScreen() {
                 style={styles.createButton}
                 icon={ArrowRight}
                 disabled={isRegistering}
-                hapticType="medium"
               />
               
               <Button
@@ -161,7 +137,6 @@ export default function SuccessScreen() {
                 style={styles.dashboardButton}
                 icon={Home}
                 disabled={isRegistering}
-                hapticType="light"
               />
             </>
           )}
