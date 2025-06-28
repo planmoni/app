@@ -132,21 +132,23 @@ export function useSupabaseAuth() {
         if (!profileFound) {
           console.warn('Profile was not created after multiple attempts, attempting manual creation');
           
-          // Try to create the profile manually as a fallback
+          // Try to create the profile manually as a fallback using upsert to avoid duplicate key errors
           try {
             console.log('Attempting to create profile manually');
-            const { error: insertError } = await supabase
+            const { error: upsertError } = await supabase
               .from('profiles')
-              .insert({
+              .upsert({
                 id: authData.user.id,
                 first_name: firstName.trim(),
                 last_name: lastName.trim(),
                 email: email.toLowerCase().trim(),
                 referral_code: referralCode?.trim() || null,
+              }, {
+                onConflict: 'id'
               });
             
-            if (insertError) {
-              console.error('Failed to manually create profile:', insertError);
+            if (upsertError) {
+              console.error('Failed to manually create profile:', upsertError);
               return { 
                 success: false, 
                 error: 'Your account was created but profile setup failed. Please contact support.',
