@@ -51,7 +51,7 @@ export default function LoginEmailScreen() {
         .select('*')
         .eq('email', email.trim().toLowerCase())
         .eq('verified', true)
-        .single();
+        .maybeSingle();
       
       if (verificationData && !verificationError) {
         // Email is verified but user hasn't completed signup
