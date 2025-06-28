@@ -33,9 +33,28 @@ export async function sendEmail(to: string, subject: string, html: string) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Failed to send email:', errorData);
-      throw new Error(`Failed to send email: ${JSON.stringify(errorData)}`);
+      // Check the content type to determine how to parse the response
+      const contentType = response.headers.get('Content-Type') || '';
+      let errorMessage = '';
+      
+      if (contentType.includes('application/json')) {
+        // Parse as JSON if the content type is JSON
+        try {
+          const errorData = await response.json();
+          errorMessage = `Failed to send email: ${JSON.stringify(errorData)}`;
+        } catch (parseError) {
+          // If JSON parsing fails, fall back to text
+          const errorText = await response.text();
+          errorMessage = `Failed to send email (${response.status}): ${errorText.substring(0, 200)}`;
+        }
+      } else {
+        // Parse as text for non-JSON responses
+        const errorText = await response.text();
+        errorMessage = `Failed to send email (${response.status}): ${errorText.substring(0, 200)}`;
+      }
+      
+      console.error('Email sending error:', errorMessage);
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
@@ -198,12 +217,28 @@ export async function sendNotificationEmail(
       })
     });
     
-    const responseData = await response.json();
-    
+    // Handle response with proper error checking
     if (!response.ok) {
-      console.error('Failed to send notification:', responseData);
+      const contentType = response.headers.get('Content-Type') || '';
+      let errorData;
+      
+      if (contentType.includes('application/json')) {
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          const errorText = await response.text();
+          throw new Error(`Failed to parse error response: ${errorText.substring(0, 200)}`);
+        }
+      } else {
+        const errorText = await response.text();
+        throw new Error(`Non-JSON error response: ${errorText.substring(0, 200)}`);
+      }
+      
+      console.error('Failed to send notification:', errorData);
       return false;
     }
+    
+    const responseData = await response.json();
     
     console.log('Notification sent successfully');
     return true;
