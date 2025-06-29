@@ -165,12 +165,6 @@ export default function BannerCarousel({
               resizeMode="fit"
               onError={() => console.warn('Image failed to load:', banner.image_url)}
             />
-            <View
-              style={[
-                
-              ]}
-            >
-            </View>
           </Pressable>
         ))}
       </Animated.ScrollView>
