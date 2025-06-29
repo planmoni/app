@@ -343,7 +343,7 @@ export default function HomeScreen() {
         </Card>
 
         {/* Banner Carousel */}
-        <BannerCarousel/>
+        <ImageCarousel/>
 
         <PendingActionsCard />
 
