@@ -162,7 +162,7 @@ export default function ImageCarousel({
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
         snapToInterval={SNAP_INTERVAL}
-        snapToAlignment="center"
+        snapToAlignment="start"
         decelerationRate="fast"
         contentContainerStyle={{ paddingHorizontal: SLIDE_MARGIN }}
         onScroll={Platform.OS !== 'web' ? scrollHandler : undefined}
@@ -184,7 +184,7 @@ export default function ImageCarousel({
               source={{ uri: image.image_url }}
               style={[styles.image, { height }]}
               resizeMode="fit"
-              width={510}
+              width={400}
               height={150}
               onError={() =>
                 console.error('[ImageCarousel] Image failed to load:', image.image_url)
