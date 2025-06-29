@@ -7,6 +7,8 @@ import {
   Pressable,
   Dimensions,
   ActivityIndicator,
+  ScrollView,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import Animated, {
@@ -15,7 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import PaginationDot from './PaginationDot'; // Ensure this is implemented
+import PaginationDot from './PaginationDot';
 
 interface Banner {
   id: string;
@@ -29,15 +31,13 @@ interface BannerCarouselProps {
   autoPlay?: boolean;
   autoPlayInterval?: number;
   showPagination?: boolean;
-  showControls?: boolean;
   height?: number;
 }
 
 export default function BannerCarousel({
   autoPlay = true,
-  autoPlayInterval = 1000,
+  autoPlayInterval = 5000,
   showPagination = true,
-  showControls = false,
   height = 116,
 }: BannerCarouselProps) {
   const { colors, isDark } = useTheme();
@@ -48,26 +48,23 @@ export default function BannerCarousel({
 
   const { width: screenWidth } = Dimensions.get('window');
   const scrollX = useSharedValue(0);
-  const scrollViewRef = useRef<Animated.ScrollView>(null);
+  const scrollViewRef = useRef<any>(null);
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const fetchBanners = async () => {
       try {
         setIsLoading(true);
-        setError(null);
-
         const { data, error } = await supabase
           .from('banners')
           .select('*')
           .order('order_index', { ascending: true });
 
         if (error) throw error;
-
         setBanners(data || []);
       } catch (err) {
-        console.error('Error fetching banners:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load banners');
+        console.error('Fetch error:', err);
+        setError('Failed to load banners');
       } finally {
         setIsLoading(false);
       }
@@ -78,29 +75,19 @@ export default function BannerCarousel({
 
   useEffect(() => {
     if (autoPlay && banners.length > 1 && !isLoading) {
-      startAutoPlay();
+      autoPlayTimerRef.current = setInterval(() => {
+        const nextIndex = (currentIndex + 1) % banners.length;
+        scrollToIndex(nextIndex);
+      }, autoPlayInterval);
     }
 
     return () => {
-      if (autoPlayTimerRef.current) {
-        clearInterval(autoPlayTimerRef.current);
-      }
+      if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
     };
-  }, [autoPlay, banners.length, isLoading]);
-
-  const startAutoPlay = () => {
-    if (autoPlayTimerRef.current) {
-      clearInterval(autoPlayTimerRef.current);
-    }
-
-    autoPlayTimerRef.current = setInterval(() => {
-      const nextIndex = (currentIndex + 1) % banners.length;
-      scrollToIndex(nextIndex);
-    }, autoPlayInterval);
-  };
+  }, [banners, currentIndex, isLoading]);
 
   const scrollToIndex = (index: number) => {
-    if (scrollViewRef.current) {
+    if (scrollViewRef.current?.scrollTo) {
       scrollViewRef.current.scrollTo({ x: index * screenWidth, animated: true });
       setCurrentIndex(index);
     }
@@ -111,63 +98,60 @@ export default function BannerCarousel({
       scrollX.value = event.contentOffset.x;
     },
     onMomentumEnd: (event) => {
-      const newIndex = Math.round(event.contentOffset.x / screenWidth);
-      if (newIndex !== currentIndex) {
-        setCurrentIndex(newIndex);
-      }
+      const index = Math.round(event.contentOffset.x / screenWidth);
+      setCurrentIndex(index);
     },
   });
 
   const handleBannerPress = (banner: Banner) => {
-    if (banner.link_url) {
-      router.push(banner.link_url);
-    }
+    if (banner.link_url) router.push(banner.link_url);
   };
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { height, backgroundColor: colors.backgroundTertiary }]}>
-        <ActivityIndicator size="small" color={colors.primary} />
+      <View style={[styles.container, { height }]}>
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={[styles.container, { height, backgroundColor: colors.backgroundTertiary }]}>
-        <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+      <View style={[styles.container, { height }]}>
+        <Text style={{ color: colors.error }}>{error}</Text>
       </View>
     );
   }
 
-  if (banners.length === 0) return null;
+  const CarouselComponent =
+    Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
 
   return (
     <View style={[styles.container, { height }]}>
-      <Animated.ScrollView
+      <CarouselComponent
         ref={scrollViewRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={scrollHandler}
+        onScroll={Platform.OS === 'web' ? undefined : scrollHandler}
         scrollEventThrottle={16}
         decelerationRate="fast"
       >
         {banners.map((banner) => (
           <Pressable
             key={banner.id}
-            style={[styles.slide, { width: screenWidth - 40 }]}
             onPress={() => handleBannerPress(banner)}
+            style={[styles.slide, { width: screenWidth - 40 }]}
           >
             <Image
               source={{ uri: banner.image_url }}
               style={styles.image}
-              resizeMode="fit"
+              resizeMode="cover"
               onError={() => console.warn('Image failed to load:', banner.image_url)}
             />
           </Pressable>
         ))}
-      </Animated.ScrollView>
+      </CarouselComponent>
 
       {showPagination && banners.length > 1 && (
         <View style={styles.pagination}>
@@ -197,55 +181,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     marginHorizontal: 16,
-    position: 'relative',
   },
   image: {
     width: '100%',
-    height: '100%',
+    height: 116, // fallback height
     borderRadius: 8,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 8,
-    justifyContent: 'flex-end',
-  },
-  textContainer: {
-    padding: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 4,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  description: {
-    fontSize: 14,
-    marginBottom: 12,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  ctaButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  ctaText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
+    backgroundColor: '#ccc',
   },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
     marginTop: 12,
-  },
-  errorText: {
-    fontSize: 14,
-    textAlign: 'center',
   },
 });
