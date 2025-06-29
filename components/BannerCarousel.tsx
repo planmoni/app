@@ -15,7 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import PaginationDot from './PaginationDot'; // Create this component separately
+import PaginationDot from './PaginationDot'; // Ensure this is implemented
 
 interface Banner {
   id: string;
@@ -25,7 +25,6 @@ interface Banner {
   cta_text: string | null;
   link_url: string | null;
   order_index: number;
-  is_active: boolean;
 }
 
 interface BannerCarouselProps {
@@ -63,29 +62,14 @@ export default function BannerCarousel({
         const { data, error } = await supabase
           .from('banners')
           .select('*')
-          .eq('is_active', true)
           .order('order_index', { ascending: true });
 
         if (error) throw error;
 
-        const bannersWithUrls = await Promise.all(
-          data.map(async (banner) => {
-            const { data: publicUrlData } = supabase
-              .storage
-              .from('banners')
-              .getPublicUrl(banner.image_url);
-
-            return {
-              ...banner,
-              image_url: publicUrlData?.publicUrl || '',
-            };
-          })
-        );
-
-        setBanners(bannersWithUrls);
+        setBanners(data || []);
       } catch (err) {
-        console.error('Error fetching images:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load images');
+        console.error('Error fetching banners:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load banners');
       } finally {
         setIsLoading(false);
       }
@@ -181,6 +165,7 @@ export default function BannerCarousel({
               source={{ uri: banner.image_url }}
               style={styles.image}
               resizeMode="cover"
+              onError={() => console.warn('Image failed to load:', banner.image_url)}
             />
             <View
               style={[
