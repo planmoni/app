@@ -5,6 +5,7 @@ import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import CountdownTimer from '@/components/CountdownTimer';
 import PendingActionsCard from '@/components/PendingActionsCard';
+import BannerCarousel from '@/components/BannerCarousel';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
@@ -340,7 +341,7 @@ export default function HomeScreen() {
           </View>
         </Card>
 
-        
+        <BannerCarousel height={180} />
 
         <PendingActionsCard />
 
