@@ -131,7 +131,7 @@ export default function ImageCarousel({
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { height }]}> 
+      <View style={[styles.container, { height, width }]}> 
         <ActivityIndicator color={colors.primary} />
         <Text style={styles.loadingText}>Loading images...</Text>
       </View>
