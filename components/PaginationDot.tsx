@@ -27,7 +27,7 @@ export default function PaginationDot({
     (index + 1) * screenWidth,
   ];
 
-  const animatedDotStyle -= useAnimatedStyle(() => {
+  const animatedDotStyle = useAnimatedStyle(() => {
     const width = interpolate(scrollX.value, inputRange, [8, 24, 8], 'clamp');
     const opacity = interpolate(scrollX.value, inputRange, [0.3, 1, 0.3], 'clamp');
 
