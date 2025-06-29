@@ -219,6 +219,7 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 10,
   },
   slide: {
     borderRadius: 8,
