@@ -341,8 +341,7 @@ export default function HomeScreen() {
           </View>
         </Card>
 
-        {/* Banner Carousel */}
-        <BannerCarousel />
+        <BannerCarousel height={180} />
 
         <PendingActionsCard />
 

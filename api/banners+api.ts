@@ -1,9 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
-import Constants from 'expo-constants';
 
 // Initialize Supabase client
-const supabaseUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Helper function to ensure JSON response
@@ -14,61 +13,35 @@ function createJsonResponse(data: any, status: number = 200) {
   });
 }
 
-// Verify user authentication
-async function verifyAuth(request: Request) {
-  try {
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return null;
-    }
-
-    const token = authHeader.split(' ')[1];
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data.user) {
-      return null;
-    }
-
-    return data.user;
-  } catch (error) {
-    console.error('Auth verification error:', error);
-    return null;
-  }
-}
-
-// GET endpoint to fetch banners
+// GET endpoint to fetch active banners
 export async function GET(request: Request) {
   try {
-    console.log('Fetching banners...');
+    console.log('Fetching banners from Supabase');
     
     // Get query parameters
     const url = new URL(request.url);
-    const limit = parseInt(url.searchParams.get('limit') || '5');
-    const activeOnly = url.searchParams.get('active') !== 'false';
+    const limit = parseInt(url.searchParams.get('limit') || '10');
     
-    // Fetch banners from Supabase
-    let query = supabase
+    // Fetch active banners from the database
+    const { data, error } = await supabase
       .from('banners')
       .select('*')
-      .order('order_index', { ascending: true });
-    
-    // Filter by active status if needed
-    if (activeOnly) {
-      query = query.eq('is_active', true);
-    }
-    
-    // Apply limit
-    if (limit > 0) {
-      query = query.limit(limit);
-    }
-    
-    const { data, error } = await query;
+      .eq('is_active', true)
+      .order('order_index', { ascending: true })
+      .limit(limit);
     
     if (error) {
       console.error('Error fetching banners:', error);
-      return createJsonResponse({ error: 'Failed to fetch banners' }, 500);
+      return createJsonResponse({ 
+        error: 'Failed to fetch banners',
+        details: error.message
+      }, 500);
     }
     
-    return createJsonResponse({ banners: data || [] });
+    return createJsonResponse({ 
+      success: true,
+      banners: data || []
+    });
   } catch (error) {
     console.error('Error in banners API:', error);
     return createJsonResponse({ 
@@ -82,20 +55,23 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     // Verify authentication
-    const user = await verifyAuth(request);
-    if (!user) {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return createJsonResponse({ error: 'Unauthorized' }, 401);
     }
+
+    const token = authHeader.split(' ')[1];
+    const { data: userData, error: authError } = await supabase.auth.getUser(token);
     
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single();
+    if (authError || !userData?.user) {
+      return createJsonResponse({ error: 'Invalid authentication token' }, 401);
+    }
     
-    if (profileError || !profile || !profile.is_admin) {
-      return createJsonResponse({ error: 'Forbidden: Admin access required' }, 403);
+    // Check if user is admin (you'll need to implement this function in your database)
+    const { data: isAdminData, error: isAdminError } = await supabase.rpc('is_admin');
+    
+    if (isAdminError || !isAdminData) {
+      return createJsonResponse({ error: 'Forbidden - Admin access required' }, 403);
     }
     
     // Get banner data from request body
@@ -111,10 +87,10 @@ export async function POST(request: Request) {
       .from('banners')
       .insert({
         title: bannerData.title,
-        description: bannerData.description || null,
+        description: bannerData.description,
         image_url: bannerData.image_url,
-        cta_text: bannerData.cta_text || null,
-        link_url: bannerData.link_url || null,
+        cta_text: bannerData.cta_text,
+        link_url: bannerData.link_url,
         order_index: bannerData.order_index || 0,
         is_active: bannerData.is_active !== undefined ? bannerData.is_active : true
       })
@@ -122,112 +98,17 @@ export async function POST(request: Request) {
       .single();
     
     if (error) {
-      console.error('Error creating banner:', error);
-      return createJsonResponse({ error: 'Failed to create banner' }, 500);
+      return createJsonResponse({ 
+        error: 'Failed to create banner',
+        details: error.message
+      }, 500);
     }
     
-    return createJsonResponse({ banner: data }, 201);
-  } catch (error) {
-    console.error('Error in banners API:', error);
     return createJsonResponse({ 
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, 500);
-  }
-}
-
-// PUT endpoint to update a banner (admin only)
-export async function PUT(request: Request) {
-  try {
-    // Verify authentication
-    const user = await verifyAuth(request);
-    if (!user) {
-      return createJsonResponse({ error: 'Unauthorized' }, 401);
-    }
-    
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single();
-    
-    if (profileError || !profile || !profile.is_admin) {
-      return createJsonResponse({ error: 'Forbidden: Admin access required' }, 403);
-    }
-    
-    // Get banner data from request body
-    const { id, ...bannerData } = await request.json();
-    
-    if (!id) {
-      return createJsonResponse({ error: 'Banner ID is required' }, 400);
-    }
-    
-    // Update banner
-    const { data, error } = await supabase
-      .from('banners')
-      .update(bannerData)
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (error) {
-      console.error('Error updating banner:', error);
-      return createJsonResponse({ error: 'Failed to update banner' }, 500);
-    }
-    
-    return createJsonResponse({ banner: data });
+      success: true,
+      banner: data
+    }, 201);
   } catch (error) {
-    console.error('Error in banners API:', error);
-    return createJsonResponse({ 
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, 500);
-  }
-}
-
-// DELETE endpoint to delete a banner (admin only)
-export async function DELETE(request: Request) {
-  try {
-    // Verify authentication
-    const user = await verifyAuth(request);
-    if (!user) {
-      return createJsonResponse({ error: 'Unauthorized' }, 401);
-    }
-    
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single();
-    
-    if (profileError || !profile || !profile.is_admin) {
-      return createJsonResponse({ error: 'Forbidden: Admin access required' }, 403);
-    }
-    
-    // Get banner ID from URL
-    const url = new URL(request.url);
-    const id = url.searchParams.get('id');
-    
-    if (!id) {
-      return createJsonResponse({ error: 'Banner ID is required' }, 400);
-    }
-    
-    // Delete banner
-    const { error } = await supabase
-      .from('banners')
-      .delete()
-      .eq('id', id);
-    
-    if (error) {
-      console.error('Error deleting banner:', error);
-      return createJsonResponse({ error: 'Failed to delete banner' }, 500);
-    }
-    
-    return createJsonResponse({ success: true });
-  } catch (error) {
-    console.error('Error in banners API:', error);
     return createJsonResponse({ 
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'

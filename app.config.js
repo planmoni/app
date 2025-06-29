@@ -14,7 +14,6 @@ export default {
       PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY || '',
       DOJAH_APP_ID: process.env.DOJAH_APP_ID || '',
       DOJAH_PRIVATE_KEY: process.env.DOJAH_PRIVATE_KEY || '',
-      RESEND_API_KEY: process.env.RESEND_API_KEY || 're_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu',
     },
   },
 };
