@@ -346,7 +346,7 @@ export default function HomeScreen() {
           autoPlay={true}
           autoPlayInterval={1000}
           showPagination={true}
-          height={180}
+          height={116}
         />
 
         <PendingActionsCard />
