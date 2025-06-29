@@ -228,19 +228,19 @@ export default function ImageCarousel({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 16,
+    marginVertical: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
   slide: {
-    borderRadius: 12,
+    borderRadius: 8,
     overflow: 'hidden',
     marginRight: SLIDE_MARGIN,
     position: 'relative',
   },
   image: {
-    width: '510',
-    borderRadius: 12,
+    width: '100%',
+    borderRadius: 8,
     backgroundColor: '#ccc',
   },
   pagination: {
