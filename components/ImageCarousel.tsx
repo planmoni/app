@@ -67,9 +67,8 @@ export default function ImageCarousel({
       setError(null);
       console.log('[ImageCarousel] Fetching images from API');
       
-      // Fetch images from the API
-      const { data, error } = await supabase
-        .from('banners')
+      // Fetch images from the APId
+      const { data, error } = await supabase.from('banners')
         .select('*')
         .eq('is_active', true)
         .order('order_index', { ascending: true });
