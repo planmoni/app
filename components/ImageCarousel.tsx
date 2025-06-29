@@ -16,6 +16,7 @@ import Animated, {
   useAnimatedScrollHandler,
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
+import { supabase } from '@/lib/supabase';
 import PaginationDot from './PaginationDot';
 
 interface Banner {
@@ -65,58 +66,24 @@ export default function ImageCarousel({
     try {
       setIsLoading(true);
       setError(null);
-      console.log('[ImageCarousel] Fetching images from API');
-      
-      // Fetch images from the API
-  const fetchImages = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-  
-      console.log('[ImageCarousel] Fetching images directly from Supabase');
-  
+
+      console.log('[ImageCarousel] Fetching banners from Supabase');
+
       const { data, error } = await supabase
         .from('banners')
         .select('*')
         .eq('is_active', true)
         .order('order_index', { ascending: true });
-  
+
       if (error) {
         console.error('[ImageCarousel] Supabase error:', error);
         throw new Error('Failed to fetch banners');
       }
-  
-      console.log(`[ImageCarousel] Fetched ${data.length} banners`);
+
       setImages(data || []);
     } catch (err) {
       console.error('[ImageCarousel] Error fetching banners:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load images');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-
-
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[ImageCarousel] API error:', errorText);
-        throw new Error(`Failed to fetch images: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!data.success) {
-        console.error('[ImageCarousel] API returned error:', data.error);
-        throw new Error(data.error || 'Failed to fetch images');
-      }
-      
-      console.log(`[ImageCarousel] Fetched ${data.images?.length || 0} images`);
-      setImages(data.images || []);
-    } catch (err) {
-      console.error('[ImageCarousel] Error fetching images:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load images');
+      setError(err instanceof Error ? err.message : 'Failed to load banners');
     } finally {
       setIsLoading(false);
     }
@@ -155,20 +122,18 @@ export default function ImageCarousel({
   });
 
   const handleImagePress = (banner: Banner) => {
-    if (banner.link_url) router.push(banner.link_url);
+    if (banner.link_url) {
+      router.push(banner.link_url);
+    }
   };
 
-  const renderPlaceholder = () => (
-    <View style={[styles.placeholderContainer, { height }]}>
-      <Text style={styles.placeholderText}>No images available</Text>
-    </View>
-  );
+  const CarouselComponent = Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
 
   if (isLoading) {
     return (
       <View style={[styles.container, { height }]}>
         <ActivityIndicator color={colors.primary} />
-        <Text style={styles.loadingText}>Loading images...</Text>
+        <Text style={styles.loadingText}>Loading banners...</Text>
       </View>
     );
   }
@@ -185,11 +150,12 @@ export default function ImageCarousel({
   }
 
   if (images.length === 0) {
-    return renderPlaceholder();
+    return (
+      <View style={[styles.container, { height }]}>
+        <Text style={styles.placeholderText}>No banners available</Text>
+      </View>
+    );
   }
-
-  // Use the appropriate component based on platform
-  const CarouselComponent = Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
 
   return (
     <View style={[styles.container, { height }]}>
@@ -198,12 +164,11 @@ export default function ImageCarousel({
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={Platform.OS === 'web' ? undefined : scrollHandler}
         scrollEventThrottle={16}
-        decelerationRate="fast"
         snapToInterval={SNAP_INTERVAL}
         snapToAlignment="center"
-        contentContainerStyle={[styles.carouselContent, { paddingHorizontal: SLIDE_MARGIN }]}
+        contentContainerStyle={{ paddingHorizontal: SLIDE_MARGIN }}
+        onScroll={Platform.OS === 'web' ? undefined : scrollHandler}
       >
         {images.map((image) => (
           <Pressable
@@ -215,7 +180,9 @@ export default function ImageCarousel({
               source={{ uri: image.image_url }}
               style={[styles.image, { height }]}
               resizeMode="cover"
-              onError={(e) => console.error('[ImageCarousel] Image failed to load:', image.image_url, e.nativeEvent.error)}
+              onError={() =>
+                console.error('[ImageCarousel] Image failed to load:', image.image_url)
+              }
             />
             {image.title && (
               <View style={styles.captionContainer}>
@@ -259,9 +226,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  carouselContent: {
-    alignItems: 'center',
-  },
   slide: {
     borderRadius: 12,
     overflow: 'hidden',
@@ -277,39 +241,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 12,
+    gap: 8,
   },
   captionContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     padding: 12,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
   },
   captionTitle: {
-    color: '#FFFFFF',
+    color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontWeight: 'bold',
   },
   captionDescription: {
-    color: '#FFFFFF',
+    color: '#fff',
     fontSize: 14,
-    opacity: 0.8,
+    marginTop: 4,
   },
   ctaButton: {
     backgroundColor: '#1E3A8A',
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 4,
+    borderRadius: 6,
     alignSelf: 'flex-start',
     marginTop: 8,
   },
   ctaText: {
-    color: '#FFFFFF',
-    fontSize: 12,
+    color: '#fff',
     fontWeight: '500',
   },
   loadingText: {
@@ -318,7 +279,8 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#EF4444',
-    marginBottom: 12,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   retryButton: {
     backgroundColor: '#1E3A8A',
@@ -327,15 +289,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   retryText: {
-    color: '#FFFFFF',
+    color: '#fff',
     fontWeight: '500',
-  },
-  placeholderContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 12,
-    marginHorizontal: 16,
   },
   placeholderText: {
     color: '#666',
