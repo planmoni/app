@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   image: {
-    width: '400',
+    width: '50%',
     borderRadius: 8,
     backgroundColor: '#ccc',
   },
