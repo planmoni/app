@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSharedValue, useAnimatedReaction } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import PaginationDot from './PaginationDot';
@@ -31,6 +32,11 @@ interface BannerCarouselProps {
   height?: number;
 }
 
+const { width: screenWidth } = Dimensions.get('window');
+const SLIDE_MARGIN = 16;
+const SLIDE_WIDTH = screenWidth - 2 * SLIDE_MARGIN;
+const SNAP_INTERVAL = SLIDE_WIDTH + 2 * SLIDE_MARGIN;
+
 export default function BannerCarousel({
   autoPlay = true,
   autoPlayInterval = 5000,
@@ -44,9 +50,19 @@ export default function BannerCarousel({
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const { width: screenWidth } = Dimensions.get('window');
   const scrollViewRef = useRef<ScrollView>(null);
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Create animated value for pagination
+  const animatedIndex = useSharedValue(0);
+  
+  // Update animated index when current index changes
+  useAnimatedReaction(
+    () => currentIndex,
+    (current) => {
+      animatedIndex.value = current;
+    }
+  );
 
   useEffect(() => {
     const fetchBanners = async () => {
@@ -89,7 +105,7 @@ export default function BannerCarousel({
   const scrollToIndex = (index: number) => {
     if (scrollViewRef.current) {
       scrollViewRef.current.scrollTo({
-        x: index * screenWidth,
+        x: index * SNAP_INTERVAL,
         animated: true,
       });
     }
@@ -97,8 +113,8 @@ export default function BannerCarousel({
 
   const handleScroll = (event: any) => {
     const x = event.nativeEvent.contentOffset.x;
-    const newIndex = Math.round(x / screenWidth);
-    if (newIndex !== currentIndex) {
+    const newIndex = Math.round(x / SNAP_INTERVAL);
+    if (newIndex !== currentIndex && newIndex >= 0 && newIndex < banners.length) {
       setCurrentIndex(newIndex);
     }
   };
@@ -137,13 +153,14 @@ export default function BannerCarousel({
         scrollEventThrottle={16}
         onScroll={handleScroll}
         decelerationRate="fast"
-        snapToInterval={screenWidth}
+        snapToInterval={SNAP_INTERVAL}
         snapToAlignment="start"
+        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: SLIDE_MARGIN }]}
       >
         {banners.map((banner) => (
           <Pressable
             key={banner.id}
-            style={[styles.slide, { width: screenWidth - 40 }]}
+            style={[styles.slide, { width: SLIDE_WIDTH }]}
             onPress={() => handleBannerPress(banner)}
           >
             <Image
@@ -163,7 +180,10 @@ export default function BannerCarousel({
               key={index}
               index={index}
               currentIndex={currentIndex}
+              scrollX={animatedIndex}
+              screenWidth={SNAP_INTERVAL}
               color={colors.primary}
+              isDark={isDark}
             />
           ))}
         </View>
@@ -178,10 +198,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  scrollContent: {
+    alignItems: 'center',
+  },
   slide: {
     borderRadius: 12,
     overflow: 'hidden',
-    marginHorizontal: 16,
+    marginHorizontal: 0,
     backgroundColor: '#ccc',
   },
   image: {

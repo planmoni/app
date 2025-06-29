@@ -36,6 +36,11 @@ interface ImageCarouselProps {
   height?: number;
 }
 
+const { width: screenWidth } = Dimensions.get('window');
+const SLIDE_MARGIN = 16;
+const SLIDE_WIDTH = screenWidth - 2 * SLIDE_MARGIN;
+const SNAP_INTERVAL = SLIDE_WIDTH + 2 * SLIDE_MARGIN;
+
 export default function ImageCarousel({
   autoPlay = true,
   autoPlayInterval = 5000,
@@ -48,7 +53,6 @@ export default function ImageCarousel({
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const { width: screenWidth } = Dimensions.get('window');
   const scrollX = useSharedValue(0);
   const scrollViewRef = useRef<any>(null);
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -104,7 +108,7 @@ export default function ImageCarousel({
 
   const scrollToIndex = (index: number) => {
     if (scrollViewRef.current?.scrollTo) {
-      scrollViewRef.current.scrollTo({ x: index * (screenWidth - 32), animated: true });
+      scrollViewRef.current.scrollTo({ x: index * SNAP_INTERVAL, animated: true });
       setCurrentIndex(index);
     }
   };
@@ -114,8 +118,10 @@ export default function ImageCarousel({
       scrollX.value = event.contentOffset.x;
     },
     onMomentumEnd: (event) => {
-      const index = Math.round(event.contentOffset.x / (screenWidth - 32));
-      setCurrentIndex(index);
+      const index = Math.round(event.contentOffset.x / SNAP_INTERVAL);
+      if (index >= 0 && index < images.length) {
+        setCurrentIndex(index);
+      }
     },
   });
 
@@ -166,15 +172,15 @@ export default function ImageCarousel({
         onScroll={Platform.OS === 'web' ? undefined : scrollHandler}
         scrollEventThrottle={16}
         decelerationRate="fast"
-        snapToInterval={screenWidth - 32}
+        snapToInterval={SNAP_INTERVAL}
         snapToAlignment="center"
-        contentContainerStyle={styles.carouselContent}
+        contentContainerStyle={[styles.carouselContent, { paddingHorizontal: SLIDE_MARGIN }]}
       >
         {images.map((image) => (
           <Pressable
             key={image.id}
             onPress={() => handleImagePress(image)}
-            style={[styles.slide, { width: screenWidth - 40 }]}
+            style={[styles.slide, { width: SLIDE_WIDTH }]}
           >
             <Image
               source={{ uri: image.image_url }}
@@ -206,9 +212,10 @@ export default function ImageCarousel({
               key={index}
               index={index}
               scrollX={scrollX}
-              screenWidth={screenWidth - 32}
+              screenWidth={SNAP_INTERVAL}
               isDark={isDark}
               color={colors.primary}
+              currentIndex={currentIndex}
             />
           ))}
         </View>
@@ -224,12 +231,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   carouselContent: {
-    paddingHorizontal: 4,
+    alignItems: 'center',
   },
   slide: {
     borderRadius: 12,
     overflow: 'hidden',
-    marginHorizontal: 16,
+    marginHorizontal: 0,
     position: 'relative',
   },
   image: {
