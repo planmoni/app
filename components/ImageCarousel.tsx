@@ -180,7 +180,7 @@ export default function ImageCarousel({
             <Image 
               source={{ uri: banner.image_url }} 
               style={styles.image}
-              resizeMode="cover"
+              resizeMode="fit"
             />
             
               <View style={styles.textContainer}>
