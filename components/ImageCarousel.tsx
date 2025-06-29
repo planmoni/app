@@ -182,7 +182,7 @@ export default function ImageCarousel({
           >
             <Image
               source={{ uri: image.image_url }}
-              style={[styles.image, { height }]}
+              style={[styles.image]}
               resizeMode="fit"
               width={510}
               height={150}
