@@ -11,8 +11,11 @@ interface PaginationDotProps {
   currentIndex?: number;
   scrollX?: SharedValue<number>;
   screenWidth?: number;
-  color?: string;
+  width?: number;
+  activeColor?: string;
+  inactiveColor?: string;
   isDark?: boolean;
+  color?: string;
 }
 
 export default function PaginationDot({
@@ -20,54 +23,66 @@ export default function PaginationDot({
   currentIndex = 0,
   scrollX,
   screenWidth = 300,
-  color = '#007AFF',
+  width = 300,
+  activeColor = '#007AFF',
+  inactiveColor,
   isDark = false,
+  color,
 }: PaginationDotProps) {
+  // Use color prop if provided, otherwise use activeColor
+  const dotColor = color || activeColor;
+  const dotInactiveColor = inactiveColor || dotColor;
+  
+  // Use width prop if provided, otherwise use screenWidth
+  const slideWidth = width || screenWidth;
+  
   const animatedStyle = useAnimatedStyle(() => {
     if (!scrollX) {
       // Fallback to simple active/inactive state when scrollX is not available
       const isActive = index === currentIndex;
       return {
-        opacity: isActive ? 1 : 0.3,
-        transform: [{ scale: isActive ? 1.2 : 1 }],
+        width: isActive ? 24 : 8,
+        opacity: isActive ? 1 : 0.5,
       };
     }
 
-    // Ensure screenWidth is valid to prevent NaN
-    const validScreenWidth = screenWidth > 0 ? screenWidth : 300;
+    // Ensure slideWidth is valid to prevent NaN
+    const validWidth = slideWidth > 0 ? slideWidth : 300;
     
     const inputRange = [
-      (index - 1) * validScreenWidth,
-      index * validScreenWidth,
-      (index + 1) * validScreenWidth,
+      (index - 1) * validWidth,
+      index * validWidth,
+      (index + 1) * validWidth,
     ];
+
+    const dotWidth = interpolate(
+      scrollX.value,
+      inputRange,
+      [8, 24, 8],
+      'clamp'
+    );
 
     const opacity = interpolate(
       scrollX.value,
       inputRange,
-      [0.3, 1, 0.3],
-      'clamp'
-    );
-
-    const scale = interpolate(
-      scrollX.value,
-      inputRange,
-      [1, 1.2, 1],
+      [0.5, 1, 0.5],
       'clamp'
     );
 
     return {
+      width: dotWidth,
       opacity,
-      transform: [{ scale }],
     };
-  }, [index, currentIndex, scrollX, screenWidth]);
+  });
 
   return (
     <Animated.View
       style={[
         styles.dot,
         {
-          backgroundColor: color,
+          backgroundColor: dotColor,
+          height: 8,
+          borderRadius: 4,
         },
         animatedStyle,
       ]}
@@ -77,9 +92,8 @@ export default function PaginationDot({
 
 const styles = StyleSheet.create({
   dot: {
-    width: 8,
     height: 8,
     borderRadius: 4,
-    marginHorizontal: 3,
+    marginHorizontal: 4,
   },
 });

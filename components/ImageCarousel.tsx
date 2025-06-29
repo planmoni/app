@@ -16,18 +16,17 @@ import Animated, {
   useAnimatedScrollHandler,
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
-import { supabase } from '@/lib/supabase';
 import PaginationDot from './PaginationDot';
 
 interface Banner {
   id: string;
-  title: string;
-  description: string | null;
+  title?: string;
+  description?: string | null;
   image_url: string;
-  cta_text: string | null;
-  link_url: string | null;
-  order_index: number;
-  is_active: boolean;
+  cta_text?: string | null;
+  link_url?: string | null;
+  order_index?: number;
+  is_active?: boolean;
 }
 
 interface ImageCarouselProps {
@@ -35,6 +34,8 @@ interface ImageCarouselProps {
   autoPlayInterval?: number;
   showPagination?: boolean;
   height?: number;
+  images?: Banner[];
+  fetchUrl?: string;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -48,10 +49,12 @@ export default function ImageCarousel({
   autoPlayInterval = 5000,
   showPagination = true,
   height = 200,
+  images: propImages,
+  fetchUrl = '/api/images',
 }: ImageCarouselProps) {
   const { colors, isDark } = useTheme();
-  const [images, setImages] = useState<Banner[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [images, setImages] = useState<Banner[]>(propImages || []);
+  const [isLoading, setIsLoading] = useState(!propImages);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -60,31 +63,40 @@ export default function ImageCarousel({
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    fetchImages();
-  }, []);
+    if (!propImages) {
+      fetchImages();
+    }
+  }, [propImages]);
+
+  useEffect(() => {
+    if (propImages) {
+      setImages(propImages);
+      setIsLoading(false);
+    }
+  }, [propImages]);
 
   const fetchImages = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      console.log('[ImageCarousel] Fetching banners from Supabase');
-
-      const { data, error } = await supabase
-        .from('banners')
-        .select('*')
-        .eq('is_active', true)
-        .order('order_index', { ascending: true });
-
-      if (error) {
-        console.error('[ImageCarousel] Supabase error:', error);
-        throw new Error('Failed to fetch banners');
+      console.log('[ImageCarousel] Fetching images from API');
+      const response = await fetch(fetchUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch images: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to load images');
       }
 
-      setImages(data || []);
+      setImages(data.images || []);
     } catch (err) {
-      console.error('[ImageCarousel] Error fetching banners:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load banners');
+      console.error('[ImageCarousel] Error fetching images:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load images');
     } finally {
       setIsLoading(false);
     }
@@ -101,7 +113,7 @@ export default function ImageCarousel({
     return () => {
       if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
     };
-  }, [images, currentIndex, isLoading]);
+  }, [images, currentIndex, isLoading, autoPlay, autoPlayInterval]);
 
   const scrollToIndex = (index: number) => {
     if (scrollViewRef.current?.scrollTo) {
@@ -128,14 +140,11 @@ export default function ImageCarousel({
     }
   };
 
-  const isWeb = Platform.OS === 'web';
-  const CarouselComponent = isWeb ? ScrollView : Animated.ScrollView;
-
   if (isLoading) {
     return (
       <View style={[styles.container, { height }]}>
         <ActivityIndicator color={colors.primary} />
-        <Text style={styles.loadingText}>Loading banners...</Text>
+        <Text style={styles.loadingText}>Loading images...</Text>
       </View>
     );
   }
@@ -152,12 +161,11 @@ export default function ImageCarousel({
   }
 
   if (images.length === 0) {
-    return (
-      <View style={[styles.container, { height }]}>
-        <Text style={styles.placeholderText}>No banners available</Text>
-      </View>
-    );
+    return null;
   }
+
+  // Use appropriate component based on platform
+  const CarouselComponent = Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
 
   return (
     <View style={[styles.container, { height }]}>
@@ -169,11 +177,18 @@ export default function ImageCarousel({
         scrollEventThrottle={16}
         snapToInterval={SNAP_INTERVAL}
         snapToAlignment="start"
-        contentContainerStyle={{ paddingHorizontal: SLIDE_MARGIN }}
-        {...(!isWeb && {
-          onScroll: scrollHandler,
-        })}
         decelerationRate="fast"
+        contentContainerStyle={{ paddingHorizontal: SLIDE_MARGIN }}
+        onScroll={Platform.OS !== 'web' ? scrollHandler : undefined}
+        onMomentumScrollEnd={(event) => {
+          if (Platform.OS === 'web') {
+            const x = event.nativeEvent.contentOffset.x;
+            const newIndex = Math.round(x / SNAP_INTERVAL);
+            if (newIndex !== currentIndex && newIndex >= 0 && newIndex < images.length) {
+              setCurrentIndex(newIndex);
+            }
+          }
+        }}
       >
         {images.map((image) => (
           <Pressable
@@ -296,9 +311,5 @@ const styles = StyleSheet.create({
   retryText: {
     color: '#fff',
     fontWeight: '500',
-  },
-  placeholderText: {
-    color: '#666',
-    fontSize: 14,
   },
 });
