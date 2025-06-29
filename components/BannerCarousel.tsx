@@ -170,14 +170,6 @@ export default function BannerCarousel({
                 
               ]}
             >
-              <View style={styles.textContainer}>
-                
-                {banner.cta_text && (
-                  <View style={[styles.ctaButton, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.ctaText}>{banner.cta_text}</Text>
-                  </View>
-                )}
-              </View>
             </View>
           </Pressable>
         ))}
