@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: 5,
     gap: 8,
   },
   captionContainer: {
