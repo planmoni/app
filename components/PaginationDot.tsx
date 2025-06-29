@@ -29,45 +29,38 @@ export default function PaginationDot({
   isDark = false,
   color,
 }: PaginationDotProps) {
-  // Use color prop if provided, otherwise use activeColor
   const dotColor = color || activeColor;
   const dotInactiveColor = inactiveColor || dotColor;
-  
-  // Use width prop if provided, otherwise use screenWidth
   const slideWidth = width || screenWidth;
-  
-  const animatedStyle = useAnimatedStyle(() => {
-    if (!scrollX) {
-      // Fallback to simple active/inactive state when scrollX is not available
-      const isActive = index === currentIndex;
-      return {
-        width: isActive ? 24 : 8,
-        opacity: isActive ? 1 : 0.5,
-      };
-    }
+  const validWidth = slideWidth > 0 ? slideWidth : 300;
 
-    // Ensure slideWidth is valid to prevent NaN
-    const validWidth = slideWidth > 0 ? slideWidth : 300;
-    
+  // 🔐 Safe fallback style for non-animated dots (e.g., on web)
+  if (!scrollX) {
+    const isActive = index === currentIndex;
+    return (
+      <View
+        style={[
+          styles.dot,
+          {
+            width: isActive ? 24 : 8,
+            opacity: isActive ? 1 : 0.5,
+            backgroundColor: dotColor,
+          },
+        ]}
+      />
+    );
+  }
+
+  // 🎥 Animated style for mobile
+  const animatedStyle = useAnimatedStyle(() => {
     const inputRange = [
       (index - 1) * validWidth,
       index * validWidth,
       (index + 1) * validWidth,
     ];
 
-    const dotWidth = interpolate(
-      scrollX.value,
-      inputRange,
-      [8, 24, 8],
-      'clamp'
-    );
-
-    const opacity = interpolate(
-      scrollX.value,
-      inputRange,
-      [0.5, 1, 0.5],
-      'clamp'
-    );
+    const dotWidth = interpolate(scrollX.value, inputRange, [8, 24, 8], 'clamp');
+    const opacity = interpolate(scrollX.value, inputRange, [0.5, 1, 0.5], 'clamp');
 
     return {
       width: dotWidth,
@@ -81,8 +74,6 @@ export default function PaginationDot({
         styles.dot,
         {
           backgroundColor: dotColor,
-          height: 8,
-          borderRadius: 4,
         },
         animatedStyle,
       ]}
