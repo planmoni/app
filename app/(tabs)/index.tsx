@@ -342,10 +342,11 @@ export default function HomeScreen() {
         </Card>
 
         {/* Banner Carousel */}
-        <Image
-          source={{ uri: banner.image_url }}
-          style={styles.image}
-          resizeMode="cover"
+        <BannerCarousel 
+          autoPlay={true}
+          autoPlayInterval={5000}
+          showPagination={true}
+          height={180}
         />
 
         <PendingActionsCard />
