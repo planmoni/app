@@ -10,7 +10,7 @@ import {
   Alert,
   Image
 } from 'react-native';
-import { X, Plus, Edit, Trash, Eye, EyeOff, ArrowUp, ArrowDown } from 'lucide-react-native';
+import { X, Plus, LocationEdit as Edit, Trash, Eye, EyeOff, ArrowUp, ArrowDown } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
