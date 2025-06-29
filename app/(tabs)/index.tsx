@@ -9,7 +9,7 @@ import ImageCarousel from '@/components/ImageCarousel';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View, Alert, ImageBackground } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -298,59 +298,47 @@ export default function HomeScreen() {
         </View>
 
         <Card style={styles.balanceCard}>
-          <ImageBackground 
-            source={require('@/assets/images/background.png')} 
-            style={styles.balanceCardBackground}
-            resizeMode="cover"
-          >
-            {/* Semi-transparent overlay */}
-            <View style={[
-              styles.balanceCardOverlay, 
-              { backgroundColor: isDark ? 'rgba(30, 41, 59, 0.85)' : 'rgba(255, 255, 255, 0.85)' }
-            ]} />
-            
-            <View style={styles.balanceCardContent}>
-              <View style={styles.balanceLabelContainer}>
-                <Text style={styles.balanceLabel}>Available Balance</Text>
-                <Pressable 
-                  onPress={toggleBalances}
-                  style={styles.eyeIconButton}
-                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                >
-                  {showBalances ? (
-                    <EyeOff size={16} color={colors.textSecondary} />
-                  ) : (
-                    <Eye size={16} color={colors.textSecondary} />
-                  )}
-                </Pressable>
-              </View>
-              <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
-              <View style={styles.lockedSection}>
-                <View style={styles.lockedLabelContainer}>
-                  <Lock size={16} color={colors.textSecondary} />
-                  <Text style={styles.lockedLabel}>Locked for payouts</Text>
-                </View>
-                <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text>
-              </View>
-              <View style={styles.buttonGroup}>
+          <View style={styles.balanceCardContent}>
+            <View style={styles.balanceLabelContainer}>
+              <Text style={styles.balanceLabel}>Available Balance</Text>
               <Pressable 
-                  style={styles.addFundsButton} 
-                  onPress={handleAddFunds}
-                >
-                  <ArrowDownRight size={20} color={colors.text} />
-                  <Text style={styles.addFundsText}>Deposit</Text>
-                </Pressable>
-                <Pressable 
-                  style={styles.createButton} 
-                  onPress={handleCreatePayout}
-                >
-                  <ArrowUpRight size={20} color="#FFFFFF" />
-                  <Text style={styles.createButtonText}>Plan</Text>
-                </Pressable>
-                
-              </View>
+                onPress={toggleBalances}
+                style={styles.eyeIconButton}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              >
+                {showBalances ? (
+                  <EyeOff size={16} color={colors.textSecondary} />
+                ) : (
+                  <Eye size={16} color={colors.textSecondary} />
+                )}
+              </Pressable>
             </View>
-          </ImageBackground>
+            <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
+            <View style={styles.lockedSection}>
+              <View style={styles.lockedLabelContainer}>
+                <Lock size={16} color={colors.textSecondary} />
+                <Text style={styles.lockedLabel}>Locked for payouts</Text>
+              </View>
+              <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text>
+            </View>
+            <View style={styles.buttonGroup}>
+            <Pressable 
+                style={styles.addFundsButton} 
+                onPress={handleAddFunds}
+              >
+                <ArrowDownRight size={20} color={colors.text} />
+                <Text style={styles.addFundsText}>Deposit</Text>
+              </Pressable>
+              <Pressable 
+                style={styles.createButton} 
+                onPress={handleCreatePayout}
+              >
+                <ArrowUpRight size={20} color="#FFFFFF" />
+                <Text style={styles.createButtonText}>Plan</Text>
+              </Pressable>
+              
+            </View>
+          </View>
         </Card>
 
         {/* Banner Carousel */}
@@ -748,14 +736,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  balanceCardBackground: {
-    width: '100%',
-    overflow: 'hidden',
-  },
-  balanceCardOverlay: {
-    ...StyleSheet.absoluteFillObject,
   },
   balanceCardContent: {
     paddingVertical: 3,
