@@ -1,5 +1,3 @@
-// BannerCarousel.tsx
-
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -14,12 +12,10 @@ import { router } from 'expo-router';
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
-  useAnimatedStyle,
-  interpolate,
-  withTiming,
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
-import { supabase } from '@/lib/supabase'; // adjust if needed
+import { supabase } from '@/lib/supabase';
+import PaginationDot from './PaginationDot'; // Create this component separately
 
 interface Banner {
   id: string;
@@ -76,8 +72,8 @@ export default function BannerCarousel({
           data.map(async (banner) => {
             const { data: publicUrlData } = supabase
               .storage
-              .from('banners') // your bucket
-              .getPublicUrl(banner.image_url); // path inside the bucket
+              .from('banners')
+              .getPublicUrl(banner.image_url);
 
             return {
               ...banner,
@@ -162,9 +158,7 @@ export default function BannerCarousel({
     );
   }
 
-  if (banners.length === 0) {
-    return null;
-  }
+  if (banners.length === 0) return null;
 
   return (
     <View style={[styles.container, { height }]}>
@@ -216,27 +210,16 @@ export default function BannerCarousel({
 
       {showPagination && banners.length > 1 && (
         <View style={styles.pagination}>
-          {banners.map((_, index) => {
-            const dotStyle = useAnimatedStyle(() => {
-              const inputRange = [
-                (index - 1) * screenWidth,
-                index * screenWidth,
-                (index + 1) * screenWidth,
-              ];
-
-              const width = interpolate(scrollX.value, inputRange, [8, 24, 8], 'clamp');
-              const opacity = interpolate(scrollX.value, inputRange, [0.5, 1, 0.5], 'clamp');
-              const backgroundColor = isDark ? '#FFFFFF' : colors.primary;
-
-              return {
-                width: withTiming(width, { duration: 200 }),
-                opacity: withTiming(opacity, { duration: 200 }),
-                backgroundColor,
-              };
-            });
-
-            return <Animated.View key={index} style={[styles.dot, dotStyle]} />;
-          })}
+          {banners.map((_, index) => (
+            <PaginationDot
+              key={index}
+              index={index}
+              scrollX={scrollX}
+              screenWidth={screenWidth}
+              isDark={isDark}
+              color={colors.primary}
+            />
+          ))}
         </View>
       )}
     </View>
@@ -299,11 +282,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 12,
-    gap: 8,
-  },
-  dot: {
-    height: 8,
-    borderRadius: 4,
   },
   errorText: {
     fontSize: 14,
