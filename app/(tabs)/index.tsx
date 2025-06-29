@@ -334,7 +334,7 @@ export default function HomeScreen() {
                 onPress={handleCreatePayout}
               >
                 <ArrowUpRight size={20} color="#FFFFFF" />
-                <Text style={styles.createButtonText}>Payout</Text>
+                <Text style={styles.createButtonText}>Plan</Text>
               </Pressable>
               
             </View>
