@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 5,
     marginBottom: 5,
-    gap: 8,
+    gap: 5,
   },
   captionContainer: {
     position: 'absolute',
