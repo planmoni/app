@@ -40,7 +40,7 @@ interface ImageCarouselProps {
 }
 
 const { width: screenWidth } = Dimensions.get('window');
-const SLIDE_MARGIN = 16;
+const SLIDE_MARGIN = 160;
 const SLIDE_WIDTH = screenWidth - SLIDE_MARGIN * 2;
 const SNAP_INTERVAL = SLIDE_WIDTH + SLIDE_MARGIN;
 
@@ -203,7 +203,7 @@ export default function ImageCarousel({
               index={index}
               currentIndex={currentIndex}
               scrollX={Platform.OS === 'web' ? undefined : scrollX}
-              screenWidth={1000}
+              screenWidth={SNAP_INTERVAL}
               color={colors.primary}
               isDark={isDark}
             />
