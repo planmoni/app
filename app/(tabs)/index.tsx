@@ -342,12 +342,7 @@ export default function HomeScreen() {
         </Card>
 
         {/* Banner Carousel */}
-        <BannerCarousel 
-          autoPlay={true}
-          autoPlayInterval={5000}
-          showPagination={true}
-          height={200}
-        />
+        <BannerCarousel/>
 
         <PendingActionsCard />
 
