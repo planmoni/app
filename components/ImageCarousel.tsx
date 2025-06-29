@@ -68,7 +68,18 @@ export default function ImageCarousel({
       console.log('[ImageCarousel] Fetching images from API');
       
       // Fetch images from the API
-      const response = await fetch('/api/images');
+      const { data, error } = await supabase
+        .from('banners')
+        .select('*')
+        .eq('is_active', true)
+        .order('order_index', { ascending: true });
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        throw new Error('Failed to fetch banners');
+      }
+      setImages(data || []);
+
       
       if (!response.ok) {
         const errorText = await response.text();
