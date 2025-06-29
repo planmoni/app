@@ -184,7 +184,7 @@ export default function ImageCarousel({
               source={{ uri: image.image_url }}
               style={[styles.image]}
               resizeMode="fit"
-              width={510}
+              width={310}
               height={150}
               onError={() =>
                 console.error('[ImageCarousel] Image failed to load:', image.image_url)
