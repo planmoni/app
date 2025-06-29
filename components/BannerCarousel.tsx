@@ -38,7 +38,7 @@ export default function BannerCarousel({
   autoPlayInterval = 1000,
   showPagination = true,
   showControls = false,
-  height = 900,
+  height = 116,
 }: BannerCarouselProps) {
   const { colors, isDark } = useTheme();
   const [banners, setBanners] = useState<Banner[]>([]);
