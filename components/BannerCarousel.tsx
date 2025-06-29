@@ -167,10 +167,7 @@ export default function BannerCarousel({
             />
             <View
               style={[
-                styles.overlay,
-                {
-                  
-                },
+                
               ]}
             >
               <View style={styles.textContainer}>
