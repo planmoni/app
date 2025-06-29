@@ -9,7 +9,7 @@ import ImageCarousel from '@/components/ImageCarousel';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View, Alert, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -297,7 +297,11 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <Card style={styles.balanceCard}>
+        <ImageBackground 
+          source={require('@/assets/images/background.png')} 
+          style={styles.balanceCard}
+          resizeMode="fit"
+        >
           <View style={styles.balanceCardContent}>
             <View style={styles.balanceLabelContainer}>
               <Text style={styles.balanceLabel}>Available Balance</Text>
@@ -339,7 +343,7 @@ export default function HomeScreen() {
               
             </View>
           </View>
-        </Card>
+        </ImageBackground>
 
         {/* Banner Carousel */}
         <ImageCarousel/>
@@ -731,15 +735,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
   },
   balanceCard: {
-    backgroundColor: colors.card,
     marginBottom: 24,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
+    overflow: 'hidden',
   },
   balanceCardContent: {
-    paddingVertical: 3,
-    paddingHorizontal: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
   },
   balanceLabelContainer: {
     flexDirection: 'row',
@@ -833,8 +837,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 18,
-    paddingHorizontal: 1,
-    paddingTop: 5,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   summaryTitle: {
     fontSize: 15,
@@ -842,11 +846,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
   },
   summaryItems: {
-    paddingHorizontal: 1,
+    paddingHorizontal: 16,
     gap: 16,
   },
   expandedContent: {
-    paddingHorizontal: 1,
+    paddingHorizontal: 16,
     paddingTop: 16,
     gap: 10,
     borderTopWidth: 1,
