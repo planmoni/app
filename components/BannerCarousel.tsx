@@ -1,25 +1,26 @@
+// BannerCarousel.tsx
+
 import React, { useEffect, useRef, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  Image, 
-  Pressable, 
-  Dimensions, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  Pressable,
+  Dimensions,
   ActivityIndicator,
-  Platform
 } from 'react-native';
 import { router } from 'expo-router';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedScrollHandler, 
-  useAnimatedStyle, 
-  interpolate, 
-  withTiming 
+import Animated, {
+  useSharedValue,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  interpolate,
+  withTiming,
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
+import { supabase } from '@/lib/supabase'; // adjust if needed
 
-// Define the Banner type
 interface Banner {
   id: string;
   title: string;
@@ -44,39 +45,48 @@ export default function BannerCarousel({
   autoPlayInterval = 5000,
   showPagination = true,
   showControls = false,
-  height = 180
+  height = 180,
 }: BannerCarouselProps) {
   const { colors, isDark } = useTheme();
   const [banners, setBanners] = useState<Banner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  
+
   const { width: screenWidth } = Dimensions.get('window');
   const scrollX = useSharedValue(0);
   const scrollViewRef = useRef<Animated.ScrollView>(null);
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Fetch banners from the API
+
   useEffect(() => {
     const fetchBanners = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        
-        const response = await fetch('/api/images');
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch images: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to fetch images');
-        }
-        
-        setBanners(data.banners || []);
+
+        const { data, error } = await supabase
+          .from('banners')
+          .select('*')
+          .eq('is_active', true)
+          .order('order_index', { ascending: true });
+
+        if (error) throw error;
+
+        const bannersWithUrls = await Promise.all(
+          data.map(async (banner) => {
+            const { data: publicUrlData } = supabase
+              .storage
+              .from('banners') // your bucket
+              .getPublicUrl(banner.image_url); // path inside the bucket
+
+            return {
+              ...banner,
+              image_url: publicUrlData?.publicUrl || '',
+            };
+          })
+        );
+
+        setBanners(bannersWithUrls);
       } catch (err) {
         console.error('Error fetching images:', err);
         setError(err instanceof Error ? err.message : 'Failed to load images');
@@ -84,41 +94,40 @@ export default function BannerCarousel({
         setIsLoading(false);
       }
     };
-    
+
     fetchBanners();
   }, []);
-  
-  // Set up auto-play
+
   useEffect(() => {
     if (autoPlay && banners.length > 1 && !isLoading) {
       startAutoPlay();
     }
-    
+
     return () => {
       if (autoPlayTimerRef.current) {
         clearInterval(autoPlayTimerRef.current);
       }
     };
   }, [autoPlay, banners.length, isLoading]);
-  
+
   const startAutoPlay = () => {
     if (autoPlayTimerRef.current) {
       clearInterval(autoPlayTimerRef.current);
     }
-    
+
     autoPlayTimerRef.current = setInterval(() => {
       const nextIndex = (currentIndex + 1) % banners.length;
       scrollToIndex(nextIndex);
     }, autoPlayInterval);
   };
-  
+
   const scrollToIndex = (index: number) => {
     if (scrollViewRef.current) {
       scrollViewRef.current.scrollTo({ x: index * screenWidth, animated: true });
       setCurrentIndex(index);
     }
   };
-  
+
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollX.value = event.contentOffset.x;
@@ -130,14 +139,13 @@ export default function BannerCarousel({
       }
     },
   });
-  
+
   const handleBannerPress = (banner: Banner) => {
     if (banner.link_url) {
       router.push(banner.link_url);
     }
   };
-  
-  // Render loading state
+
   if (isLoading) {
     return (
       <View style={[styles.container, { height, backgroundColor: colors.backgroundTertiary }]}>
@@ -145,8 +153,7 @@ export default function BannerCarousel({
       </View>
     );
   }
-  
-  // Render error state
+
   if (error) {
     return (
       <View style={[styles.container, { height, backgroundColor: colors.backgroundTertiary }]}>
@@ -154,12 +161,11 @@ export default function BannerCarousel({
       </View>
     );
   }
-  
-  // Render empty state
+
   if (banners.length === 0) {
     return null;
   }
-  
+
   return (
     <View style={[styles.container, { height }]}>
       <Animated.ScrollView
@@ -172,20 +178,24 @@ export default function BannerCarousel({
         decelerationRate="fast"
       >
         {banners.map((banner) => (
-          <Pressable 
-            key={banner.id} 
+          <Pressable
+            key={banner.id}
             style={[styles.slide, { width: screenWidth - 32 }]}
             onPress={() => handleBannerPress(banner)}
           >
-            <Image 
-              source={{ uri: banner.image_url }} 
+            <Image
+              source={{ uri: banner.image_url }}
               style={styles.image}
               resizeMode="cover"
             />
-            <View style={[
-              styles.overlay, 
-              { backgroundColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.4)' }
-            ]}>
+            <View
+              style={[
+                styles.overlay,
+                {
+                  backgroundColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.4)',
+                },
+              ]}
+            >
               <View style={styles.textContainer}>
                 <Text style={[styles.title, { color: '#FFFFFF' }]}>{banner.title}</Text>
                 {banner.description && (
@@ -203,7 +213,7 @@ export default function BannerCarousel({
           </Pressable>
         ))}
       </Animated.ScrollView>
-      
+
       {showPagination && banners.length > 1 && (
         <View style={styles.pagination}>
           {banners.map((_, index) => {
@@ -213,36 +223,19 @@ export default function BannerCarousel({
                 index * screenWidth,
                 (index + 1) * screenWidth,
               ];
-              
-              const width = interpolate(
-                scrollX.value,
-                inputRange,
-                [8, 24, 8],
-                'clamp'
-              );
-              
-              const opacity = interpolate(
-                scrollX.value,
-                inputRange,
-                [0.5, 1, 0.5],
-                'clamp'
-              );
-              
+
+              const width = interpolate(scrollX.value, inputRange, [8, 24, 8], 'clamp');
+              const opacity = interpolate(scrollX.value, inputRange, [0.5, 1, 0.5], 'clamp');
               const backgroundColor = isDark ? '#FFFFFF' : colors.primary;
-              
+
               return {
                 width: withTiming(width, { duration: 200 }),
                 opacity: withTiming(opacity, { duration: 200 }),
                 backgroundColor,
               };
             });
-            
-            return (
-              <Animated.View
-                key={index}
-                style={[styles.dot, dotStyle]}
-              />
-            );
+
+            return <Animated.View key={index} style={[styles.dot, dotStyle]} />;
           })}
         </View>
       )}
