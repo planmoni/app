@@ -39,8 +39,9 @@ interface ImageCarouselProps {
 
 const { width: screenWidth } = Dimensions.get('window');
 const SLIDE_MARGIN = 16;
-const SLIDE_WIDTH = screenWidth - 2 * SLIDE_MARGIN;
-const SNAP_INTERVAL = SLIDE_WIDTH + 2 * SLIDE_MARGIN;
+const SLIDE_WIDTH = screenWidth - (SLIDE_MARGIN * 2);
+// Adjust SNAP_INTERVAL to match the slide width plus right margin
+const SNAP_INTERVAL = SLIDE_WIDTH + SLIDE_MARGIN;
 
 export default function ImageCarousel({
   autoPlay = true,
@@ -167,11 +168,12 @@ export default function ImageCarousel({
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
         snapToInterval={SNAP_INTERVAL}
-        snapToAlignment="center"
+        snapToAlignment="start"
         contentContainerStyle={{ paddingHorizontal: SLIDE_MARGIN }}
         {...(!isWeb && {
           onScroll: scrollHandler,
         })}
+        decelerationRate="fast"
       >
         {images.map((image) => (
           <Pressable
@@ -210,11 +212,11 @@ export default function ImageCarousel({
             <PaginationDot
               key={index}
               index={index}
+              currentIndex={currentIndex}
               scrollX={scrollX}
               screenWidth={SNAP_INTERVAL}
-              isDark={isDark}
               color={colors.primary}
-              currentIndex={currentIndex}
+              isDark={isDark}
             />
           ))}
         </View>
@@ -232,7 +234,7 @@ const styles = StyleSheet.create({
   slide: {
     borderRadius: 12,
     overflow: 'hidden',
-    marginHorizontal: 0,
+    marginRight: SLIDE_MARGIN,
     position: 'relative',
   },
   image: {
