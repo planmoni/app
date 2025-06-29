@@ -174,7 +174,7 @@ export async function POST(request: Request) {
   }
 }
 
-// Handle successful charge (payment to virtual account)
+// Handle successful charge (payment to virtual account or USSD)
 async function handleChargeSuccess(data: any) {
   try {
     console.log('Processing charge.success webhook:', data);
@@ -184,30 +184,68 @@ async function handleChargeSuccess(data: any) {
       amount,
       metadata,
       customer: { email },
-      authorization: { account_number }
+      authorization
     } = data;
 
     // Convert amount from kobo to naira
     const amountInNaira = amount / 100;
 
-    // Find user by virtual account number
-    const userId = await findUserByVirtualAccount(account_number);
-    if (!userId) {
-      console.error(`No user found for virtual account: ${account_number}`);
-      return;
+    let userId: string | null = null;
+
+    // Check if this is a USSD payment
+    if (metadata?.payment_type === 'ussd') {
+      console.log('Processing USSD payment for reference:', reference);
+      
+      // Find user by reference in transactions table
+      const { data: transaction, error } = await supabase
+        .from('transactions')
+        .select('user_id')
+        .eq('reference', reference)
+        .eq('type', 'deposit')
+        .single();
+
+      if (error || !transaction) {
+        console.error(`No transaction found for USSD reference: ${reference}`);
+        return;
+      }
+
+      userId = transaction.user_id;
+    } else {
+      // Handle virtual account payment (existing logic)
+      const account_number = authorization?.account_number;
+      if (!account_number) {
+        console.error('No account number found in authorization data');
+        return;
+      }
+
+      userId = await findUserByVirtualAccount(account_number);
+      if (!userId) {
+        console.error(`No user found for virtual account: ${account_number}`);
+        return;
+      }
     }
 
     // Add funds to user's wallet
+    if (!userId) {
+      console.error('No user ID found for the payment');
+      return;
+    }
+
     await addFundsToWallet(userId, amountInNaira, reference);
 
     // Create notification event
+    const notificationTitle = metadata?.payment_type === 'ussd' ? 'USSD Payment Successful' : 'Funds Received';
+    const notificationDescription = metadata?.payment_type === 'ussd' 
+      ? `₦${amountInNaira.toLocaleString()} has been added to your wallet via USSD`
+      : `₦${amountInNaira.toLocaleString()} has been added to your wallet`;
+
     await supabase
       .from('events')
       .insert({
         user_id: userId,
         type: 'deposit_successful',
-        title: 'Funds Received',
-        description: `₦${amountInNaira.toLocaleString()} has been added to your wallet`,
+        title: notificationTitle,
+        description: notificationDescription,
         status: 'unread'
       });
 

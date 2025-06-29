@@ -58,7 +58,6 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const {
     session,
-    user,
     isLoading,
     signIn: supabaseSignIn,
     signUp,
@@ -69,6 +68,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [biometricSettings, setBiometricSettings] = useState<BiometricSettings | null>(null);
   const { sendNotification } = useEmailNotifications();
+
+  // Get user from session
+  const user = session?.user || null;
 
   useEffect(() => {
     refreshBiometricSettings();

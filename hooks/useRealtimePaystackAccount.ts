@@ -43,7 +43,7 @@ export function useRealtimePaystackAccount() {
               table: 'paystack_accounts',
               filter: `user_id=eq.${session.user.id}`,
             },
-            (payload) => {
+            (payload: any) => {
               console.log('Paystack account change received:', payload);
               
               if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
@@ -53,7 +53,7 @@ export function useRealtimePaystackAccount() {
               }
             }
           )
-          .subscribe((status) => {
+          .subscribe((status: any) => {
             console.log('Paystack account subscription status:', status);
           });
       } catch (err) {
