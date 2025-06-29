@@ -169,7 +169,9 @@ export default function ImageCarousel({
         snapToInterval={SNAP_INTERVAL}
         snapToAlignment="center"
         contentContainerStyle={{ paddingHorizontal: SLIDE_MARGIN }}
-        onScroll={Platform.OS === 'web' ? undefined : scrollHandler}
+        {...(!isWeb && {
+          onScroll: scrollHandler,
+        })}
       >
         {images.map((image) => (
           <Pressable
