@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   slide: {
-    borderRadius: 8,
+    borderRadius: 20,
     overflow: 'hidden',
     marginRight: SLIDE_MARGIN,
     position: 'relative',
