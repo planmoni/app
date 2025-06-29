@@ -184,12 +184,13 @@ export default function ImageCarousel({
               source={{ uri: image.image_url }}
               style={[styles.image, { height }]}
               resizeMode="fit"
-              width={100%}
+              width={510}
               height={150}
               onError={() =>
                 console.error('[ImageCarousel] Image failed to load:', image.image_url)
               }
             />
+            
           </Pressable>
         ))}
       </CarouselComponent>
