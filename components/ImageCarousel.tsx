@@ -40,15 +40,15 @@ interface ImageCarouselProps {
 }
 
 const { width: screenWidth } = Dimensions.get('window');
-const SLIDE_MARGIN = 5;
-const SLIDE_WIDTH = screenWidth - SLIDE_MARGIN;
-const SNAP_INTERVAL = SLIDE_WIDTH + SLIDE_MARGIN;
+const SLIDE_MARGIN = 8;
+const SLIDE_WIDTH = screenWidth;
+const SNAP_INTERVAL = SLIDE_WIDTH;
 
 export default function ImageCarousel({
   autoPlay = true,
   autoPlayInterval = 5000,
-  showPagination = true,
-  height = 151,
+  showPagination = false,
+  height = 200,
   images: propImages,
 }: ImageCarouselProps) {
   const { colors, isDark } = useTheme();
@@ -164,7 +164,7 @@ export default function ImageCarousel({
         snapToInterval={SNAP_INTERVAL}
         snapToAlignment="start"
         decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: SLIDE_MARGIN }}
+        contentContainerStyle={{ paddingHorizontal: 0 }}
         onScroll={Platform.OS !== 'web' ? scrollHandler : undefined}
         onMomentumScrollEnd={(event) => {
           const x = event.nativeEvent.contentOffset.x;
@@ -182,15 +182,25 @@ export default function ImageCarousel({
           >
             <Image
               source={{ uri: image.image_url }}
-              style={[styles.image]}
-              resizeMode="fit"
-              width={510}
-              height={150}
+              style={[styles.image, { height }]}
+              resizeMode="cover"
               onError={() =>
                 console.error('[ImageCarousel] Image failed to load:', image.image_url)
               }
             />
-            
+            {image.title && (
+              <View style={styles.captionContainer}>
+                <Text style={styles.captionTitle}>{image.title}</Text>
+                {image.description && (
+                  <Text style={styles.captionDescription}>{image.description}</Text>
+                )}
+                {image.cta_text && (
+                  <View style={styles.ctaButton}>
+                    <Text style={styles.ctaText}>{image.cta_text}</Text>
+                  </View>
+                )}
+              </View>
+            )}
           </Pressable>
         ))}
       </CarouselComponent>
@@ -199,7 +209,7 @@ export default function ImageCarousel({
         <View style={styles.pagination}>
           {images.map((_, index) => (
             <PaginationDot
-              key={index}d
+              key={index}
               index={index}
               currentIndex={currentIndex}
               scrollX={Platform.OS === 'web' ? undefined : scrollX}
@@ -223,12 +233,11 @@ const styles = StyleSheet.create({
   slide: {
     borderRadius: 8,
     overflow: 'hidden',
-    marginRight: SLIDE_MARGIN,
     position: 'relative',
   },
   image: {
-    width: '50%',
-    borderRadius: 8,
+    width: '100%',
+    borderRadius: 0,
     backgroundColor: '#ccc',
   },
   pagination: {
