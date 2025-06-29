@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Plus, Edit, Trash, Eye, EyeOff, ChevronUp, ChevronDown, Upload } from 'lucide-react-native';
+import { ArrowLeft, Plus, LocationEdit as Edit, Trash, Eye, EyeOff, ChevronUp, ChevronDown, Upload } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
