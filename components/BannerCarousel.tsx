@@ -7,20 +7,15 @@ import {
   Pressable,
   Dimensions,
   ActivityIndicator,
-  ScrollView,
-  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
-  useAnimatedStyle,
-  interpolate,
-  withTiming,
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import PaginationDot from './PaginationDot';
+import PaginationDot from './PaginationDot'; // Ensure this is implemented
 
 interface Banner {
   id: string;
@@ -40,10 +35,10 @@ interface BannerCarouselProps {
 
 export default function BannerCarousel({
   autoPlay = true,
-  autoPlayInterval = 5000,
+  autoPlayInterval = 1000,
   showPagination = true,
   showControls = false,
-  height = 180,
+  height = 116,
 }: BannerCarouselProps) {
   const { colors, isDark } = useTheme();
   const [banners, setBanners] = useState<Banner[]>([]);
@@ -53,7 +48,7 @@ export default function BannerCarousel({
 
   const { width: screenWidth } = Dimensions.get('window');
   const scrollX = useSharedValue(0);
-  const scrollViewRef = useRef<ScrollView | null>(null);
+  const scrollViewRef = useRef<Animated.ScrollView>(null);
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -68,6 +63,7 @@ export default function BannerCarousel({
           .order('order_index', { ascending: true });
 
         if (error) throw error;
+
         setBanners(data || []);
       } catch (err) {
         console.error('Error fetching banners:', err);
@@ -130,14 +126,16 @@ export default function BannerCarousel({
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { height, backgroundColor: colors.backgroundTertiary }]}>\n        <ActivityIndicator size="small" color={colors.primary} />
+      <View style={[styles.container, { height, backgroundColor: colors.backgroundTertiary }]}>
+        <ActivityIndicator size="small" color={colors.primary} />
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={[styles.container, { height, backgroundColor: colors.backgroundTertiary }]}>\n        <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+      <View style={[styles.container, { height, backgroundColor: colors.backgroundTertiary }]}>
+        <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
       </View>
     );
   }
@@ -145,25 +143,26 @@ export default function BannerCarousel({
   if (banners.length === 0) return null;
 
   return (
-    <View style={[styles.container, { height }]}>\n      <Animated.ScrollView
+    <View style={[styles.container, { height }]}>
+      <Animated.ScrollView
         ref={scrollViewRef}
         horizontal
-        pagingEnabled={Platform.OS !== 'web'}
+        pagingEnabled
         showsHorizontalScrollIndicator={false}
+        onScroll={scrollHandler}
         scrollEventThrottle={16}
         decelerationRate="fast"
-        onScroll={scrollHandler as any}
       >
         {banners.map((banner) => (
           <Pressable
             key={banner.id}
-            style={[styles.slide, { width: screenWidth - 32 }]}
+            style={[styles.slide, { width: screenWidth - 40 }]}
             onPress={() => handleBannerPress(banner)}
           >
             <Image
               source={{ uri: banner.image_url }}
               style={styles.image}
-              resizeMode="cover"
+              resizeMode="fit"
               onError={() => console.warn('Image failed to load:', banner.image_url)}
             />
           </Pressable>
@@ -171,7 +170,8 @@ export default function BannerCarousel({
       </Animated.ScrollView>
 
       {showPagination && banners.length > 1 && (
-        <View style={styles.pagination}>\n          {banners.map((_, index) => (
+        <View style={styles.pagination}>
+          {banners.map((_, index) => (
             <PaginationDot
               key={index}
               index={index}
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   slide: {
-    borderRadius: 16,
+    borderRadius: 8,
     overflow: 'hidden',
     marginHorizontal: 16,
     position: 'relative',
@@ -202,11 +202,11 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
-    borderRadius: 16,
+    borderRadius: 8,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 16,
+    borderRadius: 8,
     justifyContent: 'flex-end',
   },
   textContainer: {
@@ -243,11 +243,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 12,
-    gap: 8,
-  },
-  dot: {
-    height: 8,
-    borderRadius: 4,
   },
   errorText: {
     fontSize: 14,
