@@ -156,7 +156,7 @@ export default function BannerCarousel({
         {banners.map((banner) => (
           <Pressable
             key={banner.id}
-            style={[styles.slide, { width: screenWidth - 50 }]}
+            style={[styles.slide, { width: screenWidth - 30 }]}
             onPress={() => handleBannerPress(banner)}
           >
             <Image
