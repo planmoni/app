@@ -1,16 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Image, Pressable, Dimensions, ActivityIndicator } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  Image, 
+  Dimensions, 
+  Pressable, 
+  ActivityIndicator,
+  FlatList,
+  useWindowDimensions
+} from 'react-native';
 import { router } from 'expo-router';
 import Animated, { 
   useSharedValue, 
-  useAnimatedScrollHandler, 
-  useAnimatedStyle, 
-  interpolate, 
-  withTiming 
+  useAnimatedScrollHandler,
+  interpolate,
+  useAnimatedStyle
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 
-type Banner = {
+// Define the Banner type
+interface Banner {
   id: string;
   title: string;
   description: string | null;
@@ -19,239 +29,237 @@ type Banner = {
   link_url: string | null;
   order_index: number;
   is_active: boolean;
-};
+}
+
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
 export default function BannerCarousel() {
   const { colors, isDark } = useTheme();
+  const { width } = useWindowDimensions();
   const [banners, setBanners] = useState<Banner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(0);
   const scrollX = useSharedValue(0);
-  const { width: screenWidth } = Dimensions.get('window');
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const scrollViewRef = useRef<Animated.ScrollView>(null);
+  const flatListRef = useRef<FlatList>(null);
+  const autoScrollTimer = useRef<NodeJS.Timeout | null>(null);
 
+  // Fetch banners from the API
   useEffect(() => {
+    const fetchBanners = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        const response = await fetch('/api/banners');
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch banners: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.banners) {
+          setBanners(data.banners);
+        } else {
+          throw new Error(data.error || 'Failed to fetch banners');
+        }
+      } catch (err) {
+        console.error('Error fetching banners:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load banners');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
     fetchBanners();
   }, []);
 
+  // Auto-scroll functionality
   useEffect(() => {
-    // Auto-scroll banners every 5 seconds
-    if (banners.length > 1) {
-      timerRef.current = setInterval(() => {
-        const nextIndex = (currentIndex + 1) % banners.length;
-        setCurrentIndex(nextIndex);
-        scrollViewRef.current?.scrollTo({ x: nextIndex * screenWidth, animated: true });
-      }, 5000);
-    }
-
+    if (banners.length <= 1) return;
+    
+    const startAutoScroll = () => {
+      autoScrollTimer.current = setInterval(() => {
+        if (flatListRef.current) {
+          const nextIndex = (activeIndex + 1) % banners.length;
+          flatListRef.current.scrollToIndex({
+            index: nextIndex,
+            animated: true
+          });
+          setActiveIndex(nextIndex);
+        }
+      }, 5000); // Change slide every 5 seconds
+    };
+    
+    startAutoScroll();
+    
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
+      if (autoScrollTimer.current) {
+        clearInterval(autoScrollTimer.current);
       }
     };
-  }, [currentIndex, banners.length, screenWidth]);
+  }, [banners.length, activeIndex]);
 
-  const fetchBanners = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Use the API route for fetching banners
-      const apiUrl = `/api/banners?active=true`;
-      console.log('Fetching banners from:', apiUrl);
-      
-      const response = await fetch(apiUrl);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        throw new Error(`Server responded with ${response.status}: ${errorText}`);
-      }
-      
-      const data = await response.json();
-      console.log('Banners data:', data);
-      
-      if (data.banners) {
-        setBanners(data.banners);
-      } else {
-        setBanners([]);
-      }
-    } catch (err) {
-      console.error('Error fetching banners:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load banners');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Handle scroll events
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollX.value = event.contentOffset.x;
     },
     onMomentumEnd: (event) => {
-      const index = Math.round(event.contentOffset.x / screenWidth);
-      setCurrentIndex(index);
+      const newIndex = Math.round(event.contentOffset.x / width);
+      setActiveIndex(newIndex);
     },
   });
 
+  // Handle banner press
   const handleBannerPress = (banner: Banner) => {
     if (banner.link_url) {
       router.push(banner.link_url);
     }
   };
 
+  // Render banner item
+  const renderBanner = ({ item }: { item: Banner }) => {
+    return (
+      <Pressable 
+        style={[styles.bannerItem, { width }]} 
+        onPress={() => handleBannerPress(item)}
+      >
+        <Image 
+          source={{ uri: item.image_url }} 
+          style={styles.bannerImage}
+          resizeMode="cover"
+        />
+        <View style={[styles.bannerContent, { backgroundColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.8)' }]}>
+          <Text style={[styles.bannerTitle, { color: colors.text }]}>{item.title}</Text>
+          {item.description && (
+            <Text style={[styles.bannerDescription, { color: colors.textSecondary }]}>
+              {item.description}
+            </Text>
+          )}
+          {item.cta_text && (
+            <Pressable 
+              style={[styles.ctaButton, { backgroundColor: colors.primary }]}
+              onPress={() => handleBannerPress(item)}
+            >
+              <Text style={styles.ctaButtonText}>{item.cta_text}</Text>
+            </Pressable>
+          )}
+        </View>
+      </Pressable>
+    );
+  };
+
+  // Render pagination dots
+  const renderPaginationDots = () => {
+    return (
+      <View style={styles.pagination}>
+        {banners.map((_, index) => {
+          const dotStyle = useAnimatedStyle(() => {
+            const inputRange = [
+              (index - 1) * width,
+              index * width,
+              (index + 1) * width,
+            ];
+            
+            const width = interpolate(
+              scrollX.value,
+              inputRange,
+              [8, 16, 8],
+              'clamp'
+            );
+            
+            const opacity = interpolate(
+              scrollX.value,
+              inputRange,
+              [0.5, 1, 0.5],
+              'clamp'
+            );
+            
+            return {
+              width,
+              opacity,
+              backgroundColor: index === activeIndex ? colors.primary : colors.border,
+            };
+          });
+          
+          return (
+            <Animated.View
+              key={index}
+              style={[styles.paginationDot, dotStyle]}
+            />
+          );
+        })}
+      </View>
+    );
+  };
+
+  // If loading, show a loading indicator
   if (isLoading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.backgroundTertiary }]}>
+      <View style={[styles.container, styles.loadingContainer]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
+  // If error, show error message
   if (error) {
     return (
-      <View style={[styles.errorContainer, { backgroundColor: colors.backgroundTertiary }]}>
-        <Text style={[styles.errorText, { color: colors.error }]}>
-          {error}
-        </Text>
-        <Pressable 
-          style={[styles.retryButton, { backgroundColor: colors.primary }]}
-          onPress={fetchBanners}
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </Pressable>
+      <View style={[styles.container, styles.errorContainer]}>
+        <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
       </View>
     );
   }
 
+  // If no banners, don't render anything
   if (banners.length === 0) {
-    return null; // Don't render anything if there are no banners
+    return null;
   }
 
+  // Render the carousel
   return (
     <View style={styles.container}>
-      <Animated.ScrollView
-        ref={scrollViewRef}
+      <AnimatedFlatList
+        ref={flatListRef}
+        data={banners}
+        renderItem={renderBanner}
+        keyExtractor={(item) => item.id}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
-      >
-        {banners.map((banner) => (
-          <Pressable
-            key={banner.id}
-            style={[styles.bannerContainer, { width: screenWidth - 32 }]}
-            onPress={() => handleBannerPress(banner)}
-          >
-            <Image
-              source={{ uri: banner.image_url }}
-              style={styles.bannerImage}
-              resizeMode="cover"
-            />
-            <View style={[styles.bannerContent, { backgroundColor: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.8)' }]}>
-              <Text style={[styles.bannerTitle, { color: colors.text }]}>{banner.title}</Text>
-              {banner.description && (
-                <Text style={[styles.bannerDescription, { color: colors.textSecondary }]}>
-                  {banner.description}
-                </Text>
-              )}
-              {banner.cta_text && (
-                <View style={[styles.ctaButton, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.ctaButtonText}>{banner.cta_text}</Text>
-                </View>
-              )}
-            </View>
-          </Pressable>
-        ))}
-      </Animated.ScrollView>
-
-      {banners.length > 1 && (
-        <View style={styles.pagination}>
-          {banners.map((_, index) => {
-            const dotStyle = useAnimatedStyle(() => {
-              const inputRange = [
-                (index - 1) * screenWidth,
-                index * screenWidth,
-                (index + 1) * screenWidth,
-              ];
-              
-              const width = interpolate(
-                scrollX.value,
-                inputRange,
-                [8, 16, 8],
-                'clamp'
-              );
-              
-              const opacity = interpolate(
-                scrollX.value,
-                inputRange,
-                [0.5, 1, 0.5],
-                'clamp'
-              );
-              
-              const backgroundColor = currentIndex === index ? colors.primary : colors.border;
-              
-              return {
-                width: withTiming(width, { duration: 200 }),
-                opacity: withTiming(opacity, { duration: 200 }),
-                backgroundColor,
-              };
-            });
-            
-            return (
-              <Animated.View
-                key={index}
-                style={[styles.dot, dotStyle]}
-              />
-            );
-          })}
-        </View>
-      )}
+      />
+      {banners.length > 1 && renderPaginationDots()}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    height: 200,
     marginBottom: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   loadingContainer: {
-    height: 200,
-    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
   },
   errorContainer: {
-    height: 200,
-    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
     padding: 16,
   },
   errorText: {
+    fontSize: 14,
     textAlign: 'center',
-    marginBottom: 16,
   },
-  retryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  bannerContainer: {
-    height: 200,
-    borderRadius: 16,
-    overflow: 'hidden',
+  bannerItem: {
     position: 'relative',
-    marginRight: 16,
+    height: '100%',
   },
   bannerImage: {
     width: '100%',
@@ -273,27 +281,30 @@ const styles = StyleSheet.create({
   },
   bannerDescription: {
     fontSize: 14,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   ctaButton: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 8,
+    alignSelf: 'flex-start',
   },
   ctaButtonText: {
     color: '#FFFFFF',
-    fontWeight: '600',
     fontSize: 14,
+    fontWeight: '600',
   },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 16,
+    position: 'absolute',
+    bottom: 10,
+    left: 0,
+    right: 0,
     gap: 8,
   },
-  dot: {
+  paginationDot: {
     height: 8,
     borderRadius: 4,
   },

@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 
 // Helper function to ensure JSON response
 function createJsonResponse(data: any, status: number = 200) {
@@ -8,84 +8,36 @@ function createJsonResponse(data: any, status: number = 200) {
   });
 }
 
-// GET endpoint to fetch banner images from storage
+// GET endpoint to fetch active banners
 export async function GET(request: Request) {
   try {
-    console.log('[Banners API] Fetching banner images from storage');
-    
-    // Initialize Supabase client with environment variables
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('[Banners API] Missing Supabase environment variables');
-      return createJsonResponse({ 
-        error: 'Server configuration error',
-        details: 'Missing required environment variables'
-      }, 500);
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    console.log('[Banners API] Fetching active banners');
     
     // Get query parameters
     const url = new URL(request.url);
     const limit = parseInt(url.searchParams.get('limit') || '10');
     
-    // List files from the banners storage bucket
-    const { data: files, error: listError } = await supabase.storage
+    // Fetch active banners from the database
+    const { data, error } = await supabase
       .from('banners')
-      .list('', {
-        limit: limit,
-        sortBy: { column: 'name', order: 'asc' }
-      });
+      .select('*')
+      .eq('is_active', true)
+      .order('order_index', { ascending: true })
+      .limit(limit);
     
-    if (listError) {
-      console.error('[Banners API] Error listing banner files:', listError);
+    if (error) {
+      console.error('[Banners API] Error fetching banners:', error);
       return createJsonResponse({ 
-        error: 'Failed to fetch banner images',
-        details: listError.message
+        error: 'Failed to fetch banners',
+        details: error.message
       }, 500);
     }
     
-    if (!files || files.length === 0) {
-      console.log('[Banners API] No banner files found');
-      return createJsonResponse({
-        success: true,
-        banners: []
-      });
-    }
-    
-    // Generate public URLs for each banner image
-    const banners = files
-      .filter(file => {
-        // Filter for image files only
-        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
-        return isImage && file.name !== '.emptyFolderPlaceholder';
-      })
-      .map((file, index) => {
-        const { data: urlData } = supabase.storage
-          .from('banners')
-          .getPublicUrl(file.name);
-        
-        return {
-          id: file.id || `banner-${index}`,
-          title: file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' '), // Remove extension and format name
-          description: null,
-          image_url: urlData.publicUrl,
-          cta_text: null,
-          link_url: null,
-          order_index: index,
-          is_active: true,
-          created_at: file.created_at,
-          updated_at: file.updated_at
-        };
-      });
-    
-    console.log(`[Banners API] Successfully fetched ${banners.length} banner images`);
+    console.log(`[Banners API] Successfully fetched ${data?.length || 0} banners`);
     
     return createJsonResponse({
       success: true,
-      banners: banners
+      banners: data || []
     });
   } catch (error) {
     console.error('[Banners API] Unexpected error:', error);
