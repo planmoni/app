@@ -11,10 +11,6 @@ import {
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
-import Animated, {
-  useSharedValue,
-  useAnimatedScrollHandler,
-} from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import PaginationDot from './PaginationDot';
@@ -31,6 +27,7 @@ interface BannerCarouselProps {
   autoPlay?: boolean;
   autoPlayInterval?: number;
   showPagination?: boolean;
+  showControls?: boolean;
   height?: number;
 }
 
@@ -38,7 +35,8 @@ export default function BannerCarousel({
   autoPlay = true,
   autoPlayInterval = 5000,
   showPagination = true,
-  height = 116,
+  showControls = false,
+  height = 140,
 }: BannerCarouselProps) {
   const { colors, isDark } = useTheme();
   const [banners, setBanners] = useState<Banner[]>([]);
@@ -47,8 +45,7 @@ export default function BannerCarousel({
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const { width: screenWidth } = Dimensions.get('window');
-  const scrollX = useSharedValue(0);
-  const scrollViewRef = useRef<any>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -63,8 +60,8 @@ export default function BannerCarousel({
         if (error) throw error;
         setBanners(data || []);
       } catch (err) {
-        console.error('Fetch error:', err);
-        setError('Failed to load banners');
+        console.error('Error fetching banners:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load banners');
       } finally {
         setIsLoading(false);
       }
@@ -78,39 +75,44 @@ export default function BannerCarousel({
       autoPlayTimerRef.current = setInterval(() => {
         const nextIndex = (currentIndex + 1) % banners.length;
         scrollToIndex(nextIndex);
+        setCurrentIndex(nextIndex);
       }, autoPlayInterval);
     }
 
     return () => {
-      if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
+      if (autoPlayTimerRef.current) {
+        clearInterval(autoPlayTimerRef.current);
+      }
     };
-  }, [banners, currentIndex, isLoading]);
+  }, [autoPlay, banners, currentIndex, isLoading]);
 
   const scrollToIndex = (index: number) => {
-    if (scrollViewRef.current?.scrollTo) {
-      scrollViewRef.current.scrollTo({ x: index * screenWidth, animated: true });
-      setCurrentIndex(index);
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({
+        x: index * screenWidth,
+        animated: true,
+      });
     }
   };
 
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollX.value = event.contentOffset.x;
-    },
-    onMomentumEnd: (event) => {
-      const index = Math.round(event.contentOffset.x / screenWidth);
-      setCurrentIndex(index);
-    },
-  });
+  const handleScroll = (event: any) => {
+    const x = event.nativeEvent.contentOffset.x;
+    const newIndex = Math.round(x / screenWidth);
+    if (newIndex !== currentIndex) {
+      setCurrentIndex(newIndex);
+    }
+  };
 
   const handleBannerPress = (banner: Banner) => {
-    if (banner.link_url) router.push(banner.link_url);
+    if (banner.link_url) {
+      router.push(banner.link_url);
+    }
   };
 
   if (isLoading) {
     return (
       <View style={[styles.container, { height }]}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator size="small" color={colors.primary} />
       </View>
     );
   }
@@ -123,35 +125,36 @@ export default function BannerCarousel({
     );
   }
 
-  const CarouselComponent =
-    Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
+  if (banners.length === 0) return null;
 
   return (
     <View style={[styles.container, { height }]}>
-      <CarouselComponent
+      <ScrollView
         ref={scrollViewRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={Platform.OS === 'web' ? undefined : scrollHandler}
         scrollEventThrottle={16}
+        onScroll={handleScroll}
         decelerationRate="fast"
+        snapToInterval={screenWidth}
+        snapToAlignment="start"
       >
         {banners.map((banner) => (
           <Pressable
             key={banner.id}
-            onPress={() => handleBannerPress(banner)}
             style={[styles.slide, { width: screenWidth - 40 }]}
+            onPress={() => handleBannerPress(banner)}
           >
             <Image
               source={{ uri: banner.image_url }}
               style={styles.image}
               resizeMode="cover"
-              onError={() => console.warn('Image failed to load:', banner.image_url)}
+              onError={() => console.warn('Failed to load image:', banner.image_url)}
             />
           </Pressable>
         ))}
-      </CarouselComponent>
+      </ScrollView>
 
       {showPagination && banners.length > 1 && (
         <View style={styles.pagination}>
@@ -159,9 +162,7 @@ export default function BannerCarousel({
             <PaginationDot
               key={index}
               index={index}
-              scrollX={scrollX}
-              screenWidth={screenWidth}
-              isDark={isDark}
+              currentIndex={currentIndex}
               color={colors.primary}
             />
           ))}
@@ -178,19 +179,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   slide: {
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
     marginHorizontal: 16,
+    backgroundColor: '#ccc',
   },
   image: {
     width: '100%',
-    height: 116, // fallback height
-    borderRadius: 8,
-    backgroundColor: '#ccc',
+    height: '100%',
   },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: 8,
+    gap: 6,
   },
 });
