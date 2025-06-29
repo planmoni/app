@@ -127,7 +127,8 @@ export default function ImageCarousel({
     }
   };
 
-  const CarouselComponent = Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
+  const isWeb = Platform.OS === 'web';
+  const CarouselComponent = isWeb ? ScrollView : Animated.ScrollView;
 
   if (isLoading) {
     return (
