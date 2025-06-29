@@ -40,7 +40,7 @@ interface ImageCarouselProps {
 }
 
 const { width: screenWidth } = Dimensions.get('window');
-const SLIDE_MARGIN = 160;
+const SLIDE_MARGIN = 100;
 const SLIDE_WIDTH = screenWidth - SLIDE_MARGIN * 2;
 const SNAP_INTERVAL = SLIDE_WIDTH + SLIDE_MARGIN;
 
