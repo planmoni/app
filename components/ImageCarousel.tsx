@@ -174,32 +174,45 @@ export default function ImageCarousel({
           }
         }}
       >
-        {images.map((image) => (
-          <Pressable
-            key={image.id}
-            onPress={() => handleImagePress(image)}
-            style={[styles.slide, { width: SLIDE_WIDTH }]}
-          >
-            <Image
-              source={{ uri: image.image_url }}
-              style={[styles.image]}
-              resizeMode="cover"
-              width={510}
-              height={150}
-              onError={() =>
-                console.error('[ImageCarousel] Image failed to load:', image.image_url)
-              }
-            />
-            
-          </Pressable>
-        ))}
+        {images.map((image) => {
+          const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+
+          useEffect(() => {
+            Image.getSize(
+              image.image_url,
+              (width, height) => setNaturalSize({ width, height }),
+              (error) => console.error('[ImageCarousel] Failed to get image size:', error)
+            );
+          }, [image.image_url]);
+
+          const scaledHeight = naturalSize
+            ? (naturalSize.height / naturalSize.width) * SLIDE_WIDTH
+            : height;
+
+          return (
+            <Pressable
+              key={image.id}
+              onPress={() => handleImagePress(image)}
+              style={[styles.slide, { width: SLIDE_WIDTH }]}
+            >
+              <Image
+                source={{ uri: image.image_url }}
+                style={{ width: '100%', height: scaledHeight, borderRadius: 8 }}
+                resizeMode="cover"
+                onError={() =>
+                  console.error('[ImageCarousel] Image failed to load:', image.image_url)
+                }
+              />
+            </Pressable>
+          );
+        })}
       </CarouselComponent>
 
       {showPagination && images.length > 1 && (
         <View style={styles.pagination}>
           {images.map((_, index) => (
             <PaginationDot
-              key={index}d
+              key={index}
               index={index}
               currentIndex={currentIndex}
               scrollX={Platform.OS === 'web' ? undefined : scrollX}
