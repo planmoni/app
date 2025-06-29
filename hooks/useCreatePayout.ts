@@ -71,11 +71,10 @@ export function useCreatePayout() {
       
       console.log('- Current Balance:', balance);
       console.log('- Locked Balance:', lockedBalance);
-      console.log('- Available Balance:', availableBalance);
 
       // Check if user has enough available balance using fresh data
-      if (totalAmount > availableBalance) {
-        throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${availableBalance.toLocaleString()} available.`);
+      if (totalAmount > balance) {
+        throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${balance.toLocaleString()} available.`);
       }
 
       // Map frequency values to database-compatible values

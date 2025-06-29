@@ -5,6 +5,7 @@ import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import CountdownTimer from '@/components/CountdownTimer';
 import PendingActionsCard from '@/components/PendingActionsCard';
+import ImageCarousel from '@/components/ImageCarousel';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
@@ -292,7 +293,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.greetingContainer}>
             <Text style={styles.greeting}>Hello, {firstName}.</Text>
-            <Text style={styles.subGreeting}>{getGreeting()}, let's plan some payments</Text>
+            <Text style={styles.subGreeting}>{getGreeting()}, let's plan some payouts</Text>
           </View>
         </View>
 
@@ -333,14 +334,15 @@ export default function HomeScreen() {
                 onPress={handleCreatePayout}
               >
                 <ArrowUpRight size={20} color="#FFFFFF" />
-                <Text style={styles.createButtonText}>New Plan</Text>
+                <Text style={styles.createButtonText}>Plan</Text>
               </Pressable>
               
             </View>
           </View>
         </Card>
 
-        
+        {/* Banner Carousel */}
+        <ImageCarousel/>
 
         <PendingActionsCard />
 
@@ -663,7 +665,7 @@ export default function HomeScreen() {
           onPress={handleCreatePayout}
         >
           <ArrowUpRight size={20} color="#FFFFFF" />
-          <Text style={styles.createButtonText}>New Plan</Text>
+          <Text style={styles.createButtonText}>Plan</Text>
         </Pressable>
         
       </Animated.View>
@@ -713,13 +715,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginLeft: 0,
   },
   greeting: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   subGreeting: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '500',
     color: colors.textSecondary,
     lineHeight: 18,
@@ -736,7 +738,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
   balanceCardContent: {
-    paddingVertical: 1,
+    paddingVertical: 3,
     paddingHorizontal: 1,
   },
   balanceLabelContainer: {
@@ -746,7 +748,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 8,
   },
   balanceLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.textSecondary,
   },
   eyeIconButton: {
@@ -754,7 +756,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     margin: -8,
   },
   balanceAmount: {
-    fontSize: 20,
+    fontSize: 30,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 16,
@@ -778,7 +780,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
   },
   lockedAmount: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.text,
   },
@@ -798,8 +800,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   createButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '500',
   },
   addFundsButton: {
     flex: 1,
@@ -815,8 +817,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   addFundsText: {
     color: colors.text,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '500',
   },
   summaryCard: {
     marginBottom: 24,
@@ -835,7 +837,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingTop: 5,
   },
   summaryTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.text,
   },
@@ -857,11 +859,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   summaryLabel: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textSecondary,
   },
   summaryValue: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.text,
   },
@@ -899,7 +901,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   payoutTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
     color: colors.text,
   },
