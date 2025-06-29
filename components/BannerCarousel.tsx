@@ -19,8 +19,6 @@ import PaginationDot from './PaginationDot'; // Ensure this is implemented
 
 interface Banner {
   id: string;
-  title: string;
-  description: string | null;
   image_url: string;
   cta_text: string | null;
   link_url: string | null;
