@@ -157,7 +157,7 @@ export default function ImageCarousel({
     <View style={[styles.container, { height }]}> 
       <CarouselComponent
         ref={scrollViewRef}
-        horizontal
+        vertical
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
@@ -184,7 +184,7 @@ export default function ImageCarousel({
               source={{ uri: image.image_url }}
               style={[styles.image, { height }]}
               resizeMode="fit"
-              width={400}
+              width={510}
               height={150}
               onError={() =>
                 console.error('[ImageCarousel] Image failed to load:', image.image_url)
