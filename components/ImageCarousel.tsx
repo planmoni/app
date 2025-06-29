@@ -190,18 +190,6 @@ export default function ImageCarousel({
                 console.error('[ImageCarousel] Image failed to load:', image.image_url)
               }
             />
-            {image.title && (
-              <View style={styles.captionContainer}>
-                {image.description && (
-                  <Text style={styles.captionDescription}>{image.description}</Text>
-                )}
-                {image.cta_text && (
-                  <View style={styles.ctaButton}>
-                    <Text style={styles.ctaText}>{image.cta_text}</Text>
-                  </View>
-                )}
-              </View>
-            )}
           </Pressable>
         ))}
       </CarouselComponent>
