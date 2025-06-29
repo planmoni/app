@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, Dimensions, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import Animated, { useSharedValue, useAnimatedScrollHandler, useAnimatedStyle, interpolate, withTiming } from 'react-native-reanimated';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedScrollHandler, 
+  useAnimatedStyle, 
+  interpolate, 
+  withTiming 
+} from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 
 type Banner = {
@@ -24,6 +30,7 @@ export default function BannerCarousel() {
   const scrollX = useSharedValue(0);
   const { width: screenWidth } = Dimensions.get('window');
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollViewRef = useRef<Animated.ScrollView>(null);
 
   useEffect(() => {
     fetchBanners();
@@ -46,23 +53,25 @@ export default function BannerCarousel() {
     };
   }, [currentIndex, banners.length, screenWidth]);
 
-  const scrollViewRef = useRef<Animated.ScrollView>(null);
-
   const fetchBanners = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      // Use the correct API URL based on environment
-      const apiUrl = `${process.env.VITE_SUPABASE_URL || ''}/api/banners?active=true`;
+      // Use the API route for fetching banners
+      const apiUrl = `/api/banners?active=true`;
+      console.log('Fetching banners from:', apiUrl);
       
       const response = await fetch(apiUrl);
       
       if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}: ${await response.text()}`);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Server responded with ${response.status}: ${errorText}`);
       }
       
       const data = await response.json();
+      console.log('Banners data:', data);
       
       if (data.banners) {
         setBanners(data.banners);
@@ -242,6 +251,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
+    marginRight: 16,
   },
   bannerImage: {
     width: '100%',
