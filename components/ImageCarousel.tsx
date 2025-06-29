@@ -18,7 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import PaginationDot from './PaginationDot';
-import { supabase } from '@/lib/supabase'; // Make sure this is correctly set up
+import { supabase } from '@/lib/supabase';
 
 interface Banner {
   id: string;
@@ -79,8 +79,6 @@ export default function ImageCarousel({
       setIsLoading(true);
       setError(null);
 
-      console.log('[ImageCarousel] Fetching images from Supabase');
-
       const { data, error } = await supabase
         .from('banners')
         .select('*')
@@ -122,12 +120,6 @@ export default function ImageCarousel({
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollX.value = event.contentOffset.x;
-    },
-    onMomentumEnd: (event) => {
-      const index = Math.round(event.contentOffset.x / SNAP_INTERVAL);
-      if (index >= 0 && index < images.length) {
-        setCurrentIndex(index);
-      }
     },
   });
 
@@ -175,12 +167,10 @@ export default function ImageCarousel({
         contentContainerStyle={{ paddingHorizontal: SLIDE_MARGIN }}
         onScroll={Platform.OS !== 'web' ? scrollHandler : undefined}
         onMomentumScrollEnd={(event) => {
-          if (Platform.OS === 'web') {
-            const x = event.nativeEvent.contentOffset.x;
-            const newIndex = Math.round(x / SNAP_INTERVAL);
-            if (newIndex !== currentIndex && newIndex >= 0 && newIndex < images.length) {
-              setCurrentIndex(newIndex);
-            }
+          const x = event.nativeEvent.contentOffset.x;
+          const newIndex = Math.round(x / SNAP_INTERVAL);
+          if (newIndex !== currentIndex && newIndex >= 0 && newIndex < images.length) {
+            setCurrentIndex(newIndex);
           }
         }}
       >
@@ -222,7 +212,7 @@ export default function ImageCarousel({
               key={index}
               index={index}
               currentIndex={currentIndex}
-              scrollX={scrollX}
+              scrollX={Platform.OS === 'web' ? undefined : scrollX}
               screenWidth={SNAP_INTERVAL}
               color={colors.primary}
               isDark={isDark}
