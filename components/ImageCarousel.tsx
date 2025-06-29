@@ -157,7 +157,7 @@ export default function ImageCarousel({
     <View style={[styles.container, { height }]}> 
       <CarouselComponent
         ref={scrollViewRef}
-        vertical
+        horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
@@ -203,7 +203,7 @@ export default function ImageCarousel({
               index={index}
               currentIndex={currentIndex}
               scrollX={Platform.OS === 'web' ? undefined : scrollX}
-              screenWidth={SNAP_INTERVAL}
+              screenWidth={500}
               color={colors.primary}
               isDark={isDark}
             />
