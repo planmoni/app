@@ -127,7 +127,7 @@ export default function BannerCarousel({
   if (isLoading) {
     return (
       <View style={[styles.container, { height, backgroundColor: colors.backgroundTertiary }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="small" color={colors.primary} />
       </View>
     );
   }
