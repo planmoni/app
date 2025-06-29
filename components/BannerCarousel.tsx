@@ -174,7 +174,7 @@ export default function BannerCarousel({
               ]}
             >
               <View style={styles.textContainer}>
-                <Text style={[styles.title, { color: '#FFFFFF' }]}>{banner.title}</Text>
+                
                 {banner.description && (
                   <Text style={[styles.description, { color: '#FFFFFF' }]}>
                     {banner.description}
