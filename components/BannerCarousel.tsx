@@ -167,6 +167,7 @@ export default function BannerCarousel({
             />
             <View
               style={[
+                styles.overlay,
                 {
                   
                 },
