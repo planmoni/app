@@ -18,6 +18,7 @@ import Animated, {
   useAnimatedStyle
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
+import Constants from 'expo-constants';
 
 // Define the Banner type
 interface Banner {
@@ -51,7 +52,11 @@ export default function BannerCarousel() {
         setIsLoading(true);
         setError(null);
         
-        const response = await fetch('/api/banners');
+        // Get the API base URL from environment variables
+        const apiUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_URL || '';
+        const endpoint = `${apiUrl}/api/banners`;
+        
+        const response = await fetch(endpoint);
         
         if (!response.ok) {
           throw new Error(`Failed to fetch banners: ${response.status}`);
