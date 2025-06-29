@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   Pressable,
   Dimensions,
   ActivityIndicator,
-  ScrollView,
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -21,30 +20,30 @@ import PaginationDot from './PaginationDot';
 
 interface Banner {
   id: string;
+  title: string;
+  description: string | null;
   image_url: string;
-  title?: string;
-  description?: string | null;
   cta_text: string | null;
   link_url: string | null;
   order_index: number;
   is_active: boolean;
 }
 
-interface BannerCarouselProps {
+interface ImageCarouselProps {
   autoPlay?: boolean;
   autoPlayInterval?: number;
   showPagination?: boolean;
   height?: number;
 }
 
-export default function BannerCarousel({
+export default function ImageCarousel({
   autoPlay = true,
   autoPlayInterval = 5000,
   showPagination = true,
-  height = 116,
-}: BannerCarouselProps) {
+  height = 200,
+}: ImageCarouselProps) {
   const { colors, isDark } = useTheme();
-  const [banners, setBanners] = useState<Banner[]>([]);
+  const [images, setImages] = useState<Banner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -55,40 +54,45 @@ export default function BannerCarousel({
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    fetchBanners();
+    fetchImages();
   }, []);
 
-  const fetchBanners = async () => {
+  const fetchImages = async () => {
     try {
       setIsLoading(true);
       setError(null);
-      console.log('[BannerCarousel] Fetching banners');
+      console.log('[ImageCarousel] Fetching images from API');
       
-      const { data, error } = await supabase
-        .from('banners')
-        .select('*')
-        .eq('is_active', true)
-        .order('order_index', { ascending: true });
-
-      if (error) {
-        console.error('[BannerCarousel] Supabase error:', error);
-        throw error;
+      // Fetch images from the API
+      const response = await fetch('/api/images');
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[ImageCarousel] API error:', errorText);
+        throw new Error(`Failed to fetch images: ${response.status}`);
       }
       
-      console.log(`[BannerCarousel] Successfully fetched ${data?.length || 0} banners`);
-      setBanners(data || []);
+      const data = await response.json();
+      
+      if (!data.success) {
+        console.error('[ImageCarousel] API returned error:', data.error);
+        throw new Error(data.error || 'Failed to fetch images');
+      }
+      
+      console.log(`[ImageCarousel] Fetched ${data.images?.length || 0} images`);
+      setImages(data.images || []);
     } catch (err) {
-      console.error('[BannerCarousel] Fetch error:', err);
-      setError('Failed to load banners');
+      console.error('[ImageCarousel] Error fetching images:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load images');
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (autoPlay && banners.length > 1 && !isLoading) {
+    if (autoPlay && images.length > 1 && !isLoading) {
       autoPlayTimerRef.current = setInterval(() => {
-        const nextIndex = (currentIndex + 1) % banners.length;
+        const nextIndex = (currentIndex + 1) % images.length;
         scrollToIndex(nextIndex);
       }, autoPlayInterval);
     }
@@ -96,7 +100,7 @@ export default function BannerCarousel({
     return () => {
       if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
     };
-  }, [banners, currentIndex, isLoading]);
+  }, [images, currentIndex, isLoading]);
 
   const scrollToIndex = (index: number) => {
     if (scrollViewRef.current?.scrollTo) {
@@ -115,15 +119,21 @@ export default function BannerCarousel({
     },
   });
 
-  const handleBannerPress = (banner: Banner) => {
+  const handleImagePress = (banner: Banner) => {
     if (banner.link_url) router.push(banner.link_url);
   };
+
+  const renderPlaceholder = () => (
+    <View style={[styles.placeholderContainer, { height }]}>
+      <Text style={styles.placeholderText}>No images available</Text>
+    </View>
+  );
 
   if (isLoading) {
     return (
       <View style={[styles.container, { height }]}>
         <ActivityIndicator color={colors.primary} />
-        <Text style={styles.loadingText}>Loading banners...</Text>
+        <Text style={styles.loadingText}>Loading images...</Text>
       </View>
     );
   }
@@ -132,23 +142,19 @@ export default function BannerCarousel({
     return (
       <View style={[styles.container, { height }]}>
         <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryButton} onPress={fetchBanners}>
+        <Pressable style={styles.retryButton} onPress={fetchImages}>
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
       </View>
     );
   }
 
-  if (banners.length === 0) {
-    return (
-      <View style={[styles.placeholderContainer, { height }]}>
-        <Text style={styles.placeholderText}>No banners available</Text>
-      </View>
-    );
+  if (images.length === 0) {
+    return renderPlaceholder();
   }
 
   const CarouselComponent =
-    Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
+    Platform.OS === 'web' ? Animated.ScrollView : Animated.ScrollView;
 
   return (
     <View style={[styles.container, { height }]}>
@@ -161,27 +167,27 @@ export default function BannerCarousel({
         scrollEventThrottle={16}
         decelerationRate="fast"
       >
-        {banners.map((banner) => (
+        {images.map((image) => (
           <Pressable
-            key={banner.id}
-            onPress={() => handleBannerPress(banner)}
-            style={[styles.slide, { width: screenWidth - 40 }]}
+            key={image.id}
+            onPress={() => handleImagePress(image)}
+            style={[styles.slide, { width: screenWidth - 32 }]}
           >
             <Image
-              source={{ uri: banner.image_url }}
+              source={{ uri: image.image_url }}
               style={styles.image}
               resizeMode="cover"
-              onError={(e) => console.error('[BannerCarousel] Image failed to load:', banner.image_url, e.nativeEvent.error)}
+              onError={(e) => console.error('[ImageCarousel] Image failed to load:', image.image_url, e.nativeEvent.error)}
             />
-            {banner.title && (
+            {image.title && (
               <View style={styles.captionContainer}>
-                <Text style={styles.captionTitle}>{banner.title}</Text>
-                {banner.description && (
-                  <Text style={styles.captionDescription}>{banner.description}</Text>
+                <Text style={styles.captionTitle}>{image.title}</Text>
+                {image.description && (
+                  <Text style={styles.captionDescription}>{image.description}</Text>
                 )}
-                {banner.cta_text && (
+                {image.cta_text && (
                   <View style={styles.ctaButton}>
-                    <Text style={styles.ctaText}>{banner.cta_text}</Text>
+                    <Text style={styles.ctaText}>{image.cta_text}</Text>
                   </View>
                 )}
               </View>
@@ -190,9 +196,9 @@ export default function BannerCarousel({
         ))}
       </CarouselComponent>
 
-      {showPagination && banners.length > 1 && (
+      {showPagination && images.length > 1 && (
         <View style={styles.pagination}>
-          {banners.map((_, index) => (
+          {images.map((_, index) => (
             <PaginationDot
               key={index}
               index={index}
@@ -210,20 +216,20 @@ export default function BannerCarousel({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 24,
+    marginVertical: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
   slide: {
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
     marginHorizontal: 16,
     position: 'relative',
   },
   image: {
     width: '100%',
-    height: 116, // fallback height
-    borderRadius: 8,
+    height: '100%',
+    borderRadius: 12,
     backgroundColor: '#ccc',
   },
   pagination: {
@@ -237,31 +243,32 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    padding: 8,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
+    padding: 12,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
   },
   captionTitle: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
+    marginBottom: 4,
   },
   captionDescription: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 14,
     opacity: 0.8,
   },
   ctaButton: {
     backgroundColor: '#1E3A8A',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 4,
     alignSelf: 'flex-start',
-    marginTop: 4,
+    marginTop: 8,
   },
   ctaText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '500',
   },
   loadingText: {
@@ -270,12 +277,12 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#EF4444',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   retryButton: {
     backgroundColor: '#1E3A8A',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 4,
   },
   retryText: {
@@ -286,9 +293,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-    marginHorizontal: 20,
-    marginBottom: 24,
+    borderRadius: 12,
+    marginHorizontal: 16,
   },
   placeholderText: {
     color: '#666',

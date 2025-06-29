@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabase';
 
-// Helper function to ensure JSON response
 function createJsonResponse(data: any, status: number = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -8,42 +7,39 @@ function createJsonResponse(data: any, status: number = 200) {
   });
 }
 
-// GET endpoint to fetch images
 export async function GET(request: Request) {
   try {
-    console.log('[Images API] Fetching images');
-    
-    // Get query parameters
+    console.log('[Images API] Fetching banners');
+
     const url = new URL(request.url);
-    const limit = parseInt(url.searchParams.get('limit') || '5');
-    
-    // Fetch active banners from the database
+    const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+
     const { data, error } = await supabase
       .from('banners')
       .select('*')
-      .eq('is_active', true)
-      .order('order_index', { ascending: true })
+      .order('order_index', { ascending: true }) // optional
       .limit(limit);
-    
+
     if (error) {
-      console.error('[Images API] Error fetching images:', error);
-      return createJsonResponse({ 
-        error: 'Failed to fetch images',
-        details: error.message
+      console.error('[Images API] Error fetching images:', error.message);
+      return createJsonResponse({
+        success: false,
+        error: 'Failed to fetch banners',
+        details: error.message,
       }, 500);
     }
-    
-    console.log(`[Images API] Successfully fetched ${data?.length || 0} images`);
-    
-    return createJsonResponse({ 
+
+    // No need to generate public URLs — already in `image_url`
+    return createJsonResponse({
       success: true,
-      images: data || []
+      images: data || [],
     });
   } catch (error) {
     console.error('[Images API] Unexpected error:', error);
-    return createJsonResponse({ 
+    return createJsonResponse({
+      success: false,
       error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : String(error),
     }, 500);
   }
 }
