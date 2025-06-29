@@ -344,7 +344,7 @@ export default function HomeScreen() {
         {/* Banner Carousel */}
         <BannerCarousel 
           autoPlay={true}
-          autoPlayInterval={5000}
+          autoPlayInterval={1000}
           showPagination={true}
           height={180}
         />
