@@ -203,7 +203,7 @@ export default function ImageCarousel({
               index={index}
               currentIndex={currentIndex}
               scrollX={Platform.OS === 'web' ? undefined : scrollX}
-              screenWidth={600}
+              screenWidth={1000}
               color={colors.primary}
               isDark={isDark}
             />
