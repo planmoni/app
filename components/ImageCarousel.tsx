@@ -209,10 +209,10 @@ export default function ImageCarousel({
         <View style={styles.pagination}>
           {images.map((_, index) => (
             <PaginationDot
-              key={index}
+              key={index}d
               index={index}
               currentIndex={currentIndex}
-              scrollX={Platform.OS === 'web' ? srollX : scrollX}
+              scrollX={Platform.OS === 'web' ? undefined d: scrollX}
               screenWidth={SNAP_INTERVAL}
               color={colors.primary}
               isDark={isDark}
