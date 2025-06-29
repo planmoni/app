@@ -67,17 +67,16 @@ export default function ImageCarousel({
       setError(null);
       console.log('[ImageCarousel] Fetching images from API');
       
-      // Fetch images from the APId
-      const { data, error } = await supabase.from('banners')
-        .select('*')
-        .eq('is_active', true)
-        .order('order_index', { ascending: true });
-      
-      if (error) {
-        console.error('Supabase error:', error);
-        throw new Error('Failed to fetch banners');
+      // Fetch images from the API
+      try {
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error || 'Failed to load images');
+        setImages(data.images || []);
+      } catch (parseError) {
+        console.error('[ImageCarousel] Failed to parse JSON:', parseError);
+        throw new Error('Invalid JSON response');
       }
-      setImages(data || []);
+
 
       
       if (!response.ok) {
