@@ -5,7 +5,7 @@ import {
   generatePayoutNotificationHtml, 
   generateExpiryReminderHtml, 
   generateWalletSummaryHtml 
-} from '@/lib/email-service';
+} from '@/lib/email-templates';
 
 // Helper function to ensure JSON response
 function createJsonResponse(data: any, status: number = 200) {
