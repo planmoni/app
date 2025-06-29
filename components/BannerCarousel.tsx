@@ -64,32 +64,10 @@ export default function BannerCarousel({
         setIsLoading(true);
         setError(null);
         
-        // Use absolute URL for web platform to avoid routing issues
-        const apiUrl = Platform.OS === 'web' 
-          ? `${window.location.origin}/api/banners`
-          : '/api/banners';
-        
-        console.log('[BannerCarousel] Fetching from:', apiUrl);
-        
-        const response = await fetch(apiUrl, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        console.log('[BannerCarousel] Response status:', response.status);
-        console.log('[BannerCarousel] Response headers:', response.headers);
+        const response = await fetch('/api/banners');
         
         if (!response.ok) {
           throw new Error(`Failed to fetch banners: ${response.status} ${response.statusText}`);
-        }
-        
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          const text = await response.text();
-          console.error('[BannerCarousel] Received non-JSON response:', text.substring(0, 200));
-          throw new Error('Server returned HTML instead of JSON. API route may not be configured correctly.');
         }
         
         const data = await response.json();
@@ -100,7 +78,7 @@ export default function BannerCarousel({
         
         setBanners(data.banners || []);
       } catch (err) {
-        console.error('[BannerCarousel] Error fetching banners:', err);
+        console.error('Error fetching banners:', err);
         setError(err instanceof Error ? err.message : 'Failed to load banners');
       } finally {
         setIsLoading(false);
