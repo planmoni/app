@@ -182,10 +182,7 @@ export default function ImageCarousel({
               style={styles.image}
               resizeMode="cover"
             />
-            <View style={[
-              styles.overlay, 
-              { backgroundColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.4)' }
-            ]}>
+            
               <View style={styles.textContainer}>
                 <Text style={[styles.title, { color: '#FFFFFF' }]}>{banner.title}</Text>
                 {banner.description && (
