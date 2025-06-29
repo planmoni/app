@@ -35,7 +35,7 @@ interface BannerCarouselProps {
 
 export default function BannerCarousel({
   autoPlay = true,
-  autoPlayInterval = 5000,
+  autoPlayInterval = 1000,
   showPagination = true,
   showControls = false,
   height = 180,
