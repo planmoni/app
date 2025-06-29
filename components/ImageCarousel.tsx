@@ -48,7 +48,7 @@ export default function ImageCarousel({
   autoPlay = true,
   autoPlayInterval = 5000,
   showPagination = true,
-  height = 150,
+  height = 100,
   images: propImages,
 }: ImageCarouselProps) {
   const { colors, isDark } = useTheme();
