@@ -47,7 +47,7 @@ const SNAP_INTERVAL = SLIDE_WIDTH + SLIDE_MARGIN;
 export default function ImageCarousel({
   autoPlay = true,
   autoPlayInterval = 5000,
-  showPagination = false,
+  showPagination = true,
   height = 200,
   images: propImages,
 }: ImageCarouselProps) {
