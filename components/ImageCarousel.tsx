@@ -192,7 +192,6 @@ export default function ImageCarousel({
             />
             {image.title && (
               <View style={styles.captionContainer}>
-                <Text style={styles.captionTitle}>{image.title}</Text>
                 {image.description && (
                   <Text style={styles.captionDescription}>{image.description}</Text>
                 )}
