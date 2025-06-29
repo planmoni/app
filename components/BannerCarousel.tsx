@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 16,
+    borderRadius: 8,
     justifyContent: 'flex-end',
   },
   textContainer: {
