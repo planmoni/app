@@ -184,6 +184,7 @@ export default function ImageCarousel({
               source={{ uri: image.image_url }}
               style={[styles.image, { height }]}
               resizeMode="fit"
+              width={400}
               onError={() =>
                 console.error('[ImageCarousel] Image failed to load:', image.image_url)
               }
@@ -212,7 +213,7 @@ export default function ImageCarousel({
               key={index}d
               index={index}
               currentIndex={currentIndex}
-              scrollX={Platform.OS === 'web' ? undefined d: scrollX}
+              scrollX={Platform.OS === 'web' ? undefined : scrollX}
               screenWidth={SNAP_INTERVAL}
               color={colors.primary}
               isDark={isDark}
