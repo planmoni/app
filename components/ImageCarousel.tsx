@@ -183,19 +183,6 @@ export default function ImageCarousel({
               resizeMode="fit"
             />
             
-              <View style={styles.textContainer}>
-                <Text style={[styles.title, { color: '#FFFFFF' }]}>{banner.title}</Text>
-                {banner.description && (
-                  <Text style={[styles.description, { color: '#FFFFFF' }]}>
-                    {banner.description}
-                  </Text>
-                )}
-                {banner.cta_text && (
-                  <View style={[styles.ctaButton, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.ctaText}>{banner.cta_text}</Text>
-                  </View>
-                )}
-              </View>
             </View>
           </Pressable>
         ))}
