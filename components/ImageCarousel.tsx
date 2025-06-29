@@ -162,7 +162,7 @@ export default function ImageCarousel({
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
         snapToInterval={SNAP_INTERVAL}
-        snapToAlignment="center"
+        snapToAlignment="start"
         decelerationRate="fast"
         contentContainerStyle={{ paddingHorizontal: SLIDE_MARGIN }}
         onScroll={Platform.OS !== 'web' ? scrollHandler : undefined}
@@ -183,7 +183,6 @@ export default function ImageCarousel({
             <Image
               source={{ uri: image.image_url }}
               style={[styles.image]}
-              resizeMode="fit"
               width={510}
               height={150}
               onError={() =>
