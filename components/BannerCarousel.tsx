@@ -166,11 +166,7 @@ export default function BannerCarousel({
               onError={() => console.warn('Image failed to load:', banner.image_url)}
             />
             <View
-              style={[
-                styles.overlay,
-                {
-                  backgroundColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.4)',
-                },
+              
               ]}
             >
               <View style={styles.textContainer}>
