@@ -169,7 +169,7 @@ export default function BannerCarousel({
               style={[
                 styles.overlay,
                 {
-                  backgroundColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.4)',
+                  
                 },
               ]}
             >
