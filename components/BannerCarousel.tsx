@@ -38,7 +38,7 @@ export default function BannerCarousel({
   autoPlayInterval = 1000,
   showPagination = true,
   showControls = false,
-  width = '100%',
+  width = 100%,
 }: BannerCarouselProps) {
   const { colors, isDark } = useTheme();
   const [banners, setBanners] = useState<Banner[]>([]);
