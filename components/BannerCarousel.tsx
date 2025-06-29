@@ -162,10 +162,17 @@ export default function BannerCarousel({
             <Image
               source={{ uri: banner.image_url }}
               style={styles.image}
-              resizeMode="cover"
+              resizeMode="fit"
               onError={() => console.warn('Image failed to load:', banner.image_url)}
             />
-            
+            <View
+              style={[
+                styles.overlay,
+                {
+                  backgroundColor: isDark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(0, 0, 0, 0.4)',
+                },
+              ]}
+            >
               <View style={styles.textContainer}>
                 <Text style={[styles.title, { color: '#FFFFFF' }]}>{banner.title}</Text>
                 {banner.description && (
