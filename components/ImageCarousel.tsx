@@ -97,25 +97,27 @@ export default function ImageCarousel({
     }
   };
 
+  const scrollToIndex = (index: number) => {
+    if (scrollViewRef.current?.scrollTo) {
+      scrollViewRef.current.scrollTo({ x: index * SNAP_INTERVAL, animated: true });
+    }
+  };
+
   useEffect(() => {
     if (autoPlay && images.length > 1 && !isLoading) {
       autoPlayTimerRef.current = setInterval(() => {
-        const nextIndex = (currentIndex + 1) % images.length;
-        scrollToIndex(nextIndex);
+        setCurrentIndex((prevIndex) => {
+          const nextIndex = (prevIndex + 1) % images.length;
+          scrollToIndex(nextIndex);
+          return nextIndex;
+        });
       }, autoPlayInterval);
     }
 
     return () => {
       if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
     };
-  }, [images, currentIndex, isLoading, autoPlay, autoPlayInterval]);
-
-  const scrollToIndex = (index: number) => {
-    if (scrollViewRef.current?.scrollTo) {
-      scrollViewRef.current.scrollTo({ x: index * SNAP_INTERVAL, animated: true });
-      setCurrentIndex(index);
-    }
-  };
+  }, [images.length, isLoading, autoPlay, autoPlayInterval]);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
