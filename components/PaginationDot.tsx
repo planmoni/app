@@ -31,51 +31,34 @@ export default function PaginationDot({
 }: PaginationDotProps) {
   const dotColor = color || activeColor;
   const dotInactiveColor = inactiveColor || dotColor;
-  const slideWidth = width || screenWidth;
-  const validWidth = slideWidth > 0 ? slideWidth : 300;
-
-  const useAnimated = !!scrollX?.value && typeof scrollX.value === 'number';
-
-  // If scrollX is not defined or not a number, fallback to static view
-  if (!useAnimated) {
-    const isActive = index === currentIndex;
-    return (
-      <View
-        style={[
-          styles.dot,
-          {
-            width: isActive ? 24 : 8,
-            opacity: isActive ? 1 : 0.5,
-            backgroundColor: dotColor,
-          },
-        ]}
-      />
-    );
-  }
+  const slideWidth = width || screenWidth || 300;
 
   const animatedStyle = useAnimatedStyle(() => {
+    // Fallback if scrollX is not passed or invalid
+    if (!scrollX || typeof scrollX.value !== 'number') {
+      return {
+        width: index === currentIndex ? 24 : 8,
+        opacity: index === currentIndex ? 1 : 0.5,
+      };
+    }
+
     const inputRange = [
-      (index - 1) * validWidth,
-      index * validWidth,
-      (index + 1) * validWidth,
+      (index - 1) * slideWidth,
+      index * slideWidth,
+      (index + 1) * slideWidth,
     ];
 
-    const dotWidth = interpolate(scrollX.value, inputRange, [8, 24, 8], 'clamp');
-    const opacity = interpolate(scrollX.value, inputRange, [0.5, 1, 0.5], 'clamp');
-
     return {
-      width: dotWidth,
-      opacity,
+      width: interpolate(scrollX.value, inputRange, [8, 24, 8], 'clamp'),
+      opacity: interpolate(scrollX.value, inputRange, [0.5, 1, 0.5], 'clamp'),
     };
-  }, [scrollX]);
+  }, [scrollX, index, currentIndex]);
 
   return (
     <Animated.View
       style={[
         styles.dot,
-        {
-          backgroundColor: dotColor,
-        },
+        { backgroundColor: dotColor },
         animatedStyle,
       ]}
     />
