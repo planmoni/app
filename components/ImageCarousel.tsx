@@ -1,3 +1,4 @@
+// ImageCarousel.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -17,6 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import PaginationDot from './PaginationDot';
+import { supabase } from '@/lib/supabase'; // Make sure this is correctly set up
 
 interface Banner {
   id: string;
@@ -35,13 +37,11 @@ interface ImageCarouselProps {
   showPagination?: boolean;
   height?: number;
   images?: Banner[];
-  fetchUrl?: string;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
 const SLIDE_MARGIN = 16;
-const SLIDE_WIDTH = screenWidth - (SLIDE_MARGIN * 2);
-// Adjust SNAP_INTERVAL to match the slide width plus right margin
+const SLIDE_WIDTH = screenWidth - SLIDE_MARGIN * 2;
 const SNAP_INTERVAL = SLIDE_WIDTH + SLIDE_MARGIN;
 
 export default function ImageCarousel({
@@ -50,7 +50,6 @@ export default function ImageCarousel({
   showPagination = true,
   height = 200,
   images: propImages,
-  fetchUrl = '/api/images',
 }: ImageCarouselProps) {
   const { colors, isDark } = useTheme();
   const [images, setImages] = useState<Banner[]>(propImages || []);
@@ -80,20 +79,16 @@ export default function ImageCarousel({
       setIsLoading(true);
       setError(null);
 
-      console.log('[ImageCarousel] Fetching images from API');
-      const response = await fetch(fetchUrl);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch images: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to load images');
-      }
+      console.log('[ImageCarousel] Fetching images from Supabase');
 
-      setImages(data.images || []);
+      const { data, error } = await supabase
+        .from('banners')
+        .select('*')
+        .eq('is_active', true)
+        .order('order_index', { ascending: true });
+
+      if (error) throw error;
+      setImages(data || []);
     } catch (err) {
       console.error('[ImageCarousel] Error fetching images:', err);
       setError(err instanceof Error ? err.message : 'Failed to load images');
@@ -142,7 +137,7 @@ export default function ImageCarousel({
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { height }]}>
+      <View style={[styles.container, { height }]}> 
         <ActivityIndicator color={colors.primary} />
         <Text style={styles.loadingText}>Loading images...</Text>
       </View>
@@ -151,7 +146,7 @@ export default function ImageCarousel({
 
   if (error) {
     return (
-      <View style={[styles.container, { height }]}>
+      <View style={[styles.container, { height }]}> 
         <Text style={styles.errorText}>{error}</Text>
         <Pressable style={styles.retryButton} onPress={fetchImages}>
           <Text style={styles.retryText}>Retry</Text>
@@ -160,15 +155,12 @@ export default function ImageCarousel({
     );
   }
 
-  if (images.length === 0) {
-    return null;
-  }
+  if (images.length === 0) return null;
 
-  // Use appropriate component based on platform
   const CarouselComponent = Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
 
   return (
-    <View style={[styles.container, { height }]}>
+    <View style={[styles.container, { height }]}> 
       <CarouselComponent
         ref={scrollViewRef}
         horizontal
