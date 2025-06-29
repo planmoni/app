@@ -34,8 +34,10 @@ export default function PaginationDot({
   const slideWidth = width || screenWidth;
   const validWidth = slideWidth > 0 ? slideWidth : 300;
 
-  // 🔐 Safe fallback style for non-animated dots (e.g., on web)
-  if (!scrollX) {
+  const useAnimated = !!scrollX?.value && typeof scrollX.value === 'number';
+
+  // If scrollX is not defined or not a number, fallback to static view
+  if (!useAnimated) {
     const isActive = index === currentIndex;
     return (
       <View
@@ -51,7 +53,6 @@ export default function PaginationDot({
     );
   }
 
-  // 🎥 Animated style for mobile
   const animatedStyle = useAnimatedStyle(() => {
     const inputRange = [
       (index - 1) * validWidth,
@@ -66,7 +67,7 @@ export default function PaginationDot({
       width: dotWidth,
       opacity,
     };
-  });
+  }, [scrollX]);
 
   return (
     <Animated.View
