@@ -77,9 +77,9 @@ export default function PaginationDot({
 
 const styles = StyleSheet.create({
   dot: {
-    width: 14,
+    width: 8,
     height: 8,
-    borderRadius: 2,
-    marginHorizontal: 1,
+    borderRadius: 4,
+    marginHorizontal: 3,
   },
 });
