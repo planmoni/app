@@ -254,6 +254,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 5,
+    marginBottom: 50,
     gap: 8,
   },
   captionContainer: {
