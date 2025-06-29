@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   dot: {
     width: 14,
     height: 8,
-    borderRadius: 4,
+    borderRadius: 2,
     marginHorizontal: 1,
   },
 });
