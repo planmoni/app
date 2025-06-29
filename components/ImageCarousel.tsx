@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
   slide: {
     borderRadius: 8,
     overflow: 'hidden',
-    marginRight: SLIDE_MARGIN,
+    marginRight: 90,
     position: 'relative',
   },
   image: {
