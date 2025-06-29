@@ -100,7 +100,7 @@ export default function BannerCarousel({
 
   const scrollToIndex = (index: number) => {
     if (scrollViewRef.current?.scrollTo) {
-      scrollViewRef.current.scrollTo({ x: index * screenWidth, animated: true });
+      scrollViewRef.current.scrollTo({ x: index * (screenWidth - 32), animated: true });
       setCurrentIndex(index);
     }
   };
@@ -110,7 +110,7 @@ export default function BannerCarousel({
       scrollX.value = event.contentOffset.x;
     },
     onMomentumEnd: (event) => {
-      const index = Math.round(event.contentOffset.x / screenWidth);
+      const index = Math.round(event.contentOffset.x / (screenWidth - 32));
       setCurrentIndex(index);
     },
   });
@@ -147,8 +147,8 @@ export default function BannerCarousel({
     );
   }
 
-  const CarouselComponent =
-    Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
+  // Use the appropriate component based on platform
+  const CarouselComponent = Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
 
   return (
     <View style={[styles.container, { height }]}>
@@ -160,6 +160,9 @@ export default function BannerCarousel({
         onScroll={Platform.OS === 'web' ? undefined : scrollHandler}
         scrollEventThrottle={16}
         decelerationRate="fast"
+        snapToInterval={screenWidth - 32}
+        snapToAlignment="center"
+        contentContainerStyle={styles.carouselContent}
       >
         {banners.map((banner) => (
           <Pressable
@@ -169,7 +172,7 @@ export default function BannerCarousel({
           >
             <Image
               source={{ uri: banner.image_url }}
-              style={styles.image}
+              style={[styles.image, { height }]}
               resizeMode="cover"
               onError={(e) => console.error('[BannerCarousel] Image failed to load:', banner.image_url, e.nativeEvent.error)}
             />
@@ -197,7 +200,7 @@ export default function BannerCarousel({
               key={index}
               index={index}
               scrollX={scrollX}
-              screenWidth={screenWidth}
+              screenWidth={screenWidth - 32}
               isDark={isDark}
               color={colors.primary}
             />
@@ -214,6 +217,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  carouselContent: {
+    paddingHorizontal: 4,
+  },
   slide: {
     borderRadius: 8,
     overflow: 'hidden',
@@ -222,7 +228,6 @@ const styles = StyleSheet.create({
   },
   image: {
     width: '100%',
-    height: 116, // fallback height
     borderRadius: 8,
     backgroundColor: '#ccc',
   },

@@ -17,7 +17,8 @@ export async function GET(request: Request) {
     const { data, error } = await supabase
       .from('banners')
       .select('*')
-      .order('order_index', { ascending: true }) // optional
+      .eq('is_active', true)
+      .order('order_index', { ascending: true })
       .limit(limit);
 
     if (error) {
@@ -29,7 +30,8 @@ export async function GET(request: Request) {
       }, 500);
     }
 
-    // No need to generate public URLs — already in `image_url`
+    console.log(`[Images API] Successfully fetched ${data?.length || 0} banners`);
+    
     return createJsonResponse({
       success: true,
       images: data || [],

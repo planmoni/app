@@ -8,6 +8,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import Animated, {
@@ -15,7 +16,6 @@ import Animated, {
   useAnimatedScrollHandler,
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
-import { supabase } from '@/lib/supabase';
 import PaginationDot from './PaginationDot';
 
 interface Banner {
@@ -104,7 +104,7 @@ export default function ImageCarousel({
 
   const scrollToIndex = (index: number) => {
     if (scrollViewRef.current?.scrollTo) {
-      scrollViewRef.current.scrollTo({ x: index * screenWidth, animated: true });
+      scrollViewRef.current.scrollTo({ x: index * (screenWidth - 32), animated: true });
       setCurrentIndex(index);
     }
   };
@@ -114,7 +114,7 @@ export default function ImageCarousel({
       scrollX.value = event.contentOffset.x;
     },
     onMomentumEnd: (event) => {
-      const index = Math.round(event.contentOffset.x / screenWidth);
+      const index = Math.round(event.contentOffset.x / (screenWidth - 32));
       setCurrentIndex(index);
     },
   });
@@ -153,8 +153,8 @@ export default function ImageCarousel({
     return renderPlaceholder();
   }
 
-  const CarouselComponent =
-    Platform.OS === 'web' ? Animated.ScrollView : Animated.ScrollView;
+  // Use the appropriate component based on platform
+  const CarouselComponent = Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
 
   return (
     <View style={[styles.container, { height }]}>
@@ -166,16 +166,19 @@ export default function ImageCarousel({
         onScroll={Platform.OS === 'web' ? undefined : scrollHandler}
         scrollEventThrottle={16}
         decelerationRate="fast"
+        snapToInterval={screenWidth - 32}
+        snapToAlignment="center"
+        contentContainerStyle={styles.carouselContent}
       >
         {images.map((image) => (
           <Pressable
             key={image.id}
             onPress={() => handleImagePress(image)}
-            style={[styles.slide, { width: screenWidth - 32 }]}
+            style={[styles.slide, { width: screenWidth - 40 }]}
           >
             <Image
               source={{ uri: image.image_url }}
-              style={styles.image}
+              style={[styles.image, { height }]}
               resizeMode="cover"
               onError={(e) => console.error('[ImageCarousel] Image failed to load:', image.image_url, e.nativeEvent.error)}
             />
@@ -203,7 +206,7 @@ export default function ImageCarousel({
               key={index}
               index={index}
               scrollX={scrollX}
-              screenWidth={screenWidth}
+              screenWidth={screenWidth - 32}
               isDark={isDark}
               color={colors.primary}
             />
@@ -220,6 +223,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  carouselContent: {
+    paddingHorizontal: 4,
+  },
   slide: {
     borderRadius: 12,
     overflow: 'hidden',
@@ -228,7 +234,6 @@ const styles = StyleSheet.create({
   },
   image: {
     width: '100%',
-    height: '100%',
     borderRadius: 12,
     backgroundColor: '#ccc',
   },
