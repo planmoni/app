@@ -7,8 +7,8 @@ import {
   Pressable,
   Dimensions,
   ActivityIndicator,
-  ScrollView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSharedValue, useAnimatedReaction } from 'react-native-reanimated';
@@ -46,9 +46,11 @@ export default function BannerCarousel({
 }: BannerCarouselProps) {
   const { colors, isDark } = useTheme();
   const [banners, setBanners] = useState<Banner[]>([]);
+  const [imageSizes, setImageSizes] = useState<Record<string, { width: number; height: number }>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
 
   const scrollViewRef = useRef<ScrollView>(null);
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -71,6 +73,7 @@ export default function BannerCarousel({
         const { data, error } = await supabase
           .from('banners')
           .select('*')
+          .eq('is_active', true)
           .order('order_index', { ascending: true });
 
         if (error) throw error;
@@ -85,6 +88,21 @@ export default function BannerCarousel({
 
     fetchBanners();
   }, []);
+
+  // Preload image dimensions
+  useEffect(() => {
+    banners.forEach((banner) => {
+      if (!imageSizes[banner.id] && banner.image_url) {
+        Image.getSize(
+          banner.image_url,
+          (width, height) => {
+            setImageSizes((prev) => ({ ...prev, [banner.id]: { width, height } }));
+          },
+          (error) => console.error(`Failed to get image size for ${banner.image_url}:`, error)
+        );
+      }
+    });
+  }, [banners]);
 
   useEffect(() => {
     if (autoPlay && banners.length > 1 && !isLoading) {
@@ -125,6 +143,13 @@ export default function BannerCarousel({
     }
   };
 
+  const handleImageLoad = (id: string) => {
+    setLoadedImages(prev => ({
+      ...prev,
+      [id]: true
+    }));
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, { height }]}>
@@ -157,20 +182,46 @@ export default function BannerCarousel({
         snapToAlignment="start"
         contentContainerStyle={[styles.scrollContent, { paddingHorizontal: SLIDE_MARGIN }]}
       >
-        {banners.map((banner) => (
-          <Pressable
-            key={banner.id}
-            style={[styles.slide, { width: SLIDE_WIDTH }]}
-            onPress={() => handleBannerPress(banner)}
-          >
-            <Image
-              source={{ uri: banner.image_url }}
-              style={styles.image}
-              resizeMode="cover"
-              onError={() => console.warn('Failed to load image:', banner.image_url)}
-            />
-          </Pressable>
-        ))}
+        {banners.map((banner) => {
+          const naturalSize = imageSizes[banner.id];
+          const scaledHeight = naturalSize
+            ? (naturalSize.height / naturalSize.width) * SLIDE_WIDTH
+            : height;
+          const isLoaded = loadedImages[banner.id];
+
+          return (
+            <Pressable
+              key={banner.id}
+              style={[styles.slide, { width: SLIDE_WIDTH }]}
+              onPress={() => handleBannerPress(banner)}
+            >
+              {!isLoaded && (
+                <View style={[styles.imagePlaceholder, { height: scaledHeight }]}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              )}
+              <Image
+                source={{ uri: banner.image_url }}
+                style={[
+                  styles.image, 
+                  { height: scaledHeight, opacity: isLoaded ? 1 : 0 }
+                ]}
+                resizeMode="cover"
+                onLoad={() => handleImageLoad(banner.id)}
+                onError={() => console.warn('Failed to load image:', banner.image_url)}
+                // Add caching for better performance
+                cachePolicy="memory-disk"
+                // Progressive loading for web
+                {...(Platform.OS === 'web' ? { loading: 'lazy' } : {})}
+              />
+              {banner.cta_text && (
+                <View style={styles.captionContainer}>
+                  <Text style={styles.captionTitle}>{banner.cta_text}</Text>
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
       </ScrollView>
 
       {showPagination && banners.length > 1 && (
@@ -194,7 +245,7 @@ export default function BannerCarousel({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 24,
+    marginVertical: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -204,17 +255,79 @@ const styles = StyleSheet.create({
   slide: {
     borderRadius: 12,
     overflow: 'hidden',
-    marginHorizontal: 0,
-    backgroundColor: '#ccc',
+    marginRight: SLIDE_MARGIN,
+    position: 'relative',
   },
   image: {
     width: '100%',
-    height: '100%',
+    borderRadius: 12,
+    backgroundColor: '#ccc',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    borderRadius: 12,
+    backgroundColor: '#e0e0e0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
+    marginTop: 1,
+    marginBottom: 8,
+    gap: 2,
+  },
+  captionContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: 12,
+  },
+  captionTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  captionDescription: {
+    color: '#fff',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  ctaButton: {
+    backgroundColor: '#1E3A8A',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
     marginTop: 8,
-    gap: 6,
+  },
+  ctaText: {
+    color: '#fff',
+    fontWeight: '500',
+  },
+  loadingText: {
+    marginTop: 8,
+    color: '#666',
+  },
+  errorText: {
+    color: '#EF4444',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  retryButton: {
+    backgroundColor: '#1E3A8A',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 4,
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '500',
   },
 });

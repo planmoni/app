@@ -1,5 +1,4 @@
-// ImageCarousel.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,216 +11,227 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
-import Animated, {
-  useSharedValue,
-  useAnimatedScrollHandler,
-} from 'react-native-reanimated';
+import { useSharedValue, useAnimatedReaction } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
-import PaginationDot from './PaginationDot';
 import { supabase } from '@/lib/supabase';
+import PaginationDot from './PaginationDot';
 
 interface Banner {
   id: string;
-  title?: string;
-  description?: string | null;
   image_url: string;
-  cta_text?: string | null;
-  link_url?: string | null;
-  order_index?: number;
-  is_active?: boolean;
+  cta_text: string | null;
+  link_url: string | null;
+  order_index: number;
 }
 
 interface ImageCarouselProps {
   autoPlay?: boolean;
   autoPlayInterval?: number;
   showPagination?: boolean;
+  showControls?: boolean;
   height?: number;
-  images?: Banner[];
 }
 
 const { width: screenWidth } = Dimensions.get('window');
-const SLIDE_MARGIN = 5;
-const SLIDE_WIDTH = screenWidth - SLIDE_MARGIN * 9;
-const SNAP_INTERVAL = SLIDE_WIDTH + SLIDE_MARGIN;
+const SLIDE_MARGIN = 16;
+const SLIDE_WIDTH = screenWidth - 2 * SLIDE_MARGIN;
+const SNAP_INTERVAL = SLIDE_WIDTH + 2 * SLIDE_MARGIN;
 
 export default function ImageCarousel({
   autoPlay = true,
   autoPlayInterval = 5000,
   showPagination = true,
-  height = 151,
-  images: propImages,
+  showControls = false,
+  height = 140,
 }: ImageCarouselProps) {
   const { colors, isDark } = useTheme();
-  const [images, setImages] = useState<Banner[]>(propImages || []);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [imageSizes, setImageSizes] = useState<Record<string, { width: number; height: number }>>({});
-  const [isLoading, setIsLoading] = useState(!propImages);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
 
-  const scrollX = useSharedValue(0);
-  const scrollViewRef = useRef<any>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (!propImages) {
-      fetchImages();
+  
+  // Create animated value for pagination
+  const animatedIndex = useSharedValue(0);
+  
+  // Update animated index when current index changes
+  useAnimatedReaction(
+    () => currentIndex,
+    (current) => {
+      animatedIndex.value = current;
     }
-  }, [propImages]);
+  );
 
   useEffect(() => {
-    if (propImages) {
-      setImages(propImages);
-      setIsLoading(false);
-    }
-  }, [propImages]);
+    const fetchBanners = async () => {
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('banners')
+          .select('*')
+          .eq('is_active', true)
+          .order('order_index', { ascending: true });
 
+        if (error) throw error;
+        setBanners(data || []);
+      } catch (err) {
+        console.error('Error fetching banners:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load banners');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchBanners();
+  }, []);
+
+  // Preload image dimensions
   useEffect(() => {
-    images.forEach((image) => {
-      if (!imageSizes[image.id]) {
+    banners.forEach((banner) => {
+      if (!imageSizes[banner.id] && banner.image_url) {
         Image.getSize(
-          image.image_url,
+          banner.image_url,
           (width, height) => {
-            setImageSizes((prev) => ({ ...prev, [image.id]: { width, height } }));
+            setImageSizes((prev) => ({ ...prev, [banner.id]: { width, height } }));
           },
-          (error) => console.error('[ImageCarousel] Failed to get image size:', error)
+          (error) => console.error(`Failed to get image size for ${banner.image_url}:`, error)
         );
       }
     });
-  }, [images]);
-
-  const fetchImages = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const { data, error } = await supabase
-        .from('banners')
-        .select('*')
-        .eq('is_active', true)
-        .order('order_index', { ascending: true });
-
-      if (error) throw error;
-      setImages(data || []);
-    } catch (err) {
-      console.error('[ImageCarousel] Error fetching images:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load images');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const scrollToIndex = (index: number) => {
-    if (scrollViewRef.current?.scrollTo) {
-      scrollViewRef.current.scrollTo({ x: index * SNAP_INTERVAL, animated: true });
-    }
-  };
+  }, [banners]);
 
   useEffect(() => {
-    if (autoPlay && images.length > 1 && !isLoading) {
+    if (autoPlay && banners.length > 1 && !isLoading) {
       autoPlayTimerRef.current = setInterval(() => {
-        setCurrentIndex((prevIndex) => {
-          const nextIndex = (prevIndex + 1) % images.length;
-          scrollToIndex(nextIndex);
-          return nextIndex;
-        });
+        const nextIndex = (currentIndex + 1) % banners.length;
+        scrollToIndex(nextIndex);
+        setCurrentIndex(nextIndex);
       }, autoPlayInterval);
     }
 
     return () => {
-      if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
+      if (autoPlayTimerRef.current) {
+        clearInterval(autoPlayTimerRef.current);
+      }
     };
-  }, [images.length, isLoading, autoPlay, autoPlayInterval]);
+  }, [autoPlay, banners, currentIndex, isLoading]);
 
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollX.value = event.contentOffset.x;
-    },
-  });
+  const scrollToIndex = (index: number) => {
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({
+        x: index * SNAP_INTERVAL,
+        animated: true,
+      });
+    }
+  };
 
-  const handleImagePress = (banner: Banner) => {
+  const handleScroll = (event: any) => {
+    const x = event.nativeEvent.contentOffset.x;
+    const newIndex = Math.round(x / SNAP_INTERVAL);
+    if (newIndex !== currentIndex && newIndex >= 0 && newIndex < banners.length) {
+      setCurrentIndex(newIndex);
+    }
+  };
+
+  const handleBannerPress = (banner: Banner) => {
     if (banner.link_url) {
       router.push(banner.link_url);
     }
   };
 
+  const handleImageLoad = (id: string) => {
+    setLoadedImages(prev => ({
+      ...prev,
+      [id]: true
+    }));
+  };
+
   if (isLoading) {
     return (
-      <View style={[styles.container, { height }]}> 
-        <ActivityIndicator color={colors.primary} />
-        <Text style={styles.loadingText}>Loading images...</Text>
+      <View style={[styles.container, { height }]}>
+        <ActivityIndicator size="small" color={colors.primary} />
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={[styles.container, { height }]}> 
-        <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryButton} onPress={fetchImages}>
-          <Text style={styles.retryText}>Retry</Text>
-        </Pressable>
+      <View style={[styles.container, { height }]}>
+        <Text style={{ color: colors.error }}>{error}</Text>
       </View>
     );
   }
 
-  if (images.length === 0) return null;
-
-  const CarouselComponent = Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
+  if (banners.length === 0) return null;
 
   return (
-    <View style={[styles.container, { height }]}> 
-      <CarouselComponent
+    <View style={[styles.container, { height }]}>
+      <ScrollView
         ref={scrollViewRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
+        onScroll={handleScroll}
+        decelerationRate="fast"
         snapToInterval={SNAP_INTERVAL}
         snapToAlignment="start"
-        decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: SLIDE_MARGIN }}
-        onScroll={Platform.OS !== 'web' ? scrollHandler : undefined}
-        onMomentumScrollEnd={(event) => {
-          const x = event.nativeEvent.contentOffset.x;
-          const newIndex = Math.round(x / SNAP_INTERVAL);
-          if (newIndex !== currentIndex && newIndex >= 0 && newIndex < images.length) {
-            setCurrentIndex(newIndex);
-          }
-        }}
+        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: SLIDE_MARGIN }]}
       >
-        {images.map((image) => {
-          const naturalSize = imageSizes[image.id];
+        {banners.map((banner) => {
+          const naturalSize = imageSizes[banner.id];
           const scaledHeight = naturalSize
             ? (naturalSize.height / naturalSize.width) * SLIDE_WIDTH
             : height;
+          const isLoaded = loadedImages[banner.id];
 
           return (
             <Pressable
-              key={image.id}
-              onPress={() => handleImagePress(image)}
+              key={banner.id}
               style={[styles.slide, { width: SLIDE_WIDTH }]}
+              onPress={() => handleBannerPress(banner)}
             >
+              {!isLoaded && (
+                <View style={[styles.imagePlaceholder, { height: scaledHeight }]}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              )}
               <Image
-                source={{ uri: image.image_url }}
-                style={{ width: '100%', height: scaledHeight, borderRadius: 8 }}
+                source={{ uri: banner.image_url }}
+                style={[
+                  styles.image, 
+                  { height: scaledHeight, opacity: isLoaded ? 1 : 0 }
+                ]}
                 resizeMode="cover"
-                onError={() =>
-                  console.error('[ImageCarousel] Image failed to load:', image.image_url)
-                }
+                onLoad={() => handleImageLoad(banner.id)}
+                onError={() => console.warn('Failed to load image:', banner.image_url)}
+                // Add caching for better performance
+                cachePolicy="memory-disk"
+                // Progressive loading for web
+                {...(Platform.OS === 'web' ? { loading: 'lazy' } : {})}
               />
+              {banner.cta_text && (
+                <View style={styles.captionContainer}>
+                  <Text style={styles.captionTitle}>{banner.cta_text}</Text>
+                </View>
+              )}
             </Pressable>
           );
         })}
-      </CarouselComponent>
+      </ScrollView>
 
-      {showPagination && images.length > 1 && (
+      {showPagination && banners.length > 1 && (
         <View style={styles.pagination}>
-          {images.map((_, index) => (
+          {banners.map((_, index) => (
             <PaginationDot
               key={index}
               index={index}
               currentIndex={currentIndex}
-              scrollX={Platform.OS === 'web' ? undefined : scrollX}
+              scrollX={animatedIndex}
               screenWidth={SNAP_INTERVAL}
               color={colors.primary}
               isDark={isDark}
@@ -235,27 +245,41 @@ export default function ImageCarousel({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 8,
+    marginBottom: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  scrollContent: {
+    alignItems: 'center',
+  },
   slide: {
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
-    marginRight: SLIDE_MARGIN,
+    marginHorizontal: 0,
+    backgroundColor: '#ccc',
     position: 'relative',
   },
   image: {
     width: '100%',
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: '#ccc',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    borderRadius: 12,
+    backgroundColor: '#e0e0e0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 1,
-    marginBottom: 8,
-    gap: 2,
+    marginTop: 8,
+    gap: 6,
   },
   captionContainer: {
     position: 'absolute',
