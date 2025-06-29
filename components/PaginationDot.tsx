@@ -1,29 +1,32 @@
-// components/PaginationDot.tsx
 import React from 'react';
+import Animated, { useAnimatedStyle, interpolate, withTiming } from 'react-native-reanimated';
 import { View, StyleSheet } from 'react-native';
 
-export default function PaginationDot({
-  index,
-  currentIndex,
-  color,
-}: {
+interface Props {
   index: number;
-  currentIndex: number;
+  scrollX: Animated.SharedValue<number>;
+  screenWidth: number;
+  isDark: boolean;
   color: string;
-}) {
-  const isActive = index === currentIndex;
+}
 
-  return (
-    <View
-      style={[
-        styles.dot,
-        {
-          width: isActive ? 18 : 8,
-          backgroundColor: isActive ? color : '#999',
-        },
-      ]}
-    />
-  );
+export default function PaginationDot({ index, scrollX, screenWidth, isDark, color }: Props) {
+  const animatedStyle = useAnimatedStyle(() => {
+    const inputRange = [
+      (index - 1) * screenWidth,
+      index * screenWidth,
+      (index + 1) * screenWidth,
+    ];
+    const width = interpolate(scrollX.value, inputRange, [8, 24, 8], 'clamp');
+    const opacity = interpolate(scrollX.value, inputRange, [0.3, 1, 0.3], 'clamp');
+    return {
+      width: withTiming(width, { duration: 250 }),
+      opacity: withTiming(opacity, { duration: 250 }),
+      backgroundColor: color,
+    };
+  });
+
+  return <Animated.View style={[styles.dot, animatedStyle]} />;
 }
 
 const styles = StyleSheet.create({
