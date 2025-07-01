@@ -30,11 +30,11 @@ export default function HomeScreen() {
   const { impact, notification } = useHaptics();
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const route = useRoute();
   const params = useLocalSearchParams();
-  const scrollY = route.params?.scrollY || new Animated.Value(0);
+  const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
 
   // Get user info from session
   const firstName = session?.user?.user_metadata?.first_name || 'User';
@@ -122,7 +122,7 @@ export default function HomeScreen() {
     logAnalyticsEvent('view_all_payouts');
   };
 
-  const handleTransactionPress = (transaction) => {
+  const handleTransactionPress = (transaction: any) => {
     // Format transaction data for the modal
     const formattedTransaction = {
       amount: `₦${transaction.amount.toLocaleString()}`,
@@ -134,10 +134,7 @@ export default function HomeScreen() {
       destination: transaction.destination,
       transactionId: transaction.id,
       planRef: transaction.payout_plan_id || '',
-      paymentMethod: transaction.type === 'deposit' ? 'Bank Transfer' : 
-                    transaction.bank_accounts ? 
-                    `${transaction.bank_accounts.bank_name} •••• ${transaction.bank_accounts.account_number.slice(-4)}` : 
-                    'Bank Account',
+      paymentMethod: transaction.type === 'deposit' ? 'Bank Transfer' : 'Bank Account',
       initiatedBy: 'You',
       processingTime: transaction.status === 'completed' ? 'Instant' : '2-3 business days',
     };
@@ -293,7 +290,7 @@ export default function HomeScreen() {
         <ImageBackground 
           source={require('@/assets/images/background.png')} 
           style={styles.balanceCard}
-          resizeMode="fit"
+          resizeMode="cover"
         >
           <View style={styles.balanceCardContent}>
             <View style={styles.balanceLabelContainer}>
@@ -415,8 +412,8 @@ export default function HomeScreen() {
                 const completedAmount = plan.completed_payouts * plan.payout_amount;
                 
                 // Get the day of week from metadata if available
-                const dayOfWeek = plan.metadata?.dayOfWeek;
-                const originalFrequency = plan.metadata?.originalFrequency || plan.frequency;
+                const dayOfWeek = (plan as any).metadata?.dayOfWeek;
+                const originalFrequency = (plan as any).metadata?.originalFrequency || plan.frequency;
                 
                 return (
                   <Pressable
@@ -520,10 +517,7 @@ export default function HomeScreen() {
               });
               
               // Determine transaction method
-              const transactionMethod = isPositive ? 'Bank Transfer' : 
-                                       transaction.bank_accounts ? 
-                                       `${transaction.bank_accounts.bank_name} •••• ${transaction.bank_accounts.account_number.slice(-4)}` : 
-                                       'Bank Account';
+              const transactionMethod = isPositive ? 'Bank Transfer' : 'Bank Account';
               
               return (
                 <Pressable 
@@ -712,8 +706,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   avatarButton: {
     borderRadius: 24,
     overflow: 'hidden',
-    // Add subtle feedback for the touchable area
-    activeOpacity: 0.8,
   },
   helpButton: {
     width: 40,
@@ -916,11 +908,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
   },
   activeTag: {
     backgroundColor: '#DCFCE7',
@@ -1145,49 +1132,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.primary,
     marginBottom: 16,
   },
-  progressCount: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  planViewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.backgroundTertiary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 8,
-  },
-  planViewButtonText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  addPayoutCard: {
-    width: 300,
-    backgroundColor: colors.backgroundSecondary,
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addPayoutText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.primary,
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  addPayoutDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
   transactionCard: {
     marginBottom: 12,
     borderRadius: 16,
@@ -1256,5 +1200,28 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   bottomPadding: {
     height: 1,
+  },
+  addPayoutCard: {
+    width: 300,
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPayoutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  addPayoutDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
 });

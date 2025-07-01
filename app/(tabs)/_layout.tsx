@@ -45,7 +45,7 @@ export default function TabLayout() {
           table: 'events',
           filter: `user_id=eq.${session.user.id}`,
         },
-        (payload) => {
+        (payload: any) => {
           console.log('Events change received:', payload);
           // Refresh unread count when events change
           fetchUnreadNotificationsCount();
@@ -54,7 +54,7 @@ export default function TabLayout() {
 
     // Only subscribe if the channel is not already subscribed
     if (channel.state === 'closed' || channel.state === 'leaving') {
-      channel.subscribe((status) => {
+      channel.subscribe((status: any) => {
         console.log('Events subscription status:', status);
       });
     }
@@ -122,7 +122,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="ai-assistant"
         options={{
-          title: 'AI Planner',
+          title: 'AI',
           tabBarIcon: ({ color, size }) => <Sparkles size={size} color={color} />,
         }}
       />

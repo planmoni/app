@@ -106,7 +106,7 @@ export default function HelpScreen() {
             <Pressable style={styles.faqItem}>
               <Text style={styles.faqQuestion}>How do I link a bank account?</Text>
               <Text style={styles.faqAnswer}>
-                Go to Settings > Linked Bank Accounts and tap "Add New Account". You'll need to provide your bank details for verification.
+                Go to Settings {'>'} Linked Bank Accounts and tap "Add New Account". You'll need to provide your bank details for verification.
               </Text>
             </Pressable>
           </Card>

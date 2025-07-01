@@ -22,6 +22,8 @@ import { Send, Sparkles, ArrowRight, Wallet, TrendingUp, Calendar, Clock, X, Ale
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { getOpenAIChatCompletion } from '../../lib/openai';
+import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
 
 // Define message types
 type MessageType = 'text' | 'plan' | 'insight';
@@ -37,12 +39,9 @@ interface Message {
 
 // Suggested prompts for the user
 const SUGGESTED_PROMPTS = [
-  "I want to sustain with ₦500,000 till September",
-  "I earn 200k monthly. Can you help me budget?",
+  "Help me plan 50k for 2 months",
   "How can I improve my money habits?",
-  "Create a plan to payout ₦1M in 6 months",
   "Analyze my money patterns",
-  "What's the best way to save for emergencies?",
 ];
 
 export default function AIAssistantScreen() {
@@ -478,7 +477,7 @@ export default function AIAssistantScreen() {
             {!isUser && (
               <View style={styles.aiBadgeContainer}>
                 <Sparkles size={14} color={colors.primary} />
-                <Text style={styles.aiBadgeText}>Powered by AI</Text>
+                <Text style={styles.aiBadgeText}>PlanmoniAI</Text>
               </View>
             )}
           </Animated.View>
@@ -532,7 +531,7 @@ export default function AIAssistantScreen() {
             </View>
             <View style={styles.aiBadgeContainer}>
               <Sparkles size={14} color={colors.primary} />
-              <Text style={styles.aiBadgeText}>Powered by AI</Text>
+              <Text style={styles.aiBadgeText}>PlanmoniAI</Text>
             </View>
           </Animated.View>
         );
@@ -581,7 +580,7 @@ export default function AIAssistantScreen() {
             </View>
             <View style={styles.aiBadgeContainer}>
               <Sparkles size={14} color={colors.primary} />
-              <Text style={styles.aiBadgeText}>Powered by AI</Text>
+              <Text style={styles.aiBadgeText}>PlanmoniAI</Text>
             </View>
           </Animated.View>
         );
@@ -607,12 +606,19 @@ export default function AIAssistantScreen() {
       borderBottomColor: colors.border,
     },
     headerTitle: {
-      fontSize: 20,
+      fontSize: 25,
       fontWeight: '700',
-      color: colors.text,
+      color: 'black',
+      textAlign: 'left',
+    },
+    headerTitleGradientWrapper: {
+      alignSelf: 'flex-start',
+    },
+    headerTitleGradient: {
+      ...StyleSheet.absoluteFillObject,
     },
     headerSubtitle: {
-      fontSize: 14,
+      fontSize: 16,
       color: colors.textSecondary,
     },
     aiIconContainer: {
@@ -685,7 +691,7 @@ export default function AIAssistantScreen() {
       marginRight: 4,
     },
     typingText: {
-      fontSize: 14,
+      fontSize: 16,
       color: colors.textSecondary,
       marginLeft: 8,
     },
@@ -742,7 +748,7 @@ export default function AIAssistantScreen() {
       borderColor: colors.border,
     },
     suggestionText: {
-      fontSize: 14,
+      fontSize: 16,
       color: colors.text,
     },
     planOptions: {
@@ -775,7 +781,7 @@ export default function AIAssistantScreen() {
       fontWeight: '700',
     },
     planDescription: {
-      fontSize: 14,
+      fontSize: 16,
       marginBottom: 16,
     },
     planButton: {
@@ -790,7 +796,7 @@ export default function AIAssistantScreen() {
     },
     planButtonText: {
       color: '#FFFFFF',
-      fontSize: 14,
+      fontSize: 16,
       fontWeight: '600',
     },
     insightsContainer: {
@@ -819,7 +825,7 @@ export default function AIAssistantScreen() {
       fontWeight: '700',
     },
     insightDescription: {
-      fontSize: 14,
+      fontSize: 16,
     },
     recommendationsContainer: {
       marginTop: 16,
@@ -848,7 +854,7 @@ export default function AIAssistantScreen() {
     },
     recommendationText: {
       flex: 1,
-      fontSize: 14,
+      fontSize: 16,
       lineHeight: 20,
     },
     emptyContainer: {
@@ -901,7 +907,7 @@ export default function AIAssistantScreen() {
     },
     errorText: {
       color: '#E57373',
-      fontSize: 14,
+      fontSize: 16,
       flex: 1,
     },
     retryButton: {
@@ -922,8 +928,22 @@ export default function AIAssistantScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Financial Assistant</Text>
-          <Text style={styles.headerSubtitle}>Powered by AI</Text>
+          <MaskedView
+            maskElement={
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                Planmoni AI
+              </Text>
+            }
+          >
+            <LinearGradient
+              colors={['#0A36B5', '#3C82F6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={[styles.headerTitle, { opacity: 0 }]}>Planmoni AI</Text>
+            </LinearGradient>
+          </MaskedView>
+          <Text style={styles.headerSubtitle}>Let's plan some payouts</Text>
         </View>
         <View style={styles.aiIconContainer}>
           <Sparkles size={20} color="#FFFFFF" />
@@ -933,7 +953,7 @@ export default function AIAssistantScreen() {
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ScrollView
           ref={scrollViewRef}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { sendEmail, sendNotificationEmail } from '@/lib/email-service';
+import { supabase } from '@/lib/supabase';
 
 export type EmailNotificationSettings = {
   login_alerts: boolean;
@@ -22,49 +23,32 @@ export function useEmailNotifications() {
   const { session } = useAuth();
   const { showToast } = useToast();
 
-  useEffect(() => {
-    if (session?.access_token) {
-      fetchSettings(session.access_token);
-    }
-  }, [session?.access_token]);
+  // Helper: get user id from session
+  const userId = session?.user?.id;
 
-  const fetchSettings = async (accessToken?: string) => {
+  useEffect(() => {
+    if (userId) {
+      fetchSettings();
+    }
+  }, [userId]);
+
+  // Fetch settings directly from Supabase
+  const fetchSettings = async () => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      const token = accessToken || session?.access_token;
-      if (!token) {
-        throw new Error('No access token available');
+      if (!userId) throw new Error('No user ID available');
+      const { data, error: fetchError } = await supabase
+        .from('profiles')
+        .select('email_notifications')
+        .eq('id', userId)
+        .single();
+      if (fetchError) throw fetchError;
+      if (data?.email_notifications) {
+        setSettings(data.email_notifications);
+        return data.email_notifications;
       }
-      
-      // Fix: Use absolute URL instead of relative URL
-      const apiUrl = typeof window !== 'undefined' 
-        ? `${window.location.origin}/api/email-notifications` 
-        : '/api/email-notifications';
-      
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      // Check if response is OK before trying to parse JSON
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        throw new Error(`Server responded with ${response.status}: ${errorText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.settings) {
-        setSettings(data.settings);
-      }
-      
-      return data.settings;
+      return null;
     } catch (err) {
       console.error('Error fetching notification settings:', err);
       setError(err instanceof Error ? err.message : 'Failed to load notification settings');
@@ -74,39 +58,17 @@ export function useEmailNotifications() {
     }
   };
 
-  const updateSettings = async (newSettings: EmailNotificationSettings, accessToken?: string): Promise<boolean> => {
+  // Update settings directly in Supabase
+  const updateSettings = async (newSettings: EmailNotificationSettings): Promise<boolean> => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      const token = accessToken || session?.access_token;
-      if (!token) {
-        throw new Error('No access token available');
-      }
-      
-      // Fix: Use absolute URL instead of relative URL
-      const apiUrl = typeof window !== 'undefined' 
-        ? `${window.location.origin}/api/email-notifications` 
-        : '/api/email-notifications';
-      
-      const response = await fetch(apiUrl, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ settings: newSettings })
-      });
-      
-      // Check if response is OK before trying to parse JSON
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        throw new Error(`Server responded with ${response.status}: ${errorText}`);
-      }
-      
-      const data = await response.json();
-      
+      if (!userId) throw new Error('No user ID available');
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ email_notifications: newSettings })
+        .eq('id', userId);
+      if (updateError) throw updateError;
       setSettings(newSettings);
       showToast?.('Notification settings updated successfully', 'success');
       return true;
@@ -120,6 +82,7 @@ export function useEmailNotifications() {
     }
   };
 
+  // Keep sendNotification via Edge Function
   const sendNotification = async (
     type: 'new_login' | 'payout_completed' | 'plan_expiry' | 'wallet_summary',
     data: any,
@@ -131,12 +94,9 @@ export function useEmailNotifications() {
         console.error('No access token available for sending notification');
         return false;
       }
-      
-      // Fix: Use absolute URL instead of relative URL
-      const apiUrl = typeof window !== 'undefined' 
-        ? `${window.location.origin}/api/email-notifications` 
-        : '/api/email-notifications';
-      
+      const apiUrl = process.env.EXPO_PUBLIC_SUPABASE_FUNCTION_URL
+        ? `${process.env.EXPO_PUBLIC_SUPABASE_FUNCTION_URL}/email-notifications`
+        : 'https://<your-project-ref>.functions.supabase.co/email-notifications';
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -148,18 +108,21 @@ export function useEmailNotifications() {
           data
         })
       });
-      
-      // Check if response is OK before trying to parse JSON
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Error response:', errorText);
         return false;
       }
-      
-      const responseData = await response.json();
-      
-      console.log('Notification sent successfully');
-      return true;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        await response.json();
+        console.log('Notification sent successfully');
+        return true;
+      } else {
+        const text = await response.text();
+        console.error('Expected JSON, got:', text);
+        return false;
+      }
     } catch (error) {
       console.error('Error sending notification:', error);
       return false;

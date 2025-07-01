@@ -60,7 +60,7 @@ export default function ImageCarousel({
 
   const scrollX = useSharedValue(0);
   const scrollViewRef = useRef<any>(null);
-  const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoPlayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!propImages) {
@@ -253,8 +253,8 @@ const styles = StyleSheet.create({
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 12,
-    gap: 8,
+    gap: 2,
+    marginBottom: 30,
   },
   captionContainer: {
     position: 'absolute',
