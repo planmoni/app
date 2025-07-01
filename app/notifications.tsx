@@ -1,6 +1,7 @@
-import { TriangleAlert as AlertTriangle, Calendar, Check, Download, Shield, Smartphone, Wallet } from 'lucide-react-native';
-import { useState, useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { router } from 'expo-router';
+import { TriangleAlert as AlertTriangle, Calendar, Check, Download, Shield, Smartphone, Wallet, ArrowLeft, Bell } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -31,10 +32,9 @@ export default function NotificationsScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session?.user?.id) return;
-
-    // Initial fetch only - subscription is handled elsewhere
-    fetchNotifications();
+    if (session?.user?.id) {
+      fetchNotifications();
+    }
   }, [session?.user?.id]);
 
   const fetchNotifications = async () => {
@@ -159,13 +159,173 @@ export default function NotificationsScreen() {
     }
   };
 
-  const styles = createStyles(colors);
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.backgroundSecondary,
+    },
+    header: {
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    headerTitle: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: colors.text,
+      flex: 1,
+      marginLeft: 12,
+    },
+    markAllButton: {
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+    },
+    markAllText: {
+      fontSize: 14,
+      color: colors.primary,
+      fontWeight: '500',
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      marginTop: 16,
+    },
+    errorContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    errorText: {
+      fontSize: 16,
+      color: colors.error,
+      textAlign: 'center',
+      marginBottom: 16,
+    },
+    retryButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 8,
+    },
+    retryButtonText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    emptyText: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 8,
+    },
+    emptySubtext: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    notificationsList: {
+      flex: 1,
+    },
+    notification: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      padding: 16,
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    unreadNotification: {
+      backgroundColor: colors.backgroundSecondary,
+    },
+    notificationIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    notificationContent: {
+      flex: 1,
+      marginRight: 24,
+    },
+    notificationHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: 4,
+    },
+    notificationType: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    notificationTime: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    notificationMessage: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      lineHeight: 20,
+      marginBottom: 8,
+    },
+    statusTag: {
+      alignSelf: 'flex-start',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+    },
+    statusText: {
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    unreadDot: {
+      position: 'absolute',
+      top: 20,
+      right: 16,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.primary,
+    },
+  });
 
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <View style={styles.headerTop}>
+            <Pressable onPress={() => router.back()} style={styles.backButton}>
+              <ArrowLeft size={24} color={colors.text} />
+            </Pressable>
             <Text style={styles.headerTitle}>Notifications</Text>
             <Pressable style={styles.markAllButton} onPress={handleMarkAllAsRead}>
               <Text style={styles.markAllText}>Mark all as read</Text>
@@ -183,6 +343,9 @@ export default function NotificationsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
           <Text style={styles.headerTitle}>Notifications</Text>
           <Pressable style={styles.markAllButton} onPress={handleMarkAllAsRead}>
             <Text style={styles.markAllText}>Mark all as read</Text>
@@ -279,152 +442,3 @@ function formatTimeAgo(date: Date): string {
   const diffInYears = Math.floor(diffInDays / 365);
   return `${diffInYears}y ago`;
 }
-
-const createStyles = (colors: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundSecondary,
-  },
-  header: {
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  markAllButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  markAllText: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginTop: 16,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  errorText: {
-    fontSize: 16,
-    color: colors.error,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  notificationsList: {
-    flex: 1,
-  },
-  notification: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  unreadNotification: {
-    backgroundColor: colors.backgroundSecondary,
-  },
-  notificationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  notificationContent: {
-    flex: 1,
-    marginRight: 24,
-  },
-  notificationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 4,
-  },
-  notificationType: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  notificationTime: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  notificationMessage: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  statusTag: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  unreadDot: {
-    position: 'absolute',
-    top: 20,
-    right: 16,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.primary,
-  },
-});

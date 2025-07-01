@@ -8,7 +8,7 @@ import PendingActionsCard from '@/components/PendingActionsCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
+import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, CircleHelp as HelpCircle, Lock, Pause, Play, Plus, Send, Wallet } from 'lucide-react-native';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View, Alert, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -19,6 +19,7 @@ import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
+import NotificationIcon from '@/components/NotificationIcon';
 
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance } = useBalance();
@@ -51,6 +52,11 @@ export default function HomeScreen() {
     router.push('/profile');
     logAnalyticsEvent('profile_click');
   };
+  
+  const handleHelpPress = () => {
+    router.push('/help');
+    logAnalyticsEvent('help_click');
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -59,24 +65,6 @@ export default function HomeScreen() {
 
     return () => clearInterval(interval);
   }, []);
-
-  const formatDate = (date: Date) => {
-    const day = date.getDate();
-    const month = date.toLocaleString('default', { month: 'long' });
-    const year = date.getFullYear();
-    const suffix = getDaySuffix(day);
-    return `${day}${suffix} ${month} ${year}`;
-  };
-
-  const getDaySuffix = (day: number) => {
-    if (day > 3 && day < 21) return 'th';
-    switch (day % 10) {
-      case 1: return 'st';
-      case 2: return 'nd';
-      case 3: return 'rd';
-      default: return 'th';
-    }
-  };
 
   const getGreeting = () => {
     const hour = currentDate.getHours();
@@ -289,7 +277,12 @@ export default function HomeScreen() {
                 fontSize={18}
               />
             </Pressable>
-            <Text style={styles.date}>{formatDate(currentDate)}</Text>
+            <View style={styles.headerActions}>
+              <NotificationIcon />
+              <Pressable onPress={handleHelpPress} style={styles.helpButton}>
+                <HelpCircle size={24} color={colors.text} />
+              </Pressable>
+            </View>
           </View>
           <View style={styles.greetingContainer}>
             <Text style={styles.greeting}>Hello, {firstName}.</Text>
@@ -346,9 +339,11 @@ export default function HomeScreen() {
         </ImageBackground>
 
         {/* Banner Carousel */}
-        <ImageCarousel/>
 
+        <ImageCarousel/>
         <PendingActionsCard />
+
+        
 
         {nextPayout && (
           <Pressable 
@@ -709,11 +704,24 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   avatarButton: {
     borderRadius: 24,
     overflow: 'hidden',
     // Add subtle feedback for the touchable area
     activeOpacity: 0.8,
+  },
+  helpButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   greetingContainer: {
     marginLeft: 0,
@@ -797,7 +805,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.primary,
     padding: 14,
-    borderRadius: 8,
+    borderRadius: 5,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -812,9 +820,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.backgroundTertiary,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#1F3C95',
     padding: 14,
-    borderRadius: 8,
+    borderRadius: 5,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
