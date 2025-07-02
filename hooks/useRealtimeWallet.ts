@@ -19,7 +19,7 @@ export function useRealtimeWallet() {
   useEffect(() => {
     if (!session?.user?.id) return;
 
-    let channel: RealtimeChannel;
+    let channel: any;
 
     const setupRealtimeSubscription = async () => {
       try {
@@ -27,8 +27,9 @@ export function useRealtimeWallet() {
         await fetchWallet();
 
         // Set up real-time subscription
+        const channelName = `wallet-changes-${session.user.id}`;
         channel = supabase
-          .channel('wallet-changes')
+          .channel(channelName)
           .on(
             'postgres_changes',
             {
@@ -37,7 +38,7 @@ export function useRealtimeWallet() {
               table: 'wallets',
               filter: `user_id=eq.${session.user.id}`,
             },
-            (payload) => {
+            (payload: any) => {
               console.log('Wallet change received:', payload);
               
               if (payload.eventType === 'UPDATE' && payload.new) {
@@ -46,10 +47,13 @@ export function useRealtimeWallet() {
                 // availableBalance will be calculated automatically via useEffect
               }
             }
-          )
-          .subscribe((status) => {
+          );
+        // Only subscribe if not already subscribed
+        if (channel.state === 'closed' || channel.state === 'leaving') {
+          channel.subscribe((status: any) => {
             console.log('Wallet subscription status:', status);
           });
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to setup wallet subscription');
       }

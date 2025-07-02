@@ -21,9 +21,10 @@ export default function NotificationIcon({ size = 24, color }: NotificationIconP
     if (session?.user?.id) {
       fetchUnreadCount();
       
-      // Set up real-time subscription
+      // Set up real-time subscription with unique channel name
+      const channelName = `notification-count-${session.user.id}`;
       const channel = supabase
-        .channel('notification-count')
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
@@ -36,9 +37,11 @@ export default function NotificationIcon({ size = 24, color }: NotificationIconP
             // Refresh count when events change
             fetchUnreadCount();
           }
-        )
-        .subscribe();
-        
+        );
+      // Only subscribe if not already subscribed
+      if (channel.state === 'closed' || channel.state === 'leaving') {
+        channel.subscribe();
+      }
       return () => {
         supabase.removeChannel(channel);
       };

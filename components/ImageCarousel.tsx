@@ -19,6 +19,7 @@ import Animated, {
 import { useTheme } from '@/contexts/ThemeContext';
 import PaginationDot from './PaginationDot';
 import { supabase } from '@/lib/supabase';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface Banner {
   id: string;
@@ -147,8 +148,15 @@ export default function ImageCarousel({
   if (isLoading) {
     return (
       <View style={[styles.container, { height }]}> 
-        <ActivityIndicator color={colors.primary} />
-        <Text style={styles.loadingText}>Loading images...</Text>
+        <LinearGradient
+          colors={["#e0e0e0", "#cfcfcf", "#e0e0e0"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.gradient, { height, width: screenWidth - SLIDE_MARGIN * 2, borderRadius: 12 }]}
+        >
+          <ActivityIndicator color={colors.primary} style={{ marginTop: height / 2.5 }} />
+          <Text style={styles.loadingText}>Loading images...</Text>
+        </LinearGradient>
       </View>
     );
   }
@@ -254,7 +262,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 2,
-    marginBottom: 30,
+    marginBottom: 20,
   },
   captionContainer: {
     position: 'absolute',
@@ -304,5 +312,19 @@ const styles = StyleSheet.create({
   retryText: {
     color: '#fff',
     fontWeight: '500',
+  },
+  gradient: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    width: '100%',
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
   },
 });
