@@ -210,7 +210,15 @@ export default function AIAssistantScreen() {
     const { availableBalance, balance, lockedBalance } = balances;
     let aiMessage: Message | null = null;
     try {
-      const systemPrompt = `You are Planmoni, a financial assistant for Nigerian users.\nUser: ${getUserName()}\nAvailable balance: ₦${availableBalance.toLocaleString()}\nTotal balance: ₦${balance.toLocaleString()}\nLocked balance: ₦${lockedBalance.toLocaleString()}\nIf the user asks for a savings or payout plan, respond ONLY with a valid JSON object like this:\n{\n  \"type\": \"plan\",\n  \"content\": \"summary of the plan\",\n  \"metadata\": {\n    \"targetAmount\": 1000000,\n    \"timeframe\": 6,\n    \"plans\": [ {\n      \"title\": \"Weekly Plan\",\n      \"amount\": 50000,\n      \"frequency\": \"weekly\",\n      \"description\": \"...\" } ]\n  }\n}\nDo not include any text outside the JSON. If you are unsure, say so in the content field. Do not make up numbers or facts.`;
+      // In-context examples for payout scheduling
+      const examples = [
+        { user: "Help me plan 150k for 3 months", ai: '{"type": "plan", "content": "Here is a payout schedule to disburse ₦150,000 over 3 months.", "metadata": {"targetAmount": 150000, "timeframe": 3, "plans": [{"title": "Monthly Payout", "amount": 50000, "frequency": "monthly", "description": "Schedule a payout of ₦50,000 every month for 3 months."}]}}' },
+        { user: "I want to payout 100k weekly for 2 months", ai: '{"type": "plan", "content": "Here is your weekly payout schedule.", "metadata": {"targetAmount": 100000, "timeframe": 2, "plans": [{"title": "Weekly Payout", "amount": 12500, "frequency": "weekly", "description": "Schedule a payout of ₦12,500 every week for 2 months."}]}}' },
+        { user: "Disburse 60k biweekly for 6 months", ai: '{"type": "plan", "content": "Here is your bi-weekly payout schedule.", "metadata": {"targetAmount": 60000, "timeframe": 6, "plans": [{"title": "Bi-weekly Payout", "amount": 5000, "frequency": "biweekly", "description": "Schedule a payout of ₦5,000 every two weeks for 6 months."}]}}' },
+        { user: "I want to payout 10k daily for 10 days", ai: '{"type": "plan", "content": "Here is your daily payout schedule.", "metadata": {"targetAmount": 10000, "timeframe": 10, "plans": [{"title": "Daily Payout", "amount": 1000, "frequency": "daily", "description": "Schedule a payout of ₦1,000 every day for 10 days."}]}}' },
+        { user: "Disburse 200k at the end of every month for 4 months", ai: '{"type": "plan", "content": "Here is your end-of-month payout schedule.", "metadata": {"targetAmount": 200000, "timeframe": 4, "plans": [{"title": "End-of-Month Payout", "amount": 50000, "frequency": "end_of_month", "description": "Schedule a payout of ₦50,000 at the end of each month for 4 months."}]}}' }
+      ];
+      const systemPrompt = `You are Planmoni, a helpful, friendly, and expert payout scheduling assistant for Nigerian users.\nUser: ${getUserName()}\nAvailable balance: ₦${availableBalance.toLocaleString()}\nTotal balance: ₦${balance.toLocaleString()}\nLocked balance: ₦${lockedBalance.toLocaleString()}\n\nIMPORTANT: Planmoni is a payout scheduling app. Your job is to help users plan and schedule payouts over time, regardless of their current balance. Do NOT check if the user can "afford" a payout up front. Never block or warn about insufficient balance. Always suggest flexible payout schedules, and encourage users to schedule payouts as funds become available.\n\nUse only payout, schedule, disbursement, or plan your payouts language. Never use savings or saving plan language.\n\nIf the user asks for a payout schedule, respond ONLY with a valid JSON object like this:\n{\n  \"type\": \"plan\",\n  \"content\": \"summary of the payout schedule\",\n  \"metadata\": {\n    \"targetAmount\": 1000000,\n    \"timeframe\": 6,\n    \"plans\": [ {\n      \"title\": \"Weekly Payout\",\n      \"amount\": 50000,\n      \"frequency\": \"weekly\",\n      \"description\": \"Schedule a payout of ₦50,000 every week for 6 months." } ]\n  }\n}\nDo not include any text outside the JSON.\nIf the user's available balance is low, encourage them to schedule payouts as funds become available, and offer flexible options.\nBe positive, supportive, and empowering. Never block the user from seeing a payout schedule.\n\nHere are some examples:\n${examples.map(e => `User: ${e.user}\nAI: ${e.ai}`).join('\n')}\n\nIf you are unsure, say so in the content field. Do not make up numbers or facts.`;
       const openaiResponse = await getOpenAIChatCompletion({
         messages: [
           { role: 'system', content: systemPrompt },
@@ -231,7 +239,7 @@ export default function AIAssistantScreen() {
       if (parsed && parsed.type === 'plan' && parsed.metadata && Array.isArray(parsed.metadata.plans)) {
         aiMessage = {
           id: Date.now().toString(),
-          content: parsed.content || 'Here is a personalized plan for you:',
+          content: parsed.content || 'Here is a personalized payout schedule for you:',
           sender: 'ai',
           type: 'plan',
           timestamp: new Date(),
@@ -246,16 +254,18 @@ export default function AIAssistantScreen() {
     if (!aiMessage && !error) {
       const targetAmount = extractAmount(userMessage) || 500000;
       const timeframe = extractTimeframe(userMessage) || 6;
+      let content = `Based on your goal to schedule payouts totaling ₦${targetAmount.toLocaleString()} over ${timeframe} months, here are some flexible payout schedules you can set up:`;
+      content += `\n\nYou can always adjust your payout schedule as your needs or available funds change. Planmoni makes it easy to stay on track!`;
       aiMessage = {
         id: Date.now().toString(),
-        content: `Based on your goal to payout ₦${targetAmount.toLocaleString()} over ${timeframe} months, here are some personalized plans:`,
+        content,
         sender: 'ai',
         type: 'plan',
         timestamp: new Date(),
         metadata: {
           targetAmount,
           timeframe,
-          plans: getPlanOptions(targetAmount, timeframe)
+          plans: getPlanOptions(targetAmount, timeframe, userMessage)
         }
       };
     }
@@ -263,29 +273,119 @@ export default function AIAssistantScreen() {
     setIsTyping(false);
   };
 
+  // Helper to determine if the user was specific about payout schedule
+  const extractFrequency = (message: string): 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'end_of_month' | 'first_of_month' | null => {
+    const lower = message.toLowerCase();
+    if (lower.includes('daily') || lower.includes('every day')) return 'daily';
+    if (lower.includes('weekly')) return 'weekly';
+    if (lower.includes('biweekly') || lower.includes('bi-weekly') || lower.includes('every two weeks')) return 'biweekly';
+    if (lower.includes('end of month') || lower.includes('end-of-month')) return 'end_of_month';
+    if (lower.includes('first of month') || lower.includes('first-of-month')) return 'first_of_month';
+    if (lower.includes('monthly')) return 'monthly';
+    return null;
+  };
+
   // Helper to generate plan options
-  const getPlanOptions = (targetAmount: number, timeframe: number) => {
+  const getPlanOptions = (targetAmount: number, timeframe: number, userMessage?: string) => {
     const monthlyAmount = Math.ceil(targetAmount / timeframe);
     const weeklyAmount = Math.ceil(monthlyAmount / 4.33);
     const biweeklyAmount = Math.ceil(monthlyAmount / 2);
+    const dailyAmount = Math.ceil(targetAmount / (timeframe * 30));
+    const endOfMonthAmount = Math.ceil(targetAmount / timeframe);
+    const firstOfMonthAmount = Math.ceil(targetAmount / timeframe);
+    const freq = userMessage ? extractFrequency(userMessage) : null;
+    if (freq === 'daily') {
+      return [
+        {
+          title: "Daily Payout",
+          amount: dailyAmount,
+          frequency: "daily",
+          description: `Schedule a payout of ₦${dailyAmount.toLocaleString()} every day for ${timeframe * 30} days.`
+        }
+      ];
+    } else if (freq === 'weekly') {
+      return [
+        {
+          title: "Weekly Payout",
+          amount: weeklyAmount,
+          frequency: "weekly",
+          description: `Schedule a payout of ₦${weeklyAmount.toLocaleString()} every week for ${timeframe} months.`
+        }
+      ];
+    } else if (freq === 'biweekly') {
+      return [
+        {
+          title: "Bi-weekly Payout",
+          amount: biweeklyAmount,
+          frequency: "biweekly",
+          description: `Schedule a payout of ₦${biweeklyAmount.toLocaleString()} every two weeks for ${timeframe} months.`
+        }
+      ];
+    } else if (freq === 'monthly') {
+      return [
+        {
+          title: "Monthly Payout",
+          amount: monthlyAmount,
+          frequency: "monthly",
+          description: `Schedule a payout of ₦${monthlyAmount.toLocaleString()} every month for ${timeframe} months.`
+        }
+      ];
+    } else if (freq === 'end_of_month') {
+      return [
+        {
+          title: "End-of-Month Payout",
+          amount: endOfMonthAmount,
+          frequency: "end_of_month",
+          description: `Schedule a payout of ₦${endOfMonthAmount.toLocaleString()} at the end of each month for ${timeframe} months.`
+        }
+      ];
+    } else if (freq === 'first_of_month') {
+      return [
+        {
+          title: "First-of-Month Payout",
+          amount: firstOfMonthAmount,
+          frequency: "first_of_month",
+          description: `Schedule a payout of ₦${firstOfMonthAmount.toLocaleString()} on the first of each month for ${timeframe} months.`
+        }
+      ];
+    }
+    // Default: show all 5 options
     return [
       {
-        title: "Weekly Plan",
+        title: "Daily Payout",
+        amount: dailyAmount,
+        frequency: "daily",
+        description: `Schedule a payout of ₦${dailyAmount.toLocaleString()} every day for ${timeframe * 30} days.`
+      },
+      {
+        title: "Weekly Payout",
         amount: weeklyAmount,
         frequency: "weekly",
-        description: `₦${weeklyAmount.toLocaleString()} every week for ${timeframe} months`
+        description: `Schedule a payout of ₦${weeklyAmount.toLocaleString()} every week for ${timeframe} months.`
       },
       {
-        title: "Bi-weekly Plan",
+        title: "Bi-weekly Payout",
         amount: biweeklyAmount,
         frequency: "biweekly",
-        description: `₦${biweeklyAmount.toLocaleString()} every two weeks for ${timeframe} months`
+        description: `Schedule a payout of ₦${biweeklyAmount.toLocaleString()} every two weeks for ${timeframe} months.`
       },
       {
-        title: "Monthly Plan",
+        title: "Monthly Payout",
         amount: monthlyAmount,
         frequency: "monthly",
-        description: `₦${monthlyAmount.toLocaleString()} every month for ${timeframe} months`
+        description: `Schedule a payout of ₦${monthlyAmount.toLocaleString()} every month for ${timeframe} months.`
+      },
+      {
+        title: "End-of-Month Payout",
+        amount: endOfMonthAmount,
+        frequency: "end_of_month",
+        description: `Schedule a payout of ₦${endOfMonthAmount.toLocaleString()} at the end of each month for ${timeframe} months.`
+      },
+      {
+        title: "First-of-Month Payout",
+        amount: firstOfMonthAmount,
+        frequency: "first_of_month",
+        description: `Schedule a payout of ₦${firstOfMonthAmount.toLocaleString()} on the first of each month for ${timeframe} months.`
       }
     ];
   };
@@ -294,7 +394,7 @@ export default function AIAssistantScreen() {
     const { availableBalance, balance, lockedBalance } = balances;
     let aiMessage: Message | null = null;
     try {
-      const systemPrompt = `You are Planmoni, a financial assistant for Nigerian users.\nUser: ${getUserName()}\nAvailable balance: ₦${availableBalance.toLocaleString()}\nTotal balance: ₦${balance.toLocaleString()}\nLocked balance: ₦${lockedBalance.toLocaleString()}\nIf the user asks for financial insights or analysis, respond ONLY with a valid JSON object like this:\n{\n  \"type\": \"insight\",\n  \"content\": \"summary of the insights\",\n  \"metadata\": {\n    \"insights\": [ {\n      \"title\": \"...\", \"value\": \"...\", \"change\": \"...\", \"description\": \"...\" } ],\n    \"recommendations\": [ \"...\" ]\n  }\n}\nDo not include any text outside the JSON. If you are unsure, say so in the content field. Do not make up numbers or facts.`;
+      const systemPrompt = `You are Planmoni, a helpful, friendly, and expert financial assistant for Nigerian users.\nUser: ${getUserName()}\nAvailable balance: ₦${availableBalance.toLocaleString()}\nTotal balance: ₦${balance.toLocaleString()}\nLocked balance: ₦${lockedBalance.toLocaleString()}\nIf the user asks for financial insights or analysis, respond ONLY with a valid JSON object like this:\n{\n  \"type\": \"insight\",\n  \"content\": \"summary of the insights\",\n  \"metadata\": {\n    \"insights\": [ {\n      \"title\": \"...\", \"value\": \"...\", \"change\": \"...\", \"description\": \"...\" } ],\n    \"recommendations\": [ \"...\" ]\n  }\n}\nDo not include any text outside the JSON.\nIf the user's available balance is low, provide supportive, actionable advice to help them improve. If the available balance is high, suggest ways to optimize, invest, or grow their finances. Always be positive, supportive, and never block the user from seeing insights. Do not make up numbers or facts.`;
       const openaiResponse = await getOpenAIChatCompletion({
         messages: [
           { role: 'system', content: systemPrompt },
@@ -362,9 +462,9 @@ export default function AIAssistantScreen() {
         }
       ];
       const recommendations = [
-        availableBalance < 100000 ? "Try reducing discretionary spending this month." : "Consider automating your savings for consistency.",
-        monthsCovered < 3 ? "Aim to build your emergency fund to cover at least 3 months of expenses." : "Explore investment options for surplus funds.",
-        lockedBalance > 0 ? "Review your locked funds to ensure they align with your goals." : "All your funds are available for new plans."
+        availableBalance < 100000 ? "Try reducing discretionary spending this month. Start small and build up your savings!" : "Consider automating your savings for consistency and explore investment opportunities.",
+        monthsCovered < 3 ? "Aim to build your emergency fund to cover at least 3 months of expenses. Every little bit helps!" : "Explore investment options for surplus funds to grow your wealth.",
+        lockedBalance > 0 ? "Review your locked funds to ensure they align with your goals. Stay on track!" : "All your funds are available for new plans. Keep up the good work!"
       ];
       aiMessage = {
         id: Date.now().toString(),
