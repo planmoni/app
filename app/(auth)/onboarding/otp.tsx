@@ -10,6 +10,7 @@ import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Platform } from 'react-native';
+import { supabase } from '@/lib/supabase';
 
 export default function OTPScreen() {
   const { colors } = useTheme();
@@ -101,18 +102,17 @@ export default function OTPScreen() {
       setIsResending(true);
       setError(null);
       
-      const response = await fetch('/api/otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
+      // Call the Supabase function to send OTP
+      const { data, error: otpError } = await supabase.rpc('send_otp_email', {
+        p_email: email.trim().toLowerCase()
       });
       
-      const data = await response.json();
+      if (otpError) {
+        throw new Error(otpError.message || 'Failed to send verification code');
+      }
       
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send OTP');
+      if (!data) {
+        throw new Error('Failed to send verification code');
       }
       
       // Reset timer
@@ -153,18 +153,18 @@ export default function OTPScreen() {
     setError(null);
     
     try {
-      const response = await fetch('/api/otp', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, otp: otpValue }),
+      // Call the Supabase function to verify OTP
+      const { data, error: verifyError } = await supabase.rpc('verify_otp', {
+        p_email: email.trim().toLowerCase(),
+        p_otp: otpValue
       });
       
-      const data = await response.json();
+      if (verifyError) {
+        throw new Error(verifyError.message || 'Failed to verify OTP');
+      }
       
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to verify OTP');
+      if (!data) {
+        throw new Error('Invalid or expired verification code');
       }
       
       // Show success toast
@@ -174,13 +174,14 @@ export default function OTPScreen() {
         haptics.success();
       }
       
-      // Navigate to the next screen
+      // Navigate to the next screen with emailVerified flag
       router.push({
         pathname: '/onboarding/create-password',
         params: { 
           firstName,
           lastName,
-          email
+          email,
+          emailVerified: 'true'
         }
       });
     } catch (error) {
@@ -308,7 +309,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -324,7 +325,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: '100%',
   },
   question: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 24,

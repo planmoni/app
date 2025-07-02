@@ -502,6 +502,31 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
         pointerEvents={isVisible ? 'auto' : 'none'}
       >
         <Pressable style={styles.overlayPressable} onPress={handleClose} />
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <Text style={styles.title}>Transaction Details</Text>
+            <Pressable onPress={handleClose} style={styles.closeButton}>
+              <X size={24} color="#FFFFFF" />
+            </Pressable>
+          </View>
+          <View style={styles.amountSection}>
+            <View style={[styles.amountIcon, { backgroundColor: isPositive ? '#fff' : '#fff' }]}>
+              {isPositive ? (
+                <ArrowDownRight size={24} color="#000" />
+              ) : (
+                <ArrowUpRight size={24} color="#000" />
+              )}
+            </View>
+            <View>
+              <Text style={[styles.amount, isPositive ? styles.positiveAmount : styles.negativeAmount]}>
+                {`${isPositive ? '' : '-'}${transaction.amount}`}
+              </Text>
+              <Text style={[styles.status, isPositive ? styles.positiveStatus : styles.negativeStatus]}>
+                {transaction.status}
+              </Text>
+            </View>
+          </View>
+        </View>
 
         <Animated.View
           style={[
@@ -740,20 +765,20 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     marginBottom: 4,
   },
   positiveAmount: {
-    color: '#22C55E',
+    color: '#fff',
   },
   negativeAmount: {
-    color: '#EF4444',
+    color: '#fff',
   },
   status: {
     fontSize: 14,
     fontWeight: '500',
   },
   positiveStatus: {
-    color: '#22C55E',
+    color: '#fff',
   },
   negativeStatus: {
-    color: '#EF4444',
+    color: '#fff',
   },
   scrollView: {
     maxHeight: '60%', // Limit scroll view height

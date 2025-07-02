@@ -115,7 +115,7 @@ export default function AmountScreen() {
             <Text style={styles.currencySymbol}>₦</Text>
             <TextInput
               style={styles.amountInput}
-              placeholder="Enter amount"
+              placeholder="0"
               placeholderTextColor={colors.textTertiary}
               keyboardType="numeric"
               value={amount}
@@ -209,7 +209,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 0,
   },
   title: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,

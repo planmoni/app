@@ -1,16 +1,21 @@
-import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions, Animated } from 'react-native';
 import { X, Check, Globe } from 'lucide-react-native';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 
 interface LanguageModalProps {
   isVisible: boolean;
   onClose: () => void;
 }
 
+const DRAG_DISMISS_THRESHOLD = 120;
+
 export default function LanguageModal({ isVisible, onClose }: LanguageModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const translateY = useRef(new Animated.Value(0)).current;
+  const [dragging, setDragging] = useState(false);
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
@@ -34,61 +39,91 @@ export default function LanguageModal({ isVisible, onClose }: LanguageModalProps
   
   const styles = createStyles(colors, isDark, isSmallScreen);
   
+  const handleGestureEvent = Animated.event(
+    [{ nativeEvent: { translationY: translateY } }],
+    { useNativeDriver: true }
+  );
+
+  const handleGestureEnd = (event: any) => {
+    setDragging(false);
+    if (event.nativeEvent.translationY > DRAG_DISMISS_THRESHOLD) {
+      Animated.timing(translateY, {
+        toValue: height,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        translateY.setValue(0);
+        onClose();
+      });
+    } else {
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
+
   return (
     <Modal
-      animationType="slide"
-      transparent={true}
       visible={isVisible}
+      animationType="none"
+      transparent
       onRequestClose={onClose}
-      statusBarTranslucent={true}
+      statusBarTranslucent
     >
       <View style={styles.centeredView}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={styles.modalView}>
-          <View style={styles.header}>
-            <Text style={styles.modalTitle}>Language Preference</Text>
-            <Pressable style={styles.closeButton} onPress={onClose}>
-              <X size={isSmallScreen ? 20 : 24} color={colors.text} />
-            </Pressable>
-          </View>
-          
-          <View style={styles.iconContainer}>
-            <Globe size={isSmallScreen ? 32 : 40} color={colors.primary} />
-          </View>
-          
-          <Text style={styles.description}>
-            Choose your preferred language for the application.
-          </Text>
-          
-          <ScrollView style={styles.languageList}>
-            {languages.map(language => (
-              <Pressable 
-                key={language.code}
-                style={[
-                  styles.languageOption,
-                  selectedLanguage === language.code && styles.selectedLanguage
-                ]}
-                onPress={() => setSelectedLanguage(language.code)}
-              >
-                <View style={styles.languageInfo}>
-                  <Text style={styles.languageName}>{language.name}</Text>
-                  <Text style={styles.languageNative}>{language.native}</Text>
-                </View>
-                {selectedLanguage === language.code && (
-                  <View style={styles.checkContainer}>
-                    <Check size={isSmallScreen ? 16 : 20} color={colors.primary} />
-                  </View>
-                )}
+        <PanGestureHandler
+          onGestureEvent={handleGestureEvent}
+          onBegan={() => setDragging(true)}
+          onEnded={handleGestureEnd}
+        >
+          <Animated.View style={[styles.modalView, { transform: [{ translateY }] }]}>
+            <View style={styles.header}>
+              <Text style={styles.modalTitle}>Language Preference</Text>
+              <Pressable style={styles.closeButton} onPress={onClose}>
+                <X size={isSmallScreen ? 20 : 24} color={colors.text} />
               </Pressable>
-            ))}
-          </ScrollView>
+            </View>
+            
+            <View style={styles.iconContainer}>
+              <Globe size={isSmallScreen ? 32 : 40} color={colors.primary} />
+            </View>
+            
+            <Text style={styles.description}>
+              Choose your preferred language for the application.
+            </Text>
+            
+            <ScrollView style={styles.languageList}>
+              {languages.map(language => (
+                <Pressable 
+                  key={language.code}
+                  style={[
+                    styles.languageOption,
+                    selectedLanguage === language.code && styles.selectedLanguage
+                  ]}
+                  onPress={() => setSelectedLanguage(language.code)}
+                >
+                  <View style={styles.languageInfo}>
+                    <Text style={styles.languageName}>{language.name}</Text>
+                    <Text style={styles.languageNative}>{language.native}</Text>
+                  </View>
+                  {selectedLanguage === language.code && (
+                    <View style={styles.checkContainer}>
+                      <Check size={isSmallScreen ? 16 : 20} color={colors.primary} />
+                    </View>
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
 
-          <View style={styles.footer}>
-            <Pressable style={styles.applyButton} onPress={onClose}>
-              <Text style={styles.applyButtonText}>Apply Changes</Text>
-            </Pressable>
-          </View>
-        </View>
+            <View style={styles.footer}>
+              <Pressable style={styles.applyButton} onPress={onClose}>
+                <Text style={styles.applyButtonText}>Apply Changes</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </PanGestureHandler>
       </View>
     </Modal>
   );

@@ -17,6 +17,7 @@ export default function BVNScreen() {
   const lastName = params.lastName as string;
   const email = params.email as string;
   const password = params.password as string;
+  const emailVerified = params.emailVerified === 'true';
   
   const [bvn, setBvn] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -43,13 +44,14 @@ export default function BVNScreen() {
     
     haptics.mediumImpact();
     router.push({
-      pathname: '/onboarding/app-lock',
+      pathname: '/onboarding/referral-code',
       params: { 
         firstName,
         lastName,
         email,
         password,
-        bvn: bvn || 'skipped'
+        bvn: bvn || 'skipped',
+        emailVerified: emailVerified ? 'true' : 'false'
       }
     });
   };
@@ -57,13 +59,14 @@ export default function BVNScreen() {
   const handleSkip = () => {
     haptics.lightImpact();
     router.push({
-      pathname: '/onboarding/app-lock',
+      pathname: '/onboarding/referral-code',
       params: { 
         firstName,
         lastName,
         email,
         password,
-        bvn: 'skipped'
+        bvn: 'skipped',
+        emailVerified: emailVerified ? 'true' : 'false'
       }
     });
   };
@@ -84,7 +87,7 @@ export default function BVNScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={7} totalSteps={10} />
+      <OnboardingProgress currentStep={7} totalSteps={8} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -128,8 +131,8 @@ export default function BVNScreen() {
             </View>
             
             <Pressable 
-              onPress={handleSkip} 
-              style={styles.skipButton}
+              style={styles.skipButton} 
+              onPress={handleSkip}
             >
               <Text style={styles.skipText}>Skip for now</Text>
             </Pressable>

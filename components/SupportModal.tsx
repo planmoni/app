@@ -1,16 +1,21 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, useWindowDimensions } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, useWindowDimensions, Animated } from 'react-native';
 import { X, Send, MessageSquare } from 'lucide-react-native';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 
 interface SupportModalProps {
   isVisible: boolean;
   onClose: () => void;
 }
 
+const DRAG_DISMISS_THRESHOLD = 120;
+
 export default function SupportModal({ isVisible, onClose }: SupportModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const translateY = useRef(new Animated.Value(0)).current;
+  const [dragging, setDragging] = useState(false);
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
@@ -22,95 +27,125 @@ export default function SupportModal({ isVisible, onClose }: SupportModalProps) 
   
   const styles = createStyles(colors, isDark, isSmallScreen);
   
+  const handleGestureEvent = Animated.event(
+    [{ nativeEvent: { translationY: translateY } }],
+    { useNativeDriver: true }
+  );
+
+  const handleGestureEnd = (event: any) => {
+    setDragging(false);
+    if (event.nativeEvent.translationY > DRAG_DISMISS_THRESHOLD) {
+      Animated.timing(translateY, {
+        toValue: height,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        translateY.setValue(0);
+        onClose();
+      });
+    } else {
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
+
   return (
     <Modal
-      animationType="slide"
-      transparent={true}
       visible={isVisible}
+      animationType="none"
+      transparent
       onRequestClose={onClose}
-      statusBarTranslucent={true}
+      statusBarTranslucent
     >
       <View style={styles.centeredView}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={styles.modalView}>
-          <View style={styles.header}>
-            <Text style={styles.modalTitle}>Contact Support</Text>
-            <Pressable style={styles.closeButton} onPress={onClose}>
-              <X size={isSmallScreen ? 20 : 24} color={colors.text} />
-            </Pressable>
-          </View>
-          
-          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-            <View style={styles.iconContainer}>
-              <MessageSquare size={isSmallScreen ? 32 : 40} color={colors.primary} />
+        <PanGestureHandler
+          onGestureEvent={handleGestureEvent}
+          onBegan={() => setDragging(true)}
+          onEnded={handleGestureEnd}
+        >
+          <Animated.View style={[styles.modalView, { transform: [{ translateY }] }]}>
+            <View style={styles.header}>
+              <Text style={styles.modalTitle}>Contact Support</Text>
+              <Pressable style={styles.closeButton} onPress={onClose}>
+                <X size={isSmallScreen ? 20 : 24} color={colors.text} />
+              </Pressable>
             </View>
             
-            <Text style={styles.description}>
-              Get in touch with our support team for assistance with your account or transactions.
-            </Text>
-            
-            <View style={styles.form}>
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Category</Text>
-                <View style={styles.categoryContainer}>
-                  {['Account', 'Payment', 'Payout', 'Technical'].map((cat) => (
-                    <Pressable 
-                      key={cat}
-                      style={[
-                        styles.categoryOption,
-                        category === cat && styles.categoryOptionSelected
-                      ]}
-                      onPress={() => setCategory(cat)}
-                    >
-                      <Text style={[
-                        styles.categoryText,
-                        category === cat && styles.categoryTextSelected
-                      ]}>{cat}</Text>
-                    </Pressable>
-                  ))}
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+              <View style={styles.iconContainer}>
+                <MessageSquare size={isSmallScreen ? 32 : 40} color={colors.primary} />
+              </View>
+              
+              <Text style={styles.description}>
+                Get in touch with our support team for assistance with your account or transactions.
+              </Text>
+              
+              <View style={styles.form}>
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>Category</Text>
+                  <View style={styles.categoryContainer}>
+                    {['Account', 'Payment', 'Payout', 'Technical'].map((cat) => (
+                      <Pressable 
+                        key={cat}
+                        style={[
+                          styles.categoryOption,
+                          category === cat && styles.categoryOptionSelected
+                        ]}
+                        onPress={() => setCategory(cat)}
+                      >
+                        <Text style={[
+                          styles.categoryText,
+                          category === cat && styles.categoryTextSelected
+                        ]}>{cat}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+                
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>Subject</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter subject"
+                    placeholderTextColor={colors.textTertiary}
+                    value={subject}
+                    onChangeText={setSubject}
+                  />
+                </View>
+                
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>Message</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    placeholder="Describe your issue in detail"
+                    placeholderTextColor={colors.textTertiary}
+                    value={message}
+                    onChangeText={setMessage}
+                    multiline
+                    numberOfLines={5}
+                    textAlignVertical="top"
+                  />
                 </View>
               </View>
               
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Subject</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter subject"
-                  placeholderTextColor={colors.textTertiary}
-                  value={subject}
-                  onChangeText={setSubject}
-                />
+              <View style={styles.infoContainer}>
+                <Text style={styles.infoText}>
+                  Our support team typically responds within 24 hours. For urgent issues, please call our support line at +234 800 123 4567.
+                </Text>
               </View>
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Message</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Describe your issue in detail"
-                  placeholderTextColor={colors.textTertiary}
-                  value={message}
-                  onChangeText={setMessage}
-                  multiline
-                  numberOfLines={5}
-                  textAlignVertical="top"
-                />
-              </View>
-            </View>
-            
-            <View style={styles.infoContainer}>
-              <Text style={styles.infoText}>
-                Our support team typically responds within 24 hours. For urgent issues, please call our support line at +234 800 123 4567.
-              </Text>
-            </View>
-          </ScrollView>
+            </ScrollView>
 
-          <View style={styles.footer}>
-            <Pressable style={styles.submitButton} onPress={onClose}>
-              <Text style={styles.submitButtonText}>Submit Ticket</Text>
-              <Send size={isSmallScreen ? 16 : 20} color="#FFFFFF" />
-            </Pressable>
-          </View>
-        </View>
+            <View style={styles.footer}>
+              <Pressable style={styles.submitButton} onPress={onClose}>
+                <Text style={styles.submitButtonText}>Submit Ticket</Text>
+                <Send size={isSmallScreen ? 16 : 20} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          </Animated.View>
+        </PanGestureHandler>
       </View>
     </Modal>
   );

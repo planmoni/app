@@ -1,104 +1,133 @@
-import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { X, FileText, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { Modal, Animated } from 'react-native';
+import { PanGestureHandler } from 'react-native-gesture-handler';
+import { useRef, useState } from 'react';
 
 interface TermsModalProps {
   isVisible: boolean;
   onClose: () => void;
 }
 
+const DRAG_DISMISS_THRESHOLD = 120;
+
 export default function TermsModal({ isVisible, onClose }: TermsModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const translateY = useRef(new Animated.Value(0)).current;
+  const [dragging, setDragging] = useState(false);
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
   
   const styles = createStyles(colors, isDark, isSmallScreen);
-  
+
+  const handleGestureEvent = Animated.event(
+    [{ nativeEvent: { translationY: translateY } }],
+    { useNativeDriver: true }
+  );
+
+  const handleGestureEnd = (event: any) => {
+    setDragging(false);
+    if (event.nativeEvent.translationY > DRAG_DISMISS_THRESHOLD) {
+      Animated.timing(translateY, {
+        toValue: height,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        translateY.setValue(0);
+        onClose();
+      });
+    } else {
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
+
   return (
     <Modal
-      animationType="slide"
-      transparent={true}
       visible={isVisible}
+      animationType="none"
+      transparent
       onRequestClose={onClose}
-      statusBarTranslucent={true}
+      statusBarTranslucent
     >
       <View style={styles.centeredView}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={styles.modalView}>
-          <View style={styles.header}>
-            <Text style={styles.modalTitle}>Terms & Privacy</Text>
-            <Pressable style={styles.closeButton} onPress={onClose}>
-              <X size={isSmallScreen ? 20 : 24} color={colors.text} />
-            </Pressable>
-          </View>
-          
-          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-            <View style={styles.tabContainer}>
-              <Pressable style={[styles.tab, styles.activeTab]}>
-                <Text style={[styles.tabText, styles.activeTabText]}>Terms of Service</Text>
-              </Pressable>
-              <Pressable style={styles.tab}>
-                <Text style={styles.tabText}>Privacy Policy</Text>
+        <PanGestureHandler
+          onGestureEvent={handleGestureEvent}
+          onBegan={() => setDragging(true)}
+          onEnded={handleGestureEnd}
+        >
+          <Animated.View
+            style={[styles.modalView, { transform: [{ translateY }] }]}
+          >
+            <View style={styles.header}>
+              <Text style={styles.modalTitle}>Terms & Privacy</Text>
+              <Pressable style={styles.closeButton} onPress={onClose}>
+                <X size={isSmallScreen ? 20 : 24} color={colors.text} />
               </Pressable>
             </View>
-            
-            <View style={styles.iconContainer}>
-              <FileText size={isSmallScreen ? 32 : 40} color={colors.primary} />
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+              <View style={styles.tabContainer}>
+                <Pressable style={[styles.tab, styles.activeTab]}>
+                  <Text style={[styles.tabText, styles.activeTabText]}>Terms of Service</Text>
+                </Pressable>
+                <Pressable style={styles.tab}>
+                  <Text style={styles.tabText}>Privacy Policy</Text>
+                </Pressable>
+              </View>
+              <View style={styles.iconContainer}>
+                <FileText size={isSmallScreen ? 32 : 40} color={colors.primary} />
+              </View>
+              <Text style={styles.lastUpdated}>Last updated: June 15, 2025</Text>
+              <View style={styles.termsSection}>
+                <Text style={styles.sectionTitle}>1. Introduction</Text>
+                <Text style={styles.termsText}>
+                  Welcome to Planmoni. These Terms of Service govern your use of our application and services. By using Planmoni, you agree to these terms in full. If you disagree with any part of these terms, you must not use our application.
+                </Text>
+              </View>
+              <View style={styles.termsSection}>
+                <Text style={styles.sectionTitle}>2. Account Terms</Text>
+                <Text style={styles.termsText}>
+                  You are responsible for maintaining the security of your account and password. The company cannot and will not be liable for any loss or damage from your failure to comply with this security obligation.
+                </Text>
+              </View>
+              <View style={styles.termsSection}>
+                <Text style={styles.sectionTitle}>3. Payment Terms</Text>
+                <Text style={styles.termsText}>
+                  By using our services, you agree to pay all fees associated with the services you use. Fees are non-refundable except as required by law or as explicitly stated in these terms.
+                </Text>
+              </View>
+              <View style={styles.termsSection}>
+                <Text style={styles.sectionTitle}>4. Data Protection</Text>
+                <Text style={styles.termsText}>
+                  We take data protection seriously. Please refer to our Privacy Policy for information about how we collect, use, and disclose information about you.
+                </Text>
+              </View>
+              <View style={styles.termsSection}>
+                <Text style={styles.sectionTitle}>5. Limitations</Text>
+                <Text style={styles.termsText}>
+                  In no event shall the company be liable for any damages whatsoever, including but not limited to any direct, indirect, special, incidental, or consequential damages of any kind.
+                </Text>
+              </View>
+              <View style={styles.privacyNote}>
+                <Shield size={isSmallScreen ? 16 : 20} color={colors.primary} />
+                <Text style={styles.privacyNoteText}>
+                  Your privacy is important to us. We only collect data that's necessary to provide our services and protect your information with industry-standard security measures.
+                </Text>
+              </View>
+            </ScrollView>
+            <View style={styles.footer}>
+              <Pressable style={styles.acceptButton} onPress={onClose}>
+                <Text style={styles.acceptButtonText}>I Accept</Text>
+              </Pressable>
             </View>
-            
-            <Text style={styles.lastUpdated}>Last updated: June 15, 2025</Text>
-            
-            <View style={styles.termsSection}>
-              <Text style={styles.sectionTitle}>1. Introduction</Text>
-              <Text style={styles.termsText}>
-                Welcome to Planmoni. These Terms of Service govern your use of our application and services. By using Planmoni, you agree to these terms in full. If you disagree with any part of these terms, you must not use our application.
-              </Text>
-            </View>
-            
-            <View style={styles.termsSection}>
-              <Text style={styles.sectionTitle}>2. Account Terms</Text>
-              <Text style={styles.termsText}>
-                You are responsible for maintaining the security of your account and password. The company cannot and will not be liable for any loss or damage from your failure to comply with this security obligation.
-              </Text>
-            </View>
-            
-            <View style={styles.termsSection}>
-              <Text style={styles.sectionTitle}>3. Payment Terms</Text>
-              <Text style={styles.termsText}>
-                By using our services, you agree to pay all fees associated with the services you use. Fees are non-refundable except as required by law or as explicitly stated in these terms.
-              </Text>
-            </View>
-            
-            <View style={styles.termsSection}>
-              <Text style={styles.sectionTitle}>4. Data Protection</Text>
-              <Text style={styles.termsText}>
-                We take data protection seriously. Please refer to our Privacy Policy for information about how we collect, use, and disclose information about you.
-              </Text>
-            </View>
-            
-            <View style={styles.termsSection}>
-              <Text style={styles.sectionTitle}>5. Limitations</Text>
-              <Text style={styles.termsText}>
-                In no event shall the company be liable for any damages whatsoever, including but not limited to any direct, indirect, special, incidental, or consequential damages of any kind.
-              </Text>
-            </View>
-            
-            <View style={styles.privacyNote}>
-              <Shield size={isSmallScreen ? 16 : 20} color={colors.primary} />
-              <Text style={styles.privacyNoteText}>
-                Your privacy is important to us. We only collect data that's necessary to provide our services and protect your information with industry-standard security measures.
-              </Text>
-            </View>
-          </ScrollView>
-
-          <View style={styles.footer}>
-            <Pressable style={styles.acceptButton} onPress={onClose}>
-              <Text style={styles.acceptButtonText}>I Accept</Text>
-            </Pressable>
-          </View>
-        </View>
+          </Animated.View>
+        </PanGestureHandler>
       </View>
     </Modal>
   );

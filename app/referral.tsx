@@ -77,7 +77,7 @@ export default function ReferralScreen() {
       }
       
       setReferralCode(code || '');
-      setReferralLink(`https://planmoni.app/ref/${code}`);
+      setReferralLink(`https://planmoni.com/ref/${code}`);
 
       // Fetch the count of users who were referred by this user
       const { count: referredCount, error: countError } = await supabase
@@ -132,7 +132,7 @@ export default function ReferralScreen() {
   };
 
   const handleShare = async () => {
-    const shareMessage = `Join me on Planmoni! Use my referral code ${referralCode} to get started. Download the app at https://planmoni.app`;
+    const shareMessage = `Join me on Planmoni! Use my referral code ${referralCode} to get started. Download the app at https://planmoni.com`;
     
     try {
       await Share.share({

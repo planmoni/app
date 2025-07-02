@@ -1,10 +1,11 @@
 import { Tabs } from 'expo-router';
+import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings, Sparkles } from 'lucide-react-native'; //Do not change the Home to Chrome
 // import CustomAppLayout from '@/components/CustomAppLayout';
 import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings } from 'lucide-react-native'; //Do not change the Home to Chrome
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEffect, useState, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, getSupabaseConfigError } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import CustomAppLayout from '../components/CustomAppLayout';
 
@@ -15,6 +16,13 @@ export default function TabLayout() {
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
+    // Check if Supabase is properly configured
+    const configError = getSupabaseConfigError();
+    if (configError) {
+      console.warn('Supabase configuration error:', configError);
+      return;
+    }
+
     if (!session?.user?.id) return;
 
     // Clean up any existing channel before creating a new one
@@ -41,6 +49,7 @@ export default function TabLayout() {
           filter: `user_id=eq.${session.user.id}`,
         },
         (payload: any) => {
+        (payload: any) => {
           console.log('Events change received:', payload);
           // Refresh unread count when events change
           fetchUnreadNotificationsCount();
@@ -49,6 +58,7 @@ export default function TabLayout() {
 
     // Only subscribe if the channel is not already subscribed
     if (channel.state === 'closed' || channel.state === 'leaving') {
+      channel.subscribe((status: any) => {
       channel.subscribe((status: any) => {
         console.log('Events subscription status:', status);
       });
@@ -67,73 +77,82 @@ export default function TabLayout() {
 
   const fetchUnreadNotificationsCount = async () => {
     try {
+      // Check if Supabase is properly configured
+      const configError = getSupabaseConfigError();
+      if (configError) {
+        console.warn('Skipping notifications fetch due to Supabase configuration error:', configError);
+        return;
+      }
+
+      if (!session?.user?.id) {
+        console.warn('No user session available for fetching notifications');
+        return;
+      }
+
       const { count, error } = await supabase
         .from('events')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', session?.user?.id)
+        .eq('user_id', session.user.id)
         .eq('status', 'unread');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error fetching unread notifications:', error);
+        return;
+      }
+
       setUnreadNotifications(count || 0);
     } catch (error) {
       console.error('Error fetching unread notifications count:', error);
+      // Don't throw the error, just log it and continue
+      // This prevents the app from crashing due to network issues
     }
   };
 
   return (
-    // <CustomAppLayout>
-      <Tabs
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.textSecondary,
-          tabBarStyle: { backgroundColor: colors.background },
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textTertiary,
+        tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
+        tabBarLabelStyle: styles.tabBarLabel,
+        headerShown: false,
+      }}>
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
         }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: 'Home',
-            tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="calendar"
-          options={{
-            title: 'Calendar',
-            tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="insights"
-          options={{
-            title: 'Insights',
-            tabBarIcon: ({ color, size }) => <PieChart size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="notifications"
-          options={{
-            title: 'Notifications',
-            tabBarIcon: ({ color, size }) => (
-              <View>
-                <Bell size={size} color={color} />
-                {unreadNotifications > 0 && (
-                  <View style={styles.notificationBadge} />
-                )}
-              </View>
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="settings"
-          options={{
-            title: 'Settings',
-            tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
-          }}
-        />
-      </Tabs>
-    // </CustomAppLayout>
+      />
+      <Tabs.Screen
+        name="ai-assistant"
+        options={{
+          title: 'AI',
+          tabBarIcon: ({ color, size }) => <Sparkles size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: 'Calendar',
+          tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="insights"
+        options={{
+          title: 'Insights',
+          tabBarIcon: ({ color, size }) => <PieChart size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
+        }}
+      />
+    </Tabs>
   );
 }
 

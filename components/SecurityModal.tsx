@@ -1,16 +1,21 @@
-import { Modal, View, Text, StyleSheet, Pressable, Switch, ScrollView, useWindowDimensions } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, Switch, ScrollView, useWindowDimensions, Animated } from 'react-native';
 import { X, Shield, Fingerprint, Lock, Eye } from 'lucide-react-native';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 
 interface SecurityModalProps {
   isVisible: boolean;
   onClose: () => void;
 }
 
+const DRAG_DISMISS_THRESHOLD = 120;
+
 export default function SecurityModal({ isVisible, onClose }: SecurityModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const translateY = useRef(new Animated.Value(0)).current;
+  const [dragging, setDragging] = useState(false);
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
@@ -23,138 +28,168 @@ export default function SecurityModal({ isVisible, onClose }: SecurityModalProps
   
   const styles = createStyles(colors, isDark, isSmallScreen);
   
+  const handleGestureEvent = Animated.event(
+    [{ nativeEvent: { translationY: translateY } }],
+    { useNativeDriver: true }
+  );
+
+  const handleGestureEnd = (event: any) => {
+    setDragging(false);
+    if (event.nativeEvent.translationY > DRAG_DISMISS_THRESHOLD) {
+      Animated.timing(translateY, {
+        toValue: height,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        translateY.setValue(0);
+        onClose();
+      });
+    } else {
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
+
   return (
     <Modal
-      animationType="slide"
-      transparent={true}
       visible={isVisible}
+      animationType="none"
+      transparent
       onRequestClose={onClose}
-      statusBarTranslucent={true}
+      statusBarTranslucent
     >
       <View style={styles.centeredView}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={styles.modalView}>
-          <View style={styles.header}>
-            <Text style={styles.modalTitle}>Security Settings</Text>
-            <Pressable style={styles.closeButton} onPress={onClose}>
-              <X size={isSmallScreen ? 20 : 24} color={colors.text} />
-            </Pressable>
-          </View>
-          
-          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-            <Text style={styles.description}>
-              Update your security preferences to protect your account.
-            </Text>
-            
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Authentication</Text>
-              
-              <View style={styles.settingItem}>
-                <View style={styles.settingInfo}>
-                  <View style={styles.settingIconContainer}>
-                    <Fingerprint size={isSmallScreen ? 16 : 20} color="#1E3A8A" />
-                  </View>
-                  <View>
-                    <Text style={styles.settingTitle}>Biometric Authentication</Text>
-                    <Text style={styles.settingDescription}>Use fingerprint or face ID to login</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={biometricEnabled}
-                  onValueChange={setBiometricEnabled}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                  thumbColor={biometricEnabled ? '#1E3A8A' : colors.backgroundTertiary}
-                />
-              </View>
-              
-              <View style={styles.settingItem}>
-                <View style={styles.settingInfo}>
-                  <View style={styles.settingIconContainer}>
-                    <Lock size={isSmallScreen ? 16 : 20} color="#22C55E" />
-                  </View>
-                  <View>
-                    <Text style={styles.settingTitle}>PIN Lock</Text>
-                    <Text style={styles.settingDescription}>Require PIN to access app</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={pinEnabled}
-                  onValueChange={setPinEnabled}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                  thumbColor={pinEnabled ? '#1E3A8A' : colors.backgroundTertiary}
-                />
-              </View>
-              
-              <View style={styles.settingItem}>
-                <View style={styles.settingInfo}>
-                  <View style={styles.settingIconContainer}>
-                    <Shield size={isSmallScreen ? 16 : 20} color="#F97316" />
-                  </View>
-                  <View>
-                    <Text style={styles.settingTitle}>Two-Factor Authentication</Text>
-                    <Text style={styles.settingDescription}>Add an extra layer of security</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={twoFactorEnabled}
-                  onValueChange={setTwoFactorEnabled}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                  thumbColor={twoFactorEnabled ? '#1E3A8A' : colors.backgroundTertiary}
-                />
-              </View>
-            </View>
-            
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Privacy</Text>
-              
-              <View style={styles.settingItem}>
-                <View style={styles.settingInfo}>
-                  <View style={styles.settingIconContainer}>
-                    <Eye size={isSmallScreen ? 16 : 20} color="#8B5CF6" />
-                  </View>
-                  <View>
-                    <Text style={styles.settingTitle}>Auto Session Timeout</Text>
-                    <Text style={styles.settingDescription}>Automatically log out after 30 minutes of inactivity</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={sessionTimeout}
-                  onValueChange={setSessionTimeout}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                  thumbColor={sessionTimeout ? '#1E3A8A' : colors.backgroundTertiary}
-                />
-              </View>
-            </View>
-            
-            <View style={styles.actionsSection}>
-              <Text style={styles.sectionTitle}>Account Security</Text>
-              
-              <Pressable style={styles.actionButton}>
-                <Text style={styles.actionButtonText}>Change Password</Text>
-              </Pressable>
-              
-              <Pressable style={styles.actionButton}>
-                <Text style={styles.actionButtonText}>Set Up Two-Factor Authentication</Text>
-              </Pressable>
-              
-              <Pressable style={styles.actionButton}>
-                <Text style={styles.actionButtonText}>View Active Sessions</Text>
+        <PanGestureHandler
+          onGestureEvent={handleGestureEvent}
+          onBegan={() => setDragging(true)}
+          onEnded={handleGestureEnd}
+        >
+          <Animated.View style={[styles.modalView, { transform: [{ translateY }] }]}>
+            <View style={styles.header}>
+              <Text style={styles.modalTitle}>Security Settings</Text>
+              <Pressable style={styles.closeButton} onPress={onClose}>
+                <X size={isSmallScreen ? 20 : 24} color={colors.text} />
               </Pressable>
             </View>
             
-            <View style={styles.infoContainer}>
-              <Text style={styles.infoText}>
-                We recommend enabling all security features to protect your account. Your security is our top priority.
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+              <Text style={styles.description}>
+                Update your security preferences to protect your account.
               </Text>
-            </View>
-          </ScrollView>
+              
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Authentication</Text>
+                
+                <View style={styles.settingItem}>
+                  <View style={styles.settingInfo}>
+                    <View style={styles.settingIconContainer}>
+                      <Fingerprint size={isSmallScreen ? 16 : 20} color="#1E3A8A" />
+                    </View>
+                    <View>
+                      <Text style={styles.settingTitle}>Biometric Authentication</Text>
+                      <Text style={styles.settingDescription}>Use fingerprint or face ID to login</Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={biometricEnabled}
+                    onValueChange={setBiometricEnabled}
+                    trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                    thumbColor={biometricEnabled ? '#1E3A8A' : colors.backgroundTertiary}
+                  />
+                </View>
+                
+                <View style={styles.settingItem}>
+                  <View style={styles.settingInfo}>
+                    <View style={styles.settingIconContainer}>
+                      <Lock size={isSmallScreen ? 16 : 20} color="#22C55E" />
+                    </View>
+                    <View>
+                      <Text style={styles.settingTitle}>PIN Lock</Text>
+                      <Text style={styles.settingDescription}>Require PIN to access app</Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={pinEnabled}
+                    onValueChange={setPinEnabled}
+                    trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                    thumbColor={pinEnabled ? '#1E3A8A' : colors.backgroundTertiary}
+                  />
+                </View>
+                
+                <View style={styles.settingItem}>
+                  <View style={styles.settingInfo}>
+                    <View style={styles.settingIconContainer}>
+                      <Shield size={isSmallScreen ? 16 : 20} color="#F97316" />
+                    </View>
+                    <View>
+                      <Text style={styles.settingTitle}>Two-Factor Authentication</Text>
+                      <Text style={styles.settingDescription}>Add an extra layer of security</Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={twoFactorEnabled}
+                    onValueChange={setTwoFactorEnabled}
+                    trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                    thumbColor={twoFactorEnabled ? '#1E3A8A' : colors.backgroundTertiary}
+                  />
+                </View>
+              </View>
+              
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Privacy</Text>
+                
+                <View style={styles.settingItem}>
+                  <View style={styles.settingInfo}>
+                    <View style={styles.settingIconContainer}>
+                      <Eye size={isSmallScreen ? 16 : 20} color="#8B5CF6" />
+                    </View>
+                    <View>
+                      <Text style={styles.settingTitle}>Auto Session Timeout</Text>
+                      <Text style={styles.settingDescription}>Automatically log out after 30 minutes of inactivity</Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={sessionTimeout}
+                    onValueChange={setSessionTimeout}
+                    trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                    thumbColor={sessionTimeout ? '#1E3A8A' : colors.backgroundTertiary}
+                  />
+                </View>
+              </View>
+              
+              <View style={styles.actionsSection}>
+                <Text style={styles.sectionTitle}>Account Security</Text>
+                
+                <Pressable style={styles.actionButton}>
+                  <Text style={styles.actionButtonText}>Change Password</Text>
+                </Pressable>
+                
+                <Pressable style={styles.actionButton}>
+                  <Text style={styles.actionButtonText}>Set Up Two-Factor Authentication</Text>
+                </Pressable>
+                
+                <Pressable style={styles.actionButton}>
+                  <Text style={styles.actionButtonText}>View Active Sessions</Text>
+                </Pressable>
+              </View>
+              
+              <View style={styles.infoContainer}>
+                <Text style={styles.infoText}>
+                  We recommend enabling all security features to protect your account. Your security is our top priority.
+                </Text>
+              </View>
+            </ScrollView>
 
-          <View style={styles.footer}>
-            <Pressable style={styles.saveButton} onPress={onClose}>
-              <Text style={styles.saveButtonText}>Save Changes</Text>
-            </Pressable>
-          </View>
-        </View>
+            <View style={styles.footer}>
+              <Pressable style={styles.saveButton} onPress={onClose}>
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </PanGestureHandler>
       </View>
     </Modal>
   );

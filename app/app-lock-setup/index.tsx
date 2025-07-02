@@ -24,6 +24,7 @@ export default function AppLockSetupScreen() {
   const [pinLength] = useState<number>(6);
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
@@ -32,20 +33,23 @@ export default function AppLockSetupScreen() {
     setError(null);
     
     // Automatically proceed to confirmation when PIN is complete
-    if (pin.length === pinLength) {
+    if (pin.length === pinLength && !isProcessing) {
+      setIsProcessing(true);
+      console.log('[AppLockSetup] PIN entry complete, navigating to confirm.');
       const timer = setTimeout(() => {
         router.push({
           pathname: '/app-lock-setup/confirm',
           params: { pin }
         });
+        setIsProcessing(false);
       }, 300); // Small delay for better UX
       
       return () => clearTimeout(timer);
     }
-  }, [pin, pinLength]);
+  }, [pin, pinLength, isProcessing]);
 
   const handlePinChange = (digit: string) => {
-    if (pin.length < pinLength) {
+    if (pin.length < pinLength && !isProcessing) {
       haptics.selection();
       setPin(prev => prev + digit);
       setError(null);
@@ -53,12 +57,15 @@ export default function AppLockSetupScreen() {
   };
 
   const handlePinDelete = () => {
-    haptics.lightImpact();
-    setPin(prev => prev.slice(0, -1));
-    setError(null);
+    if (!isProcessing) {
+      haptics.lightImpact();
+      setPin(prev => prev.slice(0, -1));
+      setError(null);
+    }
   };
 
   const handleBackPress = () => {
+    if (isProcessing) return;
     haptics.lightImpact();
     if (router.canGoBack()) {
       router.back();
@@ -72,7 +79,7 @@ export default function AppLockSetupScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={handleBackPress} style={styles.backButton}>
+        <Pressable onPress={isProcessing ? () => {} : handleBackPress} style={styles.backButton} disabled={isProcessing}>
           <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>App Lock</Text>
@@ -105,9 +112,9 @@ export default function AppLockSetupScreen() {
               />
               
               <PinKeypad 
-                onKeyPress={handlePinChange}
-                onDelete={handlePinDelete}
-                disabled={pin.length >= pinLength}
+                onKeyPress={isProcessing ? () => {} : handlePinChange}
+                onDelete={isProcessing ? () => {} : handlePinDelete}
+                disabled={isProcessing || pin.length >= pinLength}
               />
             </View>
             

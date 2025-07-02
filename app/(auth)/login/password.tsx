@@ -106,7 +106,7 @@ export default function LoginPasswordScreen() {
               </View>
             )}
             
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, error && { borderColor: colors.error }]}>
               <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 ref={passwordInputRef}
@@ -202,7 +202,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,

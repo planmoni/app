@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { Platform } from 'react-native';
+import { useToast } from '@/contexts/ToastContext';
+import { sendEmail, sendNotificationEmail } from '@/lib/email-service';
+import { supabase } from '@/lib/supabase';
 
 export type EmailNotificationSettings = {
   login_alerts: boolean;
@@ -17,89 +18,113 @@ export function useEmailNotifications() {
     expiry_reminders: true,
     wallet_summary: 'weekly'
   });
-  
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+  const { showToast } = useToast();
+
+  // Helper: get user id from session
+  const userId = session?.user?.id;
 
   useEffect(() => {
-    if (session?.user?.id) {
+    if (userId) {
       fetchSettings();
     }
-  }, [session?.user?.id]);
+  }, [userId]);
 
+  // Fetch settings directly from Supabase
   const fetchSettings = async () => {
     try {
       setIsLoading(true);
       setError(null);
-      
+      if (!userId) throw new Error('No user ID available');
       const { data, error: fetchError } = await supabase
         .from('profiles')
         .select('email_notifications')
-        .eq('id', session?.user?.id)
+        .eq('id', userId)
         .single();
-      
       if (fetchError) throw fetchError;
-      
       if (data?.email_notifications) {
         setSettings(data.email_notifications);
+        return data.email_notifications;
       }
+      return null;
     } catch (err) {
-      console.error('Error fetching email notification settings:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch notification settings');
+      console.error('Error fetching notification settings:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load notification settings');
+      return null;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const updateSettings = async (newSettings: EmailNotificationSettings) => {
+  // Update settings directly in Supabase
+  const updateSettings = async (newSettings: EmailNotificationSettings): Promise<boolean> => {
     try {
+      setIsLoading(true);
       setError(null);
-      
+      if (!userId) throw new Error('No user ID available');
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ email_notifications: newSettings })
-        .eq('id', session?.user?.id);
-      
+        .eq('id', userId);
       if (updateError) throw updateError;
-      
       setSettings(newSettings);
+      showToast?.('Notification settings updated successfully', 'success');
       return true;
     } catch (err) {
-      console.error('Error updating email notification settings:', err);
+      console.error('Error updating notification settings:', err);
       setError(err instanceof Error ? err.message : 'Failed to update notification settings');
+      showToast?.('Failed to update notification settings', 'error');
       return false;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const sendNotification = async (type: 'new_login' | 'payout_completed' | 'plan_expiry' | 'wallet_summary', data: any) => {
-    if (Platform.OS === 'web' && !window.fetch) {
-      console.warn('Fetch API not available in this environment');
-      return false;
-    }
-    
+  // Keep sendNotification via Edge Function
+  const sendNotification = async (
+    type: 'new_login' | 'payout_completed' | 'plan_expiry' | 'wallet_summary',
+    data: any,
+    accessToken?: string
+  ): Promise<boolean> => {
     try {
-      if (!session?.access_token) {
-        throw new Error('User not authenticated');
+      const token = accessToken || session?.access_token;
+      if (!token) {
+        console.error('No access token available for sending notification');
+        return false;
       }
-      
-      const response = await fetch('/api/email-notifications', {
+      const apiUrl = process.env.EXPO_PUBLIC_SUPABASE_FUNCTION_URL
+        ? `${process.env.EXPO_PUBLIC_SUPABASE_FUNCTION_URL}/email-notifications`
+        : 'https://<your-project-ref>.functions.supabase.co/email-notifications';
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ type, data })
+        body: JSON.stringify({ 
+          type,
+          data
+        })
       });
-      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send notification');
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        return false;
       }
-      
-      return true;
-    } catch (err) {
-      console.error('Error sending email notification:', err);
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        await response.json();
+        console.log('Notification sent successfully');
+        return true;
+      } else {
+        const text = await response.text();
+        console.error('Expected JSON, got:', text);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error sending notification:', error);
       return false;
     }
   };

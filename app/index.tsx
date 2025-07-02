@@ -2,13 +2,11 @@ import { View, Text, StyleSheet, Image, Pressable, useWindowDimensions } from 'r
 import { router } from 'expo-router';
 import Animated, { 
   useAnimatedScrollHandler,
-  useAnimatedStyle,
   useSharedValue,
-  withSpring,
-  interpolate,
 } from 'react-native-reanimated';
 import { Shield, Calendar, Wallet, TrendingUp } from 'lucide-react-native';
 import Button from '@/components/Button';
+import PaginationDot from '@/components/PaginationDot';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
@@ -66,7 +64,6 @@ export default function WelcomeScreen() {
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
   const scrollX = useSharedValue(0);
-  const currentIndex = useSharedValue(0);
 
   // Redirect to tabs if user is already authenticated
   useEffect(() => {
@@ -78,7 +75,6 @@ export default function WelcomeScreen() {
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollX.value = event.contentOffset.x;
-      currentIndex.value = Math.round(scrollX.value / width);
     },
   });
 
@@ -145,41 +141,16 @@ export default function WelcomeScreen() {
         </Animated.ScrollView>
 
         <View style={styles.pagination}>
-          {SLIDES.map((_, index) => {
-            const dotStyle = useAnimatedStyle(() => {
-              const inputRange = [
-                (index - 1) * width,
-                index * width,
-                (index + 1) * width,
-              ];
-              
-              const dotWidth = interpolate(
-                scrollX.value,
-                inputRange,
-                [8, 24, 8],
-                'clamp'
-              );
-
-              const opacity = interpolate(
-                scrollX.value,
-                inputRange,
-                [0.5, 1, 0.5],
-                'clamp'
-              );
-
-              return {
-                width: withSpring(dotWidth),
-                opacity: withSpring(opacity),
-              };
-            });
-
-            return (
-              <Animated.View
-                key={index}
-                style={[styles.dot, dotStyle]}
-              />
-            );
-          })}
+          {SLIDES.map((_, index) => (
+            <PaginationDot
+              key={index}
+              index={index}
+              scrollX={scrollX}
+              width={width}
+              activeColor={colors.primary}
+              inactiveColor={colors.primary}
+            />
+          ))}
         </View>
       </View>
 
@@ -252,11 +223,6 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     alignItems: 'center',
     gap: 8,
     paddingVertical: responsive.verticalPadding / 8,
-  },
-  dot: {
-    height: 8,
-    backgroundColor: colors.primary,
-    borderRadius: 4,
   },
   footer: {
     padding: responsive.verticalPadding / 2,

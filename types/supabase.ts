@@ -15,6 +15,7 @@ export interface Database {
           user_id: string
           balance: number
           locked_balance: number
+          available_balance: number
           created_at: string
           updated_at: string
         }
@@ -23,6 +24,7 @@ export interface Database {
           user_id: string
           balance?: number
           locked_balance?: number
+          available_balance?: number
           created_at?: string
           updated_at?: string
         }
@@ -31,6 +33,7 @@ export interface Database {
           user_id?: string
           balance?: number
           locked_balance?: number
+          available_balance?: number
           created_at?: string
           updated_at?: string
         }
@@ -44,6 +47,7 @@ export interface Database {
           total_amount: number
           payout_amount: number
           frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom'
+          day_of_week: number | null
           duration: number
           start_date: string
           bank_account_id: string | null
@@ -54,6 +58,7 @@ export interface Database {
           emergency_withdrawal_enabled: boolean
           created_at: string
           updated_at: string
+          metadata: Json | null
         }
         Insert: {
           id?: string
@@ -63,6 +68,7 @@ export interface Database {
           total_amount: number
           payout_amount: number
           frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom'
+          day_of_week?: number | null
           duration: number
           start_date: string
           bank_account_id?: string | null
@@ -73,6 +79,7 @@ export interface Database {
           emergency_withdrawal_enabled?: boolean
           created_at?: string
           updated_at?: string
+          metadata?: Json | null
         }
         Update: {
           id?: string
@@ -82,6 +89,7 @@ export interface Database {
           total_amount?: number
           payout_amount?: number
           frequency?: 'weekly' | 'biweekly' | 'monthly' | 'custom'
+          day_of_week?: number | null
           duration?: number
           start_date?: string
           bank_account_id?: string | null
@@ -92,6 +100,7 @@ export interface Database {
           emergency_withdrawal_enabled?: boolean
           created_at?: string
           updated_at?: string
+          metadata?: Json | null
         }
       }
       custom_payout_dates: {

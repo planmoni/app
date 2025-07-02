@@ -11,6 +11,7 @@ import FloatingButton from '@/components/FloatingButton';
 import ErrorMessage from '@/components/ErrorMessage';
 import { Platform } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
+import { formatDisplayDate, formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -33,6 +34,7 @@ export default function ReviewScreen() {
   const payoutAccountId = params.payoutAccountId as string;
   const emergencyWithdrawal = params.emergencyWithdrawal === 'true';
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
+  const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
 
   // Calculate available balance
   const availableBalance = balance - lockedBalance;
@@ -74,10 +76,11 @@ export default function ReviewScreen() {
     
     try {
       console.log('Creating payout plan with the following parameters:');
-      console.log('- Name:', `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`);
+      console.log('- Name:', `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`);
       console.log('- Total amount:', parseFloat(totalAmount.replace(/[^0-9.]/g, '')));
       console.log('- Payout amount:', parseFloat(payoutAmount.replace(/[^0-9.]/g, '')));
       console.log('- Frequency:', frequency);
+      console.log('- Day of week:', dayOfWeek);
       console.log('- Duration:', parseInt(duration));
       console.log('- Start date:', startDate);
       console.log('- Bank account ID:', bankAccountId || null);
@@ -90,11 +93,12 @@ export default function ReviewScreen() {
       }
       
       await createPayout({
-        name: `${frequency.charAt(0).toUpperCase() + frequency.slice(1)} Payout Plan`,
-        description: `${frequency} payout of ${payoutAmount}`,
+        name: `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`,
+        description: `${formatPayoutFrequency(frequency, dayOfWeek)} payout of ${payoutAmount}`,
         totalAmount: parseFloat(totalAmount.replace(/[^0-9.]/g, '')),
         payoutAmount: parseFloat(payoutAmount.replace(/[^0-9.]/g, '')),
-        frequency: frequency as 'weekly' | 'biweekly' | 'monthly' | 'custom',
+        frequency: frequency as any,
+        dayOfWeek: dayOfWeek,
         duration: parseInt(duration),
         startDate,
         bankAccountId: bankAccountId || null,
@@ -111,6 +115,78 @@ export default function ReviewScreen() {
   };
 
   const styles = createStyles(colors, isDark);
+
+  // Get duration display text based on frequency
+  const getDurationDisplay = () => {
+    const durationNum = parseInt(duration);
+    
+    switch (frequency) {
+      case 'weekly':
+        return durationNum === 1 ? '1 week' : `${durationNum} weeks`;
+      case 'weekly_specific':
+        return durationNum === 1 ? '1 week' : `${durationNum} weeks`;
+      case 'biweekly':
+        return durationNum === 1 ? '2 weeks' : `${durationNum * 2} weeks`;
+      case 'monthly':
+        return durationNum === 1 ? '1 month' : `${durationNum} months`;
+      case 'end_of_month':
+        return durationNum === 1 ? '1 month' : `${durationNum} months`;
+      case 'quarterly':
+        return durationNum === 1 ? '3 months' : `${durationNum * 3} months`;
+      case 'biannual':
+        return durationNum === 1 ? '6 months' : `${durationNum * 6} months`;
+      case 'annually':
+        return durationNum === 1 ? '1 year' : `${durationNum} years`;
+      case 'custom':
+        return durationNum === 1 ? '1 payout' : `${durationNum} payouts`;
+      default:
+        return `${durationNum} payouts`;
+    }
+  };
+  function getNextPayoutDate(startDate: string, frequency: string, customDates: string[] = [], dayOfWeek?: number): string {
+    if (frequency === 'custom' && customDates.length > 0) {
+      return formatDisplayDate(customDates[0]);
+    }
+
+    const start = new Date(startDate);
+    const next = new Date(start);
+
+    if (frequency === 'weekly_specific' && typeof dayOfWeek === 'number') {
+      // Find the next occurrence of the selected dayOfWeek (0=Sunday, 6=Saturday) on or after startDate
+      const currentDay = start.getDay();
+      let daysToAdd = (dayOfWeek - currentDay + 7) % 7;
+      // If startDate is already the correct day, keep it as the first payout
+      if (daysToAdd === 0) daysToAdd = 0;
+      next.setDate(start.getDate() + daysToAdd);
+      return formatDisplayDate(next.toISOString());
+    }
+
+    switch (frequency) {
+      case 'weekly':
+        next.setDate(start.getDate() + 7);
+        break;
+      case 'biweekly':
+        next.setDate(start.getDate() + 14);
+        break;
+      case 'monthly':
+      case 'end_of_month':
+        next.setMonth(start.getMonth() + 1);
+        break;
+      case 'quarterly':
+        next.setMonth(start.getMonth() + 3);
+        break;
+      case 'biannual':
+        next.setMonth(start.getMonth() + 6);
+        break;
+      case 'annually':
+        next.setFullYear(start.getFullYear() + 1);
+        break;
+      default:
+        next.setDate(start.getDate() + 7); // fallback
+    }
+
+    return formatDisplayDate(next.toISOString());
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -183,7 +259,7 @@ export default function ReviewScreen() {
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Payout Frequency</Text>
-                  <Text style={styles.detailValue}>{frequency.charAt(0).toUpperCase() + frequency.slice(1)}</Text>
+                  <Text style={styles.detailValue}>{formatPayoutFrequency(frequency, dayOfWeek)}</Text>
                   <Text style={styles.detailSubtext}>{`₦${payoutAmount}`} per payout</Text>
                 </View>
                 <Pressable 
@@ -205,8 +281,8 @@ export default function ReviewScreen() {
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Duration</Text>
-                  <Text style={styles.detailValue}>{duration} {frequency === 'custom' ? 'payouts' : 'months'}</Text>
-                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
+                  <Text style={styles.detailValue}>{getDurationDisplay()}</Text>
+                  <Text style={styles.detailSubtext}>First payout on {getNextPayoutDate(startDate, frequency, customDates, dayOfWeek)}</Text>
                 </View>
                 <Pressable 
                   style={styles.editButton} 
@@ -260,6 +336,11 @@ export default function ReviewScreen() {
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Amount per Payout</Text>
                 <Text style={styles.summaryValue}>{`₦${payoutAmount}`}</Text>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Frequency</Text>
+                <Text style={styles.summaryValue}>{formatPayoutFrequency(frequency, dayOfWeek)}</Text>
               </View>
 
               {emergencyWithdrawal && (
@@ -322,23 +403,6 @@ export default function ReviewScreen() {
   );
 }
 
-// Format date for display (Month Day, Year)
-const formatDisplayDate = (dateString: string): string => {
-  // Check if the date is already in the format "Month Day, Year"
-  if (/[A-Za-z]+ \d+, \d{4}/.test(dateString)) {
-    return dateString;
-  }
-  
-  // Otherwise, convert from ISO format (YYYY-MM-DD)
-  const date = new Date(dateString);
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-  
-  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-};
-
 const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
@@ -393,7 +457,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 24,
   },
   title: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,

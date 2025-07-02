@@ -12,6 +12,7 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
+import { formatPayoutFrequency } from '@/lib/formatters';
 
 export default function ViewPayoutScreen() {
   const { colors } = useTheme();
@@ -168,6 +169,10 @@ export default function ViewPayoutScreen() {
     return Math.round((plan.completed_payouts / plan.duration) * 100);
   };
 
+  // Get the original frequency and day of week from metadata
+  const originalFrequency = plan.metadata?.originalFrequency || plan.frequency;
+  const dayOfWeek = plan.metadata?.dayOfWeek;
+
   const statusColors = getStatusColor(plan.status);
   const progress = calculateProgress();
 
@@ -271,7 +276,7 @@ export default function ViewPayoutScreen() {
               <View style={styles.scheduleInfo}>
                 <Text style={styles.scheduleLabel}>Frequency</Text>
                 <Text style={styles.scheduleValue}>
-                  {plan.frequency.charAt(0).toUpperCase() + plan.frequency.slice(1)}
+                  {formatPayoutFrequency(originalFrequency, dayOfWeek)}
                 </Text>
               </View>
             </View>
@@ -445,7 +450,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 8,
   },
   payoutName: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
   },
@@ -458,14 +463,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   payoutDescription: {
-    fontSize: 16,
+    fontSize: 13,
     color: colors.textSecondary,
   },
   editContainer: {
     gap: 12,
   },
   nameInput: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     padding: 0,
@@ -511,7 +516,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: '500',
   },
   amount: {
-    fontSize: 32,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -599,7 +604,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   pauseTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
@@ -626,7 +631,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 8,
   },
   warningTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
     color: '#F97316',
   },

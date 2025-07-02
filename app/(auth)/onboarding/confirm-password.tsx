@@ -15,6 +15,7 @@ export default function ConfirmPasswordScreen() {
   const lastName = params.lastName as string;
   const email = params.email as string;
   const password = params.password as string;
+  const emailVerified = params.emailVerified === 'true';
   
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -40,12 +41,13 @@ export default function ConfirmPasswordScreen() {
     }
     
     router.push({
-      pathname: '/onboarding/success',
+      pathname: '/onboarding/bvn',
       params: { 
         firstName,
         lastName,
         email,
-        password
+        password,
+        emailVerified: emailVerified ? 'true' : 'false'
       }
     });
   };

@@ -57,6 +57,36 @@ export default function EmailScreen() {
     setIsLoading(true);
     
     try {
+      // Call the Edge Function to send OTP
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL not configured');
+      }
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-otp-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`
+        },
+        body: JSON.stringify({ email: email.trim().toLowerCase() })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('Error from Edge Function:', data);
+        throw new Error(data.error || 'Failed to send verification code');
+      }
+      
+      showToast('Verification code sent to your email', 'success');
+      
+      if (Platform.OS !== 'web') {
+        haptics.success();
+      }
+      
       // Navigate to OTP verification screen
       router.push({
         pathname: '/onboarding/otp',
@@ -67,7 +97,7 @@ export default function EmailScreen() {
         }
       });
     } catch (error) {
-      setError('An error occurred. Please try again.');
+      setError(error instanceof Error ? error.message : 'An error occurred. Please try again.');
       showToast('An error occurred. Please try again.', 'error');
       if (Platform.OS !== 'web') {
         haptics.error();
@@ -198,7 +228,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -214,7 +244,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: '100%',
   },
   question: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 24,

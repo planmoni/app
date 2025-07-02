@@ -55,7 +55,7 @@ export function generateLoginNotificationHtml(data: {
           </tr>
         </table>
         
-        <a href="https://planmoni.app/change-password" class="button">Secure Your Account</a>
+        <a href="https://planmoni.com/change-password" class="button">Secure Your Account</a>
         
         <p>If you have any questions, please contact our support team.</p>
       </div>
@@ -137,7 +137,7 @@ export function generatePayoutNotificationHtml(data: {
         </div>
         ` : ''}
         
-        <a href="https://planmoni.app/transactions" class="button">View Transaction Details</a>
+        <a href="https://planmoni.com/transactions" class="button">View Transaction Details</a>
         
         <p>Thank you for using Planmoni to manage your finances!</p>
       </div>
@@ -218,7 +218,7 @@ export function generateExpiryReminderHtml(data: {
         
         <p>Would you like to set up a new payout plan to continue receiving regular payouts?</p>
         
-        <a href="https://planmoni.app/create-payout" class="button">Create New Payout Plan</a>
+        <a href="https://planmoni.com/create-payout" class="button">Create New Payout Plan</a>
       </div>
       <div class="footer">
         <p>This is an automated message, please do not reply directly to this email.</p>
@@ -327,11 +327,11 @@ export function generateWalletSummaryHtml(data: {
         </table>
         ` : ''}
         
-        <a href="https://planmoni.app/transactions" class="button">View All Transactions</a>
+        <a href="https://planmoni.com/transactions" class="button">View All Transactions</a>
       </div>
       <div class="footer">
         <p>This is an automated message, please do not reply directly to this email.</p>
-        <p>You can manage your email preferences in your <a href="https://planmoni.app/settings">account settings</a>.</p>
+        <p>You can manage your email preferences in your <a href="https://planmoni.com/settings">account settings</a>.</p>
         <p>&copy; ${new Date().getFullYear()} Planmoni. All rights reserved.</p>
       </div>
     </body>

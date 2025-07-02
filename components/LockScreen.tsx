@@ -6,15 +6,20 @@ import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 import { Lock, Fingerprint } from 'lucide-react-native';
 import { BiometricService } from '@/lib/biometrics';
+import { useToast } from '@/contexts/ToastContext';
+import { useNavigation } from 'expo-router';
 
 export default function LockScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
-  const { unlockApp, checkPin, appLockPin } = useAppLock();
+  const { unlockApp, checkPin, appLockPin, isAppLocked } = useAppLock();
+  const { showToast } = useToast();
+  const navigation = useNavigation();
   
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showBiometricButton, setShowBiometricButton] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
@@ -35,6 +40,15 @@ export default function LockScreen() {
     
     checkBiometrics();
   }, []);
+  
+  // Effect: Close lock screen if unlocked
+  useEffect(() => {
+    if (!isAppLocked) {
+      console.log('[LockScreen] App unlocked, closing lock screen.');
+      // Optionally, you can navigate or force a re-render here if needed
+      // navigation.goBack(); // Only if you use navigation for lock screen
+    }
+  }, [isAppLocked]);
   
   // Handle PIN input
   const handlePinChange = (digit: string) => {
@@ -58,31 +72,47 @@ export default function LockScreen() {
   
   // Verify PIN
   const handleVerifyPin = (pinToCheck: string = pin) => {
+    if (isUnlocking) return;
+    setIsUnlocking(true);
     if (checkPin(pinToCheck)) {
+      setError(null);
       unlockApp();
+      showToast?.('App unlocked successfully', 'success');
+      console.log('[LockScreen] PIN correct, unlocking app.');
     } else {
       setError('Incorrect PIN. Please try again.');
       setPin('');
+      showToast?.('Incorrect PIN', 'error');
+      setIsUnlocking(false);
     }
   };
   
   // Handle biometric authentication
   const handleBiometricAuth = async () => {
     if (Platform.OS === 'web') return;
-    
+    if (isUnlocking) return;
+    setIsUnlocking(true);
     try {
       const result = await BiometricService.authenticateWithBiometrics('Unlock Planmoni');
-      
       if (result.success) {
         unlockApp();
+        showToast?.('App unlocked successfully', 'success');
+        console.log('[LockScreen] Biometric unlock successful.');
       } else if (result.error) {
         setError(result.error);
+        showToast?.('Biometric authentication failed', 'error');
+        setIsUnlocking(false);
       }
     } catch (error) {
       console.error('Error authenticating with biometrics:', error);
       setError('Biometric authentication failed. Please use your PIN.');
+      showToast?.('Biometric authentication failed', 'error');
+      setIsUnlocking(false);
     }
   };
+  
+  // No-op function for disabling input
+  const noop = () => {};
   
   const styles = createStyles(colors, isDark, isSmallScreen);
   
@@ -109,15 +139,17 @@ export default function LockScreen() {
           />
           
           <PinKeypad 
-            onKeyPress={handlePinChange}
-            onDelete={handlePinDelete}
+            onKeyPress={isUnlocking ? noop : handlePinChange}
+            onDelete={isUnlocking ? noop : handlePinDelete}
+            disabled={isUnlocking}
           />
         </View>
         
         {showBiometricButton && Platform.OS !== 'web' && (
           <Pressable 
             style={styles.biometricButton}
-            onPress={handleBiometricAuth}
+            onPress={isUnlocking ? noop : handleBiometricAuth}
+            disabled={isUnlocking}
           >
             <Fingerprint size={isSmallScreen ? 20 : 24} color={colors.primary} />
             <Text style={styles.biometricButtonText}>Use Biometrics</Text>

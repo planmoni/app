@@ -14,6 +14,7 @@
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.1",
     "@expo/vector-icons": "^14.1.0",
+    "@gorhom/bottom-sheet": "^5.1.6",
     "@lottiefiles/react-lottie-player": "^3.5.3",
     "@mono.co/connect-react-native": "^2.1.1",
     "@react-native-async-storage/async-storage": "2.1.2",
@@ -62,7 +63,13 @@
     "react-native-view-shot": "4.0.3",
     "react-native-web": "~0.20.0",
     "react-native-webview": "13.13.5",
-    "@sentry/react-native": "~6.14.0"
+    "@sentry/react-native": "~6.14.0",
+    "resend": "^4.6.0",
+    "stream-chat": "^9.8.0",
+    "stream-chat-expo": "^7.2.0",
+    "stream-chat-react-native": "^7.2.0",
+    "expo-linear-gradient": "~14.1.5",
+    "@react-native-masked-view/masked-view": "0.3.2"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Building2, Clock, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -19,11 +20,14 @@ export default function AuthorizationScreen() {
   const newMethodType = params.newMethodType as string;
   const { addFunds } = useBalance();
   const haptics = useHaptics();
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleFundWallet = async () => {
     try {
+      setIsProcessing(true);
       // Process the deposit
       const numericAmount = parseFloat(amount.replace(/,/g, ''));
+      console.log('Funding wallet with amount:', numericAmount);
       await addFunds(numericAmount);
       haptics.success();
       
@@ -38,6 +42,7 @@ export default function AuthorizationScreen() {
     } catch (error) {
       haptics.error();
       console.error('Error funding wallet:', error);
+      setIsProcessing(false);
     }
   };
 
@@ -132,8 +137,9 @@ export default function AuthorizationScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title="Fund wallet now"
+        title={isProcessing ? "Processing..." : "Fund wallet now"}
         onPress={handleFundWallet}
+        disabled={isProcessing}
       />
       
       <SafeFooter />

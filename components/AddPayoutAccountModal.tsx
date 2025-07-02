@@ -14,7 +14,7 @@ import { useWindowDimensions } from 'react-native';
 
 interface AddPayoutAccountModalProps {
   isVisible: boolean;
-  onClose: (newAccountId?: string) => void;
+  onClose: (newAccount?: any) => void;
 }
 
 export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutAccountModalProps) {
@@ -109,7 +109,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       
       haptics.notification(Haptics.NotificationFeedbackType.Success);
       resetForm();
-      onClose(newAccount?.id);
+      onClose(newAccount);
     } catch (error) {
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       setFormErrors({
@@ -277,7 +277,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
             </Pressable>
           </View>
 
-          <KeyboardAvoidingWrapper style={styles.content} disableScrollView={false}>
+          <KeyboardAvoidingWrapper contentContainerStyle={styles.content} disableScrollView={false}>
             <View style={styles.contentInner}>
               <Text style={styles.subtitle}>Enter your bank account details</Text>
               
@@ -403,7 +403,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
           
           <View style={styles.footer}>
             <Button
-              title="Add Account"
+              title="Use this Account"
               onPress={handleAddAccount}
               isLoading={isSubmitting}
               style={styles.addButton}

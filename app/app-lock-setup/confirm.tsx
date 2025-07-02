@@ -24,6 +24,7 @@ export default function ConfirmPinScreen() {
   
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
@@ -32,13 +33,16 @@ export default function ConfirmPinScreen() {
     setError(null);
     
     // Automatically proceed when PIN is complete and matches
-    if (confirmPin.length === pinLength) {
+    if (confirmPin.length === pinLength && !isProcessing) {
+      setIsProcessing(true);
+      console.log('[AppLockConfirm] Confirm PIN entry complete.');
       const timer = setTimeout(async () => {
         if (confirmPin === originalPin) {
           try {
             // Save the PIN to secure storage
             await setAppLockPin(originalPin);
             haptics.success();
+            console.log('[AppLockConfirm] PIN confirmed and saved. Navigating to success.');
             
             // Navigate to success screen
             router.push({
@@ -56,14 +60,15 @@ export default function ConfirmPinScreen() {
           haptics.error();
           setConfirmPin('');
         }
+        setIsProcessing(false);
       }, 300); // Small delay for better UX
       
       return () => clearTimeout(timer);
     }
-  }, [confirmPin, originalPin, pinLength]);
+  }, [confirmPin, originalPin, pinLength, isProcessing]);
 
   const handlePinChange = (digit: string) => {
-    if (confirmPin.length < pinLength) {
+    if (confirmPin.length < pinLength && !isProcessing) {
       haptics.selection();
       setConfirmPin(prev => prev + digit);
       setError(null);
@@ -71,12 +76,15 @@ export default function ConfirmPinScreen() {
   };
 
   const handlePinDelete = () => {
-    haptics.lightImpact();
-    setConfirmPin(prev => prev.slice(0, -1));
-    setError(null);
+    if (!isProcessing) {
+      haptics.lightImpact();
+      setConfirmPin(prev => prev.slice(0, -1));
+      setError(null);
+    }
   };
 
   const handleBackPress = () => {
+    if (isProcessing) return;
     haptics.lightImpact();
     if (router.canGoBack()) {
       router.back();
@@ -90,7 +98,7 @@ export default function ConfirmPinScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={handleBackPress} style={styles.backButton}>
+        <Pressable onPress={isProcessing ? () => {} : handleBackPress} style={styles.backButton} disabled={isProcessing}>
           <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>App Lock</Text>
@@ -117,9 +125,9 @@ export default function ConfirmPinScreen() {
               />
               
               <PinKeypad 
-                onKeyPress={handlePinChange}
-                onDelete={handlePinDelete}
-                disabled={confirmPin.length >= pinLength}
+                onKeyPress={isProcessing ? () => {} : handlePinChange}
+                onDelete={isProcessing ? () => {} : handlePinDelete}
+                disabled={isProcessing || confirmPin.length >= pinLength}
               />
             </View>
             
