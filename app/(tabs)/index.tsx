@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Card from '@/components/Card';
 import TransactionModal from '@/components/TransactionModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
@@ -8,8 +8,30 @@ import PendingActionsCard from '@/components/PendingActionsCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowDown, ArrowDownRight, ArrowRight, ArrowUpRight, Calendar, ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, CircleHelp as HelpCircle, Lock, Pause, Play, Plus, Send, Wallet, RefreshCw } from 'lucide-react-native';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View, Alert, RefreshControl, ImageBackground } from 'react-native';
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Calendar,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  CircleHelp as HelpCircle,
+  Lock,
+  Plus,
+  RefreshCw,
+} from 'lucide-react-native';
+import {
+  Animated,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  RefreshControl,
+  ImageBackground,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -142,7 +164,6 @@ export default function HomeScreen() {
     logAnalyticsEvent('view_all_payouts');
   };
 
-  const handleTransactionPress = (transaction: any) => {
   const handleTransactionPress = (transaction: any) => {
     // Format transaction data for the modal
     const formattedTransaction = {
@@ -324,7 +345,7 @@ export default function HomeScreen() {
         >
           <View style={styles.balanceCardContent}>
             <View style={styles.balanceLabelContainer}>
-              <Text style={styles.balanceLabel}>Available Wallet Balance</Text>
+              {/* <Text style={styles.balanceLabel}>Available Wallet Balance</Text>
               <View style={styles.balanceActions}>
                 <Pressable 
                   onPress={handleRefresh}
@@ -350,7 +371,7 @@ export default function HomeScreen() {
                     <Eye size={20} color={colors.textSecondary} />
                   )}
                 </Pressable>
-              </View>
+              </View> */}
               <Text style={styles.balanceLabel}>Available Balance</Text>
               <Pressable 
                 onPress={toggleBalances}
@@ -1309,28 +1330,5 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   bottomPadding: {
     height: 1,
-  },
-  addPayoutCard: {
-    width: 300,
-    backgroundColor: colors.backgroundSecondary,
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addPayoutText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.primary,
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  addPayoutDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
   },
 });
