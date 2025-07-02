@@ -178,6 +178,78 @@ export interface Database {
           updated_at?: string
         }
       }
+      transactions: {
+        Row: {
+          id: string
+          user_id: string
+          type: string // 'deposit', 'reward', etc.
+          amount: number
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: string
+          amount: number
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: string
+          amount?: number
+          status?: string
+          created_at?: string
+        }
+      }
+      referrals: {
+        Row: {
+          id: string
+          referrer_id: string
+          referred_id: string
+          status: string // 'pending', 'qualified', 'rewarded'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          referrer_id: string
+          referred_id: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          referrer_id?: string
+          referred_id?: string
+          status?: string
+          created_at?: string
+        }
+      }
+      deposits: {
+        Row: {
+          id: string
+          user_id: string
+          amount: number
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          amount: number
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          amount?: number
+          status?: string
+          created_at?: string
+        }
+      }
     }
   }
 }

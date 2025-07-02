@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Share } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Share, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Gift, Copy, Share2, Users, Info } from 'lucide-react-native';
@@ -23,10 +23,16 @@ export default function ReferralScreen() {
   const [totalEarned, setTotalEarned] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [referredUsers, setReferredUsers] = useState<any[]>([]);
+  const [rewardTransactions, setRewardTransactions] = useState<any[]>([]);
+  const [loadingReferred, setLoadingReferred] = useState(false);
+  const [loadingRewards, setLoadingRewards] = useState(false);
 
   useEffect(() => {
     if (session?.user?.id) {
       fetchReferralData();
+      fetchReferredUsers();
+      fetchRewardTransactions();
     }
   }, [session?.user?.id]);
 
@@ -139,6 +145,58 @@ export default function ReferralScreen() {
     }
   };
 
+  // Fetch referred users and their deposit/reward status
+  const fetchReferredUsers = async () => {
+    setLoadingReferred(true);
+    try {
+      // Get all referrals where current user is referrer
+      const { data: referrals, error: refErr } = await supabase
+        .from('referrals')
+        .select('*, referred:profiles!referrals_referred_id_fkey(first_name, last_name, id)')
+        .eq('referrer_id', session?.user?.id);
+      if (refErr) throw refErr;
+      // For each referred user, get their total deposits
+      const usersWithDeposits = await Promise.all((referrals || []).map(async (ref: any) => {
+        const { data: deposits, error: depErr } = await supabase
+          .from('deposits')
+          .select('amount')
+          .eq('user_id', ref.referred_id)
+          .eq('status', 'completed');
+        const totalDeposits = (deposits || []).reduce((sum, d) => sum + Number(d.amount), 0);
+        return {
+          id: ref.referred_id,
+          name: ref.referred?.first_name + ' ' + (ref.referred?.last_name || ''),
+          totalDeposits,
+          status: ref.status
+        };
+      }));
+      setReferredUsers(usersWithDeposits);
+    } catch (err) {
+      setReferredUsers([]);
+    } finally {
+      setLoadingReferred(false);
+    }
+  };
+
+  // Fetch reward transactions
+  const fetchRewardTransactions = async () => {
+    setLoadingRewards(true);
+    try {
+      const { data: rewards, error: rewardsErr } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', session?.user?.id)
+        .eq('type', 'reward')
+        .order('created_at', { ascending: false });
+      if (rewardsErr) throw rewardsErr;
+      setRewardTransactions(rewards || []);
+    } catch (err) {
+      setRewardTransactions([]);
+    } finally {
+      setLoadingRewards(false);
+    }
+  };
+
   const styles = createStyles(colors);
 
   return (
@@ -209,6 +267,41 @@ export default function ReferralScreen() {
                 <Text style={styles.statValue}>₦{totalEarned.toLocaleString()}</Text>
                 <Text style={styles.statLabel}>Total Earned</Text>
               </View>
+            </View>
+
+            {/* New: Referred Users List */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Your Referrals</Text>
+              {loadingReferred ? (
+                <ActivityIndicator size="small" />
+              ) : referredUsers.length === 0 ? (
+                <Text style={styles.emptyText}>No referrals yet.</Text>
+              ) : (
+                referredUsers.map(user => (
+                  <View key={user.id} style={styles.referredCard}>
+                    <Text style={styles.referredName}>{user.name}</Text>
+                    <Text style={styles.referredDeposits}>Deposits: ₦{user.totalDeposits.toLocaleString()}</Text>
+                    <Text style={styles.referredStatus}>Status: {user.status === 'rewarded' ? 'Rewarded' : user.status === 'qualified' ? 'Qualified' : 'Pending'}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+
+            {/* New: Reward Transactions List */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Reward History</Text>
+              {loadingRewards ? (
+                <ActivityIndicator size="small" />
+              ) : rewardTransactions.length === 0 ? (
+                <Text style={styles.emptyText}>No rewards yet.</Text>
+              ) : (
+                rewardTransactions.map(tx => (
+                  <View key={tx.id} style={styles.rewardCard}>
+                    <Text style={styles.rewardAmount}>+₦{tx.amount.toLocaleString()}</Text>
+                    <Text style={styles.rewardDate}>{new Date(tx.created_at).toLocaleDateString()}</Text>
+                  </View>
+                ))
+              )}
             </View>
           </>
         )}
@@ -527,5 +620,55 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   shareButton: {
     backgroundColor: '#1E3A8A',
+  },
+  section: {
+    marginBottom: 24,
+  },
+  emptyText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  referredCard: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  referredName: {
+    fontWeight: '600',
+    color: colors.text,
+    fontSize: 15,
+  },
+  referredDeposits: {
+    color: colors.textSecondary,
+    fontSize: 13,
+  },
+  referredStatus: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  rewardCard: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  rewardAmount: {
+    color: colors.success,
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  rewardDate: {
+    color: colors.textSecondary,
+    fontSize: 13,
   },
 });

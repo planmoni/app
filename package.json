@@ -61,7 +61,8 @@
     "react-native-url-polyfill": "^2.0.0",
     "react-native-view-shot": "4.0.3",
     "react-native-web": "~0.20.0",
-    "react-native-webview": "13.13.5"
+    "react-native-webview": "13.13.5",
+    "@sentry/react-native": "~6.14.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
