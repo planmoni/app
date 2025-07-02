@@ -1,7 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings, Sparkles } from 'lucide-react-native'; //Do not change the Home to Chrome
-// import CustomAppLayout from '@/components/CustomAppLayout';
-import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings } from 'lucide-react-native'; //Do not change the Home to Chrome
+// import CustomAppLayout from '@/components/CustomAppLayout'; //Do not change the Home to Chrome
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEffect, useState, useRef } from 'react';
@@ -49,7 +48,6 @@ export default function TabLayout() {
           filter: `user_id=eq.${session.user.id}`,
         },
         (payload: any) => {
-        (payload: any) => {
           console.log('Events change received:', payload);
           // Refresh unread count when events change
           fetchUnreadNotificationsCount();
@@ -58,7 +56,6 @@ export default function TabLayout() {
 
     // Only subscribe if the channel is not already subscribed
     if (channel.state === 'closed' || channel.state === 'leaving') {
-      channel.subscribe((status: any) => {
       channel.subscribe((status: any) => {
         console.log('Events subscription status:', status);
       });

@@ -77,7 +77,7 @@ export default function TransactionsScreen() {
   };
 
   const filteredTransactions = transactions.filter(transaction => {
-    if (activeType !== 'all' && transaction.type !== activeType) {
+    if (activeType !== 'all' && transaction.type !== typeMap[activeType]) {
       return false;
     }
 
@@ -112,24 +112,19 @@ export default function TransactionsScreen() {
   };
 
   // Group transactions by date
-  const groupedTransactions = filteredTransactions.reduce((groups, transaction) => {
+  type GroupedTransactions = { [date: string]: typeof filteredTransactions };
+  const groupedTransactions = filteredTransactions.reduce((groups: GroupedTransactions, transaction) => {
     const date = new Date(transaction.created_at).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric'
     });
-
-    // Fix: Add index signature to groups for type safety
-    type GroupsType = { [key: string]: typeof transaction[] };
-    const groupsTyped = groups as GroupsType;
-
-    if (!groupsTyped[date]) {
-      groupsTyped[date] = [];
+    if (!groups[date]) {
+      groups[date] = [];
     }
-    groupsTyped[date].push(transaction);
-    return groupsTyped;
-  }, {});
-
+    groups[date].push(transaction);
+    return groups;
+  }, {} as GroupedTransactions);
   const styles = createStyles(colors);
 
   if (isLoading) {
@@ -245,7 +240,6 @@ export default function TransactionsScreen() {
 
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            
             <Text style={styles.statLabel}>Total Inflows</Text>
             <Text style={[styles.statValue, styles.positiveValue]}>{stats.inflows}</Text>
           </View>
@@ -279,7 +273,7 @@ export default function TransactionsScreen() {
                     ? 'Yesterday'
                     : date}
               </Text>
-              {(transactions as Transaction[]).map((transaction: Transaction) => {
+              {transactions.map((transaction) => {
                 const isPositive = transaction.type === 'deposit';
                 const Icon = isPositive ? ArrowDownRight : transaction.type === 'payout' ? ArrowUpRight : ArrowDownRight;
                 const iconBg = isPositive ? colors.textTertiary : transaction.type === 'payout' ? colors.textTertiary : colors.textSecondary;
