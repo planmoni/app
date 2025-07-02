@@ -16,6 +16,7 @@ export default function CreatePasswordScreen() {
   const firstName = params.firstName as string;
   const lastName = params.lastName as string;
   const email = params.email as string;
+  const emailVerified = params.emailVerified === 'true';
   
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -63,7 +64,8 @@ export default function CreatePasswordScreen() {
         firstName,
         lastName,
         email,
-        password
+        password,
+        emailVerified: emailVerified ? 'true' : 'false'
       }
     });
   };

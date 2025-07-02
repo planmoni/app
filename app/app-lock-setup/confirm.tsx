@@ -8,17 +8,23 @@ import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
+import { useAppLock } from '@/contexts/AppLockContext';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function ConfirmPinScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
   const { showToast } = useToast();
+  const { setAppLockPin } = useAppLock();
+  const haptics = useHaptics();
+  
   const params = useLocalSearchParams();
   const originalPin = params.pin as string;
   const pinLength = originalPin.length;
   
   const [confirmPin, setConfirmPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
@@ -27,38 +33,59 @@ export default function ConfirmPinScreen() {
     setError(null);
     
     // Automatically proceed when PIN is complete and matches
-    if (confirmPin.length === pinLength) {
-      const timer = setTimeout(() => {
+    if (confirmPin.length === pinLength && !isProcessing) {
+      setIsProcessing(true);
+      console.log('[AppLockConfirm] Confirm PIN entry complete.');
+      const timer = setTimeout(async () => {
         if (confirmPin === originalPin) {
-          // In a real app, you would save the PIN securely here
-          router.push({
-            pathname: '/app-lock-setup/success',
-            params: { pin: originalPin }
-          });
+          try {
+            // Save the PIN to secure storage
+            await setAppLockPin(originalPin);
+            haptics.success();
+            console.log('[AppLockConfirm] PIN confirmed and saved. Navigating to success.');
+            
+            // Navigate to success screen
+            router.push({
+              pathname: '/app-lock-setup/success',
+              params: { pin: originalPin }
+            });
+          } catch (error) {
+            console.error('Error saving PIN:', error);
+            setError('Failed to save PIN. Please try again.');
+            haptics.error();
+            setConfirmPin('');
+          }
         } else {
           setError('PINs do not match. Please try again.');
-          showToast('PINs do not match. Please try again.', 'error');
+          haptics.error();
           setConfirmPin('');
         }
+        setIsProcessing(false);
       }, 300); // Small delay for better UX
       
       return () => clearTimeout(timer);
     }
-  }, [confirmPin, originalPin, pinLength]);
+  }, [confirmPin, originalPin, pinLength, isProcessing]);
 
   const handlePinChange = (digit: string) => {
-    if (confirmPin.length < pinLength) {
+    if (confirmPin.length < pinLength && !isProcessing) {
+      haptics.selection();
       setConfirmPin(prev => prev + digit);
       setError(null);
     }
   };
 
   const handlePinDelete = () => {
-    setConfirmPin(prev => prev.slice(0, -1));
-    setError(null);
+    if (!isProcessing) {
+      haptics.lightImpact();
+      setConfirmPin(prev => prev.slice(0, -1));
+      setError(null);
+    }
   };
 
   const handleBackPress = () => {
+    if (isProcessing) return;
+    haptics.lightImpact();
     if (router.canGoBack()) {
       router.back();
     } else {
@@ -71,7 +98,7 @@ export default function ConfirmPinScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={handleBackPress} style={styles.backButton}>
+        <Pressable onPress={isProcessing ? () => {} : handleBackPress} style={styles.backButton} disabled={isProcessing}>
           <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>App Lock</Text>
@@ -98,9 +125,9 @@ export default function ConfirmPinScreen() {
               />
               
               <PinKeypad 
-                onKeyPress={handlePinChange}
-                onDelete={handlePinDelete}
-                disabled={confirmPin.length >= pinLength}
+                onKeyPress={isProcessing ? () => {} : handlePinChange}
+                onDelete={isProcessing ? () => {} : handlePinDelete}
+                disabled={isProcessing || confirmPin.length >= pinLength}
               />
             </View>
             

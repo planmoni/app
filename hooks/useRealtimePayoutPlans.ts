@@ -38,8 +38,9 @@ export function useRealtimePayoutPlans() {
         await fetchPayoutPlans();
 
         // Set up real-time subscription
+        const channelName = `payout-plans-changes-${session.user.id}`;
         channel = supabase
-          .channel('payout-plans-changes')
+          .channel(channelName)
           .on(
             'postgres_changes',
             {
@@ -48,7 +49,7 @@ export function useRealtimePayoutPlans() {
               table: 'payout_plans',
               filter: `user_id=eq.${session.user.id}`,
             },
-            (payload) => {
+            (payload: any) => {
               console.log('Payout plan change received:', payload);
               
               if (payload.eventType === 'INSERT' && payload.new) {
@@ -65,10 +66,13 @@ export function useRealtimePayoutPlans() {
                 );
               }
             }
-          )
-          .subscribe((status) => {
+          );
+        // Only subscribe if not already subscribed
+        if (channel.state === 'closed' || channel.state === 'leaving') {
+          channel.subscribe((status: any) => {
             console.log('Payout plans subscription status:', status);
           });
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to setup payout plans subscription');
       }

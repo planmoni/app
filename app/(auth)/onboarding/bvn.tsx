@@ -7,14 +7,17 @@ import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function BVNScreen() {
   const { colors } = useTheme();
+  const haptics = useHaptics();
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
   const lastName = params.lastName as string;
   const email = params.email as string;
   const password = params.password as string;
+  const emailVerified = params.emailVerified === 'true';
   
   const [bvn, setBvn] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -34,31 +37,36 @@ export default function BVNScreen() {
 
   const handleContinue = () => {
     if (bvn && bvn.length !== 11) {
+      haptics.error();
       setError('BVN must be 11 digits');
       return;
     }
     
+    haptics.mediumImpact();
     router.push({
-      pathname: '/onboarding/success',
+      pathname: '/onboarding/referral-code',
       params: { 
         firstName,
         lastName,
         email,
         password,
-        bvn: bvn || 'skipped'
+        bvn: bvn || 'skipped',
+        emailVerified: emailVerified ? 'true' : 'false'
       }
     });
   };
 
   const handleSkip = () => {
+    haptics.lightImpact();
     router.push({
-      pathname: '/onboarding/success',
+      pathname: '/onboarding/referral-code',
       params: { 
         firstName,
         lastName,
         email,
         password,
-        bvn: 'skipped'
+        bvn: 'skipped',
+        emailVerified: emailVerified ? 'true' : 'false'
       }
     });
   };
@@ -68,7 +76,13 @@ export default function BVNScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
       </View>
@@ -116,7 +130,10 @@ export default function BVNScreen() {
               </Text>
             </View>
             
-            <Pressable onPress={handleSkip} style={styles.skipButton}>
+            <Pressable 
+              style={styles.skipButton} 
+              onPress={handleSkip}
+            >
               <Text style={styles.skipText}>Skip for now</Text>
             </Pressable>
           </View>
@@ -127,6 +144,7 @@ export default function BVNScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={!isButtonEnabled}
+        hapticType="medium"
       />
     </SafeAreaView>
   );

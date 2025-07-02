@@ -1,20 +1,36 @@
 import { View, Text, StyleSheet, Pressable, Switch, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, TriangleAlert as AlertTriangle, Clock } from 'lucide-react-native';
-import Button from '@/components/Button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ArrowLeft, TriangleAlert as AlertTriangle, Clock, Info, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useHaptics } from '@/hooks/useHaptics';
+import { Platform } from 'react-native';
 
 export default function RulesScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const params = useLocalSearchParams();
   const [emergencyWithdrawal, setEmergencyWithdrawal] = useState(false);
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const haptics = useHaptics();
+
+  // Determine if we're on a small screen
+  const isSmallScreen = width < 380 || height < 700;
+
+  // Set initial state based on params if available
+  useEffect(() => {
+    if (params.emergencyWithdrawal === 'true') {
+      setEmergencyWithdrawal(true);
+    }
+  }, [params.emergencyWithdrawal]);
 
   const handleContinue = () => {
+    if (Platform.OS !== 'web') {
+      haptics.mediumImpact();
+    }
+    
     router.push({
       pathname: '/create-payout/review',
       params: {
@@ -24,15 +40,27 @@ export default function RulesScreen() {
     });
   };
 
-  // Responsive styles based on screen width
-  const isSmallScreen = width < 380;
+  const handleToggleEmergencyWithdrawal = () => {
+    if (Platform.OS !== 'web') {
+      haptics.selection();
+    }
+    setEmergencyWithdrawal(!emergencyWithdrawal);
+  };
 
-  const styles = createStyles(colors, isSmallScreen);
+  const styles = createStyles(colors, isDark, isSmallScreen);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
@@ -67,33 +95,70 @@ export default function RulesScreen() {
               </View>
               <Switch
                 value={emergencyWithdrawal}
-                onValueChange={setEmergencyWithdrawal}
+                onValueChange={handleToggleEmergencyWithdrawal}
                 trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                 thumbColor={emergencyWithdrawal ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
 
-            <View style={styles.cooldownSetting}>
-              <View style={styles.settingIcon}>
-                <Clock size={isSmallScreen ? 20 : 24} color="#1E3A8A" />
-              </View>
-              <View style={styles.cooldownDetails}>
-                <Text style={styles.cooldownTitle}>Emergency Cooldown</Text>
-                <Text style={styles.cooldownValue}>72 hours</Text>
-                <Text style={styles.cooldownDescription}>
-                  Waiting period for emergency withdrawals
+            {emergencyWithdrawal && (
+              <View style={styles.emergencyOptionsContainer}>
+                <Text style={styles.emergencyOptionsTitle}>Emergency Withdrawal Options</Text>
+                <Text style={styles.emergencyOptionsDescription}>
+                  When enabled, you'll have access to the following emergency withdrawal options:
                 </Text>
+                
+                <View style={styles.optionItem}>
+                  <View style={[styles.optionDot, { backgroundColor: '#EF4444' }]} />
+                  <Text style={styles.optionText}>
+                    <Text style={styles.optionHighlight}>Instant withdrawal:</Text> 12% processing fee
+                  </Text>
+                </View>
+                
+                <View style={styles.optionItem}>
+                  <View style={[styles.optionDot, { backgroundColor: '#F59E0B' }]} />
+                  <Text style={styles.optionText}>
+                    <Text style={styles.optionHighlight}>24-hour withdrawal:</Text> 6% processing fee
+                  </Text>
+                </View>
+                
+                <View style={styles.optionItem}>
+                  <View style={[styles.optionDot, { backgroundColor: '#22C55E' }]} />
+                  <Text style={styles.optionText}>
+                    <Text style={styles.optionHighlight}>72-hour withdrawal:</Text> No processing fee
+                  </Text>
+                </View>
               </View>
-            </View>
+            )}
 
             <View style={styles.warning}>
               <View style={styles.warningIcon}>
                 <AlertTriangle size={isSmallScreen ? 16 : 20} color="#EF4444" />
               </View>
               <Text style={styles.warningText}>
-                To enforce discipline, emergency withdrawals will hold funds for 72 hours and also attract high fees
+                Only turn emergency withdrawals option ON if you feel there might be situations where you might need to pull out your funds before payout expiry, when turned off, you will not be able to pull out your funds at any point until payout date is complete.
               </Text>
             </View>
+          </View>
+          
+          {emergencyWithdrawal && (
+            <View style={styles.infoCard}>
+              <View style={styles.infoIcon}>
+                <Info size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.infoText}>
+                You can request an emergency withdrawal at any time from the payout details screen. The available options and fees will be shown at the time of withdrawal.
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.securityInfo}>
+            <View style={styles.securityIconContainer}>
+              <Shield size={isSmallScreen ? 16 : 20} color={colors.primary} />
+            </View>
+            <Text style={styles.securityInfoText}>
+              Your funds are securely locked in your vault until your scheduled payout dates. This helps maintain financial discipline and ensures your money lasts longer.
+            </Text>
           </View>
         </View>
       </KeyboardAvoidingWrapper>
@@ -101,12 +166,13 @@ export default function RulesScreen() {
       <FloatingButton 
         title="Continue"
         onPress={handleContinue}
+        hapticType="medium"
       />
     </SafeAreaView>
   );
 }
 
-const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -161,7 +227,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     paddingTop: 0,
   },
   title: {
-    fontSize: isSmallScreen ? 22 : 24,
+    fontSize: isSmallScreen ? 15 : 18,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
@@ -173,6 +239,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   },
   settingsContainer: {
     gap: 16,
+    marginBottom: 24,
   },
   setting: {
     flexDirection: 'row',
@@ -210,6 +277,47 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   settingDescription: {
     fontSize: isSmallScreen ? 13 : 14,
     color: colors.textSecondary,
+  },
+  emergencyOptionsContainer: {
+    backgroundColor: colors.card,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F97316',
+  },
+  emergencyOptionsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  emergencyOptionsDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  optionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  optionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  optionText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  optionHighlight: {
+    fontWeight: '600',
+    color: colors.text,
   },
   cooldownSetting: {
     flexDirection: 'row',
@@ -260,5 +368,50 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     fontSize: isSmallScreen ? 13 : 14,
     color: colors.text,
     lineHeight: isSmallScreen ? 18 : 20,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  infoIcon: {
+    marginTop: 2,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  securityInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    padding: 16,
+    borderRadius: 12,
+  },
+  securityIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#DBEAFE',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  securityInfoText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
 });

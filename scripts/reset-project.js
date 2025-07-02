@@ -71,6 +71,15 @@ try {
     process.exit(1);
   }
 
+  // Explicitly install expo to ensure it's available
+  console.log('📦 Ensuring expo is installed...');
+  try {
+    execSync('npm install expo', { stdio: 'inherit' });
+  } catch (e) {
+    console.error('❌ Failed to install expo:', e.message);
+    process.exit(1);
+  }
+
   console.log('✅ Project reset complete! You can now start your app with npm start');
 } catch (error) {
   console.error('❌ Project reset failed:', error.message);

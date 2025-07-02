@@ -4,18 +4,24 @@ import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
+import { useHaptics } from '@/hooks/useHaptics';
+import { Platform } from 'react-native';
 
 export default function EmailScreen() {
   const { colors } = useTheme();
+  const { showToast } = useToast();
+  const haptics = useHaptics();
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
   const lastName = params.lastName as string;
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const emailInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -29,25 +35,76 @@ export default function EmailScreen() {
     setIsButtonEnabled(email.trim().length > 0);
   }, [email]);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!email.trim()) {
       setError('Please enter your email address');
+      showToast('Please enter your email address', 'error');
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
       return;
     }
 
     if (!/\S+@\S+\.\S+/.test(email)) {
       setError('Please enter a valid email address');
+      showToast('Please enter a valid email address', 'error');
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
       return;
     }
     
-    router.push({
-      pathname: '/onboarding/create-password',
-      params: { 
-        firstName,
-        lastName,
-        email: email.trim().toLowerCase()
+    setIsLoading(true);
+    
+    try {
+      // Call the Edge Function to send OTP
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL not configured');
       }
-    });
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-otp-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`
+        },
+        body: JSON.stringify({ email: email.trim().toLowerCase() })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('Error from Edge Function:', data);
+        throw new Error(data.error || 'Failed to send verification code');
+      }
+      
+      showToast('Verification code sent to your email', 'success');
+      
+      if (Platform.OS !== 'web') {
+        haptics.success();
+      }
+      
+      // Navigate to OTP verification screen
+      router.push({
+        pathname: '/onboarding/otp',
+        params: { 
+          firstName,
+          lastName,
+          email: email.trim().toLowerCase()
+        }
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An error occurred. Please try again.');
+      showToast('An error occurred. Please try again.', 'error');
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const styles = createStyles(colors);
@@ -55,15 +112,31 @@ export default function EmailScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Pressable onPress={() => router.push('/login')} style={styles.signInButton}>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.push('/login');
+          }} 
+          style={styles.signInButton}
+        >
           <Text style={styles.signInText}>Sign in instead</Text>
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={3} totalSteps={6} />
+      <OnboardingProgress currentStep={3} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -94,6 +167,7 @@ export default function EmailScreen() {
                 autoCapitalize="none"
                 keyboardType="email-address"
                 textContentType="emailAddress"
+                editable={!isLoading}
               />
             </View>
             
@@ -105,9 +179,9 @@ export default function EmailScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title="Continue"
+        title={isLoading ? "Processing..." : "Continue"}
         onPress={handleContinue}
-        disabled={!isButtonEnabled}
+        disabled={!isButtonEnabled || isLoading}
       />
     </SafeAreaView>
   );
@@ -154,7 +228,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -170,7 +244,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: '100%',
   },
   question: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 24,

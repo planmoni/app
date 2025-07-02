@@ -1,8 +1,8 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, Linking } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, CreditCard, Calendar, Lock, Info, Shield } from 'lucide-react-native';
+import { ArrowLeft, CreditCard, Calendar, Lock, Info, Shield, ExternalLink } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import Button from '@/components/Button';
@@ -11,7 +11,7 @@ import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
-import OTPVerificationModal from '@/components/OTPVerificationModal';
+import { supabase } from '@/lib/supabase';
 
 export default function AddCardScreen() {
   const { colors, isDark } = useTheme();
@@ -23,86 +23,108 @@ export default function AddCardScreen() {
   const amount = params.amount as string;
   const fromDepositFlow = params.fromDepositFlow === 'true';
   
-  const [cardNumber, setCardNumber] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [cvv, setCvv] = useState('');
-  const [cardholderName, setCardholderName] = useState('');
+  const [amountInput, setAmountInput] = useState(amount || '100');
   const [saveCard, setSaveCard] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // OTP verification state
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [otpReference, setOtpReference] = useState('');
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [paymentUrl, setPaymentUrl] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const formatCardNumber = (value: string) => {
-    // Remove all non-digit characters
-    const digits = value.replace(/\D/g, '');
+  // Check payment status periodically
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
     
-    // Format with spaces after every 4 digits
-    let formatted = '';
-    for (let i = 0; i < digits.length; i += 4) {
-      formatted += digits.slice(i, i + 4) + ' ';
-    }
-    
-    // Trim the trailing space and limit to 19 characters (16 digits + 3 spaces)
-    return formatted.trim().slice(0, 19);
-  };
+    if (paymentUrl) {
+      interval = setInterval(async () => {
+        try {
+          // Extract reference from payment URL
+          const url = new URL(paymentUrl);
+          const reference = url.searchParams.get('reference');
+          
+          if (reference) {
+            // Verify payment directly with Paystack
+            const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+              headers: {
+                'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY}`,
+                'Content-Type': 'application/json'
+              },
+            });
+            
+            const data = await response.json();
+            
+            if (data.status && data.data?.status === 'success') {
+              clearInterval(interval);
+              setShowPaymentModal(false);
+              setPaymentUrl('');
+              
+              // Store card information if save_card is true
+              if (saveCard && data.data.authorization) {
+                const authorization = data.data.authorization;
+                
+                // Store the card token in database
+                const { error: dbError } = await supabase
+                  .from('payment_methods')
+                  .insert({
+                    user_id: session?.user?.id,
+                    type: 'card',
+                    provider: 'paystack',
+                    token: authorization.authorization_code,
+                    last_four: authorization.last4,
+                    exp_month: authorization.exp_month,
+                    exp_year: authorization.exp_year,
+                    card_type: authorization.card_type,
+                    bank: authorization.bank,
+                    is_default: false
+                  });
 
-  const formatExpiryDate = (value: string) => {
-    // Remove all non-digit characters
-    const digits = value.replace(/\D/g, '');
-    
-    // Format as MM/YY
-    if (digits.length > 2) {
-      return digits.slice(0, 2) + '/' + digits.slice(2, 4);
-    } else {
-      return digits;
+                if (dbError) {
+                  console.error('❌ Error storing card token:', dbError);
+                } else {
+                  console.log('✅ Card token stored in database');
+                }
+              }
+              
+              haptics.success();
+              showToast('Card added successfully!', 'success');
+              
+              if (fromDepositFlow && amount) {
+                router.replace({
+                  pathname: '/deposit-flow/authorization',
+                  params: {
+                    amount,
+                    methodTitle: `Card •••• ${data.data.authorization?.last4 || '****'}`
+                  }
+                });
+              } else {
+                router.back();
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error checking payment status:', error);
+        }
+      }, 3000); // Check every 3 seconds
     }
-  };
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [paymentUrl, session, fromDepositFlow, amount, haptics, showToast, saveCard]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
-    // Validate card number (should be 16 digits)
-    const cardDigits = cardNumber.replace(/\D/g, '');
-    if (!cardDigits) {
-      newErrors.cardNumber = 'Card number is required';
-    } else if (cardDigits.length !== 16) {
-      newErrors.cardNumber = 'Card number must be 16 digits';
-    }
-    
-    // Validate expiry date (should be in MM/YY format)
-    const expiryDigits = expiryDate.replace(/\D/g, '');
-    if (!expiryDigits) {
-      newErrors.expiryDate = 'Expiry date is required';
-    } else if (expiryDigits.length !== 4) {
-      newErrors.expiryDate = 'Expiry date must be in MM/YY format';
-    } else {
-      const month = parseInt(expiryDigits.slice(0, 2), 10);
-      const year = parseInt(expiryDigits.slice(2, 4), 10);
-      const currentYear = new Date().getFullYear() % 100;
-      const currentMonth = new Date().getMonth() + 1;
-      
-      if (month < 1 || month > 12) {
-        newErrors.expiryDate = 'Invalid month';
-      } else if (year < currentYear || (year === currentYear && month < currentMonth)) {
-        newErrors.expiryDate = 'Card has expired';
-      }
-    }
-    
-    // Validate CVV (should be 3 or 4 digits)
-    if (!cvv) {
-      newErrors.cvv = 'CVV is required';
-    } else if (!/^\d{3,4}$/.test(cvv)) {
-      newErrors.cvv = 'CVV must be 3 or 4 digits';
-    }
-    
-    // Validate cardholder name
-    if (!cardholderName.trim()) {
-      newErrors.cardholderName = 'Cardholder name is required';
+    // Validate amount
+    const amountValue = parseFloat(amountInput);
+    if (!amountInput || isNaN(amountValue)) {
+      newErrors.amount = 'Please enter a valid amount';
+    } else if (amountValue < 100) {
+      newErrors.amount = 'Minimum amount is ₦100';
+    } else if (amountValue > 1000000) {
+      newErrors.amount = 'Maximum amount is ₦1,000,000';
     }
     
     setErrors(newErrors);
@@ -123,101 +145,82 @@ export default function AddCardScreen() {
       if (!session?.user?.id) {
         throw new Error('User not authenticated');
       }
+
+      // Generate unique reference
+      const reference = `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Extract month and year from expiry date
-      const [expMonth, expYear] = expiryDate.split('/');
-      
-      // In a real app, this would call the Paystack API to tokenize the card
-      // For demo purposes, we'll simulate a successful tokenization with OTP
-      
-      // Simulate API call with a delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Simulate OTP requirement (in a real app, this would come from the API response)
-      setOtpReference(`REF_${Date.now()}`);
-      setShowOtpModal(true);
+      // Initialize Paystack payment directly
+      const paymentData = {
+        email: session.user.email,
+        amount: (parseInt(amountInput) * 100).toString(), // Convert to kobo
+        currency: 'NGN',
+        reference: reference,
+        callback_url: `${process.env.EXPO_PUBLIC_APP_URL || 'https://your-app.com'}/payment/callback`,
+        channels: ['card'], // Only allow card payments
+        metadata: {
+          user_id: session.user.id,
+          payment_type: 'card_payment',
+          save_card: saveCard
+        }
+      };
+
+      console.log('🚀 Initializing Paystack payment:', {
+        user_id: session.user.id,
+        email: session.user.email,
+        amount: amountInput,
+        reference: reference
+      });
+
+      const response = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(paymentData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to initialize payment');
+      }
+
+      if (data.status && data.data?.authorization_url) {
+        // Open Paystack Checkout
+        setPaymentUrl(data.data.authorization_url);
+        setShowPaymentModal(true);
+        
+        // Open the payment URL
+        const supported = await Linking.canOpenURL(data.data.authorization_url);
+        if (supported) {
+          await Linking.openURL(data.data.authorization_url);
+        } else {
+          showToast('Unable to open payment page', 'error');
+        }
+      } else {
+        throw new Error('Invalid response from Paystack');
+      }
       
     } catch (err) {
       haptics.error();
       const errorMessage = err instanceof Error ? err.message : 'Failed to add card';
-      showToast(`Error tokenizing card: ${errorMessage}`, 'error');
-      console.error('Error tokenizing card:', err);
+      showToast(`Error: ${errorMessage}`, 'error');
+      console.error('Error initializing payment:', err);
     } finally {
       setIsLoading(false);
     }
   };
-  
-  const handleVerifyOtp = async (otp: string) => {
-    try {
-      setIsVerifyingOtp(true);
-      
-      // In a real app, this would call the Paystack API to verify the OTP
-      // For demo purposes, we'll simulate a successful verification
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // If saveCard is true, add the card to saved payment methods
-      if (saveCard) {
-        const cardDigits = cardNumber.replace(/\D/g, '');
-        const lastFour = cardDigits.slice(-4);
-        const [expMonth, expYear] = expiryDate.split('/');
-        
-        // Determine card type based on first digit
-        let cardType = 'unknown';
-        if (cardDigits.startsWith('4')) {
-          cardType = 'visa';
-        } else if (cardDigits.startsWith('5')) {
-          cardType = 'mastercard';
-        } else if (cardDigits.startsWith('6')) {
-          cardType = 'verve';
-        }
-        
-        // Add the card to saved payment methods
-        await addPaymentMethod({
-          type: 'card',
-          provider: 'paystack',
-          token: `TOKEN_${Date.now()}`, // In a real app, this would be the token from Paystack
-          last_four: lastFour,
-          exp_month: expMonth,
-          exp_year: expYear,
-          card_type: cardType,
-          bank: 'Demo Bank',
-          is_default: false
-        });
-        
-        showToast('Card saved successfully', 'success');
-      }
-      
-      if (fromDepositFlow && amount) {
-        // If coming from deposit flow, proceed to authorization screen
-        router.replace({
-          pathname: '/deposit-flow/authorization',
-          params: {
-            amount,
-            methodTitle: 'Card •••• ' + cardNumber.slice(-4).replace(/\s/g, '')
-          }
-        });
-      } else {
-        // Standard card add flow
-        haptics.success();
-        showToast('Card added successfully', 'success');
-        router.back();
-      }
-      
-      setShowOtpModal(false);
-      
-    } catch (error) {
-      haptics.error();
-      showToast('Failed to verify OTP. Please try again.', 'error');
-    } finally {
-      setIsVerifyingOtp(false);
-    }
-  };
 
-  // Simulate adding a payment method (in a real app, this would be a database operation)
-  const addPaymentMethod = async (methodData: any) => {
-    // This is a mock implementation
-    console.log('Adding payment method:', methodData);
-    return true;
+  const handleOpenPayment = async () => {
+    if (paymentUrl) {
+      const supported = await Linking.canOpenURL(paymentUrl);
+      if (supported) {
+        await Linking.openURL(paymentUrl);
+      } else {
+        showToast('Unable to open payment page', 'error');
+      }
+    }
   };
 
   const styles = createStyles(colors, isDark);
@@ -241,32 +244,28 @@ export default function AddCardScreen() {
         <View style={styles.content}>
           <Text style={styles.title}>Add a Debit or Credit Card</Text>
           <Text style={styles.description}>
-            Add your card details to make quick and secure payments
+            Add your card details securely through Paystack's secure payment gateway
           </Text>
 
           <View style={styles.cardPreview}>
             <View style={styles.cardHeader}>
-              <Text style={styles.cardType}>
-                {cardNumber.startsWith('4') ? 'VISA' : 
-                 cardNumber.startsWith('5') ? 'MASTERCARD' : 
-                 cardNumber.startsWith('6') ? 'VERVE' : 'CARD'}
-              </Text>
+              <Text style={styles.cardType}>SECURE PAYMENT</Text>
               <CreditCard size={24} color="#FFFFFF" />
             </View>
             <Text style={styles.cardNumberPreview}>
-              {cardNumber || '•••• •••• •••• ••••'}
+              •••• •••• •••• ••••
             </Text>
             <View style={styles.cardFooter}>
               <View>
-                <Text style={styles.cardholderLabel}>CARD HOLDER</Text>
+                <Text style={styles.cardholderLabel}>PAYMENT GATEWAY</Text>
                 <Text style={styles.cardholderPreview}>
-                  {cardholderName || 'YOUR NAME'}
+                  PAYSTACK SECURE
                 </Text>
               </View>
               <View>
-                <Text style={styles.expiryLabel}>EXPIRES</Text>
+                <Text style={styles.expiryLabel}>PROCESSED BY</Text>
                 <Text style={styles.expiryPreview}>
-                  {expiryDate || 'MM/YY'}
+                  PAYSTACK
                 </Text>
               </View>
             </View>
@@ -274,96 +273,29 @@ export default function AddCardScreen() {
 
           <View style={styles.form}>
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Card Number</Text>
-              <View style={[styles.inputContainer, errors.cardNumber && styles.inputError]}>
-                <CreditCard size={20} color={colors.textSecondary} style={styles.inputIcon} />
+              <Text style={styles.label}>Amount to Charge</Text>
+              <View style={[styles.inputContainer, errors.amount && styles.inputError]}>
+                <Text style={styles.currencySymbol}>₦</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="1234 5678 9012 3456"
+                  placeholder="100"
                   placeholderTextColor={colors.textTertiary}
-                  value={cardNumber}
+                  value={amountInput}
                   onChangeText={(text) => {
-                    const formatted = formatCardNumber(text);
-                    setCardNumber(formatted);
-                    if (errors.cardNumber) {
-                      setErrors({...errors, cardNumber: ''});
+                    // Only allow numbers
+                    const numbers = text.replace(/[^0-9]/g, '');
+                    setAmountInput(numbers);
+                    if (errors.amount) {
+                      setErrors({...errors, amount: ''});
                     }
                   }}
                   keyboardType="numeric"
-                  maxLength={19} // 16 digits + 3 spaces
                 />
               </View>
-              {errors.cardNumber && <Text style={styles.errorText}>{errors.cardNumber}</Text>}
-            </View>
-
-            <View style={styles.formRow}>
-              <View style={[styles.formGroup, styles.halfWidth]}>
-                <Text style={styles.label}>Expiry Date</Text>
-                <View style={[styles.inputContainer, errors.expiryDate && styles.inputError]}>
-                  <Calendar size={20} color={colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="MM/YY"
-                    placeholderTextColor={colors.textTertiary}
-                    value={expiryDate}
-                    onChangeText={(text) => {
-                      const formatted = formatExpiryDate(text);
-                      setExpiryDate(formatted);
-                      if (errors.expiryDate) {
-                        setErrors({...errors, expiryDate: ''});
-                      }
-                    }}
-                    keyboardType="numeric"
-                    maxLength={5} // MM/YY
-                  />
-                </View>
-                {errors.expiryDate && <Text style={styles.errorText}>{errors.expiryDate}</Text>}
-              </View>
-
-              <View style={[styles.formGroup, styles.halfWidth]}>
-                <Text style={styles.label}>CVV</Text>
-                <View style={[styles.inputContainer, errors.cvv && styles.inputError]}>
-                  <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="123"
-                    placeholderTextColor={colors.textTertiary}
-                    value={cvv}
-                    onChangeText={(text) => {
-                      // Only allow numbers and limit to 4 digits
-                      const digits = text.replace(/\D/g, '').slice(0, 4);
-                      setCvv(digits);
-                      if (errors.cvv) {
-                        setErrors({...errors, cvv: ''});
-                      }
-                    }}
-                    keyboardType="numeric"
-                    maxLength={4}
-                    secureTextEntry
-                  />
-                </View>
-                {errors.cvv && <Text style={styles.errorText}>{errors.cvv}</Text>}
-              </View>
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Cardholder Name</Text>
-              <View style={[styles.inputContainer, errors.cardholderName && styles.inputError]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Name as it appears on card"
-                  placeholderTextColor={colors.textTertiary}
-                  value={cardholderName}
-                  onChangeText={(text) => {
-                    setCardholderName(text);
-                    if (errors.cardholderName) {
-                      setErrors({...errors, cardholderName: ''});
-                    }
-                  }}
-                  autoCapitalize="words"
-                />
-              </View>
-              {errors.cardholderName && <Text style={styles.errorText}>{errors.cardholderName}</Text>}
+              {errors.amount && <Text style={styles.errorText}>{errors.amount}</Text>}
+              <Text style={styles.helperText}>
+                A small charge will be made to verify your card. This amount will be refunded.
+              </Text>
             </View>
 
             <View style={styles.checkboxContainer}>
@@ -383,7 +315,16 @@ export default function AddCardScreen() {
                 <Shield size={20} color={colors.primary} />
               </View>
               <Text style={styles.securityText}>
-                Your card information is securely encrypted and processed by Paystack. We do not store your full card details.
+                Your card information is securely processed by Paystack. We never store your full card details on our servers.
+              </Text>
+            </View>
+
+            <View style={styles.processInfo}>
+              <View style={styles.processIconContainer}>
+                <Info size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.processText}>
+                You will be redirected to Paystack's secure payment page to enter your card details.
               </Text>
             </View>
           </View>
@@ -391,20 +332,41 @@ export default function AddCardScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title="Add Card"
+        title="Proceed to Payment"
         onPress={handleAddCard}
         loading={isLoading}
         disabled={isLoading}
         hapticType="medium"
       />
       
-      <OTPVerificationModal
-        isVisible={showOtpModal}
-        onClose={() => setShowOtpModal(false)}
-        onVerify={handleVerifyOtp}
-        reference={otpReference}
-        isLoading={isVerifyingOtp}
-      />
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Complete Payment</Text>
+            <Text style={styles.modalDescription}>
+              Please complete your payment on the Paystack page. You can return to this app once payment is complete.
+            </Text>
+            
+            <View style={styles.modalButtons}>
+              <Pressable 
+                style={styles.modalButton}
+                onPress={handleOpenPayment}
+              >
+                <ExternalLink size={20} color={colors.primary} />
+                <Text style={styles.modalButtonText}>Open Payment Page</Text>
+              </Pressable>
+              
+              <Pressable 
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowPaymentModal(false)}
+              >
+                <Text style={[styles.modalButtonText, styles.cancelButtonText]}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -593,5 +555,87 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  processInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  processIconContainer: {
+    marginTop: 2,
+  },
+  processText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  currencySymbol: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  helperText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    padding: 20,
+    borderRadius: 12,
+    width: '80%',
+    maxHeight: '80%',
+    justifyContent: 'space-between',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+  },
+  modalButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FFFFFF',
+  },
+  cancelButton: {
+    backgroundColor: colors.error,
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FFFFFF',
   },
 });

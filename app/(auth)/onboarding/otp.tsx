@@ -1,24 +1,32 @@
-import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Mail } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
+import { useHaptics } from '@/hooks/useHaptics';
+import { Platform } from 'react-native';
+import { supabase } from '@/lib/supabase';
 
 export default function OTPScreen() {
   const { colors } = useTheme();
+  const { showToast } = useToast();
+  const haptics = useHaptics();
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
   const lastName = params.lastName as string;
   const email = params.email as string;
   
-  const [otp, setOtp] = useState(['', '', '', '']);
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
   const [timer, setTimer] = useState(60);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   
   const inputRefs = useRef<Array<TextInput | null>>([]);
 
@@ -39,6 +47,13 @@ export default function OTPScreen() {
   }, [otp]);
 
   useEffect(() => {
+    // Send OTP when component mounts
+    sendOTP();
+  }, []);
+
+  useEffect(() => {
+    if (timer <= 0) return;
+    
     const interval = setInterval(() => {
       setTimer((prevTimer) => {
         if (prevTimer <= 1) {
@@ -50,7 +65,7 @@ export default function OTPScreen() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [timer]);
 
   const handleOtpChange = (text: string, index: number) => {
     if (text.length > 1) {
@@ -63,7 +78,7 @@ export default function OTPScreen() {
     setError(null);
     
     // Auto-focus next input
-    if (text !== '' && index < 3) {
+    if (text !== '' && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
@@ -82,32 +97,108 @@ export default function OTPScreen() {
     }
   };
 
-  const handleContinue = () => {
+  const sendOTP = async () => {
+    try {
+      setIsResending(true);
+      setError(null);
+      
+      // Call the Supabase function to send OTP
+      const { data, error: otpError } = await supabase.rpc('send_otp_email', {
+        p_email: email.trim().toLowerCase()
+      });
+      
+      if (otpError) {
+        throw new Error(otpError.message || 'Failed to send verification code');
+      }
+      
+      if (!data) {
+        throw new Error('Failed to send verification code');
+      }
+      
+      // Reset timer
+      setTimer(60);
+      
+      // Show success toast
+      showToast('Verification code sent to your email', 'success');
+      
+      if (Platform.OS !== 'web') {
+        haptics.success();
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to send OTP');
+      showToast('Failed to send verification code', 'error');
+      
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const handleContinue = async () => {
     const otpValue = otp.join('');
     
-    if (otpValue.length !== 4) {
+    if (otpValue.length !== 6) {
       setError('Please enter the complete verification code');
+      showToast('Please enter the complete verification code', 'error');
+      
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
       return;
     }
     
-    // In a real app, you would verify the OTP here
-    // For demo purposes, we'll just accept any 4-digit code
-    router.push({
-      pathname: '/onboarding/create-password',
-      params: { 
-        firstName,
-        lastName,
-        email
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Call the Supabase function to verify OTP
+      const { data, error: verifyError } = await supabase.rpc('verify_otp', {
+        p_email: email.trim().toLowerCase(),
+        p_otp: otpValue
+      });
+      
+      if (verifyError) {
+        throw new Error(verifyError.message || 'Failed to verify OTP');
       }
-    });
+      
+      if (!data) {
+        throw new Error('Invalid or expired verification code');
+      }
+      
+      // Show success toast
+      showToast('Email verified successfully', 'success');
+      
+      if (Platform.OS !== 'web') {
+        haptics.success();
+      }
+      
+      // Navigate to the next screen with emailVerified flag
+      router.push({
+        pathname: '/onboarding/create-password',
+        params: { 
+          firstName,
+          lastName,
+          email,
+          emailVerified: 'true'
+        }
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to verify OTP');
+      showToast('Failed to verify code', 'error');
+      
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleResendOtp = () => {
-    // In a real app, you would resend the OTP here
-    setTimer(60);
-    // Reset OTP fields
-    setOtp(['', '', '', '']);
-    inputRefs.current[0]?.focus();
+    if (timer > 0) return;
+    sendOTP();
   };
 
   const styles = createStyles(colors);
@@ -115,12 +206,20 @@ export default function OTPScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.back();
+          }} 
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={4} totalSteps={8} />
+      <OnboardingProgress currentStep={4} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -149,6 +248,7 @@ export default function OTPScreen() {
                   onKeyPress={(e) => handleKeyPress(e, index)}
                   keyboardType="number-pad"
                   maxLength={1}
+                  editable={!isLoading}
                 />
               ))}
             </View>
@@ -159,8 +259,13 @@ export default function OTPScreen() {
                   Resend code in {timer} seconds
                 </Text>
               ) : (
-                <Pressable onPress={handleResendOtp}>
-                  <Text style={styles.resendText}>Resend verification code</Text>
+                <Pressable 
+                  onPress={handleResendOtp}
+                  disabled={isResending}
+                >
+                  <Text style={styles.resendText}>
+                    {isResending ? 'Sending...' : 'Resend verification code'}
+                  </Text>
                 </Pressable>
               )}
             </View>
@@ -169,9 +274,9 @@ export default function OTPScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title="Continue"
+        title={isLoading ? "Verifying..." : "Continue"}
         onPress={handleContinue}
-        disabled={!isButtonEnabled}
+        disabled={!isButtonEnabled || isLoading}
       />
     </SafeAreaView>
   );
@@ -204,7 +309,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -220,7 +325,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: '100%',
   },
   question: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 24,
@@ -242,16 +347,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 24,
   },
   otpInput: {
-    width: 60,
-    height: 60,
+    width: 48,
+    height: 56,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
-    backgroundColor: colors.surface,
     fontSize: 24,
     fontWeight: '600',
     textAlign: 'center',
     color: colors.text,
+    backgroundColor: colors.surface,
   },
   resendContainer: {
     alignItems: 'center',

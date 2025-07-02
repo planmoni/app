@@ -1,16 +1,21 @@
-import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions, Animated } from 'react-native';
 import { X, Search, CircleHelp as HelpCircle, MessageSquare, FileText, ExternalLink } from 'lucide-react-native';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 
 interface HelpCenterModalProps {
   isVisible: boolean;
   onClose: () => void;
 }
 
+const DRAG_DISMISS_THRESHOLD = 120;
+
 export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const translateY = useRef(new Animated.Value(0)).current;
+  const [dragging, setDragging] = useState(false);
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
@@ -25,7 +30,7 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
     {
       id: '1',
       question: 'How do I create a payout plan?',
-      answer: 'To create a payout plan, go to the Home tab and tap on "Plan" or the "+" button. Follow the steps to set up your payout schedule and amount.'
+      answer: 'To create a payout plan, go to the Home tab and tap on " New Plan" or the "+" button. Follow the steps to set up your payout schedule and amount.'
     },
     {
       id: '2',
@@ -44,87 +49,123 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
     },
   ];
   
+  const handleGestureEvent = Animated.event(
+    [{ nativeEvent: { translationY: translateY } }],
+    { useNativeDriver: true }
+  );
+
+  const handleGestureEnd = (event: any) => {
+    setDragging(false);
+    if (event.nativeEvent.translationY > DRAG_DISMISS_THRESHOLD) {
+      Animated.timing(translateY, {
+        toValue: height,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        translateY.setValue(0);
+        onClose();
+      });
+    } else {
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
+
+  useEffect(() => {
+    if (isVisible) {
+      translateY.setValue(0);
+    }
+  }, [isVisible]);
+
   return (
     <Modal
-      animationType="slide"
-      transparent={true}
       visible={isVisible}
+      animationType="none"
+      transparent
       onRequestClose={onClose}
-      statusBarTranslucent={true}
+      statusBarTranslucent
     >
       <View style={styles.centeredView}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={styles.modalView}>
-          <View style={styles.header}>
-            <Text style={styles.modalTitle}>Help Center</Text>
-            <Pressable style={styles.closeButton} onPress={onClose}>
-              <X size={isSmallScreen ? 20 : 24} color={colors.text} />
-            </Pressable>
-          </View>
-          
-          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-            <View style={styles.searchContainer}>
-              <Search size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-              <Pressable style={styles.searchInput}>
-                <Text style={styles.searchPlaceholder}>Search for help...</Text>
+        <PanGestureHandler
+          onGestureEvent={handleGestureEvent}
+          onBegan={() => setDragging(true)}
+          onEnded={handleGestureEnd}
+        >
+          <Animated.View style={[styles.modalView, { transform: [{ translateY }] }]}> 
+            <View style={styles.header}>
+              <Text style={styles.modalTitle}>Help Center</Text>
+              <Pressable style={styles.closeButton} onPress={onClose}>
+                <X size={isSmallScreen ? 20 : 24} color={colors.text} />
               </Pressable>
             </View>
             
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
-              
-              {faqs.map(faq => (
-                <Pressable key={faq.id} style={styles.faqItem}>
-                  <Text style={styles.faqQuestion}>{faq.question}</Text>
-                  <Text style={styles.faqAnswer}>{faq.answer}</Text>
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+              <View style={styles.searchContainer}>
+                <Search size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                <Pressable style={styles.searchInput}>
+                  <Text style={styles.searchPlaceholder}>Search for help...</Text>
                 </Pressable>
-              ))}
-            </View>
-            
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Contact Support</Text>
+              </View>
               
-              <Pressable style={styles.supportOption}>
-                <View style={styles.supportIconContainer}>
-                  <MessageSquare size={isSmallScreen ? 16 : 20} color="#1E3A8A" />
-                </View>
-                <View style={styles.supportInfo}>
-                  <Text style={styles.supportTitle}>Chat with Support</Text>
-                  <Text style={styles.supportDescription}>Available 24/7</Text>
-                </View>
-                <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-              </Pressable>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
+                
+                {faqs.map(faq => (
+                  <Pressable key={faq.id} style={styles.faqItem}>
+                    <Text style={styles.faqQuestion}>{faq.question}</Text>
+                    <Text style={styles.faqAnswer}>{faq.answer}</Text>
+                  </Pressable>
+                ))}
+              </View>
               
-              <Pressable style={styles.supportOption}>
-                <View style={styles.supportIconContainer}>
-                  <FileText size={isSmallScreen ? 16 : 20} color="#22C55E" />
-                </View>
-                <View style={styles.supportInfo}>
-                  <Text style={styles.supportTitle}>Submit a Ticket</Text>
-                  <Text style={styles.supportDescription}>Get help with complex issues</Text>
-                </View>
-                <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-              </Pressable>
-              
-              <Pressable style={styles.supportOption}>
-                <View style={styles.supportIconContainer}>
-                  <HelpCircle size={isSmallScreen ? 16 : 20} color="#F97316" />
-                </View>
-                <View style={styles.supportInfo}>
-                  <Text style={styles.supportTitle}>Knowledge Base</Text>
-                  <Text style={styles.supportDescription}>Browse detailed guides</Text>
-                </View>
-                <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-          </ScrollView>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Contact Support</Text>
+                
+                <Pressable style={styles.supportOption}>
+                  <View style={styles.supportIconContainer}>
+                    <MessageSquare size={isSmallScreen ? 16 : 20} color="#1E3A8A" />
+                  </View>
+                  <View style={styles.supportInfo}>
+                    <Text style={styles.supportTitle}>Chat with Support</Text>
+                    <Text style={styles.supportDescription}>Available 24/7</Text>
+                  </View>
+                  <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                </Pressable>
+                
+                <Pressable style={styles.supportOption}>
+                  <View style={styles.supportIconContainer}>
+                    <FileText size={isSmallScreen ? 16 : 20} color="#22C55E" />
+                  </View>
+                  <View style={styles.supportInfo}>
+                    <Text style={styles.supportTitle}>Submit a Ticket</Text>
+                    <Text style={styles.supportDescription}>Get help with complex issues</Text>
+                  </View>
+                  <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                </Pressable>
+                
+                <Pressable style={styles.supportOption}>
+                  <View style={styles.supportIconContainer}>
+                    <HelpCircle size={isSmallScreen ? 16 : 20} color="#F97316" />
+                  </View>
+                  <View style={styles.supportInfo}>
+                    <Text style={styles.supportTitle}>Knowledge Base</Text>
+                    <Text style={styles.supportDescription}>Browse detailed guides</Text>
+                  </View>
+                  <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                </Pressable>
+              </View>
+            </ScrollView>
 
-          <View style={styles.footer}>
-            <Pressable style={styles.closeButton2} onPress={onClose}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
+            <View style={styles.footer}>
+              <Pressable style={styles.closeButton2} onPress={onClose}>
+                <Text style={styles.closeButtonText}>Close</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </PanGestureHandler>
       </View>
     </Modal>
   );

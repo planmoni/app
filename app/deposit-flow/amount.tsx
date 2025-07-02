@@ -18,7 +18,8 @@ export default function AmountScreen() {
   const newMethodType = params.newMethodType as string;
   
   const [amount, setAmount] = useState('');
-  const { balance } = useBalance();
+  const { balance, lockedBalance } = useBalance();
+  const availableBalance = balance - lockedBalance; //the avialable balance logic
 
   const handleContinue = () => {
     if (newMethodType) {
@@ -74,7 +75,7 @@ export default function AmountScreen() {
   const handleQuickAmount = (value: string) => {
     setAmount(value);
   };
-
+  
   const styles = createStyles(colors);
 
   return (
@@ -151,7 +152,7 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Current Wallet Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{balance.toLocaleString()}</Text>
+              <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
             </View>
           </View>
 
@@ -233,8 +234,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     padding: 16,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
   },

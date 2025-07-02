@@ -1,15 +1,23 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions, ToastAndroid, Modal } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, Info, ChevronRight, CreditCard, Smartphone, Building2 } from 'lucide-react-native';
+import { ArrowLeft, Copy, Info, ChevronRight, CreditCard, Smartphone, Building2, CheckCircle, Clock } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Clipboard from 'expo-clipboard';
 import Button from '@/components/Button';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
 
 const { width } = Dimensions.get('window');
+type VirtualAccount = {
+  account_number: string;
+  bank_name: string;
+  account_name: string;
+};
 
 export default function AddFundsScreen() {
   const { colors, isDark } = useTheme();
@@ -18,6 +26,22 @@ export default function AddFundsScreen() {
   const { showToast } = useToast();
   const haptics = useHaptics();
   
+  const { session, signOut } = useAuth();
+  const { account: paystackAccount, isLoading: accountLoading } = useRealtimePaystackAccount();
+
+  
+  const firstName = session?.user?.user_metadata?.first_name || '';
+  const lastName = session?.user?.user_metadata?.last_name || '';
+  const middleName = session?.user?.user_metadata?.middle_name || '';
+  const phoneNumber = session?.user?.user_metadata?.phone_number || "+2347034000000";
+  const email = session?.user?.email || '';
+
+  // const styles = createStyles(colors);
+  const [virtualAccount, setVirtualAccount] = useState< VirtualAccount | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [selectedBank, setSelectedBank] = useState<string | null>(null);
+  
   const [activeTab, setActiveTab] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
@@ -25,13 +49,148 @@ export default function AddFundsScreen() {
   // Determine if we're on a small screen
   const isSmallScreen = screenWidth < 380;
 
-  const handleCopyAccountNumber = async () => {
+  const banks = [
+    { id: 'wema', name: 'Wema Bank', code: 'wema-bank' },
+    { id: 'paystack', name: 'Paystack Titan', code: 'titan-paystack' }
+  ];
+
+  // Update virtual account state when paystack account changes
+  useEffect(() => {
+    if (paystackAccount && paystackAccount.account_number) {
+      setVirtualAccount({
+        account_number: paystackAccount.account_number,
+        bank_name: paystackAccount.bank_name,
+        account_name: paystackAccount.account_name,
+      });
+    } else {
+      setVirtualAccount(null);
+    }
+  }, [paystackAccount]);
+
+  const handleCopyAccountNumber = async (accountNumber : string) => {
+    console.log("Account number to copy:", accountNumber); // ✅ Debug
     haptics.selection();
     try {
-      await Clipboard.setStringAsync("9002893892");
+      if (!accountNumber) {
+        showToast('No account number available', 'error');
+        return;
+      }
+  
+      await Clipboard.setStringAsync(accountNumber);
       showToast('Account number copied to clipboard', 'success');
     } catch (error) {
+      console.error("Clipboard error:", error);
       showToast('Failed to copy to clipboard', 'error');
+    }
+  };
+
+  const handleCopyPress = () => {
+    if (virtualAccount) {
+      handleCopyAccountNumber(virtualAccount.account_number);
+    }
+  };
+  
+  const handleBankSelection = (bankId: string) => {
+    setSelectedBank(bankId);
+    setShowBankModal(false);
+  };
+
+  const handleCreateVirtualAccount = async () => {
+    setIsLoading(true);
+
+    try {
+      // 1. Create Customer
+      const customerPayload = {
+        email: email,
+        first_name: firstName,
+        last_name: lastName,
+        phone: phoneNumber,
+      };
+
+      const customerResponse = await fetch('https://api.paystack.co/customer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
+        },
+        body: JSON.stringify(customerPayload),
+      });
+
+      const customerResult = await customerResponse.json();
+      if (!customerResponse.ok || !customerResult.status) {
+        ToastAndroid.show(customerResult.message || 'Failed to create customer', ToastAndroid.SHORT);
+        setIsLoading(false);
+        return;
+      }
+
+      const customerId = customerResult.data.id;
+      const customerCode = customerResult.data.customer_code;
+
+      // 2. Create Dedicated Account
+      const selectedBankData = banks.find(bank => bank.id === selectedBank);
+      const accountPayload = {
+        customer: customerId,
+        preferred_bank: selectedBankData?.code || 'titan-paystack',
+      };
+
+      const accountResponse = await fetch('https://api.paystack.co/dedicated_account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
+        },
+        body: JSON.stringify(accountPayload),
+      });
+
+      const accountResult = await accountResponse.json();
+      if (!accountResponse.ok || !accountResult.status) {
+        ToastAndroid.show(accountResult.message || 'Failed to create account', ToastAndroid.SHORT);
+        setIsLoading(false);
+        return;
+      }
+
+      const accountData = accountResult.data;
+      
+      // 3. Insert into Supabase
+      const { error } = await supabase
+        .from('paystack_accounts')
+        .insert([{
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+          customer_code: customerCode,
+          bank_name: accountData.bank.name,
+          account_number: accountData.account_number,
+          account_name: accountData.account_name,
+          accountId: accountData.id,
+          is_active: accountData.active || false, // Check if account is immediately active
+        }])
+        .select();
+      
+      console.log("Database error:", error);
+      if (error) {
+        ToastAndroid.show('Failed to save account to database', ToastAndroid.SHORT);
+        setIsLoading(false);
+        return;
+      }
+
+      // Set virtual account state
+      setVirtualAccount({
+        account_number: accountData.account_number,
+        bank_name: accountData.bank.name,
+        account_name: accountData.account_name,
+      });
+
+      // Show appropriate message based on account status
+      if (accountData.active) {
+        ToastAndroid.show('Virtual account created and activated successfully', ToastAndroid.SHORT);
+      } else {
+        ToastAndroid.show('Virtual account created successfully. It will be activated shortly.', ToastAndroid.SHORT);
+      }
+
+    } catch (error) {
+      console.error('Something went wrong', error);
+      ToastAndroid.show('Something went wrong', ToastAndroid.SHORT);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -149,17 +308,36 @@ export default function AddFundsScreen() {
               Money transfered to these account details will automatically appear on your available balance.
             </Text>
 
+            {virtualAccount ? (
             <View style={styles.accountDetailsCard}>
               <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>9PBS Account Details</Text>
+                <Text style={styles.cardTitle}>{virtualAccount.bank_name} Account Details</Text>
+                {paystackAccount && (
+                  <View style={[
+                    styles.statusIndicator,
+                    paystackAccount.is_active ? styles.statusActive : styles.statusPending
+                  ]}>
+                    {paystackAccount.is_active ? (
+                      <CheckCircle size={16} color="#22C55E" />
+                    ) : (
+                      <Clock size={16} color="#F59E0B" />
+                    )}
+                    <Text style={[
+                      styles.statusText,
+                      paystackAccount.is_active ? styles.statusTextActive : styles.statusTextPending
+                    ]}>
+                      {paystackAccount.is_active ? 'Active' : 'Pending Activation'}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.fieldsContainer}>
                 <View style={styles.field}>
                   <Text style={styles.fieldLabel}>Account Number</Text>
                   <View style={styles.accountNumberContainer}>
-                    <Text style={styles.accountNumber}>9002893892</Text>
-                    <Pressable onPress={handleCopyAccountNumber} style={styles.copyButton}>
+                    <Text style={styles.accountNumber}>{virtualAccount.account_number}</Text>
+                    <Pressable onPress={handleCopyPress} style={styles.copyButton}>
                       <Copy size={20} color={colors.primary} />
                     </Pressable>
                   </View>
@@ -168,18 +346,62 @@ export default function AddFundsScreen() {
                 <View style={styles.field}>
                   <Text style={styles.fieldLabel}>Bank Name</Text>
                   <View style={styles.fieldValueContainer}>
-                    <Text style={styles.fieldValue}>9Payment Service Bank (9PSB)</Text>
+                    <Text style={styles.fieldValue}>{virtualAccount.bank_name}</Text>
                   </View>
                 </View>
 
                 <View style={styles.field}>
                   <Text style={styles.fieldLabel}>Account Name</Text>
                   <View style={styles.fieldValueContainer}>
-                    <Text style={styles.fieldValue}>John Doe Planmoni</Text>
+                    <Text style={styles.fieldValue}>{virtualAccount.account_name}</Text>
                   </View>
                 </View>
               </View>
+
+              {paystackAccount && !paystackAccount.is_active && (
+                <View style={styles.pendingNotice}>
+                  <Info size={16} color="#F59E0B" />
+                  <Text style={styles.pendingNoticeText}>
+                    Your virtual account is being activated. You'll be able to receive funds once it's active.
+                  </Text>
+                </View>
+              )}
             </View>
+            ) : (
+              <View style={{ marginTop: 40, marginBottom: 24 }}>
+                <Text style={{ fontWeight: 900, color: "#f3f3f3" }}>Create Virtual Account</Text>
+                
+                {/* Bank Selection Button */}
+                <Pressable 
+                  style={[
+                    styles.bankSelectionButton,
+                    selectedBank && styles.bankSelectionButtonSelected
+                  ]}
+                  onPress={() => setShowBankModal(true)}
+                >
+                  <View style={styles.bankSelectionContent}>
+                    <View style={styles.bankSelectionLeft}>
+                      <Text style={styles.bankSelectionLabel}>Select Bank</Text>
+                      <Text style={styles.bankSelectionText}>
+                        {selectedBank ? banks.find(bank => bank.id === selectedBank)?.name : 'Choose your preferred bank'}
+                      </Text>
+                    </View>
+                    <ChevronRight size={20} color={colors.textSecondary} />
+                  </View>
+                </Pressable>
+
+                <Button
+                  title="Create Account"
+                  onPress={handleCreateVirtualAccount}
+                  isLoading={isLoading}
+                  disabled={!selectedBank}
+                  style={[
+                    styles.createAccountButton,
+                    !selectedBank && styles.createAccountButtonDisabled
+                  ]}
+                />
+              </View>
+            )}
           </View>
         </View>
 
@@ -250,6 +472,74 @@ export default function AddFundsScreen() {
           hapticType="medium"
         />
       </View>
+
+      {/* Bank Selection Modal */}
+      <Modal
+        visible={showBankModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowBankModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Your Bank</Text>
+              <Text style={styles.modalSubtitle}>Choose your preferred bank for the virtual account</Text>
+            </View>
+            
+            <View style={styles.bankOptionsContainer}>
+              {banks.map(bank => (
+                <Pressable
+                  key={bank.id}
+                  onPress={() => handleBankSelection(bank.id)}
+                  style={[
+                    styles.bankOption,
+                    selectedBank === bank.id && styles.selectedBankOption
+                  ]}
+                >
+                  <View style={styles.bankOptionIcon}>
+                    <Building2 size={24} color={selectedBank === bank.id ? colors.primary : colors.textSecondary} />
+                  </View>
+                  <View style={styles.bankOptionInfo}>
+                    <Text style={[
+                      styles.bankOptionText,
+                      selectedBank === bank.id && styles.selectedBankOptionText
+                    ]}>
+                      {bank.name}
+                    </Text>
+                    <Text style={styles.bankOptionDescription}>
+                      {bank.id === 'wema' ? 'Traditional banking partner' : 'Digital payment solution'}
+                    </Text>
+                  </View>
+                  {selectedBank === bank.id && (
+                    <View style={styles.selectedIndicator}>
+                      <View style={styles.selectedDot} />
+                    </View>
+                  )}
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={() => setShowBankModal(false)}
+                style={styles.cancelButton}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              
+              {selectedBank && (
+                <Pressable
+                  onPress={() => setShowBankModal(false)}
+                  style={styles.confirmButton}
+                >
+                  <Text style={styles.confirmButtonText}>Confirm Selection</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -328,7 +618,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     padding: isSmallScreen ? 16 : 20,
   },
   title: {
-    fontSize: isSmallScreen ? 20 : 24,
+    fontSize: isSmallScreen ? 15 : 18,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
@@ -466,5 +756,216 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   doneButton: {
     width: '100%',
     backgroundColor: colors.primary,
+  },
+  bankSelectionButton: {
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  bankSelectionButtonSelected: {
+    borderColor: colors.primary,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+  },
+  bankSelectionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bankSelectionLeft: {
+    flex: 1,
+  },
+  bankSelectionLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  bankSelectionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  createAccountButton: {
+    backgroundColor: colors.primary,
+  },
+  createAccountButtonDisabled: {
+    backgroundColor: colors.textSecondary,
+    opacity: 0.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  bankOptionsContainer: {
+    marginBottom: 24,
+  },
+  bankOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  selectedBankOption: {
+    borderColor: colors.primary,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+  },
+  bankOptionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  bankOptionInfo: {
+    flex: 1,
+  },
+  bankOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  bankOptionDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  selectedBankOptionText: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  selectedIndicator: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.surface,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  confirmButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.surface,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundTertiary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  statusActive: {
+    borderColor: colors.primary,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+  },
+  statusPending: {
+    borderColor: colors.textSecondary,
+    backgroundColor: colors.backgroundTertiary,
+  },
+  statusText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginLeft: 8,
+  },
+  statusTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  statusTextPending: {
+    color: colors.textSecondary,
+  },
+  pendingNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundTertiary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 8,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  pendingNoticeText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginLeft: 8,
   },
 });

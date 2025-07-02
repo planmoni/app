@@ -35,8 +35,9 @@ export function useRealtimeTransactions() {
         await fetchTransactions();
 
         // Set up real-time subscription
+        const channelName = `transactions-changes-${session.user.id}`;
         channel = supabase
-          .channel('transactions-changes')
+          .channel(channelName)
           .on(
             'postgres_changes',
             {
@@ -45,7 +46,7 @@ export function useRealtimeTransactions() {
               table: 'transactions',
               filter: `user_id=eq.${session.user.id}`,
             },
-            (payload) => {
+            (payload: any) => {
               console.log('Transaction change received:', payload);
               
               if (payload.eventType === 'INSERT' && payload.new) {
@@ -58,10 +59,13 @@ export function useRealtimeTransactions() {
                 );
               }
             }
-          )
-          .subscribe((status) => {
+          );
+        // Only subscribe if not already subscribed
+        if (channel.state === 'closed' || channel.state === 'leaving') {
+          channel.subscribe((status: any) => {
             console.log('Transactions subscription status:', status);
           });
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to setup transactions subscription');
       }

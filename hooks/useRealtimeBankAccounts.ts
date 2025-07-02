@@ -32,8 +32,9 @@ export function useRealtimeBankAccounts() {
         await fetchBankAccounts();
 
         // Set up real-time subscription
+        const channelName = `bank-accounts-changes-${session.user.id}`;
         channel = supabase
-          .channel('bank-accounts-changes')
+          .channel(channelName)
           .on(
             'postgres_changes',
             {
@@ -42,7 +43,7 @@ export function useRealtimeBankAccounts() {
               table: 'bank_accounts',
               filter: `user_id=eq.${session.user.id}`,
             },
-            (payload) => {
+            (payload: any) => {
               console.log('Bank account change received:', payload);
               
               if (payload.eventType === 'INSERT' && payload.new) {
@@ -59,10 +60,13 @@ export function useRealtimeBankAccounts() {
                 );
               }
             }
-          )
-          .subscribe((status) => {
+          );
+        // Only subscribe if not already subscribed
+        if (channel.state === 'closed' || channel.state === 'leaving') {
+          channel.subscribe((status: any) => {
             console.log('Bank accounts subscription status:', status);
           });
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to setup bank accounts subscription');
       }

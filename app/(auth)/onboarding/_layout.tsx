@@ -17,6 +17,8 @@ export default function OnboardingLayout() {
       <Stack.Screen name="email" />
       <Stack.Screen name="create-password" />
       <Stack.Screen name="confirm-password" />
+      <Stack.Screen name="bvn" />
+      <Stack.Screen name="referral-code" />
       <Stack.Screen name="success" />
     </Stack>
   );

@@ -1,7 +1,11 @@
 import { Modal, View, Text, StyleSheet, Pressable, Switch, ScrollView, useWindowDimensions } from 'react-native';
-import { X, Bell, Shield, Clock } from 'lucide-react-native';
-import { useState } from 'react';
+import { X, Bell, Shield, Clock, Mail, Wallet, Calendar } from 'lucide-react-native';
+import { useState, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useEmailNotifications, EmailNotificationSettings } from '@/hooks/useEmailNotifications';
+import { useToast } from '@/contexts/ToastContext';
+import { useHaptics } from '@/hooks/useHaptics';
+import { Platform } from 'react-native';
 
 interface NotificationSettingsModalProps {
   isVisible: boolean;
@@ -11,16 +15,87 @@ interface NotificationSettingsModalProps {
 export default function NotificationSettingsModal({ isVisible, onClose }: NotificationSettingsModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const { settings, isLoading, updateSettings } = useEmailNotifications();
+  const { showToast } = useToast();
+  const haptics = useHaptics();
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
   
-  // State for notification settings
+  // Local state for notification settings
+  const [localSettings, setLocalSettings] = useState<EmailNotificationSettings>({
+    login_alerts: true,
+    payout_alerts: true,
+    expiry_reminders: true,
+    wallet_summary: 'weekly'
+  });
+  
+  // State for push notification settings (separate from email)
   const [pushEnabled, setPushEnabled] = useState(true);
-  const [emailEnabled, setEmailEnabled] = useState(true);
   const [payoutAlerts, setPayoutAlerts] = useState(true);
   const [securityAlerts, setSecurityAlerts] = useState(true);
   const [marketingAlerts, setMarketingAlerts] = useState(false);
+  
+  // Update local settings when remote settings change
+  useEffect(() => {
+    if (!isLoading && settings) {
+      setLocalSettings(settings);
+    }
+  }, [isLoading, settings]);
+
+  const handleToggleEmail = (setting: keyof Omit<EmailNotificationSettings, 'wallet_summary'>) => {
+    if (Platform.OS !== 'web') {
+      haptics.selection();
+    }
+    
+    setLocalSettings(prev => ({
+      ...prev,
+      [setting]: !prev[setting]
+    }));
+  };
+
+  const handleSummaryChange = (value: EmailNotificationSettings['wallet_summary']) => {
+    if (Platform.OS !== 'web') {
+      haptics.selection();
+    }
+    
+    setLocalSettings(prev => ({
+      ...prev,
+      wallet_summary: value
+    }));
+  };
+
+  const handleTogglePush = (setter: React.Dispatch<React.SetStateAction<boolean>>) => {
+    if (Platform.OS !== 'web') {
+      haptics.selection();
+    }
+    
+    setter(prev => !prev);
+  };
+
+  const handleSaveChanges = async () => {
+    if (Platform.OS !== 'web') {
+      haptics.mediumImpact();
+    }
+    
+    const success = await updateSettings(localSettings);
+    
+    if (success) {
+      showToast('Notification settings saved successfully', 'success');
+      
+      if (Platform.OS !== 'web') {
+        haptics.success();
+      }
+      
+      onClose();
+    } else {
+      showToast('Failed to save notification settings', 'error');
+      
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
+    }
+  };
   
   const styles = createStyles(colors, isDark, isSmallScreen);
   
@@ -48,7 +123,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
             </Text>
             
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Notification Channels</Text>
+              <Text style={styles.sectionTitle}>Push Notifications</Text>
               
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
@@ -57,28 +132,11 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 </View>
                 <Switch
                   value={pushEnabled}
-                  onValueChange={setPushEnabled}
+                  onValueChange={() => handleTogglePush(setPushEnabled)}
                   trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                   thumbColor={pushEnabled ? '#1E3A8A' : colors.backgroundTertiary}
                 />
               </View>
-              
-              <View style={styles.settingItem}>
-                <View style={styles.settingInfo}>
-                  <Text style={styles.settingTitle}>Email Notifications</Text>
-                  <Text style={styles.settingDescription}>Receive alerts via email</Text>
-                </View>
-                <Switch
-                  value={emailEnabled}
-                  onValueChange={setEmailEnabled}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                  thumbColor={emailEnabled ? '#1E3A8A' : colors.backgroundTertiary}
-                />
-              </View>
-            </View>
-            
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Notification Types</Text>
               
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
@@ -92,9 +150,10 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 </View>
                 <Switch
                   value={payoutAlerts}
-                  onValueChange={setPayoutAlerts}
+                  onValueChange={() => handleTogglePush(setPayoutAlerts)}
                   trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                   thumbColor={payoutAlerts ? '#1E3A8A' : colors.backgroundTertiary}
+                  disabled={!pushEnabled}
                 />
               </View>
               
@@ -110,9 +169,10 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 </View>
                 <Switch
                   value={securityAlerts}
-                  onValueChange={setSecurityAlerts}
+                  onValueChange={() => handleTogglePush(setSecurityAlerts)}
                   trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                   thumbColor={securityAlerts ? '#1E3A8A' : colors.backgroundTertiary}
+                  disabled={!pushEnabled}
                 />
               </View>
               
@@ -128,22 +188,141 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 </View>
                 <Switch
                   value={marketingAlerts}
-                  onValueChange={setMarketingAlerts}
+                  onValueChange={() => handleTogglePush(setMarketingAlerts)}
                   trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
                   thumbColor={marketingAlerts ? '#1E3A8A' : colors.backgroundTertiary}
+                  disabled={!pushEnabled}
                 />
               </View>
             </View>
             
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Email Notifications</Text>
+              
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Shield size={isSmallScreen ? 16 : 20} color="#EF4444" />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Login Alerts</Text>
+                    <Text style={styles.settingDescription}>Get notified about new logins to your account</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={localSettings.login_alerts}
+                  onValueChange={() => handleToggleEmail('login_alerts')}
+                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                  thumbColor={localSettings.login_alerts ? '#1E3A8A' : colors.backgroundTertiary}
+                />
+              </View>
+              
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Wallet size={isSmallScreen ? 16 : 20} color="#22C55E" />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Payout Alerts</Text>
+                    <Text style={styles.settingDescription}>Get notified when payouts are processed</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={localSettings.payout_alerts}
+                  onValueChange={() => handleToggleEmail('payout_alerts')}
+                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                  thumbColor={localSettings.payout_alerts ? '#1E3A8A' : colors.backgroundTertiary}
+                />
+              </View>
+              
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Calendar size={isSmallScreen ? 16 : 20} color="#F59E0B" />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Plan Expiry Reminders</Text>
+                    <Text style={styles.settingDescription}>Get notified when your payout plans are about to expire</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={localSettings.expiry_reminders}
+                  onValueChange={() => handleToggleEmail('expiry_reminders')}
+                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                  thumbColor={localSettings.expiry_reminders ? '#1E3A8A' : colors.backgroundTertiary}
+                />
+              </View>
+            </View>
+            
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Wallet Summary Emails</Text>
+              <Text style={styles.sectionDescription}>How often would you like to receive wallet summary emails?</Text>
+              
+              <View style={styles.summaryOptions}>
+                <Pressable
+                  style={[
+                    styles.summaryOption,
+                    localSettings.wallet_summary === 'daily' && styles.selectedOption
+                  ]}
+                  onPress={() => handleSummaryChange('daily')}
+                >
+                  <Text style={[
+                    styles.summaryOptionText,
+                    localSettings.wallet_summary === 'daily' && styles.selectedOptionText
+                  ]}>Daily</Text>
+                </Pressable>
+                
+                <Pressable
+                  style={[
+                    styles.summaryOption,
+                    localSettings.wallet_summary === 'weekly' && styles.selectedOption
+                  ]}
+                  onPress={() => handleSummaryChange('weekly')}
+                >
+                  <Text style={[
+                    styles.summaryOptionText,
+                    localSettings.wallet_summary === 'weekly' && styles.selectedOptionText
+                  ]}>Weekly</Text>
+                </Pressable>
+                
+                <Pressable
+                  style={[
+                    styles.summaryOption,
+                    localSettings.wallet_summary === 'monthly' && styles.selectedOption
+                  ]}
+                  onPress={() => handleSummaryChange('monthly')}
+                >
+                  <Text style={[
+                    styles.summaryOptionText,
+                    localSettings.wallet_summary === 'monthly' && styles.selectedOptionText
+                  ]}>Monthly</Text>
+                </Pressable>
+                
+                <Pressable
+                  style={[
+                    styles.summaryOption,
+                    localSettings.wallet_summary === 'never' && styles.selectedOption
+                  ]}
+                  onPress={() => handleSummaryChange('never')}
+                >
+                  <Text style={[
+                    styles.summaryOptionText,
+                    localSettings.wallet_summary === 'never' && styles.selectedOptionText
+                  ]}>Never</Text>
+                </Pressable>
+              </View>
+            </View>
+            
             <View style={styles.infoContainer}>
+              <Mail size={16} color={colors.primary} />
               <Text style={styles.infoText}>
-                You can change these settings at any time. Some security-related notifications cannot be disabled as they are essential for account security.
+                Email notifications help you stay informed about important account activities and updates.
               </Text>
             </View>
           </ScrollView>
 
           <View style={styles.footer}>
-            <Pressable style={styles.saveButton} onPress={onClose}>
+            <Pressable style={styles.saveButton} onPress={handleSaveChanges}>
               <Text style={styles.saveButtonText}>Save Changes</Text>
             </Pressable>
           </View>
@@ -224,6 +403,11 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     color: colors.text,
     marginBottom: isSmallScreen ? 12 : 16,
   },
+  sectionDescription: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: colors.textSecondary,
+    marginBottom: isSmallScreen ? 12 : 16,
+  },
   settingItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -256,6 +440,36 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   settingDescription: {
     fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
+  },
+  summaryOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  summaryOption: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: colors.backgroundTertiary,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 8,
+  },
+  selectedOption: {
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    borderColor: colors.primary,
+  },
+  summaryOptionText: {
+    fontSize: isSmallScreen ? 12 : 14,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  selectedOptionText: {
+    color: colors.primary,
   },
   infoContainer: {
     backgroundColor: colors.backgroundTertiary,

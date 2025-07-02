@@ -5,16 +5,42 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
+import { useHaptics } from '@/hooks/useHaptics';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { useOnlineStatus } from '@/components/OnlineStatusProvider';
+import OfflineNotice from '@/components/OfflineNotice';
 
 export default function AppLockSuccessScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
   const { showToast } = useToast();
+  const haptics = useHaptics();
+  const { session } = useAuth();
+  const { isOnline } = useOnlineStatus();
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
   
-  const handleGoToDashboard = () => {
+  const handleGoToDashboard = async () => {
+    haptics.success();
+    
+    // Update the profile in the database to mark app lock as enabled
+    if (isOnline && session?.user?.id) {
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ app_lock_enabled: true })
+          .eq('id', session.user.id);
+          
+        if (error) {
+          console.error('Error updating profile:', error);
+        }
+      } catch (error) {
+        console.error('Error updating profile:', error);
+      }
+    }
+    
     showToast('App lock enabled successfully!', 'success');
     router.replace('/(tabs)');
   };
@@ -28,8 +54,12 @@ export default function AppLockSuccessScreen() {
         
         <Text style={styles.title}>App Lock Enabled!</Text>
         <Text style={styles.subtitle}>
-          Your app is now secured with a PIN. You'll need to enter this PIN each time you open the app.
+          Your app is now secured with a PIN. You'll need to enter this PIN each time you open the app or after 5 minutes of inactivity.
         </Text>
+        
+        {!isOnline && (
+          <OfflineNotice message="You're currently offline. Your app lock settings will sync when you're back online." />
+        )}
         
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>Security Tips</Text>
@@ -42,12 +72,16 @@ export default function AppLockSuccessScreen() {
           <View style={styles.infoItem}>
             <Text style={styles.infoText}>• Change your PIN regularly for enhanced security</Text>
           </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoText}>• Your app will automatically lock after 5 minutes of inactivity</Text>
+          </View>
         </View>
         
         <Button
           title="Back to Dashboard"
           onPress={handleGoToDashboard}
           style={styles.dashboardButton}
+          hapticType="success"
         />
       </View>
     </SafeAreaView>

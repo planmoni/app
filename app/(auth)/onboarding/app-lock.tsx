@@ -9,42 +9,55 @@ import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
+import { useAppLock } from '@/contexts/AppLockContext';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function AppLockScreen() {
   const { colors } = useTheme();
+  const haptics = useHaptics();
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
   const lastName = params.lastName as string;
   const email = params.email as string;
   const password = params.password as string;
   const bvn = params.bvn as string;
+  const emailVerified = params.emailVerified === 'true';
   
   const [pinLength, setPinLength] = useState<4 | 6>(4);
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     setError(null);
   }, [pin]);
 
   const handlePinChange = (digit: string) => {
-    if (pin.length < pinLength) {
+    if (pin.length < pinLength && !isProcessing) {
+      haptics.selection();
       setPin(prev => prev + digit);
       setError(null);
     }
   };
 
   const handlePinDelete = () => {
-    setPin(prev => prev.slice(0, -1));
-    setError(null);
+    if (!isProcessing) {
+      haptics.lightImpact();
+      setPin(prev => prev.slice(0, -1));
+      setError(null);
+    }
   };
 
   const handleContinue = () => {
+    if (isProcessing) return;
     if (pin.length !== pinLength) {
+      haptics.error();
       setError(`Please enter a ${pinLength}-digit PIN`);
       return;
     }
-    
+    setIsProcessing(true);
+    haptics.success();
+    console.log('[OnboardingAppLock] PIN entry complete, navigating to confirm.');
     router.push({
       pathname: '/onboarding/confirm-pin',
       params: { 
@@ -54,9 +67,11 @@ export default function AppLockScreen() {
         password,
         bvn,
         pin,
-        pinLength: pinLength.toString()
+        pinLength: pinLength.toString(),
+        emailVerified: emailVerified ? 'true' : 'false'
       }
     });
+    setIsProcessing(false);
   };
 
   const styles = createStyles(colors);
@@ -64,12 +79,19 @@ export default function AppLockScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={isProcessing ? () => {} : () => {
+            haptics.lightImpact();
+            router.back();
+          }} 
+          style={styles.backButton}
+          disabled={isProcessing}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={8} totalSteps={9} />
+      <OnboardingProgress currentStep={8} totalSteps={10} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer} disableScrollView={true}>
         <View style={styles.content}>
@@ -85,7 +107,11 @@ export default function AppLockScreen() {
                   styles.pinLengthOption,
                   pinLength === 4 && styles.activePinLength
                 ]}
-                onPress={() => setPinLength(4)}
+                onPress={() => {
+                  haptics.selection();
+                  setPinLength(4);
+                  setPin('');
+                }}
               >
                 <Text style={[
                   styles.pinLengthText,
@@ -98,7 +124,11 @@ export default function AppLockScreen() {
                   styles.pinLengthOption,
                   pinLength === 6 && styles.activePinLength
                 ]}
-                onPress={() => setPinLength(6)}
+                onPress={() => {
+                  haptics.selection();
+                  setPinLength(6);
+                  setPin('');
+                }}
               >
                 <Text style={[
                   styles.pinLengthText,
@@ -120,9 +150,9 @@ export default function AppLockScreen() {
               />
               
               <PinKeypad 
-                onKeyPress={handlePinChange}
-                onDelete={handlePinDelete}
-                disabled={pin.length >= pinLength}
+                onKeyPress={isProcessing ? () => {} : handlePinChange}
+                onDelete={isProcessing ? () => {} : handlePinDelete}
+                disabled={isProcessing || pin.length >= pinLength}
               />
             </View>
             
@@ -155,6 +185,7 @@ export default function AppLockScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={pin.length !== pinLength}
+        hapticType="medium"
       />
     </SafeAreaView>
   );

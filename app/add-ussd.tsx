@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Smartphone, Copy, Info } from 'lucide-react-native';
+import { ArrowLeft, Smartphone, Copy, Info, Phone, RefreshCw } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import Button from '@/components/Button';
@@ -10,63 +11,86 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useBalance } from '@/contexts/BalanceContext';
-
-type Bank = {
-  id: string;
-  name: string;
-  ussdCode: string;
-};
+import { useUSSD } from '@/hooks/useUSSD';
+import { useBanks, Bank } from '@/hooks/useBanks';
 
 export default function AddUSSDScreen() {
   const { colors, isDark } = useTheme();
   const { showToast } = useToast();
   const haptics = useHaptics();
   const { addFunds } = useBalance();
+  const { 
+    initializeUSSD, 
+    checkPaymentStatus, 
+    checkUSSDAvailability,
+    bankAvailability,
+    isLoading, 
+    isVerifying,
+    isCheckingAvailability 
+  } = useUSSD();
+  const { banks, isLoading: banksLoading } = useBanks();
   const params = useLocalSearchParams();
   const amountFromParams = params.amount as string;
   const fromDepositFlow = params.fromDepositFlow === 'true';
   
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
   const [amount, setAmount] = useState(amountFromParams || '');
-  const [isLoading, setIsLoading] = useState(false);
   const [ussdCode, setUssdCode] = useState('');
-  
-  // Mock banks with USSD codes
-  const banks: Bank[] = [
-    { id: '1', name: 'Access Bank', ussdCode: '*901#' },
-    { id: '2', name: 'GTBank', ussdCode: '*737#' },
-    { id: '3', name: 'UBA', ussdCode: '*919#' },
-    { id: '4', name: 'Zenith Bank', ussdCode: '*966#' },
-    { id: '5', name: 'First Bank', ussdCode: '*894#' },
-  ];
+  const [reference, setReference] = useState('');
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
+
+  // Check USSD availability when component mounts
+  useEffect(() => {
+    checkUSSDAvailability();
+  }, []);
+
+  // Filter banks that support USSD (only the 4 banks supported by Paystack)
+  const ussdBanks = banks.filter(bank => {
+    const paystackSupportedBanks = [
+      '058', // GTBank
+      '033', // UBA
+      '232', // Sterling Bank
+      '057', // Zenith Bank
+    ];
+    return paystackSupportedBanks.includes(bank.code);
+  });
+
+  // Get available banks based on real-time check
+  const availableBanks = ussdBanks.filter(bank => {
+    const availability = bankAvailability.find(av => av.bankCode === bank.code);
+    return availability?.isAvailable;
+  });
+
+  // Get unavailable banks for display
+  const unavailableBanks = ussdBanks.filter(bank => {
+    const availability = bankAvailability.find(av => av.bankCode === bank.code);
+    return availability && !availability.isAvailable;
+  });
+
+  // Generate USSD codes for supported banks (these are the actual USSD codes users will dial)
+  const getUSSDCode = (bankCode: string) => {
+    const ussdCodes: { [key: string]: string } = {
+      '058': '*737#', // GTBank
+      '033': '*919#', // UBA
+      '232': '*822#', // Sterling Bank
+      '057': '*966#', // Zenith Bank
+    };
+    return ussdCodes[bankCode] || '*000#';
+  };
 
   const handleBankSelect = (bank: Bank) => {
     haptics.selection();
     setSelectedBank(bank);
-    
-    // Generate USSD code if amount is already set
-    if (amount) {
-      generateUSSDCode(bank, amount);
-    }
+    setUssdCode(''); // Clear previous USSD code
+    setPaymentInitiated(false);
   };
 
   const handleAmountChange = (text: string) => {
     // Only allow numbers
     const numericValue = text.replace(/[^0-9]/g, '');
     setAmount(numericValue);
-    
-    // Generate USSD code if bank is selected
-    if (selectedBank && numericValue) {
-      generateUSSDCode(selectedBank, numericValue);
-    } else {
-      setUssdCode('');
-    }
-  };
-
-  const generateUSSDCode = (bank: Bank, amountValue: string) => {
-    // This is a mock implementation - in a real app, you would use the actual USSD code format for each bank
-    const code = `${bank.ussdCode.replace('#', '')}*000*${amountValue}#`;
-    setUssdCode(code);
+    setUssdCode(''); // Clear USSD code when amount changes
+    setPaymentInitiated(false);
   };
 
   const handleCopyCode = () => {
@@ -75,7 +99,7 @@ export default function AddUSSDScreen() {
     showToast('USSD code copied to clipboard', 'success');
   };
 
-  const handleContinue = async () => {
+  const handleInitializePayment = async () => {
     if (!selectedBank) {
       haptics.error();
       showToast('Please select a bank', 'error');
@@ -87,34 +111,69 @@ export default function AddUSSDScreen() {
       showToast('Please enter an amount', 'error');
       return;
     }
-    
-    setIsLoading(true);
+
     haptics.impact();
-    
+
     try {
-      if (fromDepositFlow) {
-        // Navigate to authorization screen
-        router.replace({
-          pathname: '/deposit-flow/authorization',
-          params: {
-            amount,
-            methodTitle: 'USSD Payment'
-          }
-        });
-      } else {
-        // For demo purposes, we'll simulate a successful payment
-        setTimeout(() => {
-          setIsLoading(false);
-          haptics.success();
-          showToast('USSD payment initiated successfully', 'success');
-          router.replace('/deposit-flow/success');
-        }, 2000);
+      const result = await initializeUSSD(amount, selectedBank.code, '');
+      
+      if (result?.status === 'success' && result.data) {
+        setUssdCode(result.data.ussd_code);
+        setReference(result.data.reference);
+        setPaymentInitiated(true);
+        haptics.success();
+        showToast('USSD payment initialized successfully', 'success');
       }
     } catch (error) {
       haptics.error();
-      showToast('Failed to process payment', 'error');
-      setIsLoading(false);
+      console.error('Error initializing USSD payment:', error);
     }
+  };
+
+  const handleCheckPayment = async () => {
+    if (!reference) {
+      showToast('No payment reference found', 'error');
+      return;
+    }
+
+    haptics.impact();
+    const success = await checkPaymentStatus(reference);
+    
+    if (success) {
+      if (fromDepositFlow) {
+        router.replace('/deposit-flow/success');
+      } else {
+        router.back();
+      }
+    }
+  };
+
+  const handleContinue = async () => {
+    if (paymentInitiated && ussdCode) {
+      // Show confirmation dialog
+      Alert.alert(
+        'Complete USSD Payment',
+        'Have you completed the USSD payment?',
+        [
+          {
+            text: 'Not Yet',
+            style: 'cancel'
+          },
+          {
+            text: 'Yes, Check Status',
+            onPress: handleCheckPayment
+          }
+        ]
+      );
+    } else {
+      await handleInitializePayment();
+    }
+  };
+
+  const handleRefreshAvailability = async () => {
+    haptics.impact();
+    await checkUSSDAvailability();
+    showToast('Bank availability updated', 'success');
   };
 
   const styles = createStyles(colors, isDark);
@@ -138,41 +197,102 @@ export default function AddUSSDScreen() {
         <View style={styles.content}>
           <Text style={styles.title}>Pay with USSD</Text>
           <Text style={styles.description}>
-            Make a payment using your bank's USSD code
+            Make a payment using your bank's USSD code. Currently, GTBank is the most reliable option.
           </Text>
 
           <View style={styles.form}>
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Select Bank</Text>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.banksContainer}
-              >
-                {banks.map(bank => (
-                  <Pressable
-                    key={bank.id}
-                    style={[
-                      styles.bankOption,
-                      selectedBank?.id === bank.id && styles.selectedBankOption
-                    ]}
-                    onPress={() => handleBankSelect(bank)}
-                  >
-                    <Text style={[
-                      styles.bankName,
-                      selectedBank?.id === bank.id && styles.selectedBankName
-                    ]}>
-                      {bank.name}
-                    </Text>
-                    <Text style={[
-                      styles.bankCode,
-                      selectedBank?.id === bank.id && styles.selectedBankCode
-                    ]}>
-                      {bank.ussdCode}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+              <View style={styles.labelContainer}>
+                <Text style={styles.label}>Select Bank</Text>
+                <Pressable 
+                  style={styles.refreshButton} 
+                  onPress={handleRefreshAvailability}
+                  disabled={isCheckingAvailability}
+                >
+                  <RefreshCw 
+                    size={16} 
+                    color={colors.primary} 
+                    style={isCheckingAvailability ? { opacity: 0.5 } : undefined}
+                  />
+                </Pressable>
+              </View>
+              {isCheckingAvailability ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Checking bank availability...</Text>
+                </View>
+              ) : banksLoading ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Loading banks...</Text>
+                </View>
+              ) : (
+                <>
+                  {availableBanks.length > 0 ? (
+                    <ScrollView 
+                      horizontal 
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.banksContainer}
+                    >
+                      {availableBanks.map(bank => (
+                        <Pressable
+                          key={bank.id}
+                          style={[
+                            styles.bankOption,
+                            selectedBank?.id === bank.id && styles.selectedBankOption
+                          ]}
+                          onPress={() => handleBankSelect(bank)}
+                        >
+                          <Text style={[
+                            styles.bankName,
+                            selectedBank?.id === bank.id && styles.selectedBankName
+                          ]}>
+                            {bank.name}
+                            <Text style={styles.availableBadge}> • Available</Text>
+                          </Text>
+                          <Text style={[
+                            styles.bankCode,
+                            selectedBank?.id === bank.id && styles.selectedBankCode
+                          ]}>
+                            {getUSSDCode(bank.code)}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  ) : (
+                    <View style={styles.noBanksContainer}>
+                      <Text style={styles.noBanksText}>No banks currently available</Text>
+                    </View>
+                  )}
+                  
+                  {unavailableBanks.length > 0 && (
+                    <View style={styles.unavailableSection}>
+                      <Text style={styles.unavailableTitle}>Temporarily Unavailable:</Text>
+                      <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.banksContainer}
+                      >
+                        {unavailableBanks.map(bank => {
+                          const availability = bankAvailability.find(av => av.bankCode === bank.code);
+                          return (
+                            <View key={bank.id} style={styles.unavailableBankOption}>
+                              <Text style={styles.unavailableBankName}>
+                                {bank.name}
+                                <Text style={styles.unavailableBadge}> • Unavailable</Text>
+                              </Text>
+                              <Text style={styles.unavailableBankCode}>
+                                {getUSSDCode(bank.code)}
+                              </Text>
+                              {availability?.error && (
+                                <Text style={styles.errorText}>{availability.error}</Text>
+                              )}
+                            </View>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
+                </>
+              )}
             </View>
 
             <View style={styles.formGroup}>
@@ -186,9 +306,12 @@ export default function AddUSSDScreen() {
                   value={amount}
                   onChangeText={handleAmountChange}
                   keyboardType="numeric"
-                  editable={!fromDepositFlow} // Disable editing if amount is passed from deposit flow
+                  editable={!fromDepositFlow}
                 />
               </View>
+              <Text style={styles.helperText}>
+                Minimum amount: ₦100
+              </Text>
             </View>
 
             {ussdCode && (
@@ -206,13 +329,20 @@ export default function AddUSSDScreen() {
                 <Text style={styles.ussdInstructions}>
                   Dial this code on your phone to complete the payment
                 </Text>
+                {paymentInitiated && (
+                  <View style={styles.paymentStatusContainer}>
+                    <Text style={styles.paymentStatusText}>
+                      Payment initiated. Complete the USSD transaction on your phone.
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
 
             <View style={styles.infoContainer}>
               <Info size={20} color={colors.primary} />
               <Text style={styles.infoText}>
-                USSD payments are processed immediately. Make sure you have sufficient balance in your account.
+                USSD payments are processed immediately. Make sure you have sufficient balance in your account and complete the transaction within 10 minutes. Some banks may have temporary service interruptions.
               </Text>
             </View>
           </View>
@@ -220,10 +350,10 @@ export default function AddUSSDScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title="Continue"
+        title={paymentInitiated ? "Check Payment Status" : "Continue"}
         onPress={handleContinue}
-        loading={isLoading}
-        disabled={!selectedBank || !amount || isLoading}
+        loading={isLoading || isVerifying}
+        disabled={!selectedBank || !amount || isLoading || isVerifying}
         hapticType="medium"
       />
     </SafeAreaView>
@@ -257,14 +387,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
   },
   scrollContent: {
-    paddingBottom: 100, // Extra padding for the floating button
+    paddingBottom: 100,
   },
   content: {
     padding: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
   },
@@ -279,10 +409,29 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   formGroup: {
     gap: 12,
   },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   label: {
     fontSize: 16,
     fontWeight: '500',
     color: colors.text,
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
   },
   banksContainer: {
     paddingVertical: 8,
@@ -338,6 +487,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 20,
     color: colors.text,
   },
+  helperText: {
+    fontSize: 14,
+    color: colors.textTertiary,
+    marginTop: 4,
+  },
   ussdCodeContainer: {
     backgroundColor: colors.backgroundTertiary,
     borderRadius: 12,
@@ -385,6 +539,19 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
+    marginBottom: 12,
+  },
+  paymentStatusContainer: {
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(34, 197, 94, 0.3)' : '#BBF7D0',
+  },
+  paymentStatusText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   infoContainer: {
     flexDirection: 'row',
@@ -399,5 +566,56 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  availableBadge: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.primary,
+    marginLeft: 4,
+  },
+  unavailableSection: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  unavailableTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  unavailableBankOption: {
+    padding: 8,
+  },
+  unavailableBankName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  unavailableBankCode: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  unavailableBadge: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.primary,
+    marginLeft: 4,
+  },
+  errorText: {
+    fontSize: 14,
+    color: colors.error,
+    marginTop: 4,
+  },
+  noBanksContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  noBanksText: {
+    fontSize: 16,
+    color: colors.textSecondary,
   },
 });

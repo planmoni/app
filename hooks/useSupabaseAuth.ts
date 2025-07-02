@@ -65,20 +65,22 @@ export function useSupabaseAuth() {
     }
   };
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string): Promise<AuthResult> => {
+  const signUp = async (email: string, password: string, firstName: string, lastName: string, referralCode?: string): Promise<AuthResult> => {
     try {
       setError(null);
       setIsLoading(true);
       
-      const { error: signUpError, data } = await supabase.auth.signUp({
+      // Create the user account with metadata that will be used by the database trigger
+      const { error: signUpError, data: authData } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
         options: {
           data: {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
-          },
-        },
+            referral_code: referralCode?.trim() || null,
+          }
+        }
       });
       
       if (signUpError) {
@@ -96,7 +98,6 @@ export function useSupabaseAuth() {
         return { success: false, error: errorMessage };
       }
 
-      // The trigger will automatically create the profile and wallet
       return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create account';

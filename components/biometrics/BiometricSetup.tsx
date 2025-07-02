@@ -3,10 +3,12 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, use
 import { Ionicons } from "@expo/vector-icons"
 import { BiometricService } from "@/lib/biometrics"
 import { useTheme } from "@/contexts/ThemeContext"
+import { useAppLock } from "@/contexts/AppLockContext"
 
 export const BiometricSetup: React.FC = () => {
   const { colors, isDark } = useTheme()
   const { width, height } = useWindowDimensions()
+  const { isAppLockEnabled } = useAppLock()
   const [biometricSettings, setBiometricSettings] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -25,6 +27,26 @@ export const BiometricSetup: React.FC = () => {
 
   const setBiometricEnabled = async (enabled: boolean) => {
     try {
+      // Check if app lock is enabled first
+      if (enabled && !isAppLockEnabled) {
+        Alert.alert(
+          "App Lock Required",
+          "You need to set up App Lock PIN before enabling biometric authentication.",
+          [
+            { text: "OK", style: "default" },
+            { 
+              text: "Set Up PIN", 
+              style: "default", 
+              onPress: () => {
+                // Navigate to app lock setup
+                // This would typically use navigation, but we're using an alert for simplicity
+              }
+            }
+          ]
+        );
+        return false;
+      }
+      
       const success = await BiometricService.setBiometricEnabled(enabled)
       if (success) {
         await refreshBiometricSettings()
@@ -140,7 +162,7 @@ export const BiometricSetup: React.FC = () => {
             <TouchableOpacity
               style={styles.toggleButton}
               onPress={handleToggleBiometric}
-              disabled={loading || !biometricSettings.isEnrolled}
+              disabled={loading || !biometricSettings.isEnrolled || !isAppLockEnabled}
             >
               {loading ? (
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -162,6 +184,15 @@ export const BiometricSetup: React.FC = () => {
               )}
             </TouchableOpacity>
           </View>
+
+          {!isAppLockEnabled && (
+            <View style={[styles.warningContainer, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#fffbeb' }]}>
+              <Ionicons name="warning" size={20} color="#f59e0b" />
+              <Text style={[styles.warningText, { color: isDark ? '#fcd34d' : '#92400e', fontSize: textSize }]}>
+                You need to set up App Lock PIN before enabling biometric authentication. Go to Settings > App Lock to set up a PIN.
+              </Text>
+            </View>
+          )}
 
           {biometricSettings.isEnabled && (
             <TouchableOpacity 
@@ -202,7 +233,7 @@ export const BiometricSetup: React.FC = () => {
             <View style={styles.infoItem}>
               <Ionicons name="key" size={16} color={isDark ? '#34d399' : '#10b981'} />
               <Text style={[styles.infoText, { color: colors.textSecondary, fontSize: textSize }]}>
-                Your password is still required for sensitive operations
+                Your PIN is still required for sensitive operations
               </Text>
             </View>
           </View>

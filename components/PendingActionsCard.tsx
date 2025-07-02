@@ -2,7 +2,12 @@ import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { ChevronRight, X, Mail, Lock, Shield, Fingerprint, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useHaptics } from '@/hooks/useHaptics';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { useOnlineStatus } from './OnlineStatusProvider';
+import OfflineNotice from './OfflineNotice';
 
 type PendingAction = {
   id: string;
@@ -18,6 +23,42 @@ type PendingAction = {
 export default function PendingActionsCard() {
   const { colors, isDark } = useTheme();
   const [isHidden, setIsHidden] = useState(false);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { session } = useAuth();
+  const haptics = useHaptics();
+  const { isOnline } = useOnlineStatus();
+
+  // Load profile data from database on mount
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetchProfileData();
+    }
+  }, [session?.user?.id]);
+
+  const fetchProfileData = async () => {
+    if (!isOnline) {
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      // Modify the query to exclude kyc_tier which doesn't exist yet
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
+        .eq('id', session?.user?.id)
+        .single();
+
+      if (error) throw error;
+      setProfileData(data);
+    } catch (error) {
+      console.error('Error loading profile data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const pendingActions: PendingAction[] = [
     {
@@ -62,11 +103,104 @@ export default function PendingActionsCard() {
     },
   ];
 
+  // Mark an action as completed in the database
+  const markActionAsCompleted = async (actionId: string) => {
+    if (!isOnline) {
+      haptics.error();
+      return;
+    }
+    
+    try {
+      const updates: any = {};
+      
+      switch (actionId) {
+        case 'verify-email':
+          updates.email_verified = true;
+          break;
+        case 'setup-app-lock':
+          updates.app_lock_enabled = true;
+          break;
+        case 'account-verification':
+          updates.account_verified = true;
+          break;
+        case 'setup-2fa':
+          updates.two_factor_enabled = true;
+          break;
+      }
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', session?.user?.id);
+          
+      if (error) throw error;
+      
+      // Refresh profile data
+      await fetchProfileData();
+      haptics.success();
+    } catch (error) {
+      console.error('Error marking action as completed:', error);
+      haptics.error();
+    }
+  };
+
+  // Check if an action is completed
+  const isActionCompleted = (actionId: string): boolean => {
+    if (!profileData) return false;
+    
+    switch (actionId) {
+      case 'verify-email':
+        return !!profileData.email_verified || !!session?.user?.email_confirmed_at;
+      case 'setup-app-lock':
+        return !!profileData.app_lock_enabled;
+      case 'account-verification':
+        return !!profileData.account_verified;
+      case 'setup-2fa':
+        return !!profileData.two_factor_enabled;
+      default:
+        return false;
+    }
+  };
+
+  // Handle navigation to action route
+  const handleActionPress = (action: PendingAction) => {
+    haptics.mediumImpact();
+    router.push(action.route);
+  };
+
+  // Handle completing an action
+  const handleCompleteAction = async (actionId: string, event: any) => {
+    event.stopPropagation();
+    await markActionAsCompleted(actionId);
+  };
+
   if (isHidden) {
     return null;
   }
 
+  // Filter out completed actions
+  const filteredActions = pendingActions.filter(action => !isActionCompleted(action.id));
+
+  // Don't render if there are no pending actions
+  if (filteredActions.length === 0 && !isLoading) {
+    return null;
+  }
+
   const styles = createStyles(colors, isDark);
+
+  if (!isOnline) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Pending Actions</Text>
+          <Pressable onPress={() => setIsHidden(true)} style={styles.hideButton}>
+            <X size={20} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+        <OfflineNotice message="Pending actions are unavailable while offline" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -77,35 +211,49 @@ export default function PendingActionsCard() {
         </Pressable>
       </View>
       
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {pendingActions.map((action) => (
-          <Pressable 
-            key={action.id} 
-            style={styles.actionCard}
-            onPress={() => router.push(action.route)}
-          >
-            <View style={[styles.iconContainer, { backgroundColor: action.iconBg }]}>
-              <action.icon size={24} color={action.iconColor} />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>{action.title}</Text>
-              <Text style={styles.actionDescription}>{action.description}</Text>
-            </View>
-            <View style={styles.actionArrow}>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </View>
-            {action.priority === 'high' && (
-              <View style={styles.priorityBadge}>
-                <AlertCircle size={12} color="#FFFFFF" />
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading pending actions...</Text>
+        </View>
+      ) : (
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {filteredActions.map((action) => (
+            <Pressable 
+              key={action.id} 
+              style={styles.actionCard}
+              onPress={() => handleActionPress(action)}
+            >
+              <View style={[styles.iconContainer, { backgroundColor: action.iconBg }]}>
+                <action.icon size={24} color={action.iconColor} />
               </View>
-            )}
-          </Pressable>
-        ))}
-      </ScrollView>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>{action.title}</Text>
+                <Text style={styles.actionDescription}>{action.description}</Text>
+              </View>
+              <View style={styles.actionButtons}>
+                <Pressable 
+                  style={styles.completeButton} 
+                  onPress={(e) => handleCompleteAction(action.id, e)}
+                >
+                  <Text style={styles.completeButtonText}>Done</Text>
+                </Pressable>
+                <View style={styles.actionArrow}>
+                  <ChevronRight size={20} color={colors.textTertiary} />
+                </View>
+              </View>
+              {action.priority === 'high' && (
+                <View style={styles.priorityBadge}>
+                  <AlertCircle size={12} color="#FFFFFF" />
+                </View>
+              )}
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -179,6 +327,24 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 16,
   },
+  actionButtons: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  completeButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: colors.successLight,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.success,
+  },
+  completeButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.success,
+  },
   actionArrow: {
     width: 24,
     height: 24,
@@ -195,5 +361,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingContainer: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
 });

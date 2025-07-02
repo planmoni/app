@@ -1,13 +1,14 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowRight, Chrome as Home } from 'lucide-react-native';
+import { ArrowRight, Chrome as Home, LogIn } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import OnboardingProgress from '@/components/OnboardingProgress';
+import { supabase } from '@/lib/supabase';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
@@ -16,18 +17,56 @@ export default function SuccessScreen() {
   const lastName = params.lastName as string;
   const email = params.email as string;
   const password = params.password as string;
+  const referralCode = params.referralCode as string;
+  const emailVerified = params.emailVerified === 'true';
   
   const { signUp } = useAuth();
   const [isRegistering, setIsRegistering] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isUserAlreadyExists, setIsUserAlreadyExists] = useState(false);
 
   useEffect(() => {
     const registerUser = async () => {
       try {
-        await signUp(email, password, firstName, lastName);
+        // Sign up the user
+        const result = await signUp(email, password, firstName, lastName, referralCode);
+        
+        if (result.success) {
+          // If email was verified during onboarding, update the profile
+          if (emailVerified && result.data?.session?.user?.id) {
+            try {
+              console.log('Updating email_verified status to true');
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ email_verified: true })
+                .eq('id', result.data.session.user.id);
+                
+              if (updateError) {
+                console.error('Error updating email_verified status:', updateError);
+              } else {
+                console.log('Email verified status updated successfully');
+              }
+            } catch (updateError) {
+              console.error('Failed to update email_verified status:', updateError);
+            }
+          }
+        } else {
+          throw new Error(result.error || 'Failed to create account');
+        }
+        
         setIsRegistering(false);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to create account');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to create account';
+        
+        // Check if the error is specifically about user already existing
+        if (errorMessage.includes('user_already_exists') || 
+            errorMessage.includes('User already registered') ||
+            errorMessage.includes('already registered')) {
+          setError('This email is already registered. Please sign in or use a different email.');
+          setIsUserAlreadyExists(true);
+        } else {
+          setError(errorMessage);
+        }
         setIsRegistering(false);
       }
     };
@@ -43,18 +82,27 @@ export default function SuccessScreen() {
     router.replace('/(tabs)');
   };
 
+  const handleGoToSignIn = () => {
+    router.replace('/(auth)/login');
+  };
+
   const styles = createStyles(colors);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <OnboardingProgress currentStep={6} totalSteps={6} />
+      <OnboardingProgress currentStep={10} totalSteps={10} />
       
       <View style={styles.content}>
         <SuccessAnimation />
         
-        <Text style={styles.title}>Welcome to Planmoni!</Text>
+        <Text style={styles.title}>
+          {isUserAlreadyExists ? 'Account Already Exists' : 'Welcome to Planmoni!'}
+        </Text>
         <Text style={styles.subtitle}>
-          Your account has been created successfully. You're all set to start planning your finances.
+          {isUserAlreadyExists 
+            ? 'It looks like you already have an account with us. Please sign in to continue.'
+            : 'Your account has been created successfully. You\'re all set to start planning your finances.'
+          }
         </Text>
         
         {error && (
@@ -64,22 +112,34 @@ export default function SuccessScreen() {
         )}
         
         <View style={styles.buttonContainer}>
-          <Button
-            title="Start a Payout Plan"
-            onPress={handleCreatePayout}
-            style={styles.createButton}
-            icon={ArrowRight}
-            disabled={isRegistering}
-          />
-          
-          <Button
-            title="Go to Dashboard"
-            onPress={handleGoToDashboard}
-            variant="outline"
-            style={styles.dashboardButton}
-            icon={Home}
-            disabled={isRegistering}
-          />
+          {isUserAlreadyExists ? (
+            <Button
+              title="Go to Sign In"
+              onPress={handleGoToSignIn}
+              style={styles.signInButton}
+              icon={LogIn}
+              disabled={isRegistering}
+            />
+          ) : (
+            <>
+              <Button
+                title="Start a Payout Plan"
+                onPress={handleCreatePayout}
+                style={styles.createButton}
+                icon={ArrowRight}
+                disabled={isRegistering}
+              />
+              
+              <Button
+                title="Go to Dashboard"
+                onPress={handleGoToDashboard}
+                variant="outline"
+                style={styles.dashboardButton}
+                icon={Home}
+                disabled={isRegistering}
+              />
+            </>
+          )}
         </View>
       </View>
     </SafeAreaView>
@@ -132,5 +192,8 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   dashboardButton: {
     borderColor: colors.border,
+  },
+  signInButton: {
+    backgroundColor: colors.primary,
   },
 });
