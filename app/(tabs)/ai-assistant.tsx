@@ -13,6 +13,7 @@ import {
   Keyboard,
   Dimensions,
   Image,
+  Button,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -24,6 +25,8 @@ import { router } from 'expo-router';
 import { getOpenAIChatCompletion } from '../../lib/openai';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
+import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
+import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 
 // Define message types
 type MessageType = 'text' | 'plan' | 'insight';
@@ -60,6 +63,13 @@ export default function AIAssistantScreen() {
   const [error, setError] = useState<string | null>(null);
   const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
   const [lastType, setLastType] = useState<'plan' | 'insight' | 'text' | null>(null);
+  // Plan creation conversational state
+  const [planCreationStep, setPlanCreationStep] = useState<'idle' | 'awaiting_destination' | 'awaiting_emergency' | 'showing_emergency_rules' | 'confirming' | 'success'>('idle');
+  const [planDraft, setPlanDraft] = useState<any>(null);
+  const [selectedAccount, setSelectedAccount] = useState<any>(null);
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const { payoutAccounts, isLoading: payoutAccountsLoading, fetchPayoutAccounts } = usePayoutAccounts();
+  const [emergencyEnabled, setEmergencyEnabled] = useState<boolean | null>(null);
 
   // Set up keyboard listeners
   useEffect(() => {
@@ -539,15 +549,176 @@ export default function AIAssistantScreen() {
     return null;
   };
 
+  // Intercept Create Plan to start conversational flow
   const handleCreatePlan = (plan: any) => {
-    router.push({
-      pathname: '/create-payout/amount',
-      params: {
-        amount: plan.metadata.targetAmount.toString(),
-        frequency: plan.frequency,
-        duration: (plan.metadata.timeframe * 4).toString() // Convert months to weeks
+    setPlanDraft(plan);
+    setPlanCreationStep('awaiting_destination');
+    // Add a chat message asking for destination
+    setMessages(prev => [
+      ...prev,
+      {
+        id: `choose-destination-${Date.now()}`,
+        content: 'Which account should receive your payouts? Please select an existing account or add a new one.',
+        sender: 'ai',
+        type: 'text',
+        timestamp: new Date(),
+        metadata: { step: 'destination' }
       }
-    });
+    ]);
+  };
+
+  // Handle user selecting a payout account
+  const handleSelectAccount = (account: any) => {
+    setSelectedAccount(account);
+    setPlanCreationStep('awaiting_emergency');
+    setMessages(prev => [
+      ...prev,
+      {
+        id: `selected-destination-${Date.now()}`,
+        content: `Payouts will be sent to: ${account.bank_name} ••••${account.account_number.slice(-4)} (${account.account_name})`,
+        sender: 'user',
+        type: 'text',
+        timestamp: new Date(),
+        metadata: { step: 'destination' }
+      },
+      {
+        id: `ask-emergency-${Date.now()}`,
+        content: 'Do you want to enable emergency withdrawals for this plan? (yes/no)',
+        sender: 'ai',
+        type: 'text',
+        timestamp: new Date(),
+        metadata: { step: 'emergency' }
+      }
+    ]);
+  };
+
+  // Handle user response to emergency withdrawal
+  const handleEmergencyResponse = (response: string) => {
+    const normalized = response.trim().toLowerCase();
+    if (normalized === 'yes' || normalized === 'y') {
+      setEmergencyEnabled(true);
+      setPlanCreationStep('showing_emergency_rules');
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `emergency-yes-${Date.now()}`,
+          content: 'Yes, enable emergency withdrawals.',
+          sender: 'user',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'emergency' }
+        },
+        {
+          id: `emergency-rules-${Date.now()}`,
+          content: 'Emergency Withdrawal Rules:\n- Instant withdrawal: 12% processing fee\n- 24-hour withdrawal: 6% processing fee\n- 72-hour withdrawal: No processing fee',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'emergency_rules' }
+        },
+        {
+          id: `confirm-plan-${Date.now()}`,
+          content: 'Ready to create your plan? Type "confirm" to proceed or "cancel" to abort.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'confirm' }
+        }
+      ]);
+      setPlanCreationStep('confirming');
+    } else if (normalized === 'no' || normalized === 'n') {
+      setEmergencyEnabled(false);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `emergency-no-${Date.now()}`,
+          content: 'No, do not enable emergency withdrawals.',
+          sender: 'user',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'emergency' }
+        },
+        {
+          id: `confirm-plan-${Date.now()}`,
+          content: 'Ready to create your plan? Type "confirm" to proceed or "cancel" to abort.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'confirm' }
+        }
+      ]);
+      setPlanCreationStep('confirming');
+    } else {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `emergency-invalid-${Date.now()}`,
+          content: 'Please reply with "yes" or "no" to enable or disable emergency withdrawals.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'emergency' }
+        }
+      ]);
+    }
+  };
+
+  // Handle user confirmation to create the plan
+  const handlePlanConfirmation = async (response: string) => {
+    const normalized = response.trim().toLowerCase();
+    if (normalized === 'confirm') {
+      // Call API to create the plan (simulate for now)
+      setPlanCreationStep('success');
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `plan-confirmed-${Date.now()}`,
+          content: 'Your payout plan has been created successfully! 🎉',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'success' }
+        }
+      ]);
+      // TODO: Call actual API to create the plan with planDraft, selectedAccount, emergencyEnabled
+    } else if (normalized === 'cancel') {
+      setPlanCreationStep('idle');
+      setPlanDraft(null);
+      setSelectedAccount(null);
+      setEmergencyEnabled(null);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `plan-cancelled-${Date.now()}`,
+          content: 'Plan creation cancelled.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'cancelled' }
+        }
+      ]);
+    } else {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `confirm-invalid-${Date.now()}`,
+          content: 'Please type "confirm" to create the plan or "cancel" to abort.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'confirm' }
+        }
+      ]);
+    }
+  };
+
+  // Handle user input during plan creation steps
+  const handlePlanStepInput = (input: string) => {
+    if (planCreationStep === 'awaiting_emergency') {
+      handleEmergencyResponse(input);
+    } else if (planCreationStep === 'confirming') {
+      handlePlanConfirmation(input);
+    }
   };
 
   const getUserName = () => session?.user?.user_metadata?.first_name || 'User';
@@ -1084,6 +1255,51 @@ export default function AIAssistantScreen() {
               </TouchableOpacity>
             </View>
           )}
+          {/* Plan creation destination selection UI */}
+          {planCreationStep === 'awaiting_destination' && !payoutAccountsLoading && (
+            <View style={{ marginVertical: 12 }}>
+              <Text style={{ fontWeight: '600', marginBottom: 8 }}>Your payout accounts:</Text>
+              {payoutAccounts.length === 0 && (
+                <Text style={{ marginBottom: 8 }}>No payout accounts found.</Text>
+              )}
+              {payoutAccounts.map(account => (
+                <Pressable
+                  key={account.id}
+                  style={{ padding: 12, borderWidth: 1, borderColor: '#eee', borderRadius: 8, marginBottom: 8 }}
+                  onPress={() => handleSelectAccount(account)}
+                >
+                  <Text>{account.bank_name} ••••{account.account_number.slice(-4)}</Text>
+                  <Text style={{ color: '#888' }}>{account.account_name}</Text>
+                  {account.is_default && <Text style={{ color: '#1E3A8A', fontSize: 12 }}>Default</Text>}
+                </Pressable>
+              ))}
+              <Button title="Add New Account" onPress={() => setShowAddAccountModal(true)} />
+            </View>
+          )}
+          {/* Emergency withdrawal input UI */}
+          {planCreationStep === 'awaiting_emergency' && (
+            <View style={{ marginVertical: 12 }}>
+              <Text style={{ fontWeight: '600', marginBottom: 8 }}>Reply "yes" or "no" below:</Text>
+              <TextInput
+                style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8 }}
+                placeholder="yes or no"
+                onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
+                returnKeyType="done"
+              />
+            </View>
+          )}
+          {/* Plan confirmation input UI */}
+          {planCreationStep === 'confirming' && (
+            <View style={{ marginVertical: 12 }}>
+              <Text style={{ fontWeight: '600', marginBottom: 8 }}>Type "confirm" to create the plan or "cancel" to abort:</Text>
+              <TextInput
+                style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8 }}
+                placeholder="confirm or cancel"
+                onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
+                returnKeyType="done"
+              />
+            </View>
+          )}
         </ScrollView>
 
         {showSuggestions && messages.length === 1 && !keyboardVisible && (
@@ -1107,29 +1323,43 @@ export default function AIAssistantScreen() {
           </View>
         )}
 
-        <View style={styles.inputContainer}>
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            placeholder="Ask me anything about your finances..."
-            placeholderTextColor={colors.textTertiary}
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            onFocus={() => setShowSuggestions(false)}
-            maxLength={500}
-          />
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              !inputText.trim() && styles.sendButtonDisabled
-            ]}
-            onPress={handleSendMessage}
-            disabled={!inputText.trim() || isTyping}
-          >
-            <Send size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+        {/* Add payout account modal */}
+        <AddPayoutAccountModal
+          isVisible={showAddAccountModal}
+          onClose={async (newAccount) => {
+            setShowAddAccountModal(false);
+            if (newAccount) {
+              await fetchPayoutAccounts();
+              handleSelectAccount(newAccount);
+            }
+          }}
+        />
+
+        {planCreationStep === 'idle' && (
+          <View style={styles.inputContainer}>
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              placeholder="Ask me anything about your finances..."
+              placeholderTextColor={colors.textTertiary}
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+              onFocus={() => setShowSuggestions(false)}
+              maxLength={500}
+            />
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                !inputText.trim() && styles.sendButtonDisabled
+              ]}
+              onPress={handleSendMessage}
+              disabled={!inputText.trim() || isTyping}
+            >
+              <Send size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

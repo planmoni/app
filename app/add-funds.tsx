@@ -312,24 +312,6 @@ export default function AddFundsScreen() {
             <View style={styles.accountDetailsCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>{virtualAccount.bank_name} Account Details</Text>
-                {paystackAccount && (
-                  <View style={[
-                    styles.statusIndicator,
-                    paystackAccount.is_active ? styles.statusActive : styles.statusPending
-                  ]}>
-                    {paystackAccount.is_active ? (
-                      <CheckCircle size={16} color="#22C55E" />
-                    ) : (
-                      <Clock size={16} color="#F59E0B" />
-                    )}
-                    <Text style={[
-                      styles.statusText,
-                      paystackAccount.is_active ? styles.statusTextActive : styles.statusTextPending
-                    ]}>
-                      {paystackAccount.is_active ? 'Active' : 'Pending Activation'}
-                    </Text>
-                  </View>
-                )}
               </View>
 
               <View style={styles.fieldsContainer}>
