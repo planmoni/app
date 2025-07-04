@@ -116,8 +116,16 @@ export default function AIAssistantScreen() {
     }, 100);
   };
 
+  // Update handleSendMessage to intercept input for plan creation steps
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
+
+    // If in a plan creation step, route input to plan step handler
+    if (planCreationStep !== 'idle') {
+      handlePlanStepInput(inputText.trim());
+      setInputText('');
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -668,7 +676,6 @@ export default function AIAssistantScreen() {
     const normalized = response.trim().toLowerCase();
     if (normalized === 'confirm') {
       // Call API to create the plan (simulate for now)
-      setPlanCreationStep('success');
       setMessages(prev => [
         ...prev,
         {
@@ -680,6 +687,12 @@ export default function AIAssistantScreen() {
           metadata: { step: 'success' }
         }
       ]);
+      setTimeout(() => {
+        setPlanCreationStep('idle');
+        setPlanDraft(null);
+        setSelectedAccount(null);
+        setEmergencyEnabled(null);
+      }, 500);
       // TODO: Call actual API to create the plan with planDraft, selectedAccount, emergencyEnabled
     } else if (normalized === 'cancel') {
       setPlanCreationStep('idle');
