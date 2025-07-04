@@ -929,6 +929,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderColor: colors.border,
     padding: 8,
     borderRadius: 8,
+    marginTop: 14,
   },
   statusActive: {
     borderColor: colors.primary,
