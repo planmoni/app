@@ -64,12 +64,24 @@ export default function AIAssistantScreen() {
   const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
   const [lastType, setLastType] = useState<'plan' | 'insight' | 'text' | null>(null);
   // Plan creation conversational state
-  const [planCreationStep, setPlanCreationStep] = useState<'idle' | 'awaiting_destination' | 'awaiting_emergency' | 'showing_emergency_rules' | 'confirming' | 'success'>('idle');
+  const [planCreationStep, setPlanCreationStep] = useState<'idle' | 'awaiting_destination' | 'awaiting_frequency' | 'awaiting_emergency' | 'showing_emergency_rules' | 'confirming' | 'success'>('idle');
   const [planDraft, setPlanDraft] = useState<any>(null);
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const { payoutAccounts, isLoading: payoutAccountsLoading, fetchPayoutAccounts } = usePayoutAccounts();
   const [emergencyEnabled, setEmergencyEnabled] = useState<boolean | null>(null);
+
+  // Add frequency options
+  const frequencyOptions = [
+    'weekly',
+    'specific day',
+    'bi-weekly',
+    'monthly',
+    'month end',
+    'bi-annually',
+    'annually',
+    'custom schedule',
+  ];
 
   // Set up keyboard listeners
   useEffect(() => {
@@ -255,6 +267,25 @@ export default function AIAssistantScreen() {
         } catch (e) {}
       }
       if (parsed && parsed.type === 'plan' && parsed.metadata && Array.isArray(parsed.metadata.plans)) {
+        // Check if frequency is missing or ambiguous
+        const planHasFrequency = parsed.metadata.plans.some((p: any) => p.frequency);
+        if (!planHasFrequency) {
+          // Prompt user for frequency
+          setPlanDraft(parsed);
+          setPlanCreationStep('awaiting_frequency');
+          setMessages(prev => [
+            ...prev,
+            {
+              id: `ask-frequency-${Date.now()}`,
+              content: 'How often do you want your payouts? Please choose: weekly, specific day, bi-weekly, monthly, month end, bi-annually, annually, or custom schedule.',
+              sender: 'ai',
+              type: 'text',
+              timestamp: new Date(),
+              metadata: { step: 'frequency' }
+            }
+          ]);
+          return;
+        }
         aiMessage = {
           id: Date.now().toString(),
           content: parsed.content || 'Here is a personalized payout schedule for you:',
@@ -725,9 +756,58 @@ export default function AIAssistantScreen() {
     }
   };
 
-  // Handle user input during plan creation steps
+  // Handle user reply for frequency
+  const handleFrequencyResponse = (response: string) => {
+    const normalized = response.trim().toLowerCase();
+    // Try to match to one of the options
+    const matched = frequencyOptions.find(opt => normalized.includes(opt.replace(/[- ]/g, '')) || normalized === opt.replace(/[- ]/g, ''));
+    if (matched && planDraft) {
+      // Update planDraft with selected frequency
+      const updatedPlan = { ...planDraft };
+      if (updatedPlan.metadata && Array.isArray(updatedPlan.metadata.plans)) {
+        updatedPlan.metadata.plans = updatedPlan.metadata.plans.map((p: any) => ({ ...p, frequency: matched }));
+      }
+      setPlanDraft(updatedPlan);
+      setPlanCreationStep('awaiting_destination');
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `selected-frequency-${Date.now()}`,
+          content: `Payout frequency set to: ${matched}`,
+          sender: 'user',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'frequency' }
+        },
+        {
+          id: `choose-destination-${Date.now()}`,
+          content: 'Which account should receive your payouts? Please select an existing account or add a new one.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'destination' }
+        }
+      ]);
+    } else {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `frequency-invalid-${Date.now()}`,
+          content: 'Please reply with one of: weekly, specific day, bi-weekly, monthly, month end, bi-annually, annually, or custom schedule.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'frequency' }
+        }
+      ]);
+    }
+  };
+
+  // Update handlePlanStepInput to handle frequency step
   const handlePlanStepInput = (input: string) => {
-    if (planCreationStep === 'awaiting_emergency') {
+    if (planCreationStep === 'awaiting_frequency') {
+      handleFrequencyResponse(input);
+    } else if (planCreationStep === 'awaiting_emergency') {
       handleEmergencyResponse(input);
     } else if (planCreationStep === 'confirming') {
       handlePlanConfirmation(input);
@@ -892,7 +972,7 @@ export default function AIAssistantScreen() {
     headerTitle: {
       fontSize: 25,
       fontWeight: '700',
-      color: 'black',
+      color: colors.text,
       textAlign: 'left',
     },
     headerTitleGradientWrapper: {
@@ -1259,21 +1339,12 @@ export default function AIAssistantScreen() {
               <Text style={styles.typingText}>Thinking...</Text>
             </Animated.View>
           )}
-          {error && (
-            <View style={styles.errorBubble}>
-              <AlertTriangle size={18} color={colors.error || '#E57373'} style={{ marginRight: 8 }} />
-              <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity onPress={retryLastRequest} style={styles.retryButton}>
-                <Text style={styles.retryText}>Try Again</Text>
-              </TouchableOpacity>
-            </View>
-          )}
           {/* Plan creation destination selection UI */}
           {planCreationStep === 'awaiting_destination' && !payoutAccountsLoading && (
             <View style={{ marginVertical: 12 }}>
-              <Text style={{ fontWeight: '600', marginBottom: 8 }}>Your payout accounts:</Text>
+              <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text }}>Your payout accounts:</Text>
               {payoutAccounts.length === 0 && (
-                <Text style={{ marginBottom: 8 }}>No payout accounts found.</Text>
+                <Text style={{ marginBottom: 8, color: colors.text }}>No payout accounts found.</Text>
               )}
               {payoutAccounts.map(account => (
                 <Pressable
@@ -1281,8 +1352,8 @@ export default function AIAssistantScreen() {
                   style={{ padding: 12, borderWidth: 1, borderColor: '#eee', borderRadius: 8, marginBottom: 8 }}
                   onPress={() => handleSelectAccount(account)}
                 >
-                  <Text>{account.bank_name} ••••{account.account_number.slice(-4)}</Text>
-                  <Text style={{ color: '#888' }}>{account.account_name}</Text>
+                  <Text style={{ color: colors.textSecondary }}>{account.bank_name} ••••{account.account_number.slice(-4)}</Text>
+                  <Text style={{ color: colors.text}}>{account.account_name}</Text>
                   {account.is_default && <Text style={{ color: '#1E3A8A', fontSize: 12 }}>Default</Text>}
                 </Pressable>
               ))}
@@ -1292,9 +1363,9 @@ export default function AIAssistantScreen() {
           {/* Emergency withdrawal input UI */}
           {planCreationStep === 'awaiting_emergency' && (
             <View style={{ marginVertical: 12 }}>
-              <Text style={{ fontWeight: '600', marginBottom: 8 }}>Reply "yes" or "no" below:</Text>
+              <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text}}>Reply "yes" or "no" below:</Text>
               <TextInput
-                style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8 }}
+                style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8, color: colors.text}}
                 placeholder="yes or no"
                 onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
                 returnKeyType="done"
@@ -1304,9 +1375,9 @@ export default function AIAssistantScreen() {
           {/* Plan confirmation input UI */}
           {planCreationStep === 'confirming' && (
             <View style={{ marginVertical: 12 }}>
-              <Text style={{ fontWeight: '600', marginBottom: 8 }}>Type "confirm" to create the plan or "cancel" to abort:</Text>
+              <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text,}}>Type "confirm" to create the plan or "cancel" to abort:</Text>
               <TextInput
-                style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8 }}
+                style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8, color: colors.text}}
                 placeholder="confirm or cancel"
                 onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
                 returnKeyType="done"
