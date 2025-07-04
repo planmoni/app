@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions, ToastAndroid, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions, Modal } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, Info, ChevronRight, CreditCard, Smartphone, Building2, CheckCircle, Clock } from 'lucide-react-native';
+import { ArrowLeft, Copy, Info, ChevronRight, CreditCard, Smartphone, Building2, CircleCheck as CheckCircle, Clock } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -118,7 +118,7 @@ export default function AddFundsScreen() {
 
       const customerResult = await customerResponse.json();
       if (!customerResponse.ok || !customerResult.status) {
-        ToastAndroid.show(customerResult.message || 'Failed to create customer', ToastAndroid.SHORT);
+        showToast(customerResult.message || 'Failed to create customer', 'error');
         setIsLoading(false);
         return;
       }
@@ -144,7 +144,7 @@ export default function AddFundsScreen() {
 
       const accountResult = await accountResponse.json();
       if (!accountResponse.ok || !accountResult.status) {
-        ToastAndroid.show(accountResult.message || 'Failed to create account', ToastAndroid.SHORT);
+        showToast(accountResult.message || 'Failed to create account', 'error');
         setIsLoading(false);
         return;
       }
@@ -167,7 +167,7 @@ export default function AddFundsScreen() {
       
       console.log("Database error:", error);
       if (error) {
-        ToastAndroid.show('Failed to save account to database', ToastAndroid.SHORT);
+        showToast('Failed to save account to database', 'error');
         setIsLoading(false);
         return;
       }
@@ -181,14 +181,14 @@ export default function AddFundsScreen() {
 
       // Show appropriate message based on account status
       if (accountData.active) {
-        ToastAndroid.show('Virtual account created and activated successfully', ToastAndroid.SHORT);
+        showToast('Virtual account created and activated successfully', 'success');
       } else {
-        ToastAndroid.show('Virtual account created successfully. It will be activated shortly.', ToastAndroid.SHORT);
+        showToast('Virtual account created successfully. It will be activated shortly.', 'success');
       }
 
     } catch (error) {
       console.error('Something went wrong', error);
-      ToastAndroid.show('Something went wrong', ToastAndroid.SHORT);
+      showToast('Something went wrong', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -312,24 +312,6 @@ export default function AddFundsScreen() {
             <View style={styles.accountDetailsCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>{virtualAccount.bank_name} Account Details</Text>
-                {/* {paystackAccount && (
-                  <View style={[
-                    styles.statusIndicator,
-                    paystackAccount.is_active ? styles.statusActive : styles.statusPending
-                  ]}>
-                    {paystackAccount.is_active ? (
-                      <CheckCircle size={16} color="#22C55E" />
-                    ) : (
-                      <Clock size={16} color="#F59E0B" />
-                    )}
-                    <Text style={[
-                      styles.statusText,
-                      paystackAccount.is_active ? styles.statusTextActive : styles.statusTextPending
-                    ]}>
-                      {paystackAccount.is_active ? 'Active' : 'Pending Activation'}
-                    </Text>
-                  </View>
-                )} */}
               </View>
 
               <View style={styles.fieldsContainer}>
@@ -929,7 +911,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderColor: colors.border,
     padding: 8,
     borderRadius: 8,
-    marginBottom: 16,
+    marginTop: 14,
   },
   statusActive: {
     borderColor: colors.primary,
