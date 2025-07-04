@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions, ToastAndroid, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions, Modal } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Copy, Info, ChevronRight, CreditCard, Smartphone, Building2, CheckCircle, Clock } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -118,7 +118,7 @@ export default function AddFundsScreen() {
 
       const customerResult = await customerResponse.json();
       if (!customerResponse.ok || !customerResult.status) {
-        ToastAndroid.show(customerResult.message || 'Failed to create customer', ToastAndroid.SHORT);
+        showToast(customerResult.message || 'Failed to create customer', 'error');
         setIsLoading(false);
         return;
       }
@@ -144,7 +144,7 @@ export default function AddFundsScreen() {
 
       const accountResult = await accountResponse.json();
       if (!accountResponse.ok || !accountResult.status) {
-        ToastAndroid.show(accountResult.message || 'Failed to create account', ToastAndroid.SHORT);
+        showToast(accountResult.message || 'Failed to create account', 'error');
         setIsLoading(false);
         return;
       }
@@ -167,7 +167,7 @@ export default function AddFundsScreen() {
       
       console.log("Database error:", error);
       if (error) {
-        ToastAndroid.show('Failed to save account to database', ToastAndroid.SHORT);
+        showToast('Failed to save account to database', 'error');
         setIsLoading(false);
         return;
       }
@@ -181,14 +181,14 @@ export default function AddFundsScreen() {
 
       // Show appropriate message based on account status
       if (accountData.active) {
-        ToastAndroid.show('Virtual account created and activated successfully', ToastAndroid.SHORT);
+        showToast('Virtual account created and activated successfully', 'success');
       } else {
-        ToastAndroid.show('Virtual account created successfully. It will be activated shortly.', ToastAndroid.SHORT);
+        showToast('Virtual account created successfully. It will be activated shortly.', 'success');
       }
 
     } catch (error) {
       console.error('Something went wrong', error);
-      ToastAndroid.show('Something went wrong', ToastAndroid.SHORT);
+      showToast('Something went wrong', 'error');
     } finally {
       setIsLoading(false);
     }
