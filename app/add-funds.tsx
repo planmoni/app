@@ -312,7 +312,7 @@ export default function AddFundsScreen() {
             <View style={styles.accountDetailsCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>{virtualAccount.bank_name} Account Details</Text>
-                {paystackAccount && (
+                {/* {paystackAccount && (
                   <View style={[
                     styles.statusIndicator,
                     paystackAccount.is_active ? styles.statusActive : styles.statusPending
@@ -329,7 +329,7 @@ export default function AddFundsScreen() {
                       {paystackAccount.is_active ? 'Active' : 'Pending Activation'}
                     </Text>
                   </View>
-                )}
+                )} */}
               </View>
 
               <View style={styles.fieldsContainer}>
