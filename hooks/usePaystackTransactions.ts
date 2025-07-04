@@ -51,7 +51,7 @@ export function usePaystackTransactions() {
         .from('paystack_accounts')
         .select('account_number, customer_code')
         .eq('user_id', session.user.id)
-        .single();
+        .maybeSingle();
 
       if (accountError || !paystackAccount) {
         console.log('No Paystack account found for user');
