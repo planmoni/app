@@ -501,33 +501,6 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
         ]}
         pointerEvents={isVisible ? 'auto' : 'none'}
       >
-        <Pressable style={styles.overlayPressable} onPress={handleClose} />
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.title}>Transaction Details</Text>
-            <Pressable onPress={handleClose} style={styles.closeButton}>
-              <X size={24} color="#FFFFFF" />
-            </Pressable>
-          </View>
-          <View style={styles.amountSection}>
-            <View style={[styles.amountIcon, { backgroundColor: isPositive ? '#fff' : '#fff' }]}>
-              {isPositive ? (
-                <ArrowDownRight size={24} color="#000" />
-              ) : (
-                <ArrowUpRight size={24} color="#000" />
-              )}
-            </View>
-            <View>
-              <Text style={[styles.amount, isPositive ? styles.positiveAmount : styles.negativeAmount]}>
-                {`${isPositive ? '' : '-'}${transaction.amount}`}
-              </Text>
-              <Text style={[styles.status, isPositive ? styles.positiveStatus : styles.negativeStatus]}>
-                {transaction.status}
-              </Text>
-            </View>
-          </View>
-        </View>
-
         <Animated.View
           style={[
             styles.modal,
@@ -547,9 +520,9 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
             <View style={styles.amountSection}>
               <View style={[styles.amountIcon, { backgroundColor: isPositive ? '#DCFCE7' : '#FEE2E2' }]}>
                 {isPositive ? (
-                  <ArrowUpRight size={24} color="#22C55E" />
+                  <ArrowDownRight size={24} color="#22C55E" />
                 ) : (
-                  <ArrowDownRight size={24} color="#EF4444" />
+                  <ArrowUpRight size={24} color="#EF4444" />
                 )}
               </View>
               <View>
