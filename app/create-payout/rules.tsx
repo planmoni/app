@@ -35,7 +35,14 @@ export default function RulesScreen() {
       pathname: '/create-payout/review',
       params: {
         ...params,
-        emergencyWithdrawal: emergencyWithdrawal.toString()
+        emergencyWithdrawal: emergencyWithdrawal.toString(),
+        totalAmount: params.totalAmount || '',
+        frequency: params.frequency || '',
+        payoutAmount: params.payoutAmount || '',
+        duration: params.duration || '',
+        startDate: params.startDate || '',
+        customDates: params.customDates || '',
+        dayOfWeek: params.dayOfWeek || '',
       }
     });
   };

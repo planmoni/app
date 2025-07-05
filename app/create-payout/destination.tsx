@@ -82,7 +82,14 @@ export default function DestinationScreen() {
             payoutAccountId: accountType === 'payout' ? selectedAccountId : null,
             bankName,
             accountNumber,
-            accountName
+            accountName,
+            totalAmount: params.totalAmount || '',
+            frequency: params.frequency || '',
+            payoutAmount: params.payoutAmount || '',
+            duration: params.duration || '',
+            startDate: params.startDate || '',
+            customDates: params.customDates || '',
+            dayOfWeek: params.dayOfWeek || '',
           }
         });
       }
@@ -330,7 +337,14 @@ export default function DestinationScreen() {
                   payoutAccountId: newAccount.id,
                   bankName: newAccount.bank_name,
                   accountNumber: newAccount.account_number,
-                  accountName: newAccount.account_name
+                  accountName: newAccount.account_name,
+                  totalAmount: params.totalAmount || '',
+                  frequency: params.frequency || '',
+                  payoutAmount: params.payoutAmount || '',
+                  duration: params.duration || '',
+                  startDate: params.startDate || '',
+                  customDates: params.customDates || '',
+                  dayOfWeek: params.dayOfWeek || '',
                 }
               });
             }

@@ -79,9 +79,9 @@ export function useRealtimePaystackAccount() {
         .from('paystack_accounts')
         .select('*')
         .eq('user_id', session?.user?.id)
-        .single();
+        .maybeSingle();
 
-      if (accountError && accountError.code !== 'PGRST116') { // PGRST116 is "not found" error
+      if (accountError) {
         console.error('Error fetching paystack account:', accountError);
         throw accountError;
       }
