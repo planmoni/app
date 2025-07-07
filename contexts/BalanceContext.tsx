@@ -53,9 +53,13 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
         availableBalance: wallet.availableBalance,
         isLoading: wallet.isLoading,
         error: wallet.error,
-        addFunds: wallet.addFunds,
+        addFunds: async (amount: number) => {
+          await wallet.addFunds(amount);
+        },
         lockFunds: wallet.lockFunds,
-        refreshWallet: wallet.refreshWallet
+        refreshWallet: async () => {
+          await wallet.refreshWallet();
+        }
       }}
     >
       {children}
