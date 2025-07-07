@@ -70,6 +70,7 @@ export default function AIAssistantScreen() {
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const { payoutAccounts, isLoading: payoutAccountsLoading, fetchPayoutAccounts } = usePayoutAccounts();
   const [emergencyEnabled, setEmergencyEnabled] = useState<boolean | null>(null);
+  const [showAddFundsButton, setShowAddFundsButton] = useState(false);
 
   // Add frequency options
   const frequencyOptions = [
@@ -590,9 +591,25 @@ export default function AIAssistantScreen() {
 
   // Intercept Create Plan to start conversational flow
   const handleCreatePlan = (plan: any) => {
+    // Check if user has enough available balance for the plan
+    const planAmount = plan.amount || (plan.metadata && plan.metadata.targetAmount);
+    if (planAmount > availableBalance) {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `insufficient-funds-${Date.now()}`,
+          content: `You do not have enough funds (₦${availableBalance.toLocaleString()}) to create this plan (₦${planAmount.toLocaleString()}). Please add funds to continue.`,
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'insufficient_funds', planAmount, availableBalance }
+        }
+      ]);
+      setShowAddFundsButton(true);
+      return;
+    }
     setPlanDraft(plan);
     setPlanCreationStep('awaiting_destination');
-    // Add a chat message asking for destination
     setMessages(prev => [
       ...prev,
       {
@@ -1288,6 +1305,12 @@ export default function AIAssistantScreen() {
     },
   });
 
+  // Add this function to handle navigation to Add Funds
+  const handleAddFunds = () => {
+    // Replace with your navigation logic
+    if (router) router.push('/add-funds');
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -1441,6 +1464,17 @@ export default function AIAssistantScreen() {
               disabled={!inputText.trim() || isTyping}
             >
               <Send size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {showAddFundsButton && (
+          <View style={{ padding: 16, alignItems: 'center' }}>
+            <TouchableOpacity
+              style={{ backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24 }}
+              onPress={handleAddFunds}
+            >
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Add Funds</Text>
             </TouchableOpacity>
           </View>
         )}
