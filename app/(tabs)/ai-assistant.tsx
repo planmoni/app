@@ -47,6 +47,57 @@ const SUGGESTED_PROMPTS = [
   "Analyze my money patterns",
 ];
 
+// Helper to convert written numbers to digits (supports up to billions)
+function wordsToNumber(words: string): number | null {
+  const smallNumbers: { [key: string]: number } = {
+    'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+    'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19
+  };
+  const tens: { [key: string]: number } = {
+    'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90
+  };
+  const scales: { [key: string]: number } = {
+    'hundred': 100, 'thousand': 1000, 'million': 1000000, 'billion': 1000000000
+  };
+  let result = 0;
+  let current = 0;
+  let found = false;
+  words = words.replace(/ and /g, ' ');
+  const tokens = words.toLowerCase().split(/[-\s]+/);
+  for (let token of tokens) {
+    if (smallNumbers[token] !== undefined) {
+      current += smallNumbers[token];
+      found = true;
+    } else if (tens[token] !== undefined) {
+      current += tens[token];
+      found = true;
+    } else if (token === 'a') {
+      current += 1;
+      found = true;
+    } else if (scales[token] !== undefined) {
+      if (current === 0) current = 1;
+      current *= scales[token];
+      result += current;
+      current = 0;
+      found = true;
+    } else if (token === 'naira' || token === 'n' || token === '₦') {
+      // skip currency
+    } else if (token === 'point') {
+      // handle decimals
+      let decimal = '0.';
+      let i = tokens.indexOf(token) + 1;
+      while (i < tokens.length && smallNumbers[tokens[i]] !== undefined) {
+        decimal += smallNumbers[tokens[i]].toString();
+        i++;
+      }
+      result += parseFloat(decimal);
+      break;
+    }
+  }
+  result += current;
+  return found ? result : null;
+}
+
 export default function AIAssistantScreen() {
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
@@ -236,9 +287,37 @@ export default function AIAssistantScreen() {
     setIsTyping(false);
   };
 
+  // Update isSimplePayoutPrompt to support k/m/b suffixes and written numbers
+  const isSimplePayoutPrompt = (message: string) => {
+    // Looks for patterns like 'plan 1b for 2 months', 'plan 500k for 2 months', 'plan five hundred thousand for 6 months', etc.
+    const regex = /(plan|help me plan|payout|disburse|schedule)\s+((?:[₦]?[\d,.]+(?:[kKmMbB])?)|(?:a |one |two |three |four |five |six |seven |eight |nine |ten |eleven |twelve |thirteen |fourteen |fifteen |sixteen |seventeen |eighteen |nineteen |twenty |thirty |forty |fifty |sixty |seventy |eighty |ninety |hundred |thousand |million |billion|and|point| )+)\s*(for|over)?\s*((?:\d+|a |one |two |three |four |five |six |seven |eight |nine |ten |eleven |twelve |thirteen |fourteen |fifteen |sixteen |seventeen |eighteen |nineteen |twenty)[ ]*)\s*(month|months|week|weeks|year|years)/i;
+    return regex.test(message);
+  };
+
   const generatePlanResponse = async (userMessage: string, balances: { availableBalance: number, balance: number, lockedBalance: number }) => {
     const { availableBalance, balance, lockedBalance } = balances;
     let aiMessage: Message | null = null;
+    // If the prompt is a simple payout plan, use hardcoded suggestions
+    if (isSimplePayoutPrompt(userMessage)) {
+      const targetAmount = extractAmount(userMessage) || 500000;
+      const timeframe = extractTimeframe(userMessage) || 6;
+      let content = `Based on your goal to schedule payouts totaling ₦${targetAmount.toLocaleString()} over ${timeframe} months, here are some flexible payout schedules you can set up:`;
+      aiMessage = {
+        id: Date.now().toString(),
+        content,
+        sender: 'ai',
+        type: 'plan',
+        timestamp: new Date(),
+        metadata: {
+          targetAmount,
+          timeframe,
+          plans: getPlanOptions(targetAmount, timeframe, userMessage)
+        }
+      };
+      setMessages(prev => [...prev, aiMessage!]);
+      setIsTyping(false);
+      return;
+    }
     try {
       // In-context examples for payout scheduling
       const examples = [
@@ -533,66 +612,132 @@ export default function AIAssistantScreen() {
 
   // Helper functions to extract information from user messages
   const extractAmount = (message: string): number | null => {
-    const amountRegex = /₦?(\d{1,3}(,\d{3})*|\d+)(k|K|m|M)?/;
-    const match = message.match(amountRegex);
-    
-    if (!match) return null;
-    
-    let amount = parseFloat(match[1].replace(/,/g, ''));
-    
-    // Handle k/K (thousands) and m/M (millions)
-    if (match[3]) {
-      if (match[3].toLowerCase() === 'k') {
-        amount *= 1000;
-      } else if (match[3].toLowerCase() === 'm') {
-        amount *= 1000000;
-      }
+    // Normalize message
+    let normalized = message.toLowerCase().replace(/[,₦]/g, ' ');
+    // 1. Try to match numeric forms with optional k/m/b suffix
+    const regex = /([0-9]+(?:\.[0-9]+)?)(k|m|b)?\s*(naira|n)?/i;
+    const match = normalized.match(regex);
+    if (match) {
+      let amount = parseFloat(match[1]);
+      const suffix = match[2]?.toLowerCase();
+      if (suffix === 'k') amount *= 1000;
+      if (suffix === 'm') amount *= 1000000;
+      if (suffix === 'b') amount *= 1000000000;
+      return Math.round(amount);
     }
-    
-    return amount;
+    // 2. Try to match numbers with commas/decimals (e.g., 1,000,000.00)
+    const commaRegex = /([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]+)?)/;
+    const commaMatch = normalized.match(commaRegex);
+    if (commaMatch) {
+      let amount = parseFloat(commaMatch[1].replace(/,/g, ''));
+      return Math.round(amount);
+    }
+    // 3. Try to match written numbers (e.g., 'five hundred thousand naira', 'a million')
+    const writtenRegex = /((?:a |one |two |three |four |five |six |seven |eight |nine |ten |eleven |twelve |thirteen |fourteen |fifteen |sixteen |seventeen |eighteen |nineteen |twenty |thirty |forty |fifty |sixty |seventy |eighty |ninety |hundred |thousand |million |billion|and|point| )+)/i;
+    const writtenMatch = normalized.match(writtenRegex);
+    if (writtenMatch) {
+      const num = wordsToNumber(writtenMatch[1].trim());
+      if (num !== null) return Math.round(num);
+    }
+    // 4. Try to match 'a million', 'a thousand', etc.
+    if (/a million/.test(normalized)) return 1000000;
+    if (/a thousand/.test(normalized)) return 1000;
+    // 5. Try to match currency at the end (e.g., '500,000 naira')
+    const endCurrencyRegex = /([0-9]+(?:\.[0-9]+)?)\s*(naira|n)$/i;
+    const endCurrencyMatch = normalized.match(endCurrencyRegex);
+    if (endCurrencyMatch) {
+      return Math.round(parseFloat(endCurrencyMatch[1]));
+    }
+    return null;
   };
 
   const extractTimeframe = (message: string): number | null => {
-    // Look for time periods like "6 months", "1 year", "by September", etc.
+    // Map written numbers to digits
+    const numberWords: { [key: string]: number } = {
+      'one': 1,
+      'two': 2,
+      'three': 3,
+      'four': 4,
+      'five': 5,
+      'six': 6,
+      'seven': 7,
+      'eight': 8,
+      'nine': 9,
+      'ten': 10,
+      'eleven': 11,
+      'twelve': 12,
+      'thirteen': 13,
+      'fourteen': 14,
+      'fifteen': 15,
+      'sixteen': 16,
+      'seventeen': 17,
+      'eighteen': 18,
+      'nineteen': 19,
+      'twenty': 20
+    };
+    let normalized = message.toLowerCase();
+    // Replace written numbers with digits
+    Object.entries(numberWords).forEach(([word, digit]) => {
+      const regex = new RegExp(`\\b${word}\\b`, 'g');
+      normalized = normalized.replace(regex, digit.toString());
+    });
+    // Look for time periods like "6 months", "1 year", etc.
     const monthRegex = /(\d+)\s*(month|months)/i;
     const yearRegex = /(\d+)\s*(year|years)/i;
-    
-    const monthMatch = message.match(monthRegex);
+    const monthMatch = normalized.match(monthRegex);
     if (monthMatch) {
       return parseInt(monthMatch[1]);
     }
-    
-    const yearMatch = message.match(yearRegex);
+    const yearMatch = normalized.match(yearRegex);
     if (yearMatch) {
       return parseInt(yearMatch[1]) * 12;
     }
-    
     // Check for month names
     const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
     for (let i = 0; i < months.length; i++) {
-      if (message.toLowerCase().includes(months[i])) {
+      if (normalized.includes(months[i])) {
         const currentDate = new Date();
         const currentMonth = currentDate.getMonth();
         const targetMonth = i;
-        
         // Calculate months difference, accounting for next year if needed
         let monthsDiff = targetMonth - currentMonth;
         if (monthsDiff <= 0) {
           monthsDiff += 12; // Target is next year
         }
-        
         return monthsDiff;
       }
     }
-    
     return null;
   };
 
   // Intercept Create Plan to start conversational flow
   const handleCreatePlan = (plan: any) => {
+    // Calculate total plan amount
+    let totalPlanAmount = 0;
+    if (plan.metadata && plan.metadata.targetAmount) {
+      totalPlanAmount = plan.metadata.targetAmount;
+    } else if (plan.metadata && Array.isArray(plan.metadata.plans)) {
+      totalPlanAmount = plan.metadata.plans.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+    } else if (plan.amount) {
+      totalPlanAmount = plan.amount;
+    }
+    if (totalPlanAmount > availableBalance) {
+      const shortfall = Math.max(totalPlanAmount - availableBalance, 0);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `insufficient-funds-${Date.now()}`,
+          content: `You do not have enough funds (₦${availableBalance.toLocaleString()}) to create this plan. Total needed: ₦${totalPlanAmount.toLocaleString()}. You need to add ₦${shortfall.toLocaleString()} more.`,
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'insufficient_funds', planAmount: totalPlanAmount, availableBalance, shortfall }
+        }
+      ]);
+      return;
+    }
     setPlanDraft(plan);
     setPlanCreationStep('awaiting_destination');
-    // Add a chat message asking for destination
     setMessages(prev => [
       ...prev,
       {
@@ -822,6 +967,35 @@ export default function AIAssistantScreen() {
     // Render different message types
     switch (message.type) {
       case 'text':
+        // Check for insufficient funds step
+        if (message.metadata && message.metadata.step === 'insufficient_funds') {
+          return (
+            <Animated.View 
+              key={message.id} 
+              entering={FadeIn.duration(300)} 
+              layout={Layout.springify()}
+              style={[
+                styles.messageBubble,
+                styles.aiBubble,
+                { backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary }
+              ]}
+            >
+              <Text style={[styles.messageText, styles.aiText, { color: colors.text }]}> 
+                {message.content}
+              </Text>
+              <TouchableOpacity
+                style={{ marginTop: 12, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, alignSelf: 'flex-start' }}
+                onPress={handleAddFunds}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Add Funds</Text>
+              </TouchableOpacity>
+              <View style={styles.aiBadgeContainer}>
+                <Sparkles size={14} color={colors.primary} />
+                <Text style={styles.aiBadgeText}>PlanmoniAI</Text>
+              </View>
+            </Animated.View>
+          );
+        }
         return (
           <Animated.View 
             key={message.id} 
@@ -1288,6 +1462,12 @@ export default function AIAssistantScreen() {
     },
   });
 
+  // Add this function to handle navigation to Add Funds
+  const handleAddFunds = () => {
+    // Replace with your navigation logic
+    if (router) router.push('/add-funds');
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -1307,10 +1487,9 @@ export default function AIAssistantScreen() {
               <Text style={[styles.headerTitle, { opacity: 0 }]}>Planmoni AI</Text>
             </LinearGradient>
           </MaskedView>
-          <Text style={styles.headerSubtitle}>Let's plan some payouts</Text>
         </View>
         <View style={styles.aiIconContainer}>
-          <Sparkles size={20} color="#FFFFFF" />
+          <Sparkles size={20} color="#FAD923" />
         </View>
       </View>
 
