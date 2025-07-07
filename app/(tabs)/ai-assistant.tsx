@@ -418,17 +418,17 @@ export default function AIAssistantScreen() {
     const monthlyAmount = Math.ceil(targetAmount / timeframe);
     const weeklyAmount = Math.ceil(monthlyAmount / 4.33);
     const biweeklyAmount = Math.ceil(monthlyAmount / 2);
-    const dailyAmount = Math.ceil(targetAmount / (timeframe * 30));
     const endOfMonthAmount = Math.ceil(targetAmount / timeframe);
     const firstOfMonthAmount = Math.ceil(targetAmount / timeframe);
     const freq = userMessage ? extractFrequency(userMessage) : null;
     if (freq === 'daily') {
+      // If user requests daily, fallback to weekly or show a message
       return [
         {
-          title: "Daily Payout",
-          amount: dailyAmount,
-          frequency: "daily",
-          description: `Schedule a payout of ₦${dailyAmount.toLocaleString()} every day for ${timeframe * 30} days.`
+          title: "Weekly Payout",
+          amount: weeklyAmount,
+          frequency: "weekly",
+          description: `Daily payouts are not supported. Here is a weekly payout option: ₦${weeklyAmount.toLocaleString()} every week for ${timeframe} months.`
         }
       ];
     } else if (freq === 'weekly') {
@@ -477,14 +477,8 @@ export default function AIAssistantScreen() {
         }
       ];
     }
-    // Default: show all 5 options
+    // Default: show all options except daily
     return [
-      {
-        title: "Daily Payout",
-        amount: dailyAmount,
-        frequency: "daily",
-        description: `Schedule a payout of ₦${dailyAmount.toLocaleString()} every day for ${timeframe * 30} days.`
-      },
       {
         title: "Weekly Payout",
         amount: weeklyAmount,
