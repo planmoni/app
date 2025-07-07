@@ -309,16 +309,16 @@ export default function ViewPayoutScreen() {
             <View style={styles.pauseContent}>
               <View style={styles.pauseInfo}>
                 <Text style={styles.pauseTitle}>
-                  {plan.status === 'paused' ? 'Resume Payouts' : 'Pause Payouts'}
+                  {plan.status === 'paused' ? 'Start Payouts' : 'Pause Payouts'}
                 </Text>
                 <Text style={styles.pauseDescription}>
                   {plan.status === 'paused'
-                    ? 'Resume your automated payouts to continue receiving funds on schedule.'
-                    : 'Temporarily stop your automated payouts. You can resume anytime.'}
+                    ? 'Start your automated payouts to continue receiving funds on schedule.'
+                    : 'Temporarily stop your automated payouts. You can start them again anytime.'}
                 </Text>
               </View>
               <Button
-                title={plan.status === 'paused' ? "Resume" : "Pause"}
+                title={plan.status === 'paused' ? 'Start' : 'Pause'}
                 onPress={handlePauseResume}
                 style={[
                   styles.pauseButton,

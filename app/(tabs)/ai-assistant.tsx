@@ -418,17 +418,17 @@ export default function AIAssistantScreen() {
     const monthlyAmount = Math.ceil(targetAmount / timeframe);
     const weeklyAmount = Math.ceil(monthlyAmount / 4.33);
     const biweeklyAmount = Math.ceil(monthlyAmount / 2);
-    const dailyAmount = Math.ceil(targetAmount / (timeframe * 30));
     const endOfMonthAmount = Math.ceil(targetAmount / timeframe);
     const firstOfMonthAmount = Math.ceil(targetAmount / timeframe);
     const freq = userMessage ? extractFrequency(userMessage) : null;
     if (freq === 'daily') {
+      // If user requests daily, fallback to weekly or show a message
       return [
         {
-          title: "Daily Payout",
-          amount: dailyAmount,
-          frequency: "daily",
-          description: `Schedule a payout of ₦${dailyAmount.toLocaleString()} every day for ${timeframe * 30} days.`
+          title: "Weekly Payout",
+          amount: weeklyAmount,
+          frequency: "weekly",
+          description: `Daily payouts are not supported. Here is a weekly payout option: ₦${weeklyAmount.toLocaleString()} every week for ${timeframe} months.`
         }
       ];
     } else if (freq === 'weekly') {
@@ -477,14 +477,8 @@ export default function AIAssistantScreen() {
         }
       ];
     }
-    // Default: show all 5 options
+    // Default: show all options except daily
     return [
-      {
-        title: "Daily Payout",
-        amount: dailyAmount,
-        frequency: "daily",
-        description: `Schedule a payout of ₦${dailyAmount.toLocaleString()} every day for ${timeframe * 30} days.`
-      },
       {
         title: "Weekly Payout",
         amount: weeklyAmount,
@@ -991,7 +985,7 @@ export default function AIAssistantScreen() {
               </TouchableOpacity>
               <View style={styles.aiBadgeContainer}>
                 <Sparkles size={14} color={colors.primary} />
-                <Text style={styles.aiBadgeText}>PlanmoniAI</Text>
+                <Text style={styles.aiBadgeText}>Planmoni AI</Text>
               </View>
             </Animated.View>
           );
@@ -1015,7 +1009,7 @@ export default function AIAssistantScreen() {
             {!isUser && (
               <View style={styles.aiBadgeContainer}>
                 <Sparkles size={14} color={colors.primary} />
-                <Text style={styles.aiBadgeText}>PlanmoniAI</Text>
+                <Text style={styles.aiBadgeText}>Planmoni AI</Text>
               </View>
             )}
           </Animated.View>
@@ -1069,7 +1063,7 @@ export default function AIAssistantScreen() {
             </View>
             <View style={styles.aiBadgeContainer}>
               <Sparkles size={14} color={colors.primary} />
-              <Text style={styles.aiBadgeText}>PlanmoniAI</Text>
+              <Text style={styles.aiBadgeText}>Planmoni AI</Text>
             </View>
           </Animated.View>
         );
@@ -1118,7 +1112,7 @@ export default function AIAssistantScreen() {
             </View>
             <View style={styles.aiBadgeContainer}>
               <Sparkles size={14} color={colors.primary} />
-              <Text style={styles.aiBadgeText}>PlanmoniAI</Text>
+              <Text style={styles.aiBadgeText}>Planmoni AI</Text>
             </View>
           </Animated.View>
         );
@@ -1202,8 +1196,8 @@ export default function AIAssistantScreen() {
       width: '95%',
     },
     messageText: {
-      fontSize: 16,
-      lineHeight: 22,
+      fontSize:18,
+      lineHeight: 24,
     },
     userText: {
       color: '#FFFFFF',
@@ -1229,7 +1223,7 @@ export default function AIAssistantScreen() {
       marginRight: 4,
     },
     typingText: {
-      fontSize: 16,
+      fontSize: 18,
       color: colors.textSecondary,
       marginLeft: 8,
     },
@@ -1247,7 +1241,7 @@ export default function AIAssistantScreen() {
       borderRadius: 24,
       paddingHorizontal: 16,
       paddingVertical: 12,
-      fontSize: 16,
+      fontSize: 18,
       color: colors.text,
       marginRight: 8,
       maxHeight: 120,
@@ -1268,7 +1262,7 @@ export default function AIAssistantScreen() {
       backgroundColor: colors.surface,
     },
     suggestionsTitle: {
-      fontSize: 14,
+      fontSize: 16,
       fontWeight: '600',
       color: colors.textSecondary,
       marginBottom: 12,
@@ -1286,7 +1280,7 @@ export default function AIAssistantScreen() {
       borderColor: colors.border,
     },
     suggestionText: {
-      fontSize: 16,
+      fontSize: 18,
       color: colors.text,
     },
     planOptions: {
@@ -1310,16 +1304,16 @@ export default function AIAssistantScreen() {
       flex: 1,
     },
     planTitle: {
-      fontSize: 16,
+      fontSize: 18,
       fontWeight: '600',
       marginBottom: 4,
     },
     planAmount: {
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: '700',
     },
     planDescription: {
-      fontSize: 16,
+      fontSize: 18,
       marginBottom: 16,
     },
     planButton: {
@@ -1334,7 +1328,7 @@ export default function AIAssistantScreen() {
     },
     planButtonText: {
       color: '#FFFFFF',
-      fontSize: 16,
+      fontSize: 18,
       fontWeight: '600',
     },
     insightsContainer: {
@@ -1488,9 +1482,9 @@ export default function AIAssistantScreen() {
             </LinearGradient>
           </MaskedView>
         </View>
-        <View style={styles.aiIconContainer}>
-          <Sparkles size={20} color="#FAD923" />
-        </View>
+        {/* <View style={styles.aiIconContainer}> */}
+          {/* <Sparkles size={20} color={colors.primary} /> */}
+        {/* </View> */}
       </View>
 
       <KeyboardAvoidingView 
