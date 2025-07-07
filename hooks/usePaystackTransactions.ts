@@ -64,17 +64,17 @@ export function usePaystackTransactions() {
       const response = await fetch('https://api.paystack.co/transaction', {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY}`,
+          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`,
           'Content-Type': 'application/json',
         },
       });
-
+      
       if (!response.ok) {
         throw new Error(`Paystack API error: ${response.status}`);
       }
 
       const data = await response.json();
-    //   console.log("this is a data: ", data)
+      // console.log("this is a data: ", data)
       
       if (data.status && data.data) {
         // Filter transactions for this user's virtual account, status, and channel
@@ -93,7 +93,6 @@ export function usePaystackTransactions() {
         // Process new transactions and update balance
         await processNewTransactions(userTransactions, session.user.id);
       }
-
     } catch (err) {
       console.error('Error fetching Paystack transactions:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch transactions');
