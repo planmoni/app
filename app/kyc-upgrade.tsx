@@ -11,6 +11,7 @@ import FloatingButton from '@/components/FloatingButton';
 import { useAuth } from '@/contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
 import { useWindowDimensions } from 'react-native';
+import axios from 'axios';
 
 type KYCStep = 'personal' | 'bvn_verification' | 'id_face_match' | 'address_details' | 'review';
 type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
@@ -103,61 +104,68 @@ export default function KYCUpgradeScreen() {
         return;
       }
 
-      const myHeaders = new Headers();
-      myHeaders.append("AppId", process.env.DOJAH_APP_ID!);
-      myHeaders.append("Authorization", process.env.DOJAH_PRIVATE_KEY!);
+      // Check if environment variables are available
+      const appId = process.env.EXPO_PUBLIC_DOJAH_APP_ID!;
+      const privateKey = process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!;
+      
+      if (!appId || !privateKey) {
+        console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
+        showToast('KYC service configuration error', 'error');
+        return;
+      }
 
-      console.log('myHeaders :', myHeaders);
+      console.log('Using AppId:', appId);
+      console.log('Using Private Key:', privateKey ? '***' + privateKey.slice(-4) : 'undefined');
       
-      const requestOptions = {
-        method: "GET",
-        headers: myHeaders
-      };
-
+      const response = await axios.get(`https://api.dojah.io/api/v1/kyc/bvn/full?bvn=${bvn}`, {
+        headers: {
+          'AppId': appId,
+          'Authorization': privateKey,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000 // 10 second timeout
+      });
       
-      const response = await fetch(`https://sandbox.dojah.io/api/v1/kyc/bvn/full?bvn=${bvn}`, requestOptions);
-      
-    
-      console.log('Response :', response);
-      // Check content type before parsing
-      const contentType = response.headers.get('content-type');
       console.log('Response status:', response.status);
-      console.log('Response content-type:', contentType);
+      console.log('Response data:', response.data);
       
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Expected JSON but received:', contentType);
-        console.error('Response body:', text.substring(0, 500));
-        throw new Error(`API returned ${contentType || 'unknown content type'} instead of JSON. This usually means the API endpoint is not available or returning an error page.`);
+      const data = response.data;
+      setVerificationStatus(data.overallStatus);
+      
+      // If user is already verified, show appropriate message
+      if (data.overallStatus === 'fully_verified') {
+        showToast('Your account is already fully verified', 'success');
+        setCurrentStep('review');
+      } else if (data.overallStatus === 'partially_verified') {
+        showToast('Your identity is verified. Please complete document verification', 'info');
+        setBvnVerified(true);
+        setCurrentStep('id_face_match');
       }
       
-      if (response.ok) {
-        const data = await response.json();
-        setVerificationStatus(data.overallStatus);
-        
-        // If user is already verified, show appropriate message
-        if (data.overallStatus === 'fully_verified') {
-          showToast('Your account is already fully verified', 'success');
-          setCurrentStep('review');
-        } else if (data.overallStatus === 'partially_verified') {
-          showToast('Your identity is verified. Please complete document verification', 'info');
-          setBvnVerified(true);
-          setCurrentStep('id_face_match');
-        }
-      } else {
-        const errorData = await response.json();
-        console.error('API error response:', errorData);
-        throw new Error(errorData.error || `API request failed with status ${response.status}`);
-      }
     } catch (error) {
       console.error('Error fetching verification status:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       
-      // Show a more user-friendly error message
-      if (errorMessage.includes('JSON') || errorMessage.includes('content type')) {
-        showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        console.error('Axios error details:', {
+          status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          headers: error.response?.headers
+        });
+        
+        if (status === 401) {
+          showToast('Invalid API credentials. Please check configuration.', 'error');
+        } else if (status === 400) {
+          const errorMessage = error.response?.data?.error || 'Invalid request';
+          showToast(errorMessage, 'error');
+        } else if (status && status >= 500) {
+          showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
+        } else {
+          showToast(error.response?.data?.error || 'Failed to fetch verification status', 'error');
+        }
       } else {
-        showToast('Failed to fetch verification status', 'error');
+        showToast('Network error. Please check your connection and try again.', 'error');
       }
     } finally {
       setIsLoading(false);
@@ -309,36 +317,32 @@ export default function KYCUpgradeScreen() {
       if (!session?.access_token) {
         throw new Error('Authentication required');
       }
+
+      // Check if environment variables are available
+      const appId = process.env.DOJAH_APP_ID;
+      const privateKey = process.env.DOJAH_PRIVATE_KEY;
       
-      const response = await fetch('https://sandbox.dojah.io/api/v1/kyc/bvn', {
-        method: 'POST',
+      if (!appId || !privateKey) {
+        console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
+        showToast('KYC service configuration error', 'error');
+        return;
+      }
+      
+      const response = await axios.post('https://api.dojah.io/api/v1/kyc/bvn', {
+        verificationType: 'bvn',
+        verificationData: { bvn }
+      }, {
         headers: {
-          'AppId': `Bearer ${process.env.DOJAH_APP_ID}`,
-          'Authorization': `Bearer ${process.env.DOJAH_PRIVATE_KEY}`,
+          'AppId': appId,
+          'Authorization': privateKey,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          verificationType: 'bvn',
-          verificationData: { bvn }
-        })
+        timeout: 10000
       });
       
-      // Check content type before parsing
-      const contentType = response.headers.get('content-type');
+      console.log('BVN verification response:', response.data);
       
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('BVN verification - Expected JSON but received:', contentType);
-        console.error('Response body:', text.substring(0, 500));
-        throw new Error('KYC service is temporarily unavailable. Please try again later.');
-      }
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'BVN verification failed');
-      }
-      
-      const data = await response.json();
+      const data = response.data;
       
       // Check if verification was successful
       if (data.status === 'success') {
@@ -359,9 +363,28 @@ export default function KYCUpgradeScreen() {
         throw new Error('BVN verification failed');
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'BVN verification failed';
-      showToast(errorMessage, 'error');
-      setErrors({ bvn: errorMessage });
+      console.error('BVN verification error:', error);
+      
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const errorMessage = error.response?.data?.error || 'BVN verification failed';
+        
+        if (status === 401) {
+          showToast('Invalid API credentials. Please check configuration.', 'error');
+        } else if (status === 400) {
+          showToast(errorMessage, 'error');
+        } else if (status && status >= 500) {
+          showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
+        } else {
+          showToast(errorMessage, 'error');
+        }
+        
+        setErrors({ bvn: errorMessage });
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'BVN verification failed';
+        showToast(errorMessage, 'error');
+        setErrors({ bvn: errorMessage });
+      }
     } finally {
       setIsResolvingBvn(false);
     }
@@ -375,39 +398,36 @@ export default function KYCUpgradeScreen() {
       if (!session?.access_token) {
         throw new Error('Authentication required');
       }
+
+      // Check if environment variables are available
+      const appId = process.env.DOJAH_APP_ID;
+      const privateKey = process.env.DOJAH_PRIVATE_KEY;
+      
+      if (!appId || !privateKey) {
+        console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
+        showToast('KYC service configuration error', 'error');
+        return;
+      }
       
       // In a real app, you would upload the images to a storage service
       // and then send the URLs to the Dojah API
       
-      const response = await fetch('/api/dojah-kyc', {
-        method: 'PUT',
+      const response = await axios.put('https://api.dojah.io/api/v1/document/analysis', {
+        documentType: selectedIdentityType,
+        documentImage: documentFrontImage,
+        selfieImage
+      }, {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'AppId': appId,
+          'Authorization': privateKey,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          documentType: selectedIdentityType,
-          documentImage: documentFrontImage,
-          selfieImage
-        })
+        timeout: 15000 // Longer timeout for document processing
       });
       
-      // Check content type before parsing
-      const contentType = response.headers.get('content-type');
+      console.log('Document verification response:', response.data);
       
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Document verification - Expected JSON but received:', contentType);
-        console.error('Response body:', text.substring(0, 500));
-        throw new Error('KYC service is temporarily unavailable. Please try again later.');
-      }
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Document verification failed');
-      }
-      
-      const data = await response.json();
+      const data = response.data;
       
       // Check if verification was successful
       if (data.status === 'success') {
@@ -420,9 +440,28 @@ export default function KYCUpgradeScreen() {
         throw new Error('Document verification failed');
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Document verification failed';
-      showToast(errorMessage, 'error');
-      setErrors({ documentVerification: errorMessage });
+      console.error('Document verification error:', error);
+      
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const errorMessage = error.response?.data?.error || 'Document verification failed';
+        
+        if (status === 401) {
+          showToast('Invalid API credentials. Please check configuration.', 'error');
+        } else if (status === 400) {
+          showToast(errorMessage, 'error');
+        } else if (status && status >= 500) {
+          showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
+        } else {
+          showToast(errorMessage, 'error');
+        }
+        
+        setErrors({ documentVerification: errorMessage });
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Document verification failed';
+        showToast(errorMessage, 'error');
+        setErrors({ documentVerification: errorMessage });
+      }
     } finally {
       setIsVerifyingDocuments(false);
     }
@@ -456,29 +495,17 @@ export default function KYCUpgradeScreen() {
       }
       
       // Fetch final verification status
-      const response = await fetch('/api/dojah-kyc', {
-        method: 'GET',
+      const response = await axios.get('/api/dojah-kyc', {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: 10000
       });
       
-      // Check content type before parsing
-      const contentType = response.headers.get('content-type');
+      console.log('Final verification response:', response.data);
       
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Final verification check - Expected JSON but received:', contentType);
-        console.error('Response body:', text.substring(0, 500));
-        throw new Error('KYC service is temporarily unavailable. Please try again later.');
-      }
-      
-      if (!response.ok) {
-        throw new Error('Failed to get verification status');
-      }
-      
-      const data = await response.json();
+      const data = response.data;
       
       if (data.overallStatus === 'fully_verified') {
         showToast('Verification completed successfully!', 'success');
@@ -488,8 +515,21 @@ export default function KYCUpgradeScreen() {
         router.replace('/(tabs)');
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to complete verification. Please try again.';
-      showToast(errorMessage, 'error');
+      console.error('Final verification error:', error);
+      
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        
+        if (status === 401) {
+          showToast('Authentication required. Please log in again.', 'error');
+        } else if (status && status >= 500) {
+          showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
+        } else {
+          showToast(error.response?.data?.error || 'Failed to complete verification. Please try again.', 'error');
+        }
+      } else {
+        showToast('Network error. Please check your connection and try again.', 'error');
+      }
     } finally {
       setIsLoading(false);
     }
