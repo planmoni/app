@@ -1,8 +1,8 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Shield, User, Calendar, Info, Lock, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, FileText } from 'lucide-react-native';
+import { ArrowLeft, Shield, User, Calendar, Info, Lock, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, FileText, ChevronLeft, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import Button from '@/components/Button';
@@ -34,6 +34,11 @@ export default function KYCUpgradeScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isResolvingBvn, setIsResolvingBvn] = useState(false);
   const [isVerifyingDocuments, setIsVerifyingDocuments] = useState(false);
+  
+  // Date picker modal
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   
   // Verification status
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
@@ -99,9 +104,10 @@ export default function KYCUpgradeScreen() {
       }
 
       const myHeaders = new Headers();
-      myHeaders.append("Appid", process.env.DOJAH_APP_ID!);
+      myHeaders.append("AppId", process.env.DOJAH_APP_ID!);
       myHeaders.append("Authorization", process.env.DOJAH_PRIVATE_KEY!);
 
+      console.log('myHeaders :', myHeaders);
       
       const requestOptions = {
         method: "GET",
@@ -489,6 +495,87 @@ export default function KYCUpgradeScreen() {
     }
   };
   
+  // Date picker functions
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+
+  const formatDateForDisplay = (date: Date) => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const parseDateFromString = (dateString: string): Date | null => {
+    if (!dateString) return null;
+    const parts = dateString.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1;
+      const year = parseInt(parts[2]);
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        return new Date(year, month, day);
+      }
+    }
+    return null;
+  };
+
+  const handleDatePickerOpen = () => {
+    // Parse existing date if available
+    const existingDate = parseDateFromString(dateOfBirth);
+    if (existingDate) {
+      setSelectedDate(existingDate);
+      setCurrentMonth(existingDate);
+    } else {
+      setSelectedDate(null);
+      setCurrentMonth(new Date());
+    }
+    setIsDatePickerVisible(true);
+  };
+
+  const handleDatePickerClose = () => {
+    setIsDatePickerVisible(false);
+  };
+
+  const handleDateSelect = (date: Date) => {
+    setSelectedDate(date);
+  };
+
+  const handleDateConfirm = () => {
+    if (selectedDate) {
+      const formattedDate = formatDateForDisplay(selectedDate);
+      setDateOfBirth(formattedDate);
+      setErrors(prev => ({ ...prev, dateOfBirth: '' }));
+    }
+    setIsDatePickerVisible(false);
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  };
+
+  const isDateSelectable = (date: Date) => {
+    const today = new Date();
+    const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate()); // 100 years ago
+    const maxDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate()); // 18 years ago
+    return date >= minDate && date <= maxDate;
+  };
+
   const formatDateInput = (text: string) => {
     // Remove non-numeric characters
     let cleaned = text.replace(/[^0-9]/g, '');
@@ -671,7 +758,9 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Date of Birth</Text>
           <View style={[styles.inputContainer, errors.dateOfBirth && styles.inputError]}>
-            <Calendar size={20} color={colors.textSecondary} />
+            <Pressable onPress={handleDatePickerOpen} style={styles.calendarIconButton}>
+              <Calendar size={20} color={colors.primary} />
+            </Pressable>
             <TextInput
               ref={dobInputRef}
               style={styles.input}
@@ -1366,6 +1455,103 @@ export default function KYCUpgradeScreen() {
         return renderReviewStep();
     }
   };
+
+  const renderDatePickerModal = () => {
+    const daysInMonth = getDaysInMonth(currentMonth);
+    const firstDayOffset = getFirstDayOfMonth(currentMonth);
+
+    return (
+      <Modal
+        visible={isDatePickerVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleDatePickerClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.datePickerModal}>
+            <View style={styles.datePickerHeader}>
+              <Text style={styles.datePickerTitle}>Select Date of Birth</Text>
+              <Pressable onPress={handleDatePickerClose} style={styles.closeButton}>
+                <X size={20} color={colors.text} />
+              </Pressable>
+            </View>
+
+            <View style={styles.calendarHeader}>
+              <Pressable onPress={handlePrevMonth} style={styles.navigationButton}>
+                <ChevronLeft size={20} color={colors.textSecondary} />
+              </Pressable>
+              <Text style={styles.monthYearText}>
+                {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+              </Text>
+              <Pressable onPress={handleNextMonth} style={styles.navigationButton}>
+                <ChevronRight size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.weekDays}>
+              {DAYS.map(day => (
+                <View key={day} style={styles.weekDay}>
+                  <Text style={styles.weekDayText}>{day}</Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.daysGrid}>
+              {Array.from({ length: firstDayOffset }).map((_, index) => (
+                <View key={`empty-${index}`} style={styles.dayCell} />
+              ))}
+              
+              {Array.from({ length: daysInMonth }).map((_, index) => {
+                const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), index + 1);
+                const isSelectable = isDateSelectable(date);
+                const isSelected = selectedDate && 
+                  date.getDate() === selectedDate.getDate() &&
+                  date.getMonth() === selectedDate.getMonth() &&
+                  date.getFullYear() === selectedDate.getFullYear();
+
+                return (
+                  <Pressable
+                    key={index}
+                    style={[
+                      styles.dayCell,
+                      isSelected && styles.selectedDay,
+                      !isSelectable && styles.disabledDay,
+                    ]}
+                    onPress={() => isSelectable && handleDateSelect(date)}
+                    disabled={!isSelectable}
+                  >
+                    <Text style={[
+                      styles.dayText,
+                      isSelected && styles.selectedDayText,
+                      !isSelectable && styles.disabledDayText,
+                    ]}>
+                      {index + 1}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.datePickerActions}>
+              <Pressable 
+                style={[styles.datePickerButton, styles.cancelButton]}
+                onPress={handleDatePickerClose}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.datePickerButton, styles.confirmButton]}
+                onPress={handleDateConfirm}
+                disabled={!selectedDate}
+              >
+                <Text style={styles.confirmButtonText}>Confirm</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
   
   // Calculate responsive sizes
   const headerPadding = isSmallScreen ? 12 : 16;
@@ -1373,7 +1559,7 @@ export default function KYCUpgradeScreen() {
   const titleSize = isSmallScreen ? 20 : 24;
   const subtitleSize = isSmallScreen ? 14 : 16;
   const labelSize = isSmallScreen ? 13 : 14;
-  const inputHeight = isSmallScreen ? 50 : 56;
+  const inputHeight = isSmallScreen ? 50 : 60;
   
   const styles = StyleSheet.create({
     container: {
@@ -1458,7 +1644,7 @@ export default function KYCUpgradeScreen() {
       borderColor: colors.border,
       borderRadius: 12,
       backgroundColor: colors.surface,
-      paddingHorizontal: 16,
+      paddingHorizontal: 14,
       height: inputHeight,
     },
     inputError: {
@@ -1470,8 +1656,12 @@ export default function KYCUpgradeScreen() {
       color: colors.text,
       marginLeft: 12,
     },
+    calendarIconButton: {
+      padding: 4,
+      borderRadius: 6,
+    },
     multilineInput: {
-      height: inputHeight * 2,
+      height: inputHeight * 0.9,
       textAlignVertical: 'top',
       paddingTop: 16,
     },
@@ -1731,6 +1921,127 @@ export default function KYCUpgradeScreen() {
       color: colors.textSecondary,
       marginTop: 16,
     },
+    // Date picker modal styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 16,
+    },
+    datePickerModal: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: isSmallScreen ? 16 : 24,
+      width: '100%',
+      maxWidth: 400,
+      maxHeight: '90%',
+    },
+    datePickerHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    datePickerTitle: {
+      fontSize: isSmallScreen ? 18 : 20,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    closeButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    calendarHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 16,
+    },
+    navigationButton: {
+      padding: 8,
+      backgroundColor: colors.backgroundTertiary,
+      borderRadius: 8,
+    },
+    monthYearText: {
+      fontSize: isSmallScreen ? 14 : 16,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    weekDays: {
+      flexDirection: 'row',
+      marginBottom: 8,
+    },
+    weekDay: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    weekDayText: {
+      fontSize: isSmallScreen ? 12 : 14,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    daysGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginBottom: 24,
+    },
+    dayCell: {
+      width: `${100/7}%`,
+      aspectRatio: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    dayText: {
+      fontSize: isSmallScreen ? 12 : 14,
+      color: colors.text,
+    },
+    selectedDay: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+    },
+    selectedDayText: {
+      color: '#FFFFFF',
+      fontWeight: '500',
+    },
+    disabledDay: {
+      opacity: 0.3,
+    },
+    disabledDayText: {
+      color: colors.textTertiary,
+    },
+    datePickerActions: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    datePickerButton: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    cancelButton: {
+      backgroundColor: colors.backgroundTertiary,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    confirmButton: {
+      backgroundColor: colors.primary,
+    },
+    cancelButtonText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    confirmButtonText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: '#FFFFFF',
+    },
   });
   
   if (isLoading && !currentStep) {
@@ -1782,6 +2093,8 @@ export default function KYCUpgradeScreen() {
         }
         loading={isLoading || isResolvingBvn || isVerifyingDocuments}
       />
+      
+      {renderDatePickerModal()}
     </SafeAreaView>
   );
 }

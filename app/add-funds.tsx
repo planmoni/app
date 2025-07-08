@@ -300,7 +300,7 @@ export default function AddFundsScreen() {
           { paddingBottom: footerHeight }
         ]}
       >
-        {/* Bank Transfer Tab */}
+        {/* Bank Transfer Tabs */}
         <View style={[styles.tabContent, { width: screenWidth }]}>
           <View style={styles.content}>
             <Text style={styles.title}>Add funds via <Text style={styles.highlight}>Bank Transfer</Text></Text>
