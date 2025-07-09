@@ -180,9 +180,9 @@ export default function HomeScreen() {
       transactionId: transaction.id,
       planRef: transaction.payout_plan_id || '',
       paymentMethod: transaction.type === 'deposit' ? 'Bank Transfer' : 
-                    transaction.bank_account_id ? 
-                    `Bank Account •••• ${transaction.bank_account_id.slice(-4)}` : 
-                    'Bank Account',
+        transaction.bank_account_id ? 
+        `Bank Account •••• ${transaction.bank_account_id.slice(-4)}` : 
+        'Bank Account',
       initiatedBy: 'You',
       processingTime: transaction.status === 'completed' ? 'Instant' : '2-3 business days',
     };
