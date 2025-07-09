@@ -394,7 +394,7 @@ export default function HomeScreen() {
               <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text>
             </View>
             <View style={styles.buttonGroup}>
-            <Pressable 
+              <Pressable 
                 style={styles.addFundsButton} 
                 onPress={handleAddFunds}
               >
