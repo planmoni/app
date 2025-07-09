@@ -397,8 +397,9 @@ export default function AddFundsScreen() {
 
             <View style={styles.paymentMethodsContainer}>
               <Pressable 
-                style={styles.paymentMethod}
-                onPress={() => handleNavigateToDepositFlow('card')}
+                style={[styles.paymentMethod, styles.disabledPaymentMethod]}
+                onPress={() => {}}
+                disabled={true}
               >
                 <View style={styles.paymentMethodIcon}>
                   <CreditCard size={24} color={colors.primary} />
@@ -407,6 +408,7 @@ export default function AddFundsScreen() {
                   <Text style={styles.paymentMethodTitle}>Debit/Credit Card</Text>
                   <Text style={styles.paymentMethodDescription}>Add funds using your card</Text>
                 </View>
+                <View style={styles.comingSoonTag}><Text style={styles.comingSoonText}>Coming Soon</Text></View>
                 <ChevronRight size={20} color={colors.textSecondary} />
               </Pressable>
 
@@ -425,8 +427,9 @@ export default function AddFundsScreen() {
               </Pressable>
 
               <Pressable 
-                style={styles.paymentMethod}
-                onPress={() => handleNavigateToDepositFlow('bank-account')}
+                style={[styles.paymentMethod, styles.disabledPaymentMethod]}
+                onPress={() => {}}
+                disabled={true}
               >
                 <View style={styles.paymentMethodIcon}>
                   <Building2 size={24} color={colors.primary} />
@@ -435,6 +438,7 @@ export default function AddFundsScreen() {
                   <Text style={styles.paymentMethodTitle}>Bank Account</Text>
                   <Text style={styles.paymentMethodDescription}>Add funds from your bank account</Text>
                 </View>
+                <View style={styles.comingSoonTag}><Text style={styles.comingSoonText}>Coming Soon</Text></View>
                 <ChevronRight size={20} color={colors.textSecondary} />
               </Pressable>
             </View>
@@ -949,5 +953,21 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontWeight: '500',
     color: colors.textSecondary,
     marginLeft: 8,
+  },
+  disabledPaymentMethod: {
+    opacity: 0.5,
+  },
+  comingSoonTag: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginRight: 8,
+    alignSelf: 'center',
+  },
+  comingSoonText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
 });

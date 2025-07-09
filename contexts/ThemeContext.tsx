@@ -83,7 +83,7 @@ const darkColors = {
   errorLight: '#991B1B',
   
   // Border colors
-  border: '#475569',
+  border: '#29323E',
   borderSecondary: '#64748B',
   
   // Card colors
