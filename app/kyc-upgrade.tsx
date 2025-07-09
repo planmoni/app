@@ -104,65 +104,66 @@ export default function KYCUpgradeScreen() {
         return;
       }
 
-      // Check if environment variables are available
-      const appId = process.env.EXPO_PUBLIC_DOJAH_APP_ID!;
-      const privateKey = process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!;
-      
-      if (!appId || !privateKey) {
-        console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
-        showToast('KYC service configuration error', 'error');
-        return;
-      }
-
-      console.log('Using AppId:', appId);
-      console.log('Using Private Key:', privateKey ? '***' + privateKey.slice(-4) : 'undefined');
-      
-      const response = await axios.get(`https://api.dojah.io/api/v1/kyc/bvn/full?bvn=${bvn}`, {
+      // Fetch KYC progress from database instead of calling Dojah API
+      const response = await axios.get('/api/kyc-progress', {
         headers: {
-          'AppId': appId,
-          'Authorization': privateKey,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
-        timeout: 10000 // 10 second timeout
+        timeout: 10000
       });
       
-      console.log('Response status:', response.status);
-      console.log('Response data:', response.data);
+      console.log('KYC Progress response:', response.data);
       
       const data = response.data;
-      setVerificationStatus(data.overallStatus);
       
-      // If user is already verified, show appropriate message
-      if (data.overallStatus === 'fully_verified') {
-        showToast('Your account is already fully verified', 'success');
-        setCurrentStep('review');
-      } else if (data.overallStatus === 'partially_verified') {
-        showToast('Your identity is verified. Please complete document verification', 'info');
-        setBvnVerified(true);
-        setCurrentStep('id_face_match');
+      if (data.status === 'success' && data.progress) {
+        const progress = data.progress;
+        
+        // Set the current step based on database progress
+        setCurrentStep(progress.current_step);
+        
+        // Set verification flags based on database
+        setBvnVerified(progress.bvn_verified);
+        setDocumentsVerified(progress.documents_verified);
+        
+        // Set verification status
+        if (progress.overall_completed) {
+          setVerificationStatus('fully_verified');
+          showToast('Your account is already fully verified', 'success');
+        } else if (progress.bvn_verified && progress.documents_verified) {
+          setVerificationStatus('partially_verified');
+          showToast('Your identity is verified. Please complete address details', 'info');
+        } else if (progress.bvn_verified) {
+          setVerificationStatus('partially_verified');
+          showToast('Your BVN is verified. Please complete document verification', 'info');
+        } else {
+          setVerificationStatus('unverified');
+        }
+        
+        console.log('Resumed KYC from step:', progress.current_step);
+        console.log('Progress percentage:', progress.progressPercentage + '%');
+        
+      } else {
+        console.error('Failed to fetch KYC progress:', data.error);
+        showToast('Failed to load KYC progress', 'error');
       }
       
     } catch (error) {
-      console.error('Error fetching verification status:', error);
+      console.error('Error fetching KYC progress:', error);
       
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
-        console.error('Axios error details:', {
-          status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          headers: error.response?.headers
-        });
         
         if (status === 401) {
-          showToast('Invalid API credentials. Please check configuration.', 'error');
+          showToast('Authentication required. Please log in again.', 'error');
         } else if (status === 400) {
           const errorMessage = error.response?.data?.error || 'Invalid request';
           showToast(errorMessage, 'error');
         } else if (status && status >= 500) {
-          showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
+          showToast('Service temporarily unavailable. Please try again later.', 'error');
         } else {
-          showToast(error.response?.data?.error || 'Failed to fetch verification status', 'error');
+          showToast(error.response?.data?.error || 'Failed to fetch KYC progress', 'error');
         }
       } else {
         showToast('Network error. Please check your connection and try again.', 'error');
@@ -279,10 +280,38 @@ export default function KYCUpgradeScreen() {
     return true;
   };
   
+  const updateKYCProgress = async (updates: {
+    currentStep?: KYCStep;
+    personalInfoCompleted?: boolean;
+    bvnVerified?: boolean;
+    documentsVerified?: boolean;
+    addressCompleted?: boolean;
+    overallCompleted?: boolean;
+  }) => {
+    try {
+      if (!session?.access_token) return;
+
+      await axios.post('/api/kyc-progress', updates, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (error) {
+      console.error('Error updating KYC progress:', error);
+      // Don't show error to user as this is background sync
+    }
+  };
+
   const handleNextStep = async () => {
     switch (currentStep) {
       case 'personal':
         if (validatePersonalInfo()) {
+          // Update progress when personal info is completed
+          await updateKYCProgress({
+            currentStep: 'bvn_verification',
+            personalInfoCompleted: true
+          });
           setCurrentStep('bvn_verification');
         }
         break;
@@ -300,6 +329,11 @@ export default function KYCUpgradeScreen() {
         break;
       case 'address_details':
         if (validateAddressDetails()) {
+          // Update progress when address is completed
+          await updateKYCProgress({
+            currentStep: 'review',
+            addressCompleted: true
+          });
           setCurrentStep('review');
         }
         break;
@@ -319,8 +353,8 @@ export default function KYCUpgradeScreen() {
       }
 
       // Check if environment variables are available
-      const appId = process.env.DOJAH_APP_ID;
-      const privateKey = process.env.DOJAH_PRIVATE_KEY;
+      const appId = process.env.EXPO_PUBLIC_DOJAH_APP_ID!;
+      const privateKey = process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!;
       
       if (!appId || !privateKey) {
         console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
@@ -328,39 +362,51 @@ export default function KYCUpgradeScreen() {
         return;
       }
       
-      const response = await axios.post('https://api.dojah.io/api/v1/kyc/bvn', {
-        verificationType: 'bvn',
-        verificationData: { bvn }
-      }, {
+      const response = await axios.get('https://api.dojah.io/api/v1/kyc/bvn/advance?bvn=' + bvn, {
         headers: {
           'AppId': appId,
           'Authorization': privateKey,
           'Content-Type': 'application/json'
         },
-        timeout: 10000
+        timeout: 15000
       });
       
       console.log('BVN verification response:', response.data);
       
       const data = response.data;
+
+      console.log('BVN verification data:', data);
       
       // Check if verification was successful
-      if (data.status === 'success') {
+      if (data.status === 'success' || data) {
         setBvnVerified(true);
         
-        // If we have a name from the BVN verification, store it
-        if (data.data && data.data.firstName && data.data.lastName) {
-          setBvnMatchedName(`${data.data.firstName} ${data.data.lastName}`);
+        // Extract name from the verification result
+        const verificationData = data;
+        console.log('Verification data structure:', verificationData);
+        
+        // Try different possible field names for the name
+        let firstName = verificationData.firstName || verificationData.first_name || verificationData.firstname;
+        let lastName = verificationData.lastName || verificationData.last_name || verificationData.lastname;
+        
+        console.log('Extracted names:', { firstName, lastName });
+        
+        if (firstName && lastName) {
+          setBvnMatchedName(`${firstName} ${lastName}`);
           showToast('BVN matched! Let\'s continue.', 'success');
         } else {
           setBvnMatchedName('Verified');
           showToast('BVN verified successfully', 'success');
         }
         
-        // Move to next step
+        // Update progress and move to next step
+        await updateKYCProgress({
+          currentStep: 'id_face_match',
+          bvnVerified: true
+        });
         setCurrentStep('id_face_match');
       } else {
-        throw new Error('BVN verification failed');
+        throw new Error(data.error || 'BVN verification failed');
       }
     } catch (error) {
       console.error('BVN verification error:', error);
@@ -434,10 +480,14 @@ export default function KYCUpgradeScreen() {
         setDocumentsVerified(true);
         showToast('Documents verified successfully', 'success');
         
-        // Move to next step
+        // Update progress and move to next step
+        await updateKYCProgress({
+          currentStep: 'address_details',
+          documentsVerified: true
+        });
         setCurrentStep('address_details');
       } else {
-        throw new Error('Document verification failed');
+        throw new Error(data.error || 'Document verification failed');
       }
     } catch (error) {
       console.error('Document verification error:', error);
@@ -470,15 +520,19 @@ export default function KYCUpgradeScreen() {
   const handlePreviousStep = () => {
     switch (currentStep) {
       case 'bvn_verification':
+        updateKYCProgress({ currentStep: 'personal' });
         setCurrentStep('personal');
         break;
       case 'id_face_match':
+        updateKYCProgress({ currentStep: 'bvn_verification' });
         setCurrentStep('bvn_verification');
         break;
       case 'address_details':
+        updateKYCProgress({ currentStep: 'id_face_match' });
         setCurrentStep('id_face_match');
         break;
       case 'review':
+        updateKYCProgress({ currentStep: 'address_details' });
         setCurrentStep('address_details');
         break;
       default:
@@ -508,6 +562,10 @@ export default function KYCUpgradeScreen() {
       const data = response.data;
       
       if (data.overallStatus === 'fully_verified') {
+        // Mark KYC as fully completed
+        await updateKYCProgress({
+          overallCompleted: true
+        });
         showToast('Verification completed successfully!', 'success');
         router.replace('/(tabs)');
       } else {

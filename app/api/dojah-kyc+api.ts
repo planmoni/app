@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     // Determine which Dojah endpoint to use based on verification type
     switch (verificationType) {
       case 'bvn':
-        endpoint = '/v1/kyc/bvn';
+        endpoint = '/v1/kyc/bvn/advance';
         payload = { bvn: verificationData.bvn };
         break;
       case 'nin':
@@ -139,7 +139,9 @@ export async function POST(request: Request) {
     console.log('Making request to Dojah API:', {
       endpoint,
       url: `${DOJAH_API_URL}${endpoint}`,
-      payload
+      payload,
+      appId: DOJAH_APP_ID ? '***' + DOJAH_APP_ID.slice(-4) : 'missing',
+      privateKey: DOJAH_PRIVATE_KEY ? '***' + DOJAH_PRIVATE_KEY.slice(-4) : 'missing'
     });
 
     // Make request to Dojah API
@@ -153,10 +155,13 @@ export async function POST(request: Request) {
       body: JSON.stringify(payload)
     });
 
+    console.log('Dojah API response status:', response.status, response.statusText);
+
     // Safely parse the response
     let data;
     try {
       data = await safeParseResponse(response);
+      console.log('Dojah API response data:', JSON.stringify(data, null, 2));
     } catch (parseError) {
       console.error('Error parsing Dojah API response:', parseError);
       return createJsonResponse({ 
@@ -203,7 +208,7 @@ export async function POST(request: Request) {
     return createJsonResponse({
       status: 'success',
       message: 'Identity verified successfully',
-      data: data.entity
+      data: data.entity || data.data || data
     });
   } catch (error) {
     console.error('Error verifying identity:', error);
