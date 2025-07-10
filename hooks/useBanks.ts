@@ -10,6 +10,9 @@ export type Bank = {
   currency: string;
   type: string;
   is_active: boolean;
+  logo?: string | any; // Can be URL string or local asset object
+  shortName?: string;
+  category?: 'commercial' | 'microfinance';
 };
 
 export function useBanks() {
@@ -29,33 +32,122 @@ export function useBanks() {
       setIsLoading(true);
       setError(null);
 
-      // Use a subset of Nigerian banks for the demo
-      setBanks([
-        { id: 1, name: 'Access Bank', code: '044', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 2, name: 'Citibank Nigeria', code: '023', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 3, name: 'Ecobank Nigeria', code: '050', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 4, name: 'Fidelity Bank', code: '070', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 5, name: 'First Bank of Nigeria', code: '011', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 6, name: 'First City Monument Bank', code: '214', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 7, name: 'Guaranty Trust Bank', code: '058', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 8, name: 'Heritage Bank', code: '030', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 9, name: 'Keystone Bank', code: '082', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 10, name: 'Polaris Bank', code: '076', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 11, name: 'Stanbic IBTC Bank', code: '221', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 12, name: 'Standard Chartered Bank', code: '068', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 13, name: 'Sterling Bank', code: '232', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 14, name: 'Union Bank of Nigeria', code: '032', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 15, name: 'United Bank for Africa', code: '033', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 16, name: 'Unity Bank', code: '215', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 17, name: 'Wema Bank', code: '035', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-        { id: 18, name: 'Zenith Bank', code: '057', country: 'Nigeria', currency: 'NGN', type: 'nuban', is_active: true },
-      ]);
+      const PAYSTACK_SECRET_KEY = process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY;
+      
+      if (!PAYSTACK_SECRET_KEY) {
+        throw new Error('Paystack secret key not configured');
+      }
+
+      const response = await fetch('https://api.paystack.co/bank', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch banks');
+      }
+
+      if (!data.status) {
+        throw new Error(data.message || 'Failed to fetch banks');
+      }
+
+      // Transform Paystack bank data to our format
+      const transformedBanks: Bank[] = data.data.map((bank: any, index: number) => ({
+        id: bank.id || index + 1,
+        name: bank.name,
+        code: bank.code,
+        country: bank.country || 'Nigeria',
+        currency: bank.currency || 'NGN',
+        type: bank.type || 'nuban',
+        is_active: bank.active !== false,
+        shortName: getShortName(bank.name),
+        category: determineCategory(bank.name),
+        logo: getBankIcon(bank.name, bank.code), // Use icon instead of logo
+      }));
+
+      setBanks(transformedBanks);
       setIsLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch banks');
-    } finally {
       setIsLoading(false);
     }
+  };
+
+  // Helper function to get short name
+  const getShortName = (bankName: string): string => {
+    const shortNames: { [key: string]: string } = {
+      'Access Bank': 'Access',
+      'Guaranty Trust Bank': 'GTBank',
+      'First Bank of Nigeria': 'FirstBank',
+      'First City Monument Bank': 'FCMB',
+      'United Bank for Africa': 'UBA',
+      'Zenith Bank': 'Zenith',
+      'Ecobank Nigeria': 'Ecobank',
+      'Fidelity Bank': 'Fidelity',
+      'Union Bank of Nigeria': 'Union Bank',
+      'Wema Bank': 'Wema',
+      'Sterling Bank': 'Sterling',
+      'Stanbic IBTC Bank': 'Stanbic',
+      'Standard Chartered Bank': 'StanChart',
+      'Heritage Bank': 'Heritage',
+      'Keystone Bank': 'Keystone',
+      'Polaris Bank': 'Polaris',
+      'Unity Bank': 'Unity',
+      'Jaiz Bank': 'Jaiz',
+      'Titan Trust Bank': 'Titan',
+      'Providus Bank': 'Providus',
+      'SunTrust Bank': 'SunTrust',
+    };
+
+    return shortNames[bankName] || bankName.split(' ')[0];
+  };
+
+  // Helper function to determine bank category
+  const determineCategory = (bankName: string): 'commercial' | 'microfinance' => {
+    const microfinanceBanks = [
+      'OPay', 'Kuda', 'Paga', 'Carbon', 'FairMoney', 'Branch', 'Quickteller',
+      'VFD Microfinance Bank', 'LAPO Microfinance Bank', 'Accion Microfinance Bank',
+      'AB Microfinance Bank', 'Baobab Microfinance Bank', 'Finca Microfinance Bank',
+      'Grooming Microfinance Bank', 'Mutual Trust Microfinance Bank',
+      'Rephidim Microfinance Bank', 'Shepherd Trust Microfinance Bank',
+      'Empire Trust Microfinance Bank', 'Fidfund Microfinance Bank',
+      'Fina Trust Microfinance Bank', 'Peace Microfinance Bank',
+      'Infinity Microfinance Bank', 'Seed Capital Microfinance Bank',
+      'New Dawn Microfinance Bank', 'Credit Afrique Microfinance Bank'
+    ];
+
+    return microfinanceBanks.some(mfb => bankName.toLowerCase().includes(mfb.toLowerCase())) 
+      ? 'microfinance' 
+      : 'commercial';
+  };
+
+  // Helper function to get bank icon (using local assets)
+  const getBankIcon = (bankName: string, bankCode: string): string | any => {
+    // Map bank codes to local asset names
+    const localBankIcons: { [key: string]: any } = {
+      '035': require('@/assets/banks/wema_bank.png'), // Wema Bank
+      '057': require('@/assets/banks/zenith_bank.png'), // Zenith Bank
+      '566': require('@/assets/banks/vfd_bank.png'), // VFD Merchant Bank
+      '51355': require('@/assets/banks/waya_bank.png'),
+      '050020': require('@/assets/banks/vale_bank.png'),
+      '215': require('@/assets/banks/unity_bank.png'),
+      '033': require('@/assets/banks/united_bank.png'),
+      '022': require('@/assets/banks/unity_bank.png'),
+      // Add more mappings as you add more bank logos
+    };
+
+    // If we have a local icon for this bank, use it
+    if (localBankIcons[bankCode]) {
+      return localBankIcons[bankCode];
+    }
+
+    // Return null for banks without logos (will show icon instead)
+    return null;
   };
 
   return {
