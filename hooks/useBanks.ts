@@ -174,6 +174,7 @@ export function useBanks() {
       '899': require('@/assets/banks/kolomoni_bank.png'),
       '301': require('@/assets/banks/jaiz_bank.png'),
       '415': require('@/assets/banks/imperial_bank.png'),
+      '51244': require('@/assets/banks/ibile_bank.png'),
       // '011': require('@/assets/banks/fidelity_bank.png'),
       // '070': require('@/assets/banks/first_bank.png'),
       // '014': require('@/assets/banks/gtbank.png'),
