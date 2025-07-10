@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
+// Import SVG components - commented out due to TypeScript issue
+// import UnionBankLogo from '@/assets/banks/union_bank.svg';
+
 export type Bank = {
   id: number;
   name: string;
@@ -11,6 +14,7 @@ export type Bank = {
   type: string;
   is_active: boolean;
   logo?: string | any; // Can be URL string or local asset object
+  logoSvg?: any; // For SVG components
   shortName?: string;
   category?: 'commercial' | 'microfinance';
 };
@@ -32,12 +36,16 @@ export function useBanks() {
       setIsLoading(true);
       setError(null);
 
-      const PAYSTACK_SECRET_KEY = process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY;
+      const PAYSTACK_SECRET_KEY = process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!;
+      
+      console.log('useBanks - Starting fetchBanks');
+      console.log('useBanks - PAYSTACK_SECRET_KEY exists:', !!PAYSTACK_SECRET_KEY);
       
       if (!PAYSTACK_SECRET_KEY) {
         throw new Error('Paystack secret key not configured');
       }
-
+      
+      console.log('PAYSTACK_SECRET_KEY', PAYSTACK_SECRET_KEY);
       const response = await fetch('https://api.paystack.co/bank', {
         method: 'GET',
         headers: {
@@ -57,18 +65,22 @@ export function useBanks() {
       }
 
       // Transform Paystack bank data to our format
-      const transformedBanks: Bank[] = data.data.map((bank: any, index: number) => ({
-        id: bank.id || index + 1,
-        name: bank.name,
-        code: bank.code,
-        country: bank.country || 'Nigeria',
-        currency: bank.currency || 'NGN',
-        type: bank.type || 'nuban',
-        is_active: bank.active !== false,
-        shortName: getShortName(bank.name),
-        category: determineCategory(bank.name),
-        logo: getBankIcon(bank.name, bank.code), // Use icon instead of logo
-      }));
+      const transformedBanks: Bank[] = data.data.map((bank: any, index: number) => {
+        const bankIcon = getBankIcon(bank.name, bank.code);
+        return {
+          id: bank.id || index + 1,
+          name: bank.name,
+          code: bank.code,
+          country: bank.country || 'Nigeria',
+          currency: bank.currency || 'NGN',
+          type: bank.type || 'nuban',
+          is_active: bank.active !== false,
+          shortName: getShortName(bank.name),
+          category: determineCategory(bank.name),
+          logo: bankIcon.logo,
+          logoSvg: bankIcon.logoSvg,
+        };
+      });
 
       setBanks(transformedBanks);
       setIsLoading(false);
@@ -127,7 +139,7 @@ export function useBanks() {
   };
 
   // Helper function to get bank icon (using local assets)
-  const getBankIcon = (bankName: string, bankCode: string): string | any => {
+  const getBankIcon = (bankName: string, bankCode: string): { logo?: any; logoSvg?: any } => {
     // Map bank codes to local asset names
     const localBankIcons: { [key: string]: any } = {
       '035': require('@/assets/banks/wema_bank.png'), // Wema Bank
@@ -137,17 +149,110 @@ export function useBanks() {
       '050020': require('@/assets/banks/vale_bank.png'),
       '215': require('@/assets/banks/unity_bank.png'),
       '033': require('@/assets/banks/united_bank.png'),
-      '022': require('@/assets/banks/unity_bank.png'),
+      '51322': require('@/assets/banks/uhuru_bank.png'),
+      '102': require('@/assets/banks/titan_bank.png'),
+      '302': require('@/assets/banks/taj_bank.png'),
+      '100': require('@/assets/banks/suntrust_bank.png'),
+      '51310': require('@/assets/banks/sparkle_bank.png'),
+      '125': require('@/assets/banks/rubies_bank.png'),
+      '50761': require('@/assets/banks/rehoboth_bank.png'),
+      '90067': require('@/assets/banks/refuge_bank.png'),
+      '51293': require('@/assets/banks/quick_fund_bank.png'),
+      '050023': require('@/assets/banks/prosperis_bank.png'),
+      '268': require('@/assets/banks/platinum_bank.png'),
+      '51146': require('@/assets/banks/personal_trust_bank.png'),
+      '311': require('@/assets/banks/parkway_readycash_bank.png'),
+      '51142': require('@/assets/banks/navy_bank.png'),
+      '090679': require('@/assets/banks/ndcc_bank.png'),
+      '120003': require('@/assets/banks/mtn_mono_bank.png'),
+      '090171': require('@/assets/banks/main_street_bank.png'),
+      '303': require('@/assets/banks/lotus_bank.png'),
+      '031': require('@/assets/banks/living_trust_bank.png'),
+      '50549': require('@/assets/banks/links_bank.png'),
+      '50200': require('@/assets/banks/kredi_bank.png'),
+      '100025': require('@/assets/banks/kongapay_bank.png'),
+      '899': require('@/assets/banks/kolomoni_bank.png'),
+      '301': require('@/assets/banks/jaiz_bank.png'),
+      '415': require('@/assets/banks/imperial_bank.png'),
+      // '011': require('@/assets/banks/fidelity_bank.png'),
+      // '070': require('@/assets/banks/first_bank.png'),
+      // '014': require('@/assets/banks/gtbank.png'),
+      // '023': require('@/assets/banks/access_bank.png'),
       // Add more mappings as you add more bank logos
     };
 
-    // If we have a local icon for this bank, use it
-    if (localBankIcons[bankCode]) {
-      return localBankIcons[bankCode];
+    // Special handling for SVG files - using dynamic import
+    const getSvgIcon = (code: string) => {
+      try {
+        switch (code) {
+          case '032':
+            return require('@/assets/banks/union_bank.svg');
+          case '076':
+            return require('@/assets/banks/polaris_bank.svg');
+          case '51269':
+            return require('@/assets/banks/tangerine_bank.svg');
+          case '232':
+            return require('@/assets/banks/sterling_bank.svg');
+            case '51253':
+              return require('@/assets/banks/stallas_bank.svg');
+          case '068':
+            return require('@/assets/banks/standard_chartered_bank.svg');
+          case '221':
+            return require('@/assets/banks/stanbic_bank.svg');
+          case '106':
+            return require('@/assets/banks/signature_bank.svg');
+          case '51113':
+            return require('@/assets/banks/safe_haven_bank.svg');
+          case '502':
+            return require('@/assets/banks/rand_merchant_bank.svg');
+          case '101':
+            return require('@/assets/banks/providus_bank.svg');
+          case '105':
+            return require('@/assets/banks/premium_trust_bank.svg');
+          case '00716':
+            return require('@/assets/banks/pocket_bank.svg');
+          case '51226':
+            return require('@/assets/banks/pecan_trust_bank.svg');
+          case '104':
+            return require('@/assets/banks/parallex_bank.svg');
+          case '999991':
+            return require('@/assets/banks/palmpay_bank.svg');
+          case '100002':
+            return require('@/assets/banks/paga_bank.svg');
+          case '107':
+            return require('@/assets/banks/optimus_bank.svg');
+          case '999992':
+            return require('@/assets/banks/opay_bank.svg');
+          case '50515':
+            return require('@/assets/banks/moniepoint_bank.svg');
+          case '50491':
+            return require('@/assets/banks/loma_bank.svg');
+          case '50211':
+            return require('@/assets/banks/kuda_bank.svg');
+          case '082':
+            return require('@/assets/banks/keystone_bank.svg');
+          default:
+            return null;
+        }
+      } catch (error) {
+        console.warn(`Failed to load SVG for bank code ${code}:`, error);
+        return null;
+      }
+    };
+
+    // Try to get SVG first
+    const svgIcon = getSvgIcon(bankCode);
+    if (svgIcon) {
+      return { logoSvg: svgIcon };
     }
 
-    // Return null for banks without logos (will show icon instead)
-    return null;
+    // If no SVG, try regular image
+    if (localBankIcons[bankCode]) {
+      return { logo: localBankIcons[bankCode] };
+    }
+
+    // Return empty object for banks without logos (will show icon instead)
+    return {};
   };
 
   return {

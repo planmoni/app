@@ -1,3 +1,4 @@
+import React from 'react';
 import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Animated, Dimensions, Platform, Image } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { X, Check, TriangleAlert as AlertTriangle, ChevronDown } from 'lucide-react-native';
@@ -27,6 +28,15 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   const { banks, isLoading: banksLoading } = useBanks();
   const { resolveAccount, isResolving, error: resolutionError, setError: setResolutionError } = useAccountResolution();
   
+  // Debug logging
+  useEffect(() => {
+    console.log('AddPayoutAccountModal - Banks state:', {
+      banksCount: banks.length,
+      banksLoading,
+      banks: banks.slice(0, 3) // Log first 3 banks for debugging
+    });
+  }, [banks, banksLoading]);
+
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
   
@@ -491,7 +501,16 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                   onPress={() => handleBankSelect(bank)}
                 >
                   <View style={styles.bankOptionContent}>
-                    {bank.logo ? (
+                    {bank.logoSvg ? (
+                      // Handle SVG components
+                      <View style={styles.bankOptionLogo}>
+                        {React.createElement(bank.logoSvg.default || bank.logoSvg, {
+                          width: 32,
+                          height: 32,
+                          fill: colors.textSecondary
+                        })}
+                      </View>
+                    ) : bank.logo ? (
                       <Image
                         source={bank.logo as any}
                         style={styles.bankOptionLogo}
@@ -513,7 +532,17 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
             
             {filteredBanks.length === 0 && !banksLoading && (
               <View style={styles.noResultsContainer}>
-                <Text style={styles.noResultsText}>No banks found</Text>
+                <Text style={styles.noResultsText}>
+                  {banks.length === 0 
+                    ? 'No banks available. Please check your connection.' 
+                    : `No banks match "${bankSearchQuery}"`
+                  }
+                </Text>
+                {banks.length === 0 && (
+                  <Text style={[styles.noResultsText, { fontSize: 12, marginTop: 8 }]}>
+                    Total banks loaded: {banks.length}
+                  </Text>
+                )}
               </View>
             )}
           </ScrollView>
@@ -846,6 +875,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     flexDirection: 'row',
     alignItems: 'center',
     padding: isSmallScreen ? 12 : 16,
+    marginHorizontal: 16,
+    marginTop: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     backgroundColor: colors.backgroundTertiary,
