@@ -175,9 +175,12 @@ export function useBanks() {
       '301': require('@/assets/banks/jaiz_bank.png'),
       '415': require('@/assets/banks/imperial_bank.png'),
       '51244': require('@/assets/banks/ibile_bank.png'),
-      // '011': require('@/assets/banks/fidelity_bank.png'),
-      // '070': require('@/assets/banks/first_bank.png'),
-      // '014': require('@/assets/banks/gtbank.png'),
+      '562': require('@/assets/banks/greenwich_bank.png'),
+      '812': require('@/assets/banks/gateway_bank.png'),
+      '51314': require('@/assets/banks/firmus_bank.png'),
+      '50298': require('@/assets/banks/fedeth_bank.png'),
+      '51318': require('@/assets/banks/fair_money_bank.png'),
+      '090678': require('@/assets/banks/excel_bank.png'),
       // '023': require('@/assets/banks/access_bank.png'),
       // Add more mappings as you add more bank logos
     };
@@ -232,6 +235,32 @@ export function useBanks() {
             return require('@/assets/banks/kuda_bank.svg');
           case '082':
             return require('@/assets/banks/keystone_bank.svg');
+          case '120002':
+            return require('@/assets/banks/hope_bank.svg');
+          case '50383':
+            return require('@/assets/banks/hasal_bank.svg');
+          case '058':
+            return require('@/assets/banks/gt_bank.svg');
+          case '100022':
+            return require('@/assets/banks/go_bank.svg');
+          case '090574':
+            return require('@/assets/banks/goldman_bank.svg');
+          case '00103':
+            return require('@/assets/banks/globus_bank.svg');
+          case '501':
+            return require('@/assets/banks/fsdh_bank.svg');
+          case '413':
+            return require('@/assets/banks/first_trust_bank.svg');
+          case '011':
+            return require('@/assets/banks/first_bank.svg');
+          case '214':
+            return require('@/assets/banks/fcmb_bank.svg');
+          case '50126':
+            return require('@/assets/banks/eyowo_bank.svg');
+          case '098':
+            return require('@/assets/banks/eco_bank.svg');
+          case '050':
+            return require('@/assets/banks/ekondo_bank.svg');
           default:
             return null;
         }
