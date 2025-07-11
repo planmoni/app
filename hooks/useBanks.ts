@@ -196,7 +196,7 @@ export function useBanks() {
       'MFB50094': require('@/assets/banks/astrapolaris_bank.png'),
       '90077': require('@/assets/banks/ag_bank.png'),
       '602': require('@/assets/banks/accion_bank.png'),
-      // '023': require('@/assets/banks/access_bank.png'),
+      '120001': require('@/assets/banks/9mobile_bank.png'),
       // Add more mappings as you add more bank logos
     };
 
@@ -306,6 +306,12 @@ export function useBanks() {
             return require('@/assets/banks/aku_bank.svg');
           case '120004':
             return require('@/assets/banks/airtel_smartcash_bank.svg');
+          case '063':
+            return require('@/assets/banks/access_diamond_bank.svg');
+          case '044':
+            return require('@/assets/banks/access_bank.svg');
+          case '404':
+            return require('@/assets/banks/abbey_bank.svg');
           default:
             return null;
         }
