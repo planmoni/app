@@ -13,46 +13,75 @@ export function useAccountResolution() {
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
 
+  const getBankName = async (bankId: number): Promise<string> => {
+    try {
+      const PAYSTACK_SECRET_KEY = process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY;
+      
+      if (!PAYSTACK_SECRET_KEY) {
+        return 'Bank';
+      }
+
+      const response = await fetch('https://api.paystack.co/bank', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.status && data.data) {
+        const bank = data.data.find((bank: any) => bank.id === bankId);
+        return bank ? bank.name : 'Bank';
+      }
+
+      return 'Bank';
+    } catch (error) {
+      return 'Bank';
+    }
+  };
+
   const resolveAccount = async (accountNumber: string, bankCode: string): Promise<AccountDetails | null> => {
     try {
       setIsResolving(true);
       setError(null);
 
-      // For demo purposes, simulate a successful account resolution
-      // In a real app, this would be an API call to Paystack
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const PAYSTACK_SECRET_KEY = process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY;
       
-      // Simulate account resolution based on account number
-      if (accountNumber === '0123456789') {
-        return {
-          account_name: 'John Doe',
-          account_number: accountNumber,
-          bank_name: 'GTBank'
-        };
-      } else if (accountNumber === '9876543210') {
-        return {
-          account_name: 'Jane Smith',
-          account_number: accountNumber,
-          bank_name: 'First Bank'
-        };
-      } else if (accountNumber === '5678901234') {
-        return {
-          account_name: 'Robert Johnson',
-          account_number: accountNumber,
-          bank_name: 'Access Bank'
-        };
-      } else if (accountNumber.length === 10) {
-        // Generate a random name for any valid account number format
-        const names = ['Alex Williams', 'Sarah Parker', 'Michael Brown', 'Elizabeth Taylor', 'David Wilson'];
-        const randomName = names[Math.floor(Math.random() * names.length)];
-        return {
-          account_name: randomName,
-          account_number: accountNumber,
-          bank_name: 'Demo Bank'
-        };
-      } else {
-        throw new Error('Invalid account number format');
+      if (!PAYSTACK_SECRET_KEY) {
+        throw new Error('Paystack secret key not configured');
       }
+
+      const response = await fetch(
+        `https://api.paystack.co/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to resolve account');
+      }
+
+      if (!data.status) {
+        throw new Error(data.message || 'Account resolution failed');
+      }
+
+      // Get the bank name using the bank_id
+      const bankName = await getBankName(data.data.bank_id);
+
+      return {
+        account_name: data.data.account_name,
+        account_number: data.data.account_number,
+        bank_name: bankName
+      };
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to resolve account');

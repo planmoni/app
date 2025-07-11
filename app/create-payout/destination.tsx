@@ -156,24 +156,15 @@ export default function DestinationScreen() {
               </Text>
             </Pressable>
             
-            <Pressable
-              style={[
-                styles.accountTypeOption,
-                accountType === 'linked' && styles.activeAccountType
-              ]}
-              onPress={() => {
-                haptics.selection();
-                setAccountType('linked');
-                setSelectedAccountId(null);
-              }}
-            >
+            <View style={[styles.accountTypeOption, styles.disabledAccountTypeOption]}>
               <Text style={[
                 styles.accountTypeText,
-                accountType === 'linked' && styles.activeAccountTypeText
+                styles.disabledAccountTypeText
               ]}>
                 Linked Accounts
               </Text>
-            </Pressable>
+              <View style={styles.comingSoonTag}><Text style={styles.comingSoonText}>.</Text></View>
+            </View>
           </View>
 
           <View style={styles.accountsList}>
@@ -602,5 +593,27 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     fontSize: isSmallScreen ? 13 : 14,
     color: colors.text,
     lineHeight: 20,
+  },
+  disabledAccountTypeOption: {
+    opacity: 0.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disabledAccountTypeText: {
+    color: colors.textSecondary,
+  },
+  comingSoonTag: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 8,
+    alignSelf: 'center',
+  },
+  comingSoonText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
 });

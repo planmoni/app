@@ -1,6 +1,8 @@
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Animated, Dimensions, Platform } from 'react-native';
+import React from 'react';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Animated, Dimensions, Platform, Image } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { X, Check, TriangleAlert as AlertTriangle, ChevronDown } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -26,6 +28,15 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   const { banks, isLoading: banksLoading } = useBanks();
   const { resolveAccount, isResolving, error: resolutionError, setError: setResolutionError } = useAccountResolution();
   
+  // Debug logging
+  useEffect(() => {
+    console.log('AddPayoutAccountModal - Banks state:', {
+      banksCount: banks.length,
+      banksLoading,
+      banks: banks.slice(0, 3) // Log first 3 banks for debugging
+    });
+  }, [banks, banksLoading]);
+
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
   
@@ -190,6 +201,8 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       handleResolveAccount(formData.accountNumber, bank.code);
     }
   };
+
+
 
   const handleAccountNumberChange = (text: string) => {
     // Only allow numbers and limit to 10 digits
@@ -372,7 +385,8 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                         }
                       }
                     }}
-                    editable={!isSubmitting && !accountResolved && !isResolving}
+                    editable={false}
+                    // editable={!isSubmitting && !accountResolved && !isResolving}
                   />
                   {accountResolved && (
                     <View style={styles.resolvedIcon}>
@@ -487,7 +501,29 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                   style={styles.bankOption}
                   onPress={() => handleBankSelect(bank)}
                 >
-                  <Text style={styles.bankOptionText}>{bank.name}</Text>
+                  <View style={styles.bankOptionContent}>
+                    {bank.logoSvg ? (
+                      // Handle SVG components
+                      <View style={styles.bankOptionLogo}>
+                        {React.createElement(bank.logoSvg.default || bank.logoSvg, {
+                          width: 32,
+                          height: 32,
+                          fill: colors.textSecondary
+                        })}
+                      </View>
+                    ) : bank.logo ? (
+                      <Image
+                        source={bank.logo as any}
+                        style={styles.bankOptionLogo}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <View style={styles.bankOptionIconContainer}>
+                        <Ionicons name="business" size={20} color={colors.textSecondary} />
+                      </View>
+                    )}
+                    <Text style={styles.bankOptionText}>{bank.name}</Text>
+                  </View>
                   {selectedBank?.id === bank.id && (
                     <Check size={20} color={colors.primary} />
                   )}
@@ -497,7 +533,17 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
             
             {filteredBanks.length === 0 && !banksLoading && (
               <View style={styles.noResultsContainer}>
-                <Text style={styles.noResultsText}>No banks found</Text>
+                <Text style={styles.noResultsText}>
+                  {banks.length === 0 
+                    ? 'No banks available. Please check your connection.' 
+                    : `No banks match "${bankSearchQuery}"`
+                  }
+                </Text>
+                {banks.length === 0 && (
+                  <Text style={[styles.noResultsText, { fontSize: 12, marginTop: 8 }]}>
+                    Total banks loaded: {banks.length}
+                  </Text>
+                )}
               </View>
             )}
           </ScrollView>
@@ -696,6 +742,89 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     color: colors.textSecondary,
     lineHeight: isSmallScreen ? 18 : 20,
   },
+  // bankListModal: {
+  //   backgroundColor: colors.surface,
+  //   borderTopLeftRadius: 24,
+  //   borderTopRightRadius: 24,
+  //   width: '100%',
+  //   height: '90%',
+  //   borderWidth: isDark ? 1 : 0,
+  //   borderColor: isDark ? colors.border : 'transparent',
+  //   ...Platform.select({
+  //     ios: {
+  //       shadowColor: '#000',
+  //       shadowOffset: { width: 0, height: -3 },
+  //       shadowOpacity: 0.1,
+  //       shadowRadius: 5,
+  //     },
+  //     android: {
+  //       elevation: 5,
+  //     },
+  //   }),
+  // },
+  // bankListHeader: {
+  //   flexDirection: 'row',
+  //   justifyContent: 'space-between',
+  //   alignItems: 'center',
+  //   padding: isSmallScreen ? 16 : 20,
+  //   borderBottomWidth: 1,
+  //   borderBottomColor: colors.border,
+  // },
+  // bankListTitle: {
+  //   fontSize: isSmallScreen ? 18 : 20,
+  //   fontWeight: '600',
+  //   color: colors.text,
+  // },
+  // searchContainer: {
+  //   padding: isSmallScreen ? 16 : 20,
+  //   borderBottomWidth: 1,
+  //   borderBottomColor: colors.border,
+  // },
+  // searchInput: {
+  //   borderWidth: 1,
+  //   borderColor: colors.border,
+  //   borderRadius: 12,
+  //   padding: isSmallScreen ? 12 : 16,
+  //   fontSize: isSmallScreen ? 14 : 16,
+  //   color: colors.text,
+  //   backgroundColor: colors.backgroundTertiary,
+  // },
+  // bankList: {
+  //   flex: 1,
+  // },
+  // bankOption: {
+  //   flexDirection: 'row',
+  //   alignItems: 'center',
+  //   justifyContent: 'space-between',
+  //   padding: isSmallScreen ? 16 : 20,
+  //   borderBottomWidth: 1,
+  //   borderBottomColor: colors.border,
+  // },
+  // bankOptionText: {
+  //   fontSize: isSmallScreen ? 14 : 16,
+  //   color: colors.text,
+  // },
+  // loadingContainer: {
+  //   flex: 1,
+  //   justifyContent: 'center',
+  //   alignItems: 'center',
+  //   padding: 40,
+  // },
+  // loadingText: {
+  //   fontSize: isSmallScreen ? 14 : 16,
+  //   color: colors.textSecondary,
+  //   marginTop: 12,
+  // },
+  // noResultsContainer: {
+  //   flex: 1,
+  //   justifyContent: 'center',
+  //   alignItems: 'center',
+  //   padding: 40,
+  // },
+  // noResultsText: {
+  //   fontSize: isSmallScreen ? 14 : 16,
+  //   color: colors.textSecondary,
+  // },
   footer: {
     padding: isSmallScreen ? 16 : 20,
     paddingBottom: Math.max(isSmallScreen ? 16 : 20, insets.bottom),
@@ -747,6 +876,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     flexDirection: 'row',
     alignItems: 'center',
     padding: isSmallScreen ? 12 : 16,
+    marginHorizontal: 16,
+    marginTop: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     backgroundColor: colors.backgroundTertiary,
@@ -755,6 +886,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     flex: 1,
     fontSize: isSmallScreen ? 14 : 16,
     color: colors.text,
+    paddingHorizontal: 12,
   },
   bankList: {
     maxHeight: '60%',
@@ -766,6 +898,26 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     padding: isSmallScreen ? 12 : 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  bankOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  bankOptionLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  bankOptionIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    marginRight: 12,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   bankOptionText: {
     fontSize: isSmallScreen ? 14 : 16,
