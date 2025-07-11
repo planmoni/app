@@ -385,7 +385,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                         }
                       }
                     }}
-                    editable={!isSubmitting && !accountResolved && !isResolving}
+                    editable={false}
                   />
                   {accountResolved && (
                     <View style={styles.resolvedIcon}>
