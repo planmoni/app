@@ -15,7 +15,7 @@ export function useAccountResolution() {
 
   const getBankName = async (bankId: number): Promise<string> => {
     try {
-      const PAYSTACK_SECRET_KEY = process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY;
+      const PAYSTACK_SECRET_KEY = process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY;
       
       if (!PAYSTACK_SECRET_KEY) {
         return 'Bank';
@@ -47,7 +47,7 @@ export function useAccountResolution() {
       setIsResolving(true);
       setError(null);
 
-      const PAYSTACK_SECRET_KEY = process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY;
+      const PAYSTACK_SECRET_KEY = process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY;
       
       if (!PAYSTACK_SECRET_KEY) {
         throw new Error('Paystack secret key not configured');
