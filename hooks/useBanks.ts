@@ -66,6 +66,7 @@ export function useBanks() {
 
       // Transform Paystack bank data to our format
       const transformedBanks: Bank[] = data.data.map((bank: any, index: number) => {
+        console.log(`Processing bank: ${bank.name} with code: ${bank.code}`);
         const bankIcon = getBankIcon(bank.name, bank.code);
         return {
           id: bank.id || index + 1,
@@ -140,6 +141,10 @@ export function useBanks() {
 
   // Helper function to get bank icon (using local assets)
   const getBankIcon = (bankName: string, bankCode: string): { logo?: any; logoSvg?: any } => {
+    if (!bankCode) {
+      console.warn(`Bank code is missing for bank: ${bankName}`);
+      return {};
+    }
     // Map bank codes to local asset names
     const localBankIcons: { [key: string]: any } = {
       '035': require('@/assets/banks/wema_bank.png'), // Wema Bank
@@ -175,6 +180,7 @@ export function useBanks() {
       '301': require('@/assets/banks/jaiz_bank.png'),
       '415': require('@/assets/banks/imperial_bank.png'),
       '51244': require('@/assets/banks/ibile_bank.png'),
+      '50383': require('@/assets/banks/hasal_bank.png'),
       '562': require('@/assets/banks/greenwich_bank.png'),
       '812': require('@/assets/banks/gateway_bank.png'),
       '51314': require('@/assets/banks/firmus_bank.png'),
@@ -202,6 +208,11 @@ export function useBanks() {
 
     // Special handling for SVG files - using dynamic import
     const getSvgIcon = (code: string) => {
+      if (!code) {
+        console.warn('Bank code is undefined or empty');
+        return null;
+      }
+      
       try {
         switch (code) {
           case '032':
@@ -212,8 +223,8 @@ export function useBanks() {
             return require('@/assets/banks/tangerine_bank.svg');
           case '232':
             return require('@/assets/banks/sterling_bank.svg');
-            case '51253':
-              return require('@/assets/banks/stallas_bank.svg');
+          case '51253':
+            return require('@/assets/banks/stallas_bank.svg');
           case '068':
             return require('@/assets/banks/standard_chartered_bank.svg');
           case '221':
@@ -223,7 +234,7 @@ export function useBanks() {
           case '51113':
             return require('@/assets/banks/safe_haven_bank.svg');
           case '502':
-            return require('@/assets/banks/rand_merchant_bank.svg');
+            return require('@/assets/banks/rand_marchant_bank.svg');
           case '101':
             return require('@/assets/banks/providus_bank.svg');
           case '105':
@@ -233,9 +244,9 @@ export function useBanks() {
           case '51226':
             return require('@/assets/banks/pecan_trust_bank.svg');
           case '104':
-            return require('@/assets/banks/parallex_bank.svg');
+            return require('@/assets/banks/parrallex_bank.svg');
           case '999991':
-            return require('@/assets/banks/palmpay_bank.svg');
+            return require('@/assets/banks/palmpay.svg');
           case '100002':
             return require('@/assets/banks/paga_bank.svg');
           case '107':
@@ -252,8 +263,6 @@ export function useBanks() {
             return require('@/assets/banks/keystone_bank.svg');
           case '120002':
             return require('@/assets/banks/hope_bank.svg');
-          case '50383':
-            return require('@/assets/banks/hasal_bank.svg');
           case '058':
             return require('@/assets/banks/gt_bank.svg');
           case '100022':
