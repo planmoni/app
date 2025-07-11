@@ -196,6 +196,13 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     setShowBankSelector(false);
     haptics.selection();
     
+    // Clear any previously resolved account details when bank changes
+    if (accountResolved) {
+      setAccountResolved(false);
+      setFormData(prev => ({ ...prev, accountName: '' }));
+      setResolutionError(null);
+    }
+    
     // If account number is already entered, try to resolve account
     if (formData.accountNumber.length === 10) {
       handleResolveAccount(formData.accountNumber, bank.code);
@@ -218,6 +225,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       if (accountResolved) {
         setAccountResolved(false);
         setFormData(prev => ({ ...prev, accountName: '' }));
+        setResolutionError(null);
       }
       
       // If account number is 10 digits and bank is selected, try to resolve
@@ -347,7 +355,8 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                     selectedBank && styles.selectedInput
                   ]}
                   onPress={() => {
-                    if (!isSubmitting && !accountResolved) {
+                    // if (!isSubmitting && !accountResolved) {
+                    if (!isSubmitting ) {
                       haptics.selection();
                       setShowBankSelector(true);
                     }
@@ -877,17 +886,23 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     flexDirection: 'row',
     alignItems: 'center',
     padding: isSmallScreen ? 12 : 16,
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.backgroundTertiary,
+    marginHorizontal: 2,
+    marginTop: 5,
   },
   searchInput: {
     flex: 1,
     fontSize: isSmallScreen ? 14 : 16,
     color: colors.text,
-    paddingHorizontal: 12,
+    // paddingHorizontal: 12,
+    // paddingVertical: 12,
+    borderRadius: 10,
+    padding: isSmallScreen ? 12 : 16,
+    marginHorizontal: 5,
+    height: 65,
+    // borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    // borderRadius: 10,
+    backgroundColor: '#EBF1F9',
   },
   bankList: {
     maxHeight: '60%',
@@ -896,7 +911,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: isSmallScreen ? 12 : 16,
+    padding: isSmallScreen ? 10 : 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -921,7 +936,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     alignItems: 'center',
   },
   bankOptionText: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: isSmallScreen ? 16 : 18,
+    fontWeight: 500,
     color: colors.text,
   },
   loadingContainer: {
