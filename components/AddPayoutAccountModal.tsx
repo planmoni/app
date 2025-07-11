@@ -321,7 +321,8 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                     value={formData.accountNumber}
                     onChangeText={handleAccountNumberChange}
                     maxLength={10}
-                    editable={!isSubmitting && !accountResolved}
+                    editable={true}
+                    // editable={!isSubmitting && !accountResolved}
                   />
                   {isResolving && (
                     <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
@@ -351,7 +352,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                       setShowBankSelector(true);
                     }
                   }}
-                  disabled={isSubmitting || accountResolved}
+                  // disabled={isSubmitting || accountResolved}
                 >
                   {selectedBank ? (
                     <Text style={styles.selectedBankText}>{selectedBank.name}</Text>
