@@ -181,6 +181,21 @@ export function useBanks() {
       '50298': require('@/assets/banks/fedeth_bank.png'),
       '51318': require('@/assets/banks/fair_money_bank.png'),
       '090678': require('@/assets/banks/excel_bank.png'),
+      '50263': require('@/assets/banks/ekimogun_bank.png'),
+      '51334': require('@/assets/banks/davenport_bank.png'),
+      'FC40128': require('@/assets/banks/country_bank.png'),
+      '50910': require('@/assets/banks/consumer_bank.png'),
+      '070027': require('@/assets/banks/citycode_bank.png'),
+      '50171': require('@/assets/banks/chanelle_bank.png'),
+      '50823': require('@/assets/banks/cemcs_bank.png'),
+      '865': require('@/assets/banks/cashconnect_bank.png'),
+      '50931': require('@/assets/banks/bowen_bank.png'),
+      '51100': require('@/assets/banks/bell_bank.png'),
+      'MFB50992': require('@/assets/banks/baobab_bank.png'),
+      '51351': require('@/assets/banks/awacash_bank.png'),
+      'MFB50094': require('@/assets/banks/astrapolaris_bank.png'),
+      '90077': require('@/assets/banks/ag_bank.png'),
+      '602': require('@/assets/banks/accion_bank.png'),
       // '023': require('@/assets/banks/access_bank.png'),
       // Add more mappings as you add more bank logos
     };
@@ -257,10 +272,40 @@ export function useBanks() {
             return require('@/assets/banks/fcmb_bank.svg');
           case '50126':
             return require('@/assets/banks/eyowo_bank.svg');
-          case '098':
-            return require('@/assets/banks/eco_bank.svg');
           case '050':
+            return require('@/assets/banks/eco_bank.svg');
+          case '098':
             return require('@/assets/banks/ekondo_bank.svg');
+          case '50162':
+            return require('@/assets/banks/dot_bank.svg');
+          case '090560':
+            return require('@/assets/banks/crust_bank.svg');
+          case '40119':
+            return require('@/assets/banks/credit_direct_bank.svg');
+          case '559':
+            return require('@/assets/banks/coronation_bank.svg');
+          case '50204':
+            return require('@/assets/banks/corestep_bank.svg');
+          case '023':
+            return require('@/assets/banks/citi_bank.svg');
+          case '51353':
+            return require('@/assets/banks/cashbridge_bank.svg');
+          case '565':
+            return require('@/assets/banks/carbon_bank.svg');
+          case '50645':
+            return require('@/assets/banks/buypower_bank.svg');
+          case 'FC40163':
+            return require('@/assets/banks/branch_bank.svg');
+          case '51229':
+            return require('@/assets/banks/baines_credit_bank.svg');
+          case '401':
+            return require('@/assets/banks/aso_savings_bank.svg');
+          case '035A':
+            return require('@/assets/banks/alat_wema_bank.svg');
+          case '51336':
+            return require('@/assets/banks/aku_bank.svg');
+          case '120004':
+            return require('@/assets/banks/airtel_smartcash_bank.svg');
           default:
             return null;
         }
