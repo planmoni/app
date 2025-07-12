@@ -9,6 +9,7 @@ export type EmailNotificationSettings = {
   payout_alerts: boolean;
   expiry_reminders: boolean;
   wallet_summary: 'daily' | 'weekly' | 'monthly' | 'never';
+  deposit_alerts: boolean;
 };
 
 export function useEmailNotifications() {
@@ -16,7 +17,8 @@ export function useEmailNotifications() {
     login_alerts: true,
     payout_alerts: true,
     expiry_reminders: true,
-    wallet_summary: 'weekly'
+    wallet_summary: 'weekly',
+    deposit_alerts: true
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

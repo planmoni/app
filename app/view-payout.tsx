@@ -11,6 +11,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useToast } from '@/contexts/ToastContext';
 import * as Haptics from 'expo-haptics';
 import { formatPayoutFrequency } from '@/lib/formatters';
 
@@ -18,9 +19,10 @@ export default function ViewPayoutScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const { id } = useLocalSearchParams();
-  const { payoutPlans, isLoading, pausePlan, resumePlan } = useRealtimePayoutPlans();
+  const { payoutPlans, isLoading, pausePlan, resumePlan, updatePlan } = useRealtimePayoutPlans();
   const { showBalances } = useBalance();
   const haptics = useHaptics();
+  const { showToast } = useToast();
   
   const [isEditing, setIsEditing] = useState(false);
   const [payoutName, setPayoutName] = useState('');
@@ -84,10 +86,37 @@ export default function ViewPayoutScreen() {
     );
   }
 
-  const handleSave = () => {
-    haptics.notification(Haptics.NotificationFeedbackType.Success);
-    setIsEditing(false);
-    // TODO: Implement update functionality
+  const handleSave = async () => {
+    if (!plan) return;
+    
+    try {
+      // Validate inputs
+      if (!payoutName.trim()) {
+        haptics.notification(Haptics.NotificationFeedbackType.Error);
+        showToast('Payout name cannot be empty', 'error');
+        return;
+      }
+      
+      // Check if there are any changes
+      if (payoutName.trim() === plan.name && payoutDescription.trim() === (plan.description || '')) {
+        setIsEditing(false);
+        return;
+      }
+      
+      // Update the plan
+      await updatePlan(plan.id, {
+        name: payoutName.trim(),
+        description: payoutDescription.trim() || undefined
+      });
+      
+      haptics.notification(Haptics.NotificationFeedbackType.Success);
+      showToast('Payout plan updated successfully', 'success');
+      setIsEditing(false);
+    } catch (error) {
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
+      showToast('Failed to update payout plan', 'error');
+      console.error('Error updating payout plan:', error);
+    }
   };
 
   const handlePauseResume = async () => {
@@ -209,9 +238,22 @@ export default function ViewPayoutScreen() {
                   placeholder="Add a description"
                   placeholderTextColor={colors.textTertiary}
                 />
-                <Pressable style={styles.saveButton} onPress={handleSave}>
-                  <Text style={styles.saveButtonText}>Save</Text>
-                </Pressable>
+                <View style={styles.editButtons}>
+                  <Pressable 
+                    style={styles.cancelButton} 
+                    onPress={() => {
+                      haptics.lightImpact();
+                      setPayoutName(plan.name);
+                      setPayoutDescription(plan.description || '');
+                      setIsEditing(false);
+                    }}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable style={styles.saveButton} onPress={handleSave}>
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  </Pressable>
+                </View>
               </View>
             ) : (
               <>
@@ -480,16 +522,30 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     padding: 0,
   },
+  editButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
   saveButton: {
-    alignSelf: 'flex-start',
     backgroundColor: colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    marginTop: 8,
   },
   saveButtonText: {
     color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    backgroundColor: colors.backgroundTertiary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  cancelButtonText: {
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },

@@ -17,6 +17,8 @@ export type PayoutPlan = {
   status: 'active' | 'paused' | 'completed' | 'cancelled';
   completed_payouts: number;
   next_payout_date?: string;
+  emergency_withdrawal_enabled: boolean;
+  metadata?: any;
   created_at: string;
   updated_at: string;
 };
@@ -146,6 +148,23 @@ export function useRealtimePayoutPlans() {
     }
   };
 
+  const updatePlan = async (planId: string, updates: { name?: string; description?: string }) => {
+    try {
+      setError(null);
+      const { error: updateError } = await supabase
+        .from('payout_plans')
+        .update(updates)
+        .eq('id', planId)
+        .eq('user_id', session?.user?.id);
+
+      if (updateError) throw updateError;
+      // Real-time subscription will handle the update
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update plan');
+      throw err;
+    }
+  };
+
   return {
     payoutPlans,
     isLoading,
@@ -153,5 +172,6 @@ export function useRealtimePayoutPlans() {
     fetchPayoutPlans,
     pausePlan,
     resumePlan,
+    updatePlan,
   };
 }

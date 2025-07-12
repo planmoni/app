@@ -67,14 +67,14 @@ export function useCreatePayout() {
         throw new Error('Unable to fetch current wallet balance. Please try again.');
       }
 
-      const { balance, lockedBalance, availableBalance } = walletData;
+      const { balance: currentBalance, lockedBalance: currentLockedBalance, availableBalance: currentAvailableBalance } = walletData;
       
-      console.log('- Current Balance:', balance);
-      console.log('- Locked Balance:', lockedBalance);
+      console.log('- Current Balance:', currentBalance);
+      console.log('- Locked Balance:', currentLockedBalance);
 
       // Check if user has enough available balance using fresh data
-      if (totalAmount > balance) {
-        throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${balance.toLocaleString()} available.`);
+      if (totalAmount > currentBalance) {
+        throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${currentBalance.toLocaleString()} available.`);
       }
 
       // Map frequency values to database-compatible values
@@ -159,18 +159,18 @@ export function useCreatePayout() {
         .select()
         .single();
 
-      if (payoutError) {
-        console.error('Error creating payout plan:', payoutError);
-        throw payoutError;
-      }
+        if (payoutError) {
+          console.error('Error creating payout plan:', payoutError);
+          throw payoutError;
+        }
 
-      console.log('Payout plan created:', payoutPlan.id);
+        console.log('Payout plan created:', payoutPlan.id);
 
-      // 🔒 Lock funds via RPC with unambiguous parameter names
-      const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
-        arg_user_id: session.user.id,
-        arg_amount: totalAmount
-      });
+        // 🔒 Lock funds via RPC with unambiguous parameter names
+        const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
+          arg_user_id: session.user.id,
+          arg_amount: totalAmount
+        });
 
       if (lockError) {
         console.error('Error locking funds:', lockError);
