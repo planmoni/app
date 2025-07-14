@@ -214,12 +214,49 @@ export function usePaystackTransactions() {
     if (session?.user?.id) {
       fetchPaystackTransactions();
       
+      // Also trigger server-side check for faster response
+      triggerServerCheck();
+      
       // Set up interval to check for new transactions every 30 seconds
-      const interval = setInterval(fetchPaystackTransactions, 30000);
+      const interval = setInterval(() => {
+        fetchPaystackTransactions();
+        // Trigger server check every 2 minutes for redundancy
+        if (Math.random() < 0.1) { // 10% chance each 30 seconds = ~every 5 minutes
+          triggerServerCheck();
+        }
+      }, 30000);
       
       return () => clearInterval(interval);
     }
   }, [session?.user?.id]);
+
+  // Trigger server-side transaction check for faster response
+  const triggerServerCheck = async () => {
+    try {
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        console.log('Missing Supabase environment variables');
+        return;
+      }
+
+      const functionUrl = `${supabaseUrl}/functions/v1/check-new-transactions`;
+      
+      await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'x-manual-trigger': 'true'
+        }
+      });
+      
+      console.log('🔄 Triggered server-side transaction check');
+    } catch (error) {
+      console.log('Server check trigger failed (this is normal):', error);
+    }
+  };
 
   return {
     transactions,
