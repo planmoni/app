@@ -20,7 +20,7 @@ interface RetryPayout {
   payout_plan_id: string;
   user_id: string;
   amount: number;
-  bank_account_id: string;
+  payout_account_id: string;
   transfer_reference: string;
   retry_count: number;
   error_message: string;
@@ -104,19 +104,21 @@ async function retrySinglePayout(payout: RetryPayout) {
     throw new Error(`Payout no longer eligible: ${eligibility.reason}`);
   }
 
-  // 2. Get bank account details
-  const { data: bankAccount, error: bankError } = await supabase
-    .from("bank_accounts")
+  // 2. Get payout account details
+  const { data: payoutAccount, error: payoutError } = await supabase
+    .from("payout_accounts")
     .select("*")
-    .eq("id", payout.bank_account_id)
+    .eq("id", payout.payout_account_id)
     .single();
 
-  if (bankError || !bankAccount) {
-    throw new Error(`Bank account not found: ${payout.bank_account_id}`);
+  if (payoutError || !payoutAccount) {
+    throw new Error(`Payout account not found: ${payout.payout_account_id}`);
   }
 
-  if (!bankAccount.paystack_recipient_code) {
-    throw new Error("Bank account does not have transfer recipient configured");
+  if (!payoutAccount.paystack_recipient_code) {
+    throw new Error(
+      "Payout account does not have transfer recipient configured"
+    );
   }
 
   // 3. Generate new transfer reference for retry
@@ -125,7 +127,7 @@ async function retrySinglePayout(payout: RetryPayout) {
   // 4. Initiate new transfer
   const transferResult = await initiateRetryTransfer(
     payout,
-    bankAccount,
+    payoutAccount,
     newReference
   );
 
@@ -157,7 +159,7 @@ async function retrySinglePayout(payout: RetryPayout) {
  */
 async function initiateRetryTransfer(
   payout: RetryPayout,
-  bankAccount: any,
+  payoutAccount: any,
   reference: string
 ) {
   const amountInKobo = Math.round(payout.amount * 100);
@@ -165,13 +167,13 @@ async function initiateRetryTransfer(
   const transferData = {
     source: "balance",
     amount: amountInKobo,
-    recipient: bankAccount.paystack_recipient_code,
+    recipient: payoutAccount.paystack_recipient_code,
     reason: `Retry payout (attempt ${payout.retry_count + 1})`,
     reference: reference,
   };
 
   console.log(
-    `💸 Retrying transfer of ₦${payout.amount} to ${bankAccount.account_number}`
+    `💸 Retrying transfer of ₦${payout.amount} to ${payoutAccount.account_number}`
   );
 
   const response = await fetch(`${PAYSTACK_BASE_URL}/transfer`, {

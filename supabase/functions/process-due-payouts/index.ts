@@ -21,7 +21,7 @@ interface PayoutPlan {
   user_id: string;
   name: string;
   payout_amount: number;
-  bank_account_id: string;
+  payout_account_id: string;
   next_payout_date: string;
   completed_payouts: number;
   duration: number;
@@ -34,6 +34,20 @@ interface BankAccount {
   account_name: string;
   paystack_recipient_code?: string;
   transfer_enabled: boolean;
+}
+
+interface PayoutAccount {
+  id: string;
+  user_id: string;
+  account_name: string;
+  account_number: string;
+  bank_code: string;
+  bank_name: string;
+  is_default: boolean;
+  paystack_recipient_code?: string;
+  transfer_enabled?: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
@@ -119,19 +133,19 @@ async function processSinglePayout(plan: PayoutPlan) {
     );
   }
 
-  // 2. Get bank account details
-  const { data: bankAccount, error: bankError } = await supabase
-    .from("bank_accounts")
+  // 2. Get payout account details
+  const { data: payoutAccount, error: payoutError } = await supabase
+    .from("payout_accounts")
     .select("*")
-    .eq("id", plan.bank_account_id)
+    .eq("id", plan.payout_account_id)
     .single();
 
-  if (bankError || !bankAccount) {
-    throw new Error(`Bank account not found: ${plan.bank_account_id}`);
+  if (payoutError || !payoutAccount) {
+    throw new Error(`Payout account not found: ${plan.payout_account_id}`);
   }
 
   // 3. Ensure transfer recipient exists
-  await ensureTransferRecipient(bankAccount);
+  const recipient_code = await ensureTransferRecipient(payoutAccount);
 
   // 4. Check wallet balance
   const hasBalance = await validateWalletBalance(
@@ -145,7 +159,8 @@ async function processSinglePayout(plan: PayoutPlan) {
   // 5. Initiate transfer
   const transferResult = await initiatePaystackTransfer(
     plan,
-    bankAccount,
+    payoutAccount,
+    recipient_code,
     payoutId
   );
 
@@ -166,25 +181,25 @@ async function processSinglePayout(plan: PayoutPlan) {
 }
 
 /**
- * Ensure transfer recipient exists for bank account
+ * Ensure transfer recipient exists for payout account
  */
-async function ensureTransferRecipient(bankAccount: BankAccount) {
-  if (bankAccount.paystack_recipient_code) {
+async function ensureTransferRecipient(payoutAccount: PayoutAccount) {
+  if (payoutAccount.paystack_recipient_code) {
     console.log(
-      `📝 Using existing recipient code: ${bankAccount.paystack_recipient_code}`
+      `📝 Using existing recipient code: ${payoutAccount.paystack_recipient_code}`
     );
-    return bankAccount.paystack_recipient_code;
+    return payoutAccount.paystack_recipient_code;
   }
 
   console.log("🔄 Creating new transfer recipient...");
 
   // Get bank code from bank name (you might need a mapping)
-  const bankCode = await getBankCode(bankAccount.bank_name);
+  const bankCode = payoutAccount.bank_code;
 
   const recipientData = {
     type: "nuban",
-    name: bankAccount.account_name,
-    account_number: bankAccount.account_number,
+    name: payoutAccount.account_name,
+    account_number: payoutAccount.account_number,
     bank_code: bankCode,
     currency: "NGN",
   };
@@ -204,14 +219,13 @@ async function ensureTransferRecipient(bankAccount: BankAccount) {
     throw new Error(`Failed to create transfer recipient: ${result.message}`);
   }
 
-  // Update bank account with recipient code
+  // Update payout account with recipient code
   await supabase
-    .from("bank_accounts")
+    .from("payout_accounts")
     .update({
       paystack_recipient_code: result.data.recipient_code,
-      transfer_enabled: true,
     })
-    .eq("id", bankAccount.id);
+    .eq("id", payoutAccount.id);
 
   console.log(`✅ Transfer recipient created: ${result.data.recipient_code}`);
   return result.data.recipient_code;
@@ -222,7 +236,8 @@ async function ensureTransferRecipient(bankAccount: BankAccount) {
  */
 async function initiatePaystackTransfer(
   plan: PayoutPlan,
-  bankAccount: BankAccount,
+  payoutAccount: PayoutAccount,
+  recipient_code: string,
   payoutId: string
 ) {
   const reference = `auto_payout_${plan.plan_id}_${Date.now()}`;
@@ -231,13 +246,13 @@ async function initiatePaystackTransfer(
   const transferData = {
     source: "balance",
     amount: amountInKobo,
-    recipient: bankAccount.paystack_recipient_code!,
+    recipient: recipient_code,
     reason: `Automated payout from ${plan.name}`,
     reference: reference,
   };
 
   console.log(
-    `💸 Initiating transfer of ₦${plan.payout_amount} to ${bankAccount.account_number}`
+    `💸 Initiating transfer of ₦${plan.payout_amount} to ${payoutAccount.account_number}`
   );
 
   const response = await fetch(`${PAYSTACK_BASE_URL}/transfer`, {
@@ -375,32 +390,6 @@ async function logPayoutFailure(plan: PayoutPlan, error: any) {
     })
     .eq("payout_plan_id", plan.plan_id)
     .eq("scheduled_date", plan.next_payout_date);
-}
-
-/**
- * Get bank code from bank name (simplified mapping)
- */
-async function getBankCode(bankName: string): Promise<string> {
-  // This is a simplified mapping - in production, you'd fetch from Paystack API
-  const bankCodeMap: { [key: string]: string } = {
-    "Access Bank": "044",
-    GTBank: "058",
-    "Zenith Bank": "057",
-    UBA: "033",
-    "First Bank": "011",
-    "Fidelity Bank": "070",
-    FCMB: "214",
-    "Sterling Bank": "232",
-    "Polaris Bank": "076",
-    "Keystone Bank": "082",
-  };
-
-  const code = bankCodeMap[bankName];
-  if (!code) {
-    throw new Error(`Bank code not found for: ${bankName}`);
-  }
-
-  return code;
 }
 
 /**

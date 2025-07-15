@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS automated_payouts (
   transfer_reference text UNIQUE,
   paystack_transfer_id text,
   amount numeric NOT NULL CHECK (amount > 0),
-  bank_account_id uuid REFERENCES bank_accounts(id) NOT NULL,
+  -- bank_account_id uuid REFERENCES bank_accounts(id) NOT NULL,
   error_message text,
   retry_count integer DEFAULT 0,
   retry_after timestamptz,
@@ -90,7 +90,7 @@ RETURNS TABLE(
   user_id uuid,
   name text,
   payout_amount numeric,
-  bank_account_id uuid,
+  -- bank_account_id uuid,
   next_payout_date date,
   completed_payouts integer,
   duration integer
@@ -105,7 +105,7 @@ BEGIN
     pp.user_id,
     pp.name,
     pp.payout_amount,
-    pp.bank_account_id,
+    -- pp.bank_account_id,
     pp.next_payout_date,
     pp.completed_payouts,
     pp.duration
@@ -164,15 +164,15 @@ BEGIN
     status,
     transfer_reference,
     amount,
-    bank_account_id
+    -- bank_account_id
   ) VALUES (
     p_plan_id,
     v_plan.user_id,
     p_scheduled_date,
     'pending',
     v_reference,
-    v_plan.payout_amount,
-    v_plan.bank_account_id
+    v_plan.payout_amount
+    -- v_plan.bank_account_id
   ) RETURNING id INTO v_payout_id;
   
   RETURN v_payout_id;

@@ -59,7 +59,7 @@ RETURNS TABLE(
   payout_plan_id uuid,
   user_id uuid,
   amount numeric,
-  bank_account_id uuid,
+  -- bank_account_id uuid,
   transfer_reference text,
   retry_count integer,
   error_message text
@@ -74,7 +74,7 @@ BEGIN
     ap.payout_plan_id,
     ap.user_id,
     ap.amount,
-    ap.bank_account_id,
+    -- ap.bank_account_id,
     ap.transfer_reference,
     ap.retry_count,
     ap.error_message
@@ -174,7 +174,7 @@ BEGIN
   END IF;
   
   -- Get bank account details
-  SELECT * INTO v_bank_account FROM bank_accounts WHERE id = v_plan.bank_account_id;
+  -- SELECT * INTO v_bank_account FROM bank_accounts WHERE id = v_plan.bank_account_id;
   
   IF NOT FOUND THEN
     RETURN jsonb_build_object('eligible', false, 'reason', 'Bank account not found');

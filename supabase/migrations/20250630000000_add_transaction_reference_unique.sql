@@ -22,16 +22,15 @@ BEGIN
     WHERE constraint_name = 'transactions_reference_unique' 
     AND table_name = 'transactions'
   ) THEN
-    -- Add unique constraint on reference field
-    ALTER TABLE transactions 
-    ADD CONSTRAINT transactions_reference_unique 
-    UNIQUE (reference) 
+    -- Create a unique index instead of constraint with WHERE clause
+    CREATE UNIQUE INDEX transactions_reference_unique 
+    ON transactions(reference) 
     WHERE reference IS NOT NULL;
   END IF;
 END $$;
 
 -- Add index for better performance on reference lookups
-CREATE INDEX IF NOT EXISTS idx_transactions_reference 
+CREATE INDEX IF NOT EXISTS idx_transactions_reference_lookup 
 ON transactions(reference) 
 WHERE reference IS NOT NULL;
 
