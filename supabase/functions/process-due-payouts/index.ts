@@ -247,7 +247,7 @@ async function initiatePaystackTransfer(
     source: "balance",
     amount: amountInKobo,
     recipient: recipient_code,
-    reason: `Automated payout from ${plan.name}`,
+    reason: `Planmoni automated payout from ${plan.name}`,
     reference: reference,
   };
 
@@ -325,13 +325,23 @@ async function createTransactionRecord(plan: PayoutPlan, transferResult: any) {
  * Update wallet balance
  */
 async function updateWalletBalance(userId: string, amount: number) {
-  await supabase
-    .from("wallets")
-    .update({
-      balance: supabase.raw("balance - ?", [amount]),
-      locked_balance: supabase.raw("locked_balance - ?", [amount]),
-    })
-    .eq("user_id", userId);
+  const { data, error } = await supabase.rpc("deduct_locked_funds", {
+    arg_user_id: userId,
+    arg_amount: amount,
+  });
+
+  if (error) {
+    throw new Error(`Failed to update wallet balance: ${error.message}`);
+  }
+
+  if (!data?.success) {
+    throw new Error(
+      `Wallet balance update failed: ${data?.error || "Unknown error"}`
+    );
+  }
+
+  console.log(`✅ Wallet balance updated successfully for user ${userId}`);
+  return data;
 }
 
 /**
@@ -395,7 +405,7 @@ async function logPayoutFailure(plan: PayoutPlan, error: any) {
 /**
  * Main serve handler
  */
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
@@ -414,13 +424,13 @@ serve(async (req) => {
         status: 200,
       }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("💥 Function execution failed:", error);
 
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message,
+        error: error?.message || "Unknown error occurred",
       }),
       {
         headers: { "Content-Type": "application/json" },
