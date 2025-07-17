@@ -14,6 +14,7 @@ import { useWindowDimensions } from 'react-native';
 import LocationSearchModal from '@/components/LocationSearchModal';
 import { useKYCData } from '@/hooks/useKYCData';
 import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
+import { supabase } from '@/lib/supabase';
 type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
 
 export default function KYCUpgradeScreen() {
@@ -581,6 +582,118 @@ export default function KYCUpgradeScreen() {
     }
   };
   
+  // Image validation function
+  const validateImage = (imageUri: string): { isValid: boolean; error?: string } => {
+    // Check if it's a valid image format
+    if (!imageUri.startsWith('data:image/')) {
+      return { isValid: false, error: 'Invalid image format. Please select a valid image.' };
+    }
+    
+    // Check file size (5MB limit)
+    const base64Data = imageUri.split(',')[1];
+    const sizeInBytes = (base64Data.length * 3) / 4; // Approximate size calculation
+    const sizeInMB = sizeInBytes / (1024 * 1024);
+    
+    if (sizeInMB > 5) {
+      return { isValid: false, error: 'Image size must be less than 5MB. Please select a smaller image.' };
+    }
+    
+    return { isValid: true };
+  };
+
+  // Upload image to Supabase storage
+  const uploadImageToSupabase = async (imageUri: string, fileName: string): Promise<string> => {
+    try {
+      // Convert base64 to blob
+      const base64Data = imageUri.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/jpeg' });
+      
+      // Upload to Supabase storage
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .upload(`${session?.user?.id}/${fileName}`, blob, {
+          contentType: 'image/jpeg',
+          upsert: true
+        });
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(`${session?.user?.id}/${fileName}`);
+      
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      throw new Error('Failed to upload image to storage');
+    }
+  };
+
+  // Smart name matching function (same as BVN verification)
+  const isNameMatch = (name1: string, name2: string) => {
+    const normalizeName = (name: string) => {
+      return name.toLowerCase().trim().replace(/\s+/g, ' ');
+    };
+    
+    const normalized1 = normalizeName(name1);
+    const normalized2 = normalizeName(name2);
+    
+    // Exact match
+    if (normalized1 === normalized2) return true;
+    
+    // Check if one name contains the other (for partial matches)
+    if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) return true;
+    
+    // Check for common misspellings or variations
+    const similarity = calculateSimilarity(normalized1, normalized2);
+    return similarity >= 0.7; // 70% similarity threshold
+  };
+  
+  const calculateSimilarity = (str1: string, str2: string) => {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+    
+    if (longer.length === 0) return 1.0;
+    
+    const distance = levenshteinDistance(longer, shorter);
+    return (longer.length - distance) / longer.length;
+  };
+  
+  const levenshteinDistance = (str1: string, str2: string) => {
+    const matrix = [];
+    for (let i = 0; i <= str2.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= str1.length; j++) {
+      matrix[0][j] = j;
+    }
+    for (let i = 1; i <= str2.length; i++) {
+      for (let j = 1; j <= str1.length; j++) {
+        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+    return matrix[str2.length][str1.length];
+  };
+
   const verifyDocuments = async () => {
     try {
       setIsVerifyingDocuments(true);
@@ -590,27 +703,63 @@ export default function KYCUpgradeScreen() {
         throw new Error('Authentication required');
       }
 
-      // For now, simulate document verification success
-      // In a real app, you would upload images and make API calls here
-      console.log('Simulating document verification for:', selectedIdentityType);
+      // Check if environment variables are available
+      const appId = process.env.EXPO_PUBLIC_DOJAH_APP_ID!;
+      const privateKey = process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!;
       
-      // Simulate successful verification
-      setDocumentsVerified(true);
-      showToast('Documents verified successfully', 'success');
-      
-      // Update progress and move to next step
-      const progressResult = await updateProgress({
-        current_step: 'address_details',
-        documents_verified: true
-      });
-      
-      if (!progressResult) {
-        showToast('Failed to update progress. Please try again.', 'error');
+      if (!appId || !privateKey) {
+        console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
+        showToast('KYC service configuration error', 'error');
         return;
       }
+
+      // Validate required images
+      if (!documentFrontImage) {
+        throw new Error('Front of document is required');
+      }
       
-      setCurrentStep('address_details');
-      showToast('Document verification completed successfully!', 'success');
+      if (!selfieImage) {
+        throw new Error('Selfie is required');
+      }
+
+      // Validate image formats and sizes
+      const frontImageValidation = validateImage(documentFrontImage);
+      if (!frontImageValidation.isValid) {
+        throw new Error(frontImageValidation.error);
+      }
+
+      const selfieValidation = validateImage(selfieImage);
+      if (!selfieValidation.isValid) {
+        throw new Error(selfieValidation.error);
+      }
+
+      if (documentBackImage) {
+        const backImageValidation = validateImage(documentBackImage);
+        if (!backImageValidation.isValid) {
+          throw new Error(backImageValidation.error);
+        }
+      }
+
+      // Upload images to Supabase storage
+      const timestamp = Date.now();
+      const frontImageUrl = await uploadImageToSupabase(documentFrontImage, `front_${timestamp}.jpg`);
+      const selfieImageUrl = await uploadImageToSupabase(selfieImage, `selfie_${timestamp}.jpg`);
+      let backImageUrl = '';
+      
+      if (documentBackImage) {
+        backImageUrl = await uploadImageToSupabase(documentBackImage, `back_${timestamp}.jpg`);
+      }
+
+      console.log('Images uploaded successfully:', { frontImageUrl, backImageUrl, selfieImageUrl });
+
+      // Verify based on document type
+      if (selectedIdentityType === 'drivers_license') {
+        await verifyDriversLicense(appId, privateKey, frontImageUrl, backImageUrl, selfieImageUrl);
+      } else if (selectedIdentityType === 'nin') {
+        await verifyNIN(appId, privateKey, frontImageUrl, selfieImageUrl);
+      } else {
+        throw new Error('Unsupported document type');
+      }
       
     } catch (error) {
       console.error('Document verification error:', error);
@@ -619,6 +768,216 @@ export default function KYCUpgradeScreen() {
       setErrors({ documentVerification: errorMessage });
     } finally {
       setIsVerifyingDocuments(false);
+    }
+  };
+
+  const verifyDriversLicense = async (appId: string, privateKey: string, frontImageUrl: string, backImageUrl: string, selfieImageUrl: string) => {
+    try {
+      if (!driversLicense.trim()) {
+        throw new Error('Driver\'s license number is required');
+      }
+
+      // Make Dojah API call for driver's license verification
+      const response = await fetch(`https://api.dojah.io/api/v1/kyc/dl?license_number=${driversLicense}`, {
+        method: 'GET',
+        headers: {
+          'AppId': appId,
+          'Authorization': privateKey,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Driver's license verification failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Driver\'s license verification response:', data);
+      
+      if (!data.entity) {
+        throw new Error('Invalid driver\'s license or no data returned');
+      }
+      
+      const dlData = data.entity;
+      
+      // Get names from driver's license data
+      const dlFirstName = dlData.firstName || '';
+      const dlLastName = dlData.lastName || '';
+      const dlMiddleName = dlData.middleName || '';
+      
+      // Get names from user's saved data
+      const userFirstName = firstName || '';
+      const userLastName = lastName || '';
+      const userMiddleName = middleName || '';
+      
+      console.log('Driver\'s license name comparison:', {
+        dl: { firstName: dlFirstName, lastName: dlLastName, middleName: dlMiddleName },
+        user: { firstName: userFirstName, lastName: userLastName, middleName: userMiddleName }
+      });
+      
+      // Check if any name matches (considering possible swaps)
+      const allDlNames = [dlFirstName, dlLastName, dlMiddleName].filter(Boolean);
+      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
+      
+      let nameMatches = 0;
+      let totalNames = Math.max(allDlNames.length, allUserNames.length);
+      
+      // Check for matches (including swapped positions)
+      for (const dlName of allDlNames) {
+        for (const userName of allUserNames) {
+          if (isNameMatch(dlName, userName)) {
+            nameMatches++;
+            break;
+          }
+        }
+      }
+      
+      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
+      console.log(`Driver's license name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
+      
+      // Consider it a match if at least 60% of names match
+      if (matchPercentage >= 60) {
+        setDocumentsVerified(true);
+        
+        // Create a display name from DL data
+        const displayName = [dlFirstName, dlMiddleName, dlLastName]
+          .filter(Boolean)
+          .join(' ');
+        
+        showToast(`Driver's license verified! Name: ${displayName}`, 'success');
+        
+        // Update progress and move to next step
+        const progressResult = await updateProgress({
+          current_step: 'address_details',
+          documents_verified: true
+        });
+        
+        if (!progressResult) {
+          showToast('Failed to update progress. Please try again.', 'error');
+          return;
+        }
+        
+        setCurrentStep('address_details');
+        showToast('Document verification completed successfully!', 'success');
+      } else {
+        throw new Error('Name mismatch detected. Please verify your personal information.');
+      }
+      
+    } catch (error) {
+      console.error('Driver\'s license verification error:', error);
+      throw error;
+    }
+  };
+
+  const verifyNIN = async (appId: string, privateKey: string, frontImageUrl: string, selfieImageUrl: string) => {
+    try {
+      if (!nin.trim()) {
+        throw new Error('NIN is required');
+      }
+
+      // Convert selfie image to base64 (remove data:image/jpeg;base64, prefix)
+      const selfieBase64 = selfieImage!.split(',')[1];
+
+      // Make Dojah API call for NIN verification
+      const response = await fetch('https://api.dojah.io/api/v1/kyc/nin/verify', {
+        method: 'POST',
+        headers: {
+          'AppId': appId,
+          'Authorization': privateKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          nin: nin,
+          first_name: firstName,
+          last_name: lastName,
+          selfie_image: selfieBase64
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`NIN verification failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('NIN verification response:', data);
+      
+      if (!data.entity) {
+        throw new Error('Invalid NIN or no data returned');
+      }
+      
+      const ninData = data.entity;
+      
+      // Check selfie verification
+      if (!ninData.selfie_verification?.match) {
+        throw new Error('Selfie verification failed. Please ensure the selfie matches your NIN photo.');
+      }
+      
+      // Get names from NIN data
+      const ninFirstName = ninData.first_name || '';
+      const ninLastName = ninData.last_name || '';
+      const ninMiddleName = ninData.middle_name || '';
+      
+      // Get names from user's saved data
+      const userFirstName = firstName || '';
+      const userLastName = lastName || '';
+      const userMiddleName = middleName || '';
+      
+      console.log('NIN name comparison:', {
+        nin: { firstName: ninFirstName, lastName: ninLastName, middleName: ninMiddleName },
+        user: { firstName: userFirstName, lastName: userLastName, middleName: userMiddleName }
+      });
+      
+      // Check if any name matches (considering possible swaps)
+      const allNinNames = [ninFirstName, ninLastName, ninMiddleName].filter(Boolean);
+      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
+      
+      let nameMatches = 0;
+      let totalNames = Math.max(allNinNames.length, allUserNames.length);
+      
+      // Check for matches (including swapped positions)
+      for (const ninName of allNinNames) {
+        for (const userName of allUserNames) {
+          if (isNameMatch(ninName, userName)) {
+            nameMatches++;
+            break;
+          }
+        }
+      }
+      
+      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
+      console.log(`NIN name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
+      
+      // Consider it a match if at least 60% of names match
+      if (matchPercentage >= 60) {
+        setDocumentsVerified(true);
+        
+        // Create a display name from NIN data
+        const displayName = [ninFirstName, ninMiddleName, ninLastName]
+          .filter(Boolean)
+          .join(' ');
+        
+        showToast(`NIN verified! Name: ${displayName}`, 'success');
+        
+        // Update progress and move to next step
+        const progressResult = await updateProgress({
+          current_step: 'address_details',
+          documents_verified: true
+        });
+        
+        if (!progressResult) {
+          showToast('Failed to update progress. Please try again.', 'error');
+          return;
+        }
+        
+        setCurrentStep('address_details');
+        showToast('Document verification completed successfully!', 'success');
+      } else {
+        throw new Error('Name mismatch detected. Please verify your personal information.');
+      }
+      
+    } catch (error) {
+      console.error('NIN verification error:', error);
+      throw error;
     }
   };
   
