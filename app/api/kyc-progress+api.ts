@@ -43,11 +43,14 @@ export async function GET(request: Request) {
       return createJsonResponse({ error: 'Unauthorized' }, 401);
     }
 
-    // Get or create KYC progress for the user
+    // Get KYC progress for the user
     const { data: progress, error } = await supabase
-      .rpc('get_or_create_kyc_progress', { user_uuid: user.id });
+      .from('kyc_progress')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
 
-    if (error) {
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
       console.error('Error fetching KYC progress:', error);
       return createJsonResponse({ 
         error: 'Failed to fetch KYC progress',
@@ -55,13 +58,49 @@ export async function GET(request: Request) {
       }, 500);
     }
 
+    // If no progress exists, create a default one
+    let kycProgress;
+    if (error && error.code === 'PGRST116') {
+      console.log('No KYC progress found, creating default for user:', user.id);
+      
+      const defaultProgress = {
+        user_id: user.id,
+        current_step: 'personal',
+        personal_info_completed: false,
+        bvn_verified: false,
+        documents_verified: false,
+        address_completed: false,
+        overall_completed: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: newProgress, error: createError } = await supabase
+        .from('kyc_progress')
+        .insert(defaultProgress)
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating default KYC progress:', createError);
+        return createJsonResponse({ 
+          error: 'Failed to create default KYC progress',
+          details: createError.message
+        }, 500);
+      }
+
+      kycProgress = newProgress;
+    } else {
+      kycProgress = progress;
+    }
+
     // Calculate step progress
     const stepProgress = {
-      personal: progress.personal_info_completed ? 1 : 0,
-      bvn_verification: progress.bvn_verified ? 1 : 0,
-      id_face_match: progress.documents_verified ? 1 : 0,
-      address_details: progress.address_completed ? 1 : 0,
-      review: progress.overall_completed ? 1 : 0
+      personal: kycProgress.personal_info_completed ? 1 : 0,
+      bvn_verification: kycProgress.bvn_verified ? 1 : 0,
+      id_face_match: kycProgress.documents_verified ? 1 : 0,
+      address_details: kycProgress.address_completed ? 1 : 0,
+      review: kycProgress.overall_completed ? 1 : 0
     };
 
     const totalSteps = 4; // personal, bvn_verification, id_face_match, address_details
@@ -71,7 +110,7 @@ export async function GET(request: Request) {
     return createJsonResponse({
       status: 'success',
       progress: {
-        ...progress,
+        ...kycProgress,
         stepProgress,
         progressPercentage,
         totalSteps,
@@ -123,36 +162,76 @@ export async function POST(request: Request) {
     if (addressCompleted !== undefined) updateObject.address_completed = addressCompleted;
     if (overallCompleted !== undefined) updateObject.overall_completed = overallCompleted;
 
-    // Update KYC progress
-    const { data: progress, error } = await supabase
+    // Add user_id and timestamps
+    updateObject.user_id = user.id;
+    updateObject.created_at = new Date().toISOString();
+    updateObject.updated_at = new Date().toISOString();
+
+    // First, check if a record exists for this user
+    const { data: existingData, error: checkError } = await supabase
       .from('kyc_progress')
-      .upsert({
-        user_id: user.id,
-        ...updateObject
-      }, {
-        onConflict: 'user_id'
-      })
-      .select()
+      .select('id')
+      .eq('user_id', user.id)
       .single();
 
-    if (error) {
-      console.error('Error updating KYC progress:', error);
+    let result;
+    
+    if (checkError && checkError.code === 'PGRST116') {
+      // No record exists, create a new one
+      console.log('Creating new KYC progress record for user:', user.id);
+      const { data: progress, error } = await supabase
+        .from('kyc_progress')
+        .insert(updateObject)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating KYC progress:', error);
+        return createJsonResponse({ 
+          error: 'Failed to create KYC progress',
+          details: error.message
+        }, 500);
+      }
+      
+      result = progress;
+    } else if (checkError) {
+      // Some other error occurred
+      console.error('Error checking existing KYC progress:', checkError);
       return createJsonResponse({ 
-        error: 'Failed to update KYC progress',
-        details: error.message
+        error: 'Failed to check existing KYC progress',
+        details: checkError.message
       }, 500);
+    } else {
+      // Record exists, update it
+      console.log('Updating existing KYC progress record for user:', user.id);
+      const { data: progress, error } = await supabase
+        .from('kyc_progress')
+        .update(updateObject)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating KYC progress:', error);
+        return createJsonResponse({ 
+          error: 'Failed to update KYC progress',
+          details: error.message
+        }, 500);
+      }
+      
+      result = progress;
     }
 
     return createJsonResponse({
       status: 'success',
-      message: 'KYC progress updated successfully',
-      progress
+      message: 'KYC progress saved successfully',
+      progress: result
     });
   } catch (error) {
     console.error('Error in POST KYC progress:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return createJsonResponse({ 
-      error: 'Internal server error while updating KYC progress',
+      error: 'Internal server error while saving KYC progress',
       details: errorMessage
     }, 500);
   }
