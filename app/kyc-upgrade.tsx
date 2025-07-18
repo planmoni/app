@@ -2746,9 +2746,9 @@ export default function KYCUpgradeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={handlePreviousStep} style={styles.backButton}>
+        {/* <Pressable onPress={handlePreviousStep} style={styles.backButton}>
           <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
-        </Pressable>
+        </Pressable> */}
         <Text style={styles.headerTitle}>Account Verification</Text>
       </View>
       
