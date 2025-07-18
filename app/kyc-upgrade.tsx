@@ -1081,6 +1081,18 @@ export default function KYCUpgradeScreen() {
       });
       
       if (progressResult) {
+        // Update account_verified to true in profiles table
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ account_verified: true })
+          .eq('id', session.user.id);
+        
+        if (profileError) {
+          console.error('Error updating profile:', profileError);
+          // Don't fail the entire process if profile update fails
+          console.log('Continuing with verification completion...');
+        }
+        
         showToast('Verification completed successfully!', 'success');
         router.replace('/(tabs)');
       } else {

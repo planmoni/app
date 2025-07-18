@@ -37,6 +37,9 @@ export interface KYCFormData {
   // Address Documents (Optional)
   utility_bill_url?: string;
   
+  // Admin Approval
+  approved?: boolean;
+  
   created_at?: string;
   updated_at?: string;
 }
