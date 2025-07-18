@@ -164,9 +164,6 @@ async function processSinglePayout(plan: PayoutPlan) {
     payoutId
   );
 
-  // $. Create Transfer transaction
-  await createTransferTransaction(plan.user_id, transferResult);
-
   // 6. Update automated payout record with transfer details
   await updateAutomatedPayout(payoutId, transferResult);
 
@@ -307,6 +304,8 @@ async function updatePayoutPlanProgress(planId: string) {
  * Create transaction record
  */
 async function createTransactionRecord(plan: PayoutPlan, transferResult: any) {
+  console.log(`📑 Creating transaction record for payout: ${plan.name}`);
+
   await supabase.from("transactions").insert({
     user_id: plan.user_id,
     type: "payout",
@@ -322,6 +321,7 @@ async function createTransactionRecord(plan: PayoutPlan, transferResult: any) {
       automated: true,
     },
   });
+  console.log(`✅ Transaction record created for payout: ${plan.name}`);
 }
 
 /**
@@ -355,6 +355,10 @@ async function createNotification(
   plan: PayoutPlan,
   transferResult: any
 ) {
+  console.log(
+    `📢 Creating notification for user ${userId} for payout: ${plan.name}`
+  );
+
   await supabase.from("events").insert({
     user_id: userId,
     type: "payout_initiated",
@@ -367,6 +371,9 @@ async function createNotification(
       automated: true,
     },
   });
+  console.log(
+    `✅ Notification created for user ${userId} for payout: ${plan.name}`
+  );
 }
 
 /**
@@ -403,21 +410,6 @@ async function logPayoutFailure(plan: PayoutPlan, error: any) {
     })
     .eq("payout_plan_id", plan.plan_id)
     .eq("scheduled_date", plan.next_payout_date);
-}
-
-async function createTransferTransaction(userId: string, transferResult: any) {
-  const amountInNaira = transferResult.amount / 100;
-  // Create transaction record for payout
-  await supabase.from("transactions").insert({
-    user_id: userId,
-    type: "payout",
-    amount: amountInNaira,
-    status: "completed",
-    source: "wallet",
-    destination: `Virtual Account (${transferResult.recipient.account_number})`,
-    reference: transferResult.reference,
-    description: "Payout from virtual account",
-  });
 }
 
 /**
