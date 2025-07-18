@@ -16,6 +16,7 @@ export interface KYCFormData {
   // Address Information
   address?: string;
   address_no?: string;
+  house_url?: string;
   address_lat?: string;
   address_lon?: string;
   address_place_id?: string;
@@ -33,7 +34,7 @@ export interface KYCFormData {
   document_back_url?: string;
   selfie_url?: string;
   
-  // Utility Bill (Optional)
+  // Address Documents (Optional)
   utility_bill_url?: string;
   
   created_at?: string;

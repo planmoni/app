@@ -60,7 +60,7 @@ export default function KYCUpgradeScreen() {
   const [address, setAddress] = useState('');
   
   // Address details
-  const [addressNo, setAddressNo] = useState('');
+  const [houseUrl, setHouseUrl] = useState<string | null>(null);
   const [lga, setLga] = useState('');
   const [state, setState] = useState('');
   const [utilityBill, setUtilityBill] = useState<string | null>(null);
@@ -96,6 +96,9 @@ export default function KYCUpgradeScreen() {
   const phoneInputRef = useRef<TextInput>(null);
   const addressInputRef = useRef<TextInput>(null);
   
+  // Add back the house number state
+  const [addressNo, setAddressNo] = useState('');
+  
   // Pre-fill form with user data if available and load form data
   useEffect(() => {
     if (session?.user?.user_metadata) {
@@ -116,7 +119,7 @@ export default function KYCUpgradeScreen() {
       if (formData.date_of_birth) setDateOfBirth(formData.date_of_birth);
       if (formData.phone_number) setPhoneNumber(formData.phone_number);
       if (formData.address) setAddress(formData.address);
-      if (formData.address_no) setAddressNo(formData.address_no);
+      if (formData.house_url) setHouseUrl(formData.house_url);
       if (formData.address_lat) setAddressLat(formData.address_lat);
       if (formData.address_lon) setAddressLon(formData.address_lon);
       if (formData.address_place_id) setAddressPlaceId(formData.address_place_id);
@@ -151,6 +154,10 @@ export default function KYCUpgradeScreen() {
       // Load address details
       if (formData.lga) setLga(formData.lga);
       if (formData.state) setState(formData.state);
+      if (formData.utility_bill_url) setUtilityBill(formData.utility_bill_url);
+      
+      // Add back the house number state
+      if (formData.address_no) setAddressNo(formData.address_no);
     }
   }, [formData]);
 
@@ -273,6 +280,7 @@ export default function KYCUpgradeScreen() {
     if (!address.trim()) newErrors.address = 'Address is required';
     if (!lga.trim()) newErrors.lga = 'Local Government Area is required';
     if (!state.trim()) newErrors.state = 'State is required';
+    if (!houseUrl) newErrors.houseUrl = 'House photo is required';
     
     setErrors(newErrors);
     
@@ -302,7 +310,7 @@ export default function KYCUpgradeScreen() {
               date_of_birth: dateOfBirth,
               phone_number: phoneNumber,
               address: address,
-              address_no: addressNo,
+              house_url: houseUrl || undefined,
               address_lat: addressLat,
               address_lon: addressLon,
               address_place_id: addressPlaceId
@@ -384,7 +392,9 @@ export default function KYCUpgradeScreen() {
             const saveResult = await saveFormData({
               address_no: addressNo,
               lga: lga,
-              state: state
+              state: state,
+              house_url: houseUrl || undefined,
+              utility_bill_url: utilityBill || undefined
             });
             
             if (!saveResult) {
@@ -1192,7 +1202,7 @@ export default function KYCUpgradeScreen() {
     }
     
     setAddress(detailedAddress);
-    setAddressNo(houseNumber);
+    // Note: houseUrl will be set by photo capture, not from location
     setAddressLat(location.lat);
     setAddressLon(location.lon);
     setAddressPlaceId(location.place_id.toString());
@@ -1212,7 +1222,6 @@ export default function KYCUpgradeScreen() {
     // Save the location data
     saveFormData({
       address: detailedAddress,
-      address_no: houseNumber,
       address_lat: location.lat,
       address_lon: location.lon,
       address_place_id: location.place_id.toString(),
@@ -1984,6 +1993,46 @@ export default function KYCUpgradeScreen() {
           {errors.state && <Text style={styles.errorText}>{errors.state}</Text>}
         </View>
         
+
+        
+        <View style={styles.documentCard}>
+          <View style={styles.documentHeader}>
+            <Text style={styles.documentName}>House Photo (Required)</Text>
+            <View style={[styles.documentStatus, styles.requiredStatus]}>
+              <Text style={styles.requiredStatusText}>Required</Text>
+            </View>
+          </View>
+          <Text style={styles.documentDescription}>
+            Take a photo of your house/building for address verification.
+          </Text>
+          {houseUrl ? (
+            <View style={styles.imagePreviewContainer}>
+              <Image 
+                source={{ uri: houseUrl }} 
+                style={styles.imagePreview} 
+                resizeMode="cover"
+              />
+              <Pressable 
+                style={styles.retakeButton}
+                onPress={() => setHouseUrl(null)}
+              >
+                <Text style={styles.retakeButtonText}>Remove</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.documentActions}>
+              <Pressable 
+                style={styles.documentButton}
+                onPress={() => takePicture(setHouseUrl, 'housePhoto')}
+              >
+                <Camera size={16} color={colors.primary} />
+                <Text style={styles.documentButtonText}>Take Photo</Text>
+              </Pressable>
+            </View>
+          )}
+          {errors.houseUrl && <Text style={styles.errorText}>{errors.houseUrl}</Text>}
+        </View>
+        
         <View style={styles.documentCard}>
           <View style={styles.documentHeader}>
             <Text style={styles.documentName}>Utility Bill (Optional for Tier 3)</Text>
@@ -2134,6 +2183,15 @@ export default function KYCUpgradeScreen() {
             <View style={styles.reviewItem}>
               <Text style={styles.reviewLabel}>State</Text>
               <Text style={styles.reviewValue}>{state}</Text>
+            </View>
+            
+
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>House Photo</Text>
+              <Text style={styles.reviewValue}>
+                {houseUrl ? 'Uploaded' : 'Not provided'}
+              </Text>
             </View>
             
             <View style={styles.reviewItem}>
@@ -2521,6 +2579,7 @@ export default function KYCUpgradeScreen() {
     optionalStatusText: {
       color: colors.textSecondary,
     },
+
     documentDescription: {
       fontSize: 14,
       color: colors.textSecondary,
@@ -2760,6 +2819,12 @@ export default function KYCUpgradeScreen() {
       color: colors.success,
       marginTop: 4,
       fontStyle: 'italic',
+    },
+    requiredStatus: {
+      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7',
+    },
+    requiredStatusText: {
+      color: colors.warning,
     },
   });
   
