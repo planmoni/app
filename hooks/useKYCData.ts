@@ -124,6 +124,7 @@ export const useKYCData = () => {
         result = data;
       }
 
+      
       setFormData(result);
       console.log('KYC form data saved successfully');
       return true;
