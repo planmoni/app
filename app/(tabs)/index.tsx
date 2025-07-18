@@ -555,8 +555,11 @@ export default function HomeScreen() {
               <Text style={styles.emptyPayoutsText}>No active payout plans</Text>
               <Pressable style={styles.createFirstPayoutButton} onPress={handleCreatePayout}>
                 <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.createFirstPayoutText}>Create Your First Plan</Text>
+                <Text style={styles.createFirstPayoutText}>Create Your Plan</Text>
               </Pressable>
+              <Text >
+                Set up a new automated payout plan
+              </Text>
             </View>
           )}
         </View>
@@ -921,7 +924,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.border,
+    // borderColor: colors.border,
+    borderColor: '#FFB700',
   },
   summaryHeader: {
     flexDirection: 'row',
@@ -1133,7 +1137,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    // borderColor: colors.border,
+    borderColor: '#925FE2',
   },
   emptyPayoutsText: {
     fontSize: 14,
