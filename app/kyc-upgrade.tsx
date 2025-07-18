@@ -86,6 +86,9 @@ export default function KYCUpgradeScreen() {
   // Form validation
   const [errors, setErrors] = useState<Record<string, string>>({});
   
+  // Flag to prevent automatic toasts during manual verification
+  const [isManualVerification, setIsManualVerification] = useState(false);
+  
   // Refs for auto-focus
   const lastNameInputRef = useRef<TextInput>(null);
   const middleNameInputRef = useRef<TextInput>(null);
@@ -158,20 +161,23 @@ export default function KYCUpgradeScreen() {
       setBvnVerified(progress.bvn_verified);
       setDocumentsVerified(progress.documents_verified);
       
-      // Set verification status
-      if (progress.overall_completed) {
-        setVerificationStatus('fully_verified');
-        showToast('Your account is already fully verified', 'success');
-      } else if (progress.bvn_verified && progress.documents_verified) {
-        setVerificationStatus('partially_verified');
-        showToast('Your identity is verified. Please complete address details', 'info');
-      } else if (progress.bvn_verified) {
-        setVerificationStatus('partially_verified');
-      } else {
-      setVerificationStatus('unverified');
+      // Only show automatic toasts if not in manual verification mode
+      if (!isManualVerification) {
+        // Set verification status
+        if (progress.overall_completed) {
+          setVerificationStatus('fully_verified');
+          showToast('Your account is already fully verified', 'success');
+        } else if (progress.bvn_verified && progress.documents_verified) {
+          setVerificationStatus('partially_verified');
+          showToast('Your identity is verified. Please complete address details', 'info');
+        } else if (progress.bvn_verified) {
+          setVerificationStatus('partially_verified');
+        } else {
+          setVerificationStatus('unverified');
+        }
       }
     }
-  }, [progress, showToast]);
+  }, [progress, showToast, isManualVerification]);
   
 
   
@@ -321,8 +327,10 @@ export default function KYCUpgradeScreen() {
               return;
             }
             
+            // Wait for toast to be visible before moving to next step
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
             setCurrentStep('bvn_verification');
-            showToast('Personal information saved successfully!', 'success');
           }
           break;
         case 'bvn_verification':
@@ -395,8 +403,10 @@ export default function KYCUpgradeScreen() {
               return;
             }
             
+            // Wait for toast to be visible before moving to next step
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
             setCurrentStep('review');
-            showToast('Address details saved successfully!', 'success');
           }
           break;
         case 'review':
@@ -413,6 +423,7 @@ export default function KYCUpgradeScreen() {
   
   const verifyBvn = async () => {
     try {
+      setIsManualVerification(true);
       setIsResolvingBvn(true);
       setErrors({});
       
@@ -555,7 +566,7 @@ export default function KYCUpgradeScreen() {
         setBvnMatchedName(displayName);
         showToast(`BVN verified! Name: ${displayName}`, 'success');
         
-        // Update progress and move to next step
+        // Update progress
         const progressResult = await updateProgress({
           current_step: 'id_face_match',
           bvn_verified: true
@@ -566,8 +577,10 @@ export default function KYCUpgradeScreen() {
           return;
         }
         
+        // Wait for toast to be visible before moving to next step
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
         setCurrentStep('id_face_match');
-        showToast('BVN verification completed successfully!', 'success');
       } else {
         throw new Error('Name mismatch detected. Please verify your personal information.');
       }
@@ -579,6 +592,7 @@ export default function KYCUpgradeScreen() {
       setErrors({ bvn: errorMessage });
     } finally {
       setIsResolvingBvn(false);
+      setIsManualVerification(false);
     }
   };
   
@@ -659,6 +673,7 @@ export default function KYCUpgradeScreen() {
 
   const verifyDocuments = async () => {
     try {
+      setIsManualVerification(true);
       setIsVerifyingDocuments(true);
       setErrors({});
       
@@ -719,6 +734,7 @@ export default function KYCUpgradeScreen() {
       setErrors({ documentVerification: errorMessage });
     } finally {
       setIsVerifyingDocuments(false);
+      setIsManualVerification(false);
     }
   };
 
@@ -814,7 +830,7 @@ export default function KYCUpgradeScreen() {
         
         showToast(`Driver's license verified! Name: ${displayName}`, 'success');
         
-        // Update progress and move to next step
+        // Update progress
         const progressResult = await updateProgress({
           current_step: 'address_details',
           documents_verified: true
@@ -825,8 +841,10 @@ export default function KYCUpgradeScreen() {
           return;
         }
         
+        // Wait for toast to be visible before moving to next step
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
         setCurrentStep('address_details');
-        showToast('Document verification completed successfully!', 'success');
       } else {
         throw new Error('Name mismatch detected. Please verify your personal information.');
       }
@@ -953,7 +971,7 @@ export default function KYCUpgradeScreen() {
         
         showToast(`NIN verified! Name: ${displayName} (${selfieVerification.confidence_value.toFixed(1)}% confidence)`, 'success');
         
-        // Update progress and move to next step
+        // Update progress
         const progressResult = await updateProgress({
           current_step: 'address_details',
           documents_verified: true
@@ -964,8 +982,10 @@ export default function KYCUpgradeScreen() {
           return;
         }
         
+        // Wait for toast to be visible before moving to next step
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
         setCurrentStep('address_details');
-        showToast('Document verification completed successfully!', 'success');
       } else {
         throw new Error('Name mismatch detected. Please verify your personal information.');
       }
