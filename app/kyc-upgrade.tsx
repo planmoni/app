@@ -601,44 +601,7 @@ export default function KYCUpgradeScreen() {
     return { isValid: true };
   };
 
-  // Upload image to Supabase storage
-  const uploadImageToSupabase = async (imageUri: string, fileName: string): Promise<string> => {
-    try {
-      // Convert base64 to blob
-      const base64Data = imageUri.split(',')[1];
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Array(byteCharacters.length);
-      
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'image/jpeg' });
-      
-      // Upload to Supabase storage
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .upload(`${session?.user?.id}/${fileName}`, blob, {
-          contentType: 'image/jpeg',
-          upsert: true
-        });
-      
-      if (error) {
-        throw error;
-      }
-      
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('documents')
-        .getPublicUrl(`${session?.user?.id}/${fileName}`);
-      
-      return urlData.publicUrl;
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      throw new Error('Failed to upload image to storage');
-    }
-  };
+
 
   // Smart name matching function (same as BVN verification)
   const isNameMatch = (name1: string, name2: string) => {
@@ -740,23 +703,11 @@ export default function KYCUpgradeScreen() {
         }
       }
 
-      // Upload images to Supabase storage
-      const timestamp = Date.now();
-      const frontImageUrl = await uploadImageToSupabase(documentFrontImage, `front_${timestamp}.jpg`);
-      const selfieImageUrl = await uploadImageToSupabase(selfieImage, `selfie_${timestamp}.jpg`);
-      let backImageUrl = '';
-      
-      if (documentBackImage) {
-        backImageUrl = await uploadImageToSupabase(documentBackImage, `back_${timestamp}.jpg`);
-      }
-
-      console.log('Images uploaded successfully:', { frontImageUrl, backImageUrl, selfieImageUrl });
-
-      // Verify based on document type
+      // Verify based on document type first (before saving anything)
       if (selectedIdentityType === 'drivers_license') {
-        await verifyDriversLicense(appId, privateKey, frontImageUrl, backImageUrl, selfieImageUrl);
+        await verifyDriversLicense(appId, privateKey);
       } else if (selectedIdentityType === 'nin') {
-        await verifyNIN(appId, privateKey, frontImageUrl, selfieImageUrl);
+        await verifyNIN(appId, privateKey);
       } else {
         throw new Error('Unsupported document type');
       }
@@ -771,7 +722,7 @@ export default function KYCUpgradeScreen() {
     }
   };
 
-  const verifyDriversLicense = async (appId: string, privateKey: string, frontImageUrl: string, backImageUrl: string, selfieImageUrl: string) => {
+  const verifyDriversLicense = async (appId: string, privateKey: string) => {
     try {
       if (!driversLicense.trim()) {
         throw new Error('Driver\'s license number is required');
@@ -837,6 +788,19 @@ export default function KYCUpgradeScreen() {
       
       // Consider it a match if at least 60% of names match
       if (matchPercentage >= 60) {
+        // Only save data after successful verification
+        const saveResult = await saveFormData({
+          document_type: 'drivers_license',
+          document_number: driversLicense,
+          document_front_url: documentFrontImage || undefined,
+          document_back_url: documentBackImage || undefined,
+          selfie_url: selfieImage || undefined
+        });
+        
+        if (!saveResult) {
+          throw new Error('Failed to save verified document data');
+        }
+        
         setDocumentsVerified(true);
         
         // Create a display name from DL data
@@ -869,7 +833,7 @@ export default function KYCUpgradeScreen() {
     }
   };
 
-  const verifyNIN = async (appId: string, privateKey: string, frontImageUrl: string, selfieImageUrl: string) => {
+  const verifyNIN = async (appId: string, privateKey: string) => {
     try {
       if (!nin.trim()) {
         throw new Error('NIN is required');
@@ -907,10 +871,21 @@ export default function KYCUpgradeScreen() {
       
       const ninData = data.entity;
       
-      // Check selfie verification
-      if (!ninData.selfie_verification?.match) {
+      // Check selfie verification with confidence threshold
+      const selfieVerification = ninData.selfie_verification;
+      if (!selfieVerification) {
+        throw new Error('Selfie verification data not available. Please try again.');
+      }
+      
+      if (!selfieVerification.match) {
         throw new Error('Selfie verification failed. Please ensure the selfie matches your NIN photo.');
       }
+      
+      if (selfieVerification.confidence_value < 90) {
+        throw new Error(`Selfie confidence too low (${selfieVerification.confidence_value.toFixed(1)}%). Please take a clearer selfie.`);
+      }
+      
+      console.log(`Selfie verification passed: ${selfieVerification.confidence_value.toFixed(1)}% confidence`);
       
       // Get names from NIN data
       const ninFirstName = ninData.first_name || '';
@@ -949,6 +924,18 @@ export default function KYCUpgradeScreen() {
       
       // Consider it a match if at least 60% of names match
       if (matchPercentage >= 60) {
+        // Only save data after successful verification
+        const saveResult = await saveFormData({
+          document_type: 'nin',
+          document_number: nin,
+          document_front_url: documentFrontImage || undefined,
+          selfie_url: selfieImage || undefined
+        });
+        
+        if (!saveResult) {
+          throw new Error('Failed to save verified document data');
+        }
+        
         setDocumentsVerified(true);
         
         // Create a display name from NIN data
@@ -956,7 +943,7 @@ export default function KYCUpgradeScreen() {
           .filter(Boolean)
           .join(' ');
         
-        showToast(`NIN verified! Name: ${displayName}`, 'success');
+        showToast(`NIN verified! Name: ${displayName} (${selfieVerification.confidence_value.toFixed(1)}% confidence)`, 'success');
         
         // Update progress and move to next step
         const progressResult = await updateProgress({
