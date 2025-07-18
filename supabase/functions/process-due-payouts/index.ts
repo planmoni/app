@@ -164,6 +164,9 @@ async function processSinglePayout(plan: PayoutPlan) {
     payoutId
   );
 
+  // $. Create Transfer transaction
+  await createTransferTransaction(plan.user_id, transferResult);
+
   // 6. Update automated payout record with transfer details
   await updateAutomatedPayout(payoutId, transferResult);
 
@@ -400,6 +403,21 @@ async function logPayoutFailure(plan: PayoutPlan, error: any) {
     })
     .eq("payout_plan_id", plan.plan_id)
     .eq("scheduled_date", plan.next_payout_date);
+}
+
+async function createTransferTransaction(userId: string, transferResult: any) {
+  const amountInNaira = transferResult.amount / 100;
+  // Create transaction record for payout
+  await supabase.from("transactions").insert({
+    user_id: userId,
+    type: "payout",
+    amount: amountInNaira,
+    status: "completed",
+    source: "wallet",
+    destination: `Virtual Account (${transferResult.recipient.account_number})`,
+    reference: transferResult.reference,
+    description: "Payout from virtual account",
+  });
 }
 
 /**
