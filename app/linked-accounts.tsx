@@ -107,7 +107,6 @@ export default function LinkedAccountsScreen() {
     reference: 'test_ref'
   }
   
-
   const handleAddAccount = async (account: {
     bankName: string;
     accountNumber: string;
