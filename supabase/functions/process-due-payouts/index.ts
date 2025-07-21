@@ -296,8 +296,18 @@ async function updateAutomatedPayout(payoutId: string, transferResult: any) {
  * Update payout plan progress and next date
  */
 async function updatePayoutPlanProgress(planId: string) {
-  // This will use the existing update_payout_plan_progress function
-  await supabase.rpc("update_payout_plan_progress", { p_plan_id: planId });
+  console.log(`📈 Updating payout plan progress for: ${planId}`);
+
+  const { data, error } = await supabase.rpc("update_payout_plan_progress", {
+    p_plan_id: planId,
+  });
+
+  if (error) {
+    console.error(`❌ Failed to update payout plan progress:`, error);
+    throw new Error(`Failed to update payout plan progress: ${error.message}`);
+  }
+
+  console.log(`✅ Payout plan progress updated for: ${planId}`);
 }
 
 /**
@@ -306,21 +316,32 @@ async function updatePayoutPlanProgress(planId: string) {
 async function createTransactionRecord(plan: PayoutPlan, transferResult: any) {
   console.log(`📑 Creating transaction record for payout: ${plan.name}`);
 
-  await supabase.from("transactions").insert({
+  const { error } = await supabase.from("transactions").insert({
     user_id: plan.user_id,
     type: "payout",
     amount: plan.payout_amount,
-    status: "processing",
+    status: "completed",
     source: "wallet",
     destination: `Bank Transfer`,
     payout_plan_id: plan.plan_id,
     reference: transferResult.reference,
     description: `Automated payout from ${plan.name}`,
-    metadata: {
-      transfer_code: transferResult.transfer_code,
-      automated: true,
+  });
+  console.log({
+    error,
+    d: {
+      user_id: plan.user_id,
+      type: "payout",
+      amount: plan.payout_amount,
+      status: "completed",
+      source: "wallet",
+      destination: `Bank Transfer`,
+      payout_plan_id: plan.plan_id,
+      reference: transferResult.reference,
+      description: `Automated payout from ${plan.name}`,
     },
   });
+
   console.log(`✅ Transaction record created for payout: ${plan.name}`);
 }
 
@@ -359,18 +380,16 @@ async function createNotification(
     `📢 Creating notification for user ${userId} for payout: ${plan.name}`
   );
 
-  await supabase.from("events").insert({
+  const { error } = await supabase.from("events").insert({
     user_id: userId,
-    type: "payout_initiated",
+    type: "payout_completed",
     title: "Payout Initiated",
     description: `₦${plan.payout_amount.toLocaleString()} payout from "${plan.name}" has been initiated.`,
     status: "unread",
     payout_plan_id: plan.plan_id,
-    metadata: {
-      transfer_reference: transferResult.reference,
-      automated: true,
-    },
   });
+  console.log({ error });
+
   console.log(
     `✅ Notification created for user ${userId} for payout: ${plan.name}`
   );
