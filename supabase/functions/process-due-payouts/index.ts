@@ -304,7 +304,6 @@ async function updatePayoutPlanProgress(planId: string) {
 
   if (error) {
     console.error(`❌ Failed to update payout plan progress:`, error);
-    throw new Error(`Failed to update payout plan progress: ${error.message}`);
   }
 
   console.log(`✅ Payout plan progress updated for: ${planId}`);
@@ -316,33 +315,32 @@ async function updatePayoutPlanProgress(planId: string) {
 async function createTransactionRecord(plan: PayoutPlan, transferResult: any) {
   console.log(`📑 Creating transaction record for payout: ${plan.name}`);
 
-  const { error } = await supabase.from("transactions").insert({
-    user_id: plan.user_id,
-    type: "payout",
-    amount: plan.payout_amount,
-    status: "completed",
-    source: "wallet",
-    destination: `Bank Transfer`,
-    payout_plan_id: plan.plan_id,
-    reference: transferResult.reference,
-    description: `Automated payout from ${plan.name}`,
-  });
-  console.log({
-    error,
-    d: {
-      user_id: plan.user_id,
-      type: "payout",
-      amount: plan.payout_amount,
-      status: "completed",
-      source: "wallet",
-      destination: `Bank Transfer`,
-      payout_plan_id: plan.plan_id,
-      reference: transferResult.reference,
-      description: `Automated payout from ${plan.name}`,
-    },
-  });
+  console.log({ plan, transferResult });
 
-  console.log(`✅ Transaction record created for payout: ${plan.name}`);
+  // Use the database function with proper type casting
+  const { data: transactionId, error } = await supabase.rpc(
+    "create_transaction_record",
+    {
+      p_user_id: plan.user_id,
+      p_type: "payout",
+      p_amount: plan.payout_amount,
+      p_status: "completed",
+      p_source: "wallet",
+      p_destination: "Bank Transfer",
+      p_payout_plan_id: plan.plan_id,
+      p_reference: transferResult.reference,
+      p_description: `Automated payout from ${plan.name}`,
+    }
+  );
+
+  if (error) {
+    console.error(`❌ Failed to create transaction record:`, error);
+  }
+
+  console.log(`✅ Transaction record created for payout: ${plan.name}`, {
+    transactionId,
+  });
+  return transactionId;
 }
 
 /**
