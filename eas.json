@@ -16,6 +16,12 @@
     },
     "production": {
       "autoIncrement": true
+    },
+    "testflight": {
+      "ios": {
+        "distribution": "store",
+        "buildConfiguration": "Release"
+      }
     }
   },
   "submit": {
