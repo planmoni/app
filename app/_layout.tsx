@@ -10,6 +10,7 @@ import { SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { initializeNotifications } from '@/lib/notifications';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -17,6 +18,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import CustomSplashScreen from '@/components/SplashScreen';
+import { SessionDebugger } from '@/components/SessionDebugger';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
@@ -25,6 +27,17 @@ function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
+
+  // Initialize notifications when user is authenticated
+  useEffect(() => {
+    if (session?.user?.id) {
+      initializeNotifications(session.user.id).then(cleanup => {
+        return () => {
+          if (cleanup) cleanup();
+        };
+      });
+    }
+  }, [session?.user?.id]);
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
@@ -97,12 +110,12 @@ function RootLayoutNav() {
           <React.Fragment key="unauthenticated-screens">
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="login" options={{ headerShown: false }} />
           </React.Fragment>
         )}
         <Stack.Screen name="+not-found" options={{ title: 'Page Not Found' }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
+      <SessionDebugger />
     </GestureHandlerRootView>
   );
 }

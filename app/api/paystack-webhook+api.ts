@@ -8,6 +8,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Paystack webhook secret
 const PAYSTACK_WEBHOOK_SECRET = process.env.PAYSTACK_WEBHOOK_SECRET;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 // Function to verify webhook signature
 function verifyWebhookSignature(payload: string, signature: string): boolean {
@@ -25,7 +26,7 @@ function verifyWebhookSignature(payload: string, signature: string): boolean {
 }
 
 // Function to add funds to user's wallet
-async function addFundsToWallet(userId: string, amount: number, reference: string) {
+async function addFundsToWallet(userId: string, amount: number, reference: string, accountNumber?: string) {
   try {
     console.log(`Adding ₦${amount} to wallet for user ${userId}, reference: ${reference}`);
 
@@ -71,6 +72,37 @@ async function addFundsToWallet(userId: string, amount: number, reference: strin
     }
 
     console.log(`Successfully added ₦${amount} to wallet for user ${userId}`);
+    
+    // Get user email for notifications
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name')
+      .eq('id', userId)
+      .single();
+
+    // Send push notification
+    await supabase.rpc('send_push_notification', {
+      p_user_id: userId,
+      p_title: 'Funds Received',
+      p_body: `₦${amount.toLocaleString()} has been added to your wallet`,
+      p_data: {
+        type: 'deposit_successful',
+        transaction_reference: reference,
+        amount: amount
+      }
+    });
+
+    // Send email notification
+    if (userProfile?.email) {
+      await sendEmailNotification({
+        to: userProfile.email,
+        firstName: userProfile.first_name || 'User',
+        amount: amount,
+        reference: reference,
+        accountNumber: accountNumber || 'N/A'
+      });
+    }
+    
     return { success: true, balance: result.balance, available_balance: result.available_balance };
   } catch (error) {
     console.error('Error in addFundsToWallet:', error);
@@ -231,7 +263,7 @@ async function handleChargeSuccess(data: any) {
       return;
     }
 
-    await addFundsToWallet(userId, amountInNaira, reference);
+    await addFundsToWallet(userId, amountInNaira, reference, data.authorization?.account_number);
 
     // Create notification event
     const notificationTitle = metadata?.payment_type === 'ussd' ? 'USSD Payment Successful' : 'Funds Received';
@@ -341,4 +373,136 @@ async function handleDedicatedAccountAssigned(data: any) {
     console.error('Error handling dedicated_account.assigned:', error);
     throw error;
   }
+}
+
+// Function to send email notification
+async function sendEmailNotification({
+  to,
+  firstName,
+  amount,
+  reference,
+  accountNumber
+}: {
+  to: string;
+  firstName: string;
+  amount: number;
+  reference: string;
+  accountNumber: string;
+}) {
+  try {
+    if (!RESEND_API_KEY) {
+      console.error('Resend API key not configured');
+      return;
+    }
+
+    const emailSubject = "Funds Received - Planmoni";
+    const emailHtml = generateDepositNotificationHtml({
+      firstName,
+      amount: `₦${amount.toLocaleString()}`,
+      accountNumber,
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      reference
+    });
+
+    const emailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: "Planmoni <notifications@planmoni.com>",
+        to: to,
+        subject: emailSubject,
+        html: emailHtml
+      })
+    });
+
+    if (emailResponse.ok) {
+      console.log(`Email notification sent to ${to} for transaction ${reference}`);
+    } else {
+      console.error(`Failed to send email notification to ${to}:`, await emailResponse.text());
+    }
+  } catch (error) {
+    console.error(`Error sending email notification to ${to}:`, error);
+  }
+}
+
+// Email template for deposit notifications
+function generateDepositNotificationHtml(data: {
+  firstName: string;
+  amount: string;
+  accountNumber: string;
+  date: string;
+  reference: string;
+}) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Funds Received - Planmoni</title>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+        .amount { font-size: 32px; font-weight: bold; color: #059669; text-align: center; margin: 20px 0; }
+        .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .detail-row { display: flex; justify-content: space-between; margin: 10px 0; }
+        .label { font-weight: 600; color: #6b7280; }
+        .value { color: #111827; }
+        .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+        .button { display: inline-block; background: #1E3A8A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>💰 Funds Received!</h1>
+          <p>Hello ${data.firstName}, money has been added to your Planmoni wallet</p>
+        </div>
+        
+        <div class="content">
+          <div class="amount">${data.amount}</div>
+          
+          <div class="details">
+            <div class="detail-row">
+              <span class="label">Account Number:</span>
+              <span class="value">${data.accountNumber}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Date & Time:</span>
+              <span class="value">${data.date}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Reference:</span>
+              <span class="value">${data.reference}</span>
+            </div>
+          </div>
+          
+          <p style="text-align: center;">
+            <a href="https://planmoni.com" class="button">View in App</a>
+          </p>
+          
+          <p style="color: #6b7280; font-size: 14px; text-align: center;">
+            Your funds are now available in your wallet and ready to be used for your payout plans.
+          </p>
+        </div>
+        
+        <div class="footer">
+          <p>This is an automated notification from Planmoni</p>
+          <p>If you didn't expect this transaction, please contact support immediately</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
 } 

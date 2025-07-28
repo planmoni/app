@@ -1,450 +1,271 @@
 // Follow Deno's ES modules convention
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-manual-trigger",
-};
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const paystackSecretKey = Deno.env.get('PAYSTACK_LIVE_SECRET_KEY')!
+const resendApiKey = Deno.env.get('RESEND_API_KEY')!
 
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+Deno.serve(async (req) => {
   try {
-    // Initialize Supabase client with service role key for admin access
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    const paystackSecretKey = Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || "";
-    const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
-    
-    if (!supabaseUrl || !supabaseServiceKey || !paystackSecretKey) {
-      console.error("Missing required environment variables");
-      return new Response(
-        JSON.stringify({ error: "Server configuration error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    console.log('🔄 Starting transaction check...')
+
+    // Check if already processing
+    const { data: existingLock } = await supabase
+      .from('system_locks')
+      .select('*')
+      .eq('lock_name', 'transaction_processing')
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (existingLock) {
+      console.log('⏳ Transaction processing already in progress, skipping...')
+      return new Response(JSON.stringify({ message: 'Already processing' }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
-    // Check if this is a manual trigger or scheduled run
-    const isManualTrigger = req.method === "POST" && req.headers.get("x-manual-trigger") === "true";
-    const isScheduledRun = req.method === "POST" && !isManualTrigger;
-    
-    console.log(`🔄 Starting transaction check... (${isManualTrigger ? 'Manual' : 'Scheduled'})`);
-    
-    // Get all users with Paystack accounts
+    // Create processing lock
+    const { error: lockError } = await supabase
+      .from('system_locks')
+      .insert({
+        lock_name: 'transaction_processing',
+        status: 'active',
+        expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 minutes
+      })
+
+    if (lockError) {
+      console.error('❌ Error creating processing lock:', lockError)
+      return new Response(JSON.stringify({ error: 'Failed to create lock' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Get all Paystack accounts
     const { data: paystackAccounts, error: accountsError } = await supabase
       .from('paystack_accounts')
-      .select(`
-        user_id,
-        account_number,
-        customer_code
-      `);
+      .select('user_id, account_number, customer_code')
 
-    if (accountsError) {
-      console.error("Error fetching Paystack accounts:", accountsError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch user accounts" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (accountsError || !paystackAccounts) {
+      console.error('❌ Error fetching Paystack accounts:', accountsError)
+      return new Response(JSON.stringify({ error: 'Failed to fetch accounts' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
-    if (!paystackAccounts || paystackAccounts.length === 0) {
-      console.log("No Paystack accounts found");
-      return new Response(
-        JSON.stringify({ message: "No Paystack accounts found" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    console.log(`📊 Found ${paystackAccounts.length} Paystack accounts`)
 
-    // Get user profiles for the accounts
-    const userIds = paystackAccounts.map((account: any) => account.user_id);
-    const { data: userProfiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select(`
-        id,
-        email,
-        first_name,
-        email_notifications
-      `)
-      .in('id', userIds);
+    let totalProcessed = 0
+    let totalNewTransactions = 0
 
-    if (profilesError) {
-      console.error("Error fetching user profiles:", profilesError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch user profiles" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Create a map of user profiles for quick lookup
-    const profilesMap = new Map();
-    userProfiles?.forEach((profile: any) => {
-      profilesMap.set(profile.id, profile);
-    });
-
-    // Combine paystack accounts with their profiles
-    const accountsWithProfiles = paystackAccounts.map((account: any) => ({
-      ...account,
-      profiles: profilesMap.get(account.user_id) || {
-        email: null,
-        first_name: null,
-        email_notifications: {
-          deposit_alerts: true,
-          payout_alerts: true,
-          expiry_reminders: true,
-          wallet_summary: "weekly"
-        }
-      }
-    }));
-
-    console.log(`Found ${accountsWithProfiles.length} Paystack accounts to check`);
-
-    // Fetch transactions from Paystack API
-    const paystackResponse = await fetch('https://api.paystack.co/transaction', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${paystackSecretKey}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!paystackResponse.ok) {
-      console.error("Paystack API error:", paystackResponse.status);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch Paystack transactions" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const paystackData = await paystackResponse.json();
-    
-    if (!paystackData.status || !paystackData.data) {
-      console.log("No transactions found in Paystack");
-      return new Response(
-        JSON.stringify({ message: "No transactions found in Paystack" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log(`Found ${paystackData.data.length} total transactions in Paystack`);
-
-    // Create a global set to track all processed transaction references across all accounts
-    const allProcessedReferences = new Set<string>();
-    let totalProcessed = 0;
-    let totalAmount = 0;
-    let emailsSent = 0;
-
-    // Create a processing state tracking mechanism
-    const processingState = {
-      startTime: new Date().toISOString(),
-      functionId: `check-transactions-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      isProcessing: true
-    };
-
-    console.log(`🔄 Processing session started: ${processingState.functionId}`);
-
-    // First, get ALL existing transaction references from our database to avoid duplicates
-    const { data: allExistingTransactions, error: existingTxError } = await supabase
-      .from('transactions')
-      .select('reference, user_id, amount, created_at')
-      .eq('type', 'deposit')
-      .eq('source', 'Paystack Virtual Account');
-
-    if (existingTxError) {
-      console.error("Error fetching existing transactions:", existingTxError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch existing transactions" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Create a map of existing transactions by reference for quick lookup
-    const existingTransactionsMap = new Map();
-    allExistingTransactions?.forEach((tx: any) => {
-      existingTransactionsMap.set(tx.reference, tx);
-    });
-
-    console.log(`Found ${existingTransactionsMap.size} existing transactions in database`);
-
-    // Process each user's account
-    for (const account of accountsWithProfiles) {
+    // Process each account
+    for (const account of paystackAccounts) {
       try {
-        const userId = account.user_id;
-        const accountNumber = account.account_number;
-        const userEmail = account.profiles?.email;
-        const firstName = account.profiles?.first_name || "User";
-        const emailNotifications = account.profiles?.email_notifications || {
-          deposit_alerts: true,
-          payout_alerts: true,
-          expiry_reminders: true,
-          wallet_summary: "weekly"
-        };
+        console.log(`🔍 Checking transactions for account: ${account.account_number}`)
 
-        console.log(`Processing account ${accountNumber} for user ${userId}`);
+        // Fetch transactions from Paystack API
+        const response = await fetch('https://api.paystack.co/transaction', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${paystackSecretKey}`,
+            'Content-Type': 'application/json',
+          },
+        })
 
-        // Filter transactions for this user's virtual account ONLY
-        // Use more specific filtering to avoid duplicates
-        const userTransactions = paystackData.data.filter((tx: any) => {
-          // Only process transactions that are:
-          // 1. Successful
-          // 2. From dedicated NUBAN (virtual account)
-          // 3. Match this specific account number
-          // 4. Have proper metadata
-          return (
-            tx.status === 'success' &&
-            tx.channel === 'dedicated_nuban' &&
-            tx.authorization?.account_number === accountNumber &&
-            tx.metadata?.receiver_account_number &&
-            tx.reference && // Ensure reference exists
-            tx.amount > 0 // Ensure amount is positive
-          );
-        });
-
-        if (userTransactions.length === 0) {
-          console.log(`No transactions found for account ${accountNumber}`);
-          continue;
+        if (!response.ok) {
+          console.error(`❌ Paystack API error for account ${account.account_number}: ${response.status}`)
+          continue
         }
 
-        console.log(`Found ${userTransactions.length} transactions for account ${accountNumber}`);
-
-        // Find new transactions that haven't been processed
-        const newTransactions = userTransactions.filter((tx: any) => {
-          const reference = tx.reference;
-          
-          // Skip if already processed in this run
-          if (allProcessedReferences.has(reference)) {
-            console.log(`Skipping already processed transaction: ${reference}`);
-            return false;
-          }
-          
-          // Skip if exists in database
-          if (existingTransactionsMap.has(reference)) {
-            console.log(`Skipping existing transaction: ${reference}`);
-            return false;
-          }
-          
-          // Skip if no reference
-          if (!reference) {
-            console.log(`Skipping transaction without reference`);
-            return false;
-          }
-          
-          return true;
-        });
-
-        if (newTransactions.length === 0) {
-          console.log(`No new transactions for account ${accountNumber}`);
-          continue;
+        const data = await response.json()
+        
+        if (!data.status || !data.data) {
+          console.log(`⚠️ No data from Paystack for account ${account.account_number}`)
+          continue
         }
 
-        console.log(`Processing ${newTransactions.length} new transactions for account ${accountNumber}`);
+        // Filter transactions for this account
+        const accountTransactions = data.data.filter((tx: any) => 
+          tx.authorization?.account_number === account.account_number &&
+          tx.status === 'success' &&
+          tx.channel === 'dedicated_nuban'
+        )
 
-        // Process each new transaction
+        console.log(`📈 Found ${accountTransactions.length} transactions for account ${account.account_number}`)
+
+        // Get existing transaction references
+        const { data: existingTransactions } = await supabase
+          .from('transactions')
+          .select('reference')
+          .eq('user_id', account.user_id)
+          .eq('type', 'deposit')
+
+        const existingReferences = new Set(existingTransactions?.map((t: any) => t.reference) || [])
+
+        // Find new transactions
+        const newTransactions = accountTransactions.filter((tx: any) => 
+          !existingReferences.has(tx.reference) &&
+          tx.metadata?.receiver_account_number
+        )
+
+        console.log(`🆕 Found ${newTransactions.length} new transactions for account ${account.account_number}`)
+
+        // Process new transactions
         for (const tx of newTransactions) {
           try {
-            const reference = tx.reference;
-            const amountInNaira = tx.amount / 100; // Convert from kobo to naira
+            const amountInNaira = tx.amount / 100
 
-            console.log(`Processing transaction: ${reference}, Amount: ₦${amountInNaira}`);
+            console.log(`💰 Processing transaction: ${tx.reference}, Amount: ₦${amountInNaira}`)
 
-            // Mark this transaction as being processed to prevent duplicates
-            allProcessedReferences.add(reference);
-
-            // Use a transaction to ensure atomicity
-            const { data: result, error } = await supabase.rpc('add_funds', {
-              arg_user_id: userId,
-              arg_amount: amountInNaira
-            });
+            // Process deposit atomically
+            const { data: result, error } = await supabase.rpc('process_paystack_deposit', {
+              p_user_id: account.user_id,
+              p_amount: amountInNaira,
+              p_reference: tx.reference
+            })
 
             if (error) {
-              console.error(`Error adding funds for transaction ${reference}:`, error);
-              // Remove from processed set so it can be retried
-              allProcessedReferences.delete(reference);
-              continue;
+              console.error(`❌ Error processing transaction ${tx.reference}:`, error)
+              continue
             }
 
             if (result && result.success) {
-              console.log(`Successfully added ₦${amountInNaira} to wallet for transaction ${reference}`);
-              
-              // Create a transaction record in our database
-              const { error: insertError } = await supabase
-                .from('transactions')
-                .insert({
-                  user_id: userId,
-                  type: 'deposit',
-                  amount: amountInNaira,
-                  status: 'completed',
-                  source: 'Paystack Virtual Account',
-                  destination: 'wallet',
-                  reference: reference,
-                  description: 'Funds added to wallet',
-                  metadata: {
-                    paystack_transaction_id: tx.id,
-                    paystack_reference: reference,
-                    account_number: tx.authorization?.account_number,
-                    processed_by: isManualTrigger ? 'manual_function' : 'scheduled_function',
-                    processed_at: new Date().toISOString(),
-                    processing_session: processingState.functionId
-                  }
-                });
+              console.log(`✅ Successfully processed transaction ${tx.reference}`)
+              totalNewTransactions++
 
-              if (insertError) {
-                console.error(`Error inserting transaction record for ${reference}:`, insertError);
-                
-                // If this is a duplicate key error, the transaction was already processed
-                if (insertError.code === '23505') { // Unique constraint violation
-                  console.log(`Transaction ${reference} was already processed by another function instance`);
-                  // Don't remove from processed set since it was actually processed
-                } else {
-                  // For other errors, remove from processed set so it can be retried
-                  allProcessedReferences.delete(reference);
-                  
-                  // TODO: In a production system, you might want to implement a rollback mechanism
-                  // to reverse the wallet balance change if the transaction record insertion fails
-                  console.error(`⚠️ WARNING: Wallet balance was updated but transaction record insertion failed for ${reference}`);
-                }
-                continue;
-              }
-
-              // Create notification event
-              await supabase
-                .from('events')
-                .insert({
-                  user_id: userId,
+              // Send push notification
+              await supabase.rpc('send_push_notification', {
+                p_user_id: account.user_id,
+                p_title: 'Funds Received',
+                p_body: `₦${amountInNaira.toLocaleString()} has been added to your wallet`,
+                p_data: {
                   type: 'deposit_successful',
-                  title: 'Funds Received',
-                  description: `₦${amountInNaira.toLocaleString()} has been added to your wallet`,
-                  status: 'unread',
-                  metadata: {
-                    transaction_reference: reference,
-                    amount: amountInNaira
-                  }
-                });
-
-              totalProcessed++;
-              totalAmount += amountInNaira;
-
-              // Send email notification if enabled
-              if (emailNotifications.deposit_alerts !== false && resendApiKey && userEmail) {
-                try {
-                  const emailSubject = "Funds Received - Planmoni";
-                  const emailHtml = generateDepositNotificationHtml({
-                    firstName,
-                    amount: `₦${amountInNaira.toLocaleString()}`,
-                    accountNumber: tx.authorization?.account_number || accountNumber,
-                    date: new Date().toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    }),
-                    reference: reference
-                  });
-
-                  const emailResponse = await fetch("https://api.resend.com/emails", {
-                    method: "POST",
-                    headers: {
-                      "Authorization": `Bearer ${resendApiKey}`,
-                      "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                      from: "Planmoni <notifications@planmoni.com>",
-                      to: userEmail,
-                      subject: emailSubject,
-                      html: emailHtml
-                    })
-                  });
-
-                  if (emailResponse.ok) {
-                    console.log(`Email notification sent to ${userEmail} for transaction ${reference}`);
-                    emailsSent++;
-                  } else {
-                    console.error(`Failed to send email notification to ${userEmail}:`, await emailResponse.text());
-                  }
-                } catch (emailError) {
-                  console.error(`Error sending email notification to ${userEmail}:`, emailError);
+                  transaction_reference: tx.reference,
+                  amount: amountInNaira
                 }
-              }
+              })
+
+              // Send email notification directly
+              await sendEmailDirect(account.user_id, amountInNaira, tx.reference)
 
             } else {
-              console.error(`Failed to add funds for transaction: ${reference}`);
-              // Remove from processed set so it can be retried
-              allProcessedReferences.delete(reference);
+              console.error(`❌ Failed to process transaction ${tx.reference}`)
             }
 
           } catch (txError) {
-            console.error(`Error processing transaction ${tx.reference}:`, txError);
-            // Remove from processed set so it can be retried
-            allProcessedReferences.delete(tx.reference);
+            console.error(`❌ Error processing transaction ${tx.reference}:`, txError)
           }
         }
 
+        totalProcessed++
+
       } catch (accountError) {
-        console.error(`Error processing account ${account.account_number}:`, accountError);
+        console.error(`❌ Error processing account ${account.account_number}:`, accountError)
       }
     }
 
-    const checkType = isManualTrigger ? 'Manual' : 'Scheduled';
-    const processingDuration = Date.now() - new Date(processingState.startTime).getTime();
-    
-    console.log(`✅ ${checkType} check completed: ${totalProcessed} transactions processed, ₦${totalAmount} total, ${emailsSent} emails sent`);
-    console.log(`📊 Processing Summary:`);
-    console.log(`   - Session ID: ${processingState.functionId}`);
-    console.log(`   - Duration: ${processingDuration}ms`);
-    console.log(`   - Accounts checked: ${accountsWithProfiles.length}`);
-    console.log(`   - Total Paystack transactions: ${paystackData.data.length}`);
-    console.log(`   - Existing transactions in DB: ${existingTransactionsMap.size}`);
-    console.log(`   - New transactions processed: ${totalProcessed}`);
-    console.log(`   - Total amount processed: ₦${totalAmount.toLocaleString()}`);
-    console.log(`   - Emails sent: ${emailsSent}`);
+    // Clean up lock
+    await supabase
+      .from('system_locks')
+      .delete()
+      .eq('lock_name', 'transaction_processing')
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: `${checkType} transaction check completed`,
-        processed: totalProcessed,
-        totalAmount,
-        emailsSent,
-        accountsChecked: accountsWithProfiles.length,
-        checkType,
-        processingSession: processingState.functionId,
-        processingDuration: `${processingDuration}ms`,
-        summary: {
-          totalPaystackTransactions: paystackData.data.length,
-          existingTransactionsInDB: existingTransactionsMap.size,
-          newTransactionsProcessed: totalProcessed,
-          totalAmountProcessed: totalAmount,
-          emailsSent: emailsSent
-        }
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    console.log(`🎉 Transaction check completed! Processed ${totalProcessed} accounts, found ${totalNewTransactions} new transactions`)
+
+    return new Response(JSON.stringify({
+      success: true,
+      processed_accounts: totalProcessed,
+      new_transactions: totalNewTransactions
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
 
   } catch (error) {
-    console.error("Error in transaction check:", error);
-    return new Response(
-      JSON.stringify({ 
-        error: "Failed to check transactions",
-        details: error.message || "Unknown error"
-      }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    console.error('💥 Fatal error in transaction check:', error)
+    
+    // Clean up lock on error
+    try {
+      await supabase
+        .from('system_locks')
+        .delete()
+        .eq('lock_name', 'transaction_processing')
+    } catch (cleanupError) {
+      console.error('❌ Error cleaning up lock:', cleanupError)
+    }
+
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
-});
+})
+
+// Function to send email notification directly
+async function sendEmailDirect(userId: string, amount: number, reference: string) {
+  try {
+    // Get user email
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name')
+      .eq('id', userId)
+      .single()
+
+    if (!userProfile?.email) {
+      console.log('No email found for user')
+      return
+    }
+
+    // Send email directly using Resend API
+    const emailSubject = "Funds Received - Planmoni"
+    const emailHtml = generateDepositEmailHtml({
+      firstName: userProfile.first_name || 'User',
+      amount: `₦${amount.toLocaleString()}`,
+      accountNumber: 'Virtual Account',
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      reference
+    })
+
+    const emailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: "Planmoni <notifications@planmoni.com>",
+        to: userProfile.email,
+        subject: emailSubject,
+        html: emailHtml
+      })
+    })
+
+    if (emailResponse.ok) {
+      console.log(`📧 Email notification sent to ${userProfile.email}`)
+    } else {
+      console.error('❌ Failed to send email notification:', await emailResponse.text())
+    }
+  } catch (error) {
+    console.error('❌ Error sending email notification:', error)
+  }
+}
 
 // Email template for deposit notifications
-function generateDepositNotificationHtml(data: {
-  firstName: string;
-  amount: string;
-  accountNumber: string;
-  date: string;
-  reference: string;
+function generateDepositEmailHtml(data: {
+  firstName: string
+  amount: string
+  accountNumber: string
+  date: string
+  reference: string
 }) {
   return `
     <!DOCTYPE html>
@@ -508,5 +329,5 @@ function generateDepositNotificationHtml(data: {
       </div>
     </body>
     </html>
-  `;
+  `
 } 

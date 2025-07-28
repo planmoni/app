@@ -1,3 +1,4 @@
+
 {
   "cli": {
     "version": ">= 16.13.2",
@@ -16,12 +17,6 @@
     },
     "production": {
       "autoIncrement": true
-    },
-    "testflight": {
-      "ios": {
-        "distribution": "store",
-        "buildConfiguration": "Release"
-      }
     }
   },
   "submit": {

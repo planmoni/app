@@ -87,6 +87,7 @@ export default function HomeScreen() {
       // Fetch latest Paystack transactions
       await fetchPaystackTransactions();
       // Add haptic feedback for successful refresh
+      // await 
       impact();
     } catch (error) {
       console.error('Error refreshing:', error);

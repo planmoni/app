@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Database } from '@/types/supabase';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Get environment variables from Expo Constants for better compatibility
 const supabaseUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -57,7 +58,15 @@ if (configError) {
     }),
   };
 } else {
-  supabase = createClient<Database>(supabaseUrl!, supabaseAnonKey!);
+  // Configure Supabase with AsyncStorage for session persistence
+  supabase = createClient<Database>(supabaseUrl!, supabaseAnonKey!, {
+    auth: {
+      storage: AsyncStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  });
 }
 
 // Export at top level
@@ -65,6 +74,36 @@ export { supabase };
 
 // Export validation function for use in components if needed
 export const getSupabaseConfigError = () => configError;
+
+// Utility function to debug session storage
+export const debugSessionStorage = async () => {
+  if (Platform.OS === 'web') {
+    console.log('🌐 Web platform - checking localStorage');
+    try {
+      const keys = Object.keys(localStorage);
+      const authKeys = keys.filter(key => key.includes('supabase') || key.includes('auth'));
+      console.log('📦 Auth-related localStorage keys:', authKeys);
+      authKeys.forEach(key => {
+        console.log(`  ${key}:`, localStorage.getItem(key));
+      });
+    } catch (error) {
+      console.error('❌ Error accessing localStorage:', error);
+    }
+  } else {
+    console.log('📱 Native platform - checking AsyncStorage');
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const authKeys = keys.filter(key => key.includes('supabase') || key.includes('auth'));
+      console.log('📦 Auth-related AsyncStorage keys:', authKeys);
+      for (const key of authKeys) {
+        const value = await AsyncStorage.getItem(key);
+        console.log(`  ${key}:`, value);
+      }
+    } catch (error) {
+      console.error('❌ Error accessing AsyncStorage:', error);
+    }
+  }
+};
 
 // Add global error handler for unhandled promise rejections
 // Only add event listener if we're in a browser environment and addEventListener exists
