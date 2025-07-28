@@ -21,6 +21,7 @@ import {
   Lock,
   Plus,
   RefreshCw,
+  Star,
 } from 'lucide-react-native';
 import {
   Animated,
@@ -31,6 +32,8 @@ import {
   View,
   RefreshControl,
   ImageBackground,
+  Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -87,7 +90,6 @@ export default function HomeScreen() {
       // Fetch latest Paystack transactions
       await fetchPaystackTransactions();
       // Add haptic feedback for successful refresh
-      // await 
       impact();
     } catch (error) {
       console.error('Error refreshing:', error);
@@ -128,7 +130,7 @@ export default function HomeScreen() {
   });
 
   const formatBalance = (amount: number) => {
-    return showBalances ? `₦${amount.toLocaleString()}` : '••••••••';
+    return showBalances ? `₦${amount.toLocaleString()}` : '*********';
   };
 
   const handleAddFunds = () => {
@@ -399,15 +401,13 @@ export default function HomeScreen() {
                 style={styles.addFundsButton} 
                 onPress={handleAddFunds}
               >
-                <ArrowDownRight size={20} color={colors.text} />
                 <Text style={styles.addFundsText}>Deposit</Text>
               </Pressable>
               <Pressable 
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
-                <ArrowUpRight size={20} color="#FFFFFF" />
-                <Text style={styles.createButtonText}>Plan</Text>
+                <Text style={styles.createButtonText}>Create Plan</Text>
               </Pressable>
               
             </View>
@@ -556,11 +556,8 @@ export default function HomeScreen() {
               <Text style={styles.emptyPayoutsText}>No active payout plans</Text>
               <Pressable style={styles.createFirstPayoutButton} onPress={handleCreatePayout}>
                 <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.createFirstPayoutText}>Create Your Plan</Text>
+                <Text style={styles.createFirstPayoutText}>Create Your First Plan</Text>
               </Pressable>
-              <Text >
-                Set up a new automated payout plan
-              </Text>
             </View>
           )}
         </View>
@@ -663,6 +660,9 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.bottomPadding} />
+
+        
+
         <Card style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
             <Text style={styles.summaryTitle}>Current Month's Summary</Text>
@@ -717,6 +717,29 @@ export default function HomeScreen() {
             )}
           </Pressable>
         </Card>
+        {/* Feedback Section */}
+        <Card style={styles.feedbackCard}>
+          <View style={styles.feedbackContent}>
+            <Text style={styles.feedbackTitle}>What do you think of Planmoni?</Text>
+            <Text style={styles.feedbackSubtitle}>Rate it and help us improve</Text>
+            <View style={styles.starsRow}>
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} size={28} color={colors.primary} fill={colors.primary} style={styles.starIcon} />
+              ))}
+            </View>
+            <Pressable
+              style={styles.feedbackButton}
+              onPress={() => {
+                // Replace with your app's store URL
+                Linking.openURL('https://get.planmoni.com');
+              }}
+            >
+              <Text style={styles.feedbackButtonText}>
+                {Platform.OS === 'ios' ? 'Rate it on App Store' : 'Rate it on Play Store'}
+              </Text>
+            </Pressable>
+          </View>
+        </Card>
       </ScrollView>
 
       <Animated.View style={[
@@ -735,15 +758,13 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
-          <ArrowDownRight size={20} color={colors.text} />
           <Text style={styles.addFundsText}>Deposit</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <ArrowUpRight size={20} color="#FFFFFF" />
-          <Text style={styles.createButtonText}>Plan</Text>
+          <Text style={styles.createButtonText}>Create Plan</Text>
         </Pressable>
         
       </Animated.View>
@@ -925,8 +946,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.card,
     borderWidth: 1,
-    // borderColor: colors.border,
-    borderColor: '#FFB700',
+    borderColor: colors.border,
   },
   summaryHeader: {
     flexDirection: 'row',
@@ -1138,8 +1158,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
-    // borderColor: colors.border,
-    borderColor: '#925FE2',
+    borderColor: colors.border,
   },
   emptyPayoutsText: {
     fontSize: 14,
@@ -1336,5 +1355,53 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   bottomPadding: {
     height: 1,
+  },
+  feedbackCard: {
+    marginBottom: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    padding: 24,
+  },
+  feedbackContent: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  feedbackTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  feedbackSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: colors.textSecondary,
+    marginBottom: 12,
+  },
+  feedbackButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  feedbackButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  starsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    gap: 2,
+  },
+  starIcon: {
+    marginHorizontal: 2,
   },
 });

@@ -100,7 +100,6 @@ export default function LoginEmailScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={!isButtonEnabled}
-        icon={ArrowRight}
       />
       
       <SafeFooter />

@@ -47,6 +47,57 @@ const SUGGESTED_PROMPTS = [
   "Analyze my money patterns",
 ];
 
+// Helper to convert written numbers to digits (supports up to billions)
+function wordsToNumber(words: string): number | null {
+  const smallNumbers: { [key: string]: number } = {
+    'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+    'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19
+  };
+  const tens: { [key: string]: number } = {
+    'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90
+  };
+  const scales: { [key: string]: number } = {
+    'hundred': 100, 'thousand': 1000, 'million': 1000000, 'billion': 1000000000
+  };
+  let result = 0;
+  let current = 0;
+  let found = false;
+  words = words.replace(/ and /g, ' ');
+  const tokens = words.toLowerCase().split(/[-\s]+/);
+  for (let token of tokens) {
+    if (smallNumbers[token] !== undefined) {
+      current += smallNumbers[token];
+      found = true;
+    } else if (tens[token] !== undefined) {
+      current += tens[token];
+      found = true;
+    } else if (token === 'a') {
+      current += 1;
+      found = true;
+    } else if (scales[token] !== undefined) {
+      if (current === 0) current = 1;
+      current *= scales[token];
+      result += current;
+      current = 0;
+      found = true;
+    } else if (token === 'naira' || token === 'n' || token === '₦') {
+      // skip currency
+    } else if (token === 'point') {
+      // handle decimals
+      let decimal = '0.';
+      let i = tokens.indexOf(token) + 1;
+      while (i < tokens.length && smallNumbers[tokens[i]] !== undefined) {
+        decimal += smallNumbers[tokens[i]].toString();
+        i++;
+      }
+      result += parseFloat(decimal);
+      break;
+    }
+  }
+  result += current;
+  return found ? result : null;
+}
+
 export default function AIAssistantScreen() {
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
@@ -64,12 +115,24 @@ export default function AIAssistantScreen() {
   const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
   const [lastType, setLastType] = useState<'plan' | 'insight' | 'text' | null>(null);
   // Plan creation conversational state
-  const [planCreationStep, setPlanCreationStep] = useState<'idle' | 'awaiting_destination' | 'awaiting_emergency' | 'showing_emergency_rules' | 'confirming' | 'success'>('idle');
+  const [planCreationStep, setPlanCreationStep] = useState<'idle' | 'awaiting_destination' | 'awaiting_frequency' | 'awaiting_emergency' | 'showing_emergency_rules' | 'confirming' | 'success'>('idle');
   const [planDraft, setPlanDraft] = useState<any>(null);
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const { payoutAccounts, isLoading: payoutAccountsLoading, fetchPayoutAccounts } = usePayoutAccounts();
   const [emergencyEnabled, setEmergencyEnabled] = useState<boolean | null>(null);
+
+  // Add frequency options
+  const frequencyOptions = [
+    'weekly',
+    'specific day',
+    'bi-weekly',
+    'monthly',
+    'month end',
+    'bi-annually',
+    'annually',
+    'custom schedule',
+  ];
 
   // Set up keyboard listeners
   useEffect(() => {
@@ -116,8 +179,16 @@ export default function AIAssistantScreen() {
     }, 100);
   };
 
+  // Update handleSendMessage to intercept input for plan creation steps
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
+
+    // If in a plan creation step, route input to plan step handler
+    if (planCreationStep !== 'idle') {
+      handlePlanStepInput(inputText.trim());
+      setInputText('');
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -216,9 +287,37 @@ export default function AIAssistantScreen() {
     setIsTyping(false);
   };
 
+  // Update isSimplePayoutPrompt to support k/m/b suffixes and written numbers
+  const isSimplePayoutPrompt = (message: string) => {
+    // Looks for patterns like 'plan 1b for 2 months', 'plan 500k for 2 months', 'plan five hundred thousand for 6 months', etc.
+    const regex = /(plan|help me plan|payout|disburse|schedule)\s+((?:[₦]?[\d,.]+(?:[kKmMbB])?)|(?:a |one |two |three |four |five |six |seven |eight |nine |ten |eleven |twelve |thirteen |fourteen |fifteen |sixteen |seventeen |eighteen |nineteen |twenty |thirty |forty |fifty |sixty |seventy |eighty |ninety |hundred |thousand |million |billion|and|point| )+)\s*(for|over)?\s*((?:\d+|a |one |two |three |four |five |six |seven |eight |nine |ten |eleven |twelve |thirteen |fourteen |fifteen |sixteen |seventeen |eighteen |nineteen |twenty)[ ]*)\s*(month|months|week|weeks|year|years)/i;
+    return regex.test(message);
+  };
+
   const generatePlanResponse = async (userMessage: string, balances: { availableBalance: number, balance: number, lockedBalance: number }) => {
     const { availableBalance, balance, lockedBalance } = balances;
     let aiMessage: Message | null = null;
+    // If the prompt is a simple payout plan, use hardcoded suggestions
+    if (isSimplePayoutPrompt(userMessage)) {
+      const targetAmount = extractAmount(userMessage) || 500000;
+      const timeframe = extractTimeframe(userMessage) || 6;
+      let content = `Based on your goal to schedule payouts totaling ₦${targetAmount.toLocaleString()} over ${timeframe} months, here are some flexible payout schedules you can set up:`;
+      aiMessage = {
+        id: Date.now().toString(),
+        content,
+        sender: 'ai',
+        type: 'plan',
+        timestamp: new Date(),
+        metadata: {
+          targetAmount,
+          timeframe,
+          plans: getPlanOptions(targetAmount, timeframe, userMessage)
+        }
+      };
+      setMessages(prev => [...prev, aiMessage!]);
+      setIsTyping(false);
+      return;
+    }
     try {
       // In-context examples for payout scheduling
       const examples = [
@@ -247,6 +346,25 @@ export default function AIAssistantScreen() {
         } catch (e) {}
       }
       if (parsed && parsed.type === 'plan' && parsed.metadata && Array.isArray(parsed.metadata.plans)) {
+        // Check if frequency is missing or ambiguous
+        const planHasFrequency = parsed.metadata.plans.some((p: any) => p.frequency);
+        if (!planHasFrequency) {
+          // Prompt user for frequency
+          setPlanDraft(parsed);
+          setPlanCreationStep('awaiting_frequency');
+          setMessages(prev => [
+            ...prev,
+            {
+              id: `ask-frequency-${Date.now()}`,
+              content: 'How often do you want your payouts? Please choose: weekly, specific day, bi-weekly, monthly, month end, bi-annually, annually, or custom schedule.',
+              sender: 'ai',
+              type: 'text',
+              timestamp: new Date(),
+              metadata: { step: 'frequency' }
+            }
+          ]);
+          return;
+        }
         aiMessage = {
           id: Date.now().toString(),
           content: parsed.content || 'Here is a personalized payout schedule for you:',
@@ -300,17 +418,17 @@ export default function AIAssistantScreen() {
     const monthlyAmount = Math.ceil(targetAmount / timeframe);
     const weeklyAmount = Math.ceil(monthlyAmount / 4.33);
     const biweeklyAmount = Math.ceil(monthlyAmount / 2);
-    const dailyAmount = Math.ceil(targetAmount / (timeframe * 30));
     const endOfMonthAmount = Math.ceil(targetAmount / timeframe);
     const firstOfMonthAmount = Math.ceil(targetAmount / timeframe);
     const freq = userMessage ? extractFrequency(userMessage) : null;
     if (freq === 'daily') {
+      // If user requests daily, fallback to weekly or show a message
       return [
         {
-          title: "Daily Payout",
-          amount: dailyAmount,
-          frequency: "daily",
-          description: `Schedule a payout of ₦${dailyAmount.toLocaleString()} every day for ${timeframe * 30} days.`
+          title: "Weekly Payout",
+          amount: weeklyAmount,
+          frequency: "weekly",
+          description: `Daily payouts are not supported. Here is a weekly payout option: ₦${weeklyAmount.toLocaleString()} every week for ${timeframe} months.`
         }
       ];
     } else if (freq === 'weekly') {
@@ -359,14 +477,8 @@ export default function AIAssistantScreen() {
         }
       ];
     }
-    // Default: show all 5 options
+    // Default: show all options except daily
     return [
-      {
-        title: "Daily Payout",
-        amount: dailyAmount,
-        frequency: "daily",
-        description: `Schedule a payout of ₦${dailyAmount.toLocaleString()} every day for ${timeframe * 30} days.`
-      },
       {
         title: "Weekly Payout",
         amount: weeklyAmount,
@@ -494,66 +606,132 @@ export default function AIAssistantScreen() {
 
   // Helper functions to extract information from user messages
   const extractAmount = (message: string): number | null => {
-    const amountRegex = /₦?(\d{1,3}(,\d{3})*|\d+)(k|K|m|M)?/;
-    const match = message.match(amountRegex);
-    
-    if (!match) return null;
-    
-    let amount = parseFloat(match[1].replace(/,/g, ''));
-    
-    // Handle k/K (thousands) and m/M (millions)
-    if (match[3]) {
-      if (match[3].toLowerCase() === 'k') {
-        amount *= 1000;
-      } else if (match[3].toLowerCase() === 'm') {
-        amount *= 1000000;
-      }
+    // Normalize message
+    let normalized = message.toLowerCase().replace(/[,₦]/g, ' ');
+    // 1. Try to match numeric forms with optional k/m/b suffix
+    const regex = /([0-9]+(?:\.[0-9]+)?)(k|m|b)?\s*(naira|n)?/i;
+    const match = normalized.match(regex);
+    if (match) {
+      let amount = parseFloat(match[1]);
+      const suffix = match[2]?.toLowerCase();
+      if (suffix === 'k') amount *= 1000;
+      if (suffix === 'm') amount *= 1000000;
+      if (suffix === 'b') amount *= 1000000000;
+      return Math.round(amount);
     }
-    
-    return amount;
+    // 2. Try to match numbers with commas/decimals (e.g., 1,000,000.00)
+    const commaRegex = /([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]+)?)/;
+    const commaMatch = normalized.match(commaRegex);
+    if (commaMatch) {
+      let amount = parseFloat(commaMatch[1].replace(/,/g, ''));
+      return Math.round(amount);
+    }
+    // 3. Try to match written numbers (e.g., 'five hundred thousand naira', 'a million')
+    const writtenRegex = /((?:a |one |two |three |four |five |six |seven |eight |nine |ten |eleven |twelve |thirteen |fourteen |fifteen |sixteen |seventeen |eighteen |nineteen |twenty |thirty |forty |fifty |sixty |seventy |eighty |ninety |hundred |thousand |million |billion|and|point| )+)/i;
+    const writtenMatch = normalized.match(writtenRegex);
+    if (writtenMatch) {
+      const num = wordsToNumber(writtenMatch[1].trim());
+      if (num !== null) return Math.round(num);
+    }
+    // 4. Try to match 'a million', 'a thousand', etc.
+    if (/a million/.test(normalized)) return 1000000;
+    if (/a thousand/.test(normalized)) return 1000;
+    // 5. Try to match currency at the end (e.g., '500,000 naira')
+    const endCurrencyRegex = /([0-9]+(?:\.[0-9]+)?)\s*(naira|n)$/i;
+    const endCurrencyMatch = normalized.match(endCurrencyRegex);
+    if (endCurrencyMatch) {
+      return Math.round(parseFloat(endCurrencyMatch[1]));
+    }
+    return null;
   };
 
   const extractTimeframe = (message: string): number | null => {
-    // Look for time periods like "6 months", "1 year", "by September", etc.
+    // Map written numbers to digits
+    const numberWords: { [key: string]: number } = {
+      'one': 1,
+      'two': 2,
+      'three': 3,
+      'four': 4,
+      'five': 5,
+      'six': 6,
+      'seven': 7,
+      'eight': 8,
+      'nine': 9,
+      'ten': 10,
+      'eleven': 11,
+      'twelve': 12,
+      'thirteen': 13,
+      'fourteen': 14,
+      'fifteen': 15,
+      'sixteen': 16,
+      'seventeen': 17,
+      'eighteen': 18,
+      'nineteen': 19,
+      'twenty': 20
+    };
+    let normalized = message.toLowerCase();
+    // Replace written numbers with digits
+    Object.entries(numberWords).forEach(([word, digit]) => {
+      const regex = new RegExp(`\\b${word}\\b`, 'g');
+      normalized = normalized.replace(regex, digit.toString());
+    });
+    // Look for time periods like "6 months", "1 year", etc.
     const monthRegex = /(\d+)\s*(month|months)/i;
     const yearRegex = /(\d+)\s*(year|years)/i;
-    
-    const monthMatch = message.match(monthRegex);
+    const monthMatch = normalized.match(monthRegex);
     if (monthMatch) {
       return parseInt(monthMatch[1]);
     }
-    
-    const yearMatch = message.match(yearRegex);
+    const yearMatch = normalized.match(yearRegex);
     if (yearMatch) {
       return parseInt(yearMatch[1]) * 12;
     }
-    
     // Check for month names
     const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
     for (let i = 0; i < months.length; i++) {
-      if (message.toLowerCase().includes(months[i])) {
+      if (normalized.includes(months[i])) {
         const currentDate = new Date();
         const currentMonth = currentDate.getMonth();
         const targetMonth = i;
-        
         // Calculate months difference, accounting for next year if needed
         let monthsDiff = targetMonth - currentMonth;
         if (monthsDiff <= 0) {
           monthsDiff += 12; // Target is next year
         }
-        
         return monthsDiff;
       }
     }
-    
     return null;
   };
 
   // Intercept Create Plan to start conversational flow
   const handleCreatePlan = (plan: any) => {
+    // Calculate total plan amount
+    let totalPlanAmount = 0;
+    if (plan.metadata && plan.metadata.targetAmount) {
+      totalPlanAmount = plan.metadata.targetAmount;
+    } else if (plan.metadata && Array.isArray(plan.metadata.plans)) {
+      totalPlanAmount = plan.metadata.plans.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+    } else if (plan.amount) {
+      totalPlanAmount = plan.amount;
+    }
+    if (totalPlanAmount > availableBalance) {
+      const shortfall = Math.max(totalPlanAmount - availableBalance, 0);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `insufficient-funds-${Date.now()}`,
+          content: `You do not have enough funds (₦${availableBalance.toLocaleString()}) to create this plan. Total needed: ₦${totalPlanAmount.toLocaleString()}. You need to add ₦${shortfall.toLocaleString()} more.`,
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'insufficient_funds', planAmount: totalPlanAmount, availableBalance, shortfall }
+        }
+      ]);
+      return;
+    }
     setPlanDraft(plan);
     setPlanCreationStep('awaiting_destination');
-    // Add a chat message asking for destination
     setMessages(prev => [
       ...prev,
       {
@@ -668,7 +846,6 @@ export default function AIAssistantScreen() {
     const normalized = response.trim().toLowerCase();
     if (normalized === 'confirm') {
       // Call API to create the plan (simulate for now)
-      setPlanCreationStep('success');
       setMessages(prev => [
         ...prev,
         {
@@ -680,6 +857,12 @@ export default function AIAssistantScreen() {
           metadata: { step: 'success' }
         }
       ]);
+      setTimeout(() => {
+        setPlanCreationStep('idle');
+        setPlanDraft(null);
+        setSelectedAccount(null);
+        setEmergencyEnabled(null);
+      }, 500);
       // TODO: Call actual API to create the plan with planDraft, selectedAccount, emergencyEnabled
     } else if (normalized === 'cancel') {
       setPlanCreationStep('idle');
@@ -712,9 +895,58 @@ export default function AIAssistantScreen() {
     }
   };
 
-  // Handle user input during plan creation steps
+  // Handle user reply for frequency
+  const handleFrequencyResponse = (response: string) => {
+    const normalized = response.trim().toLowerCase();
+    // Try to match to one of the options
+    const matched = frequencyOptions.find(opt => normalized.includes(opt.replace(/[- ]/g, '')) || normalized === opt.replace(/[- ]/g, ''));
+    if (matched && planDraft) {
+      // Update planDraft with selected frequency
+      const updatedPlan = { ...planDraft };
+      if (updatedPlan.metadata && Array.isArray(updatedPlan.metadata.plans)) {
+        updatedPlan.metadata.plans = updatedPlan.metadata.plans.map((p: any) => ({ ...p, frequency: matched }));
+      }
+      setPlanDraft(updatedPlan);
+      setPlanCreationStep('awaiting_destination');
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `selected-frequency-${Date.now()}`,
+          content: `Payout frequency set to: ${matched}`,
+          sender: 'user',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'frequency' }
+        },
+        {
+          id: `choose-destination-${Date.now()}`,
+          content: 'Which account should receive your payouts? Please select an existing account or add a new one.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'destination' }
+        }
+      ]);
+    } else {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `frequency-invalid-${Date.now()}`,
+          content: 'Please reply with one of: weekly, specific day, bi-weekly, monthly, month end, bi-annually, annually, or custom schedule.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'frequency' }
+        }
+      ]);
+    }
+  };
+
+  // Update handlePlanStepInput to handle frequency step
   const handlePlanStepInput = (input: string) => {
-    if (planCreationStep === 'awaiting_emergency') {
+    if (planCreationStep === 'awaiting_frequency') {
+      handleFrequencyResponse(input);
+    } else if (planCreationStep === 'awaiting_emergency') {
       handleEmergencyResponse(input);
     } else if (planCreationStep === 'confirming') {
       handlePlanConfirmation(input);
@@ -729,6 +961,35 @@ export default function AIAssistantScreen() {
     // Render different message types
     switch (message.type) {
       case 'text':
+        // Check for insufficient funds step
+        if (message.metadata && message.metadata.step === 'insufficient_funds') {
+          return (
+            <Animated.View 
+              key={message.id} 
+              entering={FadeIn.duration(300)} 
+              layout={Layout.springify()}
+              style={[
+                styles.messageBubble,
+                styles.aiBubble,
+                { backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary }
+              ]}
+            >
+              <Text style={[styles.messageText, styles.aiText, { color: colors.text }]}> 
+                {message.content}
+              </Text>
+              <TouchableOpacity
+                style={{ marginTop: 12, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, alignSelf: 'flex-start' }}
+                onPress={handleAddFunds}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Add Funds</Text>
+              </TouchableOpacity>
+              <View style={styles.aiBadgeContainer}>
+                <Sparkles size={14} color={colors.primary} />
+                <Text style={styles.aiBadgeText}>Planmoni AI</Text>
+              </View>
+            </Animated.View>
+          );
+        }
         return (
           <Animated.View 
             key={message.id} 
@@ -748,7 +1009,7 @@ export default function AIAssistantScreen() {
             {!isUser && (
               <View style={styles.aiBadgeContainer}>
                 <Sparkles size={14} color={colors.primary} />
-                <Text style={styles.aiBadgeText}>PlanmoniAI</Text>
+                <Text style={styles.aiBadgeText}>Planmoni AI</Text>
               </View>
             )}
           </Animated.View>
@@ -802,7 +1063,7 @@ export default function AIAssistantScreen() {
             </View>
             <View style={styles.aiBadgeContainer}>
               <Sparkles size={14} color={colors.primary} />
-              <Text style={styles.aiBadgeText}>PlanmoniAI</Text>
+              <Text style={styles.aiBadgeText}>Planmoni AI</Text>
             </View>
           </Animated.View>
         );
@@ -851,7 +1112,7 @@ export default function AIAssistantScreen() {
             </View>
             <View style={styles.aiBadgeContainer}>
               <Sparkles size={14} color={colors.primary} />
-              <Text style={styles.aiBadgeText}>PlanmoniAI</Text>
+              <Text style={styles.aiBadgeText}>Planmoni AI</Text>
             </View>
           </Animated.View>
         );
@@ -872,14 +1133,14 @@ export default function AIAssistantScreen() {
       justifyContent: 'space-between',
       paddingHorizontal: 16,
       paddingVertical: 16,
-      backgroundColor: colors.surface,
-      borderBottomWidth: 1,
+      backgroundColor: colors.background,
+      borderBottomWidth: 0.4,
       borderBottomColor: colors.border,
     },
     headerTitle: {
       fontSize: 25,
-      fontWeight: '700',
-      color: 'black',
+      fontWeight: '800',
+      color: colors.text,
       textAlign: 'left',
     },
     headerTitleGradientWrapper: {
@@ -889,7 +1150,7 @@ export default function AIAssistantScreen() {
       ...StyleSheet.absoluteFillObject,
     },
     headerSubtitle: {
-      fontSize: 16,
+      fontSize: 14,
       color: colors.textSecondary,
     },
     aiIconContainer: {
@@ -935,8 +1196,8 @@ export default function AIAssistantScreen() {
       width: '95%',
     },
     messageText: {
-      fontSize: 16,
-      lineHeight: 22,
+      fontSize:16,
+      lineHeight: 24,
     },
     userText: {
       color: '#FFFFFF',
@@ -977,7 +1238,7 @@ export default function AIAssistantScreen() {
     input: {
       flex: 1,
       backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary,
-      borderRadius: 24,
+      borderRadius: 12,
       paddingHorizontal: 16,
       paddingVertical: 12,
       fontSize: 16,
@@ -988,7 +1249,7 @@ export default function AIAssistantScreen() {
     sendButton: {
       width: 48,
       height: 48,
-      borderRadius: 24,
+      borderRadius: 12,
       backgroundColor: colors.primary,
       justifyContent: 'center',
       alignItems: 'center',
@@ -1048,7 +1309,7 @@ export default function AIAssistantScreen() {
       marginBottom: 4,
     },
     planAmount: {
-      fontSize: 18,
+      fontSize: 16,
       fontWeight: '700',
     },
     planDescription: {
@@ -1088,15 +1349,15 @@ export default function AIAssistantScreen() {
       marginBottom: 8,
     },
     insightTitle: {
-      fontSize: 16,
+      fontSize: 14,
       fontWeight: '600',
     },
     insightValue: {
-      fontSize: 16,
+      fontSize: 14,
       fontWeight: '700',
     },
     insightDescription: {
-      fontSize: 16,
+      fontSize: 14,
     },
     recommendationsContainer: {
       marginTop: 16,
@@ -1107,7 +1368,7 @@ export default function AIAssistantScreen() {
       borderColor: colors.border,
     },
     recommendationsTitle: {
-      fontSize: 16,
+      fontSize: 14,
       fontWeight: '600',
       marginBottom: 12,
     },
@@ -1125,7 +1386,7 @@ export default function AIAssistantScreen() {
     },
     recommendationText: {
       flex: 1,
-      fontSize: 16,
+      fontSize: 14,
       lineHeight: 20,
     },
     emptyContainer: {
@@ -1140,14 +1401,14 @@ export default function AIAssistantScreen() {
       marginBottom: 24,
     },
     emptyTitle: {
-      fontSize: 20,
+      fontSize: 16,
       fontWeight: '600',
       color: colors.text,
       marginBottom: 8,
       textAlign: 'center',
     },
     emptyText: {
-      fontSize: 16,
+      fontSize: 14,
       color: colors.textSecondary,
       textAlign: 'center',
       marginBottom: 24,
@@ -1178,7 +1439,7 @@ export default function AIAssistantScreen() {
     },
     errorText: {
       color: '#E57373',
-      fontSize: 16,
+      fontSize: 14,
       flex: 1,
     },
     retryButton: {
@@ -1194,6 +1455,12 @@ export default function AIAssistantScreen() {
       fontSize: 13,
     },
   });
+
+  // Add this function to handle navigation to Add Funds
+  const handleAddFunds = () => {
+    // Replace with your navigation logic
+    if (router) router.push('/add-funds');
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -1214,133 +1481,122 @@ export default function AIAssistantScreen() {
               <Text style={[styles.headerTitle, { opacity: 0 }]}>Planmoni AI</Text>
             </LinearGradient>
           </MaskedView>
-          <Text style={styles.headerSubtitle}>Let's plan some payouts</Text>
         </View>
-        <View style={styles.aiIconContainer}>
-          <Sparkles size={20} color="#FFFFFF" />
-        </View>
+        {/* <View style={styles.aiIconContainer}> */}
+          {/* <Sparkles size={20} color={colors.primary} /> */}
+        {/* </View> */}
       </View>
 
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.messagesContainer}
+        contentContainerStyle={{ paddingBottom: 16 }}
+        keyboardShouldPersistTaps="handled"
       >
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.messagesContainer}
-          contentContainerStyle={{ paddingBottom: 16 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {messages.map((message, index) => renderMessage(message, index))}
-          
-          {isTyping && (
-            <Animated.View 
-              entering={FadeIn.duration(300)} 
-              exiting={FadeOut.duration(300)}
-              style={styles.typingIndicator}
-            >
-              <Animated.View style={styles.typingDot} />
-              <Animated.View style={styles.typingDot} />
-              <Animated.View style={styles.typingDot} />
-              <Text style={styles.typingText}>Thinking...</Text>
-            </Animated.View>
-          )}
-          {error && (
-            <View style={styles.errorBubble}>
-              <AlertTriangle size={18} color={colors.error || '#E57373'} style={{ marginRight: 8 }} />
-              <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity onPress={retryLastRequest} style={styles.retryButton}>
-                <Text style={styles.retryText}>Try Again</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          {/* Plan creation destination selection UI */}
-          {planCreationStep === 'awaiting_destination' && !payoutAccountsLoading && (
-            <View style={{ marginVertical: 12 }}>
-              <Text style={{ fontWeight: '600', marginBottom: 8 }}>Your payout accounts:</Text>
-              {payoutAccounts.length === 0 && (
-                <Text style={{ marginBottom: 8 }}>No payout accounts found.</Text>
-              )}
-              {payoutAccounts.map(account => (
-                <Pressable
-                  key={account.id}
-                  style={{ padding: 12, borderWidth: 1, borderColor: '#eee', borderRadius: 8, marginBottom: 8 }}
-                  onPress={() => handleSelectAccount(account)}
-                >
-                  <Text>{account.bank_name} ••••{account.account_number.slice(-4)}</Text>
-                  <Text style={{ color: '#888' }}>{account.account_name}</Text>
-                  {account.is_default && <Text style={{ color: '#1E3A8A', fontSize: 12 }}>Default</Text>}
-                </Pressable>
-              ))}
-              <Button title="Add New Account" onPress={() => setShowAddAccountModal(true)} />
-            </View>
-          )}
-          {/* Emergency withdrawal input UI */}
-          {planCreationStep === 'awaiting_emergency' && (
-            <View style={{ marginVertical: 12 }}>
-              <Text style={{ fontWeight: '600', marginBottom: 8 }}>Reply "yes" or "no" below:</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8 }}
-                placeholder="yes or no"
-                onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
-                returnKeyType="done"
-              />
-            </View>
-          )}
-          {/* Plan confirmation input UI */}
-          {planCreationStep === 'confirming' && (
-            <View style={{ marginVertical: 12 }}>
-              <Text style={{ fontWeight: '600', marginBottom: 8 }}>Type "confirm" to create the plan or "cancel" to abort:</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8 }}
-                placeholder="confirm or cancel"
-                onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
-                returnKeyType="done"
-              />
-            </View>
-          )}
-        </ScrollView>
-
-        {showSuggestions && messages.length === 1 && !keyboardVisible && (
-          <View style={styles.suggestionsContainer}>
-            <Text style={styles.suggestionsTitle}>Try asking about:</Text>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.suggestionsScroll}
-            >
-              {SUGGESTED_PROMPTS.map((prompt, index) => (
-                <TouchableOpacity 
-                  key={index} 
-                  style={styles.suggestionBubble}
-                  onPress={() => handleSuggestionPress(prompt)}
-                >
-                  <Text style={styles.suggestionText}>{prompt}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+        {messages.map((message, index) => renderMessage(message, index))}
+        
+        {isTyping && (
+          <Animated.View 
+            entering={FadeIn.duration(300)} 
+            exiting={FadeOut.duration(300)}
+            style={styles.typingIndicator}
+          >
+            <Animated.View style={styles.typingDot} />
+            <Animated.View style={styles.typingDot} />
+            <Animated.View style={styles.typingDot} />
+            <Text style={styles.typingText}>Thinking...</Text>
+          </Animated.View>
+        )}
+        {/* Plan creation destination selection UI */}
+        {planCreationStep === 'awaiting_destination' && !payoutAccountsLoading && (
+          <View style={{ marginVertical: 12 }}>
+            <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text }}>Your payout accounts:</Text>
+            {payoutAccounts.length === 0 && (
+              <Text style={{ marginBottom: 8, color: colors.text }}>No payout accounts found.</Text>
+            )}
+            {payoutAccounts.map(account => (
+              <Pressable
+                key={account.id}
+                style={{ padding: 12, borderWidth: 1, borderColor: '#eee', borderRadius: 8, marginBottom: 8 }}
+                onPress={() => handleSelectAccount(account)}
+              >
+                <Text style={{ color: colors.textSecondary }}>{account.bank_name} ••••{account.account_number.slice(-4)}</Text>
+                <Text style={{ color: colors.text}}>{account.account_name}</Text>
+                {account.is_default && <Text style={{ color: '#1E3A8A', fontSize: 12 }}>Default</Text>}
+              </Pressable>
+            ))}
+            <Button title="Add New Account" onPress={() => setShowAddAccountModal(true)} />
           </View>
         )}
+        {/* Emergency withdrawal input UI */}
+        {planCreationStep === 'awaiting_emergency' && (
+          <View style={{ marginVertical: 12 }}>
+            <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text}}>Reply "yes" or "no" below:</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8, color: colors.text}}
+              placeholder="yes or no"
+              onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
+              returnKeyType="done"
+            />
+          </View>
+        )}
+        {/* Plan confirmation input UI */}
+        {planCreationStep === 'confirming' && (
+          <View style={{ marginVertical: 12 }}>
+            <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text,}}>Type "confirm" to create the plan or "cancel" to abort:</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8, color: colors.text}}
+              placeholder="confirm or cancel"
+              onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
+              returnKeyType="done"
+            />
+          </View>
+        )}
+      </ScrollView>
 
-        {/* Add payout account modal */}
-        <AddPayoutAccountModal
-          isVisible={showAddAccountModal}
-          onClose={async (newAccount) => {
-            setShowAddAccountModal(false);
-            if (newAccount) {
-              await fetchPayoutAccounts();
-              handleSelectAccount(newAccount);
-            }
-          }}
-        />
+      {showSuggestions && messages.length === 1 && !keyboardVisible && (
+        <View style={styles.suggestionsContainer}>
+          <Text style={styles.suggestionsTitle}>Try asking about:</Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.suggestionsScroll}
+          >
+            {SUGGESTED_PROMPTS.map((prompt, index) => (
+              <TouchableOpacity 
+                key={index} 
+                style={styles.suggestionBubble}
+                onPress={() => handleSuggestionPress(prompt)}
+              >
+                <Text style={styles.suggestionText}>{prompt}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
-        {planCreationStep === 'idle' && (
+      {/* Add payout account modal */}
+      <AddPayoutAccountModal
+        isVisible={showAddAccountModal}
+        onClose={async (newAccount) => {
+          setShowAddAccountModal(false);
+          if (newAccount) {
+            await fetchPayoutAccounts();
+            handleSelectAccount(newAccount);
+          }
+        }}
+      />
+
+      {planCreationStep === 'idle' && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
           <View style={styles.inputContainer}>
             <TextInput
               ref={inputRef}
               style={styles.input}
-              placeholder="Ask me anything about your finances..."
+              placeholder="Tell me your plans..."
               placeholderTextColor={colors.textTertiary}
               value={inputText}
               onChangeText={setInputText}
@@ -1359,8 +1615,8 @@ export default function AIAssistantScreen() {
               <Send size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-        )}
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      )}
     </SafeAreaView>
   );
 }

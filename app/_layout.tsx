@@ -115,7 +115,7 @@ function RootLayoutNav() {
         <Stack.Screen name="+not-found" options={{ title: 'Page Not Found' }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <SessionDebugger />
+      {/* <SessionDebugger /> */}
     </GestureHandlerRootView>
   );
 }

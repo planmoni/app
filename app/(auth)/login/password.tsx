@@ -82,7 +82,7 @@ export default function LoginPasswordScreen() {
         <Pressable 
           onPress={() => {
             haptics.lightImpact();
-            router.push('/(auth)/signup');
+            router.push('/(auth)/onboarding/first-name');
           }} 
           style={styles.signUpButton}
         >
@@ -98,7 +98,7 @@ export default function LoginPasswordScreen() {
           <Text style={styles.subtitle}>Please enter your password to continue</Text>
 
           <View style={styles.formContainer}>
-            <Text style={styles.emailDisplay}>{email}</Text>
+            {/* <Text style={styles.emailDisplay}>{email}</Text> */}
             
             {error && (
               <View style={styles.errorContainer}>

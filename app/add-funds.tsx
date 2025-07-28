@@ -11,6 +11,9 @@ import Button from '@/components/Button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
+import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
+import AddBankAccountModal from '@/components/AddBankAccountModal';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 
 const { width } = Dimensions.get('window');
 type VirtualAccount = {
@@ -28,6 +31,9 @@ export default function AddFundsScreen() {
   
   const { session, signOut } = useAuth();
   const { account: paystackAccount, isLoading: accountLoading } = useRealtimePaystackAccount();
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(false);
+  const { bankAccounts, isLoading: bankAccountsLoading, error: bankAccountsError, addBankAccount } = useRealtimeBankAccounts();
 
   
   const firstName = session?.user?.user_metadata?.first_name || '';
@@ -256,7 +262,7 @@ export default function AddFundsScreen() {
         <Pressable onPress={handleBack} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Add Funds</Text>
+        <Text style={styles.headerTitle}>Deposit Funds</Text>
       </View>
 
       <View style={styles.tabContainer}>
@@ -273,7 +279,7 @@ export default function AddFundsScreen() {
           onPress={() => handleTabPress(1)}
         >
           <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
-            Cards/Bank/USSD
+            Direct Deposit
           </Text>
         </Pressable>
         <Animated.View 
@@ -303,15 +309,15 @@ export default function AddFundsScreen() {
         {/* Bank Transfer Tabs */}
         <View style={[styles.tabContent, { width: screenWidth }]}>
           <View style={styles.content}>
-            <Text style={styles.title}>Add funds via <Text style={styles.highlight}>Bank Transfer</Text></Text>
-            <Text style={styles.description}>
-              Money transfered to these account details will automatically appear on your available balance.
-            </Text>
+
 
             {virtualAccount ? (
             <View style={styles.accountDetailsCard}>
               <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>{virtualAccount.bank_name} Account Details</Text>
+                <Text style={styles.cardTitle}>Your {virtualAccount.bank_name} Account Details</Text>
+                <Text style={styles.description}>
+              Transfer money to the account details below and it will automatically appear on your available balance.
+            </Text>
               </View>
 
               <View style={styles.fieldsContainer}>
@@ -338,6 +344,7 @@ export default function AddFundsScreen() {
                     <Text style={styles.fieldValue}>{virtualAccount.account_name}</Text>
                   </View>
                 </View>
+
               </View>
 
               {paystackAccount && !paystackAccount.is_active && (
@@ -387,57 +394,71 @@ export default function AddFundsScreen() {
           </View>
         </View>
 
-        {/* Cards/Bank/USSD Tab */}
-        <View style={[styles.tabContent, { width: screenWidth }]}>
+        {/* Cards/Bank/USSD Tab (now Direct Deposit) */}
+        <View style={[styles.tabContent, { width: screenWidth }]}> 
           <View style={styles.content}>
-            <Text style={styles.title}>Choose a <Text style={styles.highlight}>Payment Method</Text></Text>
+            <Text style={styles.title}>Choose a <Text style={styles.highlight}>Linked Account</Text></Text>
             <Text style={styles.description}>
               Select your preferred payment option to add funds to your wallet.
             </Text>
 
             <View style={styles.paymentMethodsContainer}>
-              <Pressable 
-                style={styles.paymentMethod}
-                onPress={() => handleNavigateToDepositFlow('card')}
-              >
-                <View style={styles.paymentMethodIcon}>
-                  <CreditCard size={24} color={colors.primary} />
+              {bankAccountsLoading ? (
+                <PlanmoniLoader size="medium" description="Loading linked accounts..." />
+              ) : bankAccounts.length === 0 ? (
+                <View style={{ alignItems: 'center', marginTop: 40 }}>
+                  <Text style={{ fontSize: 16, color: colors.textSecondary, marginBottom: 8 }}>No linked accounts found</Text>
+                  <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 24 }}>Link a bank account to use direct deposit.</Text>
+                  <Button
+                    title="Link New Bank Account"
+                    onPress={() => setShowComingSoon(true)}
+                    style={{ width: 220 }}
+                  />
                 </View>
-                <View style={styles.paymentMethodInfo}>
-                  <Text style={styles.paymentMethodTitle}>Debit/Credit Card</Text>
-                  <Text style={styles.paymentMethodDescription}>Add funds using your card</Text>
-                </View>
-                <ChevronRight size={20} color={colors.textSecondary} />
-              </Pressable>
-
-              <Pressable 
-                style={styles.paymentMethod}
-                onPress={() => handleNavigateToDepositFlow('ussd')}
-              >
-                <View style={styles.paymentMethodIcon}>
-                  <Smartphone size={24} color={colors.primary} />
-                </View>
-                <View style={styles.paymentMethodInfo}>
-                  <Text style={styles.paymentMethodTitle}>USSD Transfer</Text>
-                  <Text style={styles.paymentMethodDescription}>Add funds using USSD code</Text>
-                </View>
-                <ChevronRight size={20} color={colors.textSecondary} />
-              </Pressable>
-
-              <Pressable 
-                style={styles.paymentMethod}
-                onPress={() => handleNavigateToDepositFlow('bank-account')}
-              >
-                <View style={styles.paymentMethodIcon}>
-                  <Building2 size={24} color={colors.primary} />
-                </View>
-                <View style={styles.paymentMethodInfo}>
-                  <Text style={styles.paymentMethodTitle}>Bank Account</Text>
-                  <Text style={styles.paymentMethodDescription}>Add funds from your bank account</Text>
-                </View>
-                <ChevronRight size={20} color={colors.textSecondary} />
-              </Pressable>
+              ) : (
+                <>
+                  {bankAccounts.map((account) => (
+                    <View key={account.id} style={[styles.paymentMethod, { flexDirection: 'row', alignItems: 'center', marginBottom: 12 }]}> 
+                      <View style={styles.paymentMethodIcon}>
+                        <Building2 size={24} color={colors.primary} />
+                      </View>
+                      <View style={styles.paymentMethodInfo}>
+                        <Text style={styles.paymentMethodTitle}>{account.bank_name} •••• {account.account_number.slice(-4)}</Text>
+                        <Text style={styles.paymentMethodDescription}>{account.account_name}</Text>
+                      </View>
+                      {account.is_default && (
+                        <View style={{ backgroundColor: colors.backgroundTertiary, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 }}>
+                          <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: '600' }}>Default</Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                  <Button
+                    title="Link New Bank Account"
+                    onPress={() => setShowComingSoon(true)}
+                    style={{ marginTop: 16, width: 220, alignSelf: 'center' }}
+                  />
+                </>
+              )}
             </View>
+
+            {/* Coming Soon Modal */}
+            <Modal
+              visible={showComingSoon}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setShowComingSoon(false)}
+            >
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+                <View style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 32, alignItems: 'center', maxWidth: 320 }}>
+                  <Text style={{ fontSize: 22, fontWeight: '700', color: colors.text, marginBottom: 12 }}>Coming Soon</Text>
+                  <Text style={{ fontSize: 16, color: colors.textSecondary, textAlign: 'center', marginBottom: 24 }}>
+                    Linking a new bank account will be available soon. Stay tuned!
+                  </Text>
+                  <Button title="Close" onPress={() => setShowComingSoon(false)} style={{ width: 120 }} />
+                </View>
+              </View>
+            </Modal>
           </View>
         </View>
       </Animated.ScrollView>
@@ -611,7 +632,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   description: {
     fontSize: isSmallScreen ? 13 : 14,
     color: colors.textSecondary,
-    marginBottom: isSmallScreen ? 20 : 24,
     lineHeight: 20,
   },
   accountDetailsCard: {
@@ -658,7 +678,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     backgroundColor: colors.backgroundTertiary,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: isSmallScreen ? 12 : 16,
+    padding: isSmallScreen ? 10 : 10,
     borderRadius: 12,
   },
   accountNumber: {
@@ -737,6 +757,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   },
   doneButton: {
     width: '100%',
+    height: 50,
     backgroundColor: colors.primary,
   },
   bankSelectionButton: {
@@ -949,5 +970,21 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontWeight: '500',
     color: colors.textSecondary,
     marginLeft: 8,
+  },
+  disabledPaymentMethod: {
+    opacity: 0.5,
+  },
+  comingSoonTag: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginRight: 8,
+    alignSelf: 'center',
+  },
+  comingSoonText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
 });

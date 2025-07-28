@@ -120,6 +120,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   button: {
     width: '100%',
+    height: 50,
     backgroundColor: colors.primary,
   },
 });
