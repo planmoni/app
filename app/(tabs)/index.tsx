@@ -11,6 +11,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import {
   ArrowDownRight,
   ArrowRightIcon,
+  BanknoteArrowDown,
+  BanknoteArrowUp,
   Headset,
   ArrowUpRight,
   Calendar,
@@ -405,14 +407,14 @@ export default function HomeScreen() {
                 onPress={handleAddFunds}
               >
                 
-                <ArrowDownRight size={20} color={colors.primary} />
+                <BanknoteArrowDown size={24} color={colors.primary} />
                 <Text style={styles.addFundsText}>Deposit</Text>
               </Pressable>
               <Pressable 
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
-                <CalendarCheck size={20} color='#fff' />
+                <CalendarCheck size={22} color='#fff' />
                 <Text style={styles.createButtonText}>Create Plan</Text>
               </Pressable>
               
@@ -585,8 +587,8 @@ export default function HomeScreen() {
           {recentTransactions.length > 0 ? (
             recentTransactions.map((transaction) => {
               const isPositive = transaction.type === 'deposit';
-              const Icon = isPositive ? ArrowDownRight : 
-                          transaction.type === 'payout' ? ArrowUpRight : ArrowDownRight;
+              const Icon = isPositive ? BanknoteArrowDown : 
+                          transaction.type === 'payout' ? BanknoteArrowDown : BanknoteArrowUp;
               
               // Format date and time
               const txDate = new Date(transaction.created_at);
@@ -619,7 +621,7 @@ export default function HomeScreen() {
                         { backgroundColor: isPositive ? colors.textTertiary : colors.textTertiary }
                       ]}>
                         <Icon
-                          size={20}
+                          size={24}
                           color={isPositive ? colors.text : colors.text}
                         />
                       </View>
@@ -764,14 +766,14 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
-          <ArrowDownRight size={20} color={colors.primary} />
+          <BanknoteArrowDown size={24} color={colors.primary} />
           <Text style={styles.addFundsText}>Deposit</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <CalendarCheck size={20} color='#fff' />
+          <CalendarCheck size={22} color='#fff' />
           <Text style={styles.createButtonText}>Create Plan</Text>
         </Pressable>
         

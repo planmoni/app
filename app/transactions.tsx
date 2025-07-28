@@ -3,7 +3,7 @@ import SafeFooter from '@/components/SafeFooter';
 import TransactionModal from '@/components/TransactionModal';
 import DateRangeModal from '@/components/DateRangeModal';
 import { router } from 'expo-router';
-import { ArrowDownRight, ArrowLeft, ArrowUpRight, Ban as Bank, Calendar, Search, X } from 'lucide-react-native';
+import { ArrowDownRight, ArrowLeft, BanknoteArrowDown, BanknoteArrowUp, ArrowUpRight, Ban as Bank, Calendar, Search, X } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -275,7 +275,7 @@ export default function TransactionsScreen() {
               </Text>
               {transactions.map((transaction) => {
                 const isPositive = transaction.type === 'deposit';
-                const Icon = isPositive ? ArrowDownRight : transaction.type === 'payout' ? ArrowUpRight : ArrowDownRight;
+                const Icon = isPositive ? BanknoteArrowDown : transaction.type === 'payout' ? BanknoteArrowUp : BanknoteArrowDown;
                 const iconBg = isPositive ? colors.textTertiary : transaction.type === 'payout' ? colors.textTertiary : colors.textSecondary;
                 const iconColor = isPositive ? colors.text : transaction.type === 'payout' ? colors.text : colors.textTertiary;
                 
@@ -294,7 +294,7 @@ export default function TransactionsScreen() {
                     onPress={() => handleTransactionPress(transaction)}
                   >
                     <View style={[styles.transactionIcon, { backgroundColor: iconBg }]}>
-                      <Icon size={20} color={iconColor} />
+                      <Icon size={24} color={iconColor} />
                     </View>
                     <View style={styles.transactionInfo}>
                       <View style={styles.transactionHeader}>
