@@ -11,6 +11,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import {
   ArrowDownRight,
   ArrowRightIcon,
+  Headset,
   ArrowUpRight,
   Calendar,
   ChevronDown,
@@ -333,7 +334,7 @@ export default function HomeScreen() {
             <View style={styles.headerActions}>
               <NotificationIcon />
               <Pressable onPress={handleHelpPress} style={styles.helpButton}>
-                <HelpCircle size={24} color={colors.text} />
+                <Headset size={24} color={colors.text} />
               </Pressable>
             </View>
           </View>
