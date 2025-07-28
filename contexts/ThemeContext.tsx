@@ -27,7 +27,7 @@ const lightColors = {
   
   // Primary colors
   primary: '#1E3A8A',
-  primaryLight: '#3B82F6',
+  primaryLight: '#FAD923',
   primaryDark: '#1E40AF',
   
   // Status colors
@@ -57,12 +57,12 @@ const lightColors = {
 const darkColors = {
   // Background colors
   background: '#0F172A',
-  backgroundSecondary: '#1E293B',
-  backgroundTertiary: '#334155',
+  backgroundSecondary: '#0E141F',
+  backgroundTertiary: '#0C2241',
   
   // Surface colors
-  surface: '#1E293B',
-  surfaceSecondary: '#334155',
+  surface: '#0E141F',
+  surfaceSecondary: '#0C2241',
   
   // Text colors
   text: '#F8FAFC',
@@ -70,7 +70,7 @@ const darkColors = {
   textTertiary: '#94A3B8',
   
   // Primary colors
-  primary: '#3B82F6',
+  primary: '#284BB2',
   primaryLight: '#60A5FA',
   primaryDark: '#2563EB',
   
@@ -83,15 +83,15 @@ const darkColors = {
   errorLight: '#991B1B',
   
   // Border colors
-  border: '#475569',
+  border: '#29323E',
   borderSecondary: '#64748B',
   
   // Card colors
-  card: '#334155',
+  card: '#040C19',
   cardSecondary: '#475569',
   
   // Tab bar
-  tabBar: '#1E293B',
+  tabBar: '#0E141F',
   tabBarBorder: '#475569',
   
   // Modal overlay
