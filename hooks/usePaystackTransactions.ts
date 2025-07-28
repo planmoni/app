@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import Toast from 'react-native-toast-message';
 
 export type PaystackTransaction = {
   id: number;
@@ -215,6 +216,19 @@ export function usePaystackTransactions() {
         // Send email notification directly
         await sendEmailDirect(userId, amountInNaira, transaction.reference);
 
+        // Show toast for new deposit
+        Toast.show({
+          type: 'action',
+          text1: `₦${amountInNaira.toLocaleString()} added to your wallet`,
+          props: {
+            actionLabel: 'View',
+            onAction: () => {
+              // You can navigate to the transactions screen or show details here
+              // Example: navigate('transactions')
+            },
+            type: 'success',
+          },
+        });
       } else {
         console.error('Failed to add funds for transaction:', transaction.reference);
       }
