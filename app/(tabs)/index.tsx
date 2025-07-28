@@ -407,7 +407,7 @@ export default function HomeScreen() {
                 onPress={handleAddFunds}
               >
                 
-                <BanknoteArrowDown size={24} color={colors.primary} />
+                <BanknoteArrowDown size={24} color='#203B8B'/>
                 <Text style={styles.addFundsText}>Deposit</Text>
               </Pressable>
               <Pressable 
@@ -766,7 +766,7 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
-          <BanknoteArrowDown size={24} color={colors.primary} />
+          <BanknoteArrowDown size={24} color='#203B8B' />
           <Text style={styles.addFundsText}>Deposit</Text>
         </Pressable>
         <Pressable 
@@ -936,9 +936,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: colors.backgroundTertiary,
-    borderWidth: 1,
-    borderColor: '#1F3C95',
+    backgroundColor: '#96A4C9',
+    borderWidth: 0.2,
+    borderColor: '#6E6E6E',
     padding: 14,
     borderRadius: 5,
     alignItems: 'center',
@@ -946,7 +946,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   addFundsText: {
-    color: colors.text,
+    color: '#203B8B',
     fontSize: 16,
     fontWeight: '600',
   },

@@ -30,7 +30,6 @@ export default function SafeFooter({
         },
       ]}
     >
-      <BlurView intensity={100} tint="default" style={StyleSheet.absoluteFill} pointerEvents="none" />
     </View>
   );
 }

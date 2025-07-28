@@ -87,7 +87,6 @@ export default function FloatingButton({
       ]}
       pointerEvents="box-none"
     >
-      <BlurView intensity={100} tint="default" style={StyleSheet.absoluteFill} pointerEvents="none" />
       <View style={styles.buttonContainer}>
         <Button
           title={title}
@@ -100,6 +99,7 @@ export default function FloatingButton({
           hapticType={hapticType}
         />
       </View>
+
     </Animated.View>
   );
 }
