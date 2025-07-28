@@ -1,4 +1,5 @@
 import { View, StyleSheet } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -25,9 +26,12 @@ export default function SafeFooter({
           backgroundColor: backgroundColor || colors.surface,
           borderTopWidth: borderTopWidth !== undefined ? borderTopWidth : 1,
           borderTopColor: borderTopColor || colors.border,
+          overflow: 'hidden',
         },
       ]}
-    />
+    >
+      <BlurView intensity={100} tint="default" style={StyleSheet.absoluteFill} pointerEvents="none" />
+    </View>
   );
 }
 

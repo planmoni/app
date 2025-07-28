@@ -77,9 +77,11 @@ export default function KeyboardAvoidingWrapper({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    
   },
   scrollView: {
     flex: 1,
+    
   },
   contentContainer: {
     flexGrow: 1,
