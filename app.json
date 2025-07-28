@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mosodi.planmoni",
+      "bundleIdentifier": "com.planmoni",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
