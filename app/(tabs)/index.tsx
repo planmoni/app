@@ -10,6 +10,7 @@ import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   ArrowDownRight,
+  ArrowRightIcon,
   ArrowUpRight,
   Calendar,
   ChevronDown,
@@ -22,6 +23,7 @@ import {
   Plus,
   RefreshCw,
   Star,
+  CalendarCheck
 } from 'lucide-react-native';
 import {
   Animated,
@@ -115,11 +117,11 @@ export default function HomeScreen() {
     const hour = currentDate.getHours();
     
     if (hour >= 0 && hour < 12) {
-      return 'Good morning ☀️';
+      return 'Good morning';
     } else if (hour >= 12 && hour < 17) {
-      return 'Good afternoon 🌤️';
+      return 'Good afternoon';
     } else {
-      return 'Good evening 🌅';
+      return 'Good evening';
     }
   };
 
@@ -336,8 +338,8 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={styles.greetingContainer}>
-            <Text style={styles.greeting}>Hello, {firstName}.</Text>
-            <Text style={styles.subGreeting}>{getGreeting()}, let's plan some payouts</Text>
+            <Text style={styles.greeting}>{getGreeting()}, {firstName}.</Text>
+            <Text style={styles.subGreeting}>It's time to plan some payouts</Text>
           </View>
         </View>
 
@@ -401,12 +403,15 @@ export default function HomeScreen() {
                 style={styles.addFundsButton} 
                 onPress={handleAddFunds}
               >
+                
+                <ArrowDownRight size={20} color={colors.primary} />
                 <Text style={styles.addFundsText}>Deposit</Text>
               </Pressable>
               <Pressable 
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
+                <CalendarCheck size={20} color='#fff' />
                 <Text style={styles.createButtonText}>Create Plan</Text>
               </Pressable>
               
@@ -758,12 +763,14 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
+          <ArrowDownRight size={20} color={colors.primary} />
           <Text style={styles.addFundsText}>Deposit</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
+          <CalendarCheck size={20} color='#fff' />
           <Text style={styles.createButtonText}>Create Plan</Text>
         </Pressable>
         
@@ -921,7 +928,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   createButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   addFundsButton: {
     flex: 1,
@@ -938,7 +945,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   addFundsText: {
     color: colors.text,
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   summaryCard: {
     marginBottom: 24,
@@ -1386,7 +1393,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 5,
     marginTop: 8,
   },
   feedbackButtonText: {
