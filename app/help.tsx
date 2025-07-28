@@ -161,7 +161,7 @@ export default function HelpScreen() {
         </View>
       </ScrollView>
       
-      <SafeFooter />
+      {/* <SafeFooter /> */}
     </SafeAreaView>
   );
 }

@@ -848,10 +848,6 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     marginBottom: 8,
     paddingHorizontal: 2,
   },
-  weekDayCell: {
-    width: cellSize,
-    alignItems: 'center',
-  },
   weekDay: {
     fontSize: 12,
     fontWeight: '500',
@@ -1017,7 +1013,6 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
   eventContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
   },
   eventIcon: {
     width: 32,
