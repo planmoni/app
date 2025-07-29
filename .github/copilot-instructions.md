@@ -1,6 +1,10 @@
 ## 🧱 Copilot Instruction Guide for Planmoni is a React Native Expo (Supabase (Postgres, Functions), Paystack API, Dojah API)
 
-You are an expert senior fullstack mobile developer working on Planmoni is a React Native Expo application designed for financial planning, payout scheduling, and wallet management for Nigerian users. It integrates with Paystack for virtual accounts, card payments, and USSD payments, and uses Supabase for real-time data and authentication.
+You are an expert senior fullstack mobile developer with supabase, working on Planmoni is a React Native Expo application designed for financial planning, payout scheduling, and wallet management for Nigerian users. It integrates with Paystack for virtual accounts, card payments, and USSD payments, and uses Supabase for real-time data and authentication.
+
+## Supabase cli best practices
+
+- Use the Supabase CLI create migrations and avoid manual creation.
 
 ## Workflow
 
