@@ -2,6 +2,7 @@ import messaging from "@react-native-firebase/messaging";
 import notifee, { AndroidImportance, EventType } from "@notifee/react-native";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
 import { supabase } from "./supabase";
 import { logAnalyticsEvent } from "./firebase";
 
@@ -296,6 +297,11 @@ function getNotificationActions(type: NotificationType) {
 
 /**
  * Handle notification actions
+ *
+ * All notification interactions (action buttons, main notification taps,
+ * app opening from notifications) now route to the notifications screen by default.
+ * This provides a unified user experience where users can see all their notifications
+ * in one place regardless of how they interacted with the notification.
  */
 export async function handleNotificationAction(detail: any): Promise<void> {
   try {
@@ -309,22 +315,19 @@ export async function handleNotificationAction(detail: any): Promise<void> {
       notificationType: notification?.data?.type,
     });
 
-    // Handle different actions
-    switch (pressAction?.id) {
-      case "view_payout":
-        // Navigate to payout details
-        // You'll implement navigation logic here
-        break;
-      case "view_balance":
-        // Navigate to wallet/balance screen
-        // You'll implement navigation logic here
-        break;
-      case "review_security":
-        // Navigate to security settings
-        // You'll implement navigation logic here
-        break;
-      default:
-        console.log("Unhandled notification action:", pressAction?.id);
+    // Route all notifications to the notifications screen by default
+    try {
+      router.push("/notifications");
+      console.log("✅ Navigated to notifications screen");
+    } catch (navigationError) {
+      console.error(
+        "❌ Error navigating to notifications screen:",
+        navigationError
+      );
+      // Fallback: Try to navigate without router if available
+      if (typeof router?.replace === "function") {
+        router.replace("/notifications");
+      }
     }
   } catch (error) {
     console.error("❌ Error handling notification action:", error);
@@ -342,17 +345,85 @@ export function setupNotificationListeners(): void {
     // Handle FCM messages when app is in background/killed state
     messaging().setBackgroundMessageHandler(handleFCMMessage);
 
-    // Listen for notification actions
-    notifee.onForegroundEvent(async ({ type, detail }) => {
-      if (type === EventType.ACTION_PRESS) {
-        await handleNotificationAction(detail);
+    // Handle notification when app is opened from a notification
+    messaging().onNotificationOpenedApp(async (remoteMessage) => {
+      try {
+        console.log("🔔 App opened from notification:", remoteMessage);
+        await logAnalyticsEvent("notification_opened_app", {
+          messageId: remoteMessage.messageId,
+          notificationType: remoteMessage.data?.type,
+        });
+        router.push("/notifications");
+        console.log("✅ Navigated to notifications screen from opened app");
+      } catch (error) {
+        console.error("❌ Error handling notification open app:", error);
       }
     });
 
-    // Handle notification actions when app is killed
+    // Check if app was opened from a notification when it was completely closed
+    messaging()
+      .getInitialNotification()
+      .then(async (remoteMessage) => {
+        if (remoteMessage) {
+          try {
+            console.log(
+              "🔔 App opened from notification (cold start):",
+              remoteMessage
+            );
+            await logAnalyticsEvent("notification_opened_cold_start", {
+              messageId: remoteMessage.messageId,
+              notificationType: remoteMessage.data?.type,
+            });
+            router.push("/notifications");
+            console.log("✅ Navigated to notifications screen from cold start");
+          } catch (error) {
+            console.error("❌ Error handling notification cold start:", error);
+          }
+        }
+      });
+
+    // Listen for notification actions and main notification press
+    notifee.onForegroundEvent(async ({ type, detail }) => {
+      if (type === EventType.ACTION_PRESS) {
+        await handleNotificationAction(detail);
+      } else if (type === EventType.PRESS) {
+        // Handle main notification tap - route to notifications screen
+        try {
+          console.log("🔔 Main notification pressed");
+          await logAnalyticsEvent("notification_pressed", {
+            notificationType: detail.notification?.data?.type,
+          });
+          router.push("/notifications");
+          console.log(
+            "✅ Navigated to notifications screen from main notification press"
+          );
+        } catch (error) {
+          console.error("❌ Error handling main notification press:", error);
+        }
+      }
+    });
+
+    // Handle notification actions and main notification press when app is killed
     notifee.onBackgroundEvent(async ({ type, detail }) => {
       if (type === EventType.ACTION_PRESS) {
         await handleNotificationAction(detail);
+      } else if (type === EventType.PRESS) {
+        // Handle main notification tap - route to notifications screen
+        try {
+          console.log("🔔 Main notification pressed (background)");
+          await logAnalyticsEvent("notification_pressed_background", {
+            notificationType: detail.notification?.data?.type,
+          });
+          router.push("/notifications");
+          console.log(
+            "✅ Navigated to notifications screen from background notification press"
+          );
+        } catch (error) {
+          console.error(
+            "❌ Error handling background notification press:",
+            error
+          );
+        }
       }
     });
 
