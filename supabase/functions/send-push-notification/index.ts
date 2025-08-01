@@ -267,20 +267,6 @@ serve(async (req) => {
       }
     }
 
-    // Log the notification send attempt
-    await supabase
-      .from("notification_logs")
-      .insert({
-        notification_type: payload.notification_type,
-        title: payload.title,
-        body: payload.body,
-        total_recipients: filteredTokens.length,
-        successful_sends: totalSent,
-        failed_sends: totalFailed,
-        sent_at: new Date().toISOString(),
-      })
-      .catch((error) => console.log("Failed to log notification:", error));
-
     console.log(`📊 Final results: ${totalSent} sent, ${totalFailed} failed`);
 
     return new Response(
@@ -302,7 +288,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: "Internal server error",
-        details: error.message,
+        details: error instanceof Error ? error.message : "Unknown error",
       }),
       {
         status: 500,

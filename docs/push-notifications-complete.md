@@ -58,14 +58,12 @@ The push notification system is now automatically integrated with:
 - `profiles.fcm_token` - Stores user's FCM token
 - `profiles.fcm_token_updated_at` - Token refresh tracking
 - `profiles.notification_preferences` - User preferences (JSON)
-- `notification_logs` - Analytics table for sent notifications
 
 ### Edge Functions Deployed
 
 1. **send-push-notification** 
    - Handles all push notification sending
    - Filters by user preferences
-   - Tracks analytics
 
 2. **process-due-payouts** (updated)
    - Now sends push notifications for payout events
@@ -83,10 +81,9 @@ The push notification system is now automatically integrated with:
 
 The push notification system is fully functional and integrated. You can now:
 
-1. **Monitor Usage**: Check `notification_logs` table for analytics
-2. **Send Admin Notifications**: Use the Edge Function for announcements
-3. **Integrate with Other Features**: Use helper functions for new notification types
-4. **Customize Further**: Add new notification types as needed
+1. **Send Admin Notifications**: Use the Edge Function for announcements
+2. **Integrate with Other Features**: Use helper functions for new notification types
+3. **Customize Further**: Add new notification types as needed
 
 ## 📱 Testing Checklist
 
@@ -102,15 +99,10 @@ The push notification system is fully functional and integrated. You can now:
 - Check if notifications are enabled in app settings
 - Check if notifications are enabled in device settings
 - Verify FCM token is stored in database (check profiles table)
-- Check notification_logs table for send attempts
 
 **Notifications not filtering by preferences?**
 - Check notification_preferences in profiles table
 - Verify the send-push-notification function is filtering correctly
-
-**Need more analytics?**
-- Query the notification_logs table
-- Use the get_notification_analytics function
 
 ---
 
