@@ -378,6 +378,7 @@ async function createNotification(
     `📢 Creating notification for user ${userId} for payout: ${plan.name}`
   );
 
+  // Create database event notification
   const { error } = await supabase.from("events").insert({
     user_id: userId,
     type: "payout_completed",
@@ -386,10 +387,55 @@ async function createNotification(
     status: "unread",
     payout_plan_id: plan.plan_id,
   });
-  console.log({ error });
+
+  if (error) {
+    console.error(`❌ Failed to create database notification:`, error);
+  } else {
+    console.log(`✅ Database notification created for user ${userId}`);
+  }
+
+  // Send push notification
+  try {
+    const pushNotificationPayload = {
+      user_ids: [userId],
+      notification_type: "payout_ready" as const,
+      title: "Payout Initiated! 💰",
+      body: `Your ₦${plan.payout_amount.toLocaleString()} payout from "${plan.name}" has been initiated and should arrive in your account shortly.`,
+      data: {
+        type: "payout_ready",
+        plan_id: plan.plan_id,
+        plan_name: plan.name,
+        amount: plan.payout_amount,
+        transfer_reference: transferResult.reference,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    const pushResponse = await fetch(
+      `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(pushNotificationPayload),
+      }
+    );
+
+    if (pushResponse.ok) {
+      const pushResult = await pushResponse.json();
+      console.log(`✅ Push notification sent successfully:`, pushResult);
+    } else {
+      const pushError = await pushResponse.text();
+      console.error(`❌ Failed to send push notification:`, pushError);
+    }
+  } catch (pushError) {
+    console.error(`❌ Error sending push notification:`, pushError);
+  }
 
   console.log(
-    `✅ Notification created for user ${userId} for payout: ${plan.name}`
+    `✅ Notifications completed for user ${userId} for payout: ${plan.name}`
   );
 }
 
@@ -417,6 +463,7 @@ async function validateWalletBalance(
  * Log payout failure for monitoring
  */
 async function logPayoutFailure(plan: PayoutPlan, error: any) {
+  // Update automated payout record
   await supabase
     .from("automated_payouts")
     .update({
@@ -427,6 +474,67 @@ async function logPayoutFailure(plan: PayoutPlan, error: any) {
     })
     .eq("payout_plan_id", plan.plan_id)
     .eq("scheduled_date", plan.next_payout_date);
+
+  // Create database event notification for failure
+  await supabase.from("events").insert({
+    user_id: plan.user_id,
+    type: "payout_failed",
+    title: "Payout Failed",
+    description: `Your ₦${plan.payout_amount.toLocaleString()} payout from "${plan.name}" could not be processed. We'll retry automatically.`,
+    status: "unread",
+    payout_plan_id: plan.plan_id,
+  });
+
+  // Send push notification for payout failure
+  try {
+    const pushNotificationPayload = {
+      user_ids: [plan.user_id],
+      notification_type: "payout_failed" as const,
+      title: "Payout Issue ⚠️",
+      body: `There was an issue processing your ₦${plan.payout_amount.toLocaleString()} payout from "${plan.name}". We'll retry automatically soon.`,
+      data: {
+        type: "payout_failed",
+        plan_id: plan.plan_id,
+        plan_name: plan.name,
+        amount: plan.payout_amount,
+        error_message: error.message,
+        retry_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    const pushResponse = await fetch(
+      `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(pushNotificationPayload),
+      }
+    );
+
+    if (pushResponse.ok) {
+      const pushResult = await pushResponse.json();
+      console.log(`✅ Payout failure push notification sent:`, pushResult);
+    } else {
+      const pushError = await pushResponse.text();
+      console.error(
+        `❌ Failed to send payout failure push notification:`,
+        pushError
+      );
+    }
+  } catch (pushError) {
+    console.error(
+      `❌ Error sending payout failure push notification:`,
+      pushError
+    );
+  }
+
+  console.log(
+    `✅ Payout failure logged and notification sent for plan: ${plan.name}`
+  );
 }
 
 /**
