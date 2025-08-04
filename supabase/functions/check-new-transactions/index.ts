@@ -4,7 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-manual-trigger",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-manual-trigger",
 };
 
 serve(async (req) => {
@@ -19,27 +20,32 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     const paystackSecretKey = Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || "";
     const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
-    
+
     if (!supabaseUrl || !supabaseServiceKey || !paystackSecretKey) {
       console.error("Missing required environment variables");
       return new Response(
         JSON.stringify({ error: "Server configuration error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
+
     // Check if this is a manual trigger or scheduled run
-    const isManualTrigger = req.method === "POST" && req.headers.get("x-manual-trigger") === "true";
+    const isManualTrigger =
+      req.method === "POST" && req.headers.get("x-manual-trigger") === "true";
     const isScheduledRun = req.method === "POST" && !isManualTrigger;
-    
-    console.log(`🔄 Starting transaction check... (${isManualTrigger ? 'Manual' : 'Scheduled'})`);
-    
+
+    console.log(
+      `🔄 Starting transaction check... (${isManualTrigger ? "Manual" : "Scheduled"})`
+    );
+
     // Get all users with Paystack accounts
-    const { data: paystackAccounts, error: accountsError } = await supabase
-      .from('paystack_accounts')
-      .select(`
+    const { data: paystackAccounts, error: accountsError } =
+      await supabase.from("paystack_accounts").select(`
         user_id,
         account_number,
         customer_code
@@ -49,7 +55,10 @@ serve(async (req) => {
       console.error("Error fetching Paystack accounts:", accountsError);
       return new Response(
         JSON.stringify({ error: "Failed to fetch user accounts" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -64,20 +73,25 @@ serve(async (req) => {
     // Get user profiles for the accounts
     const userIds = paystackAccounts.map((account: any) => account.user_id);
     const { data: userProfiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select(`
+      .from("profiles")
+      .select(
+        `
         id,
         email,
         first_name,
         email_notifications
-      `)
-      .in('id', userIds);
+      `
+      )
+      .in("id", userIds);
 
     if (profilesError) {
       console.error("Error fetching user profiles:", profilesError);
       return new Response(
         JSON.stringify({ error: "Failed to fetch user profiles" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -97,32 +111,40 @@ serve(async (req) => {
           deposit_alerts: true,
           payout_alerts: true,
           expiry_reminders: true,
-          wallet_summary: "weekly"
-        }
-      }
+          wallet_summary: "weekly",
+        },
+      },
     }));
 
-    console.log(`Found ${accountsWithProfiles.length} Paystack accounts to check`);
+    console.log(
+      `Found ${accountsWithProfiles.length} Paystack accounts to check`
+    );
 
     // Fetch transactions from Paystack API
-    const paystackResponse = await fetch('https://api.paystack.co/transaction', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${paystackSecretKey}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    const paystackResponse = await fetch(
+      "https://api.paystack.co/transaction",
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${paystackSecretKey}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
     if (!paystackResponse.ok) {
       console.error("Paystack API error:", paystackResponse.status);
       return new Response(
         JSON.stringify({ error: "Failed to fetch Paystack transactions" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
     const paystackData = await paystackResponse.json();
-    
+
     if (!paystackData.status || !paystackData.data) {
       console.log("No transactions found in Paystack");
       return new Response(
@@ -131,7 +153,9 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Found ${paystackData.data.length} total transactions in Paystack`);
+    console.log(
+      `Found ${paystackData.data.length} total transactions in Paystack`
+    );
 
     // Create a global set to track all processed transaction references across all accounts
     const allProcessedReferences = new Set<string>();
@@ -143,23 +167,27 @@ serve(async (req) => {
     const processingState = {
       startTime: new Date().toISOString(),
       functionId: `check-transactions-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      isProcessing: true
+      isProcessing: true,
     };
 
     console.log(`🔄 Processing session started: ${processingState.functionId}`);
 
     // First, get ALL existing transaction references from our database to avoid duplicates
-    const { data: allExistingTransactions, error: existingTxError } = await supabase
-      .from('transactions')
-      .select('reference, user_id, amount, created_at')
-      .eq('type', 'deposit')
-      .eq('source', 'Paystack Virtual Account');
+    const { data: allExistingTransactions, error: existingTxError } =
+      await supabase
+        .from("transactions")
+        .select("reference, user_id, amount, created_at")
+        .eq("type", "deposit")
+        .eq("source", "Paystack Virtual Account");
 
     if (existingTxError) {
       console.error("Error fetching existing transactions:", existingTxError);
       return new Response(
         JSON.stringify({ error: "Failed to fetch existing transactions" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -169,7 +197,9 @@ serve(async (req) => {
       existingTransactionsMap.set(tx.reference, tx);
     });
 
-    console.log(`Found ${existingTransactionsMap.size} existing transactions in database`);
+    console.log(
+      `Found ${existingTransactionsMap.size} existing transactions in database`
+    );
 
     // Process each user's account
     for (const account of accountsWithProfiles) {
@@ -182,7 +212,7 @@ serve(async (req) => {
           deposit_alerts: true,
           payout_alerts: true,
           expiry_reminders: true,
-          wallet_summary: "weekly"
+          wallet_summary: "weekly",
         };
 
         console.log(`Processing account ${accountNumber} for user ${userId}`);
@@ -196,8 +226,8 @@ serve(async (req) => {
           // 3. Match this specific account number
           // 4. Have proper metadata
           return (
-            tx.status === 'success' &&
-            tx.channel === 'dedicated_nuban' &&
+            tx.status === "success" &&
+            tx.channel === "dedicated_nuban" &&
             tx.authorization?.account_number === accountNumber &&
             tx.metadata?.receiver_account_number &&
             tx.reference && // Ensure reference exists
@@ -210,30 +240,32 @@ serve(async (req) => {
           continue;
         }
 
-        console.log(`Found ${userTransactions.length} transactions for account ${accountNumber}`);
+        console.log(
+          `Found ${userTransactions.length} transactions for account ${accountNumber}`
+        );
 
         // Find new transactions that haven't been processed
         const newTransactions = userTransactions.filter((tx: any) => {
           const reference = tx.reference;
-          
+
           // Skip if already processed in this run
           if (allProcessedReferences.has(reference)) {
             console.log(`Skipping already processed transaction: ${reference}`);
             return false;
           }
-          
+
           // Skip if exists in database
           if (existingTransactionsMap.has(reference)) {
             console.log(`Skipping existing transaction: ${reference}`);
             return false;
           }
-          
+
           // Skip if no reference
           if (!reference) {
             console.log(`Skipping transaction without reference`);
             return false;
           }
-          
+
           return true;
         });
 
@@ -242,7 +274,9 @@ serve(async (req) => {
           continue;
         }
 
-        console.log(`Processing ${newTransactions.length} new transactions for account ${accountNumber}`);
+        console.log(
+          `Processing ${newTransactions.length} new transactions for account ${accountNumber}`
+        );
 
         // Process each new transaction
         for (const tx of newTransactions) {
@@ -250,158 +284,247 @@ serve(async (req) => {
             const reference = tx.reference;
             const amountInNaira = tx.amount / 100; // Convert from kobo to naira
 
-            console.log(`Processing transaction: ${reference}, Amount: ₦${amountInNaira}`);
+            console.log(
+              `Processing transaction: ${reference}, Amount: ₦${amountInNaira}`
+            );
 
             // Mark this transaction as being processed to prevent duplicates
             allProcessedReferences.add(reference);
 
             // Use a transaction to ensure atomicity
-            const { data: result, error } = await supabase.rpc('add_funds', {
+            const { data: result, error } = await supabase.rpc("add_funds", {
               arg_user_id: userId,
-              arg_amount: amountInNaira
+              arg_amount: amountInNaira,
             });
 
             if (error) {
-              console.error(`Error adding funds for transaction ${reference}:`, error);
+              console.error(
+                `Error adding funds for transaction ${reference}:`,
+                error
+              );
               // Remove from processed set so it can be retried
               allProcessedReferences.delete(reference);
               continue;
             }
 
             if (result && result.success) {
-              console.log(`Successfully added ₦${amountInNaira} to wallet for transaction ${reference}`);
-              
+              console.log(
+                `Successfully added ₦${amountInNaira} to wallet for transaction ${reference}`
+              );
+
               // Create a transaction record in our database
               const { error: insertError } = await supabase
-                .from('transactions')
+                .from("transactions")
                 .insert({
                   user_id: userId,
-                  type: 'deposit',
+                  type: "deposit",
                   amount: amountInNaira,
-                  status: 'completed',
-                  source: 'Paystack Virtual Account',
-                  destination: 'wallet',
+                  status: "completed",
+                  source: "Paystack Virtual Account",
+                  destination: "wallet",
                   reference: reference,
-                  description: 'Funds added to wallet',
+                  description: "Funds added to wallet",
                   metadata: {
                     paystack_transaction_id: tx.id,
                     paystack_reference: reference,
                     account_number: tx.authorization?.account_number,
-                    processed_by: isManualTrigger ? 'manual_function' : 'scheduled_function',
+                    processed_by: isManualTrigger
+                      ? "manual_function"
+                      : "scheduled_function",
                     processed_at: new Date().toISOString(),
-                    processing_session: processingState.functionId
-                  }
+                    processing_session: processingState.functionId,
+                  },
                 });
 
               if (insertError) {
-                console.error(`Error inserting transaction record for ${reference}:`, insertError);
-                
+                console.error(
+                  `Error inserting transaction record for ${reference}:`,
+                  insertError
+                );
+
                 // If this is a duplicate key error, the transaction was already processed
-                if (insertError.code === '23505') { // Unique constraint violation
-                  console.log(`Transaction ${reference} was already processed by another function instance`);
+                if (insertError.code === "23505") {
+                  // Unique constraint violation
+                  console.log(
+                    `Transaction ${reference} was already processed by another function instance`
+                  );
                   // Don't remove from processed set since it was actually processed
                 } else {
                   // For other errors, remove from processed set so it can be retried
                   allProcessedReferences.delete(reference);
-                  
+
                   // TODO: In a production system, you might want to implement a rollback mechanism
                   // to reverse the wallet balance change if the transaction record insertion fails
-                  console.error(`⚠️ WARNING: Wallet balance was updated but transaction record insertion failed for ${reference}`);
+                  console.error(
+                    `⚠️ WARNING: Wallet balance was updated but transaction record insertion failed for ${reference}`
+                  );
                 }
                 continue;
               }
 
               // Create notification event
-              await supabase
-                .from('events')
-                .insert({
-                  user_id: userId,
-                  type: 'deposit_successful',
-                  title: 'Funds Received',
-                  description: `₦${amountInNaira.toLocaleString()} has been added to your wallet`,
-                  status: 'unread',
-                  metadata: {
-                    transaction_reference: reference,
-                    amount: amountInNaira
-                  }
-                });
+              await supabase.from("events").insert({
+                user_id: userId,
+                type: "deposit_successful",
+                title: "Funds Received",
+                description: `₦${amountInNaira.toLocaleString()} has been added to your wallet`,
+                status: "unread",
+                metadata: {
+                  transaction_reference: reference,
+                  amount: amountInNaira,
+                },
+              });
 
               totalProcessed++;
               totalAmount += amountInNaira;
 
+              // Send push notification for deposit
+              try {
+                const pushNotificationPayload = {
+                  user_ids: [userId],
+                  notification_type: "deposit_received" as const,
+                  title: "Funds Received! 💳",
+                  body: `₦${amountInNaira.toLocaleString()} has been added to your wallet.`,
+                  data: {
+                    type: "deposit_received",
+                    amount: amountInNaira,
+                    transaction_reference: reference,
+                    timestamp: new Date().toISOString(),
+                  },
+                };
+
+                const pushResponse = await fetch(
+                  `${supabaseUrl}/functions/v1/send-push-notification`,
+                  {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${supabaseServiceKey}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(pushNotificationPayload),
+                  }
+                );
+
+                if (pushResponse.ok) {
+                  console.log(
+                    `✅ Deposit push notification sent for user ${userId}, transaction ${reference}`
+                  );
+                } else {
+                  console.error(
+                    `❌ Failed to send deposit push notification:`,
+                    await pushResponse.text()
+                  );
+                }
+              } catch (pushError) {
+                console.error(
+                  `❌ Error sending deposit push notification:`,
+                  pushError
+                );
+              }
+
               // Send email notification if enabled
-              if (emailNotifications.deposit_alerts !== false && resendApiKey && userEmail) {
+              if (
+                emailNotifications.deposit_alerts !== false &&
+                resendApiKey &&
+                userEmail
+              ) {
                 try {
                   const emailSubject = "Funds Received - Planmoni";
                   const emailHtml = generateDepositNotificationHtml({
                     firstName,
                     amount: `₦${amountInNaira.toLocaleString()}`,
-                    accountNumber: tx.authorization?.account_number || accountNumber,
-                    date: new Date().toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
+                    accountNumber:
+                      tx.authorization?.account_number || accountNumber,
+                    date: new Date().toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
                     }),
-                    reference: reference
+                    reference: reference,
                   });
 
-                  const emailResponse = await fetch("https://api.resend.com/emails", {
-                    method: "POST",
-                    headers: {
-                      "Authorization": `Bearer ${resendApiKey}`,
-                      "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                      from: "Planmoni <notifications@planmoni.com>",
-                      to: userEmail,
-                      subject: emailSubject,
-                      html: emailHtml
-                    })
-                  });
+                  const emailResponse = await fetch(
+                    "https://api.resend.com/emails",
+                    {
+                      method: "POST",
+                      headers: {
+                        Authorization: `Bearer ${resendApiKey}`,
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        from: "Planmoni <notifications@planmoni.com>",
+                        to: userEmail,
+                        subject: emailSubject,
+                        html: emailHtml,
+                      }),
+                    }
+                  );
 
                   if (emailResponse.ok) {
-                    console.log(`Email notification sent to ${userEmail} for transaction ${reference}`);
+                    console.log(
+                      `Email notification sent to ${userEmail} for transaction ${reference}`
+                    );
                     emailsSent++;
                   } else {
-                    console.error(`Failed to send email notification to ${userEmail}:`, await emailResponse.text());
+                    console.error(
+                      `Failed to send email notification to ${userEmail}:`,
+                      await emailResponse.text()
+                    );
                   }
                 } catch (emailError) {
-                  console.error(`Error sending email notification to ${userEmail}:`, emailError);
+                  console.error(
+                    `Error sending email notification to ${userEmail}:`,
+                    emailError
+                  );
                 }
               }
-
             } else {
-              console.error(`Failed to add funds for transaction: ${reference}`);
+              console.error(
+                `Failed to add funds for transaction: ${reference}`
+              );
               // Remove from processed set so it can be retried
               allProcessedReferences.delete(reference);
             }
-
           } catch (txError) {
-            console.error(`Error processing transaction ${tx.reference}:`, txError);
+            console.error(
+              `Error processing transaction ${tx.reference}:`,
+              txError
+            );
             // Remove from processed set so it can be retried
             allProcessedReferences.delete(tx.reference);
           }
         }
-
       } catch (accountError) {
-        console.error(`Error processing account ${account.account_number}:`, accountError);
+        console.error(
+          `Error processing account ${account.account_number}:`,
+          accountError
+        );
       }
     }
 
-    const checkType = isManualTrigger ? 'Manual' : 'Scheduled';
-    const processingDuration = Date.now() - new Date(processingState.startTime).getTime();
-    
-    console.log(`✅ ${checkType} check completed: ${totalProcessed} transactions processed, ₦${totalAmount} total, ${emailsSent} emails sent`);
+    const checkType = isManualTrigger ? "Manual" : "Scheduled";
+    const processingDuration =
+      Date.now() - new Date(processingState.startTime).getTime();
+
+    console.log(
+      `✅ ${checkType} check completed: ${totalProcessed} transactions processed, ₦${totalAmount} total, ${emailsSent} emails sent`
+    );
     console.log(`📊 Processing Summary:`);
     console.log(`   - Session ID: ${processingState.functionId}`);
     console.log(`   - Duration: ${processingDuration}ms`);
     console.log(`   - Accounts checked: ${accountsWithProfiles.length}`);
-    console.log(`   - Total Paystack transactions: ${paystackData.data.length}`);
-    console.log(`   - Existing transactions in DB: ${existingTransactionsMap.size}`);
+    console.log(
+      `   - Total Paystack transactions: ${paystackData.data.length}`
+    );
+    console.log(
+      `   - Existing transactions in DB: ${existingTransactionsMap.size}`
+    );
     console.log(`   - New transactions processed: ${totalProcessed}`);
-    console.log(`   - Total amount processed: ₦${totalAmount.toLocaleString()}`);
+    console.log(
+      `   - Total amount processed: ₦${totalAmount.toLocaleString()}`
+    );
     console.log(`   - Emails sent: ${emailsSent}`);
 
     return new Response(
@@ -420,20 +543,22 @@ serve(async (req) => {
           existingTransactionsInDB: existingTransactionsMap.size,
           newTransactionsProcessed: totalProcessed,
           totalAmountProcessed: totalAmount,
-          emailsSent: emailsSent
-        }
+          emailsSent: emailsSent,
+        },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (error) {
     console.error("Error in transaction check:", error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: "Failed to check transactions",
-        details: error.message || "Unknown error"
+        details: error.message || "Unknown error",
       }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
     );
   }
 });
@@ -509,4 +634,4 @@ function generateDepositNotificationHtml(data: {
     </body>
     </html>
   `;
-} 
+}

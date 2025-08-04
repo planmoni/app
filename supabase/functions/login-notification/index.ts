@@ -4,7 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -18,20 +19,23 @@ serve(async (req) => {
     const { userId, loginInfo } = await req.json();
 
     if (!userId) {
-      return new Response(
-        JSON.stringify({ error: "User ID is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "User ID is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Initialize Supabase client with service role key for admin access
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    
+
     if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(
         JSON.stringify({ error: "Server configuration error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -43,11 +47,14 @@ serve(async (req) => {
       .select("first_name, email, email_notifications")
       .eq("id", userId)
       .single();
-    
+
     if (profileError) {
       return new Response(
         JSON.stringify({ error: "Failed to retrieve user profile" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -56,26 +63,31 @@ serve(async (req) => {
       login_alerts: true,
       payout_alerts: true,
       expiry_reminders: true,
-      wallet_summary: "weekly"
+      wallet_summary: "weekly",
     };
 
     if (!emailNotifications.login_alerts) {
       return new Response(
         JSON.stringify({
           success: true,
-          message: "Login notification skipped - user has disabled login alerts"
+          message:
+            "Login notification skipped - user has disabled login alerts",
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Get user email
-    const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
-    
+    const { data: userData, error: userError } =
+      await supabase.auth.admin.getUserById(userId);
+
     if (userError || !userData?.user) {
       return new Response(
         JSON.stringify({ error: "Failed to retrieve user data" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -89,13 +101,17 @@ serve(async (req) => {
     const ip = loginInfo?.ip || "Unknown IP";
 
     // Get Resend API key from environment variables
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "re_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu";
-    
+    const RESEND_API_KEY =
+      Deno.env.get("RESEND_API_KEY") || "re_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu";
+
     if (!RESEND_API_KEY) {
       console.error("Resend API key not configured");
       return new Response(
         JSON.stringify({ error: "Email service not properly configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -103,8 +119,8 @@ serve(async (req) => {
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         from: "Planmoni <security@planmoni.com>",
@@ -115,45 +131,89 @@ serve(async (req) => {
           device,
           location,
           time,
-          ip
-        })
-      })
+          ip,
+        }),
+      }),
     });
 
     const emailData = await emailResponse.json();
-    
+
     if (!emailResponse.ok) {
       console.error("Error sending email:", emailData);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: "Failed to send login notification email",
-          details: emailData
+          details: emailData,
         }),
-        { status: emailResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: emailResponse.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
-    
+
     // Create a notification record in the events table
-    const { error: eventError } = await supabase
-      .from("events")
-      .insert({
-        user_id: userId,
-        type: "security_alert",
-        title: "New Login Detected",
-        description: `New login from ${device} at ${time}`,
-        status: "unread"
-      });
-    
+    const { error: eventError } = await supabase.from("events").insert({
+      user_id: userId,
+      type: "security_alert",
+      title: "New Login Detected",
+      description: `New login from ${device} at ${time}`,
+      status: "unread",
+    });
+
     if (eventError) {
       console.error("Error creating notification event:", eventError);
       // Continue anyway since the email was sent successfully
     }
-    
+
+    // Send push notification for login alert
+    try {
+      const pushNotificationPayload = {
+        user_ids: [userId],
+        notification_type: "security_alert" as const,
+        title: "New Login Detected 🔐",
+        body: `New login from ${device} in ${location}${time ? ` at ${time}` : ""}. If this wasn't you, please secure your account immediately.`,
+        data: {
+          type: "login_security_alert",
+          device_info: { device, location, time, ip },
+          timestamp: new Date().toISOString(),
+        },
+      };
+
+      const pushResponse = await fetch(
+        `${supabaseUrl}/functions/v1/send-push-notification`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${supabaseServiceKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(pushNotificationPayload),
+        }
+      );
+
+      if (pushResponse.ok) {
+        console.log(
+          `✅ Login security push notification sent for user ${userId}`
+        );
+      } else {
+        console.error(
+          `❌ Failed to send login security push notification:`,
+          await pushResponse.text()
+        );
+      }
+    } catch (pushError) {
+      console.error(
+        `❌ Error sending login security push notification:`,
+        pushError
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         message: "Login notification email sent successfully",
-        data: emailData
+        data: emailData,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -161,7 +221,10 @@ serve(async (req) => {
     console.error("Error processing request:", error);
     return new Response(
       JSON.stringify({ error: error.message || "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
     );
   }
 });

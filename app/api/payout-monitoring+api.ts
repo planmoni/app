@@ -263,6 +263,49 @@ async function cancelPayout(payoutId: string) {
     },
   });
 
+  // Send push notification for payout cancellation
+  try {
+    const pushNotificationPayload = {
+      user_ids: [payout.user_id],
+      notification_type: "general" as const,
+      title: "Payout Cancelled 🚫",
+      body: `Your ₦${payout.amount.toLocaleString()} payout has been cancelled. Funds have been returned to your wallet.`,
+      data: {
+        type: "payout_cancelled",
+        amount: payout.amount,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    const pushResponse = await fetch(
+      `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/send-push-notification`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(pushNotificationPayload),
+      }
+    );
+
+    if (pushResponse.ok) {
+      console.log(
+        `✅ Payout cancellation push notification sent for user ${payout.user_id}`
+      );
+    } else {
+      console.error(
+        `❌ Failed to send payout cancellation push notification:`,
+        await pushResponse.text()
+      );
+    }
+  } catch (pushError) {
+    console.error(
+      `❌ Error sending payout cancellation push notification:`,
+      pushError
+    );
+  }
+
   return new Response(
     JSON.stringify({
       success: true,

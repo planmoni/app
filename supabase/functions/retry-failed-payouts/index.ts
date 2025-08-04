@@ -229,6 +229,50 @@ async function updateRetryFailure(payout: RetryPayout, error: any) {
         automated: true,
       },
     });
+
+    // Send push notification for final failure
+    try {
+      const pushNotificationPayload = {
+        user_ids: [payout.user_id],
+        notification_type: "payout_failed" as const,
+        title: "Payout Failed ❌",
+        body: `Your ₦${payout.amount.toLocaleString()} payout failed after ${maxRetries} attempts. Funds have been returned to your wallet.`,
+        data: {
+          type: "payout_final_failure",
+          amount: payout.amount,
+          max_attempts: maxRetries,
+          timestamp: new Date().toISOString(),
+        },
+      };
+
+      const pushResponse = await fetch(
+        `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(pushNotificationPayload),
+        }
+      );
+
+      if (pushResponse.ok) {
+        console.log(
+          `✅ Final failure push notification sent for user ${payout.user_id}`
+        );
+      } else {
+        console.error(
+          `❌ Failed to send final failure push notification:`,
+          await pushResponse.text()
+        );
+      }
+    } catch (pushError) {
+      console.error(
+        `❌ Error sending final failure push notification:`,
+        pushError
+      );
+    }
   }
 }
 
@@ -253,6 +297,45 @@ async function createRetryNotification(
       automated: true,
     },
   });
+
+  // Send push notification for retry initiation
+  try {
+    const pushNotificationPayload = {
+      user_ids: [userId],
+      notification_type: "payout_ready" as const,
+      title: "Payout Retry Initiated 🔄",
+      body: `We're retrying your ₦${payout.amount.toLocaleString()} payout (attempt ${payout.retry_count + 1}). We'll notify you once it's complete.`,
+      data: {
+        type: "payout_retry",
+        amount: payout.amount,
+        attempt_number: payout.retry_count + 1,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    const pushResponse = await fetch(
+      `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(pushNotificationPayload),
+      }
+    );
+
+    if (pushResponse.ok) {
+      console.log(`✅ Retry push notification sent for user ${userId}`);
+    } else {
+      console.error(
+        `❌ Failed to send retry push notification:`,
+        await pushResponse.text()
+      );
+    }
+  } catch (pushError) {
+    console.error(`❌ Error sending retry push notification:`, pushError);
+  }
 }
 
 /**

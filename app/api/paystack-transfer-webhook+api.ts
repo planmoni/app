@@ -95,6 +95,23 @@ async function handleTransferSuccess(data: any) {
       },
     });
 
+    // Send push notification for payout completion
+    try {
+      const { sendPayoutReadyNotification } = await import(
+        "@/lib/notification-helpers"
+      );
+      await sendPayoutReadyNotification(
+        automatedPayout.user_id,
+        amount / 100 // Convert from kobo to naira
+      );
+    } catch (notificationError) {
+      console.error(
+        "Failed to send payout completion push notification:",
+        notificationError
+      );
+      // Don't fail the webhook if notification fails
+    }
+
     console.log(
       `✅ Successfully processed transfer.success for reference: ${reference}`
     );
@@ -197,6 +214,34 @@ async function handleTransferFailed(data: any) {
         automated: true,
       },
     });
+
+    // Send push notification for payout failure/retry
+    try {
+      if (shouldRetry) {
+        const { sendPayoutRetryNotification } = await import(
+          "@/lib/notification-helpers"
+        );
+        await sendPayoutRetryNotification(
+          automatedPayout.user_id,
+          automatedPayout.amount,
+          retryCount
+        );
+      } else {
+        const { sendPayoutFailedNotification } = await import(
+          "@/lib/notification-helpers"
+        );
+        await sendPayoutFailedNotification(
+          automatedPayout.user_id,
+          failure_reason || "Transfer failed"
+        );
+      }
+    } catch (notificationError) {
+      console.error(
+        "Failed to send payout failure/retry push notification:",
+        notificationError
+      );
+      // Don't fail the webhook if notification fails
+    }
 
     console.log(
       `⚠️ Processed transfer.failed for reference: ${reference}, will retry: ${shouldRetry}`

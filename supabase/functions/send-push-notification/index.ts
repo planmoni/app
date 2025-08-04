@@ -1,5 +1,14 @@
+// @deno-types="https://deno.land/x/types/index.d.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sign } from "npm:jsonwebtoken";
+
+// Type declarations for Deno environment
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,9 +16,86 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Firebase Server Key - should be stored in environment variables
-const FIREBASE_SERVER_KEY = Deno.env.get("FIREBASE_SERVER_KEY");
-const FCM_URL = "https://fcm.googleapis.com/fcm/send";
+// Firebase HTTP v1 API configuration
+const GOOGLE_SERVICE_ACCOUNT_JSON = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON");
+const PROJECT_ID = "planmoni-7e669"; // From google-services.json
+const FCM_URL = `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`;
+const GOOGLE_AUTH_URL = "https://oauth2.googleapis.com/token";
+
+// Cache for access token
+let accessTokenCache: { token: string; expires: number } | null = null;
+
+// JWT and OAuth 2.0 helper functions
+async function getAccessToken(): Promise<string> {
+  // Check if we have a valid cached token
+  if (accessTokenCache && Date.now() < accessTokenCache.expires) {
+    return accessTokenCache.token;
+  }
+
+  if (!GOOGLE_SERVICE_ACCOUNT_JSON) {
+    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON environment variable not set");
+  }
+
+  try {
+    let serviceAccount = JSON.parse(GOOGLE_SERVICE_ACCOUNT_JSON);
+
+    console.log(
+      serviceAccount.private_key,
+      Object.keys(GOOGLE_SERVICE_ACCOUNT_JSON),
+      Object.keys(serviceAccount)
+    );
+
+    if (typeof serviceAccount === "string") {
+      serviceAccount = JSON.parse(serviceAccount);
+    }
+
+    const privateKey = serviceAccount.private_key.replace(/\\n/g, "\n");
+
+    // Create JWT assertion
+    const jwt = await sign(
+      {
+        scope: "https://www.googleapis.com/auth/firebase.messaging",
+      },
+      privateKey,
+      {
+        algorithm: "RS256",
+        issuer: serviceAccount.client_email,
+        audience: GOOGLE_AUTH_URL,
+        expiresIn: "1h", // 1 hour
+      }
+    );
+
+    // Exchange JWT for access token
+    const response = await fetch(GOOGLE_AUTH_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion: jwt,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to get access token: ${error}`);
+    }
+
+    const tokenData = await response.json();
+
+    // Cache the token (expires in 1 hour, cache for 55 minutes)
+    accessTokenCache = {
+      token: tokenData.access_token,
+      expires: Date.now() + 55 * 60 * 1000, // 55 minutes
+    };
+
+    return tokenData.access_token;
+  } catch (error) {
+    console.error("❌ Error getting access token:", error);
+    throw error;
+  }
+}
 
 interface NotificationPayload {
   user_ids?: string[];
@@ -31,15 +117,15 @@ interface FCMToken {
   notification_preferences: Record<string, boolean>;
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    if (!FIREBASE_SERVER_KEY) {
-      console.error("❌ FIREBASE_SERVER_KEY not configured");
+    if (!GOOGLE_SERVICE_ACCOUNT_JSON) {
+      console.error("❌ GOOGLE_SERVICE_ACCOUNT_JSON not configured");
       return new Response(
         JSON.stringify({ error: "Server configuration error" }),
         {
@@ -163,107 +249,137 @@ serve(async (req) => {
       );
     }
 
-    // Prepare FCM message
-    const fcmMessage = {
-      notification: {
-        title: payload.title,
-        body: payload.body,
-        sound: "default",
-      },
-      data: {
-        type: payload.notification_type,
-        ...payload.data,
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channel_id: getChannelId(payload.notification_type),
-          priority: "high",
-          default_sound: true,
-          default_vibrate_timings: true,
-        },
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: "default",
-            badge: 1,
-          },
-        },
-      },
-    };
+    // Get access token for authentication
+    const accessToken = await getAccessToken();
 
-    // Send notifications in batches to avoid rate limits
-    const batchSize = 100;
-    const batches = [];
-
-    for (let i = 0; i < filteredTokens.length; i += batchSize) {
-      batches.push(filteredTokens.slice(i, i + batchSize));
-    }
-
+    // Send notifications individually (HTTP v1 API doesn't support multicast)
     let totalSent = 0;
     let totalFailed = 0;
     const failedTokens: string[] = [];
 
-    for (const batch of batches) {
-      const tokens = batch.map((t) => t.fcm_token);
+    // Process tokens in batches to manage rate limits
+    const batchSize = 100;
+    for (let i = 0; i < filteredTokens.length; i += batchSize) {
+      const batch = filteredTokens.slice(i, i + batchSize);
 
-      try {
-        const fcmResponse = await fetch(FCM_URL, {
-          method: "POST",
-          headers: {
-            Authorization: `key=${FIREBASE_SERVER_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ...fcmMessage,
-            registration_ids: tokens,
-          }),
-        });
+      // Send each token individually
+      const batchPromises = batch.map(async (tokenData) => {
+        try {
+          // Create HTTP v1 message format
+          const message = {
+            message: {
+              token: tokenData.fcm_token,
+              notification: {
+                title: payload.title,
+                body: payload.body,
+              },
+              data: {
+                type: payload.notification_type,
+                ...(payload.data
+                  ? Object.fromEntries(
+                      Object.entries(payload.data).map(([k, v]) => [
+                        k,
+                        String(v),
+                      ])
+                    )
+                  : {}),
+              },
+              android: {
+                priority: "high", // ✅ valid here
+                notification: {
+                  channel_id: getChannelId(payload.notification_type),
+                  sound: "default", // ✅ standard sound key
+                  vibrate_timings: ["0.1s", "0.2s", "0.3s"], // Optional: must follow ISO 8601 format
+                  default_sound: true, // ✅ only if sound not set manually
+                  default_vibrate_timings: true, // ✅ optional fallback
+                },
+              },
+              apns: {
+                payload: {
+                  aps: {
+                    sound: "default",
+                    badge: 1,
+                  },
+                },
+              },
+            },
+          };
 
-        const fcmResult = await fcmResponse.json();
-
-        if (fcmResult.success) {
-          totalSent += fcmResult.success;
-        }
-
-        if (fcmResult.failure) {
-          totalFailed += fcmResult.failure;
-        }
-
-        // Handle individual token failures
-        if (fcmResult.results) {
-          fcmResult.results.forEach((result: any, index: number) => {
-            if (result.error) {
-              console.log(
-                `❌ Failed to send to token ${tokens[index]}: ${result.error}`
-              );
-              failedTokens.push(tokens[index]);
-
-              // Remove invalid tokens from database
-              if (
-                result.error === "InvalidRegistration" ||
-                result.error === "NotRegistered"
-              ) {
-                supabase
-                  .from("profiles")
-                  .update({ fcm_token: null })
-                  .eq("fcm_token", tokens[index])
-                  .then(() =>
-                    console.log(`🗑️ Removed invalid token: ${tokens[index]}`)
-                  );
-              }
-            }
+          const response = await fetch(FCM_URL, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(message),
           });
-        }
 
-        console.log(
-          `✅ Batch sent: ${fcmResult.success || 0} success, ${fcmResult.failure || 0} failed`
-        );
-      } catch (error) {
-        console.error("❌ Error sending FCM batch:", error);
-        totalFailed += tokens.length;
-        failedTokens.push(...tokens);
+          if (response.ok) {
+            return { success: true, token: tokenData.fcm_token };
+          } else {
+            const errorData = await response.json();
+            console.log(
+              `❌ Failed to send to token ${tokenData.fcm_token}:`,
+              errorData
+            );
+
+            // Handle specific error cases for token cleanup
+            if (
+              errorData.error?.details?.[0]?.errorCode === "INVALID_ARGUMENT" ||
+              errorData.error?.details?.[0]?.errorCode === "UNREGISTERED"
+            ) {
+              // Remove invalid token from database
+              await supabase
+                .from("profiles")
+                .update({ fcm_token: null })
+                .eq("fcm_token", tokenData.fcm_token);
+              console.log(`🗑️ Removed invalid token: ${tokenData.fcm_token}`);
+            }
+
+            return {
+              success: false,
+              token: tokenData.fcm_token,
+              error: errorData,
+            };
+          }
+        } catch (error) {
+          console.error(
+            `❌ Error sending to token ${tokenData.fcm_token}:`,
+            error
+          );
+          return {
+            success: false,
+            token: tokenData.fcm_token,
+            error: error instanceof Error ? error.message : "Unknown error",
+          };
+        }
+      });
+
+      // Wait for all promises in this batch to complete
+      const batchResults = await Promise.allSettled(batchPromises);
+
+      // Process results
+      batchResults.forEach((result) => {
+        if (result.status === "fulfilled") {
+          if (result.value.success) {
+            totalSent++;
+          } else {
+            totalFailed++;
+            failedTokens.push(result.value.token);
+          }
+        } else {
+          totalFailed++;
+          console.error("❌ Promise rejected:", result.reason);
+        }
+      });
+
+      console.log(
+        `✅ Batch ${Math.floor(i / batchSize) + 1} completed: ${totalSent} sent, ${totalFailed} failed so far`
+      );
+
+      // Add small delay between batches to respect rate limits
+      if (i + batchSize < filteredTokens.length) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
 
