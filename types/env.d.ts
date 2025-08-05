@@ -14,5 +14,13 @@ declare global {
   }
 }
 
+// SVG module declarations
+declare module "*.svg" {
+  import React from "react";
+  import { SvgProps } from "react-native-svg";
+  const content: React.FC<SvgProps>;
+  export default content;
+}
+
 // Ensure this file is treated as a module
 export {};

@@ -1360,7 +1360,7 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
     borderRadius: 16,
     padding: isSmallScreen ? 16 : 24,
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 450,
     maxHeight: '90%',
   },
   calendarHeader: {
@@ -1389,13 +1389,15 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
   },
   calendar: {
     marginBottom: 24,
+    width: '100%',
   },
   weekDays: {
     flexDirection: 'row',
     marginBottom: 8,
+    width: '100%',
   },
   weekDay: {
-    flex: 1,
+    width: '14.2857%',
     alignItems: 'center',
   },
   weekDayText: {
@@ -1406,9 +1408,10 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    width: '100%',
   },
   dayCell: {
-    width: `${100/7}%`,
+    width: '14.2857%',
     aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -1431,7 +1434,7 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
   },
   todayDayText: {
     color: '#1E3A8A',
-    fontWeight: '500',
+    fontWeight: '800',
   },
   alreadySelectedDay: {
     backgroundColor: colors.backgroundTertiary,

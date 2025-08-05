@@ -22,8 +22,9 @@ export default {
       // Use platform-specific API URL handling
       EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL || '',
       PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY || '',
-      DOJAH_APP_ID: process.env.DOJAH_APP_ID || '',
-      DOJAH_PRIVATE_KEY: process.env.DOJAH_PRIVATE_KEY || '',
+      EXPO_PUBLIC_PAYSTACK_SECRET_KEY: process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY || '',
+      EXPO_PUBLIC_DOJAH_APP_ID: process.env.EXPO_PUBLIC_DOJAH_APP_ID || '',
+      EXPO_PUBLIC_DOJAH_PRIVATE_KEY: process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY || '',
       EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY: process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY || '',
       EXPO_PUBLIC_OPENAI_API_KEY: process.env.EXPO_PUBLIC_OPENAI_API_KEY || '',
     },

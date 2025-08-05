@@ -1,8 +1,8 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Shield, User, Calendar, Info, Lock, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, FileText } from 'lucide-react-native';
+import { ArrowLeft, Shield, User, Calendar, Info, Lock, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, FileText, ChevronLeft, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import Button from '@/components/Button';
@@ -11,6 +11,7 @@ import FloatingButton from '@/components/FloatingButton';
 import { useAuth } from '@/contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
 import { useWindowDimensions } from 'react-native';
+import axios from 'axios';
 
 type KYCStep = 'personal' | 'bvn_verification' | 'id_face_match' | 'address_details' | 'review';
 type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
@@ -34,6 +35,11 @@ export default function KYCUpgradeScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isResolvingBvn, setIsResolvingBvn] = useState(false);
   const [isVerifyingDocuments, setIsVerifyingDocuments] = useState(false);
+  
+  // Date picker modal
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   
   // Verification status
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
@@ -98,60 +104,69 @@ export default function KYCUpgradeScreen() {
         return;
       }
 
-      const myHeaders = new Headers();
-      myHeaders.append("Appid", process.env.DOJAH_APP_ID!);
-      myHeaders.append("Authorization", process.env.DOJAH_PRIVATE_KEY!);
-
+      // Fetch KYC progress from database instead of calling Dojah API
+      const response = await axios.get('/api/kyc-progress', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      });
       
-      const requestOptions = {
-        method: "GET",
-        headers: myHeaders
-      };
-
+      console.log('KYC Progress response:', response.data);
       
-      const response = await fetch(`https://sandbox.dojah.io/api/v1/kyc/bvn/full?bvn=${bvn}`, requestOptions);
+      const data = response.data;
       
-    
-      console.log('Response :', response);
-      // Check content type before parsing
-      const contentType = response.headers.get('content-type');
-      console.log('Response status:', response.status);
-      console.log('Response content-type:', contentType);
-      
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Expected JSON but received:', contentType);
-        console.error('Response body:', text.substring(0, 500));
-        throw new Error(`API returned ${contentType || 'unknown content type'} instead of JSON. This usually means the API endpoint is not available or returning an error page.`);
+      if (data.status === 'success' && data.progress) {
+        const progress = data.progress;
+        
+        // Set the current step based on database progress
+        setCurrentStep(progress.current_step);
+        
+        // Set verification flags based on database
+        setBvnVerified(progress.bvn_verified);
+        setDocumentsVerified(progress.documents_verified);
+        
+        // Set verification status
+        if (progress.overall_completed) {
+          setVerificationStatus('fully_verified');
+          showToast('Your account is already fully verified', 'success');
+        } else if (progress.bvn_verified && progress.documents_verified) {
+          setVerificationStatus('partially_verified');
+          showToast('Your identity is verified. Please complete address details', 'info');
+        } else if (progress.bvn_verified) {
+          setVerificationStatus('partially_verified');
+          showToast('Your BVN is verified. Please complete document verification', 'info');
+        } else {
+          setVerificationStatus('unverified');
+        }
+        
+        console.log('Resumed KYC from step:', progress.current_step);
+        console.log('Progress percentage:', progress.progressPercentage + '%');
+        
+      } else {
+        console.error('Failed to fetch KYC progress:', data.error);
+        showToast('Failed to load KYC progress', 'error');
       }
       
-      if (response.ok) {
-        const data = await response.json();
-        setVerificationStatus(data.overallStatus);
+    } catch (error) {
+      console.error('Error fetching KYC progress:', error);
+      
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
         
-        // If user is already verified, show appropriate message
-        if (data.overallStatus === 'fully_verified') {
-          showToast('Your account is already fully verified', 'success');
-          setCurrentStep('review');
-        } else if (data.overallStatus === 'partially_verified') {
-          showToast('Your identity is verified. Please complete document verification', 'info');
-          setBvnVerified(true);
-          setCurrentStep('id_face_match');
+        if (status === 401) {
+          showToast('Authentication required. Please log in again.', 'error');
+        } else if (status === 400) {
+          const errorMessage = error.response?.data?.error || 'Invalid request';
+          showToast(errorMessage, 'error');
+        } else if (status && status >= 500) {
+          showToast('Service temporarily unavailable. Please try again later.', 'error');
+        } else {
+          showToast(error.response?.data?.error || 'Failed to fetch KYC progress', 'error');
         }
       } else {
-        const errorData = await response.json();
-        console.error('API error response:', errorData);
-        throw new Error(errorData.error || `API request failed with status ${response.status}`);
-      }
-    } catch (error) {
-      console.error('Error fetching verification status:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      
-      // Show a more user-friendly error message
-      if (errorMessage.includes('JSON') || errorMessage.includes('content type')) {
-        showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
-      } else {
-        showToast('Failed to fetch verification status', 'error');
+        showToast('Network error. Please check your connection and try again.', 'error');
       }
     } finally {
       setIsLoading(false);
@@ -265,10 +280,38 @@ export default function KYCUpgradeScreen() {
     return true;
   };
   
+  const updateKYCProgress = async (updates: {
+    currentStep?: KYCStep;
+    personalInfoCompleted?: boolean;
+    bvnVerified?: boolean;
+    documentsVerified?: boolean;
+    addressCompleted?: boolean;
+    overallCompleted?: boolean;
+  }) => {
+    try {
+      if (!session?.access_token) return;
+
+      await axios.post('/api/kyc-progress', updates, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (error) {
+      console.error('Error updating KYC progress:', error);
+      // Don't show error to user as this is background sync
+    }
+  };
+
   const handleNextStep = async () => {
     switch (currentStep) {
       case 'personal':
         if (validatePersonalInfo()) {
+          // Update progress when personal info is completed
+          await updateKYCProgress({
+            currentStep: 'bvn_verification',
+            personalInfoCompleted: true
+          });
           setCurrentStep('bvn_verification');
         }
         break;
@@ -286,6 +329,11 @@ export default function KYCUpgradeScreen() {
         break;
       case 'address_details':
         if (validateAddressDetails()) {
+          // Update progress when address is completed
+          await updateKYCProgress({
+            currentStep: 'review',
+            addressCompleted: true
+          });
           setCurrentStep('review');
         }
         break;
@@ -303,59 +351,86 @@ export default function KYCUpgradeScreen() {
       if (!session?.access_token) {
         throw new Error('Authentication required');
       }
+
+      // Check if environment variables are available
+      const appId = process.env.EXPO_PUBLIC_DOJAH_APP_ID!;
+      const privateKey = process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!;
       
-      const response = await fetch('https://sandbox.dojah.io/api/v1/kyc/bvn', {
-        method: 'POST',
+      if (!appId || !privateKey) {
+        console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
+        showToast('KYC service configuration error', 'error');
+        return;
+      }
+      
+      const response = await axios.get('https://api.dojah.io/api/v1/kyc/bvn/advance?bvn=' + bvn, {
         headers: {
-          'AppId': `Bearer ${process.env.DOJAH_APP_ID}`,
-          'Authorization': `Bearer ${process.env.DOJAH_PRIVATE_KEY}`,
+          'AppId': appId,
+          'Authorization': privateKey,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          verificationType: 'bvn',
-          verificationData: { bvn }
-        })
+        timeout: 15000
       });
       
-      // Check content type before parsing
-      const contentType = response.headers.get('content-type');
+      console.log('BVN verification response:', response.data);
       
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('BVN verification - Expected JSON but received:', contentType);
-        console.error('Response body:', text.substring(0, 500));
-        throw new Error('KYC service is temporarily unavailable. Please try again later.');
-      }
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'BVN verification failed');
-      }
-      
-      const data = await response.json();
+      const data = response.data;
+
+      console.log('BVN verification data:', data);
       
       // Check if verification was successful
-      if (data.status === 'success') {
+      if (data.status === 'success' || data) {
         setBvnVerified(true);
         
-        // If we have a name from the BVN verification, store it
-        if (data.data && data.data.firstName && data.data.lastName) {
-          setBvnMatchedName(`${data.data.firstName} ${data.data.lastName}`);
+        // Extract name from the verification result
+        const verificationData = data;
+        console.log('Verification data structure:', verificationData);
+        
+        // Try different possible field names for the name
+        let firstName = verificationData.firstName || verificationData.first_name || verificationData.firstname;
+        let lastName = verificationData.lastName || verificationData.last_name || verificationData.lastname;
+        
+        console.log('Extracted names:', { firstName, lastName });
+        
+        if (firstName && lastName) {
+          setBvnMatchedName(`${firstName} ${lastName}`);
           showToast('BVN matched! Let\'s continue.', 'success');
         } else {
           setBvnMatchedName('Verified');
           showToast('BVN verified successfully', 'success');
         }
         
-        // Move to next step
+        // Update progress and move to next step
+        await updateKYCProgress({
+          currentStep: 'id_face_match',
+          bvnVerified: true
+        });
         setCurrentStep('id_face_match');
       } else {
-        throw new Error('BVN verification failed');
+        throw new Error(data.error || 'BVN verification failed');
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'BVN verification failed';
-      showToast(errorMessage, 'error');
-      setErrors({ bvn: errorMessage });
+      console.error('BVN verification error:', error);
+      
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const errorMessage = error.response?.data?.error || 'BVN verification failed';
+        
+        if (status === 401) {
+          showToast('Invalid API credentials. Please check configuration.', 'error');
+        } else if (status === 400) {
+          showToast(errorMessage, 'error');
+        } else if (status && status >= 500) {
+          showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
+        } else {
+          showToast(errorMessage, 'error');
+        }
+        
+        setErrors({ bvn: errorMessage });
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'BVN verification failed';
+        showToast(errorMessage, 'error');
+        setErrors({ bvn: errorMessage });
+      }
     } finally {
       setIsResolvingBvn(false);
     }
@@ -369,54 +444,74 @@ export default function KYCUpgradeScreen() {
       if (!session?.access_token) {
         throw new Error('Authentication required');
       }
+
+      // Check if environment variables are available
+      const appId = process.env.DOJAH_APP_ID;
+      const privateKey = process.env.DOJAH_PRIVATE_KEY;
+      
+      if (!appId || !privateKey) {
+        console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
+        showToast('KYC service configuration error', 'error');
+        return;
+      }
       
       // In a real app, you would upload the images to a storage service
       // and then send the URLs to the Dojah API
       
-      const response = await fetch('/api/dojah-kyc', {
-        method: 'PUT',
+      const response = await axios.put('https://api.dojah.io/api/v1/document/analysis', {
+        documentType: selectedIdentityType,
+        documentImage: documentFrontImage,
+        selfieImage
+      }, {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'AppId': appId,
+          'Authorization': privateKey,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          documentType: selectedIdentityType,
-          documentImage: documentFrontImage,
-          selfieImage
-        })
+        timeout: 15000 // Longer timeout for document processing
       });
       
-      // Check content type before parsing
-      const contentType = response.headers.get('content-type');
+      console.log('Document verification response:', response.data);
       
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Document verification - Expected JSON but received:', contentType);
-        console.error('Response body:', text.substring(0, 500));
-        throw new Error('KYC service is temporarily unavailable. Please try again later.');
-      }
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Document verification failed');
-      }
-      
-      const data = await response.json();
+      const data = response.data;
       
       // Check if verification was successful
       if (data.status === 'success') {
         setDocumentsVerified(true);
         showToast('Documents verified successfully', 'success');
         
-        // Move to next step
+        // Update progress and move to next step
+        await updateKYCProgress({
+          currentStep: 'address_details',
+          documentsVerified: true
+        });
         setCurrentStep('address_details');
       } else {
-        throw new Error('Document verification failed');
+        throw new Error(data.error || 'Document verification failed');
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Document verification failed';
-      showToast(errorMessage, 'error');
-      setErrors({ documentVerification: errorMessage });
+      console.error('Document verification error:', error);
+      
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const errorMessage = error.response?.data?.error || 'Document verification failed';
+        
+        if (status === 401) {
+          showToast('Invalid API credentials. Please check configuration.', 'error');
+        } else if (status === 400) {
+          showToast(errorMessage, 'error');
+        } else if (status && status >= 500) {
+          showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
+        } else {
+          showToast(errorMessage, 'error');
+        }
+        
+        setErrors({ documentVerification: errorMessage });
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Document verification failed';
+        showToast(errorMessage, 'error');
+        setErrors({ documentVerification: errorMessage });
+      }
     } finally {
       setIsVerifyingDocuments(false);
     }
@@ -425,15 +520,19 @@ export default function KYCUpgradeScreen() {
   const handlePreviousStep = () => {
     switch (currentStep) {
       case 'bvn_verification':
+        updateKYCProgress({ currentStep: 'personal' });
         setCurrentStep('personal');
         break;
       case 'id_face_match':
+        updateKYCProgress({ currentStep: 'bvn_verification' });
         setCurrentStep('bvn_verification');
         break;
       case 'address_details':
+        updateKYCProgress({ currentStep: 'id_face_match' });
         setCurrentStep('id_face_match');
         break;
       case 'review':
+        updateKYCProgress({ currentStep: 'address_details' });
         setCurrentStep('address_details');
         break;
       default:
@@ -450,31 +549,23 @@ export default function KYCUpgradeScreen() {
       }
       
       // Fetch final verification status
-      const response = await fetch('/api/dojah-kyc', {
-        method: 'GET',
+      const response = await axios.get('/api/dojah-kyc', {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: 10000
       });
       
-      // Check content type before parsing
-      const contentType = response.headers.get('content-type');
+      console.log('Final verification response:', response.data);
       
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Final verification check - Expected JSON but received:', contentType);
-        console.error('Response body:', text.substring(0, 500));
-        throw new Error('KYC service is temporarily unavailable. Please try again later.');
-      }
-      
-      if (!response.ok) {
-        throw new Error('Failed to get verification status');
-      }
-      
-      const data = await response.json();
+      const data = response.data;
       
       if (data.overallStatus === 'fully_verified') {
+        // Mark KYC as fully completed
+        await updateKYCProgress({
+          overallCompleted: true
+        });
         showToast('Verification completed successfully!', 'success');
         router.replace('/(tabs)');
       } else {
@@ -482,13 +573,107 @@ export default function KYCUpgradeScreen() {
         router.replace('/(tabs)');
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to complete verification. Please try again.';
-      showToast(errorMessage, 'error');
+      console.error('Final verification error:', error);
+      
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        
+        if (status === 401) {
+          showToast('Authentication required. Please log in again.', 'error');
+        } else if (status && status >= 500) {
+          showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
+        } else {
+          showToast(error.response?.data?.error || 'Failed to complete verification. Please try again.', 'error');
+        }
+      } else {
+        showToast('Network error. Please check your connection and try again.', 'error');
+      }
     } finally {
       setIsLoading(false);
     }
   };
   
+  // Date picker functions
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+
+  const formatDateForDisplay = (date: Date) => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const parseDateFromString = (dateString: string): Date | null => {
+    if (!dateString) return null;
+    const parts = dateString.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1;
+      const year = parseInt(parts[2]);
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        return new Date(year, month, day);
+      }
+    }
+    return null;
+  };
+
+  const handleDatePickerOpen = () => {
+    // Parse existing date if available
+    const existingDate = parseDateFromString(dateOfBirth);
+    if (existingDate) {
+      setSelectedDate(existingDate);
+      setCurrentMonth(existingDate);
+    } else {
+      setSelectedDate(null);
+      setCurrentMonth(new Date());
+    }
+    setIsDatePickerVisible(true);
+  };
+
+  const handleDatePickerClose = () => {
+    setIsDatePickerVisible(false);
+  };
+
+  const handleDateSelect = (date: Date) => {
+    setSelectedDate(date);
+  };
+
+  const handleDateConfirm = () => {
+    if (selectedDate) {
+      const formattedDate = formatDateForDisplay(selectedDate);
+      setDateOfBirth(formattedDate);
+      setErrors(prev => ({ ...prev, dateOfBirth: '' }));
+    }
+    setIsDatePickerVisible(false);
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  };
+
+  const isDateSelectable = (date: Date) => {
+    const today = new Date();
+    const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate()); // 100 years ago
+    const maxDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate()); // 18 years ago
+    return date >= minDate && date <= maxDate;
+  };
+
   const formatDateInput = (text: string) => {
     // Remove non-numeric characters
     let cleaned = text.replace(/[^0-9]/g, '');
@@ -671,7 +856,9 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Date of Birth</Text>
           <View style={[styles.inputContainer, errors.dateOfBirth && styles.inputError]}>
-            <Calendar size={20} color={colors.textSecondary} />
+            <Pressable onPress={handleDatePickerOpen} style={styles.calendarIconButton}>
+              <Calendar size={20} color={colors.primary} />
+            </Pressable>
             <TextInput
               ref={dobInputRef}
               style={styles.input}
@@ -1366,6 +1553,103 @@ export default function KYCUpgradeScreen() {
         return renderReviewStep();
     }
   };
+
+  const renderDatePickerModal = () => {
+    const daysInMonth = getDaysInMonth(currentMonth);
+    const firstDayOffset = getFirstDayOfMonth(currentMonth);
+
+    return (
+      <Modal
+        visible={isDatePickerVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleDatePickerClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.datePickerModal}>
+            <View style={styles.datePickerHeader}>
+              <Text style={styles.datePickerTitle}>Select Date of Birth</Text>
+              <Pressable onPress={handleDatePickerClose} style={styles.closeButton}>
+                <X size={20} color={colors.text} />
+              </Pressable>
+            </View>
+
+            <View style={styles.calendarHeader}>
+              <Pressable onPress={handlePrevMonth} style={styles.navigationButton}>
+                <ChevronLeft size={20} color={colors.textSecondary} />
+              </Pressable>
+              <Text style={styles.monthYearText}>
+                {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+              </Text>
+              <Pressable onPress={handleNextMonth} style={styles.navigationButton}>
+                <ChevronRight size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.weekDays}>
+              {DAYS.map(day => (
+                <View key={day} style={styles.weekDay}>
+                  <Text style={styles.weekDayText}>{day}</Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.daysGrid}>
+              {Array.from({ length: firstDayOffset }).map((_, index) => (
+                <View key={`empty-${index}`} style={styles.dayCell} />
+              ))}
+              
+              {Array.from({ length: daysInMonth }).map((_, index) => {
+                const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), index + 1);
+                const isSelectable = isDateSelectable(date);
+                const isSelected = selectedDate && 
+                  date.getDate() === selectedDate.getDate() &&
+                  date.getMonth() === selectedDate.getMonth() &&
+                  date.getFullYear() === selectedDate.getFullYear();
+
+                return (
+                  <Pressable
+                    key={index}
+                    style={[
+                      styles.dayCell,
+                      isSelected && styles.selectedDay,
+                      !isSelectable && styles.disabledDay,
+                    ]}
+                    onPress={() => isSelectable && handleDateSelect(date)}
+                    disabled={!isSelectable}
+                  >
+                    <Text style={[
+                      styles.dayText,
+                      isSelected && styles.selectedDayText,
+                      !isSelectable && styles.disabledDayText,
+                    ]}>
+                      {index + 1}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.datePickerActions}>
+              <Pressable 
+                style={[styles.datePickerButton, styles.cancelButton]}
+                onPress={handleDatePickerClose}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.datePickerButton, styles.confirmButton]}
+                onPress={handleDateConfirm}
+                disabled={!selectedDate}
+              >
+                <Text style={styles.confirmButtonText}>Confirm</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
   
   // Calculate responsive sizes
   const headerPadding = isSmallScreen ? 12 : 16;
@@ -1373,7 +1657,7 @@ export default function KYCUpgradeScreen() {
   const titleSize = isSmallScreen ? 20 : 24;
   const subtitleSize = isSmallScreen ? 14 : 16;
   const labelSize = isSmallScreen ? 13 : 14;
-  const inputHeight = isSmallScreen ? 50 : 56;
+  const inputHeight = isSmallScreen ? 50 : 60;
   
   const styles = StyleSheet.create({
     container: {
@@ -1458,7 +1742,7 @@ export default function KYCUpgradeScreen() {
       borderColor: colors.border,
       borderRadius: 12,
       backgroundColor: colors.surface,
-      paddingHorizontal: 16,
+      paddingHorizontal: 14,
       height: inputHeight,
     },
     inputError: {
@@ -1470,8 +1754,12 @@ export default function KYCUpgradeScreen() {
       color: colors.text,
       marginLeft: 12,
     },
+    calendarIconButton: {
+      padding: 4,
+      borderRadius: 6,
+    },
     multilineInput: {
-      height: inputHeight * 2,
+      height: inputHeight * 0.9,
       textAlignVertical: 'top',
       paddingTop: 16,
     },
@@ -1731,6 +2019,127 @@ export default function KYCUpgradeScreen() {
       color: colors.textSecondary,
       marginTop: 16,
     },
+    // Date picker modal styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 16,
+    },
+    datePickerModal: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: isSmallScreen ? 16 : 24,
+      width: '100%',
+      maxWidth: 400,
+      maxHeight: '90%',
+    },
+    datePickerHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    datePickerTitle: {
+      fontSize: isSmallScreen ? 18 : 20,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    closeButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    calendarHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 16,
+    },
+    navigationButton: {
+      padding: 8,
+      backgroundColor: colors.backgroundTertiary,
+      borderRadius: 8,
+    },
+    monthYearText: {
+      fontSize: isSmallScreen ? 14 : 16,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    weekDays: {
+      flexDirection: 'row',
+      marginBottom: 8,
+    },
+    weekDay: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    weekDayText: {
+      fontSize: isSmallScreen ? 12 : 14,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    daysGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginBottom: 24,
+    },
+    dayCell: {
+      width: `${100/7}%`,
+      aspectRatio: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    dayText: {
+      fontSize: isSmallScreen ? 12 : 14,
+      color: colors.text,
+    },
+    selectedDay: {
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+    },
+    selectedDayText: {
+      color: '#FFFFFF',
+      fontWeight: '500',
+    },
+    disabledDay: {
+      opacity: 0.3,
+    },
+    disabledDayText: {
+      color: colors.textTertiary,
+    },
+    datePickerActions: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    datePickerButton: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    cancelButton: {
+      backgroundColor: colors.backgroundTertiary,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    confirmButton: {
+      backgroundColor: colors.primary,
+    },
+    cancelButtonText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    confirmButtonText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: '#FFFFFF',
+    },
   });
   
   if (isLoading && !currentStep) {
@@ -1782,6 +2191,8 @@ export default function KYCUpgradeScreen() {
         }
         loading={isLoading || isResolvingBvn || isVerifyingDocuments}
       />
+      
+      {renderDatePickerModal()}
     </SafeAreaView>
   );
 }
