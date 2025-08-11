@@ -3,13 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   Pressable,
   Dimensions,
   ActivityIndicator,
   ScrollView,
   Platform,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import { router } from 'expo-router';
 import { useSharedValue, useAnimatedReaction } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -49,14 +49,13 @@ export default function BannerCarousel({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [imageLoadedMap, setImageLoadedMap] = useState<Record<string, boolean>>({});
 
   const scrollViewRef = useRef<ScrollView>(null);
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Create animated value for pagination
+
   const animatedIndex = useSharedValue(0);
-  
-  // Update animated index when current index changes
+
   useAnimatedReaction(
     () => currentIndex,
     (current) => {
@@ -65,25 +64,35 @@ export default function BannerCarousel({
   );
 
   useEffect(() => {
-    const fetchBanners = async () => {
+    const fetchAndPrefetch = async () => {
       try {
         setIsLoading(true);
+        setError(null);
         const { data, error } = await supabase
           .from('banners')
           .select('*')
           .order('order_index', { ascending: true });
-
         if (error) throw error;
-        setBanners(data || []);
+        const bannersData = data || [];
+        setBanners(bannersData);
+
+        await Promise.all(
+          bannersData.map((banner: Banner) =>
+            FastImage.preload([
+              {
+                uri: banner.image_url,
+                priority: FastImage.priority.high,
+              },
+            ])
+          )
+        );
       } catch (err) {
-        console.error('Error fetching banners:', err);
         setError(err instanceof Error ? err.message : 'Failed to load banners');
       } finally {
         setIsLoading(false);
       }
     };
-
-    fetchBanners();
+    fetchAndPrefetch();
   }, []);
 
   useEffect(() => {
@@ -94,7 +103,6 @@ export default function BannerCarousel({
         setCurrentIndex(nextIndex);
       }, autoPlayInterval);
     }
-
     return () => {
       if (autoPlayTimerRef.current) {
         clearInterval(autoPlayTimerRef.current);
@@ -157,20 +165,45 @@ export default function BannerCarousel({
         snapToAlignment="start"
         contentContainerStyle={[styles.scrollContent, { paddingHorizontal: SLIDE_MARGIN }]}
       >
-        {banners.map((banner) => (
-          <Pressable
-            key={banner.id}
-            style={[styles.slide, { width: SLIDE_WIDTH }]}
-            onPress={() => handleBannerPress(banner)}
-          >
-            <Image
-              source={{ uri: banner.image_url }}
-              style={styles.image}
-              resizeMode="cover"
-              onError={() => console.warn('Failed to load image:', banner.image_url)}
-            />
-          </Pressable>
-        ))}
+        {banners.map((banner) => {
+          const imageLoaded = imageLoadedMap[banner.id];
+
+          return (
+            <Pressable
+              key={banner.id}
+              style={[styles.slide, { width: SLIDE_WIDTH }]}
+              onPress={() => handleBannerPress(banner)}
+            >
+              {!imageLoaded && (
+                <View style={styles.loaderContainer}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              )}
+              <FastImage
+                source={{
+                  uri: banner.image_url,
+                  priority: FastImage.priority.high,
+                  cache: FastImage.cacheControl.immutable,
+                }}
+                style={styles.image}
+                resizeMode={FastImage.resizeMode.cover}
+                onLoad={() =>
+                  setImageLoadedMap((prev) => ({
+                    ...prev,
+                    [banner.id]: true,
+                  }))
+                }
+                onError={() => {
+                  console.warn('Failed to load image:', banner.image_url);
+                  setImageLoadedMap((prev) => ({
+                    ...prev,
+                    [banner.id]: true,
+                  }));
+                }}
+              />
+            </Pressable>
+          );
+        })}
       </ScrollView>
 
       {showPagination && banners.length > 1 && (
@@ -210,6 +243,13 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+  },
+  loaderContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#eee',
+    zIndex: 1,
   },
   pagination: {
     flexDirection: 'row',
