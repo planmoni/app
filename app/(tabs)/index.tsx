@@ -29,6 +29,7 @@ import {
   CalendarCheck
 } from 'lucide-react-native';
 import {
+  Alert,
   Animated,
   Pressable,
   ScrollView,
@@ -105,14 +106,45 @@ export default function HomeScreen() {
   
   const handleHelpPress = async () => {
     try {
+      console.log('🎯 Help button pressed');
+      
       const { default: Intercom } = await import('@intercom/intercom-react-native');
+      
       if (!session?.user?.id) {
+        console.log('👤 No user session, logging in as unidentified user...');
         await Intercom.loginUnidentifiedUser();
+        console.log('✅ Unidentified user logged in');
+      } else {
+        console.log('👤 User session found, logging in with user data...');
+        
+        // Login with user attributes
+        await Intercom.loginUserWithUserAttributes({
+          userId: session.user.id,
+          email: session.user.email,
+        });
+        
+        console.log('✅ User logged in to Intercom');
       }
+      
+      // Wait for authentication to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Now present Intercom
+      console.log('🎯 Presenting Intercom...');
       await Intercom.present();
+      console.log('✅ Intercom presented successfully');
+      
       logAnalyticsEvent('help_click');
-    } catch (e) {
-      console.warn('Failed to open Intercom:', e);
+      
+    } catch (error) {
+      console.error('❌ Failed to open Intercom:', error);
+      
+      // Show user-friendly error
+      Alert.alert(
+        'Intercom Error',
+        'Unable to open support chat. Please try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 

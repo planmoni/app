@@ -1,4 +1,4 @@
-import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions, Animated } from 'react-native';
+import { Alert, Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions, Animated } from 'react-native';
 import { X, Search, CircleHelp as HelpCircle, MessageSquare, FileText, ExternalLink } from 'lucide-react-native';
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -130,13 +130,43 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
                   style={styles.supportOption}
                   onPress={async () => {
                     try {
+                      console.log('🎯 HelpCenterModal: Chat with Support pressed');
+                      
                       const { default: Intercom } = await import('@intercom/intercom-react-native');
+                      
                       if (!user) {
+                        console.log('👤 No user, logging in as unidentified user...');
                         await Intercom.loginUnidentifiedUser();
+                        console.log('✅ Unidentified user logged in');
+                      } else {
+                        console.log('👤 User found, logging in with user data...');
+                        
+                        // Login with user attributes
+                        await Intercom.loginUserWithUserAttributes({
+                          userId: user.id,
+                          email: user.email,
+                        });
+                        
+                        console.log('✅ User logged in to Intercom');
                       }
+                      
+                      // Wait for authentication to complete
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                      
+                      // Now present Intercom
+                      console.log('🎯 Presenting Intercom...');
                       await Intercom.present();
-                    } catch (e) {
-                      // no-op if not available
+                      console.log('✅ Intercom presented successfully');
+                      
+                    } catch (error) {
+                      console.error('❌ Failed to open Intercom:', error);
+                      
+                      // Show user-friendly error
+                      Alert.alert(
+                        'Intercom Error',
+                        'Unable to open support chat. Please try again.',
+                        [{ text: 'OK' }]
+                      );
                     }
                   }}
                 >

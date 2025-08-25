@@ -36,11 +36,10 @@
       [
         "@intercom/intercom-react-native",
         {
-          "iosApiKey": "${INTERCOM_IOS_API_KEY}",
-          "androidApiKey": "${INTERCOM_ANDROID_API_KEY}",
-          "appId": "${INTERCOM_APP_ID}",
-          "isPushNotificationsEnabledAndroid": true,
-          "isPushNotificationsEnabledIOS": true
+          "appId": "tf4dp3qt",
+          "androidApiKey": "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",
+          "iosApiKey": "ios_sdk-de52645ae34ab0f059890a422f90b18092032115",
+          "intercomRegion": "US"
         }
       ]
     ],
@@ -53,9 +52,9 @@
         "projectId": "d01818de-e1dd-41c4-8b3d-5d1cfbf2696b"
       },
       "INTERCOM": {
-        "iosApiKey": "${INTERCOM_IOS_API_KEY}",
-        "androidApiKey": "${INTERCOM_ANDROID_API_KEY}",
-        "appId": "${INTERCOM_APP_ID}"
+        "iosApiKey": "ios_sdk-de52645ae34ab0f059890a422f90b18092032115",
+        "androidApiKey": "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",
+        "appId": "tf4dp3qt"
       }
     },
     "owner": "planmoni"
