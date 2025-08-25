@@ -150,27 +150,6 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
                   <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
                 </Pressable>
                 
-                <Pressable style={styles.supportOption}>
-                  <View style={styles.supportIconContainer}>
-                    <FileText size={isSmallScreen ? 16 : 20} color="#22C55E" />
-                  </View>
-                  <View style={styles.supportInfo}>
-                    <Text style={styles.supportTitle}>Submit a Ticket</Text>
-                    <Text style={styles.supportDescription}>Get help with complex issues</Text>
-                  </View>
-                  <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-                </Pressable>
-                
-                <Pressable style={styles.supportOption}>
-                  <View style={styles.supportIconContainer}>
-                    <HelpCircle size={isSmallScreen ? 16 : 20} color="#F97316" />
-                  </View>
-                  <View style={styles.supportInfo}>
-                    <Text style={styles.supportTitle}>Knowledge Base</Text>
-                    <Text style={styles.supportDescription}>Browse detailed guides</Text>
-                  </View>
-                  <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-                </Pressable>
               </View>
             </ScrollView>
 
