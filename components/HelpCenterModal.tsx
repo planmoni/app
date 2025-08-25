@@ -3,6 +3,7 @@ import { X, Search, CircleHelp as HelpCircle, MessageSquare, FileText, ExternalL
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { PanGestureHandler } from 'react-native-gesture-handler';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface HelpCenterModalProps {
   isVisible: boolean;
@@ -14,6 +15,7 @@ const DRAG_DISMISS_THRESHOLD = 120;
 export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const { user } = useAuth(); // placeholder to avoid circular import in type system
   const translateY = useRef(new Animated.Value(0)).current;
   const [dragging, setDragging] = useState(false);
   
@@ -124,7 +126,20 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Contact Support</Text>
                 
-                <Pressable style={styles.supportOption}>
+                <Pressable
+                  style={styles.supportOption}
+                  onPress={async () => {
+                    try {
+                      const { default: Intercom } = await import('@intercom/intercom-react-native');
+                      if (!user) {
+                        await Intercom.loginUnidentifiedUser();
+                      }
+                      await Intercom.present();
+                    } catch (e) {
+                      // no-op if not available
+                    }
+                  }}
+                >
                   <View style={styles.supportIconContainer}>
                     <MessageSquare size={isSmallScreen ? 16 : 20} color="#1E3A8A" />
                   </View>

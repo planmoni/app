@@ -13,7 +13,7 @@ import {
   ArrowRightIcon,
   BanknoteArrowDown,
   BanknoteArrowUp,
-  Headset,
+  HelpCircleIcon,
   ArrowUpRight,
   Calendar,
   ChevronDown,
@@ -103,9 +103,17 @@ export default function HomeScreen() {
     }
   };
   
-  const handleHelpPress = () => {
-    router.push('/help');
-    logAnalyticsEvent('help_click');
+  const handleHelpPress = async () => {
+    try {
+      const { default: Intercom } = await import('@intercom/intercom-react-native');
+      if (!session?.user?.id) {
+        await Intercom.loginUnidentifiedUser();
+      }
+      await Intercom.present();
+      logAnalyticsEvent('help_click');
+    } catch (e) {
+      console.warn('Failed to open Intercom:', e);
+    }
   };
 
   useEffect(() => {
@@ -336,7 +344,7 @@ export default function HomeScreen() {
             <View style={styles.headerActions}>
               <NotificationIcon />
               <Pressable onPress={handleHelpPress} style={styles.helpButton}>
-                <Headset size={24} color={colors.text} />
+                <HelpCircleIcon size={24} color={colors.text} />
               </Pressable>
             </View>
           </View>

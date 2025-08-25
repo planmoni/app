@@ -14,8 +14,10 @@ install! 'cocoapods',
 prepare_react_native_project!
 
 target 'Planmoni' do
-  pod 'lottie-ios', '4.5.0'
   use_expo_modules!
+
+  # Pin Lottie iOS to match lottie-react-native 7.2.2
+  pod 'lottie-ios', '4.5.0'
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];

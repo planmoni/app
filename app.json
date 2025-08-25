@@ -28,7 +28,21 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        { "android": { "compileSdkVersion": 35, "targetSdkVersion": 35, "minSdkVersion": 23 } }
+      ],
+      [
+        "@intercom/intercom-react-native",
+        {
+          "iosApiKey": "${INTERCOM_IOS_API_KEY}",
+          "androidApiKey": "${INTERCOM_ANDROID_API_KEY}",
+          "appId": "${INTERCOM_APP_ID}",
+          "isPushNotificationsEnabledAndroid": true,
+          "isPushNotificationsEnabledIOS": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -37,6 +51,11 @@
       "router": {},
       "eas": {
         "projectId": "d01818de-e1dd-41c4-8b3d-5d1cfbf2696b"
+      },
+      "INTERCOM": {
+        "iosApiKey": "${INTERCOM_IOS_API_KEY}",
+        "androidApiKey": "${INTERCOM_ANDROID_API_KEY}",
+        "appId": "${INTERCOM_APP_ID}"
       }
     },
     "owner": "planmoni"
