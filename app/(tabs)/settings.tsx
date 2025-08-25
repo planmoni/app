@@ -351,7 +351,7 @@ export default function SettingsScreen() {
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
-
+            
             <View style={styles.divider} />
 
             <Pressable 
