@@ -13,6 +13,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#1E3A8A"
     },
+    "android": {
+      "package": "com.planmoni"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.planmoni",

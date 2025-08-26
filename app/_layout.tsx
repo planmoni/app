@@ -11,6 +11,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications } from '@/lib/notifications';
+import { intercomService, Visibility } from '@/lib/intercom';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -31,13 +32,39 @@ function RootLayoutNav() {
   // Initialize notifications when user is authenticated
   useEffect(() => {
     if (session?.user?.id) {
-      initializeNotifications(session.user.id).then(cleanup => {
-        return () => {
-          if (cleanup) cleanup();
-        };
-      });
+      try {
+        initializeNotifications(session.user.id).then(cleanup => {
+          return () => {
+            if (cleanup) cleanup();
+          };
+        }).catch(error => {
+          console.warn('Failed to initialize notifications:', error);
+        });
+      } catch (error) {
+        console.warn('Error setting up notification initialization:', error);
+      }
     }
   }, [session?.user?.id]);
+
+  // Initialize Intercom for unidentified users
+  useEffect(() => {
+    const initIntercom = async () => {
+      try {
+        // Follow the official Intercom guide exactly
+        const { default: Intercom, Visibility } = await import('@intercom/intercom-react-native');
+        
+        // Login unidentified user and set launcher visibility as per official guide
+        await Intercom.loginUnidentifiedUser();
+        await Intercom.setLauncherVisibility(Visibility.VISIBLE);
+        
+        console.log('✅ Intercom initialized successfully following official guide');
+      } catch (error) {
+        console.warn('Failed to initialize Intercom:', error);
+      }
+    };
+
+    initIntercom();
+  }, []);
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,

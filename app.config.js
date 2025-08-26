@@ -9,7 +9,7 @@ export default {
     version: "1.0.0",
     scheme: "myapp",
     android: {
-      package: "com.planmoni.app", // ← choose your unique package name
+      package: "com.planmoni", // ← choose your unique package name
       "permissions": ["android.permission.CAMERA"]
     },
     ios: {

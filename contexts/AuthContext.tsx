@@ -3,7 +3,7 @@ import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { Session, User } from '@supabase/supabase-js';
 import { BiometricService } from '@/lib/biometrics';
 import { Platform } from 'react-native';
-import { useEmailNotifications } from '@/hooks/useEmailNotifications';
+import { intercomService } from '@/lib/intercom';
 import { supabase } from '@/lib/supabase';
 
 interface BiometricSettings {
@@ -68,7 +68,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   } = useSupabaseAuth();
 
   const [biometricSettings, setBiometricSettings] = useState<BiometricSettings | null>(null);
-  const { sendNotification } = useEmailNotifications();
 
   // Get user from session
   const user = session?.user || null;
@@ -82,12 +81,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     (async () => {
       try {
         if (session?.user?.id) {
-          const { default: Intercom, Visibility } = await import('@intercom/intercom-react-native');
+          const { default: Intercom } = await import('@intercom/intercom-react-native');
           await Intercom.loginUserWithUserAttributes({
             userId: session.user.id,
-            email: session.user.email,
-          } as any);
-          await Intercom.setLauncherVisibility(Visibility.GONE);
+            email: session.user.email || '',
+          });
         }
       } catch (e) {
         // ignore
@@ -136,15 +134,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Initialize and login user to Intercom (native only)
         if (Platform.OS !== 'web') {
           const { default: Intercom } = await import('@intercom/intercom-react-native');
-          const session: any = (result as any).data.session;
-          const intercomUser = {
-            userId: session.user.id,
-            email: session.user.email,
-          } as any;
-          await Intercom.loginUserWithUserAttributes(intercomUser);
-          await Intercom.updateUser({
-            name: session.user.email?.split('@')[0] ?? undefined,
-          } as any);
+          await Intercom.loginUserWithUserAttributes({
+            userId: session?.user?.id || '',
+            email: session?.user?.email || '',
+          });
         }
       } catch (e) {
         console.warn('Intercom login failed:', e);

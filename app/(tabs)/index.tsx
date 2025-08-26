@@ -108,6 +108,7 @@ export default function HomeScreen() {
     try {
       console.log('🎯 Help button pressed');
       
+      // Follow the official Intercom guide
       const { default: Intercom } = await import('@intercom/intercom-react-native');
       
       if (!session?.user?.id) {
@@ -117,7 +118,7 @@ export default function HomeScreen() {
       } else {
         console.log('👤 User session found, logging in with user data...');
         
-        // Login with user attributes
+        // Login with user attributes as per official guide
         await Intercom.loginUserWithUserAttributes({
           userId: session.user.id,
           email: session.user.email,
