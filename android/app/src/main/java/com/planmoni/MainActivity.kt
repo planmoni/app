@@ -1,4 +1,4 @@
-package com.planmoni.app
+package com.planmoni
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
@@ -20,7 +20,7 @@ class MainActivity : ReactActivity() {
     // @generated begin expo-splashscreen - expo prebuild (DO NOT MODIFY) sync-f3ff59a738c56c9a6119210cb55f0b613eb8b6af
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen
-    super.onCreate()
+    super.onCreate(null)
   }
 
   /**
@@ -57,7 +57,6 @@ class MainActivity : ReactActivity() {
           }
           return
       }
-
 
       // Use the default back button implementation on Android S
       // because it's doing more than [Activity.moveTaskToBack] in fact.

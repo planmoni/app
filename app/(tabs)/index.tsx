@@ -116,19 +116,58 @@ export default function HomeScreen() {
         await Intercom.loginUnidentifiedUser();
         console.log('✅ Unidentified user logged in');
       } else {
-        console.log('👤 User session found, logging in with user data...');
+        console.log('👤 User session found, updating user data...');
         
-        // Login with user attributes as per official guide
-        await Intercom.loginUserWithUserAttributes({
+        // Get user name from metadata
+        const firstName = session.user.user_metadata?.first_name || '';
+        const lastName = session.user.user_metadata?.last_name || '';
+        const fullName = `${firstName} ${lastName}`.trim();
+        
+        console.log('👤 User data for Intercom:', {
           userId: session.user.id,
           email: session.user.email,
+          firstName,
+          lastName,
+          fullName
         });
         
-        console.log('✅ User logged in to Intercom');
+        try {
+          // First, try to update the existing user with new attributes
+          await Intercom.updateUser({
+            userId: session.user.id,
+            email: session.user.email,
+            name: fullName || session.user.email?.split('@')[0] || 'User',
+            phone: session.user.phone || undefined,
+            customAttributes: {
+              first_name: firstName,
+              last_name: lastName,
+              user_type: 'customer',
+              app_version: '1.0.0'
+            }
+          });
+          console.log('✅ User updated successfully');
+        } catch (updateError) {
+          console.log('⚠️ Update failed, trying to login with user attributes...');
+          
+          // If update fails, try to login with user attributes
+          await Intercom.loginUserWithUserAttributes({
+            userId: session.user.id,
+            email: session.user.email,
+            name: fullName || session.user.email?.split('@')[0] || 'User',
+            phone: session.user.phone || undefined,
+            customAttributes: {
+              first_name: firstName,
+              last_name: lastName,
+              user_type: 'customer',
+              app_version: '1.0.0'
+            }
+          });
+          console.log('✅ User logged in to Intercom');
+        }
       }
       
       // Wait for authentication to complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Now present Intercom
       console.log('🎯 Presenting Intercom...');
