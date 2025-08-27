@@ -130,40 +130,77 @@ export default function HomeScreen() {
           lastName,
           fullName
         });
-        
-        try {
-          // First, try to update the existing user with new attributes
-          await Intercom.updateUser({
-            userId: session.user.id,
-            email: session.user.email,
-            name: fullName || session.user.email?.split('@')[0] || 'User',
-            phone: session.user.phone || undefined,
-            customAttributes: {
-              first_name: firstName,
-              last_name: lastName,
-              user_type: 'customer',
-              app_version: '1.0.0'
-            }
-          });
-          console.log('✅ User updated successfully');
-        } catch (updateError) {
-          console.log('⚠️ Update failed, trying to login with user attributes...');
+
+        // try {
+        //   // First, try to update the existing user with new attributes
+        //   await Intercom.updateUser({
+        //     userId: session.user.id,
+        //     email: session.user.email,
+        //     name: fullName || session.user.email?.split('@')[0] || 'User',
+        //     phone: session.user.phone || undefined,
+        //     customAttributes: {
+        //       first_name: firstName,
+        //       last_name: lastName,
+        //       user_type: 'customer',
+        //       app_version: '1.0.0'
+        //     }
+        //   });
+        //   console.log('✅ User updated successfully');
+        // } catch (updateError) {
+        //   console.log('⚠️ Update failed, trying to login with user attributes...');
           
-          // If update fails, try to login with user attributes
-          await Intercom.loginUserWithUserAttributes({
-            userId: session.user.id,
-            email: session.user.email,
-            name: fullName || session.user.email?.split('@')[0] || 'User',
-            phone: session.user.phone || undefined,
-            customAttributes: {
-              first_name: firstName,
-              last_name: lastName,
-              user_type: 'customer',
-              app_version: '1.0.0'
-            }
-          });
-          console.log('✅ User logged in to Intercom');
+        //   // If update fails, try to login with user attributes
+        //   await Intercom.loginUserWithUserAttributes({
+        //     userId: session.user.id,
+        //     email: session.user.email,
+        //     name: fullName || session.user.email?.split('@')[0] || 'User',
+        //     phone: session.user.phone || undefined,
+        //     customAttributes: {
+        //       first_name: firstName,
+        //       last_name: lastName,
+        //       user_type: 'customer',
+        //       app_version: '1.0.0'
+        //     }
+        //   });
+        //   console.log('✅ User logged in to Intercom');
+        // }
+        
+        // Get JWT from Supabase Edge Function for secure authentication
+        console.log('🔐 Getting JWT from server...');
+        const jwtResponse = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/intercom-jwt`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+          }
+        });
+        
+        if (!jwtResponse.ok) {
+          throw new Error('Failed to get JWT from server');
         }
+        
+        const { jwt } = await jwtResponse.json();
+        
+        // Set the JWT before making any user registration calls
+        console.log('🔐 Setting JWT for Intercom...');
+        await Intercom.setUserJwt(jwt);
+        console.log('✅ JWT set successfully');
+        
+        // Now login with user attributes
+        await Intercom.loginUserWithUserAttributes({
+          userId: session.user.id,
+          email: session.user.email,
+          name: fullName || session.user.email?.split('@')[0] || 'User',
+          phone: session.user.phone || undefined,
+          customAttributes: {
+            first_name: firstName,
+            last_name: lastName,
+            user_type: 'customer',
+            app_version: '1.0.0'
+          }
+        });
+        console.log('✅ User logged in to Intercom with JWT');
       }
       
       // Wait for authentication to complete
