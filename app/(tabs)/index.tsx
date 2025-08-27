@@ -952,21 +952,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginLeft: 0,
   },
   greeting: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   subGreeting: {
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '400',
     color: colors.textSecondary,
     lineHeight: 18,
   },
-  date: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
+
   balanceCard: {
     marginBottom: 24,
     borderRadius: 16,
@@ -985,7 +982,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 8,
   },
   balanceLabel: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   balanceActions: {
@@ -1027,7 +1024,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
   },
   lockedAmount: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
   },
@@ -1084,7 +1081,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingTop: 16,
   },
   summaryTitle: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
   },
@@ -1106,11 +1103,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   summaryLabel: {
-    fontSize: 15,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   summaryValue: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
   },
@@ -1125,9 +1122,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginTop: 16,
   },
   seeMoreText: {
-    fontSize: 14,
+    fontSize: 18,
     color: colors.primary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   payoutCard: {
     marginBottom: 30,
@@ -1148,8 +1145,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   payoutTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.text,
   },
   activeTag: {
@@ -1161,7 +1158,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   activeTagText: {
     fontSize: 12,
     color: '#22C55E',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   payoutDetails: {
     marginBottom: 5,
@@ -1171,13 +1168,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   payoutName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.text,
     marginBottom: 8,
   },
   payoutAmount: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 25,
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 12,
   },
@@ -1192,9 +1189,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignSelf: 'flex-start',
   },
   payoutDate: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.primary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   progressContainer: {
     marginBottom: 16,
@@ -1216,15 +1213,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   progressText: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   progressCount: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   progressAmount: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   payoutActions: {
@@ -1245,7 +1242,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   viewButtonText: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   section: {
@@ -1258,7 +1255,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
   },
@@ -1266,9 +1263,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical: 4,
   },
   viewAllText: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.primary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   loadingContainer: {
     padding: 20,
@@ -1301,7 +1298,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
   emptyTransactionsText: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   createFirstPayoutButton: {
@@ -1315,7 +1312,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   createFirstPayoutText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   payoutPlansContainer: {
@@ -1342,8 +1339,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
   },
   planAmount: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
   },
@@ -1354,15 +1351,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 16,
   },
   planFrequency: {
-    fontSize: 14,
+    fontSize: 18,
     color: colors.textSecondary,
   },
   planDot: {
-    fontSize: 14,
+    fontSize: 18,
     color: colors.textSecondary,
   },
   planValue: {
-    fontSize: 14,
+    fontSize: 18,
     color: colors.textSecondary,
   },
   planProgress: {
@@ -1371,7 +1368,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 8,
   },
   nextPayoutDate: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.primary,
     marginBottom: 16,
   },
@@ -1388,7 +1385,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   planViewButtonText: {
     color: colors.primary,
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '600',
   },
   addPayoutCard: {
@@ -1410,7 +1407,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 4,
   },
   addPayoutDescription: {
-    fontSize: 14,
+    fontSize: 18,
     color: colors.textSecondary,
     textAlign: 'center',
   },
@@ -1438,22 +1435,22 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
   },
   transactionTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 2,
   },
   transactionMethod: {
-    fontSize: 13,
+    fontSize: 16,
     color: colors.textSecondary,
     marginBottom: 2,
   },
   transactionDateTime: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.textTertiary,
   },
   transactionAmount: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '600',
   },
   viewAllTransactionsButton: {
@@ -1464,9 +1461,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   viewAllTransactionsText: {
-    fontSize: 14,
+    fontSize: 18,
     color: colors.primary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   stickyButtons: {
     position: 'absolute',
@@ -1498,13 +1495,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   feedbackTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   feedbackSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     textAlign: 'center',
     color: colors.textSecondary,
     marginBottom: 12,
@@ -1513,13 +1510,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 10,
-    borderRadius: 5,
+    borderRadius: 12,
     marginTop: 8,
   },
   feedbackButtonText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: 15,
+    fontSize: 16,
   },
   starsRow: {
     flexDirection: 'row',

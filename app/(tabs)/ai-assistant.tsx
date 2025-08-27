@@ -981,7 +981,7 @@ export default function AIAssistantScreen() {
                 style={{ marginTop: 12, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, alignSelf: 'flex-start' }}
                 onPress={handleAddFunds}
               >
-                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Add Funds</Text>
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 20 }}>Add Funds</Text>
               </TouchableOpacity>
               <View style={styles.aiBadgeContainer}>
                 <Sparkles size={14} color={colors.primary} />
@@ -1150,7 +1150,7 @@ export default function AIAssistantScreen() {
       ...StyleSheet.absoluteFillObject,
     },
     headerSubtitle: {
-      fontSize: 14,
+      fontSize: 18,
       color: colors.textSecondary,
     },
     aiIconContainer: {
@@ -1196,7 +1196,7 @@ export default function AIAssistantScreen() {
       width: '95%',
     },
     messageText: {
-      fontSize:16,
+      fontSize:18,
       lineHeight: 24,
     },
     userText: {
@@ -1223,7 +1223,7 @@ export default function AIAssistantScreen() {
       marginRight: 4,
     },
     typingText: {
-      fontSize: 16,
+      fontSize: 18,
       color: colors.textSecondary,
       marginLeft: 8,
     },
@@ -1241,7 +1241,7 @@ export default function AIAssistantScreen() {
       borderRadius: 12,
       paddingHorizontal: 16,
       paddingVertical: 12,
-      fontSize: 16,
+      fontSize: 18,
       color: colors.text,
       marginRight: 8,
       maxHeight: 120,
@@ -1262,8 +1262,8 @@ export default function AIAssistantScreen() {
       backgroundColor: colors.surface,
     },
     suggestionsTitle: {
-      fontSize: 14,
-      fontWeight: '600',
+      fontSize:16,
+      fontWeight: '500',
       color: colors.textSecondary,
       marginBottom: 12,
     },
@@ -1280,7 +1280,7 @@ export default function AIAssistantScreen() {
       borderColor: colors.border,
     },
     suggestionText: {
-      fontSize: 16,
+      fontSize: 18,
       color: colors.text,
     },
     planOptions: {
@@ -1304,16 +1304,16 @@ export default function AIAssistantScreen() {
       flex: 1,
     },
     planTitle: {
-      fontSize: 16,
+      fontSize: 18,
       fontWeight: '600',
       marginBottom: 4,
     },
     planAmount: {
-      fontSize: 16,
+      fontSize: 18,
       fontWeight: '700',
     },
     planDescription: {
-      fontSize: 16,
+      fontSize: 18,
       marginBottom: 16,
     },
     planButton: {
@@ -1328,7 +1328,7 @@ export default function AIAssistantScreen() {
     },
     planButtonText: {
       color: '#FFFFFF',
-      fontSize: 16,
+      fontSize: 18,
       fontWeight: '600',
     },
     insightsContainer: {
@@ -1349,15 +1349,15 @@ export default function AIAssistantScreen() {
       marginBottom: 8,
     },
     insightTitle: {
-      fontSize: 14,
+      fontSize: 18,
       fontWeight: '600',
     },
     insightValue: {
-      fontSize: 14,
+      fontSize: 18,
       fontWeight: '700',
     },
     insightDescription: {
-      fontSize: 14,
+      fontSize: 18,
     },
     recommendationsContainer: {
       marginTop: 16,
@@ -1368,7 +1368,7 @@ export default function AIAssistantScreen() {
       borderColor: colors.border,
     },
     recommendationsTitle: {
-      fontSize: 14,
+      fontSize: 18,
       fontWeight: '600',
       marginBottom: 12,
     },
@@ -1386,7 +1386,7 @@ export default function AIAssistantScreen() {
     },
     recommendationText: {
       flex: 1,
-      fontSize: 14,
+      fontSize: 18,
       lineHeight: 20,
     },
     emptyContainer: {
@@ -1401,14 +1401,14 @@ export default function AIAssistantScreen() {
       marginBottom: 24,
     },
     emptyTitle: {
-      fontSize: 16,
+      fontSize: 18,
       fontWeight: '600',
       color: colors.text,
       marginBottom: 8,
       textAlign: 'center',
     },
     emptyText: {
-      fontSize: 14,
+      fontSize: 18,
       color: colors.textSecondary,
       textAlign: 'center',
       marginBottom: 24,
@@ -1421,7 +1421,7 @@ export default function AIAssistantScreen() {
       gap: 4,
     },
     aiBadgeText: {
-      fontSize: 12,
+      fontSize: 18,
       color: '#888',
       marginLeft: 4,
     },
@@ -1439,7 +1439,7 @@ export default function AIAssistantScreen() {
     },
     errorText: {
       color: '#E57373',
-      fontSize: 14,
+      fontSize: 18,
       flex: 1,
     },
     retryButton: {
@@ -1452,7 +1452,7 @@ export default function AIAssistantScreen() {
     retryText: {
       color: '#FFF',
       fontWeight: '600',
-      fontSize: 13,
+      fontSize: 18,
     },
   });
 
