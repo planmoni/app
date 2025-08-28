@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,9 @@ import ErrorMessage from '@/components/ErrorMessage';
 import { Platform } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatDisplayDate, formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
+import { useBanks } from '@/hooks/useBanks';
+import React from 'react';
+import { getBankIconLogo } from '@/lib/bankIcons';
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -20,6 +23,7 @@ export default function ReviewScreen() {
   const { balance, lockedBalance, refreshWallet } = useBalance();
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const { banks } = useBanks();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -115,6 +119,13 @@ export default function ReviewScreen() {
   };
 
   const styles = createStyles(colors, isDark);
+
+  // Helper function to get bank code from bank name
+  const getBankCode = (bankName: string): string | null => {
+    const bank = banks.find(b => b.name.toLowerCase().includes(bankName.toLowerCase()) || 
+                                 bankName.toLowerCase().includes(b.name.toLowerCase()));
+    return bank?.code || null;
+  };
 
   // Get duration display text based on frequency
   const getDurationDisplay = () => {
@@ -299,7 +310,26 @@ export default function ReviewScreen() {
 
               <View style={styles.detailItem}>
                 <View style={[styles.detailIcon, { backgroundColor: '#F0F9FF' }]}>
-                  <Building2 size={20} color="#0EA5E9" />
+                  {(() => {
+                    const bankIcon = getBankIconLogo(bankName);
+                    if (bankIcon.logoSvg) {
+                      // Handle SVG components
+                      return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                        width: 20,
+                        height: 20,
+                        fill: "#0EA5E9"
+                      });
+                    } else if (bankIcon.logo) {
+                      return (
+                        <Image 
+                          source={bankIcon.logo} 
+                          style={{ width: 20, height: 20, resizeMode: 'contain' }}
+                        />
+                      );
+                    } else {
+                      return <Building2 size={20} color="#0EA5E9" />;
+                    }
+                  })()}
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Destination Account</Text>

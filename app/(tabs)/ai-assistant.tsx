@@ -29,6 +29,8 @@ import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 import { useCreatePayout } from '@/hooks/useCreatePayout';
 import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
+import { useBanks } from '@/hooks/useBanks';
+import { getBankIconLogo } from '@/lib/bankIcons';
 
 // Define message types
 type MessageType = 'text' | 'plan' | 'insight';
@@ -125,6 +127,7 @@ export default function AIAssistantScreen() {
   const [emergencyEnabled, setEmergencyEnabled] = useState<boolean | null>(null);
   const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<number | null>(null);
   const { createPayout, isLoading: isCreatingPayout, error: createPayoutError } = useCreatePayout();
+  const { banks } = useBanks();
 
   // Add frequency options
   const frequencyOptions = [
@@ -1143,6 +1146,8 @@ export default function AIAssistantScreen() {
 
   const getUserName = () => session?.user?.user_metadata?.first_name || 'User';
 
+
+
   const renderMessage = (message: Message, index: number) => {
     const isUser = message.sender === 'user';
     
@@ -1719,28 +1724,80 @@ export default function AIAssistantScreen() {
         {/* Plan creation destination selection UI */}
         {planCreationStep === 'awaiting_destination' && !payoutAccountsLoading && (
           <View style={{ marginVertical: 12 }}>
-            <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text }}>Your payout accounts:</Text>
+            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text }}>Your payout accounts:</Text>
             {payoutAccounts.length === 0 && (
               <Text style={{ marginBottom: 8, color: colors.text }}>No payout accounts found.</Text>
             )}
-            {payoutAccounts.map(account => (
-              <Pressable
-                key={account.id}
-                style={{ padding: 12, borderWidth: 1, borderColor: '#eee', borderRadius: 8, marginBottom: 8 }}
-                onPress={() => handleSelectAccount(account)}
-              >
-                <Text style={{ color: colors.textSecondary }}>{account.bank_name} ••••{account.account_number.slice(-4)}</Text>
-                <Text style={{ color: colors.text}}>{account.account_name}</Text>
-                {account.is_default && <Text style={{ color: '#1E3A8A', fontSize: 12 }}>Default</Text>}
-              </Pressable>
-            ))}
+            {payoutAccounts.map(account => {
+              const bankIcon = getBankIconLogo(account.bank_name);
+              return (
+                <Pressable
+                  key={account.id}
+                  style={{ 
+                    padding: 12, 
+                    borderWidth: 1, 
+                    borderColor: colors.border, 
+                    borderRadius: 8, 
+                    marginBottom: 8,
+                    backgroundColor: isDark ? colors.backgroundSecondary : colors.card,
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}
+                  onPress={() => handleSelectAccount(account)}
+                >
+                  {/* Bank Icon */}
+                  <View style={{ marginRight: 12, width: 40, height: 40, justifyContent: 'center', alignItems: 'center' }}>
+                    {bankIcon.logoSvg ? (
+                      React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                        width: 32,
+                        height: 32,
+                        fill: colors.textSecondary
+                      })
+                    ) : bankIcon.logo ? (
+                      <Image 
+                        source={bankIcon.logo} 
+                        style={{ width: 32, height: 32, resizeMode: 'contain' }}
+                      />
+                    ) : (
+                      <View style={{ 
+                        width: 32, 
+                        height: 32, 
+                        borderRadius: 16, 
+                        backgroundColor: colors.primary,
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+                          {account.bank_name.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  
+                  {/* Account Details */}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 18, fontWeight: '500' }}>
+                      {account.bank_name} ••••{account.account_number.slice(-4)}
+                    </Text>
+                    <Text style={{ color: colors.text, fontSize: 16, marginTop: 2 }}>
+                      {account.account_name}
+                    </Text>
+                    {account.is_default && (
+                      <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600', marginTop: 2 }}>
+                        Default
+                      </Text>
+                    )}
+                  </View>
+                </Pressable>
+              );
+            })}
             <Button title="Add New Account" onPress={() => setShowAddAccountModal(true)} />
           </View>
         )}
         {/* Day of week selection UI */}
         {planCreationStep === 'awaiting_day_of_week' && (
           <View style={{ marginVertical: 12 }}>
-            <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text}}>Choose a day of the week:</Text>
+            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text}}>Choose a day of the week:</Text>
             <TextInput
               style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8, color: colors.text}}
               placeholder="Sunday, Monday, Tuesday, etc."
@@ -1753,9 +1810,9 @@ export default function AIAssistantScreen() {
         {/* Emergency withdrawal input UI */}
         {planCreationStep === 'awaiting_emergency' && (
           <View style={{ marginVertical: 12 }}>
-            <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text}}>Reply "yes" or "no" below:</Text>
+            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text}}>Reply "yes" or "no" below:</Text>
             <TextInput
-              style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8, color: colors.text}}
+              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, marginBottom: 10, color: colors.text, fontSize: 16}}
               placeholder="yes or no"
               onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
               returnKeyType="done"
@@ -1765,9 +1822,9 @@ export default function AIAssistantScreen() {
         {/* Plan confirmation input UI */}
         {planCreationStep === 'confirming' && (
           <View style={{ marginVertical: 12 }}>
-            <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text,}}>Type "confirm" to create the plan or "cancel" to abort:</Text>
+            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text,}}>Type "confirm" to create the plan or "cancel" to abort:</Text>
             <TextInput
-              style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8, color: colors.text}}
+              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, marginBottom: 10, color: colors.text, fontSize: 16}}
               placeholder="confirm or cancel"
               onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
               returnKeyType="done"

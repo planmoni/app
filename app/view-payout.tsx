@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Alert, Image } from 'react-native';
+import React from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ChevronRight, Calendar, Clock, Wallet, Building2, TriangleAlert as AlertTriangle, PencilLine, Pause, Play } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -14,6 +15,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
 import * as Haptics from 'expo-haptics';
 import { formatPayoutFrequency } from '@/lib/formatters';
+import { getBankIconLogo } from '@/lib/bankIcons';
 
 export default function ViewPayoutScreen() {
   const { colors } = useTheme();
@@ -342,6 +344,42 @@ export default function ViewPayoutScreen() {
                 <Text style={styles.scheduleValue}>{formatCurrency(plan.total_amount)}</Text>
               </View>
             </View>
+
+            <View style={styles.scheduleItem}>
+              <View style={styles.scheduleIcon}>
+                {(() => {
+                  const bankName = plan.payout_accounts?.bank_name || plan.bank_accounts?.bank_name || '';
+                  const bankIcon = getBankIconLogo(bankName);
+                  
+                  if (bankIcon.logoSvg) {
+                    // Handle SVG components
+                    return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                      width: 20,
+                      height: 20,
+                      fill: "#0EA5E9"
+                    });
+                  } else if (bankIcon.logo) {
+                    return (
+                      <Image 
+                        source={bankIcon.logo} 
+                        style={{ width: 20, height: 20, resizeMode: 'contain' }}
+                      />
+                    );
+                  } else {
+                    return <Building2 size={20} color="#0EA5E9" />;
+                  }
+                })()}
+              </View>
+              <View style={styles.scheduleInfo}>
+                <Text style={styles.scheduleLabel}>Destination Account</Text>
+                <Text style={styles.scheduleValue}>
+                  {(plan.payout_accounts?.bank_name || plan.bank_accounts?.bank_name || 'Unknown Bank')} •••• {(plan.payout_accounts?.account_number || plan.bank_accounts?.account_number || '').slice(-4)}
+                </Text>
+                <Text style={styles.scheduleSubtext}>
+                  {(plan.payout_accounts?.account_name || plan.bank_accounts?.account_name || 'Unknown Account')}
+                </Text>
+              </View>
+            </View>
           </Card>
         </View>
 
@@ -643,6 +681,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: colors.text,
+  },
+  scheduleSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   pauseCard: {
     backgroundColor: colors.card,

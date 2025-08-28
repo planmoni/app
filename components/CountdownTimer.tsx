@@ -24,10 +24,10 @@ export default function CountdownTimer({
   // Format the countdown text
   const getCountdownText = () => {
     if (totalSeconds <= 0) {
-      return 'Time expired';
+      return 'Payout Sent';
     }
     
-    let text = '';
+    let text = 'In ';
     
     if (days > 0) {
       text += `${days} day${days !== 1 ? 's' : ''}`;
@@ -58,10 +58,10 @@ export default function CountdownTimer({
     }
     
     if (days === 0 && hours === 0 && minutes === 0 && !showSeconds) {
-      text = 'Less than a minute';
+      text = 'less than a minute';
     }
-    
-    return text + ' left';
+  
+    return text + '';
   };
   
   const styles = createStyles(colors, isDark);

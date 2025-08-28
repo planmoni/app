@@ -38,6 +38,7 @@ import {
   View,
   RefreshControl,
   ImageBackground,
+  Image,
   Linking,
   Platform,
 } from 'react-native';
@@ -52,6 +53,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 import NotificationIcon from '@/components/NotificationIcon';
+import { getBankIconLogo } from '@/lib/bankIcons';
 
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
@@ -553,7 +555,7 @@ export default function HomeScreen() {
           >
             <View style={styles.payoutCardContent}>
               <View style={styles.payoutHeader}>
-                <Text style={styles.payoutTitle}>Upcoming Payout</Text>
+                <Text style={styles.payoutTitle}>Next Payout</Text>
                 <View style={styles.activeTag}>
                   <Text style={styles.activeTagText}>
                     {nextPayout.status === 'active' ? 'Running' : 'Paused'}
@@ -562,19 +564,60 @@ export default function HomeScreen() {
               </View>
               
               <View style={styles.payoutDetails}>
+                
                 <View style={styles.payoutInfo}>
-                  <Text style={styles.payoutName}>{nextPayout.name}</Text>
+                  {/* <Text style={styles.payoutName}>{nextPayout.name}</Text> */}
                   <Text style={styles.payoutAmount}>{formatBalance(nextPayout.payout_amount)}</Text>
                   
+                  {/* Payout Account Information */}
                   {nextPayout.next_payout_date && (
                     <CountdownTimer 
                       targetDate={nextPayout.next_payout_date} 
                       style={styles.dateContainer}
                     />
                   )}
+                  {(nextPayout.payout_accounts || nextPayout.bank_accounts) && (
+                    <View style={styles.payoutAccountInfo}>
+                      
+                      <Text style={styles.payoutAccountLabel}>To</Text>
+                      <View style={styles.bankIconContainer}>
+                        {(() => {
+                          const bankName = nextPayout.payout_accounts?.bank_name || nextPayout.bank_accounts?.bank_name || '';
+                          const bankIcon = getBankIconLogo(bankName);
+                          
+                          if (bankIcon.logoSvg) {
+                            // Handle SVG components
+                            return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                              width: 12,
+                              height: 12,
+                              fill: colors.textSecondary
+                            });
+                          } else if (bankIcon.logo) {
+                            return (
+                              <Image
+                                source={bankIcon.logo}
+                                style={styles.bankIcon}
+                                resizeMode="contain"
+                              />
+                            );
+                          } else {
+                            // Fallback to a generic bank icon
+                            return <View style={styles.bankIconFallback} />;
+                          }
+                        })()}
+                      </View>
+                      <Text style={styles.payoutAccountText}>
+                        {(nextPayout.payout_accounts?.bank_name || nextPayout.bank_accounts?.bank_name || 'Unknown Bank')} 
+                        **** {(nextPayout.payout_accounts?.account_number || nextPayout.bank_accounts?.account_number || '').slice(-4)} - 
+                        {(nextPayout.payout_accounts?.account_name || nextPayout.bank_accounts?.account_name || 'Unknown Account')}
+                      </Text>
+                    </View>
+                  )}
+                  
+                  
                 </View>
                 
-                <View style={styles.progressContainer}>
+                {/* <View style={styles.progressContainer}>
                   <View style={styles.progressBar}>
                     <View 
                       style={[
@@ -591,7 +634,7 @@ export default function HomeScreen() {
                       {nextPayout.completed_payouts}/{nextPayout.duration}
                     </Text>
                   </View>
-                </View>
+                </View> */}
               </View>
             </View>
           </Pressable>
@@ -1177,6 +1220,42 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
     marginBottom: 12,
+  },
+  payoutAccountInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    gap: 8,
+  },
+  payoutAccountLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  bankIconContainer: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  bankIcon: {
+    width: 12,
+    height: 12,
+  },
+  bankIconFallback: {
+    width: 12,
+    height: 12,
+    backgroundColor: '#EF4444',
+    borderRadius: 6,
+  },
+  payoutAccountText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    flex: 1,
   },
   dateContainer: {
     flexDirection: 'row',

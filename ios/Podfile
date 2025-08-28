@@ -40,28 +40,45 @@ target 'Planmoni' do
   use_react_native!(
     :path => config[:reactNativePath],
     :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
-    # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/..",
     :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
   )
+end
 
-  post_install do |installer|
-    react_native_post_install(
-      installer,
-      config[:reactNativePath],
-      :mac_catalyst_enabled => false,
-      :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
-    )
+# ------------ SINGLE top-level post_install ONLY ------------
+post_install do |installer|
+  # Standard RN post install (NO 'config' arg here)
+  react_native_post_install(
+    installer,
+    :mac_catalyst_enabled => false
+  )
 
-    # This is necessary for Xcode 14, because it signs resource bundles by default
-    # when building for devices.
-    installer.target_installation_results.pod_target_installation_results
-      .each do |pod_name, target_installation_result|
+  # Expo modules post install if available
+  if defined?(use_expo_modules_post_install)
+    use_expo_modules_post_install(installer)
+  end
+  if defined?(__apply_Xcode_12_5_M1_post_install_workaround)
+    __apply_Xcode_12_5_M1_post_install_workaround(installer)
+  end
+
+  # Handle architecture settings
+  installer.pods_project.targets.each do |t|
+    t.build_configurations.each do |config|
+      # Exclude x86_64 for simulators on Apple Silicon
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'x86_64'
+      # Unify DEFINES_MODULE to avoid the merge error
+      config.build_settings['DEFINES_MODULE'] = 'YES'
+    end
+  end
+
+  # Resource bundle signing workaround
+  installer.target_installation_results.pod_target_installation_results
+    .each do |_pod_name, target_installation_result|
       target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
         resource_bundle_target.build_configurations.each do |config|
           config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
         end
       end
     end
-  end
 end
+# ------------------------------------------------------------

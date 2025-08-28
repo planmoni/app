@@ -14,6 +14,7 @@ export type PayoutPlan = {
   duration: number;
   start_date: string;
   bank_account_id: string;
+  payout_account_id?: string;
   status: 'active' | 'paused' | 'completed' | 'cancelled';
   completed_payouts: number;
   next_payout_date?: string;
@@ -21,6 +22,16 @@ export type PayoutPlan = {
   metadata?: any;
   created_at: string;
   updated_at: string;
+  bank_accounts?: {
+    bank_name: string;
+    account_number: string;
+    account_name: string;
+  };
+  payout_accounts?: {
+    bank_name: string;
+    account_number: string;
+    account_name: string;
+  };
 };
 
 export function useRealtimePayoutPlans() {
@@ -97,6 +108,11 @@ export function useRealtimePayoutPlans() {
         .select(`
           *,
           bank_accounts (
+            bank_name,
+            account_number,
+            account_name
+          ),
+          payout_accounts (
             bank_name,
             account_number,
             account_name
