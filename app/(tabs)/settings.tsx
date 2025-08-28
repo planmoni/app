@@ -372,7 +372,10 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
-            <Pressable 
+
+            {/* Linked account tab */}
+
+            {/* <Pressable 
               style={styles.settingItem}
               onPress={handleViewLinkedAccounts}
             >
@@ -386,7 +389,7 @@ export default function SettingsScreen() {
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
             
-            <View style={styles.divider} />
+            <View style={styles.divider} /> */}
 
             <Pressable 
               style={styles.settingItem}
@@ -420,7 +423,7 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            {/* <Pressable 
               style={styles.settingItem}
               onPress={handleViewReferral}
             >
@@ -432,7 +435,7 @@ export default function SettingsScreen() {
                 <Text style={styles.settingDescription}>Your code & bonuses</Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
+            </Pressable> */}
           </View>
         </View>
 
@@ -578,7 +581,7 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            {/* <Pressable 
               style={styles.settingItem}
               onPress={() => {
                 if (Platform.OS !== 'web') {
@@ -598,7 +601,7 @@ export default function SettingsScreen() {
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
 
-            <View style={styles.divider} />
+            <View style={styles.divider} /> */}
 
             <Pressable 
               style={styles.settingItem}

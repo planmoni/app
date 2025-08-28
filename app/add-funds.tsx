@@ -265,7 +265,7 @@ export default function AddFundsScreen() {
         <Text style={styles.headerTitle}>Deposit Funds</Text>
       </View>
 
-      <View style={styles.tabContainer}>
+      {/* <View style={styles.tabContainer}>
         <Pressable 
           style={[styles.tab, activeTab === 0 && styles.activeTab]} 
           onPress={() => handleTabPress(0)}
@@ -290,14 +290,14 @@ export default function AddFundsScreen() {
             }
           ]} 
         />
-      </View>
+      </View> */}
 
       <Animated.ScrollView
         ref={scrollViewRef}
-        horizontal
+        // horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
+        // onScroll={handleScroll}
         onMomentumScrollEnd={handleScrollEnd}
         scrollEventThrottle={16}
         style={styles.scrollView}
@@ -395,7 +395,7 @@ export default function AddFundsScreen() {
         </View>
 
         {/* Cards/Bank/USSD Tab (now Direct Deposit) */}
-        <View style={[styles.tabContent, { width: screenWidth }]}> 
+        {/* <View style={[styles.tabContent, { width: screenWidth }]}> 
           <View style={styles.content}>
             <Text style={styles.title}>Choose a <Text style={styles.highlight}>Linked Account</Text></Text>
             <Text style={styles.description}>
@@ -442,7 +442,6 @@ export default function AddFundsScreen() {
               )}
             </View>
 
-            {/* Coming Soon Modal */}
             <Modal
               visible={showComingSoon}
               transparent
@@ -460,7 +459,7 @@ export default function AddFundsScreen() {
               </View>
             </Modal>
           </View>
-        </View>
+        </View> */}
       </Animated.ScrollView>
 
       {/* Fixed footer with safe area padding */}
