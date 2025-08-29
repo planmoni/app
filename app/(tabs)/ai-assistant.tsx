@@ -1776,7 +1776,7 @@ export default function AIAssistantScreen() {
                   
                   {/* Account Details */}
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.textSecondary, fontSize: 18, fontWeight: '500' }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 16, fontWeight: '500' }}>
                       {account.bank_name} ••••{account.account_number.slice(-4)}
                     </Text>
                     <Text style={{ color: colors.text, fontSize: 16, marginTop: 2 }}>
