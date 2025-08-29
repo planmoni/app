@@ -27,7 +27,7 @@ export default function CountdownTimer({
       return 'Payout Sent';
     }
     
-    let text = 'In ';
+    let text = '';
     
     if (days > 0) {
       text += `${days} day${days !== 1 ? 's' : ''}`;
@@ -61,7 +61,7 @@ export default function CountdownTimer({
       text = 'less than a minute';
     }
   
-    return text + '';
+    return text + ' left';
   };
   
   const styles = createStyles(colors, isDark);

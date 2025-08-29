@@ -546,103 +546,103 @@ export default function HomeScreen() {
         <ImageCarousel/>
         <PendingActionsCard />
 
-        
-
+        {/* Next Payout Section */}
         {nextPayout && (
-          <Pressable 
-            style={styles.payoutCard}
-            onPress={() => handleViewPayout(nextPayout.id)}
-          >
-            <View style={styles.payoutCardContent}>
-              <View style={styles.payoutHeader}>
-                <Text style={styles.payoutTitle}>Next Payout</Text>
-                <View style={styles.activeTag}>
-                  <Text style={styles.activeTagText}>
-                    {nextPayout.status === 'active' ? 'Running' : 'Paused'}
-                  </Text>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Your Next Payout</Text>
+            </View>
+            <Pressable 
+              style={styles.payoutCard}
+              onPress={() => handleViewPayout(nextPayout.id)}
+            >
+              <View style={styles.payoutCardContent}>
+                <View style={styles.payoutHeader}>
+                  <Text style={styles.payoutName}>{nextPayout.name}</Text>
+                  <View style={styles.activeTag}>
+                    <Text style={styles.activeTagText}>
+                      {nextPayout.status === 'active' ? 'Scheduled' : 'Paused'}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              
-              <View style={styles.payoutDetails}>
                 
-                <View style={styles.payoutInfo}>
-                  {/* <Text style={styles.payoutName}>{nextPayout.name}</Text> */}
-                  <Text style={styles.payoutAmount}>{formatBalance(nextPayout.payout_amount)}</Text>
-                  
-                  {/* Payout Account Information */}
-                  {nextPayout.next_payout_date && (
-                    <CountdownTimer 
-                      targetDate={nextPayout.next_payout_date} 
-                      style={styles.dateContainer}
-                    />
-                  )}
-                  {(nextPayout.payout_accounts || nextPayout.bank_accounts) && (
-                    <View style={styles.payoutAccountInfo}>
-                      
-                      <Text style={styles.payoutAccountLabel}>To</Text>
-                      <View style={styles.bankIconContainer}>
-                        {(() => {
-                          const bankName = nextPayout.payout_accounts?.bank_name || nextPayout.bank_accounts?.bank_name || '';
-                          const bankIcon = getBankIconLogo(bankName);
-                          
-                          if (bankIcon.logoSvg) {
-                            // Handle SVG components
-                            return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
-                              width: 12,
-                              height: 12,
-                              fill: colors.textSecondary
-                            });
-                          } else if (bankIcon.logo) {
-                            return (
-                              <Image
-                                source={bankIcon.logo}
-                                style={styles.bankIcon}
-                                resizeMode="contain"
-                              />
-                            );
-                          } else {
-                            // Fallback to a generic bank icon
-                            return <View style={styles.bankIconFallback} />;
-                          }
-                        })()}
+                <View style={styles.payoutDetails}>
+                  <View style={styles.payoutInfo}>
+                    <Text style={styles.payoutAmount}>{formatBalance(nextPayout.payout_amount)}</Text>
+                    
+                    {/* Payout Account Information */}
+                    {(nextPayout.payout_accounts || nextPayout.bank_accounts) && (
+                      <View style={styles.payoutAccountInfo}>
+                        <Text style={styles.payoutAccountLabel}>To</Text>
+                        <View style={styles.bankIconContainer}>
+                          {(() => {
+                            const bankName = nextPayout.payout_accounts?.bank_name || nextPayout.bank_accounts?.bank_name || '';
+                            const bankIcon = getBankIconLogo(bankName);
+                            
+                            if (bankIcon.logoSvg) {
+                              // Handle SVG components
+                              return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                                width: 12,
+                                height: 12,
+                                fill: colors.textSecondary
+                              });
+                            } else if (bankIcon.logo) {
+                              return (
+                                <Image
+                                  source={bankIcon.logo}
+                                  style={styles.bankIcon}
+                                  resizeMode="contain"
+                                />
+                              );
+                            } else {
+                              // Fallback to a generic bank icon
+                              return <View style={styles.bankIconFallback} />;
+                            }
+                          })()}
+                        </View>
+                        <Text style={styles.payoutAccountText}>
+                          {(nextPayout.payout_accounts?.bank_name || nextPayout.bank_accounts?.bank_name || 'Unknown Bank')} 
+                          **** {(nextPayout.payout_accounts?.account_number || nextPayout.bank_accounts?.account_number || '').slice(-4)} - 
+                          {(nextPayout.payout_accounts?.account_name || nextPayout.bank_accounts?.account_name || 'Unknown Account')}
+                        </Text>
                       </View>
-                      <Text style={styles.payoutAccountText}>
-                        {(nextPayout.payout_accounts?.bank_name || nextPayout.bank_accounts?.bank_name || 'Unknown Bank')} 
-                        **** {(nextPayout.payout_accounts?.account_number || nextPayout.bank_accounts?.account_number || '').slice(-4)} - 
-                        {(nextPayout.payout_accounts?.account_name || nextPayout.bank_accounts?.account_name || 'Unknown Account')}
+                    )}
+                    
+                    {nextPayout.next_payout_date && (
+                      <CountdownTimer 
+                        targetDate={nextPayout.next_payout_date} 
+                        style={styles.dateContainer}
+                      />
+                    )}
+                  </View>
+                  
+                  {/* <View style={styles.progressContainer}>
+                    <View style={styles.progressBar}>
+                      <View 
+                        style={[
+                          styles.progressFill, 
+                          { width: `${Math.round((nextPayout.completed_payouts / nextPayout.duration) * 100)}%` }
+                        ]} 
+                      />
+                    </View>
+                    <View style={styles.progressStats}>
+                      <Text style={styles.progressText}>
+                        {formatBalance(nextPayout.completed_payouts * nextPayout.payout_amount)}/{formatBalance(nextPayout.total_amount)}
+                      </Text>
+                      <Text style={styles.progressCount}>
+                        {nextPayout.completed_payouts}/{nextPayout.duration}
                       </Text>
                     </View>
-                  )}
-                  
-                  
+                  </View> */}
                 </View>
-                
-                {/* <View style={styles.progressContainer}>
-                  <View style={styles.progressBar}>
-                    <View 
-                      style={[
-                        styles.progressFill, 
-                        { width: `${Math.round((nextPayout.completed_payouts / nextPayout.duration) * 100)}%` }
-                      ]} 
-                    />
-                  </View>
-                  <View style={styles.progressStats}>
-                    <Text style={styles.progressText}>
-                      {formatBalance(nextPayout.completed_payouts * nextPayout.payout_amount)}/{formatBalance(nextPayout.total_amount)}
-                    </Text>
-                    <Text style={styles.progressCount}>
-                      {nextPayout.completed_payouts}/{nextPayout.duration}
-                    </Text>
-                  </View>
-                </View> */}
               </View>
-            </View>
-          </Pressable>
+            </Pressable>
+          </View>
         )}
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Your payout plans</Text>
+            <Text style={styles.sectionTitle}>Payout plans</Text>
             <Pressable style={styles.viewAllButton} onPress={handleViewAllPayouts}>
               <Text style={styles.viewAllText}>View All</Text>
             </Pressable>
@@ -721,7 +721,7 @@ export default function HomeScreen() {
             </ScrollView>
           ) : (
             <View style={styles.emptyPayoutsContainer}>
-              <Text style={styles.emptyPayoutsText}>No active payout plans</Text>
+              <Text style={styles.emptyPayoutsText}>No scheduled payout plans</Text>
               <Pressable style={styles.createFirstPayoutButton} onPress={handleCreatePayout}>
                 <Plus size={20} color="#FFFFFF" />
                 <Text style={styles.createFirstPayoutText}>Create Your First Plan</Text>
@@ -966,13 +966,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingBottom: 150,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   headerActions: {
     flexDirection: 'row',
@@ -998,7 +998,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 22,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 10,
   },
   subGreeting: {
     fontSize: 16,
@@ -1008,7 +1008,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
 
   balanceCard: {
-    marginBottom: 24,
+    marginBottom: 20,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
@@ -1022,7 +1022,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   balanceLabel: {
     fontSize: 16,
@@ -1046,7 +1046,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 30,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   lockedSection: {
     flexDirection: 'row',
@@ -1055,7 +1055,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   lockedLabelContainer: {
     flexDirection: 'row',
@@ -1108,7 +1108,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
   },
   summaryCard: {
-    marginBottom: 24,
+    marginBottom: 20,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.card,
@@ -1119,7 +1119,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 20,
     paddingHorizontal: 16,
     paddingTop: 16,
   },
@@ -1170,7 +1170,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
   },
   payoutCard: {
-    marginBottom: 30,
     borderRadius: 16,
     padding: 15,
     backgroundColor: colors.card,
@@ -1204,31 +1203,30 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
   },
   payoutDetails: {
-    marginBottom: 5,
+    marginBottom: 1,
   },
   payoutInfo: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
   payoutName: {
     fontSize: 14,
     fontWeight: '400',
     color: colors.text,
-    marginBottom: 8,
   },
   payoutAmount: {
     fontSize: 25,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   payoutAccountInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 14,
     gap: 8,
+    marginBottom: 10,
   },
   payoutAccountLabel: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
     fontWeight: '500',
   },
@@ -1252,7 +1250,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 6,
   },
   payoutAccountText: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
     fontWeight: '500',
     flex: 1,
@@ -1262,8 +1260,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
     borderRadius: 8,
     alignSelf: 'flex-start',
   },
@@ -1325,13 +1323,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   sectionTitle: {
     fontSize: 18,
@@ -1366,7 +1364,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   emptyPayoutsText: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   emptyTransactionsContainer: {
     padding: 40,
@@ -1411,26 +1409,26 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   planType: {
     fontSize: 14,
     color: colors.textSecondary,
   },
   planAmount: {
-    fontSize: 22,
+    fontSize: 25,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   planDetails: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   planFrequency: {
-    fontSize: 18,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   planDot: {
@@ -1438,18 +1436,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
   },
   planValue: {
-    fontSize: 18,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   planProgress: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   nextPayoutDate: {
     fontSize: 16,
     color: colors.primary,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   planViewButton: {
     flexDirection: 'row',
@@ -1491,7 +1489,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     textAlign: 'center',
   },
   transactionCard: {
-    marginBottom: 12,
+    marginBottom: 10,
     borderRadius: 16,
     padding: 1,
     backgroundColor: colors.card,
@@ -1560,7 +1558,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     height: 1,
   },
   feedbackCard: {
-    marginBottom: 24,
+    marginBottom: 20,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.card,
@@ -1583,14 +1581,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     color: colors.textSecondary,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   feedbackButton: {
     backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 12,
-    marginTop: 8,
   },
   feedbackButtonText: {
     color: '#fff',

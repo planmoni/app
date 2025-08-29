@@ -721,7 +721,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: '#22C55E',
   },
   emergencyCard: {
-    backgroundColor: '#FFF7ED',
+    backgroundColor: colors.card,
   },
   warningHeader: {
     flexDirection: 'row',
