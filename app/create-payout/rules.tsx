@@ -12,7 +12,7 @@ import { Platform } from 'react-native';
 export default function RulesScreen() {
   const { colors, isDark } = useTheme();
   const params = useLocalSearchParams();
-  const [emergencyWithdrawal, setEmergencyWithdrawal] = useState(false);
+  const [emergencyWithdrawal, setEmergencyWithdrawal] = useState(true);
   const { width, height } = useWindowDimensions();
   const haptics = useHaptics();
 
@@ -138,34 +138,6 @@ export default function RulesScreen() {
               </View>
             )}
 
-            <View style={styles.warning}>
-              <View style={styles.warningIcon}>
-                <AlertTriangle size={isSmallScreen ? 16 : 20} color="#EF4444" />
-              </View>
-              <Text style={styles.warningText}>
-                Only turn emergency withdrawals option ON if you feel there might be situations where you might need to pull out your funds before payout expiry, when turned off, you will not be able to pull out your funds at any point until payout date is complete.
-              </Text>
-            </View>
-          </View>
-          
-          {emergencyWithdrawal && (
-            <View style={styles.infoCard}>
-              <View style={styles.infoIcon}>
-                <Info size={20} color={colors.primary} />
-              </View>
-              <Text style={styles.infoText}>
-                You can request an emergency withdrawal at any time from the payout details screen. The available options and fees will be shown at the time of withdrawal.
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.securityInfo}>
-            <View style={styles.securityIconContainer}>
-              <Shield size={isSmallScreen ? 16 : 20} color={colors.primary} />
-            </View>
-            <Text style={styles.securityInfoText}>
-              Your funds are securely locked in your vault until your scheduled payout dates. This helps maintain financial discipline and ensures your money lasts longer.
-            </Text>
           </View>
         </View>
       </KeyboardAvoidingWrapper>

@@ -352,15 +352,6 @@ export default function DestinationScreen() {
               </Text>
             </Pressable>
           </View>
-
-          <View style={styles.notice}>
-            <View style={styles.noticeIcon}>
-              <Info size={20} color={colors.primary} />
-            </View>
-            <Text style={styles.noticeText}>
-              Your funds will be securely transferred to your selected bank account on the scheduled dates.
-            </Text>
-          </View>
         </View>
       </KeyboardAvoidingWrapper>
 

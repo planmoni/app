@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Dimensions, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
@@ -7,11 +7,19 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useEffect } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatDisplayDate, formatPayoutFrequency } from '@/lib/formatters';
+import { getBankIconLogo } from '@/lib/bankIcons';
+import React from 'react';
+import { Building2 } from 'lucide-react-native';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const haptics = useHaptics();
+  
+  // Get screen dimensions for responsive design
+  const { width: screenWidth } = Dimensions.get('window');
+  const isSmallScreen = screenWidth < 375;
+  const isMediumScreen = screenWidth >= 375 && screenWidth < 768;
   
   // Get values from route params with safe defaults
   const totalAmount = params.totalAmount as string || '0';
@@ -21,6 +29,13 @@ export default function SuccessScreen() {
   const bankName = params.bankName as string || '';
   const accountNumber = (params.accountNumber as string) || '';
   const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
+
+  // Format amount with commas and proper number formatting
+  const formatAmount = (amount: string) => {
+    const numericAmount = parseFloat(amount.replace(/[^0-9.]/g, ''));
+    if (isNaN(numericAmount)) return '₦0';
+    return `₦${numericAmount.toLocaleString()}`;
+  };
 
   // Trigger success haptic feedback when the screen loads
   useEffect(() => {
@@ -42,41 +57,67 @@ export default function SuccessScreen() {
     router.replace('/(tabs)');
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isSmallScreen, isMediumScreen);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <SuccessAnimation />
 
         <Text style={styles.title}>Payout Plan Created!</Text>
         <Text style={styles.subtitle}>Your payout plan has been set up successfully</Text>
 
         <View style={styles.summaryCard}>
-          <Text style={styles.amount}>₦{totalAmount}</Text>
+          <Text style={styles.amount}>{formatAmount(totalAmount)}</Text>
           <Text style={styles.description}>
             will be paid out in {formatPayoutFrequency(frequency, dayOfWeek).toLowerCase()} installments of{'\n'}
-            <Text style={styles.highlight}>₦{payoutAmount}</Text>
+            <Text style={styles.highlight}>{formatAmount(payoutAmount)}</Text>
           </Text>
 
           <View style={styles.detailsContainer}>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>First Payout</Text>
-              <Text style={styles.detailValue}>{formatDisplayDate(startDate)}</Text>
+              <Text style={styles.detailValue} numberOfLines={2}>
+                {formatDisplayDate(startDate)}
+              </Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Destination</Text>
-              <Text style={styles.detailValue}>
-                {bankName} •••• {accountNumber.length >= 4 ? accountNumber.slice(-4) : accountNumber}
-              </Text>
+              <View style={styles.destinationContainer}>
+                <View style={styles.bankIconContainer}>
+                  {(() => {
+                    const bankIcon = getBankIconLogo(bankName);
+                    
+                    if (bankIcon.logoSvg) {
+                      // Handle SVG components
+                      return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                        width: 16,
+                        height: 16,
+                        fill: colors.primary
+                      });
+                    } else if (bankIcon.logo) {
+                      return (
+                        <Image 
+                          source={bankIcon.logo} 
+                          style={{ width: 16, height: 16, resizeMode: 'contain' }}
+                        />
+                      );
+                    } else {
+                      // Fallback to Building2 icon
+                      return <Building2 size={16} color={colors.primary} />;
+                    }
+                  })()}
+                </View>
+                <Text style={styles.detailValue} numberOfLines={2}>
+                  {bankName} •••• {accountNumber.length >= 4 ? accountNumber.slice(-4) : accountNumber}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-
-        <View style={styles.notice}>
-          <Text style={styles.noticeText}>
-            Your funds have been securely locked in your vault and will be automatically disbursed according to your schedule
-          </Text>
         </View>
       </ScrollView>
 
@@ -99,7 +140,7 @@ export default function SuccessScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isSmallScreen: boolean, isMediumScreen: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -108,26 +149,30 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
+    padding: isSmallScreen ? 16 : 24,
     alignItems: 'center',
+    paddingBottom: 32,
   },
   title: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 16 : isMediumScreen ? 18 : 20,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
     textAlign: 'center',
+    paddingHorizontal: 8,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     color: colors.textSecondary,
-    marginBottom: 32,
+    marginBottom: isSmallScreen ? 24 : 32,
     textAlign: 'center',
+    paddingHorizontal: 16,
+    lineHeight: isSmallScreen ? 20 : 22,
   },
   summaryCard: {
     backgroundColor: colors.successLight,
     borderRadius: 12,
-    padding: 24,
+    padding: isSmallScreen ? 16 : 24,
     width: '100%',
     alignItems: 'center',
     marginBottom: 24,
@@ -135,18 +180,22 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.success,
     borderLeftWidth: 4,
     borderLeftColor: colors.success,
+    maxWidth: 400,
   },
   amount: {
-    fontSize: 32,
+    fontSize: isSmallScreen ? 24 : isMediumScreen ? 28 : 32,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
+    textAlign: 'center',
   },
   description: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: isSmallScreen ? 20 : 24,
+    paddingHorizontal: 8,
+    lineHeight: isSmallScreen ? 20 : 22,
   },
   highlight: {
     color: colors.success,
@@ -154,25 +203,45 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   detailsContainer: {
     width: '100%',
-    gap: 12,
+    gap: isSmallScreen ? 8 : 12,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   detailLabel: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
+    flexShrink: 0,
+    minWidth: isSmallScreen ? 80 : 100,
   },
   detailValue: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     fontWeight: '500',
     color: colors.text,
+    flex: 1,
+    textAlign: 'right',
+    flexWrap: 'wrap',
+  },
+  destinationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  bankIconContainer: {
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   notice: {
     backgroundColor: colors.card,
-    padding: 16,
+    padding: isSmallScreen ? 12 : 16,
     borderRadius: 12,
     width: '100%',
     marginBottom: 20,
@@ -182,14 +251,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderLeftColor: colors.primary,
   },
   noticeText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.text,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: isSmallScreen ? 18 : 20,
   },
   footer: {
-    padding: 24,
-    gap: 12,
+    padding: isSmallScreen ? 16 : 24,
+    gap: isSmallScreen ? 8 : 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
