@@ -276,8 +276,8 @@ export default function TransactionsScreen() {
               {transactions.map((transaction) => {
                 const isPositive = transaction.type === 'deposit';
                 const Icon = isPositive ? BanknoteArrowDown : transaction.type === 'payout' ? BanknoteArrowUp : BanknoteArrowDown;
-                const iconBg = isPositive ? colors.textTertiary : transaction.type === 'payout' ? colors.textTertiary : colors.textSecondary;
-                const iconColor = isPositive ? colors.text : transaction.type === 'payout' ? colors.text : colors.textTertiary;
+                const iconBg = isPositive ? colors.transactionLight : transaction.type === 'payout' ? colors.textTertiary : colors.textSecondary;
+                const iconColor = isPositive ? colors.primary : transaction.type === 'payout' ? colors.primary : colors.textTertiary;
                 
                 // Format date and time
                 const txDate = new Date(transaction.created_at);
@@ -543,16 +543,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
   },
   transactionDate: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.textSecondary,
   },
   transactionStatus: {
     fontSize: 12,
     color: colors.textSecondary,
-    fontStyle: 'italic',
   },
   transactionAmount: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   positiveAmount: {

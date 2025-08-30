@@ -790,20 +790,20 @@ export default function HomeScreen() {
                     <View style={styles.transaction}>
                       <View style={[
                         styles.transactionIcon,
-                        { backgroundColor: isPositive ? colors.textTertiary : colors.textTertiary }
+                        { backgroundColor: isPositive ? colors.transactionLight : colors.transactionLight }
                       ]}>
                         <Icon
                           size={24}
-                          color={isPositive ? colors.text : colors.text}
+                          color={isPositive ? colors.primary : colors.primary}
                         />
                       </View>
                       <View style={styles.transactionInfo}>
                         <Text style={styles.transactionTitle}>
                           {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
                         </Text>
-                        <Text style={styles.transactionMethod}>
+                        {/* <Text style={styles.transactionMethod}>
                           {transactionMethod}
-                        </Text>
+                        </Text> */}
                         <Text style={styles.transactionDateTime}>
                           {formattedDate} • {formattedTime}
                         </Text>
@@ -1527,7 +1527,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 2,
+    marginBottom: 5,
   },
   transactionMethod: {
     fontSize: 14,

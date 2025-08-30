@@ -16,6 +16,7 @@ const lightColors = {
   backgroundSecondary: '#F8FAFC',
   backgroundTertiary: '#F1F5F9',
   backgroundBlack: '#F8FAFC',
+  transactionLight: '#E2E8FF',
   
   // Surface colors
   surface: '#FFFFFF',
@@ -60,6 +61,7 @@ const darkColors = {
   // Background colors
   background: '#0F172A',
   backgroundSecondary: '#0E141F',
+  transactionLight: '#687A9B',
   backgroundTertiary: '#0C2241',
   backgroundBlack: '#000',
   
