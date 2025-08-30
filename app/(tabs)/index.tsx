@@ -68,6 +68,7 @@ export default function HomeScreen() {
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isHelpLoading, setIsHelpLoading] = useState(false);
   const route = useRoute();
   const params = useLocalSearchParams();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
@@ -108,6 +109,7 @@ export default function HomeScreen() {
   
   const handleHelpPress = async () => {
     try {
+      setIsHelpLoading(true);
       console.log('🎯 Help button pressed');
       
       // Follow the official Intercom guide
@@ -224,6 +226,8 @@ export default function HomeScreen() {
         'Unable to open support chat. Please try again.',
         [{ text: 'OK' }]
       );
+    } finally {
+      setIsHelpLoading(false);
     }
   };
 
@@ -454,8 +458,16 @@ export default function HomeScreen() {
             </Pressable>
             <View style={styles.headerActions}>
               <NotificationIcon />
-              <Pressable onPress={handleHelpPress} style={styles.helpButton}>
-                <HelpCircleIcon size={24} color={colors.text} />
+              <Pressable 
+                onPress={handleHelpPress} 
+                style={styles.helpButton}
+                disabled={isHelpLoading}
+              >
+                {isHelpLoading ? (
+                  <PlanmoniLoader size="small" />
+                ) : (
+                  <HelpCircleIcon size={24} color={colors.text} />
+                )}
               </Pressable>
             </View>
           </View>
