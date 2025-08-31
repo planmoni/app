@@ -19,7 +19,6 @@ import Animated, {
 import { useTheme } from '@/contexts/ThemeContext';
 import PaginationDot from './PaginationDot';
 import { supabase } from '@/lib/supabase';
-import { LinearGradient } from 'expo-linear-gradient';
 
 interface Banner {
   id: string;
@@ -47,105 +46,57 @@ const SNAP_INTERVAL = SLIDE_WIDTH + SLIDE_MARGIN;
 
 export default function ImageCarousel({
   autoPlay = true,
-  autoPlayInterval = 5000,
+  autoPlayInterval = 7000,
   showPagination = true,
-  height = 151,
+  height = 180,
   images: propImages,
 }: ImageCarouselProps) {
   const { colors, isDark } = useTheme();
   const [images, setImages] = useState<Banner[]>(propImages || []);
-  const [imageSizes, setImageSizes] = useState<Record<string, { width: number; height: number }>>({});
   const [isLoading, setIsLoading] = useState(!propImages);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [imagesReady, setImagesReady] = useState(false);
-  const [loadedImageContent, setLoadedImageContent] = useState<Set<string>>(new Set());
+  const [imageSizes, setImageSizes] = useState<Record<string, { width: number; height: number }>>({});
 
   const scrollX = useSharedValue(0);
   const scrollViewRef = useRef<any>(null);
   const autoPlayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Handle prop images
+  useEffect(() => {
+    if (propImages) {
+      setImages(propImages);
+      setIsLoading(false);
+    }
+  }, [propImages]);
+
+  // Fetch images if not provided via props
   useEffect(() => {
     if (!propImages) {
       fetchImages();
     }
   }, [propImages]);
 
-  useEffect(() => {
-    if (propImages) {
-      setImages(propImages);
-      setIsLoading(false);
-      setImagesReady(false); // Reset ready state for new images
-      setLoadedImageContent(new Set()); // Reset loaded content state
-    }
-  }, [propImages]);
-
-  // Preload actual image content using React Native's prefetch
-  const preloadImageContent = async (imageUrl: string, imageId: string) => {
-    try {
-      await Image.prefetch(imageUrl);
-      setLoadedImageContent(prev => {
-        const newSet = new Set(prev);
-        newSet.add(imageId);
-        return newSet;
-      });
-    } catch (error) {
-      console.error('[ImageCarousel] Failed to preload image content:', imageUrl, error);
-      // Still mark as loaded to prevent infinite waiting
-      setLoadedImageContent(prev => {
-        const newSet = new Set(prev);
-        newSet.add(imageId);
-        return newSet;
-      });
-    }
-  };
-
+  // Detect image sizes when images are loaded
   useEffect(() => {
     if (images.length === 0) return;
-
-    let loadedCount = 0;
-    const totalImages = images.length;
 
     images.forEach((image) => {
       if (!imageSizes[image.id]) {
         Image.getSize(
           image.image_url,
-          (width, height) => {
+          (width: number, height: number) => {
             setImageSizes((prev) => ({ ...prev, [image.id]: { width, height } }));
-            // Also preload the actual image content
-            preloadImageContent(image.image_url, image.id);
-            loadedCount++;
-            if (loadedCount === totalImages) {
-              // Don't set imagesReady here, wait for content to load
-            }
           },
-          (error) => {
-            console.error('[ImageCarousel] Failed to get image size:', error);
-            // Still try to preload content
-            preloadImageContent(image.image_url, image.id);
-            loadedCount++;
-            if (loadedCount === totalImages) {
-              // Don't set imagesReady here, wait for content to load
-            }
+          (error: any) => {
+            console.error('[ImageCarousel] Failed to get image size for:', image.image_url, error);
+            // Use default size as fallback
+            setImageSizes((prev) => ({ ...prev, [image.id]: { width: 300, height: 180 } }));
           }
         );
-      } else {
-        // Image size already known, just preload content
-        preloadImageContent(image.image_url, image.id);
-        loadedCount++;
-        if (loadedCount === totalImages) {
-          // Don't set imagesReady here, wait for content to load
-        }
       }
     });
   }, [images, imageSizes]);
-
-  // Check if all image content is loaded
-  useEffect(() => {
-    if (images.length > 0 && loadedImageContent.size === images.length) {
-      setImagesReady(true);
-    }
-  }, [loadedImageContent, images.length]);
 
   const fetchImages = async () => {
     try {
@@ -174,8 +125,9 @@ export default function ImageCarousel({
     }
   };
 
+  // Auto-play functionality
   useEffect(() => {
-    if (autoPlay && images.length > 1 && !isLoading && imagesReady) {
+    if (autoPlay && images.length > 1 && !isLoading) {
       autoPlayTimerRef.current = setInterval(() => {
         setCurrentIndex((prevIndex) => {
           const nextIndex = (prevIndex + 1) % images.length;
@@ -188,7 +140,7 @@ export default function ImageCarousel({
     return () => {
       if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
     };
-  }, [images.length, isLoading, autoPlay, autoPlayInterval, imagesReady]);
+  }, [images.length, isLoading, autoPlay, autoPlayInterval]);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -202,6 +154,7 @@ export default function ImageCarousel({
     }
   };
 
+  // Loading state
   if (isLoading) {
     return (
       <View style={[styles.container, { height }]}> 
@@ -213,6 +166,7 @@ export default function ImageCarousel({
     );
   }
 
+  // Error state
   if (error) {
     return (
       <View style={[styles.container, { height }]}> 
@@ -224,21 +178,8 @@ export default function ImageCarousel({
     );
   }
 
+  // Empty state
   if (images.length === 0) return null;
-
-  // Show loading state while images are being prepared
-  if (!imagesReady) {
-    return (
-      <View style={[styles.container, { height }]}> 
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={styles.loadingText}>
-            Loading banner content... ({loadedImageContent.size}/{images.length})
-          </Text>
-        </View>
-      </View>
-    );
-  }
 
   const CarouselComponent = Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
 
@@ -265,9 +206,26 @@ export default function ImageCarousel({
       >
         {images.map((image) => {
           const naturalSize = imageSizes[image.id];
-          const scaledHeight = naturalSize
-            ? (naturalSize.height / naturalSize.width) * SLIDE_WIDTH
-            : height;
+          let imageHeight = height;
+          let imageWidth = SLIDE_WIDTH;
+          let resizeMode: 'cover' | 'contain' | 'stretch' | 'repeat' | 'center' = 'cover';
+
+          if (naturalSize) {
+            const aspectRatio = naturalSize.width / naturalSize.height;
+            const containerAspectRatio = SLIDE_WIDTH / height;
+
+            if (aspectRatio > containerAspectRatio) {
+              // Image is wider than container - fit to width
+              imageWidth = SLIDE_WIDTH;
+              imageHeight = SLIDE_WIDTH / aspectRatio;
+              resizeMode = 'contain';
+            } else {
+              // Image is taller than container - fit to height
+              imageHeight = height;
+              imageWidth = height * aspectRatio;
+              resizeMode = 'contain';
+            }
+          }
 
           return (
             <Pressable
@@ -275,14 +233,22 @@ export default function ImageCarousel({
               onPress={() => handleImagePress(image)}
               style={[styles.slide, { width: SLIDE_WIDTH }]}
             >
-              <Image
-                source={{ uri: image.image_url }}
-                style={{ width: '100%', height: scaledHeight, borderRadius: 8 }}
-                resizeMode="cover"
-                onError={() =>
-                  console.error('[ImageCarousel] Image failed to load:', image.image_url)
-                }
-              />
+              <View style={[styles.imageContainer, { height: height }]}>
+                <Image
+                  source={{ uri: image.image_url }}
+                  style={[
+                    styles.image,
+                    {
+                      width: imageWidth,
+                      height: imageHeight,
+                    }
+                  ]}
+                  resizeMode={resizeMode}
+                  onError={() =>
+                    console.error('[ImageCarousel] Image failed to load:', image.image_url)
+                  }
+                />
+              </View>
             </Pressable>
           );
         })}
@@ -309,7 +275,6 @@ export default function ImageCarousel({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -319,46 +284,16 @@ const styles = StyleSheet.create({
     marginRight: SLIDE_MARGIN,
     position: 'relative',
   },
-  image: {
-    width: '100%',
-    borderRadius: 8,
-    backgroundColor: '#ccc',
-  },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 2,
-    marginBottom: 20,
+    marginBottom: 10,
   },
-  captionContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    padding: 12,
-  },
-  captionTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  captionDescription: {
-    color: '#fff',
-    fontSize: 14,
-    marginTop: 4,
-  },
-  ctaButton: {
-    backgroundColor: '#1E3A8A',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginTop: 8,
-  },
-  ctaText: {
-    color: '#fff',
-    fontWeight: '500',
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100%',
   },
   loadingText: {
     marginTop: 12,
@@ -381,9 +316,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '500',
   },
-  loadingContainer: {
+  imageContainer: {
+    width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    height: '100%',
+  },
+  image: {
+    borderRadius: 8,
   },
 });

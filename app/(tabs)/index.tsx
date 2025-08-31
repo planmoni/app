@@ -1084,11 +1084,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
 
   balanceCard: {
-    marginBottom: 20,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
+    marginBottom: 10,
   },
   balanceCardContent: {
     paddingVertical: 16,
