@@ -59,6 +59,7 @@ export default function ImageCarousel({
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [imagesReady, setImagesReady] = useState(false);
+  const [loadedImageContent, setLoadedImageContent] = useState<Set<string>>(new Set());
 
   const scrollX = useSharedValue(0);
   const scrollViewRef = useRef<any>(null);
@@ -75,8 +76,29 @@ export default function ImageCarousel({
       setImages(propImages);
       setIsLoading(false);
       setImagesReady(false); // Reset ready state for new images
+      setLoadedImageContent(new Set()); // Reset loaded content state
     }
   }, [propImages]);
+
+  // Preload actual image content using React Native's prefetch
+  const preloadImageContent = async (imageUrl: string, imageId: string) => {
+    try {
+      await Image.prefetch(imageUrl);
+      setLoadedImageContent(prev => {
+        const newSet = new Set(prev);
+        newSet.add(imageId);
+        return newSet;
+      });
+    } catch (error) {
+      console.error('[ImageCarousel] Failed to preload image content:', imageUrl, error);
+      // Still mark as loaded to prevent infinite waiting
+      setLoadedImageContent(prev => {
+        const newSet = new Set(prev);
+        newSet.add(imageId);
+        return newSet;
+      });
+    }
+  };
 
   useEffect(() => {
     if (images.length === 0) return;
@@ -90,27 +112,40 @@ export default function ImageCarousel({
           image.image_url,
           (width, height) => {
             setImageSizes((prev) => ({ ...prev, [image.id]: { width, height } }));
+            // Also preload the actual image content
+            preloadImageContent(image.image_url, image.id);
             loadedCount++;
             if (loadedCount === totalImages) {
-              setImagesReady(true);
+              // Don't set imagesReady here, wait for content to load
             }
           },
           (error) => {
             console.error('[ImageCarousel] Failed to get image size:', error);
+            // Still try to preload content
+            preloadImageContent(image.image_url, image.id);
             loadedCount++;
             if (loadedCount === totalImages) {
-              setImagesReady(true);
+              // Don't set imagesReady here, wait for content to load
             }
           }
         );
       } else {
+        // Image size already known, just preload content
+        preloadImageContent(image.image_url, image.id);
         loadedCount++;
         if (loadedCount === totalImages) {
-          setImagesReady(true);
+          // Don't set imagesReady here, wait for content to load
         }
       }
     });
   }, [images, imageSizes]);
+
+  // Check if all image content is loaded
+  useEffect(() => {
+    if (images.length > 0 && loadedImageContent.size === images.length) {
+      setImagesReady(true);
+    }
+  }, [loadedImageContent, images.length]);
 
   const fetchImages = async () => {
     try {
@@ -197,7 +232,9 @@ export default function ImageCarousel({
       <View style={[styles.container, { height }]}> 
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={styles.loadingText}>Preparing banners to display...</Text>
+          <Text style={styles.loadingText}>
+            Loading banner content... ({loadedImageContent.size}/{images.length})
+          </Text>
         </View>
       </View>
     );
