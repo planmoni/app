@@ -1540,7 +1540,6 @@ export default function KYCUpgradeScreen() {
         </Text>
         
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Bank Verification Number (BVN)</Text>
           <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
             <CreditCard size={20} color={colors.textSecondary} />
             <TextInput

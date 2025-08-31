@@ -22,9 +22,7 @@ type PendingAction = {
 
 export default function PendingActionsCard() {
   const { colors, isDark } = useTheme();
-  const [isHidden, setIsHidden] = useState(false);
   const [profileData, setProfileData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const { session } = useAuth();
   const haptics = useHaptics();
   const { isOnline } = useOnlineStatus();
@@ -38,12 +36,10 @@ export default function PendingActionsCard() {
 
   const fetchProfileData = async () => {
     if (!isOnline) {
-      setIsLoading(false);
       return;
     }
     
     try {
-      setIsLoading(true);
       // Modify the query to exclude kyc_tier which doesn't exist yet
       const { data, error } = await supabase
         .from('profiles')
@@ -55,94 +51,52 @@ export default function PendingActionsCard() {
       setProfileData(data);
     } catch (error) {
       console.error('Error loading profile data:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const pendingActions: PendingAction[] = [
     {
+      id: 'account-verification',
+      title: 'Start KYC Verification',
+      description: 'Verify your identity to start using Planmoni',
+      icon: Shield,
+      iconBg: colors.backgroundTertiary,
+      iconColor: colors.text,
+      route: '/kyc-upgrade',
+      priority: 'high',
+    },
+    {
       id: 'verify-email',
       title: 'Verify your email address',
       description: 'Confirm your email to secure your account',
       icon: Mail,
-      iconBg: '#EFF6FF',
-      iconColor: '#1E3A8A',
+      iconBg: colors.backgroundTertiary,
+      iconColor: colors.text,
       route: '/verify-email',
       priority: 'high',
     },
     {
       id: 'setup-app-lock',
-      title: 'Setup App Lock Screen',
-      description: 'Add an extra layer of security to your app',
+      title: 'Setup App Lock',
+      description: 'Secure your account with a passcode',
       icon: Lock,
-      iconBg: '#F0FDF4',
-      iconColor: '#22C55E',
+      iconBg: colors.backgroundTertiary,
+      iconColor: colors.text,
       route: '/app-lock-setup',
       priority: 'high',
     },
-    {
-      id: 'account-verification',
-      title: 'Start Account Verification',
-      description: 'Verify your identity to unlock higher limits',
-      icon: Shield,
-      iconBg: '#FEF3C7',
-      iconColor: '#D97706',
-      route: '/kyc-upgrade',
-      priority: 'medium',
-    },
+    
     {
       id: 'setup-2fa',
       title: 'Setup 2FA',
       description: 'Add two-factor authentication for better security',
       icon: Fingerprint,
-      iconBg: '#F5F3FF',
-      iconColor: '#8B5CF6',
+      iconBg: colors.backgroundTertiary,
+      iconColor: colors.text,
       route: '/two-factor-auth',
       priority: 'medium',
     },
   ];
-
-  // Mark an action as completed in the database
-  const markActionAsCompleted = async (actionId: string) => {
-    if (!isOnline) {
-      haptics.error();
-      return;
-    }
-    
-    try {
-      const updates: any = {};
-      
-      switch (actionId) {
-        case 'verify-email':
-          updates.email_verified = true;
-          break;
-        case 'setup-app-lock':
-          updates.app_lock_enabled = true;
-          break;
-        case 'account-verification':
-          updates.account_verified = true;
-          break;
-        case 'setup-2fa':
-          updates.two_factor_enabled = true;
-          break;
-      }
-      
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', session?.user?.id);
-          
-      if (error) throw error;
-      
-      // Refresh profile data
-      await fetchProfileData();
-      haptics.success();
-    } catch (error) {
-      console.error('Error marking action as completed:', error);
-      haptics.error();
-    }
-  };
 
   // Check if an action is completed
   const isActionCompleted = (actionId: string): boolean => {
@@ -168,21 +122,11 @@ export default function PendingActionsCard() {
     router.push(action.route);
   };
 
-  // Handle completing an action
-  const handleCompleteAction = async (actionId: string, event: any) => {
-    event.stopPropagation();
-    await markActionAsCompleted(actionId);
-  };
-
-  if (isHidden) {
-    return null;
-  }
-
   // Filter out completed actions
   const filteredActions = pendingActions.filter(action => !isActionCompleted(action.id));
 
   // Don't render if there are no pending actions
-  if (filteredActions.length === 0 && !isLoading) {
+  if (filteredActions.length === 0) {
     return null;
   }
 
@@ -190,32 +134,34 @@ export default function PendingActionsCard() {
 
   if (!isOnline) {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Pending Actions</Text>
-          <Pressable onPress={() => setIsHidden(true)} style={styles.hideButton}>
-            <X size={20} color={colors.textSecondary} />
-          </Pressable>
+      <View>
+        <Text style={styles.sectionTitle}>Pending Actions</Text>
+        <View style={styles.container}>
+          <OfflineNotice message="Pending actions are unavailable while offline" />
         </View>
-        <OfflineNotice message="Pending actions are unavailable while offline" />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Pending Actions</Text>
-        <Pressable onPress={() => setIsHidden(true)} style={styles.hideButton}>
-          <X size={20} color={colors.textSecondary} />
-        </Pressable>
-      </View>
-      
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading pending actions...</Text>
+    <View>
+      <View style={styles.titleContainer}>
+        <Text style={styles.sectionTitle}>Pending Actions</Text>
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <View 
+              style={[
+                styles.progressFill, 
+                { width: `${((pendingActions.length - filteredActions.length) / pendingActions.length) * 100}%` }
+              ]} 
+            />
+          </View>
+          <Text style={styles.progressText}>
+            {Math.round(((pendingActions.length - filteredActions.length) / pendingActions.length) * 100)}%
+          </Text>
         </View>
-      ) : (
+      </View>
+      <View style={styles.container}>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -235,12 +181,6 @@ export default function PendingActionsCard() {
                 <Text style={styles.actionDescription}>{action.description}</Text>
               </View>
               <View style={styles.actionButtons}>
-                <Pressable 
-                  style={styles.completeButton} 
-                  onPress={(e) => handleCompleteAction(action.id, e)}
-                >
-                  <Text style={styles.completeButtonText}>Done</Text>
-                </Pressable>
                 <View style={styles.actionArrow}>
                   <ChevronRight size={20} color={colors.textTertiary} />
                 </View>
@@ -253,49 +193,26 @@ export default function PendingActionsCard() {
             </Pressable>
           ))}
         </ScrollView>
-      )}
+      </View>
     </View>
   );
 }
 
 const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
+    marginTop: 20,
     marginBottom: 24,
-    backgroundColor: colors.card,
     borderRadius: 16,
-    borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  hideButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.backgroundTertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   scrollContent: {
-    padding: 16,
+    padding: 1,
     gap: 12,
   },
   actionCard: {
     width: 280,
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
@@ -317,13 +234,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginRight: 8,
   },
   actionTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   actionDescription: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
     lineHeight: 16,
   },
@@ -331,19 +248,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'flex-end',
     gap: 8,
-  },
-  completeButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: colors.successLight,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.success,
-  },
-  completeButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.success,
   },
   actionArrow: {
     width: 24,
@@ -362,13 +266,42 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingContainer: {
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: -20,
+    marginTop: 25,
   },
-  loadingText: {
-    fontSize: 14,
+  titleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: -20,
+    marginTop: 25,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 3,
+    width: 60,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: colors.textSecondary,
+    minWidth: 25,
   },
 });

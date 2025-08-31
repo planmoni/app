@@ -77,6 +77,7 @@ const createStyles = (colors: any, priority: 'high' | 'medium' | 'low') => {
   return StyleSheet.create({
     card: {
       backgroundColor: colors.card,
+      marginTop: 20,
       borderRadius: 12,
       marginRight: 16,
       width: 280,
