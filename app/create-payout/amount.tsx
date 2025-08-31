@@ -142,14 +142,6 @@ export default function AmountScreen() {
             </View>
           </View>
 
-          <View style={styles.notice}>
-            <View style={styles.noticeIcon}>
-              <Info size={20} color={colors.primary} />
-            </View>
-            <Text style={styles.noticeText}>
-              This amount will be secured in your vault and cannot be accessed until your scheduled payout dates.
-            </Text>
-          </View>
         </View>
       </KeyboardAvoidingWrapper>
 
