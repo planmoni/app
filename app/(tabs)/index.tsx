@@ -54,6 +54,18 @@ import { logAnalyticsEvent } from '@/lib/firebase';
 import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 import NotificationIcon from '@/components/NotificationIcon';
 import { getBankIconLogo } from '@/lib/bankIcons';
+import { supabase } from '@/lib/supabase';
+
+interface Banner {
+  id: string;
+  title?: string;
+  description?: string | null;
+  image_url: string;
+  cta_text?: string | null;
+  link_url?: string | null;
+  order_index?: number;
+  is_active?: boolean;
+}
 
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
@@ -69,6 +81,8 @@ export default function HomeScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isHelpLoading, setIsHelpLoading] = useState(false);
+  const [carouselImages, setCarouselImages] = useState<any[]>([]);
+  const [imagesReady, setImagesReady] = useState(false);
   const route = useRoute();
   const params = useLocalSearchParams();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
@@ -83,6 +97,54 @@ export default function HomeScreen() {
       screen_name: 'Home',
       screen_class: 'HomeScreen',
     });
+  }, []);
+
+  // Fetch carousel images from Supabase
+  const fetchCarouselImages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('banners')
+        .select('*')
+        .eq('is_active', true)
+        .order('order_index', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching carousel images:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        // Pre-load all images to ensure they're available
+        const preloadedImages = await Promise.all(
+          data.map(async (banner: Banner) => {
+            try {
+              // Use React Native's Image.getSize to preload the image
+              await new Promise<void>((resolve, reject) => {
+                Image.getSize(
+                  banner.image_url,
+                  () => resolve(),
+                  (error) => reject(error)
+                );
+              });
+              return banner;
+            } catch (error) {
+              console.error('Failed to preload image:', banner.image_url, error);
+              return banner; // Return banner even if image fails to load
+            }
+          })
+        );
+
+        setCarouselImages(preloadedImages);
+        setImagesReady(true);
+      }
+    } catch (error) {
+      console.error('Error in fetchCarouselImages:', error);
+    }
+  };
+
+  // Fetch images on component mount
+  useEffect(() => {
+    fetchCarouselImages();
   }, []);
 
   const handleProfilePress = () => {
@@ -553,9 +615,11 @@ export default function HomeScreen() {
           </View>
         </ImageBackground>
 
-        {/* Banner Carousel */}
-
-        <ImageCarousel/>
+        {/* Banner Carousel - Only show when images are ready */}
+        {imagesReady && carouselImages.length > 0 && (
+          <ImageCarousel images={carouselImages} />
+        )}
+        
         <PendingActionsCard />
 
         {/* Next Payout Section */}

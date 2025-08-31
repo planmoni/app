@@ -58,6 +58,7 @@ export default function ImageCarousel({
   const [isLoading, setIsLoading] = useState(!propImages);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [imagesReady, setImagesReady] = useState(false);
 
   const scrollX = useSharedValue(0);
   const scrollViewRef = useRef<any>(null);
@@ -73,22 +74,43 @@ export default function ImageCarousel({
     if (propImages) {
       setImages(propImages);
       setIsLoading(false);
+      setImagesReady(false); // Reset ready state for new images
     }
   }, [propImages]);
 
   useEffect(() => {
+    if (images.length === 0) return;
+
+    let loadedCount = 0;
+    const totalImages = images.length;
+
     images.forEach((image) => {
       if (!imageSizes[image.id]) {
         Image.getSize(
           image.image_url,
           (width, height) => {
             setImageSizes((prev) => ({ ...prev, [image.id]: { width, height } }));
+            loadedCount++;
+            if (loadedCount === totalImages) {
+              setImagesReady(true);
+            }
           },
-          (error) => console.error('[ImageCarousel] Failed to get image size:', error)
+          (error) => {
+            console.error('[ImageCarousel] Failed to get image size:', error);
+            loadedCount++;
+            if (loadedCount === totalImages) {
+              setImagesReady(true);
+            }
+          }
         );
+      } else {
+        loadedCount++;
+        if (loadedCount === totalImages) {
+          setImagesReady(true);
+        }
       }
     });
-  }, [images]);
+  }, [images, imageSizes]);
 
   const fetchImages = async () => {
     try {
@@ -118,7 +140,7 @@ export default function ImageCarousel({
   };
 
   useEffect(() => {
-    if (autoPlay && images.length > 1 && !isLoading) {
+    if (autoPlay && images.length > 1 && !isLoading && imagesReady) {
       autoPlayTimerRef.current = setInterval(() => {
         setCurrentIndex((prevIndex) => {
           const nextIndex = (prevIndex + 1) % images.length;
@@ -131,7 +153,7 @@ export default function ImageCarousel({
     return () => {
       if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
     };
-  }, [images.length, isLoading, autoPlay, autoPlayInterval]);
+  }, [images.length, isLoading, autoPlay, autoPlayInterval, imagesReady]);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -150,7 +172,7 @@ export default function ImageCarousel({
       <View style={[styles.container, { height }]}> 
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={styles.loadingText}>Loading images...</Text>
+          <Text style={styles.loadingText}>Loading banners...</Text>
         </View>
       </View>
     );
@@ -168,6 +190,18 @@ export default function ImageCarousel({
   }
 
   if (images.length === 0) return null;
+
+  // Show loading state while images are being prepared
+  if (!imagesReady) {
+    return (
+      <View style={[styles.container, { height }]}> 
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={styles.loadingText}>Preparing banners to display...</Text>
+        </View>
+      </View>
+    );
+  }
 
   const CarouselComponent = Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
 
