@@ -834,7 +834,7 @@ export default function HomeScreen() {
               }}
             >
               <Text style={styles.viewAllTransactionsText}>View All Transactions</Text>
-              <ChevronRight size={20} color={colors.primary} />
+              <ChevronRight size={20} color={colors.textSecondary} />
             </Pressable>
           )}
         </View>
@@ -891,9 +891,9 @@ export default function HomeScreen() {
               {isSummaryExpanded ? 'Show less' : 'See more'}
             </Text>
             {isSummaryExpanded ? (
-              <ChevronUp size={16} color={colors.primary} />
+              <ChevronUp size={16} color={colors.textSecondary} />
             ) : (
-              <ChevronDown size={16} color={colors.primary} />
+              <ChevronDown size={16} color={colors.textSecondary} />
             )}
           </Pressable>
         </Card>
@@ -1178,7 +1178,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   seeMoreText: {
     fontSize: 16,
-    color: colors.primary,
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   payoutCard: {
@@ -1204,7 +1204,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
   },
   activeTag: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: colors.backgroundTertiary,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
@@ -1353,7 +1353,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   viewAllText: {
     fontSize: 14,
-    color: colors.primary,
+    color: colors.text,
     fontWeight: '600',
   },
   loadingContainer: {
@@ -1458,7 +1458,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   nextPayoutDate: {
     fontSize: 14,
-    color: colors.primary,
+    color: colors.textSecondary,
     marginBottom: 10,
   },
   planViewButton: {
@@ -1551,7 +1551,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   viewAllTransactionsText: {
     fontSize: 16,
-    color: colors.primary,
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   stickyButtons: {

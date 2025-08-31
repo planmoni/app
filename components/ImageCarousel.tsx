@@ -148,15 +148,10 @@ export default function ImageCarousel({
   if (isLoading) {
     return (
       <View style={[styles.container, { height }]}> 
-        <LinearGradient
-          colors={["#e0e0e0", "#cfcfcf", "#e0e0e0"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.gradient, { height, width: screenWidth - SLIDE_MARGIN * 2, borderRadius: 12 }]}
-        >
-          <ActivityIndicator color={colors.primary} style={{ marginTop: height / 2.5 }} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={colors.primary} size="large" />
           <Text style={styles.loadingText}>Loading images...</Text>
-        </LinearGradient>
+        </View>
       </View>
     );
   }
@@ -295,8 +290,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   loadingText: {
-    marginTop: 8,
+    marginTop: 12,
     color: '#666',
+    fontSize: 14,
+    fontWeight: '500',
   },
   errorText: {
     color: '#EF4444',
@@ -313,18 +310,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '500',
   },
-  gradient: {
+  loadingContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    alignSelf: 'center',
-    width: '100%',
-    borderRadius: 12,
-    overflow: 'hidden',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1,
+    height: '100%',
   },
 });
