@@ -14,9 +14,6 @@ import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
 import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
-import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
-import AddBankAccountModal from '@/components/AddBankAccountModal';
-import PlanmoniLoader from '@/components/PlanmoniLoader';
 
 const { width } = Dimensions.get('window');
 type VirtualAccount = {
@@ -991,20 +988,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     color: colors.textSecondary,
     fontWeight: '600',
   },
-  disabledPaymentMethod: {
-    opacity: 0.5,
-  },
-  comingSoonTag: {
-    backgroundColor: colors.backgroundTertiary,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginRight: 8,
-    alignSelf: 'center',
-  },
-  comingSoonText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
+  
+  
+  
 });

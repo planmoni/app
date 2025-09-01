@@ -11,7 +11,6 @@ import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
-import { BlurView } from 'expo-blur';
 
 type FloatingButtonProps = {
   title: string;

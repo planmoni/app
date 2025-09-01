@@ -22,7 +22,9 @@ import CustomSplashScreen from '@/components/SplashScreen';
 import { SessionDebugger } from '@/components/SessionDebugger';
 
 // Prevent the splash screen from auto-hiding
-SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
+SplashScreen.preventAutoHideAsync().catch((e) =>
+  console.warn("Failed to prevent splash screen auto-hide:", e)
+);
 
 function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
@@ -67,24 +69,46 @@ function RootLayoutNav() {
   }, []);
 
   const [fontsLoaded, fontError] = useFonts({
-    'Inter-Regular': Inter_400Regular,
-    'Inter-Medium': Inter_500Medium,
-    'Inter-SemiBold': Inter_600SemiBold,
-    'Inter-Bold': Inter_700Bold,
+    "Inter-Regular": Inter_400Regular,
+    "Inter-Medium": Inter_500Medium,
+    "Inter-SemiBold": Inter_600SemiBold,
+    "Inter-Bold": Inter_700Bold,
   });
 
   useEffect(() => {
     if (fontError) {
-      console.error('Font loading error:', fontError);
+      console.error("Font loading error:", fontError);
     }
   }, [fontError]);
 
   useEffect(() => {
     if (fontsLoaded && !isLoading) {
       // Hide the native splash screen
-      SplashScreen.hideAsync().catch(e => console.warn("Failed to hide splash screen:", e));
+      SplashScreen.hideAsync().catch((e) =>
+        console.warn("Failed to hide splash screen:", e)
+      );
     }
   }, [fontsLoaded, isLoading]);
+
+  // Initialize notifications when user is authenticated
+  useEffect(() => {
+    if (session && fontsLoaded) {
+      // Initialize notification system after user is authenticated
+      initializeNotifications()
+        .then((success) => {
+          if (success) {
+            console.log("✅ Notification system initialized successfully");
+          } else {
+            console.log(
+              "⚠️ Notification system initialization failed or permissions denied"
+            );
+          }
+        })
+        .catch((error) => {
+          console.error("❌ Error initializing notifications:", error);
+        });
+    }
+  }, [session, fontsLoaded]);
 
   // Show error screen if there's a critical error
   if (error && !fontsLoaded) {
@@ -97,7 +121,8 @@ function RootLayoutNav() {
         <Text style={styles.errorTitle}>Configuration Error</Text>
         <Text style={styles.errorMessage}>{error}</Text>
         <Text style={styles.errorInstructions}>
-          Please check your environment configuration and database setup as described in the README.md file.
+          Please check your environment configuration and database setup as
+          described in the README.md file.
         </Text>
       </View>
     );
@@ -121,17 +146,44 @@ function RootLayoutNav() {
             <Stack.Screen name="profile" options={{ headerShown: false }} />
             <Stack.Screen name="add-funds" options={{ headerShown: false }} />
             <Stack.Screen name="all-payouts" options={{ headerShown: false }} />
-            <Stack.Screen name="change-password" options={{ headerShown: false }} />
-            <Stack.Screen name="create-payout" options={{ headerShown: false }} />
-            <Stack.Screen name="deposit-flow" options={{ headerShown: false }} />
-            <Stack.Screen name="linked-accounts" options={{ headerShown: false }} />
-            <Stack.Screen name="pause-confirmation" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="change-password"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="create-payout"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="deposit-flow"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="linked-accounts"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="pause-confirmation"
+              options={{ headerShown: false }}
+            />
             <Stack.Screen name="referral" options={{ headerShown: false }} />
-            <Stack.Screen name="transaction-limits" options={{ headerShown: false }} />
-            <Stack.Screen name="transactions" options={{ headerShown: false }} />
-            <Stack.Screen name="two-factor-auth" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="transaction-limits"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="transactions"
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="two-factor-auth"
+              options={{ headerShown: false }}
+            />
             <Stack.Screen name="view-payout" options={{ headerShown: false }} />
-            <Stack.Screen name="app-lock-setup" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="app-lock-setup"
+              options={{ headerShown: false }}
+            />
           </React.Fragment>
         ) : (
           <React.Fragment key="unauthenticated-screens">
@@ -139,7 +191,7 @@ function RootLayoutNav() {
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           </React.Fragment>
         )}
-        <Stack.Screen name="+not-found" options={{ title: 'Page Not Found' }} />
+        <Stack.Screen name="+not-found" options={{ title: "Page Not Found" }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* <SessionDebugger /> */}
@@ -168,29 +220,29 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
   },
   errorTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#d32f2f',
+    fontWeight: "bold",
+    color: "#d32f2f",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   errorMessage: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 24,
   },
   errorInstructions: {
     fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
+    color: "#888",
+    textAlign: "center",
     lineHeight: 20,
   },
 });

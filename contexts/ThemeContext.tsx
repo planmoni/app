@@ -31,7 +31,6 @@ const lightColors = {
   // Primary colors
   primary: '#1E3A8A',
   primaryLight: '#FAD923',
-  primaryLight: '#FAD923',
   primaryDark: '#1E40AF',
   
   // Status colors
@@ -69,8 +68,7 @@ const darkColors = {
   // Surface colors
   surface: '#0E141F',
   surfaceSecondary: '#0C2241',
-  surface: '#0E141F',
-  surfaceSecondary: '#0C2241',
+  
   
   // Text colors
   text: '#F8FAFC',
@@ -78,7 +76,6 @@ const darkColors = {
   textTertiary: '#94A3B8',
   
   // Primary colors
-  primary: '#284BB2',
   primary: '#284BB2',
   primaryLight: '#60A5FA',
   primaryDark: '#2563EB',
@@ -93,16 +90,13 @@ const darkColors = {
   
   // Border colors
   border: '#29323E',
-  border: '#29323E',
   borderSecondary: '#64748B',
   
   // Card colors
   card: '#040C19',
-  card: '#040C19',
   cardSecondary: '#475569',
   
   // Tab bar
-  tabBar: '#0E141F',
   tabBar: '#0E141F',
   tabBarBorder: '#475569',
   
