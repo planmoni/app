@@ -11,6 +11,7 @@ import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
+import { BlurView } from 'expo-blur';
 
 type FloatingButtonProps = {
   title: string;
@@ -31,7 +32,7 @@ export default function FloatingButton({
   variant = 'primary',
   hapticType = 'medium'
 }: FloatingButtonProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const animatedBottom = useRef(new Animated.Value(insets.bottom)).current;
   
@@ -44,7 +45,7 @@ export default function FloatingButton({
         : Easing.out(Easing.ease);
 
       Animated.timing(animatedBottom, {
-        toValue: keyboardHeight + insets.bottom,
+        toValue: keyboardHeight,
         duration,
         easing,
         useNativeDriver: false,
@@ -80,27 +81,47 @@ export default function FloatingButton({
   const styles = createStyles(colors);
 
   return (
-    <Animated.View 
-      style={[
-        styles.container, 
-        { bottom: animatedBottom }
-      ]}
-      pointerEvents="box-none"
-    >
-      <View style={styles.buttonContainer}>
-        <Button
-          title={title}
-          onPress={onPress}
-          disabled={disabled}
-          isLoading={loading}
-          style={styles.button}
-          icon={icon}
-          variant={variant}
-          hapticType={hapticType}
+    <>
+      {/* Extra BlurView at the bottom for full coverage */}
+      <BlurView
+        intensity={30}
+        tint={isDark ? 'dark' : 'light'}
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 100 + insets.bottom,
+          zIndex: 999,
+        }}
+        pointerEvents="none"
+      />
+      <Animated.View 
+        style={[
+          styles.container, 
+          { bottom: animatedBottom }
+        ]}
+        pointerEvents="box-none"
+      >
+        <BlurView
+          intensity={30}
+          tint={isDark ? 'dark' : 'light'}
+          style={StyleSheet.absoluteFill}
         />
-      </View>
-
-    </Animated.View>
+        <View style={styles.buttonContainer}>
+          <Button
+            title={title}
+            onPress={onPress}
+            disabled={disabled}
+            isLoading={loading}
+            style={styles.button}
+            icon={icon}
+            variant={variant}
+            hapticType={hapticType}
+          />
+        </View>
+      </Animated.View>
+    </>
   );
 }
 

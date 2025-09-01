@@ -907,6 +907,9 @@ export default function HomeScreen() {
 
         
 
+
+        
+
         <Card style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
             <Text style={styles.summaryTitle}>Current Month's Summary</Text>
@@ -960,6 +963,29 @@ export default function HomeScreen() {
               <ChevronDown size={16} color={colors.textSecondary} />
             )}
           </Pressable>
+        </Card>
+        {/* Feedback Section */}
+        <Card style={styles.feedbackCard}>
+          <View style={styles.feedbackContent}>
+            <Text style={styles.feedbackTitle}>What do you think of Planmoni?</Text>
+            <Text style={styles.feedbackSubtitle}>Rate it and help us improve</Text>
+            <View style={styles.starsRow}>
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} size={28} color={colors.primary} fill={colors.primary} style={styles.starIcon} />
+              ))}
+            </View>
+            <Pressable
+              style={styles.feedbackButton}
+              onPress={() => {
+                // Replace with your app's store URL
+                Linking.openURL('https://get.planmoni.com');
+              }}
+            >
+              <Text style={styles.feedbackButtonText}>
+                {Platform.OS === 'ios' ? 'Rate it on App Store' : 'Rate it on Play Store'}
+              </Text>
+            </Pressable>
+          </View>
         </Card>
         {/* Feedback Section */}
         <Card style={styles.feedbackCard}>

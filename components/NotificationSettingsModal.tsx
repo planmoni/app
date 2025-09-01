@@ -1,41 +1,84 @@
-import { Modal, View, Text, StyleSheet, Pressable, Switch, ScrollView, useWindowDimensions } from 'react-native';
-import { X, Bell, Shield, Clock, Mail, Wallet, Calendar } from 'lucide-react-native';
-import { useState, useEffect } from 'react';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useEmailNotifications, EmailNotificationSettings } from '@/hooks/useEmailNotifications';
-import { useToast } from '@/contexts/ToastContext';
-import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
+import {
+  Modal,
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Switch,
+  ScrollView,
+  useWindowDimensions,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
+import {
+  X,
+  Bell,
+  Shield,
+  Clock,
+  Mail,
+  Wallet,
+  Calendar,
+  Smartphone,
+} from "lucide-react-native";
+import { useState, useEffect } from "react";
+import { useTheme } from "@/contexts/ThemeContext";
+import {
+  useEmailNotifications,
+  EmailNotificationSettings,
+} from "@/hooks/useEmailNotifications";
+import { useToast } from "@/contexts/ToastContext";
+import { useHaptics } from "@/hooks/useHaptics";
+import { Platform } from "react-native";
+import {
+  areNotificationsEnabled,
+  requestNotificationPermissions,
+  getFCMToken,
+} from "@/lib/notifications";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NotificationSettingsModalProps {
   isVisible: boolean;
   onClose: () => void;
 }
 
-export default function NotificationSettingsModal({ isVisible, onClose }: NotificationSettingsModalProps) {
+export default function NotificationSettingsModal({
+  isVisible,
+  onClose,
+}: NotificationSettingsModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
   const { settings, isLoading, updateSettings } = useEmailNotifications();
   const { showToast } = useToast();
   const haptics = useHaptics();
-  
+  const { session } = useAuth();
+
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
-  
-  // Local state for notification settings
-  const [localSettings, setLocalSettings] = useState<EmailNotificationSettings>({
-    login_alerts: true,
-    payout_alerts: true,
-    expiry_reminders: true,
-    wallet_summary: 'weekly'
+
+  // Local state for email notification settings
+  const [localSettings, setLocalSettings] = useState<EmailNotificationSettings>(
+    {
+      login_alerts: true,
+      payout_alerts: true,
+      expiry_reminders: true,
+      wallet_summary: "weekly",
+      deposit_alerts: true,
+    }
+  );
+
+  // State for push notification settings
+  const [pushNotificationsEnabled, setPushNotificationsEnabled] =
+    useState(false);
+  const [pushPreferences, setPushPreferences] = useState({
+    payouts: true,
+    deposits: true,
+    security: true,
+    general: true,
   });
-  
-  // State for push notification settings (separate from email)
-  const [pushEnabled, setPushEnabled] = useState(true);
-  const [payoutAlerts, setPayoutAlerts] = useState(true);
-  const [securityAlerts, setSecurityAlerts] = useState(true);
-  const [marketingAlerts, setMarketingAlerts] = useState(false);
-  
+  const [isPushLoading, setIsPushLoading] = useState(true);
+  const [isPushSaving, setIsPushSaving] = useState(false);
+
   // Update local settings when remote settings change
   useEffect(() => {
     if (!isLoading && settings) {
@@ -43,62 +86,168 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
     }
   }, [isLoading, settings]);
 
-  const handleToggleEmail = (setting: keyof Omit<EmailNotificationSettings, 'wallet_summary'>) => {
-    if (Platform.OS !== 'web') {
+  // Load push notification settings and status
+  useEffect(() => {
+    loadPushNotificationSettings();
+    checkPushNotificationStatus();
+  }, []);
+
+  const loadPushNotificationSettings = async () => {
+    if (!session?.user?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("notification_preferences")
+        .eq("id", session.user.id)
+        .single();
+
+      if (error) {
+        console.error("Error loading push notification preferences:", error);
+        return;
+      }
+
+      if (data?.notification_preferences) {
+        setPushPreferences(data.notification_preferences);
+      }
+    } catch (error) {
+      console.error("Error loading push preferences:", error);
+    } finally {
+      setIsPushLoading(false);
+    }
+  };
+
+  const checkPushNotificationStatus = async () => {
+    const enabled = await areNotificationsEnabled();
+    setPushNotificationsEnabled(enabled);
+  };
+
+  const savePushPreferences = async (
+    newPreferences: typeof pushPreferences
+  ) => {
+    if (!session?.user?.id || isPushSaving) return;
+
+    setIsPushSaving(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          notification_preferences: newPreferences,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", session.user.id);
+
+      if (error) {
+        console.error("Error saving push notification preferences:", error);
+        showToast("Failed to save notification preferences", "error");
+        return;
+      }
+
+      setPushPreferences(newPreferences);
+      showToast("Notification preferences saved", "success");
+    } catch (error) {
+      console.error("Error saving push preferences:", error);
+      showToast("Failed to save notification preferences", "error");
+    } finally {
+      setIsPushSaving(false);
+    }
+  };
+
+  const handlePushPreferenceChange = (
+    key: keyof typeof pushPreferences,
+    value: boolean
+  ) => {
+    if (Platform.OS !== "web") {
       haptics.selection();
     }
-    
-    setLocalSettings(prev => ({
+
+    const newPreferences = { ...pushPreferences, [key]: value };
+    savePushPreferences(newPreferences);
+  };
+
+  const enablePushNotifications = async () => {
+    try {
+      const granted = await requestNotificationPermissions();
+
+      if (granted) {
+        setPushNotificationsEnabled(true);
+        // Get FCM token to ensure it's stored
+        await getFCMToken();
+        showToast("Push notifications enabled", "success");
+      } else {
+        Alert.alert(
+          "Permission Denied",
+          "To receive notifications, please enable them in your device settings."
+        );
+      }
+    } catch (error) {
+      console.error("Error enabling push notifications:", error);
+      showToast("Failed to enable push notifications", "error");
+    }
+  };
+
+  const handleToggleEmail = (
+    setting: keyof Omit<EmailNotificationSettings, "wallet_summary">
+  ) => {
+    if (Platform.OS !== "web") {
+      haptics.selection();
+    }
+
+    setLocalSettings((prev) => ({
       ...prev,
-      [setting]: !prev[setting]
+      [setting]: !prev[setting],
     }));
   };
 
-  const handleSummaryChange = (value: EmailNotificationSettings['wallet_summary']) => {
-    if (Platform.OS !== 'web') {
+  const handleSummaryChange = (
+    value: EmailNotificationSettings["wallet_summary"]
+  ) => {
+    if (Platform.OS !== "web") {
       haptics.selection();
     }
-    
-    setLocalSettings(prev => ({
+
+    setLocalSettings((prev) => ({
       ...prev,
-      wallet_summary: value
+      wallet_summary: value,
     }));
   };
 
-  const handleTogglePush = (setter: React.Dispatch<React.SetStateAction<boolean>>) => {
-    if (Platform.OS !== 'web') {
+  const handleTogglePush = (
+    setter: React.Dispatch<React.SetStateAction<boolean>>
+  ) => {
+    if (Platform.OS !== "web") {
       haptics.selection();
     }
-    
-    setter(prev => !prev);
+
+    setter((prev) => !prev);
   };
 
   const handleSaveChanges = async () => {
-    if (Platform.OS !== 'web') {
+    if (Platform.OS !== "web") {
       haptics.mediumImpact();
     }
-    
+
     const success = await updateSettings(localSettings);
-    
+
     if (success) {
-      showToast('Notification settings saved successfully', 'success');
-      
-      if (Platform.OS !== 'web') {
+      showToast("Notification settings saved successfully", "success");
+
+      if (Platform.OS !== "web") {
         haptics.success();
       }
-      
+
       onClose();
     } else {
-      showToast('Failed to save notification settings', 'error');
-      
-      if (Platform.OS !== 'web') {
+      showToast("Failed to save notification settings", "error");
+
+      if (Platform.OS !== "web") {
         haptics.error();
       }
     }
   };
-  
+
   const styles = createStyles(colors, isDark, isSmallScreen);
-  
+
   return (
     <Modal
       animationType="slide"
@@ -116,28 +265,62 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
               <X size={isSmallScreen ? 20 : 24} color={colors.text} />
             </Pressable>
           </View>
-          
-          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+          >
             <Text style={styles.description}>
               Customize your notification preferences and alerts.
             </Text>
-            
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Push Notifications</Text>
-              
+
+              {!pushNotificationsEnabled && (
+                <View style={styles.permissionSection}>
+                  <View style={styles.settingInfo}>
+                    <View style={styles.settingIconContainer}>
+                      <Smartphone
+                        size={isSmallScreen ? 16 : 20}
+                        color="#F97316"
+                      />
+                    </View>
+                    <View>
+                      <Text style={styles.settingTitle}>
+                        Enable Push Notifications
+                      </Text>
+                      <Text style={styles.settingDescription}>
+                        Tap the switch below to enable push notifications and
+                        stay updated on important account activities.
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <Text style={styles.settingTitle}>Push Notifications</Text>
-                  <Text style={styles.settingDescription}>Receive alerts on your device</Text>
+                  <Text style={styles.settingDescription}>
+                    Receive alerts on your device
+                  </Text>
                 </View>
                 <Switch
-                  value={pushEnabled}
-                  onValueChange={() => handleTogglePush(setPushEnabled)}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                  thumbColor={pushEnabled ? '#1E3A8A' : colors.backgroundTertiary}
+                  value={pushNotificationsEnabled}
+                  onValueChange={enablePushNotifications}
+                  trackColor={{
+                    false: colors.borderSecondary,
+                    true: "#93C5FD",
+                  }}
+                  thumbColor={
+                    pushNotificationsEnabled
+                      ? "#1E3A8A"
+                      : colors.backgroundTertiary
+                  }
                 />
               </View>
-              
+
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
@@ -145,18 +328,29 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                   </View>
                   <View>
                     <Text style={styles.settingTitle}>Payout Alerts</Text>
-                    <Text style={styles.settingDescription}>Notifications about your payouts</Text>
+                    <Text style={styles.settingDescription}>
+                      Notifications about your payouts
+                    </Text>
                   </View>
                 </View>
                 <Switch
-                  value={payoutAlerts}
-                  onValueChange={() => handleTogglePush(setPayoutAlerts)}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                  thumbColor={payoutAlerts ? '#1E3A8A' : colors.backgroundTertiary}
-                  disabled={!pushEnabled}
+                  value={pushPreferences.payouts}
+                  onValueChange={(value) =>
+                    handlePushPreferenceChange("payouts", value)
+                  }
+                  trackColor={{
+                    false: colors.borderSecondary,
+                    true: "#93C5FD",
+                  }}
+                  thumbColor={
+                    pushPreferences.payouts
+                      ? "#1E3A8A"
+                      : colors.backgroundTertiary
+                  }
+                  disabled={!pushNotificationsEnabled || isPushSaving}
                 />
               </View>
-              
+
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
@@ -164,18 +358,59 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                   </View>
                   <View>
                     <Text style={styles.settingTitle}>Security Alerts</Text>
-                    <Text style={styles.settingDescription}>Login attempts and security updates</Text>
+                    <Text style={styles.settingDescription}>
+                      Login attempts and security updates
+                    </Text>
                   </View>
                 </View>
                 <Switch
-                  value={securityAlerts}
-                  onValueChange={() => handleTogglePush(setSecurityAlerts)}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                  thumbColor={securityAlerts ? '#1E3A8A' : colors.backgroundTertiary}
-                  disabled={!pushEnabled}
+                  value={pushPreferences.security}
+                  onValueChange={(value) =>
+                    handlePushPreferenceChange("security", value)
+                  }
+                  trackColor={{
+                    false: colors.borderSecondary,
+                    true: "#93C5FD",
+                  }}
+                  thumbColor={
+                    pushPreferences.security
+                      ? "#1E3A8A"
+                      : colors.backgroundTertiary
+                  }
+                  disabled={!pushNotificationsEnabled || isPushSaving}
                 />
               </View>
-              
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Wallet size={isSmallScreen ? 16 : 20} color="#10B981" />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Deposit Alerts</Text>
+                    <Text style={styles.settingDescription}>
+                      When funds are added to your account
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={pushPreferences.deposits}
+                  onValueChange={(value) =>
+                    handlePushPreferenceChange("deposits", value)
+                  }
+                  trackColor={{
+                    false: colors.borderSecondary,
+                    true: "#93C5FD",
+                  }}
+                  thumbColor={
+                    pushPreferences.deposits
+                      ? "#1E3A8A"
+                      : colors.backgroundTertiary
+                  }
+                  disabled={!pushNotificationsEnabled || isPushSaving}
+                />
+              </View>
+
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
@@ -183,22 +418,33 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                   </View>
                   <View>
                     <Text style={styles.settingTitle}>Marketing & Updates</Text>
-                    <Text style={styles.settingDescription}>News, tips, and product updates</Text>
+                    <Text style={styles.settingDescription}>
+                      News, tips, and product updates
+                    </Text>
                   </View>
                 </View>
                 <Switch
-                  value={marketingAlerts}
-                  onValueChange={() => handleTogglePush(setMarketingAlerts)}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                  thumbColor={marketingAlerts ? '#1E3A8A' : colors.backgroundTertiary}
-                  disabled={!pushEnabled}
+                  value={pushPreferences.general}
+                  onValueChange={(value) =>
+                    handlePushPreferenceChange("general", value)
+                  }
+                  trackColor={{
+                    false: colors.borderSecondary,
+                    true: "#93C5FD",
+                  }}
+                  thumbColor={
+                    pushPreferences.general
+                      ? "#1E3A8A"
+                      : colors.backgroundTertiary
+                  }
+                  disabled={!pushNotificationsEnabled || isPushSaving}
                 />
               </View>
             </View>
-            
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Email Notifications</Text>
-              
+
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
@@ -206,17 +452,26 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                   </View>
                   <View>
                     <Text style={styles.settingTitle}>Login Alerts</Text>
-                    <Text style={styles.settingDescription}>Get notified about new logins to your account</Text>
+                    <Text style={styles.settingDescription}>
+                      Get notified about new logins to your account
+                    </Text>
                   </View>
                 </View>
                 <Switch
                   value={localSettings.login_alerts}
-                  onValueChange={() => handleToggleEmail('login_alerts')}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                  thumbColor={localSettings.login_alerts ? '#1E3A8A' : colors.backgroundTertiary}
+                  onValueChange={() => handleToggleEmail("login_alerts")}
+                  trackColor={{
+                    false: colors.borderSecondary,
+                    true: "#93C5FD",
+                  }}
+                  thumbColor={
+                    localSettings.login_alerts
+                      ? "#1E3A8A"
+                      : colors.backgroundTertiary
+                  }
                 />
               </View>
-              
+
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
@@ -224,99 +479,146 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                   </View>
                   <View>
                     <Text style={styles.settingTitle}>Payout Alerts</Text>
-                    <Text style={styles.settingDescription}>Get notified when payouts are processed</Text>
+                    <Text style={styles.settingDescription}>
+                      Get notified when payouts are processed
+                    </Text>
                   </View>
                 </View>
                 <Switch
                   value={localSettings.payout_alerts}
-                  onValueChange={() => handleToggleEmail('payout_alerts')}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                  thumbColor={localSettings.payout_alerts ? '#1E3A8A' : colors.backgroundTertiary}
+                  onValueChange={() => handleToggleEmail("payout_alerts")}
+                  trackColor={{
+                    false: colors.borderSecondary,
+                    true: "#93C5FD",
+                  }}
+                  thumbColor={
+                    localSettings.payout_alerts
+                      ? "#1E3A8A"
+                      : colors.backgroundTertiary
+                  }
                 />
               </View>
-              
+
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
                     <Calendar size={isSmallScreen ? 16 : 20} color="#F59E0B" />
                   </View>
                   <View>
-                    <Text style={styles.settingTitle}>Plan Expiry Reminders</Text>
-                    <Text style={styles.settingDescription}>Get notified when your payout plans are about to expire</Text>
+                    <Text style={styles.settingTitle}>
+                      Plan Expiry Reminders
+                    </Text>
+                    <Text style={styles.settingDescription}>
+                      Get notified when your payout plans are about to expire
+                    </Text>
                   </View>
                 </View>
                 <Switch
                   value={localSettings.expiry_reminders}
-                  onValueChange={() => handleToggleEmail('expiry_reminders')}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
-                  thumbColor={localSettings.expiry_reminders ? '#1E3A8A' : colors.backgroundTertiary}
+                  onValueChange={() => handleToggleEmail("expiry_reminders")}
+                  trackColor={{
+                    false: colors.borderSecondary,
+                    true: "#93C5FD",
+                  }}
+                  thumbColor={
+                    localSettings.expiry_reminders
+                      ? "#1E3A8A"
+                      : colors.backgroundTertiary
+                  }
                 />
               </View>
             </View>
-            
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Wallet Summary Emails</Text>
-              <Text style={styles.sectionDescription}>How often would you like to receive wallet summary emails?</Text>
-              
+              <Text style={styles.sectionDescription}>
+                How often would you like to receive wallet summary emails?
+              </Text>
+
               <View style={styles.summaryOptions}>
                 <Pressable
                   style={[
                     styles.summaryOption,
-                    localSettings.wallet_summary === 'daily' && styles.selectedOption
+                    localSettings.wallet_summary === "daily" &&
+                      styles.selectedOption,
                   ]}
-                  onPress={() => handleSummaryChange('daily')}
+                  onPress={() => handleSummaryChange("daily")}
                 >
-                  <Text style={[
-                    styles.summaryOptionText,
-                    localSettings.wallet_summary === 'daily' && styles.selectedOptionText
-                  ]}>Daily</Text>
+                  <Text
+                    style={[
+                      styles.summaryOptionText,
+                      localSettings.wallet_summary === "daily" &&
+                        styles.selectedOptionText,
+                    ]}
+                  >
+                    Daily
+                  </Text>
                 </Pressable>
-                
+
                 <Pressable
                   style={[
                     styles.summaryOption,
-                    localSettings.wallet_summary === 'weekly' && styles.selectedOption
+                    localSettings.wallet_summary === "weekly" &&
+                      styles.selectedOption,
                   ]}
-                  onPress={() => handleSummaryChange('weekly')}
+                  onPress={() => handleSummaryChange("weekly")}
                 >
-                  <Text style={[
-                    styles.summaryOptionText,
-                    localSettings.wallet_summary === 'weekly' && styles.selectedOptionText
-                  ]}>Weekly</Text>
+                  <Text
+                    style={[
+                      styles.summaryOptionText,
+                      localSettings.wallet_summary === "weekly" &&
+                        styles.selectedOptionText,
+                    ]}
+                  >
+                    Weekly
+                  </Text>
                 </Pressable>
-                
+
                 <Pressable
                   style={[
                     styles.summaryOption,
-                    localSettings.wallet_summary === 'monthly' && styles.selectedOption
+                    localSettings.wallet_summary === "monthly" &&
+                      styles.selectedOption,
                   ]}
-                  onPress={() => handleSummaryChange('monthly')}
+                  onPress={() => handleSummaryChange("monthly")}
                 >
-                  <Text style={[
-                    styles.summaryOptionText,
-                    localSettings.wallet_summary === 'monthly' && styles.selectedOptionText
-                  ]}>Monthly</Text>
+                  <Text
+                    style={[
+                      styles.summaryOptionText,
+                      localSettings.wallet_summary === "monthly" &&
+                        styles.selectedOptionText,
+                    ]}
+                  >
+                    Monthly
+                  </Text>
                 </Pressable>
-                
+
                 <Pressable
                   style={[
                     styles.summaryOption,
-                    localSettings.wallet_summary === 'never' && styles.selectedOption
+                    localSettings.wallet_summary === "never" &&
+                      styles.selectedOption,
                   ]}
-                  onPress={() => handleSummaryChange('never')}
+                  onPress={() => handleSummaryChange("never")}
                 >
-                  <Text style={[
-                    styles.summaryOptionText,
-                    localSettings.wallet_summary === 'never' && styles.selectedOptionText
-                  ]}>Never</Text>
+                  <Text
+                    style={[
+                      styles.summaryOptionText,
+                      localSettings.wallet_summary === "never" &&
+                        styles.selectedOptionText,
+                    ]}
+                  >
+                    Never
+                  </Text>
                 </Pressable>
               </View>
             </View>
-            
+
             <View style={styles.infoContainer}>
               <Mail size={16} color={colors.primary} />
               <Text style={styles.infoText}>
-                Email notifications help you stay informed about important account activities and updates.
+                Email notifications help you stay informed about important
+                account activities and updates.
               </Text>
             </View>
           </ScrollView>
@@ -332,170 +634,177 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
-  centeredView: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'transparent',
-  },
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalView: {
-    width: '100%',
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '90%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
+  StyleSheet.create({
+    centeredView: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: "transparent",
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: isSmallScreen ? 16 : 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  modalTitle: {
-    fontSize: isSmallScreen ? 18 : 24,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  closeButton: {
-    width: isSmallScreen ? 32 : 40,
-    height: isSmallScreen ? 32 : 40,
-    borderRadius: isSmallScreen ? 16 : 20,
-    backgroundColor: colors.backgroundTertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollView: {
-    maxHeight: '70%',
-  },
-  scrollContent: {
-    padding: isSmallScreen ? 16 : 24,
-  },
-  description: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: colors.textSecondary,
-    lineHeight: isSmallScreen ? 20 : 24,
-    marginBottom: isSmallScreen ? 20 : 24,
-  },
-  section: {
-    marginBottom: isSmallScreen ? 20 : 24,
-  },
-  sectionTitle: {
-    fontSize: isSmallScreen ? 14 : 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: isSmallScreen ? 12 : 16,
-  },
-  sectionDescription: {
-    fontSize: isSmallScreen ? 12 : 14,
-    color: colors.textSecondary,
-    marginBottom: isSmallScreen ? 12 : 16,
-  },
-  settingItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  settingInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 12,
-  },
-  settingIconContainer: {
-    width: isSmallScreen ? 32 : 40,
-    height: isSmallScreen ? 32 : 40,
-    borderRadius: isSmallScreen ? 16 : 20,
-    backgroundColor: colors.backgroundTertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  settingTitle: {
-    fontSize: isSmallScreen ? 14 : 16,
-    fontWeight: '500',
-    color: colors.text,
-    marginBottom: 2,
-  },
-  settingDescription: {
-    fontSize: isSmallScreen ? 12 : 14,
-    color: colors.textSecondary,
-  },
-  summaryOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-  },
-  summaryOption: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: colors.backgroundTertiary,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 8,
-  },
-  selectedOption: {
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
-    borderColor: colors.primary,
-  },
-  summaryOptionText: {
-    fontSize: isSmallScreen ? 12 : 14,
-    fontWeight: '500',
-    color: colors.text,
-  },
-  selectedOptionText: {
-    color: colors.primary,
-  },
-  infoContainer: {
-    backgroundColor: colors.backgroundTertiary,
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: isSmallScreen ? 16 : 24,
-  },
-  infoText: {
-    fontSize: isSmallScreen ? 12 : 14,
-    color: colors.textSecondary,
-    lineHeight: isSmallScreen ? 18 : 20,
-  },
-  footer: {
-    padding: isSmallScreen ? 16 : 24,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  saveButton: {
-    backgroundColor: colors.primary,
-    padding: isSmallScreen ? 12 : 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: isSmallScreen ? 14 : 16,
-    fontWeight: '600',
-  },
-});
+    backdrop: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+    },
+    modalView: {
+      width: "100%",
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      maxHeight: "90%",
+      shadowColor: "#000",
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 5,
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: isSmallScreen ? 16 : 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    modalTitle: {
+      fontSize: isSmallScreen ? 18 : 24,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    closeButton: {
+      width: isSmallScreen ? 32 : 40,
+      height: isSmallScreen ? 32 : 40,
+      borderRadius: isSmallScreen ? 16 : 20,
+      backgroundColor: colors.backgroundTertiary,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    scrollView: {
+      maxHeight: "70%",
+    },
+    scrollContent: {
+      padding: isSmallScreen ? 16 : 24,
+    },
+    description: {
+      fontSize: isSmallScreen ? 14 : 16,
+      color: colors.textSecondary,
+      lineHeight: isSmallScreen ? 20 : 24,
+      marginBottom: isSmallScreen ? 20 : 24,
+    },
+    section: {
+      marginBottom: isSmallScreen ? 20 : 24,
+    },
+    permissionSection: {
+      backgroundColor: isDark ? "#2a2a2a" : "#f5f5f5",
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 16,
+    },
+    sectionTitle: {
+      fontSize: isSmallScreen ? 14 : 16,
+      fontWeight: "600",
+      color: colors.text,
+      marginBottom: isSmallScreen ? 12 : 16,
+    },
+    sectionDescription: {
+      fontSize: isSmallScreen ? 12 : 14,
+      color: colors.textSecondary,
+      marginBottom: isSmallScreen ? 12 : 16,
+    },
+    settingItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    settingInfo: {
+      flexDirection: "row",
+      alignItems: "center",
+      flex: 1,
+      marginRight: 12,
+    },
+    settingIconContainer: {
+      width: isSmallScreen ? 32 : 40,
+      height: isSmallScreen ? 32 : 40,
+      borderRadius: isSmallScreen ? 16 : 20,
+      backgroundColor: colors.backgroundTertiary,
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 12,
+    },
+    settingTitle: {
+      fontSize: isSmallScreen ? 14 : 16,
+      fontWeight: "500",
+      color: colors.text,
+      marginBottom: 2,
+    },
+    settingDescription: {
+      fontSize: isSmallScreen ? 12 : 14,
+      color: colors.textSecondary,
+    },
+    summaryOptions: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 12,
+    },
+    summaryOption: {
+      flex: 1,
+      minWidth: "45%",
+      backgroundColor: colors.backgroundTertiary,
+      paddingVertical: 12,
+      paddingHorizontal: 8,
+      borderRadius: 8,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 8,
+    },
+    selectedOption: {
+      backgroundColor: isDark ? "rgba(59, 130, 246, 0.1)" : "#EFF6FF",
+      borderColor: colors.primary,
+    },
+    summaryOptionText: {
+      fontSize: isSmallScreen ? 12 : 14,
+      fontWeight: "500",
+      color: colors.text,
+    },
+    selectedOptionText: {
+      color: colors.primary,
+    },
+    infoContainer: {
+      backgroundColor: colors.backgroundTertiary,
+      padding: 16,
+      borderRadius: 8,
+      marginBottom: isSmallScreen ? 16 : 24,
+    },
+    infoText: {
+      fontSize: isSmallScreen ? 12 : 14,
+      color: colors.textSecondary,
+      lineHeight: isSmallScreen ? 18 : 20,
+    },
+    footer: {
+      padding: isSmallScreen ? 16 : 24,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    saveButton: {
+      backgroundColor: colors.primary,
+      padding: isSmallScreen ? 12 : 16,
+      borderRadius: 8,
+      alignItems: "center",
+    },
+    saveButtonText: {
+      color: "#FFFFFF",
+      fontSize: isSmallScreen ? 14 : 16,
+      fontWeight: "600",
+    },
+  });

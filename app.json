@@ -20,7 +20,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.planmoni",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "web": {

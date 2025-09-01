@@ -14,6 +14,9 @@ import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
 import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
+import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
+import AddBankAccountModal from '@/components/AddBankAccountModal';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 
 const { width } = Dimensions.get('window');
 type VirtualAccount = {
@@ -280,6 +283,7 @@ export default function AddFundsScreen() {
         >
           <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
             Direct Deposit
+            Direct Deposit
           </Text>
         </Pressable>
         <Animated.View 
@@ -397,6 +401,7 @@ export default function AddFundsScreen() {
         {/* Cards/Bank/USSD Tab (now Direct Deposit) */}
         {/* <View style={[styles.tabContent, { width: screenWidth }]}> 
           <View style={styles.content}>
+            <Text style={styles.title}>Choose a <Text style={styles.highlight}>Linked Account</Text></Text>
             <Text style={styles.title}>Choose a <Text style={styles.highlight}>Linked Account</Text></Text>
             <Text style={styles.description}>
               Select your preferred payment option to add funds to your wallet.
@@ -969,6 +974,22 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontWeight: '500',
     color: colors.textSecondary,
     marginLeft: 8,
+  },
+  disabledPaymentMethod: {
+    opacity: 0.5,
+  },
+  comingSoonTag: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginRight: 8,
+    alignSelf: 'center',
+  },
+  comingSoonText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
   disabledPaymentMethod: {
     opacity: 0.5,
