@@ -863,15 +863,6 @@ export default function ScheduleScreen() {
               {numberOfPayouts} payout{numberOfPayouts !== 1 ? 's' : ''} of ₦{payoutAmount}
             </Text>
           </View>
-
-          <View style={styles.notice}>
-            <View style={styles.noticeIcon}>
-              <Info size={20} color={colors.primary} />
-            </View>
-            <Text style={styles.noticeText}>
-              Your funds will be automatically deposited to your bank account on the dates you've selected
-            </Text>
-          </View>
         </View>
       </KeyboardAvoidingWrapper>
 

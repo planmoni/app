@@ -1,6 +1,7 @@
-import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Building2, Plus, Info, Check } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Button from '@/components/Button';
 import { useState, useEffect } from 'react';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
@@ -9,9 +10,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
+import { useBanks } from '@/hooks/useBanks';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
+import React from 'react'; // Added missing import for React
+import { getBankIconLogo } from '@/lib/bankIcons';
 
 export default function DestinationScreen() {
   const { colors } = useTheme();
@@ -35,6 +39,9 @@ export default function DestinationScreen() {
     error: bankAccountsError 
   } = useRealtimeBankAccounts();
 
+  // Get banks for icon mapping
+  const { banks } = useBanks();
+
   // Combine loading and error states
   const isLoading = payoutAccountsLoading || bankAccountsLoading;
   const error = payoutAccountsError || bankAccountsError;
@@ -49,6 +56,59 @@ export default function DestinationScreen() {
       setSelectedAccountId(defaultAccount?.id || bankAccounts[0].id);
     }
   }, [payoutAccounts, bankAccounts, selectedAccountId, accountType]);
+
+  // Helper function to get bank code from bank name
+  const getBankCode = (bankName: string): string | undefined => {
+    const bank = banks.find(b => b.name.toLowerCase() === bankName.toLowerCase());
+    return bank?.code;
+  };
+
+  // Helper function to render bank icon
+  const renderBankIcon = (bankName: string, isSelected: boolean) => {
+    const bankIcon = getBankIconLogo(bankName);
+    
+    if (bankIcon.logoSvg) {
+      // Handle SVG components
+      return (
+        <View style={[
+          styles.bankIcon,
+          isSelected && styles.selectedBankIcon
+        ]}>
+          {React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+            width: isSmallScreen ? 16 : 24,
+            height: isSmallScreen ? 16 : 24,
+            fill: isSelected ? '#1E3A8A' : colors.textSecondary
+          })}
+        </View>
+      );
+    } else if (bankIcon.logo) {
+      return (
+        <View style={[
+          styles.bankIcon,
+          isSelected && styles.selectedBankIcon
+        ]}>
+          <Image
+            source={bankIcon.logo}
+            style={{
+              width: isSmallScreen ? 16 : 24,
+              height: isSmallScreen ? 16 : 24,
+            }}
+            resizeMode="contain"
+          />
+        </View>
+      );
+    } else {
+      // Fallback to Building2 icon
+      return (
+        <View style={[
+          styles.bankIcon,
+          isSelected && styles.selectedBankIcon
+        ]}>
+          <Building2 size={isSmallScreen ? 16 : 24} color={isSelected ? '#1E3A8A' : colors.textSecondary} />
+        </View>
+      );
+    }
+  };
 
   const handleContinue = () => {
     if (selectedAccountId) {
@@ -137,7 +197,7 @@ export default function DestinationScreen() {
           )}
 
           <View style={styles.accountTypeSelector}>
-            <Pressable
+            {/* <Pressable
               style={[
                 styles.accountTypeOption,
                 accountType === 'payout' && styles.activeAccountType
@@ -154,17 +214,26 @@ export default function DestinationScreen() {
               ]}>
                 Payout Accounts
               </Text>
-            </Pressable>
+            </Pressable> */}
             
-            <View style={[styles.accountTypeOption, styles.disabledAccountTypeOption]}>
+            {/* <Pressable
+              style={[
+                styles.accountTypeOption,
+                accountType === 'linked' && styles.activeAccountType
+              ]}
+              onPress={() => {
+                haptics.selection();
+                setAccountType('linked');
+                setSelectedAccountId(null);
+              }}
+            >
               <Text style={[
                 styles.accountTypeText,
                 styles.disabledAccountTypeText
               ]}>
                 Linked Accounts
               </Text>
-              <View style={styles.comingSoonTag}><Text style={styles.comingSoonText}>.</Text></View>
-            </View>
+            </Pressable> */}
           </View>
 
           <View style={styles.accountsList}>
@@ -193,12 +262,7 @@ export default function DestinationScreen() {
                     }}
                   >
                     <View style={styles.accountInfo}>
-                      <View style={[
-                        styles.bankIcon,
-                        selectedAccountId === account.id && styles.selectedBankIcon
-                      ]}>
-                        <Building2 size={isSmallScreen ? 20 : 24} color={selectedAccountId === account.id ? '#1E3A8A' : colors.textSecondary} />
-                      </View>
+                      {renderBankIcon(account.bank_name, selectedAccountId === account.id)}
                       <View style={styles.accountDetails}>
                         <Text style={[
                           styles.accountName,
@@ -246,12 +310,7 @@ export default function DestinationScreen() {
                     }}
                   >
                     <View style={styles.accountInfo}>
-                      <View style={[
-                        styles.bankIcon,
-                        selectedAccountId === account.id && styles.selectedBankIcon
-                      ]}>
-                        <Building2 size={isSmallScreen ? 20 : 24} color={selectedAccountId === account.id ? '#1E3A8A' : colors.textSecondary} />
-                      </View>
+                      {renderBankIcon(account.bank_name, selectedAccountId === account.id)}
                       <View style={styles.accountDetails}>
                         <Text style={[
                           styles.accountName,
@@ -292,15 +351,6 @@ export default function DestinationScreen() {
                 Add New {accountType === 'payout' ? 'Payout' : 'Bank'} Account
               </Text>
             </Pressable>
-          </View>
-
-          <View style={styles.notice}>
-            <View style={styles.noticeIcon}>
-              <Info size={20} color={colors.primary} />
-            </View>
-            <Text style={styles.noticeText}>
-              Your funds will be securely transferred to your selected bank account on the scheduled dates.
-            </Text>
           </View>
         </View>
       </KeyboardAvoidingWrapper>
@@ -494,8 +544,8 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     borderColor: colors.border,
   },
   selectedAccount: {
-    backgroundColor: '#F0F9FF',
-    borderColor: '#1E3A8A',
+    backgroundColor: colors.backgroundSecondary,
+    borderColor: colors.primary,
   },
   accountInfo: {
     flexDirection: 'row',
@@ -504,15 +554,16 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     flex: 1,
   },
   bankIcon: {
-    width: isSmallScreen ? 40 : 48,
-    height: isSmallScreen ? 40 : 48,
-    borderRadius: isSmallScreen ? 20 : 24,
+    width: isSmallScreen ? 32 : 40,
+    height: isSmallScreen ? 32 : 40,
+    borderRadius: isSmallScreen ? 16 : 20,
     backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   selectedBankIcon: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.backgroundTertiary,
   },
   accountDetails: {
     gap: 4,

@@ -27,6 +27,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
+import { useCreatePayout } from '@/hooks/useCreatePayout';
+import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
+import { useBanks } from '@/hooks/useBanks';
+import { getBankIconLogo } from '@/lib/bankIcons';
 
 // Define message types
 type MessageType = 'text' | 'plan' | 'insight';
@@ -115,12 +119,15 @@ export default function AIAssistantScreen() {
   const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
   const [lastType, setLastType] = useState<'plan' | 'insight' | 'text' | null>(null);
   // Plan creation conversational state
-  const [planCreationStep, setPlanCreationStep] = useState<'idle' | 'awaiting_destination' | 'awaiting_frequency' | 'awaiting_emergency' | 'showing_emergency_rules' | 'confirming' | 'success'>('idle');
+  const [planCreationStep, setPlanCreationStep] = useState<'idle' | 'awaiting_destination' | 'awaiting_frequency' | 'awaiting_day_of_week' | 'awaiting_emergency' | 'showing_emergency_rules' | 'confirming' | 'success'>('idle');
   const [planDraft, setPlanDraft] = useState<any>(null);
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const { payoutAccounts, isLoading: payoutAccountsLoading, fetchPayoutAccounts } = usePayoutAccounts();
   const [emergencyEnabled, setEmergencyEnabled] = useState<boolean | null>(null);
+  const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<number | null>(null);
+  const { createPayout, isLoading: isCreatingPayout, error: createPayoutError } = useCreatePayout();
+  const { banks } = useBanks();
 
   // Add frequency options
   const frequencyOptions = [
@@ -845,30 +852,135 @@ export default function AIAssistantScreen() {
   const handlePlanConfirmation = async (response: string) => {
     const normalized = response.trim().toLowerCase();
     if (normalized === 'confirm') {
-      // Call API to create the plan (simulate for now)
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `plan-confirmed-${Date.now()}`,
-          content: 'Your payout plan has been created successfully! 🎉',
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'success' }
+      if (!planDraft || !selectedAccount) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `plan-error-${Date.now()}`,
+            content: 'Error: Missing plan details or account selection. Please try again.',
+            sender: 'ai',
+            type: 'text',
+            timestamp: new Date(),
+            metadata: { step: 'error' }
+          }
+        ]);
+        return;
+      }
+
+      try {
+        // Extract plan details
+        const plan = planDraft.metadata?.plans?.[0] || planDraft;
+        const targetAmount = planDraft.metadata?.targetAmount || plan.amount || 0;
+        const timeframe = planDraft.metadata?.timeframe || 1;
+        
+        // Calculate payout amount and duration
+        const payoutAmount = Math.ceil(targetAmount / timeframe);
+        const duration = timeframe;
+        
+        // Map frequency to database format
+        let frequency: any = 'monthly';
+        let dayOfWeek: number | undefined;
+        
+        switch (plan.frequency) {
+          case 'weekly':
+            frequency = 'weekly';
+            break;
+          case 'bi-weekly':
+          case 'biweekly':
+            frequency = 'biweekly';
+            break;
+          case 'monthly':
+            frequency = 'monthly';
+            break;
+          case 'specific day':
+            frequency = 'weekly_specific';
+            dayOfWeek = selectedDayOfWeek !== null ? selectedDayOfWeek : 1; // Use selected day or default to Monday
+            break;
+          case 'month end':
+            frequency = 'end_of_month';
+            break;
+          case 'bi-annually':
+          case 'biannual':
+            frequency = 'biannual';
+            break;
+          case 'annually':
+            frequency = 'annually';
+            break;
+          default:
+            frequency = 'monthly';
         }
-      ]);
-      setTimeout(() => {
-        setPlanCreationStep('idle');
-        setPlanDraft(null);
-        setSelectedAccount(null);
-        setEmergencyEnabled(null);
-      }, 500);
-      // TODO: Call actual API to create the plan with planDraft, selectedAccount, emergencyEnabled
+
+        // Calculate start date (next occurrence based on frequency)
+        const today = new Date();
+        let startDate = today.toISOString().split('T')[0];
+        
+        if (frequency === 'weekly_specific' && dayOfWeek !== undefined) {
+          const currentDay = today.getDay();
+          let daysToAdd = (dayOfWeek - currentDay + 7) % 7;
+          if (daysToAdd === 0) daysToAdd = 7; // If today is the selected day, schedule for next week
+          const nextDate = new Date(today);
+          nextDate.setDate(today.getDate() + daysToAdd);
+          startDate = nextDate.toISOString().split('T')[0];
+        }
+
+        // Create the payout plan using the existing hook
+        await createPayout({
+          name: `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`,
+          description: `${formatPayoutFrequency(frequency, dayOfWeek)} payout of ₦${payoutAmount.toLocaleString()}`,
+          totalAmount: targetAmount,
+          payoutAmount: payoutAmount,
+          frequency: frequency,
+          dayOfWeek: dayOfWeek,
+          duration: duration,
+          startDate: startDate,
+          bankAccountId: null, // We're using payout accounts
+          payoutAccountId: selectedAccount.id,
+          customDates: [],
+          emergencyWithdrawalEnabled: emergencyEnabled || false
+        });
+
+        // Success message
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `plan-confirmed-${Date.now()}`,
+            content: 'Your payout plan has been created successfully! 🎉 You will be redirected to the success page.',
+            sender: 'ai',
+            type: 'text',
+            timestamp: new Date(),
+            metadata: { step: 'success' }
+          }
+        ]);
+
+        // Reset state after a delay
+        setTimeout(() => {
+          setPlanCreationStep('idle');
+          setPlanDraft(null);
+          setSelectedAccount(null);
+          setEmergencyEnabled(null);
+          setSelectedDayOfWeek(null);
+        }, 2000);
+
+      } catch (error) {
+        console.error('Error creating payout plan:', error);
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `plan-error-${Date.now()}`,
+            content: `Failed to create payout plan: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            sender: 'ai',
+            type: 'text',
+            timestamp: new Date(),
+            metadata: { step: 'error' }
+          }
+        ]);
+      }
     } else if (normalized === 'cancel') {
       setPlanCreationStep('idle');
       setPlanDraft(null);
       setSelectedAccount(null);
       setEmergencyEnabled(null);
+      setSelectedDayOfWeek(null);
       setMessages(prev => [
         ...prev,
         {
@@ -900,6 +1012,7 @@ export default function AIAssistantScreen() {
     const normalized = response.trim().toLowerCase();
     // Try to match to one of the options
     const matched = frequencyOptions.find(opt => normalized.includes(opt.replace(/[- ]/g, '')) || normalized === opt.replace(/[- ]/g, ''));
+    
     if (matched && planDraft) {
       // Update planDraft with selected frequency
       const updatedPlan = { ...planDraft };
@@ -907,26 +1020,51 @@ export default function AIAssistantScreen() {
         updatedPlan.metadata.plans = updatedPlan.metadata.plans.map((p: any) => ({ ...p, frequency: matched }));
       }
       setPlanDraft(updatedPlan);
-      setPlanCreationStep('awaiting_destination');
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `selected-frequency-${Date.now()}`,
-          content: `Payout frequency set to: ${matched}`,
-          sender: 'user',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'frequency' }
-        },
-        {
-          id: `choose-destination-${Date.now()}`,
-          content: 'Which account should receive your payouts? Please select an existing account or add a new one.',
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'destination' }
-        }
-      ]);
+      
+      // If specific day is selected, ask for the day of week
+      if (matched === 'specific day') {
+        setPlanCreationStep('awaiting_day_of_week');
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `selected-frequency-${Date.now()}`,
+            content: `Payout frequency set to: ${matched}`,
+            sender: 'user',
+            type: 'text',
+            timestamp: new Date(),
+            metadata: { step: 'frequency' }
+          },
+          {
+            id: `choose-day-${Date.now()}`,
+            content: 'Which day of the week do you want your payouts? Please choose: Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday.',
+            sender: 'ai',
+            type: 'text',
+            timestamp: new Date(),
+            metadata: { step: 'day_of_week' }
+          }
+        ]);
+      } else {
+        setPlanCreationStep('awaiting_destination');
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `selected-frequency-${Date.now()}`,
+            content: `Payout frequency set to: ${matched}`,
+            sender: 'user',
+            type: 'text',
+            timestamp: new Date(),
+            metadata: { step: 'frequency' }
+          },
+          {
+            id: `choose-destination-${Date.now()}`,
+            content: 'Which account should receive your payouts? Please select an existing account or add a new one.',
+            sender: 'ai',
+            type: 'text',
+            timestamp: new Date(),
+            metadata: { step: 'destination' }
+          }
+        ]);
+      }
     } else {
       setMessages(prev => [
         ...prev,
@@ -942,10 +1080,63 @@ export default function AIAssistantScreen() {
     }
   };
 
+  // Handle day of week selection
+  const handleDayOfWeekResponse = (response: string) => {
+    const normalized = response.trim().toLowerCase();
+    const dayMap: { [key: string]: number } = {
+      'sunday': 0,
+      'monday': 1,
+      'tuesday': 2,
+      'wednesday': 3,
+      'thursday': 4,
+      'friday': 5,
+      'saturday': 6
+    };
+    
+    const dayNumber = dayMap[normalized];
+    if (dayNumber !== undefined) {
+      setSelectedDayOfWeek(dayNumber);
+      setPlanCreationStep('awaiting_destination');
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `selected-day-${Date.now()}`,
+          content: `Payout day set to: ${getDayOfWeekName(dayNumber)}`,
+          sender: 'user',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'day_of_week' }
+        },
+        {
+          id: `choose-destination-${Date.now()}`,
+          content: 'Which account should receive your payouts? Please select an existing account or add a new one.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'destination' }
+        }
+      ]);
+    } else {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `day-invalid-${Date.now()}`,
+          content: 'Please reply with one of: Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+          metadata: { step: 'day_of_week' }
+        }
+      ]);
+    }
+  };
+
   // Update handlePlanStepInput to handle frequency step
   const handlePlanStepInput = (input: string) => {
     if (planCreationStep === 'awaiting_frequency') {
       handleFrequencyResponse(input);
+    } else if (planCreationStep === 'awaiting_day_of_week') {
+      handleDayOfWeekResponse(input);
     } else if (planCreationStep === 'awaiting_emergency') {
       handleEmergencyResponse(input);
     } else if (planCreationStep === 'confirming') {
@@ -954,6 +1145,8 @@ export default function AIAssistantScreen() {
   };
 
   const getUserName = () => session?.user?.user_metadata?.first_name || 'User';
+
+
 
   const renderMessage = (message: Message, index: number) => {
     const isUser = message.sender === 'user';
@@ -981,7 +1174,7 @@ export default function AIAssistantScreen() {
                 style={{ marginTop: 12, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, alignSelf: 'flex-start' }}
                 onPress={handleAddFunds}
               >
-                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Add Funds</Text>
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 20 }}>Add Funds</Text>
               </TouchableOpacity>
               <View style={styles.aiBadgeContainer}>
                 <Sparkles size={14} color={colors.primary} />
@@ -1133,13 +1326,13 @@ export default function AIAssistantScreen() {
       justifyContent: 'space-between',
       paddingHorizontal: 16,
       paddingVertical: 16,
-      backgroundColor: colors.surface,
-      borderBottomWidth: 1,
+      backgroundColor: colors.background,
+      borderBottomWidth: 0.4,
       borderBottomColor: colors.border,
     },
     headerTitle: {
       fontSize: 25,
-      fontWeight: '700',
+      fontWeight: '800',
       color: colors.text,
       textAlign: 'left',
     },
@@ -1150,7 +1343,7 @@ export default function AIAssistantScreen() {
       ...StyleSheet.absoluteFillObject,
     },
     headerSubtitle: {
-      fontSize: 16,
+      fontSize: 18,
       color: colors.textSecondary,
     },
     aiIconContainer: {
@@ -1238,7 +1431,7 @@ export default function AIAssistantScreen() {
     input: {
       flex: 1,
       backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary,
-      borderRadius: 24,
+      borderRadius: 12,
       paddingHorizontal: 16,
       paddingVertical: 12,
       fontSize: 18,
@@ -1249,7 +1442,7 @@ export default function AIAssistantScreen() {
     sendButton: {
       width: 48,
       height: 48,
-      borderRadius: 24,
+      borderRadius: 12,
       backgroundColor: colors.primary,
       justifyContent: 'center',
       alignItems: 'center',
@@ -1262,8 +1455,8 @@ export default function AIAssistantScreen() {
       backgroundColor: colors.surface,
     },
     suggestionsTitle: {
-      fontSize: 16,
-      fontWeight: '600',
+      fontSize:16,
+      fontWeight: '500',
       color: colors.textSecondary,
       marginBottom: 12,
     },
@@ -1309,7 +1502,7 @@ export default function AIAssistantScreen() {
       marginBottom: 4,
     },
     planAmount: {
-      fontSize: 20,
+      fontSize: 18,
       fontWeight: '700',
     },
     planDescription: {
@@ -1349,15 +1542,15 @@ export default function AIAssistantScreen() {
       marginBottom: 8,
     },
     insightTitle: {
-      fontSize: 16,
+      fontSize: 18,
       fontWeight: '600',
     },
     insightValue: {
-      fontSize: 16,
+      fontSize: 18,
       fontWeight: '700',
     },
     insightDescription: {
-      fontSize: 16,
+      fontSize: 18,
     },
     recommendationsContainer: {
       marginTop: 16,
@@ -1368,7 +1561,7 @@ export default function AIAssistantScreen() {
       borderColor: colors.border,
     },
     recommendationsTitle: {
-      fontSize: 16,
+      fontSize: 18,
       fontWeight: '600',
       marginBottom: 12,
     },
@@ -1386,7 +1579,7 @@ export default function AIAssistantScreen() {
     },
     recommendationText: {
       flex: 1,
-      fontSize: 16,
+      fontSize: 18,
       lineHeight: 20,
     },
     emptyContainer: {
@@ -1401,14 +1594,14 @@ export default function AIAssistantScreen() {
       marginBottom: 24,
     },
     emptyTitle: {
-      fontSize: 20,
+      fontSize: 18,
       fontWeight: '600',
       color: colors.text,
       marginBottom: 8,
       textAlign: 'center',
     },
     emptyText: {
-      fontSize: 16,
+      fontSize: 18,
       color: colors.textSecondary,
       textAlign: 'center',
       marginBottom: 24,
@@ -1421,7 +1614,7 @@ export default function AIAssistantScreen() {
       gap: 4,
     },
     aiBadgeText: {
-      fontSize: 12,
+      fontSize: 18,
       color: '#888',
       marginLeft: 4,
     },
@@ -1439,7 +1632,7 @@ export default function AIAssistantScreen() {
     },
     errorText: {
       color: '#E57373',
-      fontSize: 16,
+      fontSize: 18,
       flex: 1,
     },
     retryButton: {
@@ -1452,7 +1645,7 @@ export default function AIAssistantScreen() {
     retryText: {
       color: '#FFF',
       fontWeight: '600',
-      fontSize: 13,
+      fontSize: 18,
     },
   });
 
@@ -1487,137 +1680,227 @@ export default function AIAssistantScreen() {
         {/* </View> */}
       </View>
 
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.messagesContainer}
+        contentContainerStyle={{ paddingBottom: 16 }}
+        keyboardShouldPersistTaps="handled"
       >
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.messagesContainer}
-          contentContainerStyle={{ paddingBottom: 16 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {messages.map((message, index) => renderMessage(message, index))}
-          
-          {isTyping && (
-            <Animated.View 
-              entering={FadeIn.duration(300)} 
-              exiting={FadeOut.duration(300)}
-              style={styles.typingIndicator}
-            >
-              <Animated.View style={styles.typingDot} />
-              <Animated.View style={styles.typingDot} />
-              <Animated.View style={styles.typingDot} />
-              <Text style={styles.typingText}>Thinking...</Text>
-            </Animated.View>
-          )}
-          {/* Plan creation destination selection UI */}
-          {planCreationStep === 'awaiting_destination' && !payoutAccountsLoading && (
-            <View style={{ marginVertical: 12 }}>
-              <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text }}>Your payout accounts:</Text>
-              {payoutAccounts.length === 0 && (
-                <Text style={{ marginBottom: 8, color: colors.text }}>No payout accounts found.</Text>
-              )}
-              {payoutAccounts.map(account => (
+        {messages.map((message, index) => renderMessage(message, index))}
+        
+        {isTyping && (
+          <Animated.View 
+            entering={FadeIn.duration(300)} 
+            exiting={FadeOut.duration(300)}
+            style={styles.typingIndicator}
+          >
+            <Animated.View style={styles.typingDot} />
+            <Animated.View style={styles.typingDot} />
+            <Animated.View style={styles.typingDot} />
+            <Text style={styles.typingText}>Thinking...</Text>
+          </Animated.View>
+        )}
+        
+        {isCreatingPayout && (
+          <Animated.View 
+            entering={FadeIn.duration(300)} 
+            exiting={FadeOut.duration(300)}
+            style={styles.typingIndicator}
+          >
+            <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 8 }} />
+            <Text style={styles.typingText}>Creating your payout plan...</Text>
+          </Animated.View>
+        )}
+        
+        {createPayoutError && (
+          <Animated.View 
+            entering={FadeIn.duration(300)} 
+            style={styles.errorBubble}
+          >
+            <AlertTriangle size={16} color="#E57373" />
+            <Text style={styles.errorText}>{createPayoutError}</Text>
+          </Animated.View>
+        )}
+        {/* Plan creation destination selection UI */}
+        {planCreationStep === 'awaiting_destination' && !payoutAccountsLoading && (
+          <View style={{ marginVertical: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text }}>Your payout accounts:</Text>
+            {payoutAccounts.length === 0 && (
+              <Text style={{ marginBottom: 8, color: colors.text }}>No payout accounts found.</Text>
+            )}
+            {payoutAccounts.map(account => {
+              const bankIcon = getBankIconLogo(account.bank_name);
+              return (
                 <Pressable
                   key={account.id}
-                  style={{ padding: 12, borderWidth: 1, borderColor: '#eee', borderRadius: 8, marginBottom: 8 }}
+                  style={{ 
+                    padding: 12, 
+                    borderWidth: 1, 
+                    borderColor: colors.border, 
+                    borderRadius: 8, 
+                    marginBottom: 8,
+                    backgroundColor: isDark ? colors.backgroundSecondary : colors.card,
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}
                   onPress={() => handleSelectAccount(account)}
                 >
-                  <Text style={{ color: colors.textSecondary }}>{account.bank_name} ••••{account.account_number.slice(-4)}</Text>
-                  <Text style={{ color: colors.text}}>{account.account_name}</Text>
-                  {account.is_default && <Text style={{ color: '#1E3A8A', fontSize: 12 }}>Default</Text>}
+                  {/* Bank Icon */}
+                  <View style={{ marginRight: 12, width: 40, height: 40, justifyContent: 'center', alignItems: 'center' }}>
+                    {bankIcon.logoSvg ? (
+                      React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                        width: 32,
+                        height: 32,
+                        fill: colors.textSecondary
+                      })
+                    ) : bankIcon.logo ? (
+                      <Image 
+                        source={bankIcon.logo} 
+                        style={{ width: 32, height: 32, resizeMode: 'contain' }}
+                      />
+                    ) : (
+                      <View style={{ 
+                        width: 32, 
+                        height: 32, 
+                        borderRadius: 16, 
+                        backgroundColor: colors.primary,
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+                          {account.bank_name.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  
+                  {/* Account Details */}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 16, fontWeight: '500' }}>
+                      {account.bank_name} ••••{account.account_number.slice(-4)}
+                    </Text>
+                    <Text style={{ color: colors.text, fontSize: 16, marginTop: 2 }}>
+                      {account.account_name}
+                    </Text>
+                    {account.is_default && (
+                      <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600', marginTop: 2 }}>
+                        Default
+                      </Text>
+                    )}
+                  </View>
                 </Pressable>
-              ))}
-              <Button title="Add New Account" onPress={() => setShowAddAccountModal(true)} />
-            </View>
-          )}
-          {/* Emergency withdrawal input UI */}
-          {planCreationStep === 'awaiting_emergency' && (
-            <View style={{ marginVertical: 12 }}>
-              <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text}}>Reply "yes" or "no" below:</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8, color: colors.text}}
-                placeholder="yes or no"
-                onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
-                returnKeyType="done"
-              />
-            </View>
-          )}
-          {/* Plan confirmation input UI */}
-          {planCreationStep === 'confirming' && (
-            <View style={{ marginVertical: 12 }}>
-              <Text style={{ fontWeight: '600', marginBottom: 8, color: colors.text,}}>Type "confirm" to create the plan or "cancel" to abort:</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8, color: colors.text}}
-                placeholder="confirm or cancel"
-                onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
-                returnKeyType="done"
-              />
-            </View>
-          )}
-        </ScrollView>
-
-        {showSuggestions && messages.length === 1 && !keyboardVisible && (
-          <View style={styles.suggestionsContainer}>
-            <Text style={styles.suggestionsTitle}>Try asking about:</Text>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.suggestionsScroll}
-            >
-              {SUGGESTED_PROMPTS.map((prompt, index) => (
-                <TouchableOpacity 
-                  key={index} 
-                  style={styles.suggestionBubble}
-                  onPress={() => handleSuggestionPress(prompt)}
-                >
-                  <Text style={styles.suggestionText}>{prompt}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+              );
+            })}
+            <Button title="Add New Account" onPress={() => setShowAddAccountModal(true)} />
           </View>
         )}
+        {/* Day of week selection UI */}
+        {planCreationStep === 'awaiting_day_of_week' && (
+          <View style={{ marginVertical: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text}}>Choose a day of the week:</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8, color: colors.text}}
+              placeholder="Sunday, Monday, Tuesday, etc."
+              onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
+              returnKeyType="done"
+            />
+          </View>
+        )}
+        
+        {/* Emergency withdrawal input UI */}
+        {planCreationStep === 'awaiting_emergency' && (
+          <View style={{ marginVertical: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text}}>Reply "yes" or "no" below:</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, marginBottom: 10, color: colors.text, fontSize: 16}}
+              placeholder="yes or no"
+              onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
+              returnKeyType="done"
+            />
+          </View>
+        )}
+        {/* Plan confirmation input UI */}
+        {planCreationStep === 'confirming' && (
+          <View style={{ marginVertical: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text,}}>Type "confirm" to create the plan or "cancel" to abort:</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, marginBottom: 10, color: colors.text, fontSize: 16}}
+              placeholder="confirm or cancel"
+              onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
+              returnKeyType="done"
+            />
+          </View>
+        )}
+      </ScrollView>
 
-        {/* Add payout account modal */}
-        <AddPayoutAccountModal
-          isVisible={showAddAccountModal}
-          onClose={async (newAccount) => {
-            setShowAddAccountModal(false);
-            if (newAccount) {
-              await fetchPayoutAccounts();
-              handleSelectAccount(newAccount);
-            }
-          }}
-        />
+      {showSuggestions && messages.length === 1 && !keyboardVisible && (
+        <View style={styles.suggestionsContainer}>
+          <Text style={styles.suggestionsTitle}>Try asking about:</Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.suggestionsScroll}
+          >
+            {SUGGESTED_PROMPTS.map((prompt, index) => (
+              <TouchableOpacity 
+                key={index} 
+                style={styles.suggestionBubble}
+                onPress={() => handleSuggestionPress(prompt)}
+              >
+                <Text style={styles.suggestionText}>{prompt}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
-        {planCreationStep === 'idle' && (
+      {/* Add payout account modal */}
+      <AddPayoutAccountModal
+        isVisible={showAddAccountModal}
+        onClose={async (newAccount) => {
+          setShowAddAccountModal(false);
+          if (newAccount) {
+            await fetchPayoutAccounts();
+            handleSelectAccount(newAccount);
+          }
+        }}
+      />
+
+      {planCreationStep === 'idle' && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
           <View style={styles.inputContainer}>
             <TextInput
               ref={inputRef}
               style={styles.input}
-              placeholder="Ask me anything about your finances..."
+              placeholder="Tell me your plans..."
               placeholderTextColor={colors.textTertiary}
               value={inputText}
               onChangeText={setInputText}
               multiline
               onFocus={() => setShowSuggestions(false)}
               maxLength={500}
+              editable={!isCreatingPayout}
             />
             <TouchableOpacity
               style={[
                 styles.sendButton,
-                !inputText.trim() && styles.sendButtonDisabled
+                (!inputText.trim() || isCreatingPayout) && styles.sendButtonDisabled
               ]}
               onPress={handleSendMessage}
-              disabled={!inputText.trim() || isTyping}
+              disabled={!inputText.trim() || isTyping || isCreatingPayout}
             >
-              <Send size={20} color="#FFFFFF" />
+              {isCreatingPayout ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Send size={20} color="#FFFFFF" />
+              )}
             </TouchableOpacity>
           </View>
-        )}
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      )}
     </SafeAreaView>
   );
 }

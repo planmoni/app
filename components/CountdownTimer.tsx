@@ -24,7 +24,7 @@ export default function CountdownTimer({
   // Format the countdown text
   const getCountdownText = () => {
     if (totalSeconds <= 0) {
-      return 'Time expired';
+      return 'Payout Sent';
     }
     
     let text = '';
@@ -58,9 +58,9 @@ export default function CountdownTimer({
     }
     
     if (days === 0 && hours === 0 && minutes === 0 && !showSeconds) {
-      text = 'Less than a minute';
+      text = 'less than a minute';
     }
-    
+  
     return text + ' left';
   };
   
@@ -68,7 +68,7 @@ export default function CountdownTimer({
   
   return (
     <View style={[styles.container, style]}>
-      <Clock size={iconSize} color={colors.primary} />
+      <Clock size={iconSize} color={colors.textSecondary} />
       <Text style={[styles.countdownText, textStyle]}>
         {getCountdownText()}
       </Text>
@@ -89,7 +89,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   countdownText: {
     fontSize: 14,
-    color: colors.primary,
+    color: colors.textSecondary,
     fontWeight: '500',
   },
 });

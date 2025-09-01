@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { Session, User } from '@supabase/supabase-js';
 import { BiometricService } from '@/lib/biometrics';
 import { Platform } from 'react-native';
-import { useEmailNotifications } from '@/hooks/useEmailNotifications';
+import { intercomService } from '@/lib/intercom';
 import { supabase } from '@/lib/supabase';
 
 interface BiometricSettings {
@@ -68,7 +68,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   } = useSupabaseAuth();
 
   const [biometricSettings, setBiometricSettings] = useState<BiometricSettings | null>(null);
-  const { sendNotification } = useEmailNotifications();
 
   // Get user from session
   const user = session?.user || null;
@@ -76,6 +75,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     refreshBiometricSettings();
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    (async () => {
+      try {
+        if (session?.user?.id) {
+          const { default: Intercom } = await import('@intercom/intercom-react-native');
+          await Intercom.loginUserWithUserAttributes({
+            userId: session.user.id,
+            email: session.user.email || '',
+          });
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, [session?.user?.id]);
 
   const refreshBiometricSettings = async () => {
     try {
@@ -113,27 +129,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     const result = await supabaseSignIn(email, password);
     
-    if (result.success && result.data?.session?.access_token) {
+    if (result.success && (result as any)?.data?.session?.access_token) {
+      try {
+        // Initialize and login user to Intercom (native only)
+        if (Platform.OS !== 'web') {
+          const { default: Intercom } = await import('@intercom/intercom-react-native');
+          await Intercom.loginUserWithUserAttributes({
+            userId: session?.user?.id || '',
+            email: session?.user?.email || '',
+          });
+        }
+      } catch (e) {
+        console.warn('Intercom login failed:', e);
+      }
       try {
         // Get device and location info
         const deviceInfo = {
           device: Platform.OS === 'web' ? 'Web Browser' : Platform.OS === 'ios' ? 'iOS Device' : 'Android Device',
-          location: 'Unknown Location', // In a real app, you would use geolocation
+          location: 'Unknown Location',
           time: new Date().toLocaleString(),
-          ip: '0.0.0.0' // In a real app, you would get the IP from the server
+          ip: '0.0.0.0'
         };
         
-        // Call the login-notification edge function
         const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
         if (supabaseUrl) {
+          const session: any = (result as any).data.session;
           const response = await fetch(`${supabaseUrl}/functions/v1/login-notification`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${result.data.session.access_token}`
+              'Authorization': `Bearer ${session.access_token}`
             },
             body: JSON.stringify({
-              userId: result.data.session.user.id,
+              userId: session.user.id,
               loginInfo: deviceInfo
             })
           });
@@ -143,11 +171,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
         
-        // Also create a notification in the events table
         await supabase
           .from('events')
           .insert({
-            user_id: result.data.session.user.id,
+            user_id: (result as any).data.session.user.id,
             type: 'security_alert',
             title: 'New Login Detected',
             description: `New login from ${deviceInfo.device} at ${deviceInfo.time}`,
@@ -160,6 +187,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     return result;
   };
+
+  useEffect(() => {
+    // Logout Intercom when user logs out (native only)
+    if (!user && Platform.OS !== 'web') {
+      (async () => {
+        try {
+          const { default: Intercom } = await import('@intercom/intercom-react-native');
+          await Intercom.logout();
+        } catch {}
+      })();
+    }
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{

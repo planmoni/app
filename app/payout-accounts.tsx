@@ -11,6 +11,9 @@ import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import EditPayoutAccountModal from '@/components/EditPayoutAccountModal';
 import { useHaptics } from '@/hooks/useHaptics';
+import { getBankIconLogo } from '@/lib/bankIcons';
+import React from 'react';
+import { Image } from 'react-native';
 
 export default function PayoutAccountsScreen() {
   const { colors, isDark } = useTheme();
@@ -118,7 +121,28 @@ export default function PayoutAccountsScreen() {
                 <View style={styles.accountHeader}>
                   <View style={styles.bankInfo}>
                     <View style={styles.bankIcon}>
-                      <Building2 size={24} color={colors.primary} />
+                      {(() => {
+                        const bankIcon = getBankIconLogo(account.bank_name);
+                        
+                        if (bankIcon.logoSvg) {
+                          // Handle SVG components
+                          return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                            width: 24,
+                            height: 24,
+                            fill: colors.primary
+                          });
+                        } else if (bankIcon.logo) {
+                          return (
+                            <Image 
+                              source={bankIcon.logo} 
+                              style={{ width: 24, height: 24, resizeMode: 'contain' }}
+                            />
+                          );
+                        } else {
+                          // Fallback to Building2 icon
+                          return <Building2 size={24} color={colors.primary} />;
+                        }
+                      })()}
                     </View>
                     <View style={styles.bankDetails}>
                       <Text style={styles.bankName}>{account.bank_name}</Text>

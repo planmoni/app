@@ -10,6 +10,10 @@ import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   ArrowDownRight,
+  ArrowRightIcon,
+  BanknoteArrowDown,
+  BanknoteArrowUp,
+  HelpCircleIcon,
   ArrowUpRight,
   Calendar,
   ChevronDown,
@@ -22,8 +26,10 @@ import {
   Plus,
   RefreshCw,
   Star,
+  CalendarCheck
 } from 'lucide-react-native';
 import {
+  Alert,
   Animated,
   Pressable,
   ScrollView,
@@ -32,6 +38,7 @@ import {
   View,
   RefreshControl,
   ImageBackground,
+  Image,
   Linking,
   Platform,
 } from 'react-native';
@@ -46,6 +53,19 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 import NotificationIcon from '@/components/NotificationIcon';
+import { getBankIconLogo } from '@/lib/bankIcons';
+import { supabase } from '@/lib/supabase';
+
+interface Banner {
+  id: string;
+  title?: string;
+  description?: string | null;
+  image_url: string;
+  cta_text?: string | null;
+  link_url?: string | null;
+  order_index?: number;
+  is_active?: boolean;
+}
 
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
@@ -60,6 +80,9 @@ export default function HomeScreen() {
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isHelpLoading, setIsHelpLoading] = useState(false);
+  const [carouselImages, setCarouselImages] = useState<any[]>([]);
+  const [imagesReady, setImagesReady] = useState(false);
   const route = useRoute();
   const params = useLocalSearchParams();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
@@ -74,6 +97,54 @@ export default function HomeScreen() {
       screen_name: 'Home',
       screen_class: 'HomeScreen',
     });
+  }, []);
+
+  // Fetch carousel images from Supabase
+  const fetchCarouselImages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('banners')
+        .select('*')
+        .eq('is_active', true)
+        .order('order_index', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching carousel images:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        // Pre-load all images to ensure they're available
+        const preloadedImages = await Promise.all(
+          data.map(async (banner: Banner) => {
+            try {
+              // Use React Native's Image.getSize to preload the image
+              await new Promise<void>((resolve, reject) => {
+                Image.getSize(
+                  banner.image_url,
+                  () => resolve(),
+                  (error) => reject(error)
+                );
+              });
+              return banner;
+            } catch (error) {
+              console.error('Failed to preload image:', banner.image_url, error);
+              return banner; // Return banner even if image fails to load
+            }
+          })
+        );
+
+        setCarouselImages(preloadedImages);
+        setImagesReady(true);
+      }
+    } catch (error) {
+      console.error('Error in fetchCarouselImages:', error);
+    }
+  };
+
+  // Fetch images on component mount
+  useEffect(() => {
+    fetchCarouselImages();
   }, []);
 
   const handleProfilePress = () => {
@@ -98,9 +169,128 @@ export default function HomeScreen() {
     }
   };
   
-  const handleHelpPress = () => {
-    router.push('/help');
-    logAnalyticsEvent('help_click');
+  const handleHelpPress = async () => {
+    try {
+      setIsHelpLoading(true);
+      console.log('🎯 Help button pressed');
+      
+      // Follow the official Intercom guide
+      const { default: Intercom } = await import('@intercom/intercom-react-native');
+      
+      if (!session?.user?.id) {
+        console.log('👤 No user session, logging in as unidentified user...');
+        await Intercom.loginUnidentifiedUser();
+        console.log('✅ Unidentified user logged in');
+      } else {
+        console.log('👤 User session found, updating user data...');
+        
+        // Get user name from metadata
+        const firstName = session.user.user_metadata?.first_name || '';
+        const lastName = session.user.user_metadata?.last_name || '';
+        const fullName = `${firstName} ${lastName}`.trim();
+        
+        console.log('👤 User data for Intercom:', {
+          userId: session.user.id,
+          email: session.user.email,
+          firstName,
+          lastName,
+          fullName
+        });
+
+        // try {
+        //   // First, try to update the existing user with new attributes
+        //   await Intercom.updateUser({
+        //     userId: session.user.id,
+        //     email: session.user.email,
+        //     name: fullName || session.user.email?.split('@')[0] || 'User',
+        //     phone: session.user.phone || undefined,
+        //     customAttributes: {
+        //       first_name: firstName,
+        //       last_name: lastName,
+        //       user_type: 'customer',
+        //       app_version: '1.0.0'
+        //     }
+        //   });
+        //   console.log('✅ User updated successfully');
+        // } catch (updateError) {
+        //   console.log('⚠️ Update failed, trying to login with user attributes...');
+          
+        //   // If update fails, try to login with user attributes
+        //   await Intercom.loginUserWithUserAttributes({
+        //     userId: session.user.id,
+        //     email: session.user.email,
+        //     name: fullName || session.user.email?.split('@')[0] || 'User',
+        //     phone: session.user.phone || undefined,
+        //     customAttributes: {
+        //       first_name: firstName,
+        //       last_name: lastName,
+        //       user_type: 'customer',
+        //       app_version: '1.0.0'
+        //     }
+        //   });
+        //   console.log('✅ User logged in to Intercom');
+        // }
+        
+        // Get JWT from Supabase Edge Function for secure authentication
+        console.log('🔐 Getting JWT from server...');
+        const jwtResponse = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/intercom-jwt`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+          }
+        });
+        
+        if (!jwtResponse.ok) {
+          throw new Error('Failed to get JWT from server');
+        }
+        
+        const { jwt } = await jwtResponse.json();
+        
+        // Set the JWT before making any user registration calls
+        console.log('🔐 Setting JWT for Intercom...');
+        await Intercom.setUserJwt(jwt);
+        console.log('✅ JWT set successfully');
+        
+        // Now login with user attributes
+        await Intercom.loginUserWithUserAttributes({
+          userId: session.user.id,
+          email: session.user.email,
+          name: fullName || session.user.email?.split('@')[0] || 'User',
+          phone: session.user.phone || undefined,
+          customAttributes: {
+            first_name: firstName,
+            last_name: lastName,
+            user_type: 'customer',
+            app_version: '1.0.0'
+          }
+        });
+        console.log('✅ User logged in to Intercom with JWT');
+      }
+      
+      // Wait for authentication to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Now present Intercom
+      console.log('🎯 Presenting Intercom...');
+      await Intercom.present();
+      console.log('✅ Intercom presented successfully');
+      
+      logAnalyticsEvent('help_click');
+      
+    } catch (error) {
+      console.error('❌ Failed to open Intercom:', error);
+      
+      // Show user-friendly error
+      Alert.alert(
+        'Intercom Error',
+        'Unable to open support chat. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsHelpLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -115,11 +305,11 @@ export default function HomeScreen() {
     const hour = currentDate.getHours();
     
     if (hour >= 0 && hour < 12) {
-      return 'Good morning ☀️';
+      return 'Good morning';
     } else if (hour >= 12 && hour < 17) {
-      return 'Good afternoon 🌤️';
+      return 'Good afternoon';
     } else {
-      return 'Good evening 🌅';
+      return 'Good evening';
     }
   };
 
@@ -130,7 +320,7 @@ export default function HomeScreen() {
   });
 
   const formatBalance = (amount: number) => {
-    return showBalances ? `₦${amount.toLocaleString()}` : '••••••••';
+    return showBalances ? `₦${amount.toLocaleString()}` : '*********';
   };
 
   const handleAddFunds = () => {
@@ -330,14 +520,22 @@ export default function HomeScreen() {
             </Pressable>
             <View style={styles.headerActions}>
               <NotificationIcon />
-              <Pressable onPress={handleHelpPress} style={styles.helpButton}>
-                <HelpCircle size={24} color={colors.text} />
+              <Pressable 
+                onPress={handleHelpPress} 
+                style={styles.helpButton}
+                disabled={isHelpLoading}
+              >
+                {isHelpLoading ? (
+                  <PlanmoniLoader size="small" />
+                ) : (
+                  <HelpCircleIcon size={24} color={colors.text} />
+                )}
               </Pressable>
             </View>
           </View>
           <View style={styles.greetingContainer}>
-            <Text style={styles.greeting}>Hello, {firstName}.</Text>
-            <Text style={styles.subGreeting}>{getGreeting()}, let's plan some payouts</Text>
+            <Text style={styles.greeting}>{getGreeting()}, {firstName}.</Text>
+            <Text style={styles.subGreeting}>It's time to plan some payouts</Text>
           </View>
         </View>
 
@@ -401,82 +599,126 @@ export default function HomeScreen() {
                 style={styles.addFundsButton} 
                 onPress={handleAddFunds}
               >
-                <ArrowDownRight size={20} color={colors.text} />
+                
+                <BanknoteArrowDown size={24} color={colors.textSecondary}/>
                 <Text style={styles.addFundsText}>Deposit</Text>
               </Pressable>
               <Pressable 
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
-                <ArrowUpRight size={20} color="#FFFFFF" />
-                <Text style={styles.createButtonText}>Plan</Text>
+                <CalendarCheck size={22} color='#fff' />
+                <Text style={styles.createButtonText}>Create Plan</Text>
               </Pressable>
               
             </View>
           </View>
         </ImageBackground>
 
-        {/* Banner Carousel */}
-
-        <ImageCarousel/>
+        {/* Banner Carousel - Only show when images are ready */}
+        {imagesReady && carouselImages.length > 0 && (
+          <ImageCarousel images={carouselImages} />
+        )}
+        
         <PendingActionsCard />
 
-        
-
+        {/* Next Payout Section */}
         {nextPayout && (
-          <Pressable 
-            style={styles.payoutCard}
-            onPress={() => handleViewPayout(nextPayout.id)}
-          >
-            <View style={styles.payoutCardContent}>
-              <View style={styles.payoutHeader}>
-                <Text style={styles.payoutTitle}>Upcoming Payout</Text>
-                <View style={styles.activeTag}>
-                  <Text style={styles.activeTagText}>
-                    {nextPayout.status === 'active' ? 'Running' : 'Paused'}
-                  </Text>
-                </View>
-              </View>
-              
-              <View style={styles.payoutDetails}>
-                <View style={styles.payoutInfo}>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Your Next Payout</Text>
+            </View>
+            <Pressable 
+              style={styles.payoutCard}
+              onPress={() => handleViewPayout(nextPayout.id)}
+            >
+              <View style={styles.payoutCardContent}>
+                <View style={styles.payoutHeader}>
                   <Text style={styles.payoutName}>{nextPayout.name}</Text>
-                  <Text style={styles.payoutAmount}>{formatBalance(nextPayout.payout_amount)}</Text>
-                  
-                  {nextPayout.next_payout_date && (
-                    <CountdownTimer 
-                      targetDate={nextPayout.next_payout_date} 
-                      style={styles.dateContainer}
-                    />
-                  )}
+                  <View style={styles.activeTag}>
+                    <Text style={styles.activeTagText}>
+                      {nextPayout.status === 'active' ? 'Scheduled' : 'Paused'}
+                    </Text>
+                  </View>
                 </View>
                 
-                <View style={styles.progressContainer}>
-                  <View style={styles.progressBar}>
-                    <View 
-                      style={[
-                        styles.progressFill, 
-                        { width: `${Math.round((nextPayout.completed_payouts / nextPayout.duration) * 100)}%` }
-                      ]} 
-                    />
+                <View style={styles.payoutDetails}>
+                  <View style={styles.payoutInfo}>
+                    <Text style={styles.payoutAmount}>{formatBalance(nextPayout.payout_amount)}</Text>
+                    
+                    {/* Payout Account Information */}
+                    {(nextPayout.payout_accounts || nextPayout.bank_accounts) && (
+                      <View style={styles.payoutAccountInfo}>
+                        <Text style={styles.payoutAccountLabel}>To</Text>
+                        <View style={styles.bankIconContainer}>
+                          {(() => {
+                            const bankName = nextPayout.payout_accounts?.bank_name || nextPayout.bank_accounts?.bank_name || '';
+                            const bankIcon = getBankIconLogo(bankName);
+                            
+                            if (bankIcon.logoSvg) {
+                              // Handle SVG components
+                              return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                                width: 12,
+                                height: 12,
+                                fill: colors.textSecondary
+                              });
+                            } else if (bankIcon.logo) {
+                              return (
+                                <Image
+                                  source={bankIcon.logo}
+                                  style={styles.bankIcon}
+                                  resizeMode="contain"
+                                />
+                              );
+                            } else {
+                              // Fallback to a generic bank icon
+                              return <View style={styles.bankIconFallback} />;
+                            }
+                          })()}
+                        </View>
+                        <Text style={styles.payoutAccountText}>
+                          {(nextPayout.payout_accounts?.bank_name || nextPayout.bank_accounts?.bank_name || 'Unknown Bank')} 
+                          **** {(nextPayout.payout_accounts?.account_number || nextPayout.bank_accounts?.account_number || '').slice(-4)} - 
+                          {(nextPayout.payout_accounts?.account_name || nextPayout.bank_accounts?.account_name || 'Unknown Account')}
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {nextPayout.next_payout_date && (
+                      <CountdownTimer 
+                        targetDate={nextPayout.next_payout_date} 
+                        style={styles.dateContainer}
+                      />
+                    )}
                   </View>
-                  <View style={styles.progressStats}>
-                    <Text style={styles.progressText}>
-                      {formatBalance(nextPayout.completed_payouts * nextPayout.payout_amount)}/{formatBalance(nextPayout.total_amount)}
-                    </Text>
-                    <Text style={styles.progressCount}>
-                      {nextPayout.completed_payouts}/{nextPayout.duration}
-                    </Text>
-                  </View>
+                  
+                  {/* <View style={styles.progressContainer}>
+                    <View style={styles.progressBar}>
+                      <View 
+                        style={[
+                          styles.progressFill, 
+                          { width: `${Math.round((nextPayout.completed_payouts / nextPayout.duration) * 100)}%` }
+                        ]} 
+                      />
+                    </View>
+                    <View style={styles.progressStats}>
+                      <Text style={styles.progressText}>
+                        {formatBalance(nextPayout.completed_payouts * nextPayout.payout_amount)}/{formatBalance(nextPayout.total_amount)}
+                      </Text>
+                      <Text style={styles.progressCount}>
+                        {nextPayout.completed_payouts}/{nextPayout.duration}
+                      </Text>
+                    </View>
+                  </View> */}
                 </View>
               </View>
-            </View>
-          </Pressable>
+            </Pressable>
+          </View>
         )}
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Your payout plans</Text>
+            <Text style={styles.sectionTitle}>Payout plans</Text>
             <Pressable style={styles.viewAllButton} onPress={handleViewAllPayouts}>
               <Text style={styles.viewAllText}>View All</Text>
             </Pressable>
@@ -555,7 +797,7 @@ export default function HomeScreen() {
             </ScrollView>
           ) : (
             <View style={styles.emptyPayoutsContainer}>
-              <Text style={styles.emptyPayoutsText}>No active payout plans</Text>
+              <Text style={styles.emptyPayoutsText}>No scheduled payout plans</Text>
               <Pressable style={styles.createFirstPayoutButton} onPress={handleCreatePayout}>
                 <Plus size={20} color="#FFFFFF" />
                 <Text style={styles.createFirstPayoutText}>Create Your First Plan</Text>
@@ -581,8 +823,8 @@ export default function HomeScreen() {
           {recentTransactions.length > 0 ? (
             recentTransactions.map((transaction) => {
               const isPositive = transaction.type === 'deposit';
-              const Icon = isPositive ? ArrowDownRight : 
-                          transaction.type === 'payout' ? ArrowUpRight : ArrowDownRight;
+              const Icon = isPositive ? BanknoteArrowDown : 
+                          transaction.type === 'payout' ? BanknoteArrowDown : BanknoteArrowUp;
               
               // Format date and time
               const txDate = new Date(transaction.created_at);
@@ -612,20 +854,20 @@ export default function HomeScreen() {
                     <View style={styles.transaction}>
                       <View style={[
                         styles.transactionIcon,
-                        { backgroundColor: isPositive ? colors.textTertiary : colors.textTertiary }
+                        { backgroundColor: isPositive ? colors.transactionLight : colors.transactionLight }
                       ]}>
                         <Icon
-                          size={20}
-                          color={isPositive ? colors.text : colors.text}
+                          size={24}
+                          color={isPositive ? colors.primary : colors.primary}
                         />
                       </View>
                       <View style={styles.transactionInfo}>
                         <Text style={styles.transactionTitle}>
                           {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
                         </Text>
-                        <Text style={styles.transactionMethod}>
+                        {/* <Text style={styles.transactionMethod}>
                           {transactionMethod}
-                        </Text>
+                        </Text> */}
                         <Text style={styles.transactionDateTime}>
                           {formattedDate} • {formattedTime}
                         </Text>
@@ -656,12 +898,15 @@ export default function HomeScreen() {
               }}
             >
               <Text style={styles.viewAllTransactionsText}>View All Transactions</Text>
-              <ChevronRight size={20} color={colors.primary} />
+              <ChevronRight size={20} color={colors.textSecondary} />
             </Pressable>
           )}
         </View>
 
         <View style={styles.bottomPadding} />
+
+        
+
 
         
 
@@ -713,11 +958,34 @@ export default function HomeScreen() {
               {isSummaryExpanded ? 'Show less' : 'See more'}
             </Text>
             {isSummaryExpanded ? (
-              <ChevronUp size={16} color={colors.primary} />
+              <ChevronUp size={16} color={colors.textSecondary} />
             ) : (
-              <ChevronDown size={16} color={colors.primary} />
+              <ChevronDown size={16} color={colors.textSecondary} />
             )}
           </Pressable>
+        </Card>
+        {/* Feedback Section */}
+        <Card style={styles.feedbackCard}>
+          <View style={styles.feedbackContent}>
+            <Text style={styles.feedbackTitle}>What do you think of Planmoni?</Text>
+            <Text style={styles.feedbackSubtitle}>Rate it and help us improve</Text>
+            <View style={styles.starsRow}>
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} size={28} color={colors.primary} fill={colors.primary} style={styles.starIcon} />
+              ))}
+            </View>
+            <Pressable
+              style={styles.feedbackButton}
+              onPress={() => {
+                // Replace with your app's store URL
+                Linking.openURL('https://get.planmoni.com');
+              }}
+            >
+              <Text style={styles.feedbackButtonText}>
+                {Platform.OS === 'ios' ? 'Rate it on App Store' : 'Rate it on Play Store'}
+              </Text>
+            </Pressable>
+          </View>
         </Card>
         {/* Feedback Section */}
         <Card style={styles.feedbackCard}>
@@ -760,15 +1028,15 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
-          <ArrowDownRight size={20} color={colors.text} />
+          <BanknoteArrowDown size={24} color={colors.textSecondary} />
           <Text style={styles.addFundsText}>Deposit</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <ArrowUpRight size={20} color="#FFFFFF" />
-          <Text style={styles.createButtonText}>Plan</Text>
+          <CalendarCheck size={22} color='#fff' />
+          <Text style={styles.createButtonText}>Create Plan</Text>
         </Pressable>
         
       </Animated.View>
@@ -800,13 +1068,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingBottom: 150,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   headerActions: {
     flexDirection: 'row',
@@ -832,24 +1100,21 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 4,
+    marginBottom: 10,
   },
   subGreeting: {
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '400',
     color: colors.textSecondary,
     lineHeight: 18,
   },
-  date: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
+
   balanceCard: {
-    marginBottom: 24,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
+    marginBottom: -10,
   },
   balanceCardContent: {
     paddingVertical: 16,
@@ -859,10 +1124,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   balanceLabel: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   balanceActions: {
@@ -883,7 +1148,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 30,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   lockedSection: {
     flexDirection: 'row',
@@ -892,7 +1157,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   lockedLabelContainer: {
     flexDirection: 'row',
@@ -900,11 +1165,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   lockedLabel: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   lockedAmount: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
   },
@@ -917,7 +1182,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.primary,
     padding: 14,
-    borderRadius: 5,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -925,27 +1190,27 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   createButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: colors.backgroundBlack,
     borderWidth: 1,
-    borderColor: '#1F3C95',
+    borderColor: colors.textSecondary,
     padding: 14,
-    borderRadius: 5,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   addFundsText: {
-    color: colors.text,
+    color: colors.textSecondary,
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   summaryCard: {
-    marginBottom: 24,
+    marginBottom: 20,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.card,
@@ -956,12 +1221,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 20,
     paddingHorizontal: 16,
     paddingTop: 16,
   },
   summaryTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
   },
@@ -983,11 +1248,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   summaryLabel: {
-    fontSize: 15,
+    fontSize: 14,
     color: colors.textSecondary,
   },
   summaryValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.text,
   },
@@ -1002,12 +1267,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginTop: 16,
   },
   seeMoreText: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '500',
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
   payoutCard: {
-    marginBottom: 30,
     borderRadius: 16,
     padding: 15,
     backgroundColor: colors.card,
@@ -1026,11 +1290,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   payoutTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.text,
   },
   activeTag: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: colors.backgroundTertiary,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
@@ -1038,40 +1302,75 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   activeTagText: {
     fontSize: 12,
     color: '#22C55E',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   payoutDetails: {
-    marginBottom: 5,
+    marginBottom: 1,
   },
   payoutInfo: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
   payoutName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.text,
-    marginBottom: 8,
   },
   payoutAmount: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 10,
+  },
+  payoutAccountInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  payoutAccountLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  bankIconContainer: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  bankIcon: {
+    width: 12,
+    height: 12,
+  },
+  bankIconFallback: {
+    width: 12,
+    height: 12,
+    backgroundColor: '#EF4444',
+    borderRadius: 6,
+  },
+  payoutAccountText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    flex: 1,
   },
   dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
     borderRadius: 8,
     alignSelf: 'flex-start',
   },
   payoutDate: {
     fontSize: 14,
     color: colors.primary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   progressContainer: {
     marginBottom: 16,
@@ -1126,16 +1425,16 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
   },
@@ -1144,8 +1443,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   viewAllText: {
     fontSize: 14,
-    color: colors.primary,
-    fontWeight: '500',
+    color: colors.text,
+    fontWeight: '600',
   },
   loadingContainer: {
     padding: 20,
@@ -1167,7 +1466,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   emptyPayoutsText: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   emptyTransactionsContainer: {
     padding: 40,
@@ -1212,30 +1511,30 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   planType: {
     fontSize: 14,
     color: colors.textSecondary,
   },
   planAmount: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   planDetails: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   planFrequency: {
     fontSize: 14,
     color: colors.textSecondary,
   },
   planDot: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   planValue: {
@@ -1245,12 +1544,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   planProgress: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   nextPayoutDate: {
     fontSize: 14,
-    color: colors.primary,
-    marginBottom: 16,
+    color: colors.textSecondary,
+    marginBottom: 10,
   },
   planViewButton: {
     flexDirection: 'row',
@@ -1265,7 +1564,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   planViewButtonText: {
     color: colors.primary,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   addPayoutCard: {
@@ -1280,19 +1579,19 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
   },
   addPayoutText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.primary,
     marginTop: 12,
     marginBottom: 4,
   },
   addPayoutDescription: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
   },
   transactionCard: {
-    marginBottom: 12,
+    marginBottom: 10,
     borderRadius: 16,
     padding: 1,
     backgroundColor: colors.card,
@@ -1318,19 +1617,19 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 2,
+    marginBottom: 5,
   },
   transactionMethod: {
-    fontSize: 13,
+    fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 2,
   },
   transactionDateTime: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.textTertiary,
   },
   transactionAmount: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   viewAllTransactionsButton: {
@@ -1341,9 +1640,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   viewAllTransactionsText: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '500',
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
   stickyButtons: {
     position: 'absolute',
@@ -1361,7 +1660,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     height: 1,
   },
   feedbackCard: {
-    marginBottom: 24,
+    marginBottom: 20,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.card,
@@ -1376,7 +1675,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   feedbackTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
@@ -1384,19 +1683,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     color: colors.textSecondary,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   feedbackButton: {
     backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 10,
-    borderRadius: 8,
-    marginTop: 8,
+    borderRadius: 12,
   },
   feedbackButtonText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: 15,
+    fontSize: 14,
   },
   starsRow: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Animated, Dimensions, Platform, Modal } from 'react-native';
-import { X, Copy, ArrowUpRight, ArrowDownRight, FileText, Image as LucideImage } from 'lucide-react-native';
+import { X, Copy, ArrowUpRight, BanknoteArrowUp, ArrowDownRight, FileText, Image as LucideImage, BanknoteArrowDown } from 'lucide-react-native';
 import { Image } from 'react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -520,9 +520,9 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
             <View style={styles.amountSection}>
               <View style={[styles.amountIcon, { backgroundColor: isPositive ? '#DCFCE7' : '#FEE2E2' }]}>
                 {isPositive ? (
-                  <ArrowDownRight size={24} color="#22C55E" />
+                  <BanknoteArrowDown size={24} color="#22C55E" />
                 ) : (
-                  <ArrowUpRight size={24} color="#EF4444" />
+                  <BanknoteArrowUp size={24} color="#EF4444" />
                 )}
               </View>
               <View>

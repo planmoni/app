@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAnalytics, isSupported, logEvent } from "firebase/analytics";
+import { getMessaging, getToken, onMessage, isSupported as isMessagingSupported } from 'firebase/messaging';
 import { Platform } from "react-native";
 
 // Firebase configuration from google-services.json and GoogleService-Info.plist
@@ -24,6 +25,7 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 // Initialize Analytics with a check for web platform support
 let analytics: any = null;
+let messaging: any = null;
 
 // Function to initialize analytics
 export const initializeAnalytics = async () => {
@@ -34,13 +36,68 @@ export const initializeAnalytics = async () => {
       console.log("Firebase Analytics initialized successfully");
       return analytics;
     } else {
-      console.log("Firebase Analytics is not supported in this environment");
+      console.log('Firebase Analytics is not supported in this environment');
       return null;
     }
   } catch (error) {
-    console.error("Error initializing Firebase Analytics:", error);
+    console.error('Error initializing Firebase Analytics:', error);
     return null;
   }
+};
+
+// Function to initialize messaging
+export const initializeMessaging = async () => {
+  try {
+    // Check if messaging is supported
+    if (await isMessagingSupported()) {
+      messaging = getMessaging(app);
+      console.log('Firebase Messaging initialized successfully');
+      return messaging;
+    } else {
+      console.log('Firebase Messaging is not supported in this environment');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error initializing Firebase Messaging:', error);
+    return null;
+  }
+};
+
+// Function to get FCM token
+export const getFCMToken = async () => {
+  try {
+    if (!messaging) {
+      messaging = await initializeMessaging();
+    }
+    
+    if (!messaging) {
+      console.log('Messaging not available');
+      return null;
+    }
+
+    const token = await getToken(messaging, {
+      vapidKey: 'YOUR_VAPID_KEY' // Replace with your VAPID key
+    });
+    
+    console.log('FCM Token:', token);
+    return token;
+  } catch (error) {
+    console.error('Error getting FCM token:', error);
+    return null;
+  }
+};
+
+// Function to handle foreground messages
+export const onForegroundMessage = (callback: (payload: any) => void) => {
+  if (!messaging) {
+    console.log('Messaging not available for foreground messages');
+    return () => {};
+  }
+
+  return onMessage(messaging, (payload) => {
+    console.log('Foreground message received:', payload);
+    callback(payload);
+  });
 };
 
 // Function to log events safely
@@ -65,4 +122,4 @@ export const logAnalyticsEvent = async (
 };
 
 // Export the Firebase app for use in other modules
-export { app };
+export { app, messaging };

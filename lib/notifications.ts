@@ -346,7 +346,7 @@ export function setupNotificationListeners(): void {
     messaging().setBackgroundMessageHandler(handleFCMMessage);
 
     // Handle notification when app is opened from a notification
-    messaging().onNotificationOpenedApp(async (remoteMessage) => {
+    messaging().onNotificationOpenedApp(async (remoteMessage: any) => {
       try {
         console.log("🔔 App opened from notification:", remoteMessage);
         await logAnalyticsEvent("notification_opened_app", {
@@ -363,7 +363,7 @@ export function setupNotificationListeners(): void {
     // Check if app was opened from a notification when it was completely closed
     messaging()
       .getInitialNotification()
-      .then(async (remoteMessage) => {
+      .then(async (remoteMessage: any) => {
         if (remoteMessage) {
           try {
             console.log(
@@ -383,7 +383,7 @@ export function setupNotificationListeners(): void {
       });
 
     // Listen for notification actions and main notification press
-    notifee.onForegroundEvent(async ({ type, detail }) => {
+    notifee.onForegroundEvent(async ({ type, detail }: { type: any; detail: any }) => {
       if (type === EventType.ACTION_PRESS) {
         await handleNotificationAction(detail);
       } else if (type === EventType.PRESS) {
@@ -404,7 +404,7 @@ export function setupNotificationListeners(): void {
     });
 
     // Handle notification actions and main notification press when app is killed
-    notifee.onBackgroundEvent(async ({ type, detail }) => {
+    notifee.onBackgroundEvent(async ({ type, detail }: { type: any; detail: any }) => {
       if (type === EventType.ACTION_PRESS) {
         await handleNotificationAction(detail);
       } else if (type === EventType.PRESS) {
@@ -428,7 +428,7 @@ export function setupNotificationListeners(): void {
     });
 
     // Listen for token refresh
-    messaging().onTokenRefresh(async (token) => {
+    messaging().onTokenRefresh(async (token: string) => {
       console.log("🔄 FCM Token refreshed:", token.substring(0, 20) + "...");
       await AsyncStorage.setItem(STORAGE_KEYS.FCM_TOKEN, token);
       await storeFCMTokenInSupabase(token);
@@ -508,4 +508,4 @@ export async function getStoredFCMToken(): Promise<string | null> {
     console.error("❌ Error getting stored FCM token:", error);
     return null;
   }
-}
+} 

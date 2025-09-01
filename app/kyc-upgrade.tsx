@@ -11,9 +11,10 @@ import FloatingButton from '@/components/FloatingButton';
 import { useAuth } from '@/contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
 import { useWindowDimensions } from 'react-native';
-import axios from 'axios';
-
-type KYCStep = 'personal' | 'bvn_verification' | 'id_face_match' | 'address_details' | 'review';
+import LocationSearchModal from '@/components/LocationSearchModal';
+import { useKYCData } from '@/hooks/useKYCData';
+import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
+import { supabase } from '@/lib/supabase';
 type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
 
 export default function KYCUpgradeScreen() {
@@ -24,6 +25,10 @@ export default function KYCUpgradeScreen() {
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
+  
+  // Custom hooks for KYC data and progress
+  const { formData, loading: formDataLoading, saveFormData } = useKYCData();
+  const { progress, loading: progressLoading, updateProgress, getStepProgress } = useKYCProgress();
   
   // Step management
   const [currentStep, setCurrentStep] = useState<KYCStep>('personal');
@@ -55,9 +60,16 @@ export default function KYCUpgradeScreen() {
   const [address, setAddress] = useState('');
   
   // Address details
+  const [houseUrl, setHouseUrl] = useState<string | null>(null);
   const [lga, setLga] = useState('');
   const [state, setState] = useState('');
   const [utilityBill, setUtilityBill] = useState<string | null>(null);
+  
+  // Location search
+  const [showLocationSearch, setShowLocationSearch] = useState(false);
+  const [addressLat, setAddressLat] = useState('');
+  const [addressLon, setAddressLon] = useState('');
+  const [addressPlaceId, setAddressPlaceId] = useState('');
   
   // Identity information
   const [bvn, setBvn] = useState('');
@@ -74,6 +86,9 @@ export default function KYCUpgradeScreen() {
   // Form validation
   const [errors, setErrors] = useState<Record<string, string>>({});
   
+  // Flag to prevent automatic toasts during manual verification
+  const [isManualVerification, setIsManualVerification] = useState(false);
+  
   // Refs for auto-focus
   const lastNameInputRef = useRef<TextInput>(null);
   const middleNameInputRef = useRef<TextInput>(null);
@@ -81,7 +96,10 @@ export default function KYCUpgradeScreen() {
   const phoneInputRef = useRef<TextInput>(null);
   const addressInputRef = useRef<TextInput>(null);
   
-  // Pre-fill form with user data if available
+  // Add back the house number state
+  const [addressNo, setAddressNo] = useState('');
+  
+  // Pre-fill form with user data if available and load form data
   useEffect(() => {
     if (session?.user?.user_metadata) {
       const { first_name, last_name, phone } = session.user.user_metadata;
@@ -89,89 +107,83 @@ export default function KYCUpgradeScreen() {
       if (last_name) setLastName(last_name);
       if (phone) setPhoneNumber(phone);
     }
-    
-    // Fetch current verification status
-    fetchVerificationStatus();
   }, [session]);
-  
-  const fetchVerificationStatus = async () => {
-    try {
-      setIsLoading(true);
-      
-      if (!session?.access_token) {
-        console.error('No access token available');
-        showToast('Authentication required', 'error');
-        return;
-      }
 
-      // Fetch KYC progress from database instead of calling Dojah API
-      const response = await axios.get('/api/kyc-progress', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 10000
-      });
+  // Load form data and progress when they change
+  useEffect(() => {
+    if (formData) {
+      // Load personal information
+      if (formData.first_name) setFirstName(formData.first_name);
+      if (formData.last_name) setLastName(formData.last_name);
+      if (formData.middle_name) setMiddleName(formData.middle_name);
+      if (formData.date_of_birth) setDateOfBirth(formData.date_of_birth);
+      if (formData.phone_number) setPhoneNumber(formData.phone_number);
+      if (formData.address) setAddress(formData.address);
+      if (formData.house_url) setHouseUrl(formData.house_url);
+      if (formData.address_lat) setAddressLat(formData.address_lat);
+      if (formData.address_lon) setAddressLon(formData.address_lon);
+      if (formData.address_place_id) setAddressPlaceId(formData.address_place_id);
       
-      console.log('KYC Progress response:', response.data);
+      // Load identity information
+      if (formData.bvn) setBvn(formData.bvn);
+      if (formData.nin) setNin(formData.nin);
       
-      const data = response.data;
-      
-      if (data.status === 'success' && data.progress) {
-        const progress = data.progress;
-        
-        // Set the current step based on database progress
-        setCurrentStep(progress.current_step);
-        
-        // Set verification flags based on database
-        setBvnVerified(progress.bvn_verified);
-        setDocumentsVerified(progress.documents_verified);
-        
-        // Set verification status
-        if (progress.overall_completed) {
-          setVerificationStatus('fully_verified');
-          showToast('Your account is already fully verified', 'success');
-        } else if (progress.bvn_verified && progress.documents_verified) {
-          setVerificationStatus('partially_verified');
-          showToast('Your identity is verified. Please complete address details', 'info');
-        } else if (progress.bvn_verified) {
-          setVerificationStatus('partially_verified');
-          showToast('Your BVN is verified. Please complete document verification', 'info');
-        } else {
-          setVerificationStatus('unverified');
+      // Load document information based on document_type
+      if (formData.document_type) {
+        setSelectedIdentityType(formData.document_type as IdentityType);
+        if (formData.document_number) {
+          switch (formData.document_type) {
+            case 'nin':
+              setNin(formData.document_number);
+              break;
+            case 'passport':
+              setPassportNumber(formData.document_number);
+              break;
+            case 'drivers_license':
+              setDriversLicense(formData.document_number);
+              break;
+          }
         }
-        
-        console.log('Resumed KYC from step:', progress.current_step);
-        console.log('Progress percentage:', progress.progressPercentage + '%');
-        
-      } else {
-        console.error('Failed to fetch KYC progress:', data.error);
-        showToast('Failed to load KYC progress', 'error');
       }
       
-    } catch (error) {
-      console.error('Error fetching KYC progress:', error);
+      // Load document images
+      if (formData.document_front_url) setDocumentFrontImage(formData.document_front_url);
+      if (formData.document_back_url) setDocumentBackImage(formData.document_back_url);
+      if (formData.selfie_url) setSelfieImage(formData.selfie_url);
       
-      if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-        
-        if (status === 401) {
-          showToast('Authentication required. Please log in again.', 'error');
-        } else if (status === 400) {
-          const errorMessage = error.response?.data?.error || 'Invalid request';
-          showToast(errorMessage, 'error');
-        } else if (status && status >= 500) {
-          showToast('Service temporarily unavailable. Please try again later.', 'error');
-        } else {
-          showToast(error.response?.data?.error || 'Failed to fetch KYC progress', 'error');
-        }
-      } else {
-        showToast('Network error. Please check your connection and try again.', 'error');
-      }
-    } finally {
-      setIsLoading(false);
+      // Load address details
+      if (formData.lga) setLga(formData.lga);
+      if (formData.state) setState(formData.state);
+      if (formData.utility_bill_url) setUtilityBill(formData.utility_bill_url);
+      
+      // Add back the house number state
+      if (formData.address_no) setAddressNo(formData.address_no);
     }
-  };
+  }, [formData]);
+
+  // Update current step when progress changes
+  useEffect(() => {
+    if (progress) {
+      setCurrentStep(progress.current_step);
+      setBvnVerified(progress.bvn_verified);
+      setDocumentsVerified(progress.documents_verified);
+      
+          // Set verification status without showing toasts on initial load
+      if (progress.overall_completed) {
+        setVerificationStatus('fully_verified');
+        // Don't show toast on initial load - only show when user completes verification
+      } else if (progress.bvn_verified && progress.documents_verified) {
+        setVerificationStatus('partially_verified');
+        // showToast('Your identity is verified. Please complete address details', 'info');
+      } else if (progress.bvn_verified) {
+        setVerificationStatus('partially_verified');
+      } else {
+        setVerificationStatus('unverified');
+      }
+    }
+  }, [progress, showToast, isManualVerification]);
+  
+
   
   const validatePersonalInfo = () => {
     const newErrors: Record<string, string> = {};
@@ -268,6 +280,7 @@ export default function KYCUpgradeScreen() {
     if (!address.trim()) newErrors.address = 'Address is required';
     if (!lga.trim()) newErrors.lga = 'Local Government Area is required';
     if (!state.trim()) newErrors.state = 'State is required';
+    if (!houseUrl) newErrors.houseUrl = 'House photo is required';
     
     setErrors(newErrors);
     
@@ -280,75 +293,154 @@ export default function KYCUpgradeScreen() {
     return true;
   };
   
-  const updateKYCProgress = async (updates: {
-    currentStep?: KYCStep;
-    personalInfoCompleted?: boolean;
-    bvnVerified?: boolean;
-    documentsVerified?: boolean;
-    addressCompleted?: boolean;
-    overallCompleted?: boolean;
-  }) => {
-    try {
-      if (!session?.access_token) return;
 
-      await axios.post('/api/kyc-progress', updates, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-    } catch (error) {
-      console.error('Error updating KYC progress:', error);
-      // Don't show error to user as this is background sync
-    }
-  };
 
   const handleNextStep = async () => {
-    switch (currentStep) {
-      case 'personal':
-        if (validatePersonalInfo()) {
-          // Update progress when personal info is completed
-          await updateKYCProgress({
-            currentStep: 'bvn_verification',
-            personalInfoCompleted: true
-          });
-          setCurrentStep('bvn_verification');
-        }
-        break;
-      case 'bvn_verification':
-        if (validateBvnVerification()) {
-          // Verify BVN with Dojah
-          await verifyBvn();
-        }
-        break;
-      case 'id_face_match':
-        if (validateIdFaceMatch()) {
-          // Verify documents with Dojah
-          await verifyDocuments();
-        }
-        break;
-      case 'address_details':
-        if (validateAddressDetails()) {
-          // Update progress when address is completed
-          await updateKYCProgress({
-            currentStep: 'review',
-            addressCompleted: true
-          });
-          setCurrentStep('review');
-        }
-        break;
-      case 'review':
-        await handleSubmit();
-        break;
+    try {
+      switch (currentStep) {
+        case 'personal':
+          if (validatePersonalInfo()) {
+            setIsLoading(true);
+            
+            // Save personal info data
+            const saveResult = await saveFormData({
+              first_name: firstName,
+              last_name: lastName,
+              middle_name: middleName,
+              date_of_birth: dateOfBirth,
+              phone_number: phoneNumber,
+              address: address,
+              house_url: houseUrl || undefined,
+              address_lat: addressLat,
+              address_lon: addressLon,
+              address_place_id: addressPlaceId
+            });
+            
+            if (!saveResult) {
+              showToast('Failed to save personal information. Please try again.', 'error');
+              return;
+            }
+            
+            // Update progress when personal info is completed
+            const progressResult = await updateProgress({
+              current_step: 'bvn_verification',
+              personal_info_completed: true
+            });
+            
+            if (!progressResult) {
+              showToast('Failed to update progress. Please try again.', 'error');
+              return;
+            }
+            
+            // Wait for toast to be visible before moving to next step
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            setCurrentStep('bvn_verification');
+            setTimeout(() => {
+              setIsManualVerification(false);
+            }, 1000);
+          }
+          break;
+        case 'bvn_verification':
+          if (validateBvnVerification()) {
+            setIsLoading(true);
+            
+            // Save BVN data
+            const saveResult = await saveFormData({
+              bvn: bvn
+            });
+            
+            if (!saveResult) {
+              showToast('Failed to save BVN data. Please try again.', 'error');
+              return;
+            }
+            
+            // Verify BVN with Dojah
+            await verifyBvn();
+          }
+          break;
+        case 'id_face_match':
+          if (validateIdFaceMatch()) {
+            setIsLoading(true);
+            
+            // Save identity and document data
+            const saveResult = await saveFormData({
+              nin: nin,
+              document_type: selectedIdentityType,
+              document_number: selectedIdentityType === 'nin' ? nin : 
+                             selectedIdentityType === 'passport' ? passportNumber : 
+                             selectedIdentityType === 'drivers_license' ? driversLicense : '',
+              document_front_url: documentFrontImage || undefined,
+              document_back_url: documentBackImage || undefined,
+              selfie_url: selfieImage || undefined
+            });
+            
+            if (!saveResult) {
+              showToast('Failed to save document data. Please try again.', 'error');
+              return;
+            }
+            
+            // Verify documents with Dojah
+            await verifyDocuments();
+          }
+          break;
+        case 'address_details':
+          if (validateAddressDetails()) {
+            setIsLoading(true);
+            
+            // Save address details data
+            const saveResult = await saveFormData({
+              address_no: addressNo,
+              lga: lga,
+              state: state,
+              house_url: houseUrl || undefined,
+              utility_bill_url: utilityBill || undefined
+            });
+            
+            if (!saveResult) {
+              showToast('Failed to save address details. Please try again.', 'error');
+              return;
+            }
+            
+            // Update progress when address is completed
+            const progressResult = await updateProgress({
+              current_step: 'review',
+              address_completed: true
+            });
+            
+            if (!progressResult) {
+              showToast('Failed to update progress. Please try again.', 'error');
+              return;
+            }
+            
+            // Wait for toast to be visible before moving to next step
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            setCurrentStep('review');
+            setTimeout(() => {
+              setIsManualVerification(false);
+            }, 1000);
+          }
+          break;
+        case 'review':
+          await handleSubmit();
+          break;
+      }
+    } catch (error) {
+      console.error('Error in handleNextStep:', error);
+      showToast('An error occurred. Please try again.', 'error');
+    } finally {
+      setIsLoading(false);
     }
   };
   
   const verifyBvn = async () => {
     try {
+      setIsManualVerification(true);
       setIsResolvingBvn(true);
       setErrors({});
       
-      if (!session?.access_token) {
+      if (!session?.user?.id) {
         throw new Error('Authentication required');
       }
 
@@ -362,181 +454,616 @@ export default function KYCUpgradeScreen() {
         return;
       }
       
-      const response = await axios.get('https://api.dojah.io/api/v1/kyc/bvn/advance?bvn=' + bvn, {
+      // Make actual Dojah API call
+      const response = await fetch(`https://api.dojah.io/api/v1/kyc/bvn/advance?bvn=${bvn}`, {
+        method: 'GET',
         headers: {
           'AppId': appId,
           'Authorization': privateKey,
           'Content-Type': 'application/json'
-        },
-        timeout: 15000
+        }
       });
       
-      console.log('BVN verification response:', response.data);
+      if (!response.ok) {
+        throw new Error(`BVN verification failed: ${response.status} ${response.statusText}`);
+      }
       
-      const data = response.data;
-
-      console.log('BVN verification data:', data);
+      const data = await response.json();
+      console.log('BVN verification response:', data);
       
-      // Check if verification was successful
-      if (data.status === 'success' || data) {
+      if (!data.entity) {
+        throw new Error('Invalid BVN or no data returned');
+      }
+      
+      const bvnData = data.entity;
+      
+      // Smart name matching function
+      const normalizeName = (name: string) => {
+        return name.toLowerCase().trim().replace(/\s+/g, ' ');
+      };
+      
+      const isNameMatch = (name1: string, name2: string) => {
+        const normalized1 = normalizeName(name1);
+        const normalized2 = normalizeName(name2);
+        
+        // Exact match
+        if (normalized1 === normalized2) return true;
+        
+        // Check if one name contains the other (for partial matches)
+        if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) return true;
+        
+        // Check for common misspellings or variations
+        const similarity = calculateSimilarity(normalized1, normalized2);
+        return similarity >= 0.7; // 70% similarity threshold
+      };
+      
+      // Simple similarity calculation (Levenshtein distance based)
+      const calculateSimilarity = (str1: string, str2: string) => {
+        const longer = str1.length > str2.length ? str1 : str2;
+        const shorter = str1.length > str2.length ? str2 : str1;
+        
+        if (longer.length === 0) return 1.0;
+        
+        const distance = levenshteinDistance(longer, shorter);
+        return (longer.length - distance) / longer.length;
+      };
+      
+      const levenshteinDistance = (str1: string, str2: string) => {
+        const matrix = [];
+        for (let i = 0; i <= str2.length; i++) {
+          matrix[i] = [i];
+        }
+        for (let j = 0; j <= str1.length; j++) {
+          matrix[0][j] = j;
+        }
+        for (let i = 1; i <= str2.length; i++) {
+          for (let j = 1; j <= str1.length; j++) {
+            if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+              matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+              matrix[i][j] = Math.min(
+                matrix[i - 1][j - 1] + 1,
+                matrix[i][j - 1] + 1,
+                matrix[i - 1][j] + 1
+              );
+            }
+          }
+        }
+        return matrix[str2.length][str1.length];
+      };
+      
+      // Get names from BVN data
+      const bvnFirstName = bvnData.first_name || '';
+      const bvnLastName = bvnData.last_name || '';
+      const bvnMiddleName = bvnData.middle_name || '';
+      
+      // Get names from user's saved data
+      const userFirstName = firstName || '';
+      const userLastName = lastName || '';
+      const userMiddleName = middleName || '';
+      
+      console.log('Name comparison:', {
+        bvn: { firstName: bvnFirstName, lastName: bvnLastName, middleName: bvnMiddleName },
+        user: { firstName: userFirstName, lastName: lastName, middleName: userMiddleName }
+      });
+      
+      // Check if any name matches (considering possible swaps)
+      const allBvnNames = [bvnFirstName, bvnLastName, bvnMiddleName].filter(Boolean);
+      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
+      
+      let nameMatches = 0;
+      let totalNames = Math.max(allBvnNames.length, allUserNames.length);
+      
+      // Check for matches (including swapped positions)
+      for (const bvnName of allBvnNames) {
+        for (const userName of allUserNames) {
+          if (isNameMatch(bvnName, userName)) {
+            nameMatches++;
+            break;
+          }
+        }
+      }
+      
+      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
+      console.log(`Name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
+      
+      // Consider it a match if at least 60% of names match
+      if (matchPercentage >= 60) {
         setBvnVerified(true);
         
-        // Extract name from the verification result
-        const verificationData = data;
-        console.log('Verification data structure:', verificationData);
+        // Create a display name from BVN data
+        const displayName = [bvnFirstName, bvnMiddleName, bvnLastName]
+          .filter(Boolean)
+          .join(' ');
         
-        // Try different possible field names for the name
-        let firstName = verificationData.firstName || verificationData.first_name || verificationData.firstname;
-        let lastName = verificationData.lastName || verificationData.last_name || verificationData.lastname;
+        setBvnMatchedName(displayName);
+        // Show success toast after verification completes
+        showToast(`BVN verified! Name: ${displayName}`, 'success');
         
-        console.log('Extracted names:', { firstName, lastName });
+        // Update progress
+        const progressResult = await updateProgress({
+          current_step: 'id_face_match',
+          bvn_verified: true
+        });
         
-        if (firstName && lastName) {
-          setBvnMatchedName(`${firstName} ${lastName}`);
-          showToast('BVN matched! Let\'s continue.', 'success');
-        } else {
-          setBvnMatchedName('Verified');
-          showToast('BVN verified successfully', 'success');
+        if (!progressResult) {
+          showToast('Failed to update progress. Please try again.', 'error');
+          return;
         }
         
-        // Update progress and move to next step
-        await updateKYCProgress({
-          currentStep: 'id_face_match',
-          bvnVerified: true
-        });
+        // Wait for toast to be visible before moving to next step
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
         setCurrentStep('id_face_match');
+        setTimeout(() => {
+          setIsManualVerification(false);
+        }, 1000);
       } else {
-        throw new Error(data.error || 'BVN verification failed');
+        throw new Error('Name mismatch detected. Please verify your personal information.');
       }
+      
     } catch (error) {
       console.error('BVN verification error:', error);
-      
-      if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-        const errorMessage = error.response?.data?.error || 'BVN verification failed';
-        
-        if (status === 401) {
-          showToast('Invalid API credentials. Please check configuration.', 'error');
-        } else if (status === 400) {
-          showToast(errorMessage, 'error');
-        } else if (status && status >= 500) {
-          showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
-        } else {
-          showToast(errorMessage, 'error');
-        }
-        
-        setErrors({ bvn: errorMessage });
-      } else {
-        const errorMessage = error instanceof Error ? error.message : 'BVN verification failed';
-        showToast(errorMessage, 'error');
-        setErrors({ bvn: errorMessage });
-      }
+      const errorMessage = error instanceof Error ? error.message : 'BVN verification failed';
+      showToast(errorMessage, 'error');
+      setErrors({ bvn: errorMessage });
+      // Reset manual verification flag on error
+      setIsManualVerification(false);
     } finally {
       setIsResolvingBvn(false);
     }
   };
   
+  // Image validation function
+  const validateImage = (imageUri: string): { isValid: boolean; error?: string } => {
+    // Check if it's a valid image format
+    if (!imageUri.startsWith('data:image/')) {
+      return { isValid: false, error: 'Invalid image format. Please select a valid image.' };
+    }
+    
+    // Check file size (5MB limit)
+    const base64Data = imageUri.split(',')[1];
+    const sizeInBytes = (base64Data.length * 3) / 4; // Approximate size calculation
+    const sizeInMB = sizeInBytes / (1024 * 1024);
+    
+    if (sizeInMB > 5) {
+      return { isValid: false, error: 'Image size must be less than 5MB. Please select a smaller image.' };
+    }
+    
+    return { isValid: true };
+  };
+
+
+
+  // Smart name matching function (same as BVN verification)
+  const isNameMatch = (name1: string, name2: string) => {
+    const normalizeName = (name: string) => {
+      return name.toLowerCase().trim().replace(/\s+/g, ' ');
+    };
+    
+    const normalized1 = normalizeName(name1);
+    const normalized2 = normalizeName(name2);
+    
+    // Exact match
+    if (normalized1 === normalized2) return true;
+    
+    // Check if one name contains the other (for partial matches)
+    if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) return true;
+    
+    // Check for common misspellings or variations
+    const similarity = calculateSimilarity(normalized1, normalized2);
+    return similarity >= 0.7; // 70% similarity threshold
+  };
+  
+  const calculateSimilarity = (str1: string, str2: string) => {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+    
+    if (longer.length === 0) return 1.0;
+    
+    const distance = levenshteinDistance(longer, shorter);
+    return (longer.length - distance) / longer.length;
+  };
+  
+  const levenshteinDistance = (str1: string, str2: string) => {
+    const matrix = [];
+    for (let i = 0; i <= str2.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= str1.length; j++) {
+      matrix[0][j] = j;
+    }
+    for (let i = 1; i <= str2.length; i++) {
+      for (let j = 1; j <= str1.length; j++) {
+        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+    return matrix[str2.length][str1.length];
+  };
+
   const verifyDocuments = async () => {
     try {
+      setIsManualVerification(true);
       setIsVerifyingDocuments(true);
       setErrors({});
       
-      if (!session?.access_token) {
+      if (!session?.user?.id) {
         throw new Error('Authentication required');
       }
 
       // Check if environment variables are available
-      const appId = process.env.DOJAH_APP_ID;
-      const privateKey = process.env.DOJAH_PRIVATE_KEY;
+      const appId = process.env.EXPO_PUBLIC_DOJAH_APP_ID!;
+      const privateKey = process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!;
       
       if (!appId || !privateKey) {
         console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
         showToast('KYC service configuration error', 'error');
         return;
       }
+
+      // Validate required images
+      if (!documentFrontImage) {
+        throw new Error('Front of document is required');
+      }
       
-      // In a real app, you would upload the images to a storage service
-      // and then send the URLs to the Dojah API
+      if (!selfieImage) {
+        throw new Error('Selfie is required');
+      }
+
+      // Validate image formats and sizes
+      const frontImageValidation = validateImage(documentFrontImage);
+      if (!frontImageValidation.isValid) {
+        throw new Error(frontImageValidation.error);
+      }
+
+      const selfieValidation = validateImage(selfieImage);
+      if (!selfieValidation.isValid) {
+        throw new Error(selfieValidation.error);
+      }
+
+      if (documentBackImage) {
+        const backImageValidation = validateImage(documentBackImage);
+        if (!backImageValidation.isValid) {
+          throw new Error(backImageValidation.error);
+        }
+      }
+
+      // Verify based on document type first (before saving anything)
+      if (selectedIdentityType === 'drivers_license') {
+        await verifyDriversLicense(appId, privateKey);
+      } else if (selectedIdentityType === 'nin') {
+        await verifyNIN(appId, privateKey);
+      } else {
+        throw new Error('Unsupported document type');
+      }
       
-      const response = await axios.put('https://api.dojah.io/api/v1/document/analysis', {
-        documentType: selectedIdentityType,
-        documentImage: documentFrontImage,
-        selfieImage
-      }, {
+    } catch (error) {
+      console.error('Document verification error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Document verification failed';
+      showToast(errorMessage, 'error');
+      setErrors({ documentVerification: errorMessage });
+      // Reset manual verification flag on error
+      setIsManualVerification(false);
+    } finally {
+      setIsVerifyingDocuments(false);
+    }
+  };
+
+  const verifyDriversLicense = async (appId: string, privateKey: string) => {
+    try {
+      if (!driversLicense.trim()) {
+        throw new Error('Driver\'s license number is required');
+      }
+
+      // Make Dojah API call for driver's license verification
+      const response = await fetch(`https://api.dojah.io/api/v1/kyc/dl?license_number=${driversLicense}`, {
+        method: 'GET',
+        headers: {
+          'AppId': appId,
+          'Authorization': privateKey,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Driver's license verification failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Driver\'s license verification response:', data);
+      
+      if (!data.entity) {
+        throw new Error('Invalid driver\'s license or no data returned');
+      }
+      
+      const dlData = data.entity;
+      
+      // Get names from driver's license data
+      const dlFirstName = dlData.firstName || '';
+      const dlLastName = dlData.lastName || '';
+      const dlMiddleName = dlData.middleName || '';
+      
+      // Get names from user's saved data
+      const userFirstName = firstName || '';
+      const userLastName = lastName || '';
+      const userMiddleName = middleName || '';
+      
+      console.log('Driver\'s license name comparison:', {
+        dl: { firstName: dlFirstName, lastName: dlLastName, middleName: dlMiddleName },
+        user: { firstName: userFirstName, lastName: userLastName, middleName: userMiddleName }
+      });
+      
+      // Check if any name matches (considering possible swaps)
+      const allDlNames = [dlFirstName, dlLastName, dlMiddleName].filter(Boolean);
+      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
+      
+      let nameMatches = 0;
+      let totalNames = Math.max(allDlNames.length, allUserNames.length);
+      
+      // Check for matches (including swapped positions)
+      for (const dlName of allDlNames) {
+        for (const userName of allUserNames) {
+          if (isNameMatch(dlName, userName)) {
+            nameMatches++;
+            break;
+          }
+        }
+      }
+      
+      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
+      console.log(`Driver's license name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
+      
+      // Consider it a match if at least 60% of names match
+      if (matchPercentage >= 60) {
+        // Only save data after successful verification
+        try {
+          await saveFormData({
+            document_type: 'drivers_license',
+            document_number: driversLicense,
+            document_front_url: documentFrontImage || undefined,
+            document_back_url: documentBackImage || undefined,
+            selfie_url: selfieImage || undefined
+          });
+          
+          console.log('Driver\'s license data saved successfully');
+        } catch (saveError) {
+          console.error('Error saving driver\'s license data:', saveError);
+          // Don't throw error if data might have been saved despite network issues
+          console.log('Continuing with verification process...');
+        }
+        
+        setDocumentsVerified(true);
+        
+        // Create a display name from DL data
+        const displayName = [dlFirstName, dlMiddleName, dlLastName]
+          .filter(Boolean)
+          .join(' ');
+        
+        // Show success toast after verification completes
+        showToast(`Driver's license verified! Name: ${displayName}`, 'success');
+        
+        // Update progress
+        const progressResult = await updateProgress({
+          current_step: 'address_details',
+          documents_verified: true
+        });
+        
+        if (!progressResult) {
+          showToast('Failed to update progress. Please try again.', 'error');
+          return;
+        }
+        
+        // Wait for toast to be visible before moving to next step
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        setCurrentStep('address_details');
+        setTimeout(() => {
+          setIsManualVerification(false);
+        }, 1000);
+      } else {
+        throw new Error('Name mismatch detected. Please verify your personal information.');
+      }
+      
+    } catch (error) {
+      console.error('Driver\'s license verification error:', error);
+      throw error;
+    }
+  };
+
+  const verifyNIN = async (appId: string, privateKey: string) => {
+    try {
+      if (!nin.trim()) {
+        throw new Error('NIN is required');
+      }
+
+      // Convert selfie image to base64 (remove data:image/jpeg;base64, prefix)
+      const selfieBase64 = selfieImage!.split(',')[1];
+
+      // Make Dojah API call for NIN verification
+      const response = await fetch('https://api.dojah.io/api/v1/kyc/nin/verify', {
+        method: 'POST',
         headers: {
           'AppId': appId,
           'Authorization': privateKey,
           'Content-Type': 'application/json'
         },
-        timeout: 15000 // Longer timeout for document processing
+        body: JSON.stringify({
+          nin: nin,
+          first_name: firstName,
+          last_name: lastName,
+          selfie_image: selfieBase64
+        })
       });
       
-      console.log('Document verification response:', response.data);
-      
-      const data = response.data;
-      
-      // Check if verification was successful
-      if (data.status === 'success') {
-        setDocumentsVerified(true);
-        showToast('Documents verified successfully', 'success');
-        
-        // Update progress and move to next step
-        await updateKYCProgress({
-          currentStep: 'address_details',
-          documentsVerified: true
-        });
-        setCurrentStep('address_details');
-      } else {
-        throw new Error(data.error || 'Document verification failed');
+      if (!response.ok) {
+        throw new Error(`NIN verification failed: ${response.status} ${response.statusText}`);
       }
-    } catch (error) {
-      console.error('Document verification error:', error);
       
-      if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-        const errorMessage = error.response?.data?.error || 'Document verification failed';
-        
-        if (status === 401) {
-          showToast('Invalid API credentials. Please check configuration.', 'error');
-        } else if (status === 400) {
-          showToast(errorMessage, 'error');
-        } else if (status && status >= 500) {
-          showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
-        } else {
-          showToast(errorMessage, 'error');
+      const data = await response.json();
+      console.log('NIN verification response:', data);
+      
+      if (!data.entity) {
+        throw new Error('Invalid NIN or no data returned');
+      }
+      
+      const ninData = data.entity;
+      
+      // Check selfie verification with confidence threshold
+      const selfieVerification = ninData.selfie_verification;
+      if (!selfieVerification) {
+        throw new Error('Selfie verification data not available. Please try again.');
+      }
+      
+      if (!selfieVerification.match) {
+        throw new Error('Selfie verification failed. Please ensure the selfie matches your NIN photo.');
+      }
+      
+      if (selfieVerification.confidence_value < 90) {
+        throw new Error(`Selfie confidence too low (${selfieVerification.confidence_value.toFixed(1)}%). Please take a clearer selfie.`);
+      }
+      
+      console.log(`Selfie verification passed: ${selfieVerification.confidence_value.toFixed(1)}% confidence`);
+      
+      // Get names from NIN data
+      const ninFirstName = ninData.first_name || '';
+      const ninLastName = ninData.last_name || '';
+      const ninMiddleName = ninData.middle_name || '';
+      
+      // Get names from user's saved data
+      const userFirstName = firstName || '';
+      const userLastName = lastName || '';
+      const userMiddleName = middleName || '';
+      
+      console.log('NIN name comparison:', {
+        nin: { firstName: ninFirstName, lastName: ninLastName, middleName: ninMiddleName },
+        user: { firstName: userFirstName, lastName: userLastName, middleName: userMiddleName }
+      });
+      
+      // Check if any name matches (considering possible swaps)
+      const allNinNames = [ninFirstName, ninLastName, ninMiddleName].filter(Boolean);
+      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
+      
+      let nameMatches = 0;
+      let totalNames = Math.max(allNinNames.length, allUserNames.length);
+      
+      // Check for matches (including swapped positions)
+      for (const ninName of allNinNames) {
+        for (const userName of allUserNames) {
+          if (isNameMatch(ninName, userName)) {
+            nameMatches++;
+            break;
+          }
+        }
+      }
+      
+      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
+      console.log(`NIN name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
+      
+      // Consider it a match if at least 60% of names match
+      if (matchPercentage >= 60) {
+        // Only save data after successful verification
+        try {
+          await saveFormData({
+            document_type: 'nin',
+            document_number: nin,
+            document_front_url: documentFrontImage || undefined,
+            selfie_url: selfieImage || undefined
+          });
+          
+          console.log('NIN data saved successfully');
+        } catch (saveError) {
+          console.error('Error saving NIN data:', saveError);
+          // Don't throw error if data might have been saved despite network issues
+          console.log('Continuing with verification process...');
         }
         
-        setErrors({ documentVerification: errorMessage });
+        setDocumentsVerified(true);
+        
+        // Create a display name from NIN data
+        const displayName = [ninFirstName, ninMiddleName, ninLastName]
+          .filter(Boolean)
+          .join(' ');
+        
+        // Show success toast after verification completes
+        showToast(`NIN verified! Name: ${displayName} (${selfieVerification.confidence_value.toFixed(1)}% confidence)`, 'success');
+        
+        // Update progress
+        const progressResult = await updateProgress({
+          current_step: 'address_details',
+          documents_verified: true
+        });
+        
+        if (!progressResult) {
+          showToast('Failed to update progress. Please try again.', 'error');
+          return;
+        }
+        
+        // Wait for toast to be visible before moving to next step
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        setCurrentStep('address_details');
+        setTimeout(() => {
+          setIsManualVerification(false);
+        }, 1000);
       } else {
-        const errorMessage = error instanceof Error ? error.message : 'Document verification failed';
-        showToast(errorMessage, 'error');
-        setErrors({ documentVerification: errorMessage });
+        throw new Error('Name mismatch detected. Please verify your personal information.');
       }
-    } finally {
-      setIsVerifyingDocuments(false);
+      
+    } catch (error) {
+      console.error('NIN verification error:', error);
+      throw error;
     }
   };
   
-  const handlePreviousStep = () => {
-    switch (currentStep) {
-      case 'bvn_verification':
-        updateKYCProgress({ currentStep: 'personal' });
-        setCurrentStep('personal');
-        break;
-      case 'id_face_match':
-        updateKYCProgress({ currentStep: 'bvn_verification' });
-        setCurrentStep('bvn_verification');
-        break;
-      case 'address_details':
-        updateKYCProgress({ currentStep: 'id_face_match' });
-        setCurrentStep('id_face_match');
-        break;
-      case 'review':
-        updateKYCProgress({ currentStep: 'address_details' });
-        setCurrentStep('address_details');
-        break;
-      default:
-        router.back();
+  const handlePreviousStep = async () => {
+    try {
+      switch (currentStep) {
+        case 'bvn_verification':
+          await updateProgress({ current_step: 'personal' });
+          setCurrentStep('personal');
+          break;
+        case 'id_face_match':
+          await updateProgress({ current_step: 'bvn_verification' });
+          setCurrentStep('bvn_verification');
+          break;
+        case 'address_details':
+          await updateProgress({ current_step: 'id_face_match' });
+          setCurrentStep('id_face_match');
+          break;
+        case 'review':
+          await updateProgress({ current_step: 'address_details' });
+          setCurrentStep('address_details');
+          break;
+        default:
+          router.back();
+      }
+    } catch (error) {
+      console.error('Error in handlePreviousStep:', error);
+      // Still allow navigation even if progress update fails
+      switch (currentStep) {
+        case 'bvn_verification':
+          setCurrentStep('personal');
+          break;
+        case 'id_face_match':
+          setCurrentStep('bvn_verification');
+          break;
+        case 'address_details':
+          setCurrentStep('id_face_match');
+          break;
+        case 'review':
+          setCurrentStep('address_details');
+          break;
+        default:
+          router.back();
+      }
     }
   };
   
@@ -544,50 +1071,37 @@ export default function KYCUpgradeScreen() {
     setIsLoading(true);
     
     try {
-      if (!session?.access_token) {
+      if (!session?.user?.id) {
         throw new Error('Authentication required');
       }
       
-      // Fetch final verification status
-      const response = await axios.get('/api/dojah-kyc', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 10000
+      // Mark KYC as fully completed
+      const progressResult = await updateProgress({
+        overall_completed: true
       });
       
-      console.log('Final verification response:', response.data);
-      
-      const data = response.data;
-      
-      if (data.overallStatus === 'fully_verified') {
-        // Mark KYC as fully completed
-        await updateKYCProgress({
-          overallCompleted: true
-        });
+      if (progressResult) {
+        // Update account_verified to true in profiles table
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ account_verified: true })
+          .eq('id', session.user.id);
+        
+        if (profileError) {
+          console.error('Error updating profile:', profileError);
+          // Don't fail the entire process if profile update fails
+          console.log('Continuing with verification completion...');
+        }
+        
         showToast('Verification completed successfully!', 'success');
         router.replace('/(tabs)');
       } else {
-        showToast('Verification is still in progress. We will notify you once completed.', 'info');
-        router.replace('/(tabs)');
+        showToast('Failed to complete verification. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Final verification error:', error);
-      
-      if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-        
-        if (status === 401) {
-          showToast('Authentication required. Please log in again.', 'error');
-        } else if (status && status >= 500) {
-          showToast('KYC service is temporarily unavailable. Please try again later.', 'error');
-        } else {
-          showToast(error.response?.data?.error || 'Failed to complete verification. Please try again.', 'error');
-        }
-      } else {
-        showToast('Network error. Please check your connection and try again.', 'error');
-      }
+      const errorMessage = error instanceof Error ? error.message : 'Failed to complete verification';
+      showToast(errorMessage, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -658,6 +1172,75 @@ export default function KYCUpgradeScreen() {
     }
     setIsDatePickerVisible(false);
   };
+  
+  const handleLocationSelect = (location: any) => {
+    // Build a more detailed address with house number if available
+    let detailedAddress = location.display_name;
+    let houseNumber = '';
+    
+    if (location.address) {
+      const addressParts = [];
+      
+      // Extract house number if available
+      if (location.address.house_number) {
+        houseNumber = location.address.house_number;
+        addressParts.push(location.address.house_number);
+      }
+      
+      // Add road/street name
+      if (location.address.road) {
+        addressParts.push(location.address.road);
+      }
+      
+      // Add suburb/neighborhood
+      if (location.address.suburb) {
+        addressParts.push(location.address.suburb);
+      }
+      
+      // Add city
+      if (location.address.city) {
+        addressParts.push(location.address.city);
+      }
+      
+      // Add state
+      if (location.address.state) {
+        addressParts.push(location.address.state);
+      }
+      
+      // If we have address parts, use them; otherwise use display_name
+      if (addressParts.length > 0) {
+        detailedAddress = addressParts.join(', ');
+      }
+    }
+    
+    setAddress(detailedAddress);
+    // Note: houseUrl will be set by photo capture, not from location
+    setAddressLat(location.lat);
+    setAddressLon(location.lon);
+    setAddressPlaceId(location.place_id.toString());
+    
+    // Extract LGA and State from the location data
+    if (location.address) {
+      if (location.address.city) {
+        setLga(location.address.city);
+      }
+      if (location.address.state) {
+        setState(location.address.state);
+      }
+    }
+    
+    setErrors(prev => ({ ...prev, address: '' }));
+    
+    // Save the location data
+    saveFormData({
+      address: detailedAddress,
+      address_lat: location.lat,
+      address_lon: location.lon,
+      address_place_id: location.place_id.toString(),
+      lga: location.address?.city || '',
+      state: location.address?.state || ''
+    });
+  };
 
   const handlePrevMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
@@ -703,15 +1286,7 @@ export default function KYCUpgradeScreen() {
     setErrors(prev => ({ ...prev, dateOfBirth: '' }));
   };
   
-  const getStepProgress = () => {
-    switch (currentStep) {
-      case 'personal': return 20;
-      case 'bvn_verification': return 40;
-      case 'id_face_match': return 60;
-      case 'address_details': return 80;
-      case 'review': return 100;
-    }
-  };
+
   
   const getStepTitle = () => {
     switch (currentStep) {
@@ -897,13 +1472,34 @@ export default function KYCUpgradeScreen() {
         </View>
         
         <View style={styles.inputGroup}>
+          <Text style={styles.label}>House/Street Number</Text>
+          <View style={styles.inputContainer}>
+            <MapPin size={20} color={colors.textSecondary} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter house/street number"
+              placeholderTextColor={colors.textTertiary}
+              value={addressNo}
+              onChangeText={(text) => {
+                setAddressNo(text);
+                setErrors(prev => ({ ...prev, addressNo: '' }));
+              }}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+        
+        <View style={styles.inputGroup}>
           <Text style={styles.label}>Residential Address</Text>
-          <View style={[styles.inputContainer, errors.address && styles.inputError]}>
+          <Pressable 
+            style={[styles.inputContainer, errors.address && styles.inputError]}
+            onPress={() => setShowLocationSearch(true)}
+          >
             <MapPin size={20} color={colors.textSecondary} />
             <TextInput
               ref={addressInputRef}
               style={[styles.input, styles.multilineInput]}
-              placeholder="Enter your address"
+              placeholder="Tap to search for your address"
               placeholderTextColor={colors.textTertiary}
               value={address}
               onChangeText={(text) => {
@@ -913,9 +1509,16 @@ export default function KYCUpgradeScreen() {
               multiline
               numberOfLines={3}
               textAlignVertical="top"
+              editable={false}
             />
-          </View>
+            <ChevronRight size={20} color={colors.textTertiary} />
+          </Pressable>
           {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
+          {address && (
+            <Text style={styles.locationInfo}>
+              📍 Location selected from map
+            </Text>
+          )}
         </View>
         
         <View style={styles.infoContainer}>
@@ -937,7 +1540,6 @@ export default function KYCUpgradeScreen() {
         </Text>
         
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Bank Verification Number (BVN)</Text>
           <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
             <CreditCard size={20} color={colors.textSecondary} />
             <TextInput
@@ -1025,7 +1627,7 @@ export default function KYCUpgradeScreen() {
               ]}>NIN</Text>
             </Pressable>
             
-            <Pressable
+            {/* <Pressable
               style={[
                 styles.idOption,
                 selectedIdentityType === 'passport' && styles.selectedIdOption
@@ -1040,7 +1642,7 @@ export default function KYCUpgradeScreen() {
                 styles.idOptionText,
                 selectedIdentityType === 'passport' && styles.selectedIdOptionText
               ]}>Passport</Text>
-            </Pressable>
+            </Pressable> */}
             
             <Pressable
               style={[
@@ -1088,7 +1690,7 @@ export default function KYCUpgradeScreen() {
           </View>
         )}
         
-        {selectedIdentityType === 'passport' && (
+        {/* {selectedIdentityType === 'passport' && (
           <View style={styles.inputGroup}>
             <Text style={styles.label}>International Passport Number</Text>
             <View style={[styles.inputContainer, errors.passportNumber && styles.inputError]}>
@@ -1108,7 +1710,7 @@ export default function KYCUpgradeScreen() {
             </View>
             {errors.passportNumber && <Text style={styles.errorText}>{errors.passportNumber}</Text>}
           </View>
-        )}
+        )} */}
         
         {selectedIdentityType === 'drivers_license' && (
           <View style={styles.inputGroup}>
@@ -1318,12 +1920,33 @@ export default function KYCUpgradeScreen() {
         </Text>
         
         <View style={styles.inputGroup}>
+          <Text style={styles.label}>House/Street Number</Text>
+          <View style={styles.inputContainer}>
+            <MapPin size={20} color={colors.textSecondary} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter house/street number"
+              placeholderTextColor={colors.textTertiary}
+              value={addressNo}
+              onChangeText={(text) => {
+                setAddressNo(text);
+                setErrors(prev => ({ ...prev, addressNo: '' }));
+              }}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+        
+        <View style={styles.inputGroup}>
           <Text style={styles.label}>Residential Address</Text>
-          <View style={[styles.inputContainer, errors.address && styles.inputError]}>
+          <Pressable 
+            style={[styles.inputContainer, errors.address && styles.inputError]}
+            onPress={() => setShowLocationSearch(true)}
+          >
             <MapPin size={20} color={colors.textSecondary} />
             <TextInput
               style={[styles.input, styles.multilineInput]}
-              placeholder="Enter your address"
+              placeholder="Tap to search for your address"
               placeholderTextColor={colors.textTertiary}
               value={address}
               onChangeText={(text) => {
@@ -1333,9 +1956,16 @@ export default function KYCUpgradeScreen() {
               multiline
               numberOfLines={3}
               textAlignVertical="top"
+              editable={false}
             />
-          </View>
+            <ChevronRight size={20} color={colors.textTertiary} />
+          </Pressable>
           {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
+          {address && (
+            <Text style={styles.locationInfo}>
+              📍 Location selected from map
+            </Text>
+          )}
         </View>
         
         <View style={styles.inputGroup}>
@@ -1372,6 +2002,46 @@ export default function KYCUpgradeScreen() {
             />
           </View>
           {errors.state && <Text style={styles.errorText}>{errors.state}</Text>}
+        </View>
+        
+
+        
+        <View style={styles.documentCard}>
+          <View style={styles.documentHeader}>
+            <Text style={styles.documentName}>House Photo (Required)</Text>
+            <View style={[styles.documentStatus, styles.requiredStatus]}>
+              <Text style={styles.requiredStatusText}>Required</Text>
+            </View>
+          </View>
+          <Text style={styles.documentDescription}>
+            Take a photo of your house/building for address verification.
+          </Text>
+          {houseUrl ? (
+            <View style={styles.imagePreviewContainer}>
+              <Image 
+                source={{ uri: houseUrl }} 
+                style={styles.imagePreview} 
+                resizeMode="cover"
+              />
+              <Pressable 
+                style={styles.retakeButton}
+                onPress={() => setHouseUrl(null)}
+              >
+                <Text style={styles.retakeButtonText}>Remove</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.documentActions}>
+              <Pressable 
+                style={styles.documentButton}
+                onPress={() => takePicture(setHouseUrl, 'housePhoto')}
+              >
+                <Camera size={16} color={colors.primary} />
+                <Text style={styles.documentButtonText}>Take Photo</Text>
+              </Pressable>
+            </View>
+          )}
+          {errors.houseUrl && <Text style={styles.errorText}>{errors.houseUrl}</Text>}
         </View>
         
         <View style={styles.documentCard}>
@@ -1507,6 +2177,11 @@ export default function KYCUpgradeScreen() {
             <Text style={styles.reviewSectionTitle}>Address Information</Text>
             
             <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>House/Street Number</Text>
+              <Text style={styles.reviewValue}>{addressNo || 'Not provided'}</Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
               <Text style={styles.reviewLabel}>Residential Address</Text>
               <Text style={styles.reviewValue}>{address}</Text>
             </View>
@@ -1519,6 +2194,15 @@ export default function KYCUpgradeScreen() {
             <View style={styles.reviewItem}>
               <Text style={styles.reviewLabel}>State</Text>
               <Text style={styles.reviewValue}>{state}</Text>
+            </View>
+            
+
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>House Photo</Text>
+              <Text style={styles.reviewValue}>
+                {houseUrl ? 'Uploaded' : 'Not provided'}
+              </Text>
             </View>
             
             <View style={styles.reviewItem}>
@@ -1906,6 +2590,7 @@ export default function KYCUpgradeScreen() {
     optionalStatusText: {
       color: colors.textSecondary,
     },
+
     documentDescription: {
       fontSize: 14,
       color: colors.textSecondary,
@@ -2140,9 +2825,21 @@ export default function KYCUpgradeScreen() {
       fontWeight: '500',
       color: '#FFFFFF',
     },
+    locationInfo: {
+      fontSize: 12,
+      color: colors.success,
+      marginTop: 4,
+      fontStyle: 'italic',
+    },
+    requiredStatus: {
+      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7',
+    },
+    requiredStatusText: {
+      color: colors.warning,
+    },
   });
   
-  if (isLoading && !currentStep) {
+  if ((formDataLoading || progressLoading) && !currentStep) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
@@ -2162,9 +2859,9 @@ export default function KYCUpgradeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={handlePreviousStep} style={styles.backButton}>
+        {/* <Pressable onPress={handlePreviousStep} style={styles.backButton}>
           <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
-        </Pressable>
+        </Pressable> */}
         <Text style={styles.headerTitle}>Account Verification</Text>
       </View>
       
@@ -2184,15 +2881,24 @@ export default function KYCUpgradeScreen() {
         onPress={handleNextStep}
         disabled={
           isLoading || 
+          formDataLoading ||
+          progressLoading ||
           isResolvingBvn || 
           isVerifyingDocuments || 
           (currentStep === 'bvn_verification' && bvnVerified) ||
           (currentStep === 'id_face_match' && documentsVerified)
         }
-        loading={isLoading || isResolvingBvn || isVerifyingDocuments}
+        loading={isLoading || formDataLoading || progressLoading || isResolvingBvn || isVerifyingDocuments}
       />
       
       {renderDatePickerModal()}
+      
+      <LocationSearchModal
+        visible={showLocationSearch}
+        onClose={() => setShowLocationSearch(false)}
+        onSelectLocation={handleLocationSelect}
+        placeholder="Search for your address..."
+      />
     </SafeAreaView>
   );
 }

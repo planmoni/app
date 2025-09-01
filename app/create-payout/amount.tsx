@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-nativ
 import { router } from 'expo-router';
 import { ArrowLeft, Info, Plus } from 'lucide-react-native';
 import Button from '@/components/Button';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -13,16 +13,24 @@ import * as Haptics from 'expo-haptics';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
-   const { balance, lockedBalance, refreshWallet } = useBalance(); //the function to update the avialable balance
+  const { balance, lockedBalance } = useBalance();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
-  const availableBalance = balance - lockedBalance; //the avialable balance logic
+  const availableBalance = balance - lockedBalance;
+  const amountInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      amountInputRef.current?.focus();
+    }, 300); // Delay allows the UI to settle before focusing
+    return () => clearTimeout(timeout);
+  }, []);
 
   const handleContinue = () => {
     if (!amount) {
       setError('Please enter an amount');
-      haptics.notification(Haptics.NotificationFeedbackType.Error);lockedBalance
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
       return;
     }
 
@@ -114,6 +122,7 @@ export default function AmountScreen() {
           <View style={styles.amountContainer}>
             <Text style={styles.currencySymbol}>₦</Text>
             <TextInput
+              ref={amountInputRef}
               style={styles.amountInput}
               placeholder="0"
               placeholderTextColor={colors.textTertiary}
@@ -133,14 +142,6 @@ export default function AmountScreen() {
             </View>
           </View>
 
-          <View style={styles.notice}>
-            <View style={styles.noticeIcon}>
-              <Info size={20} color={colors.primary} />
-            </View>
-            <Text style={styles.noticeText}>
-              This amount will be secured in your vault and cannot be accessed until your scheduled payout dates.
-            </Text>
-          </View>
         </View>
       </KeyboardAvoidingWrapper>
 
@@ -202,7 +203,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 20,
   },
   scrollContent: {
-    paddingBottom: 100, // Extra padding to account for the floating button
+    paddingBottom: 100,
   },
   content: {
     padding: 20,

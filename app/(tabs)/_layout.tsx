@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings, Sparkles } from 'lucide-react-native'; //Do not change the Home to Chrome
 // import CustomAppLayout from '@/components/CustomAppLayout'; //Do not change the Home to Chrome
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Platform} from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEffect, useState, useRef } from 'react';
 import { supabase, getSupabaseConfigError } from '@/lib/supabase';
@@ -155,8 +155,8 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: 100,
-    paddingBottom: 20,
+    height: Platform.OS === 'ios' ? 85 : 95,
+    paddingBottom: 15,
     paddingTop: 8,
   },
   tabBarLabel: {

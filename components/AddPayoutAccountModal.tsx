@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Animated, Dimensions, Platform, Image } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Animated, Dimensions, Platform, Image, KeyboardAvoidingView } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { X, Check, TriangleAlert as AlertTriangle, ChevronDown } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -464,100 +464,113 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
           }} 
         />
         
-        <Animated.View 
-          style={[
-            styles.bankListModal,
-            { 
-              transform: [{ translateY: bankListSlideAnim }]
-            }
-          ]}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingContainer}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          <View style={styles.dragIndicator} />
-          
-          <View style={styles.bankListHeader}>
-            <Text style={styles.bankListTitle}>Select Bank</Text>
-            <Pressable 
-              style={styles.closeButton}
-              onPress={() => {
-                setShowBankSelector(false);
-                haptics.lightImpact();
-              }}
-            >
-              <X size={isSmallScreen ? 20 : 24} color={colors.text} />
-            </Pressable>
-          </View>
-          
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search banks..."
-              placeholderTextColor={colors.textTertiary}
-              value={bankSearchQuery}
-              onChangeText={setBankSearchQuery}
-              autoFocus
-            />
-          </View>
-          
-          <ScrollView style={styles.bankList} nestedScrollEnabled>
-            {banksLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={styles.loadingText}>Loading banks...</Text>
-              </View>
-            ) : (
-              filteredBanks.map((bank) => (
-                <Pressable
-                  key={bank.id}
-                  style={styles.bankOption}
-                  onPress={() => handleBankSelect(bank)}
-                >
-                  <View style={styles.bankOptionContent}>
-                    {bank.logoSvg ? (
-                      // Handle SVG components
-                      <View style={styles.bankOptionLogo}>
-                        {React.createElement(bank.logoSvg.default || bank.logoSvg, {
-                          width: 32,
-                          height: 32,
-                          fill: colors.textSecondary
-                        })}
-                      </View>
-                    ) : bank.logo ? (
-                      <Image
-                        source={bank.logo as any}
-                        style={styles.bankOptionLogo}
-                        resizeMode="contain"
-                      />
-                    ) : (
-                      <View style={styles.bankOptionIconContainer}>
-                        <Ionicons name="business" size={20} color={colors.textSecondary} />
-                      </View>
-                    )}
-                    <Text style={styles.bankOptionText}>{bank.name}</Text>
-                  </View>
-                  {selectedBank?.id === bank.id && (
-                    <Check size={20} color={colors.primary} />
-                  )}
-                </Pressable>
-              ))
-            )}
+          <Animated.View 
+            style={[
+              styles.bankListModal,
+              { 
+                transform: [{ translateY: bankListSlideAnim }]
+              }
+            ]}
+          >
+            <View style={styles.dragIndicator} />
             
-            {filteredBanks.length === 0 && !banksLoading && (
-              <View style={styles.noResultsContainer}>
-                <Text style={styles.noResultsText}>
-                  {banks.length === 0 
-                    ? 'No banks available. Please check your connection.' 
-                    : `No banks match "${bankSearchQuery}"`
-                  }
-                </Text>
-                {banks.length === 0 && (
-                  <Text style={[styles.noResultsText, { fontSize: 12, marginTop: 8 }]}>
-                    Total banks loaded: {banks.length}
+            <View style={styles.bankListHeader}>
+              <Text style={styles.bankListTitle}>Select Bank</Text>
+              <Pressable 
+                style={styles.closeButton}
+                onPress={() => {
+                  setShowBankSelector(false);
+                  haptics.lightImpact();
+                }}
+              >
+                <X size={isSmallScreen ? 20 : 24} color={colors.text} />
+              </Pressable>
+            </View>
+            
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search banks..."
+                placeholderTextColor={colors.textTertiary}
+                value={bankSearchQuery}
+                onChangeText={setBankSearchQuery}
+                autoFocus
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+              />
+            </View>
+            
+            <ScrollView 
+              style={styles.bankList} 
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {banksLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={styles.loadingText}>Loading banks...</Text>
+                </View>
+              ) : (
+                filteredBanks.map((bank) => (
+                  <Pressable
+                    key={bank.id}
+                    style={styles.bankOption}
+                    onPress={() => handleBankSelect(bank)}
+                  >
+                    <View style={styles.bankOptionContent}>
+                      {bank.logoSvg ? (
+                        // Handle SVG components
+                        <View style={styles.bankOptionLogo}>
+                          {React.createElement(bank.logoSvg.default || bank.logoSvg, {
+                            width: 32,
+                            height: 32,
+                            fill: colors.textSecondary
+                          })}
+                        </View>
+                      ) : bank.logo ? (
+                        <Image
+                          source={bank.logo as any}
+                          style={styles.bankOptionLogo}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <View style={styles.bankOptionIconContainer}>
+                          <Ionicons name="business" size={20} color={colors.textSecondary} />
+                        </View>
+                      )}
+                      <Text style={styles.bankOptionText}>{bank.name}</Text>
+                    </View>
+                    {selectedBank?.id === bank.id && (
+                      <Check size={20} color={colors.primary} />
+                    )}
+                  </Pressable>
+                ))
+              )}
+              
+              {filteredBanks.length === 0 && !banksLoading && (
+                <View style={styles.noResultsContainer}>
+                  <Text style={styles.noResultsText}>
+                    {banks.length === 0 
+                      ? 'No banks available. Please check your connection.' 
+                      : `No banks match "${bankSearchQuery}"`
+                    }
                   </Text>
-                )}
-              </View>
-            )}
-          </ScrollView>
-        </Animated.View>
+                  {banks.length === 0 && (
+                    <Text style={[styles.noResultsText, { fontSize: 12, marginTop: 8 }]}>
+                      Total banks loaded: {banks.length}
+                    </Text>
+                  )}
+                </View>
+              )}
+            </ScrollView>
+          </Animated.View>
+        </KeyboardAvoidingView>
       </Animated.View>
     </Modal>
   );
@@ -580,6 +593,10 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  keyboardAvoidingContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   modal: {
     backgroundColor: colors.surface,
@@ -752,89 +769,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     color: colors.textSecondary,
     lineHeight: isSmallScreen ? 18 : 20,
   },
-  // bankListModal: {
-  //   backgroundColor: colors.surface,
-  //   borderTopLeftRadius: 24,
-  //   borderTopRightRadius: 24,
-  //   width: '100%',
-  //   height: '90%',
-  //   borderWidth: isDark ? 1 : 0,
-  //   borderColor: isDark ? colors.border : 'transparent',
-  //   ...Platform.select({
-  //     ios: {
-  //       shadowColor: '#000',
-  //       shadowOffset: { width: 0, height: -3 },
-  //       shadowOpacity: 0.1,
-  //       shadowRadius: 5,
-  //     },
-  //     android: {
-  //       elevation: 5,
-  //     },
-  //   }),
-  // },
-  // bankListHeader: {
-  //   flexDirection: 'row',
-  //   justifyContent: 'space-between',
-  //   alignItems: 'center',
-  //   padding: isSmallScreen ? 16 : 20,
-  //   borderBottomWidth: 1,
-  //   borderBottomColor: colors.border,
-  // },
-  // bankListTitle: {
-  //   fontSize: isSmallScreen ? 18 : 20,
-  //   fontWeight: '600',
-  //   color: colors.text,
-  // },
-  // searchContainer: {
-  //   padding: isSmallScreen ? 16 : 20,
-  //   borderBottomWidth: 1,
-  //   borderBottomColor: colors.border,
-  // },
-  // searchInput: {
-  //   borderWidth: 1,
-  //   borderColor: colors.border,
-  //   borderRadius: 12,
-  //   padding: isSmallScreen ? 12 : 16,
-  //   fontSize: isSmallScreen ? 14 : 16,
-  //   color: colors.text,
-  //   backgroundColor: colors.backgroundTertiary,
-  // },
-  // bankList: {
-  //   flex: 1,
-  // },
-  // bankOption: {
-  //   flexDirection: 'row',
-  //   alignItems: 'center',
-  //   justifyContent: 'space-between',
-  //   padding: isSmallScreen ? 16 : 20,
-  //   borderBottomWidth: 1,
-  //   borderBottomColor: colors.border,
-  // },
-  // bankOptionText: {
-  //   fontSize: isSmallScreen ? 14 : 16,
-  //   color: colors.text,
-  // },
-  // loadingContainer: {
-  //   flex: 1,
-  //   justifyContent: 'center',
-  //   alignItems: 'center',
-  //   padding: 40,
-  // },
-  // loadingText: {
-  //   fontSize: isSmallScreen ? 14 : 16,
-  //   color: colors.textSecondary,
-  //   marginTop: 12,
-  // },
-  // noResultsContainer: {
-  //   flex: 1,
-  //   justifyContent: 'center',
-  //   alignItems: 'center',
-  //   padding: 40,
-  // },
-  // noResultsText: {
-  //   fontSize: isSmallScreen ? 14 : 16,
-  //   color: colors.textSecondary,
-  // },
   footer: {
     padding: isSmallScreen ? 16 : 20,
     paddingBottom: Math.max(isSmallScreen ? 16 : 20, insets.bottom),
@@ -853,7 +787,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     width: '100%',
-    maxHeight: '80%',
+    maxHeight: '85%',
+    minHeight: '50%',
     borderWidth: isDark ? 1 : 0,
     borderColor: isDark ? colors.border : 'transparent',
     // Add shadow for iOS
@@ -883,35 +818,29 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     color: colors.text,
   },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     padding: isSmallScreen ? 12 : 16,
-    marginHorizontal: 2,
-    marginTop: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   searchInput: {
-    flex: 1,
     fontSize: isSmallScreen ? 14 : 16,
     color: colors.text,
-    // paddingHorizontal: 12,
-    // paddingVertical: 12,
     borderRadius: 10,
     padding: isSmallScreen ? 12 : 16,
-    marginHorizontal: 5,
-    height: 65,
-    // borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    // borderRadius: 10,
-    backgroundColor: '#EBF1F9',
+    height: 48,
+    backgroundColor: colors.backgroundTertiary,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   bankList: {
-    maxHeight: '60%',
+    flex: 1,
+    maxHeight: '70%',
   },
   bankOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: isSmallScreen ? 10 : 12,
+    padding: isSmallScreen ? 12 : 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -936,8 +865,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     alignItems: 'center',
   },
   bankOptionText: {
-    fontSize: isSmallScreen ? 16 : 18,
-    fontWeight: 500,
+    fontSize: isSmallScreen ? 14 : 16,
+    fontWeight: '500',
     color: colors.text,
   },
   loadingContainer: {

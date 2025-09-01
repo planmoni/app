@@ -18,7 +18,7 @@ const path = require('path');
 
 // Configuration
 const FUNCTION_NAME = 'check-new-transactions';
-const CRON_SCHEDULE = '*/1 * * * *'; // Every 1 minute (much faster!)
+const CRON_SCHEDULE = '*/5 * * * *'; // Every 5 minutes (reduced frequency to prevent duplicates)
 const PROJECT_REF = process.env.SUPABASE_PROJECT_REF || 'your-project-ref';
 
 console.log('🚀 Setting up scheduled transaction checking...');

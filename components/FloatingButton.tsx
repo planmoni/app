@@ -7,10 +7,10 @@ import {
   Platform,
   Easing
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
-import { BlurView } from 'expo-blur';
 
 type FloatingButtonProps = {
   title: string;
@@ -129,10 +129,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
     borderTopColor: colors.border,
+    paddingBottom: 1, // Increased to extend blur upward toward the keyboard
     paddingHorizontal: 16,
+    paddingTop: 5,
     zIndex: 1000,
   },
   buttonContainer: {
@@ -140,7 +140,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   button: {
     width: '100%',
-    height: 50,
+    height: 55,
     backgroundColor: colors.primary,
   },
 });

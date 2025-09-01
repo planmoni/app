@@ -1,23 +1,25 @@
-import React, { useEffect, useState } from "react";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { BalanceProvider } from "@/contexts/BalanceContext";
-import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
-import { ToastProvider } from "@/contexts/ToastContext";
-import { AppLockProvider } from "@/contexts/AppLockContext";
-import { useFrameworkReady } from "@/hooks/useFrameworkReady";
-import { useFonts } from "expo-font";
-import { SplashScreen, Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
-import { SafeAreaView, Text, View, StyleSheet } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import React, { useEffect, useState } from 'react';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { BalanceProvider } from '@/contexts/BalanceContext';
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { ToastProvider } from '@/contexts/ToastContext';
+import { AppLockProvider } from '@/contexts/AppLockContext';
+import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import { useFonts } from 'expo-font';
+import { SplashScreen, Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { initializeNotifications } from '@/lib/notifications';
+import { intercomService, Visibility } from '@/lib/intercom';
 import {
   Inter_400Regular,
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
-} from "@expo-google-fonts/inter";
-import CustomSplashScreen from "@/components/SplashScreen";
-import { initializeNotifications } from "@/lib/notifications";
+} from '@expo-google-fonts/inter';
+import CustomSplashScreen from '@/components/SplashScreen';
+import { SessionDebugger } from '@/components/SessionDebugger';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch((e) =>
@@ -28,6 +30,43 @@ function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
+
+  // Initialize notifications when user is authenticated
+  useEffect(() => {
+    if (session?.user?.id) {
+      try {
+        initializeNotifications(session.user.id).then(cleanup => {
+          return () => {
+            if (cleanup) cleanup();
+          };
+        }).catch(error => {
+          console.warn('Failed to initialize notifications:', error);
+        });
+      } catch (error) {
+        console.warn('Error setting up notification initialization:', error);
+      }
+    }
+  }, [session?.user?.id]);
+
+  // Initialize Intercom for unidentified users
+  useEffect(() => {
+    const initIntercom = async () => {
+      try {
+        // Follow the official Intercom guide exactly
+        const { default: Intercom, Visibility } = await import('@intercom/intercom-react-native');
+        
+        // Login unidentified user and set launcher visibility as per official guide
+        await Intercom.loginUnidentifiedUser();
+        await Intercom.setLauncherVisibility(Visibility.VISIBLE);
+        
+        console.log('✅ Intercom initialized successfully following official guide');
+      } catch (error) {
+        console.warn('Failed to initialize Intercom:', error);
+      }
+    };
+
+    initIntercom();
+  }, []);
 
   const [fontsLoaded, fontError] = useFonts({
     "Inter-Regular": Inter_400Regular,
@@ -150,12 +189,12 @@ function RootLayoutNav() {
           <React.Fragment key="unauthenticated-screens">
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="login" options={{ headerShown: false }} />
           </React.Fragment>
         )}
         <Stack.Screen name="+not-found" options={{ title: "Page Not Found" }} />
       </Stack>
-      <StatusBar style={isDark ? "light" : "dark"} />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      {/* <SessionDebugger /> */}
     </GestureHandlerRootView>
   );
 }

@@ -262,10 +262,10 @@ export default function AddFundsScreen() {
         <Pressable onPress={handleBack} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Add Funds</Text>
+        <Text style={styles.headerTitle}>Deposit Funds</Text>
       </View>
 
-      <View style={styles.tabContainer}>
+      {/* <View style={styles.tabContainer}>
         <Pressable 
           style={[styles.tab, activeTab === 0 && styles.activeTab]} 
           onPress={() => handleTabPress(0)}
@@ -280,6 +280,7 @@ export default function AddFundsScreen() {
         >
           <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
             Direct Deposit
+            Direct Deposit
           </Text>
         </Pressable>
         <Animated.View 
@@ -290,14 +291,14 @@ export default function AddFundsScreen() {
             }
           ]} 
         />
-      </View>
+      </View> */}
 
       <Animated.ScrollView
         ref={scrollViewRef}
-        horizontal
+        // horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
+        // onScroll={handleScroll}
         onMomentumScrollEnd={handleScrollEnd}
         scrollEventThrottle={16}
         style={styles.scrollView}
@@ -309,15 +310,15 @@ export default function AddFundsScreen() {
         {/* Bank Transfer Tabs */}
         <View style={[styles.tabContent, { width: screenWidth }]}>
           <View style={styles.content}>
-            <Text style={styles.title}>Add funds via <Text style={styles.highlight}>Bank Transfer</Text></Text>
-            <Text style={styles.description}>
-              Money transfered to these account details will automatically appear on your available balance.
-            </Text>
+
 
             {virtualAccount ? (
             <View style={styles.accountDetailsCard}>
               <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>{virtualAccount.bank_name} Account Details</Text>
+                <Text style={styles.cardTitle}>Your {virtualAccount.bank_name} Account Details</Text>
+                <Text style={styles.description}>
+              Transfer money to the account details below and it will automatically appear on your available balance.
+            </Text>
               </View>
 
               <View style={styles.fieldsContainer}>
@@ -344,6 +345,7 @@ export default function AddFundsScreen() {
                     <Text style={styles.fieldValue}>{virtualAccount.account_name}</Text>
                   </View>
                 </View>
+
               </View>
 
               {paystackAccount && !paystackAccount.is_active && (
@@ -394,8 +396,9 @@ export default function AddFundsScreen() {
         </View>
 
         {/* Cards/Bank/USSD Tab (now Direct Deposit) */}
-        <View style={[styles.tabContent, { width: screenWidth }]}> 
+        {/* <View style={[styles.tabContent, { width: screenWidth }]}> 
           <View style={styles.content}>
+            <Text style={styles.title}>Choose a <Text style={styles.highlight}>Linked Account</Text></Text>
             <Text style={styles.title}>Choose a <Text style={styles.highlight}>Linked Account</Text></Text>
             <Text style={styles.description}>
               Select your preferred payment option to add funds to your wallet.
@@ -441,7 +444,6 @@ export default function AddFundsScreen() {
               )}
             </View>
 
-            {/* Coming Soon Modal */}
             <Modal
               visible={showComingSoon}
               transparent
@@ -459,7 +461,7 @@ export default function AddFundsScreen() {
               </View>
             </Modal>
           </View>
-        </View>
+        </View> */}
       </Animated.ScrollView>
 
       {/* Fixed footer with safe area padding */}
@@ -631,7 +633,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   description: {
     fontSize: isSmallScreen ? 13 : 14,
     color: colors.textSecondary,
-    marginBottom: isSmallScreen ? 20 : 24,
     lineHeight: 20,
   },
   accountDetailsCard: {
@@ -678,7 +679,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     backgroundColor: colors.backgroundTertiary,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: isSmallScreen ? 12 : 16,
+    padding: isSmallScreen ? 10 : 10,
     borderRadius: 12,
   },
   accountNumber: {
@@ -757,6 +758,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   },
   doneButton: {
     width: '100%',
+    height: 50,
     backgroundColor: colors.primary,
   },
   bankSelectionButton: {
@@ -986,4 +988,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     color: colors.textSecondary,
     fontWeight: '600',
   },
+  
+  
+  
 });

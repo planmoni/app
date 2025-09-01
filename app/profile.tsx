@@ -2,9 +2,13 @@ import Button from '@/components/Button';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import SafeFooter from '@/components/SafeFooter';
 import { useAuth } from '@/contexts/AuthContext';
+import { useKYCProgress, KYCProgress } from '@/hooks/useKYCProgress';
+import { useKYCData } from '@/hooks/useKYCData';
+import UtilityBillUploadModal from '@/components/UtilityBillUploadModal';
 import { router } from 'expo-router';
-import { ArrowLeft, Mail, User, Shield, CircleCheck as CheckCircle, CircleAlert as AlertCircle, Clock, ChevronRight, LocationEdit as Edit3 } from 'lucide-react-native';
+import { ArrowLeft, Mail, User, Shield, CircleCheck as CheckCircle, CircleAlert as AlertCircle, Clock, ChevronRight, LocationEdit as Edit3, Upload } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -14,14 +18,40 @@ export default function ProfileScreen() {
   const { session, signOut } = useAuth();
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
+  const { progress, loading: kycLoading } = useKYCProgress();
+  const { formData: kycData, loading: kycDataLoading } = useKYCData();
+  
+  // Utility bill upload modal
+  const [showUtilityBillModal, setShowUtilityBillModal] = useState(false);
   
   const firstName = session?.user?.user_metadata?.first_name || '';
   const lastName = session?.user?.user_metadata?.last_name || '';
   const email = session?.user?.email || '';
 
-  // Mock KYC status - in real app, this would come from your backend
-  const kycLevel: KYCLevel = 'tier1';
-  const kycStatus = getKYCStatus(kycLevel);
+  // Determine KYC level based on actual progress data
+  const getKYCLevel = (): KYCLevel => {
+    if (!progress) return 'unverified';
+    
+    // Tier 3: overall_completed + utility_bill_url present + approved
+    if (progress.overall_completed && kycData?.utility_bill_url && kycData?.approved) {
+      return 'tier3';
+    }
+    
+    // Tier 2: BVN + documents + address completed
+    if (progress.bvn_verified && progress.documents_verified && progress.address_completed) {
+      return 'tier2';
+    }
+    
+    // Tier 1: BVN verification only
+    if (progress.bvn_verified) {
+      return 'tier1';
+    }
+    
+    return 'unverified';
+  };
+
+  const kycLevel = getKYCLevel();
+  const kycStatus = getKYCStatus(kycLevel, progress);
 
   // Calculate responsive sizes based on screen width
   const avatarSize = Math.max(80, Math.min(width * 0.25, 140));
@@ -39,7 +69,13 @@ export default function ProfileScreen() {
   };
 
   const handleUpgradeKYC = () => {
-    router.push('/kyc-upgrade');
+    // If user is Tier 2 and needs to upload utility bill, show the modal
+    if (kycLevel === 'tier2' && (!kycData?.utility_bill_url || !kycData?.approved)) {
+      setShowUtilityBillModal(true);
+    } else {
+      // For other tiers, go to the full KYC upgrade flow
+      router.push('/kyc-upgrade');
+    }
   };
 
   const styles = createStyles(colors, width);
@@ -73,42 +109,87 @@ export default function ProfileScreen() {
 
         <View style={styles.kycSection}>
           <View style={styles.kycCard}>
-            <View style={styles.kycHeader}>
-              <View style={styles.kycTitleContainer}>
-                <Shield size={24} color={kycStatus.color} />
-                <Text style={styles.kycTitle}>Verification Status</Text>
+            {kycLoading || kycDataLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading verification status...</Text>
               </View>
-              <View style={[styles.kycBadge, { backgroundColor: kycStatus.backgroundColor }]}>
-                <kycStatus.icon size={16} color={kycStatus.color} />
-                <Text style={[styles.kycBadgeText, { color: kycStatus.color }]}>
-                  {kycStatus.label}
-                </Text>
-              </View>
-            </View>
-            
-            <Text style={styles.kycDescription}>{kycStatus.description}</Text>
-            
-            <View style={styles.kycLimits}>
-              <Text style={styles.kycLimitsTitle}>Current Limits</Text>
-              <View style={styles.limitRow}>
-                <Text style={styles.limitLabel}>Daily Transaction</Text>
-                <Text style={styles.limitValue}>{kycStatus.limits.daily}</Text>
-              </View>
-              <View style={styles.limitRow}>
-                <Text style={styles.limitLabel}>Monthly Transaction</Text>
-                <Text style={styles.limitValue}>{kycStatus.limits.monthly}</Text>
-              </View>
-              <View style={styles.limitRow}>
-                <Text style={styles.limitLabel}>Single Transaction</Text>
-                <Text style={styles.limitValue}>{kycStatus.limits.single}</Text>
-              </View>
-            </View>
+            ) : (
+              <>
+                <View style={styles.kycHeader}>
+                  <View style={styles.kycTitleContainer}>
+                    <Shield size={24} color={kycStatus.color} />
+                    <Text style={styles.kycTitle}>Verification Status</Text>
+                  </View>
+                </View>
+                
+                <Text style={styles.kycDescription}>{kycStatus.description}</Text>
+                
+                <View style={styles.kycLimits}>
+                  <Text style={styles.kycLimitsTitle}>Current Limits</Text>
+                  <View style={styles.limitRow}>
+                    <Text style={styles.limitLabel}>Daily Transaction</Text>
+                    <Text style={styles.limitValue}>{kycStatus.limits.daily}</Text>
+                  </View>
+                  <View style={styles.limitRow}>
+                    <Text style={styles.limitLabel}>Monthly Transaction</Text>
+                    <Text style={styles.limitValue}>{kycStatus.limits.monthly}</Text>
+                  </View>
+                  <View style={styles.limitRow}>
+                    <Text style={styles.limitLabel}>Single Transaction</Text>
+                    <Text style={styles.limitValue}>{kycStatus.limits.single}</Text>
+                  </View>
+                </View>
 
-            {kycLevel !== 'tier3' && (
-              <Pressable style={styles.upgradeButton} onPress={handleUpgradeKYC}>
-                <Text style={styles.upgradeButtonText}>Upgrade Verification</Text>
-                <ChevronRight size={20} color={colors.primary} />
-              </Pressable>
+                {/* Show upgrade message for different scenarios */}
+                {progress && (
+                  <>
+                    {/* Tier 1: Show message to complete documents and address */}
+                    {kycLevel === 'tier1' && (
+                      <View style={styles.upgradeMessage}>
+                        <Upload size={16} color="#F59E0B" />
+                        <Text style={styles.upgradeMessageText}>
+                          Complete document verification and address details to unlock higher limits
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {/* Tier 2: Show message to upload utility bill or wait for approval */}
+                    {kycLevel === 'tier2' && (
+                      <>
+                        {!kycData?.utility_bill_url && (
+                          <View style={styles.upgradeMessage}>
+                            <Upload size={16} color="#F59E0B" />
+                            <Text style={styles.upgradeMessageText}>
+                              Click "Upload Utility Bill" to unlock maximum transaction limits
+                            </Text>
+                          </View>
+                        )}
+                        {kycData?.utility_bill_url && !kycData?.approved && (
+                          <View style={styles.upgradeMessage}>
+                            <Clock size={16} color="#1E3A8A" />
+                            <Text style={styles.upgradeMessageText}>
+                              Utility bill uploaded. Waiting for admin approval to unlock maximum limits.
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+
+                {/* Show upgrade button if not at tier 3 */}
+                {progress && kycLevel !== 'tier3' && (
+                  <Pressable style={styles.upgradeButton} onPress={handleUpgradeKYC}>
+                    <Text style={styles.upgradeButtonText}>
+                      {kycLevel === 'tier2' && (!kycData?.utility_bill_url || !kycData?.approved) 
+                        ? 'Upload Utility Bill' 
+                        : 'Upgrade Verification'
+                      }
+                    </Text>
+                    <ChevronRight size={20} color={colors.primary} />
+                  </Pressable>
+                )}
+              </>
             )}
           </View>
         </View>
@@ -198,16 +279,27 @@ export default function ProfileScreen() {
       </View>
       
       <SafeFooter />
+      
+      {/* Utility Bill Upload Modal */}
+      <UtilityBillUploadModal
+        visible={showUtilityBillModal}
+        onClose={() => setShowUtilityBillModal(false)}
+        onSuccess={() => {
+          setShowUtilityBillModal(false);
+          // Refresh KYC data to show updated status
+          // The modal will handle the data refresh internally
+        }}
+      />
     </SafeAreaView>
   );
 }
 
-function getKYCStatus(level: KYCLevel) {
+function getKYCStatus(level: KYCLevel, progress?: KYCProgress) {
   switch (level) {
     case 'unverified':
       return {
         label: 'Unverified',
-        description: 'Complete your verification to unlock higher transaction limits and additional features.',
+        description: 'Complete your BVN verification to unlock basic transaction limits and get a virtual account.',
         color: '#EF4444',
         backgroundColor: '#FEE2E2',
         icon: AlertCircle,
@@ -219,34 +311,34 @@ function getKYCStatus(level: KYCLevel) {
       };
     case 'tier1':
       return {
-        label: 'Tier 1 Verified',
-        description: 'Basic verification completed. Upgrade to Tier 2 for higher limits and premium features.',
+        label: 'Tier 1 Verified (BVN)',
+        description: 'BVN verification completed. You can now get a virtual account. Complete document verification and address details to unlock higher limits.',
         color: '#F59E0B',
         backgroundColor: '#FEF3C7',
         icon: Clock,
         limits: {
-          daily: '₦500,000',
-          monthly: '₦2,000,000',
-          single: '₦100,000'
+          daily: '₦200,000',
+          monthly: '₦500,000',
+          single: '₦50,000'
         }
       };
     case 'tier2':
       return {
-        label: 'Tier 2 Verified',
-        description: 'Enhanced verification completed. Upgrade to Tier 3 for maximum limits and exclusive features.',
+        label: 'Tier 2 Verified (BVN + Documents + Address)',
+        description: 'Enhanced verification completed. Upload utility bill to unlock maximum transaction limits and complete final verification.',
         color: '#1E3A8A',
         backgroundColor: '#EFF6FF',
         icon: Shield,
         limits: {
-          daily: '₦2,000,000',
-          monthly: '₦10,000,000',
-          single: '₦1,000,000'
+          daily: '₦1,000,000',
+          monthly: '₦5,000,000',
+          single: '₦500,000'
         }
       };
     case 'tier3':
       return {
-        label: 'Tier 3 Verified',
-        description: 'Maximum verification level achieved. You have access to all features and highest limits.',
+        label: 'Tier 3 Verified (Complete)',
+        description: 'Maximum verification level achieved. You have access to all features, highest limits, and virtual account.',
         color: '#22C55E',
         backgroundColor: '#F0FDF4',
         icon: CheckCircle,
@@ -417,6 +509,32 @@ const createStyles = (colors: any, screenWidth: number) => {
       fontSize: 14,
       fontWeight: '600',
       color: colors.primary,
+    },
+    upgradeMessage: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: '#FEF3C7',
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      marginTop: 16,
+      marginBottom: 16,
+    },
+    upgradeMessageText: {
+      fontSize: 14,
+      color: '#D97706',
+      fontWeight: '600',
+    },
+    loadingContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 40,
+    },
+    loadingText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
     },
     section: {
       marginBottom: verticalSpacing,

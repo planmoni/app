@@ -14,8 +14,8 @@ import { useEffect } from 'react';
 const SLIDES = [
   {
     id: '1',
-    title: 'Welcome to Planmoni',
-    description: 'Pace your spending and make your money last longer.',
+    title: 'Say hello to financial control',
+    description: 'Plan, Schedule and Auto Pay with Planmoni',
     image: require('@/assets/images/slider1 logo.png'),
     icon: null,
     color: '#EFF6FF',
@@ -23,7 +23,7 @@ const SLIDES = [
   },
   {
     id: '2',
-    title: 'Create a personalized salary plan',
+    title: 'Create automated payout plans',
     description: 'Split deposits into small, scheduled weekly, bi-weekly or monthly payouts',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     icon: Calendar,
@@ -41,7 +41,7 @@ const SLIDES = [
   },
   {
     id: '4',
-    title: 'Gain total control over your spending',
+    title: 'Gain total control over your money',
     description: 'No impulse spending. Your money stays locked until your chosen payday.',
     image: require('@/assets/images/StayInControl.png'),
     icon: Shield,

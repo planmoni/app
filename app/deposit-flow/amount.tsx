@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Info } from 'lucide-react-native';
 import Button from '@/components/Button';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import SafeFooter from '@/components/SafeFooter';
@@ -20,6 +20,11 @@ export default function AmountScreen() {
   const [amount, setAmount] = useState('');
   const { balance, lockedBalance } = useBalance();
   const availableBalance = balance - lockedBalance; //the avialable balance logic
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   const handleContinue = () => {
     if (newMethodType) {
@@ -101,6 +106,7 @@ export default function AmountScreen() {
           <View style={styles.amountContainer}>
             <Text style={styles.currencySymbol}>₦</Text>
             <TextInput
+              ref={inputRef}
               style={styles.amountInput}
               placeholder="0.00"
               placeholderTextColor={colors.textTertiary}

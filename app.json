@@ -13,9 +13,12 @@
       "resizeMode": "contain",
       "backgroundColor": "#1E3A8A"
     },
+    "android": {
+      "package": "com.planmoni"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mosodi.planmoni",
+      "bundleIdentifier": "com.planmoni",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
@@ -32,14 +35,17 @@
       "expo-router",
       "expo-font",
       "expo-web-browser",
-      "@notifee/react-native",
-      "@react-native-firebase/app",
       [
         "expo-build-properties",
+        { "android": { "compileSdkVersion": 35, "targetSdkVersion": 35, "minSdkVersion": 23 } }
+      ],
+      [
+        "@intercom/intercom-react-native",
         {
-          "ios": {
-            "useFrameworks": "static"
-          }
+          "appId": "tf4dp3qt",
+          "androidApiKey": "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",
+          "iosApiKey": "ios_sdk-de52645ae34ab0f059890a422f90b18092032115",
+          "intercomRegion": "US"
         }
       ]
     ],
@@ -50,8 +56,13 @@
       "router": {},
       "eas": {
         "projectId": "d01818de-e1dd-41c4-8b3d-5d1cfbf2696b"
+      },
+      "INTERCOM": {
+        "iosApiKey": "ios_sdk-de52645ae34ab0f059890a422f90b18092032115",
+        "androidApiKey": "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",
+        "appId": "tf4dp3qt"
       }
     },
-    "owner": "mosodi"
+    "owner": "planmoni"
   }
 }

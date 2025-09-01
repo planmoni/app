@@ -15,6 +15,8 @@ const lightColors = {
   background: '#FFFFFF',
   backgroundSecondary: '#F8FAFC',
   backgroundTertiary: '#F1F5F9',
+  backgroundBlack: '#F8FAFC',
+  transactionLight: '#E2E8FF',
   
   // Surface colors
   surface: '#FFFFFF',
@@ -24,6 +26,7 @@ const lightColors = {
   text: '#1E293B',
   textSecondary: '#64748B',
   textTertiary: '#94A3B8',
+
   
   // Primary colors
   primary: '#1E3A8A',
@@ -58,11 +61,14 @@ const darkColors = {
   // Background colors
   background: '#0F172A',
   backgroundSecondary: '#0E141F',
+  transactionLight: '#687A9B',
   backgroundTertiary: '#0C2241',
+  backgroundBlack: '#000',
   
   // Surface colors
   surface: '#0E141F',
   surfaceSecondary: '#0C2241',
+  
   
   // Text colors
   text: '#F8FAFC',

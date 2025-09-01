@@ -1,7 +1,7 @@
 import Expo
-import FirebaseCore
 import React
 import ReactAppDependencyProvider
+import UIKit
 
 @UIApplicationMain
 public class AppDelegate: ExpoAppDelegate {
@@ -14,6 +14,7 @@ public class AppDelegate: ExpoAppDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    
     let delegate = ReactNativeDelegate()
     let factory = ExpoReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
@@ -22,16 +23,13 @@ public class AppDelegate: ExpoAppDelegate {
     reactNativeFactory = factory
     bindReactNativeFactory(factory)
 
-#if os(iOS) || os(tvOS)
-    window = UIWindow(frame: UIScreen.main.bounds)
-// @generated begin @react-native-firebase/app-didFinishLaunchingWithOptions - expo prebuild (DO NOT MODIFY) sync-10e8520570672fd76b2403b7e1e27f5198a6349a
-FirebaseApp.configure()
-// @generated end @react-native-firebase/app-didFinishLaunchingWithOptions
-    factory.startReactNative(
-      withModuleName: "main",
-      in: window,
-      launchOptions: launchOptions)
-#endif
+    #if os(iOS) || os(tvOS)
+      window = UIWindow(frame: UIScreen.main.bounds)
+      factory.startReactNative(
+        withModuleName: "main",
+        in: window,
+        launchOptions: launchOptions)
+    #endif
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

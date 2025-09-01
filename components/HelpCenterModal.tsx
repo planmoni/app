@@ -1,8 +1,9 @@
-import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions, Animated } from 'react-native';
+import { Alert, Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions, Animated } from 'react-native';
 import { X, Search, CircleHelp as HelpCircle, MessageSquare, FileText, ExternalLink } from 'lucide-react-native';
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { PanGestureHandler } from 'react-native-gesture-handler';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface HelpCenterModalProps {
   isVisible: boolean;
@@ -14,6 +15,7 @@ const DRAG_DISMISS_THRESHOLD = 120;
 export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const { user } = useAuth(); // placeholder to avoid circular import in type system
   const translateY = useRef(new Animated.Value(0)).current;
   const [dragging, setDragging] = useState(false);
   
@@ -124,7 +126,50 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Contact Support</Text>
                 
-                <Pressable style={styles.supportOption}>
+                <Pressable
+                  style={styles.supportOption}
+                  onPress={async () => {
+                    try {
+                      console.log('🎯 HelpCenterModal: Chat with Support pressed');
+                      
+                      const { default: Intercom } = await import('@intercom/intercom-react-native');
+                      
+                      if (!user) {
+                        console.log('👤 No user, logging in as unidentified user...');
+                        await Intercom.loginUnidentifiedUser();
+                        console.log('✅ Unidentified user logged in');
+                      } else {
+                        console.log('👤 User found, logging in with user data...');
+                        
+                        // Login with user attributes
+                        await Intercom.loginUserWithUserAttributes({
+                          userId: user.id,
+                          email: user.email,
+                        });
+                        
+                        console.log('✅ User logged in to Intercom');
+                      }
+                      
+                      // Wait for authentication to complete
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                      
+                      // Now present Intercom
+                      console.log('🎯 Presenting Intercom...');
+                      await Intercom.present();
+                      console.log('✅ Intercom presented successfully');
+                      
+                    } catch (error) {
+                      console.error('❌ Failed to open Intercom:', error);
+                      
+                      // Show user-friendly error
+                      Alert.alert(
+                        'Intercom Error',
+                        'Unable to open support chat. Please try again.',
+                        [{ text: 'OK' }]
+                      );
+                    }
+                  }}
+                >
                   <View style={styles.supportIconContainer}>
                     <MessageSquare size={isSmallScreen ? 16 : 20} color="#1E3A8A" />
                   </View>
@@ -135,27 +180,6 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
                   <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
                 </Pressable>
                 
-                <Pressable style={styles.supportOption}>
-                  <View style={styles.supportIconContainer}>
-                    <FileText size={isSmallScreen ? 16 : 20} color="#22C55E" />
-                  </View>
-                  <View style={styles.supportInfo}>
-                    <Text style={styles.supportTitle}>Submit a Ticket</Text>
-                    <Text style={styles.supportDescription}>Get help with complex issues</Text>
-                  </View>
-                  <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-                </Pressable>
-                
-                <Pressable style={styles.supportOption}>
-                  <View style={styles.supportIconContainer}>
-                    <HelpCircle size={isSmallScreen ? 16 : 20} color="#F97316" />
-                  </View>
-                  <View style={styles.supportInfo}>
-                    <Text style={styles.supportTitle}>Knowledge Base</Text>
-                    <Text style={styles.supportDescription}>Browse detailed guides</Text>
-                  </View>
-                  <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-                </Pressable>
               </View>
             </ScrollView>
 

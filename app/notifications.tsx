@@ -326,14 +326,14 @@ export default function NotificationsScreen() {
             <Pressable onPress={() => router.back()} style={styles.backButton}>
               <ArrowLeft size={24} color={colors.text} />
             </Pressable>
-            <Text style={styles.headerTitle}>Notifications</Text>
+            <Text style={styles.headerTitle}>Activities</Text>
             <Pressable style={styles.markAllButton} onPress={handleMarkAllAsRead}>
               <Text style={styles.markAllText}>Mark all as read</Text>
             </Pressable>
           </View>
         </View>
         <View style={styles.loadingContainer}>
-          <PlanmoniLoader size="medium" description="Loading notifications..." />
+          <PlanmoniLoader size="medium" description="Loading activities..." />
         </View>
       </SafeAreaView>
     );
@@ -346,7 +346,7 @@ export default function NotificationsScreen() {
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft size={24} color={colors.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>Notifications</Text>
+          <Text style={styles.headerTitle}>Activities</Text>
           <Pressable style={styles.markAllButton} onPress={handleMarkAllAsRead}>
             <Text style={styles.markAllText}>Mark all as read</Text>
           </Pressable>
@@ -362,9 +362,9 @@ export default function NotificationsScreen() {
         </View>
       ) : notifications.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No notifications</Text>
+          <Text style={styles.emptyText}>No activities</Text>
           <Text style={styles.emptySubtext}>
-            You don't have any notifications yet
+            You don't have any activity yet
           </Text>
         </View>
       ) : (

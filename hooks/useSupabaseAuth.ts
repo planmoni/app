@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
 
 type AuthResult = {
   success: boolean;
@@ -13,19 +14,54 @@ export function useSupabaseAuth() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setIsLoading(false);
-    });
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        console.log('🔐 Initializing auth session...');
+        
+        // Get initial session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('❌ Error getting initial session:', sessionError);
+          setError(sessionError.message);
+        } else {
+          console.log('✅ Initial session loaded:', session ? 'User logged in' : 'No session');
+          if (mounted) {
+            setSession(session);
+          }
+        }
+      } catch (err) {
+        console.error('❌ Failed to initialize auth:', err);
+        if (mounted) {
+          setError('Failed to initialize authentication');
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setIsLoading(false);
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event: string, session: Session | null) => {
+        console.log('🔄 Auth state changed:', event, session ? 'Session exists' : 'No session');
+        
+        if (mounted) {
+          setSession(session);
+          setIsLoading(false);
+        }
+      }
+    );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string): Promise<AuthResult> => {
