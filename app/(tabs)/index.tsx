@@ -55,6 +55,7 @@ import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 import NotificationIcon from '@/components/NotificationIcon';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { supabase } from '@/lib/supabase';
+import { intercomService } from '@/lib/intercom';
 
 interface Banner {
   id: string;
@@ -97,6 +98,12 @@ export default function HomeScreen() {
       screen_name: 'Home',
       screen_class: 'HomeScreen',
     });
+  }, []);
+
+  // Preload Intercom for instant help access
+  useEffect(() => {
+    // Start preloading Intercom as soon as the screen loads
+    intercomService.preloadModule();
   }, []);
 
   // Fetch carousel images from Supabase
@@ -172,110 +179,10 @@ export default function HomeScreen() {
   const handleHelpPress = async () => {
     try {
       setIsHelpLoading(true);
-      console.log('🎯 Help button pressed');
+      console.log('🎯 Help button pressed - opening Intercom instantly...');
       
-      // Follow the official Intercom guide
-      const { default: Intercom } = await import('@intercom/intercom-react-native');
-      
-      if (!session?.user?.id) {
-        console.log('👤 No user session, logging in as unidentified user...');
-        await Intercom.loginUnidentifiedUser();
-        console.log('✅ Unidentified user logged in');
-      } else {
-        console.log('👤 User session found, updating user data...');
-        
-        // Get user name from metadata
-        const firstName = session.user.user_metadata?.first_name || '';
-        const lastName = session.user.user_metadata?.last_name || '';
-        const fullName = `${firstName} ${lastName}`.trim();
-        
-        console.log('👤 User data for Intercom:', {
-          userId: session.user.id,
-          email: session.user.email,
-          firstName,
-          lastName,
-          fullName
-        });
-
-        // try {
-        //   // First, try to update the existing user with new attributes
-        //   await Intercom.updateUser({
-        //     userId: session.user.id,
-        //     email: session.user.email,
-        //     name: fullName || session.user.email?.split('@')[0] || 'User',
-        //     phone: session.user.phone || undefined,
-        //     customAttributes: {
-        //       first_name: firstName,
-        //       last_name: lastName,
-        //       user_type: 'customer',
-        //       app_version: '1.0.0'
-        //     }
-        //   });
-        //   console.log('✅ User updated successfully');
-        // } catch (updateError) {
-        //   console.log('⚠️ Update failed, trying to login with user attributes...');
-          
-        //   // If update fails, try to login with user attributes
-        //   await Intercom.loginUserWithUserAttributes({
-        //     userId: session.user.id,
-        //     email: session.user.email,
-        //     name: fullName || session.user.email?.split('@')[0] || 'User',
-        //     phone: session.user.phone || undefined,
-        //     customAttributes: {
-        //       first_name: firstName,
-        //       last_name: lastName,
-        //       user_type: 'customer',
-        //       app_version: '1.0.0'
-        //     }
-        //   });
-        //   console.log('✅ User logged in to Intercom');
-        // }
-        
-        // Get JWT from Supabase Edge Function for secure authentication
-        console.log('🔐 Getting JWT from server...');
-        const jwtResponse = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/intercom-jwt`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
-          }
-        });
-        
-        if (!jwtResponse.ok) {
-          throw new Error('Failed to get JWT from server');
-        }
-        
-        const { jwt } = await jwtResponse.json();
-        
-        // Set the JWT before making any user registration calls
-        console.log('🔐 Setting JWT for Intercom...');
-        await Intercom.setUserJwt(jwt);
-        console.log('✅ JWT set successfully');
-        
-        // Now login with user attributes
-        await Intercom.loginUserWithUserAttributes({
-          userId: session.user.id,
-          email: session.user.email,
-          name: fullName || session.user.email?.split('@')[0] || 'User',
-          phone: session.user.phone || undefined,
-          customAttributes: {
-            first_name: firstName,
-            last_name: lastName,
-            user_type: 'customer',
-            app_version: '1.0.0'
-          }
-        });
-        console.log('✅ User logged in to Intercom with JWT');
-      }
-      
-      // Wait for authentication to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Now present Intercom
-      console.log('🎯 Presenting Intercom...');
-      await Intercom.present();
-      console.log('✅ Intercom presented successfully');
+      // Use the optimized intercom service for instant access
+      await intercomService.presentInstantly();
       
       logAnalyticsEvent('help_click');
       
