@@ -179,7 +179,6 @@ export default function HomeScreen() {
   const handleHelpPress = async () => {
     try {
       setIsHelpLoading(true);
-      console.log('🎯 Help button pressed - opening Intercom instantly...');
       
       // Use the optimized intercom service for instant access
       await intercomService.presentInstantly();

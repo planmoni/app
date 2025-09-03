@@ -1,90 +1,61 @@
 import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, ShieldCheck } from 'lucide-react-native';
+import { ArrowLeft, Lock, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
-import { useAppLock } from '@/contexts/AppLockContext';
+import FloatingButton from '@/components/FloatingButton';
+import { usePin } from '@/contexts/PinContext';
 import { useHaptics } from '@/hooks/useHaptics';
 
-export default function ConfirmPinScreen() {
+export default function PinSetupScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
   const { showToast } = useToast();
-  const { setAppLockPin } = useAppLock();
+  const { setupPin } = usePin();
   const haptics = useHaptics();
   
-  const params = useLocalSearchParams();
-  const originalPin = params.pin as string;
-  const pinLength = originalPin.length;
-  
-  const [confirmPin, setConfirmPin] = useState('');
+  const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isButtonEnabled, setIsButtonEnabled] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  
+
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
 
   useEffect(() => {
-    setError(null);
-    
-    // Automatically proceed when PIN is complete and matches
-    if (confirmPin.length === pinLength && !isProcessing) {
-      setIsProcessing(true);
-      console.log('[AppLockConfirm] Confirm PIN entry complete.');
-      const timer = setTimeout(async () => {
-        if (confirmPin === originalPin) {
-          try {
-            // Save the PIN to secure storage
-            await setAppLockPin(originalPin);
-            haptics.success();
-            console.log('[AppLockConfirm] PIN confirmed and saved. Navigating to success.');
-            
-            // Navigate to success screen
-            router.push({
-              pathname: '/app-lock-setup/success',
-              params: { pin: originalPin }
-            });
-          } catch (error) {
-            console.error('Error saving PIN:', error);
-            setError('Failed to save PIN. Please try again.');
-            haptics.error();
-            setConfirmPin('');
-          }
-        } else {
-          setError('PINs do not match. Please try again.');
-          haptics.error();
-          setConfirmPin('');
-        }
-        setIsProcessing(false);
-      }, 300); // Small delay for better UX
-      
-      return () => clearTimeout(timer);
-    }
-  }, [confirmPin, originalPin, pinLength, isProcessing]);
+    setIsButtonEnabled(pin.length === 4);
+  }, [pin]);
 
   const handlePinChange = (digit: string) => {
-    if (confirmPin.length < pinLength && !isProcessing) {
+    if (pin.length < 4) {
       haptics.selection();
-      setConfirmPin(prev => prev + digit);
+      setPin(prev => prev + digit);
       setError(null);
     }
   };
 
   const handlePinDelete = () => {
-    if (!isProcessing) {
-      haptics.lightImpact();
-      setConfirmPin(prev => prev.slice(0, -1));
-      setError(null);
+    haptics.lightImpact();
+    setPin(prev => prev.slice(0, -1));
+    setError(null);
+  };
+
+  const handleContinue = () => {
+    if (pin.length === 4) {
+      haptics.mediumImpact();
+      router.push({
+        pathname: '/pin-setup/confirm',
+        params: { pin }
+      });
     }
   };
 
   const handleBackPress = () => {
-    if (isProcessing) return;
     haptics.lightImpact();
     if (router.canGoBack()) {
       router.back();
@@ -93,7 +64,7 @@ export default function ConfirmPinScreen() {
     }
   };
 
-  const styles = createStyles(colors, isDark, isSmallScreen, width);
+  const styles = createStyles(colors, isDark, isSmallScreen);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -101,17 +72,19 @@ export default function ConfirmPinScreen() {
         <Pressable onPress={isProcessing ? () => {} : handleBackPress} style={styles.backButton} disabled={isProcessing}>
           <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>App Lock</Text>
+        <Text style={styles.headerTitle}>Set up PIN</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer} disableScrollView={true}>
         <View style={styles.content}>
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Confirm your PIN</Text>
-            <Text style={styles.subtitle}>Enter your PIN again to confirm</Text>
+            <Text style={styles.title}>Create your transaction PIN</Text>
+            <Text style={styles.subtitle}>This PIN will be used to authorize transactions</Text>
           </View>
 
           <View style={styles.formContainer}>
+            <Text style={styles.instruction}>Enter a 4-digit PIN</Text>
+            
             {error && (
               <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>{error}</Text>
@@ -120,38 +93,45 @@ export default function ConfirmPinScreen() {
             
             <View style={styles.pinContainer}>
               <PinDisplay 
-                length={pinLength}
-                value={confirmPin}
+                length={4}
+                value={pin}
               />
               
               <PinKeypad 
-                onKeyPress={isProcessing ? () => {} : handlePinChange}
-                onDelete={isProcessing ? () => {} : handlePinDelete}
-                disabled={isProcessing || confirmPin.length >= pinLength}
+                onKeyPress={handlePinChange}
+                onDelete={handlePinDelete}
+                disabled={false}
               />
             </View>
             
             <View style={styles.securityInfo}>
               <View style={styles.securityIconContainer}>
-                <ShieldCheck size={isSmallScreen ? 16 : 20} color={colors.primary} />
+                <Lock size={isSmallScreen ? 16 : 20} color={colors.primary} />
               </View>
               <Text style={styles.securityText}>
-                Make sure you remember this PIN. You'll need it to access your account and authorize transactions.
+                This PIN will be required for all transaction authorizations and sensitive operations
               </Text>
             </View>
           </View>
         </View>
       </KeyboardAvoidingWrapper>
+
+      <FloatingButton
+        title="Continue"
+        onPress={handleContinue}
+        disabled={!isButtonEnabled}
+        hapticType="medium"
+      />
     </SafeAreaView>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, screenWidth: number) => {
-  // Calculate responsive sizes
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => {
   const headerPadding = isSmallScreen ? 12 : 16;
   const contentPadding = isSmallScreen ? 16 : 24;
   const titleSize = isSmallScreen ? 24 : 28;
   const subtitleSize = isSmallScreen ? 14 : 16;
+  const instructionSize = isSmallScreen ? 16 : 18;
   const iconSize = isSmallScreen ? 36 : 40;
   const backButtonSize = isSmallScreen ? 36 : 40;
   const verticalSpacing = isSmallScreen ? 24 : 40;
@@ -214,6 +194,14 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, scre
       width: '100%',
       alignItems: 'center',
     },
+    instruction: {
+      fontSize: instructionSize,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 24,
+      textAlign: 'center',
+      alignSelf: 'center',
+    },
     errorContainer: {
       backgroundColor: colors.errorLight,
       borderRadius: 8,
@@ -230,7 +218,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, scre
       alignItems: 'center',
       marginVertical: isSmallScreen ? 16 : 24,
       width: '100%',
-      maxWidth: Math.min(screenWidth - contentPadding * 2, 320),
     },
     securityInfo: {
       flexDirection: 'row',

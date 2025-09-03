@@ -79,16 +79,24 @@ export function useInsightsData() {
 
       // Calculate previous month's payouts for growth calculation
       const currentDate = new Date();
-      const lastMonthDate = new Date();
-      lastMonthDate.setMonth(currentDate.getMonth() - 1);
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      
+      // Calculate last month properly handling year boundary
+      let lastMonth = currentMonth - 1;
+      let lastYear = currentYear;
+      if (lastMonth < 0) {
+        lastMonth = 11; // December
+        lastYear = currentYear - 1;
+      }
       
       const currentMonthPayouts = transactions
         ?.filter(t => {
           const txDate = new Date(t.created_at);
           return t.type === 'payout' && 
                  t.status === 'completed' && 
-                 txDate.getMonth() === currentDate.getMonth() &&
-                 txDate.getFullYear() === currentDate.getFullYear();
+                 txDate.getMonth() === currentMonth &&
+                 txDate.getFullYear() === currentYear;
         })
         .reduce((sum, t) => sum + t.amount, 0) || 0;
       
@@ -97,8 +105,8 @@ export function useInsightsData() {
           const txDate = new Date(t.created_at);
           return t.type === 'payout' && 
                  t.status === 'completed' && 
-                 txDate.getMonth() === lastMonthDate.getMonth() &&
-                 txDate.getFullYear() === lastMonthDate.getFullYear();
+                 txDate.getMonth() === lastMonth &&
+                 txDate.getFullYear() === lastYear;
         })
         .reduce((sum, t) => sum + t.amount, 0) || 0;
       
@@ -107,7 +115,7 @@ export function useInsightsData() {
       if (lastMonthPayouts > 0) {
         payoutGrowthPercentage = ((currentMonthPayouts - lastMonthPayouts) / lastMonthPayouts) * 100;
       } else if (currentMonthPayouts > 0) {
-        // If last month was 0 but this month has value, show 100% growth
+        // If last month was 0 but this month has value, show actual increase
         payoutGrowthPercentage = 100;
       }
       
@@ -117,8 +125,8 @@ export function useInsightsData() {
           const txDate = new Date(t.created_at);
           return t.type === 'deposit' && 
                  t.status === 'completed' && 
-                 txDate.getMonth() === currentDate.getMonth() &&
-                 txDate.getFullYear() === currentDate.getFullYear();
+                 txDate.getMonth() === currentMonth &&
+                 txDate.getFullYear() === currentYear;
         })
         .reduce((sum, t) => sum + t.amount, 0) || 0;
       
@@ -127,8 +135,8 @@ export function useInsightsData() {
           const txDate = new Date(t.created_at);
           return t.type === 'deposit' && 
                  t.status === 'completed' && 
-                 txDate.getMonth() === lastMonthDate.getMonth() &&
-                 txDate.getFullYear() === lastMonthDate.getFullYear();
+                 txDate.getMonth() === lastMonth &&
+                 txDate.getFullYear() === lastYear;
         })
         .reduce((sum, t) => sum + t.amount, 0) || 0;
       
@@ -137,7 +145,7 @@ export function useInsightsData() {
       if (lastMonthDeposits > 0) {
         depositGrowthPercentage = ((currentMonthDeposits - lastMonthDeposits) / lastMonthDeposits) * 100;
       } else if (currentMonthDeposits > 0) {
-        // If last month was 0 but this month has value, show 100% growth
+        // If last month was 0 but this month has value, show actual increase
         depositGrowthPercentage = 100;
       }
       
@@ -145,15 +153,15 @@ export function useInsightsData() {
       const currentMonthTransactionCount = transactions
         ?.filter(t => {
           const txDate = new Date(t.created_at);
-          return txDate.getMonth() === currentDate.getMonth() &&
-                 txDate.getFullYear() === currentDate.getFullYear();
+          return txDate.getMonth() === currentMonth &&
+                 txDate.getFullYear() === currentYear;
         }).length || 0;
       
       const lastMonthTransactionCount = transactions
         ?.filter(t => {
           const txDate = new Date(t.created_at);
-          return txDate.getMonth() === lastMonthDate.getMonth() &&
-                 txDate.getFullYear() === lastMonthDate.getFullYear();
+          return txDate.getMonth() === lastMonth &&
+                 txDate.getFullYear() === lastYear;
         }).length || 0;
       
       // Calculate transaction count growth percentage
@@ -161,8 +169,44 @@ export function useInsightsData() {
       if (lastMonthTransactionCount > 0) {
         transactionGrowthPercentage = ((currentMonthTransactionCount - lastMonthTransactionCount) / lastMonthTransactionCount) * 100;
       } else if (currentMonthTransactionCount > 0) {
-        // If last month was 0 but this month has value, show 100% growth
+        // If last month was 0 but this month has value, show actual increase
         transactionGrowthPercentage = 100;
+      }
+      
+      // Debug logging to check the calculations
+      console.log('Monthly Growth Debug:', {
+        currentMonth,
+        currentYear,
+        lastMonth,
+        lastYear,
+        currentMonthDeposits,
+        lastMonthDeposits,
+        currentMonthPayouts,
+        lastMonthPayouts,
+        totalTransactions: transactions?.length || 0,
+        currentMonthTransactionCount,
+        lastMonthTransactionCount
+      });
+      
+      // Calculate overall monthly growth based on net financial activity
+      // Net activity = deposits - payouts (positive means more money coming in)
+      const currentMonthNetActivity = currentMonthDeposits - currentMonthPayouts;
+      const lastMonthNetActivity = lastMonthDeposits - lastMonthPayouts;
+      
+      let monthlyGrowthPercentage = 0;
+      let monthlyGrowthIsPositive = true;
+      
+      if (lastMonthNetActivity !== 0) {
+        monthlyGrowthPercentage = ((currentMonthNetActivity - lastMonthNetActivity) / Math.abs(lastMonthNetActivity)) * 100;
+        monthlyGrowthIsPositive = currentMonthNetActivity >= lastMonthNetActivity;
+      } else if (currentMonthNetActivity > 0) {
+        // If last month was neutral but this month is positive
+        monthlyGrowthPercentage = 100;
+        monthlyGrowthIsPositive = true;
+      } else if (currentMonthNetActivity < 0) {
+        // If last month was neutral but this month is negative
+        monthlyGrowthPercentage = 100;
+        monthlyGrowthIsPositive = false;
       }
       
       // Calculate average payout amount
@@ -256,13 +300,13 @@ export function useInsightsData() {
       const trendsData = [
         {
           title: 'Monthly Growth',
-          value: `${payoutGrowthPercentage >= 0 ? '+' : ''}${payoutGrowthPercentage.toFixed(2)}%`,
-          description: 'Compared to last month',
-          positive: payoutGrowthPercentage >= 0,
+          value: `${monthlyGrowthPercentage >= 0 ? '+' : ''}${monthlyGrowthPercentage.toFixed(2)}%`,
+          description: 'Net financial activity vs last month',
+          positive: monthlyGrowthIsPositive,
           details: [
-            { label: 'Last Month', value: formatCurrency(lastMonthPayouts) },
-            { label: 'This Month', value: formatCurrency(currentMonthPayouts) },
-            { label: 'Difference', value: formatCurrency(Math.abs(currentMonthPayouts - lastMonthPayouts)) },
+            { label: 'Last Month Net', value: formatCurrency(lastMonthNetActivity) },
+            { label: 'This Month Net', value: formatCurrency(currentMonthNetActivity) },
+            { label: 'Net Change', value: formatCurrency(Math.abs(currentMonthNetActivity - lastMonthNetActivity)) },
           ],
         },
         {

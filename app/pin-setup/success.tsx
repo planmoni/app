@@ -6,42 +6,19 @@ import { useToast } from '@/contexts/ToastContext';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { useHaptics } from '@/hooks/useHaptics';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
-import { useOnlineStatus } from '@/components/OnlineStatusProvider';
-import OfflineNotice from '@/components/OfflineNotice';
 
-export default function AppLockSuccessScreen() {
+export default function PinSuccessScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
   const { showToast } = useToast();
   const haptics = useHaptics();
-  const { session } = useAuth();
-  const { isOnline } = useOnlineStatus();
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
   
   const handleGoToDashboard = async () => {
     haptics.success();
-    
-    // Update the profile in the database to mark app lock as enabled
-    if (isOnline && session?.user?.id) {
-      try {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ app_lock_enabled: true })
-          .eq('id', session.user.id);
-          
-        if (error) {
-          console.error('Error updating profile:', error);
-        }
-      } catch (error) {
-        console.error('Error updating profile:', error);
-      }
-    }
-    
-    showToast('App lock enabled successfully!', 'success');
+    showToast('Transaction PIN set up successfully!', 'success');
     router.replace('/(tabs)');
   };
 
@@ -52,33 +29,29 @@ export default function AppLockSuccessScreen() {
       <View style={styles.content}>
         <SuccessAnimation />
         
-        <Text style={styles.title}>App Lock Enabled!</Text>
+        <Text style={styles.title}>PIN Set Up Complete!</Text>
         <Text style={styles.subtitle}>
-          Your app is now secured with a PIN. You'll need to enter this PIN each time you open the app or after 5 minutes of inactivity.
+          Your transaction PIN has been created successfully. You'll use this PIN to authorize transactions and sensitive operations.
         </Text>
         
-        {!isOnline && (
-          <OfflineNotice message="You're currently offline. Your app lock settings will sync when you're back online." />
-        )}
-        
         <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Security Tips</Text>
+          <Text style={styles.infoTitle}>Security Features</Text>
           <View style={styles.infoItem}>
-            <Text style={styles.infoText}>• Never share your PIN with anyone</Text>
+            <Text style={styles.infoText}>• Your PIN is stored securely on your device</Text>
           </View>
           <View style={styles.infoItem}>
-            <Text style={styles.infoText}>• Use a PIN that's easy for you to remember but hard for others to guess</Text>
+            <Text style={styles.infoText}>• Required for all transaction authorizations</Text>
           </View>
           <View style={styles.infoItem}>
-            <Text style={styles.infoText}>• Change your PIN regularly for enhanced security</Text>
+            <Text style={styles.infoText}>• Can be used with biometric authentication</Text>
           </View>
           <View style={styles.infoItem}>
-            <Text style={styles.infoText}>• Your app will automatically lock after 5 minutes of inactivity</Text>
+            <Text style={styles.infoText}>• Change or disable anytime in Settings</Text>
           </View>
         </View>
         
         <Button
-          title="Back to Dashboard"
+          title="Continue to Dashboard"
           onPress={handleGoToDashboard}
           style={styles.dashboardButton}
           hapticType="success"
@@ -89,7 +62,6 @@ export default function AppLockSuccessScreen() {
 }
 
 const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, screenWidth: number) => {
-  // Calculate responsive sizes
   const contentPadding = isSmallScreen ? 16 : 24;
   const titleSize = isSmallScreen ? 24 : 28;
   const subtitleSize = isSmallScreen ? 14 : 16;

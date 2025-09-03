@@ -9,6 +9,7 @@ import { useBalance } from '@/contexts/BalanceContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import ErrorMessage from '@/components/ErrorMessage';
+import PayoutConfirmationModal from '@/components/PayoutConfirmationModal';
 import { Platform } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatDisplayDate, formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
@@ -23,6 +24,7 @@ export default function ReviewScreen() {
   const { balance, lockedBalance, refreshWallet } = useBalance();
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const { banks } = useBanks();
   
   // Get values from route params
@@ -78,6 +80,11 @@ export default function ReviewScreen() {
       return;
     }
     
+    // Show confirmation modal instead of directly creating payout
+    setShowConfirmationModal(true);
+  };
+
+  const handleConfirmPayout = async () => {
     try {
       console.log('Creating payout plan with the following parameters:');
       console.log('- Name:', `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`);
@@ -111,7 +118,7 @@ export default function ReviewScreen() {
         emergencyWithdrawalEnabled: emergencyWithdrawal
       });
     } catch (err) {
-      console.error('Error in handleStartPlan:', err);
+      console.error('Error in handleConfirmPayout:', err);
       if (Platform.OS !== 'web') {
         haptics.error();
       }
@@ -428,6 +435,23 @@ export default function ReviewScreen() {
         onPress={handleStartPlan}
         disabled={isLoading || isRefreshing || hasInsufficientBalance}
         loading={isLoading}
+      />
+
+      <PayoutConfirmationModal
+        isVisible={showConfirmationModal}
+        onClose={() => setShowConfirmationModal(false)}
+        onConfirm={handleConfirmPayout}
+        payoutDetails={{
+          name: `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`,
+          totalAmount: totalAmount,
+          payoutAmount: payoutAmount,
+          frequency: formatPayoutFrequency(frequency, dayOfWeek),
+          duration: getDurationDisplay(),
+          startDate: formatDisplayDate(startDate),
+          bankName: bankName,
+          accountName: accountName,
+          accountNumber: accountNumber,
+        }}
       />
     </SafeAreaView>
   );

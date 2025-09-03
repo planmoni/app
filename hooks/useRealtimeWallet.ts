@@ -39,7 +39,6 @@ export function useRealtimeWallet() {
               filter: `user_id=eq.${session.user.id}`,
             },
             (payload: any) => {
-              console.log('Wallet change received:', payload);
               
               if (payload.eventType === 'UPDATE' && payload.new) {
                 setBalance(payload.new.balance || 0);
@@ -51,7 +50,6 @@ export function useRealtimeWallet() {
         // Only subscribe if not already subscribed
         if (channel.state === 'closed' || channel.state === 'leaving') {
           channel.subscribe((status: any) => {
-            console.log('Wallet subscription status:', status);
           });
         }
       } catch (err) {
@@ -71,7 +69,6 @@ export function useRealtimeWallet() {
   const fetchWallet = async () => {
     try {
       setError(null);
-      console.log('Fetching wallet data...');
       
       const { data, error: walletError } = await supabase
         .from('wallets')
@@ -80,14 +77,10 @@ export function useRealtimeWallet() {
         .single();
 
       if (walletError) {
-        console.error('Error fetching wallet:', walletError);
         throw walletError;
       }
       
       if (data) {
-        console.log('Wallet data fetched successfully:');
-        console.log('- Balance:', data.balance || 0);
-        console.log('- Locked Balance:', data.locked_balance || 0);
         
         const newBalance = data.balance || 0;
         const newLockedBalance = data.locked_balance || 0;
@@ -103,7 +96,6 @@ export function useRealtimeWallet() {
           availableBalance: newBalance - newLockedBalance
         };
       } else {
-        console.log('No wallet data found');
         // Initialize with zeros if no wallet found
         setBalance(0);
         setLockedBalance(0);
@@ -116,7 +108,6 @@ export function useRealtimeWallet() {
         };
       }
     } catch (err) {
-      console.error('Error in fetchWallet:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch wallet');
       throw err;
     } finally {
@@ -127,19 +118,12 @@ export function useRealtimeWallet() {
   const addFunds = async (amount: number) => {
     try {
       setError(null);
-      console.log('Adding funds to wallet:', amount);
-      console.log('Current state before adding funds:');
-      console.log('- Balance:', balance);
-      console.log('- Locked Balance:', lockedBalance);
-      console.log('- Available Balance:', availableBalance);
       
       // Optimistically update the balance immediately for better UX
-      console.log('Optimistically updating balance from', balance, 'to', balance + amount);
       setBalance(prevBalance => prevBalance + amount);
       // availableBalance will be recalculated automatically
       
       // First, create a transaction record
-      console.log('Creating transaction record...');
       const { data: transactionData, error: transactionError } = await supabase
         .from('transactions')
         .insert({
@@ -156,34 +140,23 @@ export function useRealtimeWallet() {
         .single();
       
       if (transactionError) {
-        console.error('Error creating transaction:', transactionError);
         // Revert the optimistic update if there's an error
         setBalance(prevBalance => prevBalance - amount);
         throw transactionError;
       }
       
-      console.log('Transaction created successfully:', transactionData?.id);
       
       // Then update the wallet balance
-      console.log('Making RPC call to add_funds with:');
-      console.log('- arg_user_id:', session?.user?.id);
-      console.log('- arg_amount:', amount);
       
       const { data: result, error: walletError } = await supabase.rpc('add_funds', {
         arg_user_id: session?.user?.id,
         arg_amount: amount
       });
 
-      console.log('RPC call completed:');
-      console.log('- Result data:', result);
-      console.log('- Error:', walletError);
 
       if (walletError) {
-        console.error('Error adding funds:', walletError);
-        console.log('Error details:', walletError.message, walletError.code, walletError.details);
         
         // Revert the optimistic update if there's an error
-        console.log('Reverting balance due to error from', balance, 'to', balance - amount);
         setBalance(prevBalance => prevBalance - amount);
         
         // Update the transaction status to failed
@@ -197,8 +170,6 @@ export function useRealtimeWallet() {
       
       // Check if the operation was successful
       if (result && !result.success) {
-        console.error('Add funds failed:', result.error);
-        console.log('Reverting balance due to failed operation from', balance, 'to', balance - amount);
         
         // Revert the optimistic update if there's an error
         setBalance(prevBalance => prevBalance - amount);
@@ -212,16 +183,12 @@ export function useRealtimeWallet() {
         throw new Error(result.error || 'Failed to add funds');
       }
       
-      console.log('Funds added successfully');
       
       // Fetch the latest wallet data to ensure consistency
-      console.log('Fetching latest wallet data after adding funds');
       const updatedWallet = await fetchWallet();
-      console.log('Updated wallet data:', updatedWallet);
       
       return updatedWallet;
     } catch (err) {
-      console.error('Error in addFunds:', err);
       setError(err instanceof Error ? err.message : 'Failed to add funds');
       throw err;
     }
@@ -230,10 +197,6 @@ export function useRealtimeWallet() {
   const lockFunds = async (amount: number) => {
     try {
       setError(null);
-      console.log('Locking funds in wallet:');
-      console.log('- Amount to lock:', amount);
-      console.log('- Current balance:', balance);
-      console.log('- Current locked balance:', lockedBalance);
       
       // Optimistically update the locked balance for better UX
       setLockedBalance(prevLocked => prevLocked + amount);
@@ -245,7 +208,6 @@ export function useRealtimeWallet() {
       });
 
       if (lockError) {
-        console.error('Error locking funds:', lockError);
         // Revert the optimistic update if there's an error
         setLockedBalance(prevLocked => prevLocked - amount);
         throw lockError;
@@ -253,18 +215,15 @@ export function useRealtimeWallet() {
       
       // Check if the lock operation was successful
       if (lockResult && !lockResult.success) {
-        console.error('Lock funds failed:', lockResult.error);
         // Revert the optimistic update if there's an error
         setLockedBalance(prevLocked => prevLocked - amount);
         throw new Error(lockResult.error || 'Failed to lock funds');
       }
       
-      console.log('Funds locked successfully');
       
       // Fetch the latest wallet data to ensure consistency
       await fetchWallet();
     } catch (err) {
-      console.error('Error in lockFunds:', err);
       setError(err instanceof Error ? err.message : 'Failed to lock funds');
       throw err;
     }

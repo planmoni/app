@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePin } from '@/contexts/PinContext';
 import { useOnlineStatus } from './OnlineStatusProvider';
 import OfflineNotice from './OfflineNotice';
 
@@ -24,6 +25,7 @@ export default function PendingActionsCard() {
   const { colors, isDark } = useTheme();
   const [profileData, setProfileData] = useState<any>(null);
   const { session } = useAuth();
+  const { hasAppLockPin } = usePin();
   const haptics = useHaptics();
   const { isOnline } = useOnlineStatus();
 
@@ -82,7 +84,7 @@ export default function PendingActionsCard() {
       icon: Lock,
       iconBg: colors.backgroundTertiary,
       iconColor: colors.text,
-      route: '/app-lock-setup',
+      route: '/settings/security-center',
       priority: 'high',
     },
     
@@ -106,7 +108,7 @@ export default function PendingActionsCard() {
       case 'verify-email':
         return !!profileData.email_verified || !!session?.user?.email_confirmed_at;
       case 'setup-app-lock':
-        return !!profileData.app_lock_enabled;
+        return hasAppLockPin;
       case 'account-verification':
         return !!profileData.account_verified;
       case 'setup-2fa':

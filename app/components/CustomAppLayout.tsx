@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useAppLock } from '@/contexts/AppLockContext';
+
 import { useFonts } from 'expo-font';
 import { SplashScreen } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -13,7 +13,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import CustomSplashScreen from '@/components/SplashScreen';
-import LockScreen from '@/components/LockScreen';
+
 import OfflineBanner from '@/components/OfflineBanner';
 import { ReactNode } from 'react';
 import { initializeAnalytics, logAnalyticsEvent } from '@/lib/firebase';
@@ -26,7 +26,6 @@ export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
   const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
-  const { isAppLocked, isAppLockEnabled, resetInactivityTimer } = useAppLock();
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
@@ -80,11 +79,10 @@ export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
   }
 
   return (
-    <View style={{ flex: 1 }} onTouchStart={() => resetInactivityTimer()}>
+    <View style={{ flex: 1 }}>
       <OfflineBanner />
       {children}
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      {isAppLocked && isAppLockEnabled && <LockScreen />}
     </View>
   );
 }

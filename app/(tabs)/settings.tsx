@@ -38,7 +38,6 @@ import NotificationSettingsModal from '@/components/NotificationSettingsModal';
 import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
-import BiometricSetupModal from '@/components/settings/BiometricSetupModal';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { Platform } from 'react-native';
 
@@ -52,7 +51,6 @@ export default function SettingsScreen() {
   const lastName = session?.user?.user_metadata?.last_name || '';
   const email = session?.user?.email || '';
 
-  const [biometrics, setBiometrics] = useState(false);
   const [vaultAlerts, setVaultAlerts] = useState(true);
   const [loginAlerts, setLoginAlerts] = useState(true);
   const [expiryReminders, setExpiryReminders] = useState(false);
@@ -65,7 +63,6 @@ export default function SettingsScreen() {
   const [showSupport, setShowSupport] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
-  const [showBiometricModal, setShowBiometricModal] = useState(false);
 
   // Log screen view for analytics
   useEffect(() => {
@@ -282,29 +279,7 @@ export default function SettingsScreen() {
               />
             </View>
 
-            <View style={styles.divider} />
 
-            <Pressable 
-              style={styles.settingItem}
-              onPress={() => {
-                if (Platform.OS !== 'web') {
-                  haptics.selection();
-                }
-                setShowBiometricModal(true);
-                logAnalyticsEvent('open_biometric_settings');
-              }}
-            >
-              <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
-                <Fingerprint size={20} color="#22C55E" />
-              </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingLabel}>Enable Biometrics</Text>
-                <Text style={styles.settingDescription}>Use biometrics for authentication</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
-
-            <View style={styles.divider} />
 
             <View style={styles.settingItem}>
               <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
@@ -443,6 +418,28 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Security</Text>
           
           <View style={styles.card}>
+            <Pressable 
+              style={styles.settingItem}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                }
+                router.push('/settings/security-center');
+                logAnalyticsEvent('view_security_center');
+              }}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#FEF3C7' }]}>
+                <Shield size={20} color="#D97706" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Security Center</Text>
+                <Text style={styles.settingDescription}>Manage PINs, biometrics, and security settings</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+
+            <View style={styles.divider} />
+
             <Pressable 
               style={styles.settingItem}
               onPress={handleChangePassword}
@@ -714,15 +711,7 @@ export default function SettingsScreen() {
         }}
       />
       
-      <BiometricSetupModal
-        isVisible={showBiometricModal}
-        onClose={() => {
-          if (Platform.OS !== 'web') {
-            haptics.lightImpact();
-          }
-          setShowBiometricModal(false);
-        }}
-      />
+      
     </SafeAreaView>
   );
 }

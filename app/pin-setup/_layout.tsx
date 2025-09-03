@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 
-export default function AppLockSetupLayout() {
+export default function PinSetupLayout() {
   const { colors } = useTheme();
 
   return (

@@ -3,7 +3,10 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { BalanceProvider } from '@/contexts/BalanceContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
-import { AppLockProvider } from '@/contexts/AppLockContext';
+import { PinProvider } from '@/contexts/PinContext';
+import { AutoLogoutProvider, useAutoLogout } from '@/contexts/AutoLogoutContext';
+
+import { usePageTracking } from '@/hooks/usePageTracking';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack } from 'expo-router';
@@ -19,6 +22,8 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import CustomSplashScreen from '@/components/SplashScreen';
+import SimplePinLock from '@/components/SimplePinLock';
+
 import { SessionDebugger } from '@/components/SessionDebugger';
 
 // Prevent the splash screen from auto-hiding
@@ -27,7 +32,11 @@ SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent s
 function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
+  const { isAppLocked } = useAutoLogout();
   const [showSplash, setShowSplash] = useState(true);
+  
+  // Track page changes for redirect after unlock
+  usePageTracking();
 
   // Preload Intercom module immediately for instant access
   useEffect(() => {
@@ -160,6 +169,10 @@ function RootLayoutNav() {
         )}
         <Stack.Screen name="+not-found" options={{ title: 'Page Not Found' }} />
       </Stack>
+      
+      {/* Lock Screen Overlay - Renders at root level */}
+      {isAppLocked && <SimplePinLock />}
+      
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* <SessionDebugger /> */}
     </GestureHandlerRootView>
@@ -173,11 +186,13 @@ export default function RootLayout() {
     <ThemeProvider>
       <ToastProvider>
         <AuthProvider>
-          <AppLockProvider>
-            <BalanceProvider>
-              <RootLayoutNav />
-            </BalanceProvider>
-          </AppLockProvider>
+          <PinProvider>
+            <AutoLogoutProvider>
+              <BalanceProvider>
+                <RootLayoutNav />
+              </BalanceProvider>
+            </AutoLogoutProvider>
+          </PinProvider>
         </AuthProvider>
       </ToastProvider>
     </ThemeProvider>

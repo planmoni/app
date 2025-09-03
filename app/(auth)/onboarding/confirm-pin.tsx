@@ -7,13 +7,13 @@ import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
-import { useAppLock } from '@/contexts/AppLockContext';
+import { usePin } from '@/contexts/PinContext';
 import { useHaptics } from '@/hooks/useHaptics';
 
 export default function ConfirmPinScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
-  const { setAppLockPin } = useAppLock();
+  const { setupPin } = usePin();
   const haptics = useHaptics();
   
   const params = useLocalSearchParams();
@@ -44,7 +44,7 @@ export default function ConfirmPinScreen() {
         if (confirmPin === originalPin) {
           try {
             // Save the PIN to secure storage
-            await setAppLockPin(originalPin);
+            await setupPin(originalPin);
             haptics.success();
             console.log('[AppLockConfirm] PIN confirmed and saved. Navigating to success.');
             

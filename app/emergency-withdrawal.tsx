@@ -1,13 +1,15 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Clock, Zap, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useBalance } from '@/contexts/BalanceContext';
+import { useEmergencyWithdrawal } from '@/hooks/useEmergencyWithdrawal';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import EmergencyWithdrawalConfirmationModal from '@/components/EmergencyWithdrawalConfirmationModal';
 
 export default function EmergencyWithdrawalScreen() {
   const { colors, isDark } = useTheme();
@@ -16,33 +18,45 @@ export default function EmergencyWithdrawalScreen() {
   const planName = params.name as string;
   const planAmount = params.amount as string;
   const haptics = useHaptics();
+  const { processEmergencyWithdrawal, isLoading, calculateFee, calculateNetAmount } = useEmergencyWithdrawal();
+  const { payoutPlans } = useRealtimePayoutPlans();
   
   const [selectedOption, setSelectedOption] = useState<'instant' | '24h' | '72h' | null>(null);
+  const [plan, setPlan] = useState<any>(null);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  
+  const styles = createStyles(colors, isDark);
+  
+  // Find the plan details
+  useEffect(() => {
+    const foundPlan = payoutPlans.find(p => p.id === planId);
+    setPlan(foundPlan);
+  }, [planId, payoutPlans]);
   
   // Calculate fees based on the selected option
   const getFeeAmount = () => {
-    if (!planAmount || !selectedOption) return 0;
+    if (!plan || !selectedOption) return 0;
     
-    const amount = parseFloat(planAmount.replace(/[^0-9.]/g, ''));
+    // Calculate remaining amount in the plan
+    const remainingAmount = plan.total_amount - (plan.completed_payouts * plan.payout_amount);
     
-    switch (selectedOption) {
-      case 'instant':
-        return amount * 0.12; // 12% fee
-      case '24h':
-        return amount * 0.06; // 6% fee
-      case '72h':
-        return 0; // 0% fee
-      default:
-        return 0;
-    }
+    return calculateFee(remainingAmount, selectedOption);
   };
   
   // Calculate the net amount after fees
   const getNetAmount = () => {
-    if (!planAmount || !selectedOption) return 0;
+    if (!plan || !selectedOption) return 0;
     
-    const amount = parseFloat(planAmount.replace(/[^0-9.]/g, ''));
-    return amount - getFeeAmount();
+    // Calculate remaining amount in the plan
+    const remainingAmount = plan.total_amount - (plan.completed_payouts * plan.payout_amount);
+    
+    return calculateNetAmount(remainingAmount, selectedOption);
+  };
+  
+  // Get the actual withdrawal amount (remaining amount in plan)
+  const getWithdrawalAmount = () => {
+    if (!plan) return 0;
+    return plan.total_amount - (plan.completed_payouts * plan.payout_amount);
   };
   
   const handleOptionSelect = (option: 'instant' | '24h' | '72h') => {
@@ -50,26 +64,89 @@ export default function EmergencyWithdrawalScreen() {
     setSelectedOption(option);
   };
   
-  const handleConfirm = () => {
-    if (!selectedOption) return;
+  const handleConfirm = async () => {
+    if (!selectedOption || !plan) return;
     
     haptics.mediumImpact();
     
-    // In a real app, this would call an API to process the emergency withdrawal
-    router.replace({
-      pathname: '/emergency-withdrawal/confirmation',
-      params: {
-        planId,
-        planName,
-        planAmount,
-        option: selectedOption,
-        feeAmount: getFeeAmount().toString(),
-        netAmount: getNetAmount().toString()
-      }
+    // Show confirmation modal instead of directly processing withdrawal
+    setShowConfirmationModal(true);
+  };
+
+  const handleConfirmWithdrawal = async () => {
+    if (!selectedOption || !plan) return;
+    
+    const withdrawalAmount = getWithdrawalAmount();
+    
+    // Process the emergency withdrawal
+    const result = await processEmergencyWithdrawal({
+      planId: plan.id,
+      planName: plan.name,
+      withdrawalAmount,
+      option: selectedOption,
+      // Use the plan's configured account (payout_account_id or bank_account_id)
+      payoutAccountId: plan.payout_account_id || undefined,
+      bankAccountId: plan.bank_account_id || undefined
     });
+    
+    // Navigation is handled by the hook if successful
+    if (!result.success) {
+      console.error('Emergency withdrawal failed:', result.error);
+    }
   };
   
-  const styles = createStyles(colors, isDark);
+  // Show loading state if plan data is not loaded yet
+  if (!plan) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable 
+            onPress={() => {
+              haptics.lightImpact();
+              router.back();
+            }} 
+            style={styles.backButton}
+          >
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Emergency Withdrawal</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading plan details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  
+  const withdrawalAmount = getWithdrawalAmount();
+  
+  // If there's no remaining amount, show error
+  if (withdrawalAmount <= 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable 
+            onPress={() => {
+              haptics.lightImpact();
+              router.back();
+            }} 
+            style={styles.backButton}
+          >
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Emergency Withdrawal</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>No funds available for withdrawal in this plan.</Text>
+          <Button 
+            title="Go Back" 
+            onPress={() => router.back()} 
+            style={styles.backButtonStyle}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
   
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -92,6 +169,22 @@ export default function EmergencyWithdrawalScreen() {
           <Text style={styles.warningText}>
             Emergency withdrawals allow you to access your funds before the scheduled payout date, but may incur fees depending on the option you choose.
           </Text>
+        </View>
+        
+        <View style={styles.planInfoCard}>
+          <Text style={styles.planInfoTitle}>Withdrawal Details</Text>
+          <View style={styles.planInfoRow}>
+            <Text style={styles.planInfoLabel}>Plan Name:</Text>
+            <Text style={styles.planInfoValue}>{plan.name}</Text>
+          </View>
+          <View style={styles.planInfoRow}>
+            <Text style={styles.planInfoLabel}>Available Amount:</Text>
+            <Text style={styles.planInfoValue}>₦{withdrawalAmount.toLocaleString()}</Text>
+          </View>
+          <View style={styles.planInfoRow}>
+            <Text style={styles.planInfoLabel}>Completed Payouts:</Text>
+            <Text style={styles.planInfoValue}>{plan.completed_payouts} of {plan.duration}</Text>
+          </View>
         </View>
         
         <Text style={styles.sectionTitle}>Select Withdrawal Option</Text>
@@ -182,7 +275,7 @@ export default function EmergencyWithdrawalScreen() {
             
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Withdrawal Amount</Text>
-              <Text style={styles.summaryValue}>{planAmount}</Text>
+              <Text style={styles.summaryValue}>₦{withdrawalAmount.toLocaleString()}</Text>
             </View>
             
             <View style={styles.summaryRow}>
@@ -200,10 +293,11 @@ export default function EmergencyWithdrawalScreen() {
       
       <View style={styles.footer}>
         <Button
-          title="Confirm Withdrawal"
+          title={isLoading ? "Processing..." : "Confirm Withdrawal"}
           onPress={handleConfirm}
           style={styles.confirmButton}
-          disabled={!selectedOption}
+          disabled={!selectedOption || isLoading}
+          isLoading={isLoading}
           hapticType="medium"
         />
         <Button
@@ -215,10 +309,27 @@ export default function EmergencyWithdrawalScreen() {
           variant="outline"
           style={styles.cancelButton}
           hapticType="light"
+          disabled={isLoading}
         />
       </View>
       
       <SafeFooter />
+      
+      <EmergencyWithdrawalConfirmationModal
+        isVisible={showConfirmationModal}
+        onClose={() => setShowConfirmationModal(false)}
+        onConfirm={handleConfirmWithdrawal}
+        withdrawalDetails={{
+          planName: plan?.name || '',
+          planAmount: getWithdrawalAmount().toString(),
+          option: selectedOption || '',
+          feeAmount: getFeeAmount().toString(),
+          netAmount: getNetAmount().toString(),
+          bankName: plan?.bank_name || 'Default Bank',
+          accountName: plan?.account_name || 'Default Account',
+          accountNumber: plan?.account_number || '****',
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -249,6 +360,31 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.error,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  backButtonStyle: {
+    backgroundColor: colors.primary,
+  },
   content: {
     flex: 1,
   },
@@ -274,6 +410,35 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: isDark ? '#FCD34D' : '#9A3412',
     lineHeight: 20,
+  },
+  planInfoCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  planInfoTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  planInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  planInfoLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  planInfoValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
   },
   sectionTitle: {
     fontSize: 18,
