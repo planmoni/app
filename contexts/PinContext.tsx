@@ -15,6 +15,7 @@ interface PinContextType {
   hasAppLockPin: boolean;
   setupAppLockPin: (pin: string) => Promise<boolean>;
   verifyAppLockPin: (pin: string) => Promise<boolean>;
+  verifyAppLockPinWithBiometrics: () => Promise<boolean>;
   updateAppLockPin: (pin: string) => Promise<boolean>;
   removeAppLockPin: () => Promise<boolean>;
   
@@ -380,6 +381,37 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const verifyAppLockPinWithBiometrics = async (): Promise<boolean> => {
+    try {
+      console.log('PinContext - Verifying App Lock PIN with biometrics...');
+      
+      // First, check if biometrics are enabled
+      if (!biometricEnabled) {
+        console.log('PinContext - Biometrics not enabled');
+        return false;
+      }
+      
+      // Perform biometric authentication
+      const result = await BiometricService.authenticateWithBiometrics(
+        'Verify your identity to access your Planmoni account'
+      );
+      
+      console.log('PinContext - Biometric authentication result:', result);
+      
+      if (result.success) {
+        // Biometric authentication successful - this means the user is verified
+        // Since biometrics are enabled and working, we can consider this as PIN verification
+        console.log('PinContext - App Lock PIN verified successfully with biometrics');
+        return true;
+      } else {
+        console.log('PinContext - App Lock PIN verification failed with biometrics:', result.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('PinContext - Error verifying App Lock PIN with biometrics:', error);
+      return false;
+    }
+  };
 
 
   const checkBiometricSupport = async () => {
@@ -409,6 +441,7 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
       hasAppLockPin,
       setupAppLockPin,
       verifyAppLockPin,
+      verifyAppLockPinWithBiometrics,
       updateAppLockPin,
       removeAppLockPin,
       

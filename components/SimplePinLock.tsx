@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -12,21 +12,27 @@ export default function SimplePinLock() {
   const { colors, isDark } = useTheme();
   const { isAppLocked, unlockApp, getLastActivePage } = useAutoLogout();
   const { session } = useAuth();
-  const { verifyAppLockPin, biometricEnabled } = usePin();
+  const { verifyAppLockPin, verifyAppLockPinWithBiometrics, biometricEnabled } = usePin();
   const router = useRouter();
   
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [biometricSupport, setBiometricSupport] = useState<any>(null);
-
-  // Don't render if not locked
-  if (!isAppLocked) return null;
+  const [isUnlocked, setIsUnlocked] = useState(false);
 
   // Load biometric support on mount
   useEffect(() => {
     loadBiometricSupport();
   }, []);
+
+  // Don't render if not locked or if we've already unlocked
+  if (!isAppLocked || isUnlocked) {
+    console.log('SimplePinLock - App is not locked or already unlocked, returning null');
+    return null;
+  }
+
+  console.log('SimplePinLock - Rendering lock screen');
 
   const loadBiometricSupport = async () => {
     try {
@@ -88,6 +94,10 @@ export default function SimplePinLock() {
         // PIN is correct - unlock the app
         console.log('SimplePinLock - PIN correct, calling unlockApp()');
         setPin('');
+        
+        // Set flag to prevent re-render
+        setIsUnlocked(true);
+        
         unlockApp();
         console.log('SimplePinLock - unlockApp() called successfully');
         
@@ -97,10 +107,10 @@ export default function SimplePinLock() {
         
         console.log('SimplePinLock - Navigating to:', targetPage);
         
-        // Longer delay to ensure protection is fully set
+        // Longer delay to ensure protection is fully set for PIN unlock
         setTimeout(() => {
           router.replace(targetPage);
-        }, 300);
+        }, 500);
       } else {
         // PIN is incorrect
         console.log('SimplePinLock - PIN incorrect, showing error');
@@ -123,11 +133,22 @@ export default function SimplePinLock() {
     }
     
     try {
-      const result = await BiometricService.authenticateWithBiometrics('Unlock Planmoni with biometrics');
-      if (result.success) {
-        // Biometric authentication successful, unlock the app
-        setPin('');
+      console.log('SimplePinLock - Starting biometric PIN verification...');
+      
+      // Use the new biometric PIN verification function
+      const isValid = await verifyAppLockPinWithBiometrics();
+      console.log('SimplePinLock - Biometric PIN verification result:', isValid);
+      
+      if (isValid) {
+        // Biometric PIN verification successful - unlock the app
+        console.log('SimplePinLock - Biometric PIN correct, calling unlockApp()');
+        
+        // Set flag to prevent re-render
+        setIsUnlocked(true);
+        
+        // Call unlockApp (same as PIN unlock) to ensure consistent behavior
         unlockApp();
+        console.log('SimplePinLock - unlockApp() called successfully from biometric verification');
         
         // Navigate to the last active page or fallback to index
         const lastPage = getLastActivePage();
@@ -135,14 +156,15 @@ export default function SimplePinLock() {
         
         console.log('SimplePinLock - Biometric unlock successful, navigating to:', targetPage);
         
-        // Longer delay to ensure protection is fully set
+        // Use the same delay as PIN unlock for consistency
         setTimeout(() => {
           router.replace(targetPage);
-        }, 300);
+        }, 500);
       } else {
-        Alert.alert('Authentication Failed', result.error || 'Biometric authentication failed. Please try again.');
+        Alert.alert('Authentication Failed', 'Biometric authentication failed. Please try again or use your PIN.');
       }
     } catch (error) {
+      console.error('SimplePinLock - Biometric unlock error:', error);
       Alert.alert('Error', 'Biometric authentication failed. Please try again.');
     }
   };
@@ -286,6 +308,27 @@ export default function SimplePinLock() {
           >
             <Ionicons name={getBiometricIcon()} size={24} color={colors.primary} />
             <Text style={styles.biometricButtonText}>{getBiometricText()}</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Debug button - remove in production */}
+        {__DEV__ && (
+          <TouchableOpacity
+            style={styles.debugButton}
+            onPress={() => {
+              console.log('SimplePinLock - Test unlock button pressed');
+              console.log('SimplePinLock - Current isAppLocked:', isAppLocked);
+              console.log('SimplePinLock - isUnlocked:', isUnlocked);
+              
+              // Set flag to prevent re-render
+              setIsUnlocked(true);
+              
+              // Use the same function as PIN unlock for consistency
+              unlockApp();
+              console.log('SimplePinLock - unlockApp() called from test button');
+            }}
+          >
+            <Text style={styles.debugButtonText}>Debug: Unlock App</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -442,5 +485,20 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
     marginLeft: 8,
+  },
+  debugButton: {
+    alignSelf: 'center',
+    marginTop: 20,
+    backgroundColor: colors.primary + '15',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+  debugButtonText: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: '500',
   },
 }); 

@@ -22,7 +22,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import CustomSplashScreen from '@/components/SplashScreen';
-import SimplePinLock from '@/components/SimplePinLock';
+import BiometricsLock from '@/components/BiometricsLock';
 
 import { SessionDebugger } from '@/components/SessionDebugger';
 
@@ -171,7 +171,7 @@ function RootLayoutNav() {
       </Stack>
       
       {/* Lock Screen Overlay - Renders at root level */}
-      {isAppLocked && <SimplePinLock />}
+      {isAppLocked && <BiometricsLock />}
       
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* <SessionDebugger /> */}
