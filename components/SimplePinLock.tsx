@@ -290,9 +290,7 @@ export default function SimplePinLock() {
         <TouchableOpacity 
           style={styles.forgotPinButton}
           onPress={() => {
-            // TODO: Implement forgot PIN functionality
-            // This could redirect to a support page or show contact information
-            console.log('Forgot PIN pressed');
+            router.push('/forgot-pin');
           }}
           disabled={isVerifying}
         >

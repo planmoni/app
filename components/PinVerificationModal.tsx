@@ -17,6 +17,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 import { BiometricService } from '@/lib/biometrics';
+import { useRouter } from 'expo-router';
 
 interface PinVerificationModalProps {
   isVisible: boolean;
@@ -41,6 +42,7 @@ export default function PinVerificationModal({
   const { width, height } = useWindowDimensions();
   const { verifyBiometric, biometricEnabled, checkBiometricSupport, verifyAppLockPin } = usePin();
   const haptics = useHaptics();
+  const router = useRouter();
   
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -271,7 +273,8 @@ export default function PinVerificationModal({
               style={styles.forgotPin}
               onPress={() => {
                 haptics.selection();
-                // Handle forgot PIN
+                onClose(); // Close the modal first
+                router.push('/forgot-pin'); // Navigate to PIN recovery flow
               }}
             >
               <Text style={styles.forgotPinText}>Forgot PIN</Text>

@@ -302,7 +302,7 @@ export default function UpdatePin() {
         <Text style={styles.headerTitle}>Update PIN</Text>
         <TouchableOpacity 
           style={styles.forgotPinButton} 
-          onPress={() => Alert.alert('Forgot PIN', 'Contact support to reset your PIN')}
+          onPress={() => router.push('/forgot-pin')}
         >
           <Text style={styles.forgotPinText}>Forgot PIN?</Text>
         </TouchableOpacity>

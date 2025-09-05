@@ -202,6 +202,7 @@ export default function SecurityCenter() {
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Security Center</Text>
         </View>
+        
       </View>
 
       {/* App Lock Settings */}
@@ -285,6 +286,14 @@ export default function SecurityCenter() {
         </>
       ))}
 
+      <View style={styles.doneButtonContainer}>
+        <TouchableOpacity 
+          style={styles.doneButton} 
+          onPress={() => router.push('/(tabs)/')}
+        >
+          <Text style={styles.doneButtonText}>Done</Text>
+        </TouchableOpacity>
+      </View>
       
     </ScrollView>
   );
@@ -294,7 +303,6 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    marginBottom: 30,
   },
   header: {
     flexDirection: 'row',
@@ -469,5 +477,24 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: colors.text,
+  },
+  doneButton: {
+    width: '100%',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doneButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  doneButtonContainer: {
+    padding: 20,
+    paddingTop: 32,
+    alignItems: 'center',
   },
 }); 
