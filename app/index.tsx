@@ -15,7 +15,7 @@ const SLIDES = [
   {
     id: '1',
     title: 'Say hello to financial control',
-    description: 'Plan, Schedule and Auto Pay with Planmoni',
+    description: 'Planmoni is a Smart Money Planner App with automated payouts scheduling and intelligent cash flow management',
     image: require('@/assets/images/slider1 logo.png'),
     icon: null,
     color: '#EFF6FF',
@@ -204,11 +204,12 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   slideTitle: {
     fontWeight: '800',
-    fontSize: 45,
-    lineHeight: 50,
+    fontSize: 30,
+    marginTop: 20,
     letterSpacing: -1,
     color: colors.text,
     marginBottom: 15,
+    alignSelf: 'center',
     textAlign: 'center',
   },
   slideDescription: {

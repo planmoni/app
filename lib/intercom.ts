@@ -123,42 +123,36 @@ class IntercomService {
   }
 
   /**
-   * Show Intercom messenger - optimized for instant loading
+   * Show Intercom messenger
    */
   async present(): Promise<void> {
     try {
-      // Try to present immediately without waiting for initialization
+      if (!this.isInitialized) {
+        console.warn('Intercom not initialized, cannot present messenger');
+        return;
+      }
+
       await Intercom.present();
       console.log('Presented Intercom messenger');
     } catch (error) {
-      // If not initialized, initialize and try again
-      try {
-        await this.initialize();
-        await Intercom.present();
-        console.log('Presented Intercom messenger after initialization');
-      } catch (retryError) {
-        console.error('Failed to present Intercom messenger:', retryError);
-      }
+      console.error('Failed to present Intercom messenger:', error);
     }
   }
 
   /**
-   * Set launcher visibility - optimized for instant loading
+   * Set launcher visibility
    */
   async setLauncherVisibility(visibility: Visibility): Promise<void> {
     try {
-      // Try to set visibility immediately without waiting for initialization
+      if (!this.isInitialized) {
+        console.warn('Intercom not initialized, cannot set launcher visibility');
+        return;
+      }
+
       await Intercom.setLauncherVisibility(visibility);
       console.log('Set Intercom launcher visibility:', visibility);
     } catch (error) {
-      // If not initialized, initialize and try again
-      try {
-        await this.initialize();
-        await Intercom.setLauncherVisibility(visibility);
-        console.log('Set Intercom launcher visibility after initialization:', visibility);
-      } catch (retryError) {
-        console.error('Failed to set Intercom launcher visibility:', retryError);
-      }
+      console.error('Failed to set Intercom launcher visibility:', error);
     }
   }
 
@@ -191,53 +185,6 @@ class IntercomService {
    */
   getInitializationStatus(): boolean {
     return this.isInitialized;
-  }
-
-  /**
-   * Preload Intercom module for instant access
-   */
-  preloadModule(): void {
-    // Start preloading the module in background immediately
-    Promise.resolve().then(() => {
-      import('@intercom/intercom-react-native').catch(() => {
-        // Silently handle preload errors
-      });
-    });
-    
-    // Also try to preload the actual Intercom instance
-    Promise.resolve().then(async () => {
-      try {
-        const { default: Intercom } = await import('@intercom/intercom-react-native');
-        // Pre-warm the Intercom instance
-        if (Intercom) {
-          console.log('✅ Intercom module preloaded successfully');
-        }
-      } catch (error) {
-        // Silently handle preload errors
-      }
-    });
-  }
-
-  /**
-   * Show Intercom messenger instantly without waiting
-   */
-  async presentInstantly(): Promise<void> {
-    try {
-      // Try to present immediately without any checks
-      await Intercom.present();
-      console.log('Presented Intercom messenger instantly');
-    } catch (error) {
-      // If failed, try to initialize and present again
-      try {
-        console.log('Initial attempt failed, trying to initialize...');
-        await this.initialize();
-        await Intercom.present();
-        console.log('Presented Intercom messenger after initialization');
-      } catch (initError) {
-        console.error('Failed to present Intercom messenger:', initError);
-        throw initError;
-      }
-    }
   }
 }
 

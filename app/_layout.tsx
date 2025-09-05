@@ -14,7 +14,6 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications } from '@/lib/notifications';
-import { intercomService, Visibility } from '@/lib/intercom';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -38,12 +37,6 @@ function RootLayoutNav() {
   // Track page changes for redirect after unlock
   usePageTracking();
 
-  // Preload Intercom module immediately for instant access
-  useEffect(() => {
-    // Use the intercom service to preload the module
-    intercomService.preloadModule();
-  }, []);
-
   // Initialize notifications when user is authenticated
   useEffect(() => {
     if (session?.user?.id) {
@@ -56,43 +49,10 @@ function RootLayoutNav() {
           console.warn('Failed to initialize notifications:', error);
         });
       } catch (error) {
-        console.warn('Error setting up notification initialization:', error);
+        console.error('Error setting up notification initialization:', error);
       }
     }
   }, [session?.user?.id]);
-
-  // Initialize Intercom for unidentified users - optimized for instant loading
-  useEffect(() => {
-    let isMounted = true;
-    
-    const initIntercom = () => {
-      // Start Intercom initialization immediately without any async operations
-      console.log('🚀 Starting Intercom initialization...');
-      
-      // Use dynamic import with no await to prevent blocking
-      import('@intercom/intercom-react-native').then(async ({ default: Intercom, Visibility }) => {
-        if (!isMounted) return;
-        
-        try {
-          // Initialize Intercom in background
-          await Intercom.loginUnidentifiedUser();
-          await Intercom.setLauncherVisibility(Visibility.VISIBLE);
-          console.log('✅ Intercom initialized successfully in background');
-        } catch (error) {
-          console.warn('Failed to initialize Intercom:', error);
-        }
-      }).catch(error => {
-        console.warn('Failed to load Intercom module:', error);
-      });
-    };
-
-    // Execute immediately without any delay
-    initIntercom();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
