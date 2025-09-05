@@ -72,6 +72,14 @@ export default function HomeScreen() {
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
+  
+  // Debug: Track payoutPlans changes
+  useEffect(() => {
+    console.log('📊 Dashboard: payoutPlans updated', {
+      count: payoutPlans.length,
+      plans: payoutPlans.map(p => ({ id: p.id, name: p.name, status: p.status }))
+    });
+  }, [payoutPlans]);
   const { transactions, isLoading: transactionsLoading } = useRealtimeTransactions();
   const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
@@ -390,6 +398,14 @@ export default function HomeScreen() {
 
   // Get active payout plans for display
   const activePlans = payoutPlans.filter(plan => plan.status === 'active').slice(0, 3);
+  
+  // Debug: Track activePlans changes
+  useEffect(() => {
+    console.log('🎯 Dashboard: activePlans updated', {
+      count: activePlans.length,
+      plans: activePlans.map(p => ({ id: p.id, name: p.name }))
+    });
+  }, [activePlans]);
   
   // Find the next payout - the one with the earliest next_payout_date that hasn't expired
   const nextPayout = payoutPlans

@@ -91,6 +91,14 @@ export default function ViewPayoutScreen() {
   const handleSave = async () => {
     if (!plan) return;
     
+    console.log('💾 Starting payout update process...', {
+      planId: plan.id,
+      currentName: plan.name,
+      newName: payoutName.trim(),
+      currentDescription: plan.description,
+      newDescription: payoutDescription.trim()
+    });
+    
     try {
       // Validate inputs
       if (!payoutName.trim()) {
@@ -101,9 +109,18 @@ export default function ViewPayoutScreen() {
       
       // Check if there are any changes
       if (payoutName.trim() === plan.name && payoutDescription.trim() === (plan.description || '')) {
+        console.log('ℹ️ No changes detected, exiting edit mode');
         setIsEditing(false);
         return;
       }
+      
+      console.log('🔄 Calling updatePlan with data:', {
+        planId: plan.id,
+        updates: {
+          name: payoutName.trim(),
+          description: payoutDescription.trim() || undefined
+        }
+      });
       
       // Update the plan
       await updatePlan(plan.id, {
@@ -111,13 +128,21 @@ export default function ViewPayoutScreen() {
         description: payoutDescription.trim() || undefined
       });
       
+      console.log('✅ updatePlan completed successfully');
+      
       haptics.notification(Haptics.NotificationFeedbackType.Success);
       showToast('Payout plan updated successfully', 'success');
       setIsEditing(false);
+      
+      // Navigate back to dashboard to show updated data
+      console.log('🔄 Navigating back to dashboard to show updated payout data...');
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 1000); // Small delay to show success message
     } catch (error) {
+      console.error('❌ Error updating payout plan:', error);
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       showToast('Failed to update payout plan', 'error');
-      console.error('Error updating payout plan:', error);
     }
   };
 

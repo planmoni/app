@@ -52,6 +52,8 @@ export function useRealtimePayoutPlans() {
 
         // Set up real-time subscription
         const channelName = `payout-plans-changes-${session.user.id}`;
+        console.log('🔗 Setting up real-time subscription for channel:', channelName);
+        
         channel = supabase
           .channel(channelName)
           .on(
@@ -63,29 +65,50 @@ export function useRealtimePayoutPlans() {
               filter: `user_id=eq.${session.user.id}`,
             },
             (payload: any) => {
-              console.log('Payout plan change received:', payload);
+              console.log('📡 Payout plan change received:', {
+                event: payload.event,
+                table: payload.table,
+                schema: payload.schema,
+                new: payload.new,
+                old: payload.old
+              });
               
-              if (payload.eventType === 'INSERT' && payload.new) {
+              if (payload.event === 'INSERT' && payload.new) {
+                console.log('➕ INSERT event - adding new plan:', payload.new.name);
                 setPayoutPlans(prev => [payload.new as PayoutPlan, ...prev]);
-              } else if (payload.eventType === 'UPDATE' && payload.new) {
-                setPayoutPlans(prev => 
-                  prev.map(plan => 
+              } else if (payload.event === 'UPDATE' && payload.new) {
+                console.log('✏️ UPDATE event - updating plan:', payload.new.name);
+                setPayoutPlans(prev => {
+                  const updated = prev.map(plan => 
                     plan.id === payload.new.id ? payload.new as PayoutPlan : plan
-                  )
-                );
-              } else if (payload.eventType === 'DELETE' && payload.old) {
+                  );
+                  console.log('🔄 Updated plans count:', updated.length);
+                  return updated;
+                });
+              } else if (payload.event === 'DELETE' && payload.old) {
+                console.log('🗑️ DELETE event - removing plan:', payload.old.name);
                 setPayoutPlans(prev => 
                   prev.filter(plan => plan.id !== payload.old.id)
                 );
+              } else {
+                console.log('❓ Unknown event type or missing data:', payload);
               }
             }
           );
-        // Only subscribe if not already subscribed
-        if (channel.state === 'closed' || channel.state === 'leaving') {
-          channel.subscribe((status: any) => {
-            console.log('Payout plans subscription status:', status);
-          });
-        }
+        
+        // Always subscribe (removed the conditional check)
+        channel.subscribe((status: any) => {
+          console.log('📡 Payout plans subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Successfully subscribed to payout plans changes');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Channel subscription error');
+          } else if (status === 'TIMED_OUT') {
+            console.error('⏰ Channel subscription timed out');
+          } else if (status === 'CLOSED') {
+            console.log('🔒 Channel subscription closed');
+          }
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to setup payout plans subscription');
       }
