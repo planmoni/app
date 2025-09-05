@@ -4,11 +4,9 @@ import { router } from 'expo-router';
 import { TriangleAlert as AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, Plus } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCalendarEvents, CalendarEvent } from '@/hooks/useCalendarEvents';
-import { useHaptics } from '@/hooks/useHaptics';
 
 type ViewType = 'month' | 'week' | 'list';
 
@@ -19,7 +17,6 @@ export default function CalendarScreen() {
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { events, isLoading, error, refreshEvents } = useCalendarEvents();
-  const haptics = useHaptics();
   const [activeView, setActiveView] = useState<ViewType>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -151,34 +148,6 @@ export default function CalendarScreen() {
     setCurrentDate(newDate);
   };
 
-  const handleSwipeGesture = (event: any) => {
-    if (event.nativeEvent.state === State.END) {
-      const { translationX, velocityX } = event.nativeEvent;
-      
-      // Determine swipe direction based on translation and velocity
-      const threshold = 50;
-      const velocityThreshold = 500;
-      
-      if (translationX > threshold || velocityX > velocityThreshold) {
-        // Swipe right - go to previous period
-        haptics.selection();
-        if (activeView === 'month') {
-          handlePrevMonth();
-        } else if (activeView === 'week') {
-          handlePrevWeek();
-        }
-      } else if (translationX < -threshold || velocityX < -velocityThreshold) {
-        // Swipe left - go to next period
-        haptics.selection();
-        if (activeView === 'month') {
-          handleNextMonth();
-        } else if (activeView === 'week') {
-          handleNextWeek();
-        }
-      }
-    }
-  };
-
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
   };
@@ -299,8 +268,7 @@ export default function CalendarScreen() {
     const days = Array.from({ length: daysInMonth }, (_, i) => new Date(currentDate.getFullYear(), currentDate.getMonth(), i + 1));
 
     return (
-      <PanGestureHandler onHandlerStateChange={handleSwipeGesture}>
-        <View>
+      <View>
         <View style={styles.monthHeader}>
           <Text style={styles.monthTitle} numberOfLines={1} adjustsFontSizeToFit>
             {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
@@ -438,8 +406,7 @@ export default function CalendarScreen() {
             </View>
           </View>
         </View>
-        </View>
-      </PanGestureHandler>
+      </View>
     );
   };
 
@@ -447,8 +414,7 @@ export default function CalendarScreen() {
     const weekDates = getWeekDates(currentDate);
     
     return (
-      <PanGestureHandler onHandlerStateChange={handleSwipeGesture}>
-        <View>
+      <View>
         <View style={styles.weekHeader}>
           <Text style={styles.weekTitle} numberOfLines={1} adjustsFontSizeToFit>
             {formatDate(weekDates[0])} - {formatDate(weekDates[6])}
@@ -577,8 +543,7 @@ export default function CalendarScreen() {
             </View>
           </View>
         </View>
-        </View>
-      </PanGestureHandler>
+      </View>
     );
   };
 
@@ -883,10 +848,6 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     marginBottom: 8,
     paddingHorizontal: 2,
   },
-  weekDayCell: {
-    width: cellSize,
-    alignItems: 'center',
-  },
   weekDay: {
     fontSize: 12,
     fontWeight: '500',
@@ -1052,7 +1013,6 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
   eventContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
   },
   eventIcon: {
     width: 32,
