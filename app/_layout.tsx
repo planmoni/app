@@ -22,6 +22,7 @@ import {
 } from '@expo-google-fonts/inter';
 import CustomSplashScreen from '@/components/SplashScreen';
 import BiometricsLock from '@/components/BiometricsLock';
+import AppBlur from '@/components/AppBlur';
 
 import { SessionDebugger } from '@/components/SessionDebugger';
 
@@ -149,7 +150,9 @@ export default function RootLayout() {
           <PinProvider>
             <AutoLogoutProvider>
               <BalanceProvider>
+                <AppBlur>
                 <RootLayoutNav />
+                </AppBlur>
               </BalanceProvider>
             </AutoLogoutProvider>
           </PinProvider>

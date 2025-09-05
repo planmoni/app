@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { usePin } from '@/contexts/PinContext';
 import { useAutoLogout } from '@/contexts/AutoLogoutContext';
 import { BiometricService } from '@/lib/biometrics';
+import AppBlurSettings from '@/components/AppBlurSettings';
 
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';

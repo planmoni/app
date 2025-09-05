@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { Appearance, ColorSchemeName } from 'react-native';
+import { getItem, saveItem } from '@/lib/secure-storage';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -9,6 +10,9 @@ type ThemeContextType = {
   setTheme: (theme: Theme) => void;
   colors: typeof lightColors;
 };
+
+// Storage key for theme preference
+const THEME_PREFERENCE_KEY = 'theme_preference';
 
 const lightColors = {
   // Background colors
@@ -106,11 +110,34 @@ const darkColors = {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('system');
+  const [theme, setThemeState] = useState<Theme>('system');
+  const [isLoading, setIsLoading] = useState(true);
   const [systemColorScheme, setSystemColorScheme] = useState<ColorSchemeName>(
     Appearance.getColorScheme()
   );
 
+  // Load theme preference from storage on mount
+  useEffect(() => {
+    const loadThemePreference = async () => {
+      try {
+        const savedTheme = await getItem(THEME_PREFERENCE_KEY);
+        if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
+          console.log('🎨 Loading saved theme preference:', savedTheme);
+          setThemeState(savedTheme as Theme);
+        } else {
+          console.log('🎨 No saved theme preference, using system default');
+        }
+      } catch (error) {
+        console.error('❌ Failed to load theme preference:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadThemePreference();
+  }, []);
+
+  // Listen to system appearance changes
   useEffect(() => {
     const subscription = Appearance.addChangeListener(({ colorScheme }) => {
       setSystemColorScheme(colorScheme);
@@ -119,8 +146,27 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return () => subscription?.remove();
   }, []);
 
+  // Save theme preference to storage when it changes
+  const setTheme = async (newTheme: Theme) => {
+    try {
+      console.log('🎨 Setting theme preference:', newTheme);
+      setThemeState(newTheme);
+      await saveItem(THEME_PREFERENCE_KEY, newTheme);
+      console.log('✅ Theme preference saved successfully');
+    } catch (error) {
+      console.error('❌ Failed to save theme preference:', error);
+      // Still update the state even if saving fails
+      setThemeState(newTheme);
+    }
+  };
+
   const isDark = theme === 'dark' || (theme === 'system' && systemColorScheme === 'dark');
   const colors = isDark ? darkColors : lightColors;
+
+  // Don't render until theme is loaded to prevent flash
+  if (isLoading) {
+    return null;
+  }
 
   return (
     <ThemeContext.Provider value={{ theme, isDark, setTheme, colors }}>
