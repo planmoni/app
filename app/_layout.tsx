@@ -83,7 +83,7 @@ function RootLayoutNav() {
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorTitle}>Configuration Error</Text>
+        
         <Text style={styles.errorMessage}>{error}</Text>
         <Text style={styles.errorInstructions}>
           Please check your environment configuration and database setup as described in the README.md file.

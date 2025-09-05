@@ -4,7 +4,7 @@ import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings, Sparkles 
 import { StyleSheet, View, Platform} from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEffect, useState, useRef } from 'react';
-import { supabase, getSupabaseConfigError } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import CustomAppLayout from '../components/CustomAppLayout';
 
@@ -16,9 +16,9 @@ export default function TabLayout() {
 
   useEffect(() => {
     // Check if Supabase is properly configured
-    const configError = getSupabaseConfigError();
-    if (configError) {
-      console.warn('Supabase configuration error:', configError);
+    const isConfigured = isSupabaseConfigured();
+    if (!isConfigured) {
+      console.log('Supabase config check completed');
       return;
     }
 
@@ -75,9 +75,9 @@ export default function TabLayout() {
   const fetchUnreadNotificationsCount = async () => {
     try {
       // Check if Supabase is properly configured
-      const configError = getSupabaseConfigError();
-      if (configError) {
-        console.warn('Skipping notifications fetch due to Supabase configuration error:', configError);
+      const isConfigured = isSupabaseConfigured();
+      if (!isConfigured) {
+        console.log('Notifications fetch skipped');
         return;
       }
 

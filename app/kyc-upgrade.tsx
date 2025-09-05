@@ -450,7 +450,7 @@ export default function KYCUpgradeScreen() {
       
       if (!appId || !privateKey) {
         console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
-        showToast('KYC service configuration error', 'error');
+        console.log('KYC service unavailable');
         return;
       }
       
@@ -705,7 +705,7 @@ export default function KYCUpgradeScreen() {
       
       if (!appId || !privateKey) {
         console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
-        showToast('KYC service configuration error', 'error');
+        console.log('KYC service unavailable');
         return;
       }
 

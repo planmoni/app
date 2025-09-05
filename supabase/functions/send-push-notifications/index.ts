@@ -23,7 +23,7 @@ serve(async (req) => {
     if (!supabaseUrl || !supabaseServiceKey || !firebaseProjectId || !firebaseServiceAccountKey) {
       console.error("Missing required environment variables");
       return new Response(
-        JSON.stringify({ error: "Server configuration error" }),
+        JSON.stringify({ error: "Service temporarily unavailable" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error('[Process Payouts API] Missing Supabase configuration');
       return createJsonResponse({ 
-        error: 'Server configuration error',
+        error: 'Service temporarily unavailable',
         details: 'Missing Supabase URL or service key'
       }, 500);
     }
@@ -77,7 +77,7 @@ export async function PUT(request: Request) {
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error('[Process Payouts API] Missing Supabase configuration');
       return createJsonResponse({ 
-        error: 'Server configuration error',
+        error: 'Service temporarily unavailable',
         details: 'Missing Supabase URL or service key'
       }, 500);
     }
