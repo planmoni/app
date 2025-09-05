@@ -192,9 +192,25 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
 
   const verifyPayoutPin = async (pin: string): Promise<boolean> => {
     try {
-      const storedPin = await getItem(PAYOUT_PIN_KEY);
       console.log('Verifying Payout PIN...');
-      return storedPin === pin;
+      const storedPayoutPin = await getItem(PAYOUT_PIN_KEY);
+      
+      // If payout PIN is set, use it
+      if (storedPayoutPin) {
+        console.log('Payout PIN found, verifying against payout PIN');
+        return storedPayoutPin === pin;
+      }
+      
+      // Fall back to app lock PIN if no payout PIN is set
+      console.log('No payout PIN set, falling back to app lock PIN');
+      const storedAppLockPin = await getItem(APP_LOCK_PIN_KEY);
+      if (storedAppLockPin) {
+        console.log('App lock PIN found, verifying against app lock PIN');
+        return storedAppLockPin === pin;
+      }
+      
+      console.log('No PIN found for payout verification');
+      return false;
     } catch (error) {
       console.error('Error verifying Payout PIN:', error);
       return false;

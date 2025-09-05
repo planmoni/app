@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -9,13 +9,14 @@ import { useBalance } from '@/contexts/BalanceContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import ErrorMessage from '@/components/ErrorMessage';
-import PayoutConfirmationModal from '@/components/PayoutConfirmationModal';
-import { Platform } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatDisplayDate, formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 import { useBanks } from '@/hooks/useBanks';
 import React from 'react';
 import { getBankIconLogo } from '@/lib/bankIcons';
+import { usePin } from '@/contexts/PinContext';
+import { BiometricService } from '@/lib/biometrics';
+import PinVerificationModal from '@/components/PinVerificationModal';
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -24,8 +25,11 @@ export default function ReviewScreen() {
   const { balance, lockedBalance, refreshWallet } = useBalance();
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [showPinVerification, setShowPinVerification] = useState(false);
+  const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
+  const [biometricSupport, setBiometricSupport] = useState<any>(null);
   const { banks } = useBanks();
+  const { payoutBiometricEnabled, verifyPayoutPin, checkBiometricSupport } = usePin();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -48,10 +52,18 @@ export default function ReviewScreen() {
   // Parse total amount to number for comparison
   const numericTotalAmount = parseFloat(totalAmount.replace(/,/g, ''));
   
-  // Check if user has enough balance
+  // Check if user has insufficient balance
   const hasInsufficientBalance = numericTotalAmount > availableBalance;
 
-  // Refresh wallet balance when component mounts
+  const checkBiometrics = useCallback(async () => {
+    try {
+      const support = await checkBiometricSupport();
+      setBiometricSupport(support);
+    } catch (error) {
+      console.error('Error checking biometric support:', error);
+    }
+  }, [checkBiometricSupport]);
+
   useEffect(() => {
     const fetchBalance = async () => {
       setIsRefreshing(true);
@@ -69,22 +81,11 @@ export default function ReviewScreen() {
     fetchBalance();
   }, []);
 
-  const handleStartPlan = async () => {
-    if (hasInsufficientBalance) {
-      haptics.error();
-      Alert.alert(
-        "Insufficient Balance",
-        `You need ₦${numericTotalAmount.toLocaleString()} but only have ₦${availableBalance.toLocaleString()} available.`,
-        [{ text: "OK" }]
-      );
-      return;
-    }
-    
-    // Show confirmation modal instead of directly creating payout
-    setShowConfirmationModal(true);
-  };
+  useEffect(() => {
+    checkBiometrics();
+  }, [checkBiometrics]);
 
-  const handleConfirmPayout = async () => {
+  const handleConfirmPayout = useCallback(async () => {
     try {
       console.log('Creating payout plan with the following parameters:');
       console.log('- Name:', `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`);
@@ -123,19 +124,113 @@ export default function ReviewScreen() {
         haptics.error();
       }
     }
-  };
+  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, emergencyWithdrawal, haptics, createPayout]);
+
+  const attemptBiometricAuthentication = useCallback(async () => {
+    try {
+      setIsBiometricAuthenticating(true);
+      haptics.mediumImpact();
+
+      const result = await BiometricService.authenticateWithBiometrics(
+        "Authenticate to confirm payout plan"
+      );
+
+      if (result.success) {
+        // Biometric authentication successful
+        haptics.success();
+        await handleConfirmPayout();
+      } else {
+        // Biometric failed or cancelled - fall back to PIN
+        haptics.error();
+        
+        if (result.error === "Authentication cancelled" || result.error === "User chose fallback authentication") {
+          // User cancelled or chose fallback - show PIN modal
+          setShowPinVerification(true);
+        } else {
+          // Other error - show alert and then PIN modal
+          Alert.alert(
+            'Biometric Authentication Failed',
+            'Please use your PIN to confirm the payout plan.',
+            [
+              {
+                text: 'Use PIN',
+                onPress: () => setShowPinVerification(true)
+              },
+              {
+                text: 'Cancel',
+                style: 'cancel'
+              }
+            ]
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Biometric authentication error:', error);
+      haptics.error();
+      
+      // Fall back to PIN on error
+      Alert.alert(
+        'Authentication Error',
+        'Biometric authentication failed. Please use your PIN.',
+        [
+          {
+            text: 'Use PIN',
+            onPress: () => setShowPinVerification(true)
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
+    } finally {
+      setIsBiometricAuthenticating(false);
+    }
+  }, [haptics, handleConfirmPayout]);
+
+  const handleStartPlan = useCallback(async () => {
+    if (hasInsufficientBalance) {
+      Alert.alert(
+        'Insufficient Balance',
+        `You need at least ₦${numericTotalAmount.toLocaleString()} to start this payout plan. Your current available balance is ₦${availableBalance.toLocaleString()}.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    if (Platform.OS !== 'web') {
+      haptics.mediumImpact();
+    }
+    
+    // If biometric authentication is enabled and available, try biometric first
+    if (payoutBiometricEnabled && biometricSupport?.isAvailable && Platform.OS !== 'web') {
+      await attemptBiometricAuthentication();
+    } else {
+      // Fall back to PIN verification
+      setShowPinVerification(true);
+    }
+  }, [hasInsufficientBalance, numericTotalAmount, availableBalance, haptics, payoutBiometricEnabled, biometricSupport, attemptBiometricAuthentication]);
+
+  const handlePinVerificationSuccess = useCallback(async () => {
+    setShowPinVerification(false);
+    await handleConfirmPayout();
+  }, [handleConfirmPayout]);
+
+  const handlePinVerificationClose = useCallback(() => {
+    setShowPinVerification(false);
+  }, []);
 
   const styles = createStyles(colors, isDark);
 
   // Helper function to get bank code from bank name
-  const getBankCode = (bankName: string): string | null => {
+  const getBankCode = useCallback((bankName: string): string | null => {
     const bank = banks.find(b => b.name.toLowerCase().includes(bankName.toLowerCase()) || 
                                  bankName.toLowerCase().includes(b.name.toLowerCase()));
     return bank?.code || null;
-  };
+  }, [banks]);
 
   // Get duration display text based on frequency
-  const getDurationDisplay = () => {
+  const getDurationDisplay = useCallback(() => {
     const durationNum = parseInt(duration);
     
     switch (frequency) {
@@ -156,11 +251,11 @@ export default function ReviewScreen() {
       case 'annually':
         return durationNum === 1 ? '1 year' : `${durationNum} years`;
       case 'custom':
-        return durationNum === 1 ? '1 payout' : `${durationNum} payouts`;
+        return `${durationNum} custom dates`;
       default:
         return `${durationNum} payouts`;
     }
-  };
+  }, [duration, frequency]);
   function getNextPayoutDate(startDate: string, frequency: string, customDates: string[] = [], dayOfWeek?: number): string {
     if (frequency === 'custom' && customDates.length > 0) {
       return formatDisplayDate(customDates[0]);
@@ -431,27 +526,19 @@ export default function ReviewScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title={isLoading ? "Processing..." : "Start Payout Plan"}
+        title={isLoading ? "Processing..." : isBiometricAuthenticating ? "Authenticating..." : "Start Payout Plan"}
         onPress={handleStartPlan}
-        disabled={isLoading || isRefreshing || hasInsufficientBalance}
-        loading={isLoading}
+        disabled={isLoading || isRefreshing || hasInsufficientBalance || isBiometricAuthenticating}
+        loading={isLoading || isBiometricAuthenticating}
       />
 
-      <PayoutConfirmationModal
-        isVisible={showConfirmationModal}
-        onClose={() => setShowConfirmationModal(false)}
-        onConfirm={handleConfirmPayout}
-        payoutDetails={{
-          name: `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`,
-          totalAmount: totalAmount,
-          payoutAmount: payoutAmount,
-          frequency: formatPayoutFrequency(frequency, dayOfWeek),
-          duration: getDurationDisplay(),
-          startDate: formatDisplayDate(startDate),
-          bankName: bankName,
-          accountName: accountName,
-          accountNumber: accountNumber,
-        }}
+      <PinVerificationModal
+        isVisible={showPinVerification}
+        onClose={handlePinVerificationClose}
+        onSuccess={handlePinVerificationSuccess}
+        title="Verify PIN"
+        description="Enter your PIN to confirm payout plan"
+        customVerifyPin={verifyPayoutPin}
       />
     </SafeAreaView>
   );
