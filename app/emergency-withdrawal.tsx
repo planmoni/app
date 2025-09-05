@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Clock, Zap, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -9,7 +9,9 @@ import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
-import EmergencyWithdrawalConfirmationModal from '@/components/EmergencyWithdrawalConfirmationModal';
+import { usePin } from '@/contexts/PinContext';
+import { BiometricService } from '@/lib/biometrics';
+import PinVerificationModal from '@/components/PinVerificationModal';
 
 export default function EmergencyWithdrawalScreen() {
   const { colors, isDark } = useTheme();
@@ -20,10 +22,13 @@ export default function EmergencyWithdrawalScreen() {
   const haptics = useHaptics();
   const { processEmergencyWithdrawal, isLoading, calculateFee, calculateNetAmount } = useEmergencyWithdrawal();
   const { payoutPlans } = useRealtimePayoutPlans();
+  const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport } = usePin();
   
   const [selectedOption, setSelectedOption] = useState<'instant' | '24h' | '72h' | null>(null);
   const [plan, setPlan] = useState<any>(null);
-  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [showPinVerification, setShowPinVerification] = useState(false);
+  const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
+  const [biometricSupport, setBiometricSupport] = useState<any>(null);
   
   const styles = createStyles(colors, isDark);
   
@@ -32,48 +37,52 @@ export default function EmergencyWithdrawalScreen() {
     const foundPlan = payoutPlans.find(p => p.id === planId);
     setPlan(foundPlan);
   }, [planId, payoutPlans]);
+
+  useEffect(() => {
+    checkBiometrics();
+  }, []);
+
+  const checkBiometrics = useCallback(async () => {
+    try {
+      const support = await checkBiometricSupport();
+      setBiometricSupport(support);
+    } catch (error) {
+      console.error('Error checking biometric support:', error);
+    }
+  }, [checkBiometricSupport]);
   
   // Calculate fees based on the selected option
-  const getFeeAmount = () => {
+  const getFeeAmount = useCallback(() => {
     if (!plan || !selectedOption) return 0;
     
     // Calculate remaining amount in the plan
     const remainingAmount = plan.total_amount - (plan.completed_payouts * plan.payout_amount);
     
     return calculateFee(remainingAmount, selectedOption);
-  };
+  }, [plan, selectedOption, calculateFee]);
   
   // Calculate the net amount after fees
-  const getNetAmount = () => {
+  const getNetAmount = useCallback(() => {
     if (!plan || !selectedOption) return 0;
     
     // Calculate remaining amount in the plan
     const remainingAmount = plan.total_amount - (plan.completed_payouts * plan.payout_amount);
     
     return calculateNetAmount(remainingAmount, selectedOption);
-  };
+  }, [plan, selectedOption, calculateNetAmount]);
   
   // Get the actual withdrawal amount (remaining amount in plan)
-  const getWithdrawalAmount = () => {
+  const getWithdrawalAmount = useCallback(() => {
     if (!plan) return 0;
     return plan.total_amount - (plan.completed_payouts * plan.payout_amount);
-  };
+  }, [plan]);
   
-  const handleOptionSelect = (option: 'instant' | '24h' | '72h') => {
+  const handleOptionSelect = useCallback((option: 'instant' | '24h' | '72h') => {
     haptics.selection();
     setSelectedOption(option);
-  };
-  
-  const handleConfirm = async () => {
-    if (!selectedOption || !plan) return;
-    
-    haptics.mediumImpact();
-    
-    // Show confirmation modal instead of directly processing withdrawal
-    setShowConfirmationModal(true);
-  };
+  }, [haptics]);
 
-  const handleConfirmWithdrawal = async () => {
+  const handleConfirmWithdrawal = useCallback(async () => {
     if (!selectedOption || !plan) return;
     
     const withdrawalAmount = getWithdrawalAmount();
@@ -93,7 +102,92 @@ export default function EmergencyWithdrawalScreen() {
     if (!result.success) {
       console.error('Emergency withdrawal failed:', result.error);
     }
-  };
+  }, [selectedOption, plan, getWithdrawalAmount, processEmergencyWithdrawal]);
+
+  const attemptBiometricAuthentication = useCallback(async () => {
+    try {
+      setIsBiometricAuthenticating(true);
+      haptics.mediumImpact();
+
+      const result = await BiometricService.authenticateWithBiometrics(
+        "Authenticate to confirm emergency withdrawal"
+      );
+
+      if (result.success) {
+        // Biometric authentication successful
+        haptics.success();
+        await handleConfirmWithdrawal();
+      } else {
+        // Biometric failed or cancelled - fall back to PIN
+        haptics.error();
+        
+        if (result.error === "Authentication cancelled" || result.error === "User chose fallback authentication") {
+          // User cancelled or chose fallback - show PIN modal
+          setShowPinVerification(true);
+        } else {
+          // Other error - show alert and then PIN modal
+          Alert.alert(
+            'Biometric Authentication Failed',
+            'Please use your PIN to confirm the withdrawal.',
+            [
+              {
+                text: 'Use PIN',
+                onPress: () => setShowPinVerification(true)
+              },
+              {
+                text: 'Cancel',
+                style: 'cancel'
+              }
+            ]
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Biometric authentication error:', error);
+      haptics.error();
+      
+      // Fall back to PIN on error
+      Alert.alert(
+        'Authentication Error',
+        'Biometric authentication failed. Please use your PIN.',
+        [
+          {
+            text: 'Use PIN',
+            onPress: () => setShowPinVerification(true)
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
+    } finally {
+      setIsBiometricAuthenticating(false);
+    }
+  }, [haptics, handleConfirmWithdrawal]);
+
+  const handleConfirm = useCallback(async () => {
+    if (!selectedOption || !plan) return;
+    
+    haptics.mediumImpact();
+    
+    // If biometric authentication is enabled and available, try biometric first
+    if (emergencyBiometricEnabled && biometricSupport?.isAvailable && Platform.OS !== 'web') {
+      await attemptBiometricAuthentication();
+    } else {
+      // Fall back to PIN verification
+      setShowPinVerification(true);
+    }
+  }, [selectedOption, plan, haptics, emergencyBiometricEnabled, biometricSupport, attemptBiometricAuthentication]);
+
+  const handlePinVerificationSuccess = useCallback(async () => {
+    setShowPinVerification(false);
+    await handleConfirmWithdrawal();
+  }, [handleConfirmWithdrawal]);
+
+  const handlePinVerificationClose = useCallback(() => {
+    setShowPinVerification(false);
+  }, []);
   
   // Show loading state if plan data is not loaded yet
   if (!plan) {
@@ -293,11 +387,11 @@ export default function EmergencyWithdrawalScreen() {
       
       <View style={styles.footer}>
         <Button
-          title={isLoading ? "Processing..." : "Confirm Withdrawal"}
+          title={isLoading ? "Processing..." : isBiometricAuthenticating ? "Authenticating..." : "Confirm Withdrawal"}
           onPress={handleConfirm}
           style={styles.confirmButton}
-          disabled={!selectedOption || isLoading}
-          isLoading={isLoading}
+          disabled={!selectedOption || isLoading || isBiometricAuthenticating}
+          isLoading={isLoading || isBiometricAuthenticating}
           hapticType="medium"
         />
         <Button
@@ -315,20 +409,13 @@ export default function EmergencyWithdrawalScreen() {
       
       <SafeFooter />
       
-      <EmergencyWithdrawalConfirmationModal
-        isVisible={showConfirmationModal}
-        onClose={() => setShowConfirmationModal(false)}
-        onConfirm={handleConfirmWithdrawal}
-        withdrawalDetails={{
-          planName: plan?.name || '',
-          planAmount: getWithdrawalAmount().toString(),
-          option: selectedOption || '',
-          feeAmount: getFeeAmount().toString(),
-          netAmount: getNetAmount().toString(),
-          bankName: plan?.bank_name || 'Default Bank',
-          accountName: plan?.account_name || 'Default Account',
-          accountNumber: plan?.account_number || '****',
-        }}
+      <PinVerificationModal
+        isVisible={showPinVerification}
+        onClose={handlePinVerificationClose}
+        onSuccess={handlePinVerificationSuccess}
+        title="Verify PIN"
+        description="Enter your PIN to confirm emergency withdrawal"
+        customVerifyPin={verifyEmergencyPin}
       />
     </SafeAreaView>
   );

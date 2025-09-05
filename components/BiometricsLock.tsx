@@ -13,13 +13,22 @@ export default function BiometricsLock() {
   const { colors, isDark } = useTheme();
   const { isAppLocked, unlockApp, getLastActivePage } = useAutoLogout();
   const { session } = useAuth();
-  const { verifyAppLockPinWithBiometrics, biometricEnabled } = usePin();
+  const { biometricEnabled, verifyAppLockPinWithBiometrics } = usePin();
   const router = useRouter();
   
   const [isVerifying, setIsVerifying] = useState(false);
   const [biometricSupport, setBiometricSupport] = useState<any>(null);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showPinFallback, setShowPinFallback] = useState(false);
+
+  const loadBiometricSupport = async () => {
+    try {
+      const support = await BiometricService.checkBiometricSupport();
+      setBiometricSupport(support);
+    } catch (error) {
+      console.error('BiometricsLock - Error loading biometric support:', error);
+    }
+  };
 
   // Load biometric support on mount
   useEffect(() => {
@@ -35,15 +44,6 @@ export default function BiometricsLock() {
   if (showPinFallback || !biometricEnabled) {
     return <SimplePinLock />;
   }
-
-  const loadBiometricSupport = async () => {
-    try {
-      const support = await BiometricService.checkBiometricSupport();
-      setBiometricSupport(support);
-    } catch (error) {
-      console.error('BiometricsLock - Error loading biometric support:', error);
-    }
-  };
 
   const getBiometricText = () => {
     if (!biometricSupport) return 'Unlock with Biometrics';

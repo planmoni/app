@@ -242,9 +242,25 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
 
   const verifyEmergencyPin = async (pin: string): Promise<boolean> => {
     try {
-      const storedPin = await getItem(EMERGENCY_PIN_KEY);
       console.log('Verifying Emergency PIN...');
-      return storedPin === pin;
+      const storedEmergencyPin = await getItem(EMERGENCY_PIN_KEY);
+      
+      // If emergency PIN is set, use it
+      if (storedEmergencyPin) {
+        console.log('Emergency PIN found, verifying against emergency PIN');
+        return storedEmergencyPin === pin;
+      }
+      
+      // Fall back to app lock PIN if no emergency PIN is set
+      console.log('No emergency PIN set, falling back to app lock PIN');
+      const storedAppLockPin = await getItem(APP_LOCK_PIN_KEY);
+      if (storedAppLockPin) {
+        console.log('App lock PIN found, verifying against app lock PIN');
+        return storedAppLockPin === pin;
+      }
+      
+      console.log('No PIN found for emergency verification');
+      return false;
     } catch (error) {
       console.error('Error verifying Emergency PIN:', error);
       return false;

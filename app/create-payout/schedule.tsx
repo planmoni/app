@@ -332,19 +332,42 @@ export default function ScheduleScreen() {
   };
 
   const handleCustomAmountChange = (amount: string) => {
-    const numericAmount = parseFloat(amount.replace(/,/g, ''));
+    // Filter out non-numeric characters, only allow numbers and decimal point
+    const filteredAmount = amount.replace(/[^0-9.]/g, '');
+    
+    // Prevent multiple decimal points
+    const parts = filteredAmount.split('.');
+    const cleanAmount = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : filteredAmount;
+    
+    // Limit to 2 decimal places
+    const finalAmount = cleanAmount.includes('.') ? 
+      cleanAmount.substring(0, cleanAmount.indexOf('.') + 3) : cleanAmount;
+    
+    const numericAmount = parseFloat(finalAmount);
     const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
     
     if (!isNaN(numericAmount)) {
+      // Validate that the amount doesn't exceed the total
+      if (numericAmount > numericTotal) {
+        // Don't update if amount exceeds total
+        if (Platform.OS !== 'web') {
+          haptics.error();
+        }
+        return;
+      }
+      
       const possiblePayouts = Math.floor(numericTotal / numericAmount);
       const remainingAmount = numericTotal - (numericAmount * possiblePayouts);
       
-      setCustomAmount(amount);
+      setCustomAmount(finalAmount);
       setPayoutAmount(numericAmount.toLocaleString(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       }));
       setNumberOfPayouts(possiblePayouts);
+    } else {
+      // Handle empty or invalid input - still allow setting for user to continue typing
+      setCustomAmount(finalAmount);
     }
   };
 
@@ -455,6 +478,14 @@ export default function ScheduleScreen() {
   };
 
   const handleContinue = () => {
+    // Validate that a schedule is selected
+    if (!selectedSchedule) {
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
+      return;
+    }
+    
     // Validate day of week is selected for weekly_specific
     if ((selectedSchedule || '') === 'weekly_specific' && selectedDayOfWeek === null) {
       if (Platform.OS !== 'web') {
@@ -870,6 +901,7 @@ export default function ScheduleScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={
+          !selectedSchedule || // Disable if no schedule is selected
           (selectedSchedule === 'custom' && customDates.length === 0) || 
           (selectedSchedule === 'weekly_specific' && selectedDayOfWeek === null)
         }
@@ -890,14 +922,41 @@ export default function ScheduleScreen() {
               <Text style={styles.currencySymbol}>₦</Text>
               <TextInput
                 style={styles.modalInput}
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
+                inputMode="decimal"
                 value={customAmount}
                 onChangeText={handleCustomAmountChange}
-                placeholder="Enter amount"
+                placeholder="0.00"
                 placeholderTextColor={colors.textTertiary}
                 autoFocus
+                maxLength={20}
+                selectTextOnFocus={true}
               />
             </View>
+            
+            {(() => {
+              const numericAmount = parseFloat(customAmount.replace(/,/g, ''));
+              const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+              
+              if (!isNaN(numericAmount) && numericAmount > numericTotal) {
+                return (
+                  <View style={styles.validationContainer}>
+                    <Text style={styles.validationError}>
+                      Amount cannot exceed total plan amount of ₦{parseFloat(totalAmount).toLocaleString()}
+                    </Text>
+                  </View>
+                );
+              } else if (!isNaN(numericAmount) && numericAmount > 0) {
+                return (
+                  <View style={styles.validationContainer}>
+                    <Text style={styles.validationSuccess}>
+                      This will create {Math.floor(numericTotal / numericAmount)} payouts
+                    </Text>
+                  </View>
+                );
+              }
+              return null;
+            })()}
 
             <View style={styles.modalActions}>
               <Button
@@ -909,9 +968,24 @@ export default function ScheduleScreen() {
               <Button
                 title="Confirm"
                 onPress={() => {
-                  setIsYearlySplit(false);
-                  setIsEditingAmount(false);
+                  const numericAmount = parseFloat(customAmount.replace(/,/g, ''));
+                  const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+                  
+                  // Validate amount doesn't exceed total
+                  if (!isNaN(numericAmount) && numericAmount <= numericTotal && numericAmount > 0) {
+                    setIsYearlySplit(false);
+                    setIsEditingAmount(false);
+                  } else {
+                    if (Platform.OS !== 'web') {
+                      haptics.error();
+                    }
+                  }
                 }}
+                disabled={(() => {
+                  const numericAmount = parseFloat(customAmount.replace(/,/g, ''));
+                  const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+                  return isNaN(numericAmount) || numericAmount <= 0 || numericAmount > numericTotal;
+                })()}
                 style={styles.modalConfirmButton}
               />
             </View>
@@ -1335,6 +1409,27 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   },
   splitToggleTextActive: {
     color: '#1E3A8A',
+  },
+  validationContainer: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  validationError: {
+    fontSize: 12,
+    color: colors.error,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  validationSuccess: {
+    fontSize: 12,
+    color: colors.success || colors.primary,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
 

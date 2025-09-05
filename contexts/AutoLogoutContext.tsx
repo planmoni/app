@@ -3,7 +3,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePin } from './PinContext';
 
-type AutoLogoutDuration = '0' | '5' | '60' | 'never';
+type AutoLogoutDuration = '5' | '60' | 'never';
 
 interface AutoLogoutContextType {
   autoLogoutDuration: AutoLogoutDuration;
@@ -107,7 +107,7 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const loadAutoLogoutDuration = async () => {
     try {
       const saved = await AsyncStorage.getItem(AUTO_LOGOUT_KEY);
-      if (saved && ['0', '5', '60', 'never'].includes(saved)) {
+      if (saved && ['5', '60', 'never'].includes(saved)) {
         setAutoLogoutDurationState(saved as AutoLogoutDuration);
       }
     } catch (error) {
@@ -130,33 +130,6 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       await AsyncStorage.setItem(AUTO_LOGOUT_KEY, duration);
       setAutoLogoutDurationState(duration);
-      
-      // If setting to "Immediately", lock the app right away
-      if (duration === '0') {
-        console.log('🔒 AutoLogoutContext - Setting auto-logout to "Immediately", checking if should lock', {
-          timestamp: new Date().toISOString(),
-          currentState: {
-            isAppLocked,
-            justUnlocked,
-            unlockTimestamp,
-            biometricUnlockInProgress
-          }
-        });
-        
-        // Don't lock immediately if we just unlocked
-        if (justUnlocked || (unlockTimestamp && (Date.now() - unlockTimestamp) < 30000)) {
-          console.log('🛡️ AutoLogoutContext - Skipping immediate lock due to recent unlock', {
-            timestamp: new Date().toISOString(),
-            justUnlocked,
-            timeSinceUnlock: unlockTimestamp ? Date.now() - unlockTimestamp : 'N/A'
-          });
-        } else {
-          console.log('🔒 AutoLogoutContext - Locking app immediately due to "Immediately" setting', {
-            timestamp: new Date().toISOString()
-          });
-          lockApp();
-        }
-      }
     } catch (error) {
       console.error('Error saving auto-logout duration:', error);
     }
@@ -208,39 +181,6 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
       
       updateLastActive();
-      
-      // If auto-logout is set to "Immediately", lock the app right away
-      if (autoLogoutDuration === '0' && hasAppLockPin) {
-        // Don't lock if biometric unlock just happened
-        if (biometricUnlockInProgress) {
-          console.log('🛡️ AutoLogoutContext - Biometric unlock in progress, skipping immediate background lock', {
-            timestamp: new Date().toISOString(),
-            biometricUnlockInProgress
-          });
-          return;
-        }
-        
-        // Don't lock if we just unlocked
-        if (justUnlocked || justUnlockedRef.current || 
-            (unlockTimestamp && (Date.now() - unlockTimestamp) < 30000) ||
-            (unlockTimestampRef.current && (Date.now() - unlockTimestampRef.current) < 30000)) {
-          console.log('🛡️ AutoLogoutContext - Skipping immediate background lock due to recent unlock', {
-            timestamp: new Date().toISOString(),
-            justUnlocked,
-            justUnlockedRef: justUnlockedRef.current,
-            timeSinceUnlock: unlockTimestamp ? Date.now() - unlockTimestamp : 'N/A',
-            timeSinceUnlockRef: unlockTimestampRef.current ? Date.now() - unlockTimestampRef.current : 'N/A'
-          });
-          return;
-        }
-        
-        console.log('🔒 AutoLogoutContext - App going to background with "Immediately" setting - locking app', {
-          timestamp: new Date().toISOString(),
-          autoLogoutDuration,
-          hasAppLockPin
-        });
-        lockApp();
-      }
     }
     
     appState.current = nextAppState;
@@ -325,31 +265,6 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
 
-    // For "Immediately" setting, lock when app becomes active
-    if (autoLogoutDuration === '0') {
-      // Additional protection: don't lock if we just unlocked
-      if (justUnlocked || justUnlockedRef.current || 
-          (unlockTimestamp && timeSinceUnlock && timeSinceUnlock < 30000) ||
-          (unlockTimestampRef.current && (Date.now() - unlockTimestampRef.current) < 30000)) {
-        console.log('🛡️ AutoLogoutContext - Skipping "Immediately" lock due to recent unlock', {
-          timestamp: new Date().toISOString(),
-          justUnlocked,
-          justUnlockedRef: justUnlockedRef.current,
-          timeSinceUnlock: timeSinceUnlock || 'null',
-          timeSinceUnlockRef: unlockTimestampRef.current ? Date.now() - unlockTimestampRef.current : 'N/A',
-          protectionWindow: '30 seconds'
-        });
-        return;
-      }
-      
-      console.log('🔒 AutoLogoutContext - App becoming active with "Immediately" setting - locking app', {
-        timestamp: new Date().toISOString(),
-        autoLogoutDuration
-      });
-      lockApp();
-      return;
-    }
-
     try {
       const lastActiveStr = await AsyncStorage.getItem(LAST_ACTIVE_KEY);
       const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : Date.now();
@@ -395,7 +310,6 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         } : error
       });
       // If there's an error, lock the app for security
-      // Note: autoLogoutDuration === '0' case is handled above
     }
   };
 

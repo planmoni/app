@@ -16,10 +16,19 @@ export default function SimplePinLock() {
   const router = useRouter();
   
   const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [biometricSupport, setBiometricSupport] = useState<any>(null);
   const [isUnlocked, setIsUnlocked] = useState(false);
+
+  const loadBiometricSupport = async () => {
+    try {
+      const support = await BiometricService.checkBiometricSupport();
+      setBiometricSupport(support);
+    } catch (error) {
+      console.error('Error loading biometric support:', error);
+    }
+  };
 
   // Load biometric support on mount
   useEffect(() => {
@@ -33,15 +42,6 @@ export default function SimplePinLock() {
   }
 
   console.log('SimplePinLock - Rendering lock screen');
-
-  const loadBiometricSupport = async () => {
-    try {
-      const support = await BiometricService.checkBiometricSupport();
-      setBiometricSupport(support);
-    } catch (error) {
-      console.error('Error loading biometric support:', error);
-    }
-  };
 
   const getBiometricText = () => {
     if (!biometricSupport) return 'Unlock with Biometrics';

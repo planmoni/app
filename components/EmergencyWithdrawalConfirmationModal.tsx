@@ -7,11 +7,13 @@ import {
   Pressable,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { X, Shield, CheckCircle, AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePin } from '@/contexts/PinContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { BiometricService } from '@/lib/biometrics';
 import PinVerificationModal from './PinVerificationModal';
 
 interface EmergencyWithdrawalConfirmationModalProps {
@@ -37,19 +39,100 @@ export default function EmergencyWithdrawalConfirmationModal({
   withdrawalDetails
 }: EmergencyWithdrawalConfirmationModalProps) {
   const { colors, isDark } = useTheme();
-  const { emergencyBiometricEnabled } = usePin();
+  const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport } = usePin();
   const haptics = useHaptics();
   
   const [showPinVerification, setShowPinVerification] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
+  const [biometricSupport, setBiometricSupport] = useState<any>(null);
 
-  const handleConfirm = () => {
-    if (emergencyBiometricEnabled) {
-      // Show PIN verification modal
-      setShowPinVerification(true);
+  useEffect(() => {
+    if (isVisible) {
+      checkBiometrics();
+    }
+  }, [isVisible]);
+
+  const checkBiometrics = async () => {
+    try {
+      const support = await checkBiometricSupport();
+      setBiometricSupport(support);
+    } catch (error) {
+      console.error('Error checking biometric support:', error);
+    }
+  };
+
+  const handleConfirm = async () => {
+    // If biometric authentication is enabled and available, try biometric first
+    if (emergencyBiometricEnabled && biometricSupport?.isAvailable && Platform.OS !== 'web') {
+      await attemptBiometricAuthentication();
     } else {
-      // Proceed directly without PIN verification
-      proceedWithConfirmation();
+      // Fall back to PIN verification
+      setShowPinVerification(true);
+    }
+  };
+
+  const attemptBiometricAuthentication = async () => {
+    try {
+      setIsBiometricAuthenticating(true);
+      haptics.mediumImpact();
+
+      const result = await BiometricService.authenticateWithBiometrics(
+        "Authenticate to confirm emergency withdrawal"
+      );
+
+      if (result.success) {
+        // Biometric authentication successful
+        haptics.success();
+        proceedWithConfirmation();
+      } else {
+        // Biometric failed or cancelled - fall back to PIN
+        haptics.error();
+        
+        if (result.error === "Authentication cancelled" || result.error === "User chose fallback authentication") {
+          // User cancelled or chose fallback - show PIN modal
+          setShowPinVerification(true);
+        } else {
+          // Other error - show alert and then PIN modal
+          Alert.alert(
+            'Biometric Authentication Failed',
+            'Please use your PIN to confirm the withdrawal.',
+            [
+              {
+                text: 'Use PIN',
+                onPress: () => setShowPinVerification(true)
+              },
+              {
+                text: 'Cancel',
+                style: 'cancel',
+                onPress: () => onClose()
+              }
+            ]
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Biometric authentication error:', error);
+      haptics.error();
+      
+      // Fall back to PIN on error
+      Alert.alert(
+        'Authentication Error',
+        'Biometric authentication failed. Please use your PIN.',
+        [
+          {
+            text: 'Use PIN',
+            onPress: () => setShowPinVerification(true)
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => onClose()
+          }
+        ]
+      );
+    } finally {
+      setIsBiometricAuthenticating(false);
     }
   };
 
@@ -111,7 +194,7 @@ export default function EmergencyWithdrawalConfirmationModal({
   return (
     <>
       <Modal
-        visible={isVisible}
+        visible={isVisible && !showPinVerification}
         transparent
         animationType="fade"
         onRequestClose={onClose}
@@ -123,7 +206,7 @@ export default function EmergencyWithdrawalConfirmationModal({
                 <View style={styles.securityIcon}>
                   <AlertTriangle size={24} color={colors.warning} />
                 </View>
-                <Text style={styles.headerTitle}>Confirm Emergency Withdrawal</Text>
+                <Text style={styles.headerTitle}>Emergency Withdrawal</Text>
               </View>
               <Pressable 
                 style={styles.closeButton} 
@@ -140,45 +223,42 @@ export default function EmergencyWithdrawalConfirmationModal({
                   <AlertTriangle size={16} color={colors.error} />
                 </View>
                 <Text style={styles.warningText}>
-                  This is an emergency withdrawal. Please review all details carefully before confirming.
-                  {emergencyBiometricEnabled && ' PIN verification will be required.'}
+                  This is an emergency withdrawal. Fees may apply and processing times vary based on your selected option.
                 </Text>
               </View>
 
               <View style={styles.optionCard}>
                 <Text style={styles.optionTitle}>{optionDetails.title}</Text>
                 <Text style={styles.optionDescription}>{optionDetails.description}</Text>
-                <Text style={styles.timeframeText}>
-                  Expected processing: {optionDetails.timeframe}
-                </Text>
+                <Text style={styles.timeframeText}>Processing: {optionDetails.timeframe}</Text>
               </View>
 
               <View style={styles.detailsCard}>
                 <Text style={styles.detailsTitle}>Withdrawal Details</Text>
                 
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Payout Plan</Text>
+                  <Text style={styles.detailLabel}>Plan Name</Text>
                   <Text style={styles.detailValue}>{withdrawalDetails.planName}</Text>
                 </View>
                 
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Withdrawal Amount</Text>
+                  <Text style={styles.detailLabel}>Plan Amount</Text>
                   <Text style={styles.detailValue}>₦{withdrawalDetails.planAmount}</Text>
                 </View>
                 
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Processing Fee</Text>
-                  <Text style={styles.detailValue}>₦{parseFloat(withdrawalDetails.feeAmount).toLocaleString()}</Text>
+                  <Text style={styles.detailLabel}>Withdrawal Fee</Text>
+                  <Text style={styles.detailValue}>₦{withdrawalDetails.feeAmount}</Text>
                 </View>
                 
                 <View style={[styles.detailRow, styles.totalRow]}>
                   <Text style={styles.totalLabel}>Net Amount</Text>
-                  <Text style={styles.totalValue}>₦{parseFloat(withdrawalDetails.netAmount).toLocaleString()}</Text>
+                  <Text style={styles.totalValue}>₦{withdrawalDetails.netAmount}</Text>
                 </View>
               </View>
 
               <View style={styles.bankCard}>
-                <Text style={styles.bankTitle}>Bank Account Details</Text>
+                <Text style={styles.bankTitle}>Destination Account</Text>
                 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Bank</Text>
@@ -198,7 +278,8 @@ export default function EmergencyWithdrawalConfirmationModal({
 
               <View style={styles.importantNote}>
                 <Text style={styles.noteText}>
-                  <Text style={styles.noteBold}>Important:</Text> Emergency withdrawals may incur additional fees and longer processing times. This action cannot be undone once confirmed.
+                  <Text style={styles.noteBold}>Important:</Text> Emergency withdrawals are irreversible once processed. 
+                  {emergencyBiometricEnabled && ' PIN verification is required to proceed.'}
                 </Text>
               </View>
             </ScrollView>
@@ -213,14 +294,19 @@ export default function EmergencyWithdrawalConfirmationModal({
               </Pressable>
               
               <Pressable 
-                style={[styles.confirmButton, isProcessing && styles.disabledButton]} 
+                style={[styles.confirmButton, (isProcessing || isBiometricAuthenticating) && styles.disabledButton]} 
                 onPress={handleConfirm}
-                disabled={isProcessing}
+                disabled={isProcessing || isBiometricAuthenticating}
               >
                 {isProcessing ? (
                   <View style={styles.loadingContainer}>
                     <CheckCircle size={20} color="#FFFFFF" />
                     <Text style={styles.confirmButtonText}>Processing...</Text>
+                  </View>
+                ) : isBiometricAuthenticating ? (
+                  <View style={styles.loadingContainer}>
+                    <Shield size={20} color="#FFFFFF" />
+                    <Text style={styles.confirmButtonText}>Authenticating...</Text>
                   </View>
                 ) : (
                   <Text style={styles.confirmButtonText}>Confirm Withdrawal</Text>
@@ -235,8 +321,9 @@ export default function EmergencyWithdrawalConfirmationModal({
         isVisible={showPinVerification}
         onClose={handlePinVerificationClose}
         onSuccess={handlePinVerificationSuccess}
-        title="Verify PIN"
-        description="Enter your PIN to confirm the emergency withdrawal"
+        title="Emergency Withdrawal PIN"
+        description="Enter your emergency withdrawal PIN to confirm"
+        customVerifyPin={verifyEmergencyPin}
       />
     </>
   );

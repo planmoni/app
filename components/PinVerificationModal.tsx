@@ -25,6 +25,7 @@ interface PinVerificationModalProps {
   title?: string;
   amount?: string;
   description?: string;
+  customVerifyPin?: (pin: string) => Promise<boolean>;
 }
 
 export default function PinVerificationModal({
@@ -33,11 +34,12 @@ export default function PinVerificationModal({
   onSuccess,
   title = "PIN Verification",
   amount,
-  description = "Enter your PIN to continue"
+  description = "Enter your PIN to continue",
+  customVerifyPin,
 }: PinVerificationModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
-  const { verifyPin, verifyBiometric, biometricEnabled, checkBiometricSupport } = usePin();
+  const { verifyBiometric, biometricEnabled, checkBiometricSupport, verifyAppLockPin } = usePin();
   const haptics = useHaptics();
   
   const [pin, setPin] = useState('');
@@ -133,7 +135,7 @@ export default function PinVerificationModal({
     setIsVerifying(true);
     
     try {
-      const isValid = await verifyPin(currentPin);
+      const isValid = await (customVerifyPin ? customVerifyPin(currentPin) : verifyAppLockPin(currentPin));
       
       if (isValid) {
         haptics.success();
@@ -363,7 +365,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   amount: {
     fontSize: isSmallScreen ? 24 : 32,
     fontWeight: '700',
-    color: '#6366F1', // Purple color like in the screenshots
+    color: colors.text, // Purple color like in the screenshots
   },
   content: {
     alignItems: 'center',
@@ -394,7 +396,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   },
   forgotPinText: {
     fontSize: 14,
-    color: '#6366F1', // Purple color
+    color: colors.text, 
     fontWeight: '500',
   },
   biometricOption: {
@@ -403,7 +405,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   },
   biometricText: {
     fontSize: 14,
-    color: '#6366F1', // Purple color
+    color: colors.text, 
     fontWeight: '500',
   },
   securityNotice: {

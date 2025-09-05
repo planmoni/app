@@ -741,7 +741,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 16,
   },
   withdrawButton: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.primary,
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -749,10 +749,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   withdrawButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#F97316',
+    color: '#fff'
   },
   disabledButton: {
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: colors.textTertiary,
     opacity: 0.7,
   },
   disabledButtonText: {
