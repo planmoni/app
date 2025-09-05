@@ -3,20 +3,14 @@ import { ArrowLeft, Eye, EyeOff, Shield } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
-import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
 
 export default function ChangePasswordScreen() {
   const { colors } = useTheme();
   const { showToast } = useToast();
-  const { session } = useAuth();
-  const haptics = useHaptics();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -24,147 +18,37 @@ export default function ChangePasswordScreen() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const validateForm = () => {
-    const errors: Record<string, string> = {};
-    
+  const handleSubmit = () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      if (!currentPassword) errors.currentPassword = 'Current password is required';
-      if (!newPassword) errors.newPassword = 'New password is required';
-      if (!confirmPassword) errors.confirmPassword = 'Please confirm your new password';
-    }
-    
-    if (newPassword && newPassword.length < 8) {
-      errors.newPassword = 'Password must be at least 8 characters long';
-    }
-    
-    if (newPassword && !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
-      errors.newPassword = 'Password must contain uppercase, lowercase, and number';
-    }
-
-    if (newPassword !== confirmPassword) {
-      errors.confirmPassword = 'New passwords do not match';
-    }
-
-    if (currentPassword && newPassword && currentPassword === newPassword) {
-      errors.newPassword = 'New password must be different from current password';
-    }
-
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSubmit = async () => {
-    if (!validateForm()) {
-      if (Platform.OS !== 'web') {
-        haptics.error();
-      }
-      const firstError = Object.values(fieldErrors)[0];
-      showToast(firstError, 'error');
+      setError('All fields are required');
+      showToast('All fields are required', 'error');
       return;
     }
 
-    setIsLoading(true);
+    if (newPassword !== confirmPassword) {
+      setError('New passwords do not match');
+      showToast('New passwords do not match', 'error');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long');
+      showToast('Password must be at least 8 characters long', 'error');
+      return;
+    }
+
     setError(null);
-    setFieldErrors({});
-
-    try {
-      if (Platform.OS !== 'web') {
-        haptics.mediumImpact();
-      }
-
-      // First, verify the current password by attempting to sign in
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: session?.user?.email || '',
-        password: currentPassword
-      });
-
-      if (signInError) {
-        if (Platform.OS !== 'web') {
-          haptics.error();
-        }
-        setFieldErrors({ currentPassword: 'Current password is incorrect' });
-        showToast('Current password is incorrect', 'error');
-        return;
-      }
-
-      // Update the password
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword
-      });
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      if (Platform.OS !== 'web') {
-        haptics.success();
-      }
-      showToast('Password changed successfully', 'success');
-      router.back();
-    } catch (err) {
-      if (Platform.OS !== 'web') {
-        haptics.error();
-      }
-      const errorMessage = err instanceof Error ? err.message : 'Failed to change password';
-      setError(errorMessage);
-      showToast(errorMessage, 'error');
-    } finally {
-      setIsLoading(false);
-    }
+    showToast('Password changed successfully', 'success');
+    router.back();
   };
-
-  const handleFieldChange = (field: string, value: string) => {
-    // Clear field-specific errors when user starts typing
-    if (fieldErrors[field]) {
-      setFieldErrors(prev => ({ ...prev, [field]: '' }));
-    }
-    
-    // Clear general error
-    if (error) {
-      setError(null);
-    }
-    
-    // Update the field value
-    switch (field) {
-      case 'currentPassword':
-        setCurrentPassword(value);
-        break;
-      case 'newPassword':
-        setNewPassword(value);
-        break;
-      case 'confirmPassword':
-        setConfirmPassword(value);
-        break;
-    }
-  };
-
-  const getPasswordStrength = () => {
-    if (newPassword.length === 0) return { strength: 0, label: '' };
-    if (newPassword.length < 6) return { strength: 1, label: 'Weak' };
-    if (newPassword.length < 8) return { strength: 2, label: 'Fair' };
-    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) return { strength: 2, label: 'Fair' };
-    return { strength: 3, label: 'Strong' };
-  };
-
-  const passwordStrength = getPasswordStrength();
 
   const styles = createStyles(colors);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable 
-          onPress={() => {
-            if (Platform.OS !== 'web') {
-              haptics.lightImpact();
-            }
-            router.back();
-          }} 
-          style={styles.backButton}
-        >
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Change Password</Text>
@@ -184,18 +68,17 @@ export default function ChangePasswordScreen() {
         <View style={styles.form}>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Current Password</Text>
-            <View style={[
-              styles.inputContainer,
-              fieldErrors.currentPassword && styles.inputError
-            ]}>
+            <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
                 secureTextEntry={!showCurrentPassword}
                 value={currentPassword}
-                onChangeText={(text) => handleFieldChange('currentPassword', text)}
+                onChangeText={(text) => {
+                  setCurrentPassword(text);
+                  setError(null);
+                }}
                 placeholder="Enter current password"
                 placeholderTextColor={colors.textTertiary}
-                editable={!isLoading}
               />
               <Pressable
                 style={styles.eyeButton}
@@ -208,25 +91,21 @@ export default function ChangePasswordScreen() {
                 )}
               </Pressable>
             </View>
-            {fieldErrors.currentPassword && (
-              <Text style={styles.fieldError}>{fieldErrors.currentPassword}</Text>
-            )}
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>New Password</Text>
-            <View style={[
-              styles.inputContainer,
-              fieldErrors.newPassword && styles.inputError
-            ]}>
+            <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
                 secureTextEntry={!showNewPassword}
                 value={newPassword}
-                onChangeText={(text) => handleFieldChange('newPassword', text)}
+                onChangeText={(text) => {
+                  setNewPassword(text);
+                  setError(null);
+                }}
                 placeholder="Enter new password"
                 placeholderTextColor={colors.textTertiary}
-                editable={!isLoading}
               />
               <Pressable
                 style={styles.eyeButton}
@@ -239,52 +118,21 @@ export default function ChangePasswordScreen() {
                 )}
               </Pressable>
             </View>
-            
-            {newPassword.length > 0 && (
-              <View style={styles.passwordStrength}>
-                <View style={styles.strengthBar}>
-                  <View 
-                    style={[
-                      styles.strengthFill,
-                      { 
-                        width: `${(passwordStrength.strength / 3) * 100}%`,
-                        backgroundColor: passwordStrength.strength === 1 ? colors.error : 
-                                       passwordStrength.strength === 2 ? colors.warning : colors.success
-                      }
-                    ]} 
-                  />
-                </View>
-                <Text style={[
-                  styles.strengthLabel,
-                  { 
-                    color: passwordStrength.strength === 1 ? colors.error : 
-                           passwordStrength.strength === 2 ? colors.warning : colors.success
-                  }
-                ]}>
-                  {passwordStrength.label}
-                </Text>
-              </View>
-            )}
-            
-            {fieldErrors.newPassword && (
-              <Text style={styles.fieldError}>{fieldErrors.newPassword}</Text>
-            )}
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Confirm New Password</Text>
-            <View style={[
-              styles.inputContainer,
-              fieldErrors.confirmPassword && styles.inputError
-            ]}>
+            <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
                 secureTextEntry={!showConfirmPassword}
                 value={confirmPassword}
-                onChangeText={(text) => handleFieldChange('confirmPassword', text)}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  setError(null);
+                }}
                 placeholder="Confirm new password"
                 placeholderTextColor={colors.textTertiary}
-                editable={!isLoading}
               />
               <Pressable
                 style={styles.eyeButton}
@@ -297,9 +145,6 @@ export default function ChangePasswordScreen() {
                 )}
               </Pressable>
             </View>
-            {fieldErrors.confirmPassword && (
-              <Text style={styles.fieldError}>{fieldErrors.confirmPassword}</Text>
-            )}
           </View>
 
           <View style={styles.requirements}>
@@ -310,22 +155,10 @@ export default function ChangePasswordScreen() {
               <Text style={styles.requirementsTitle}>Password Requirements</Text>
             </View>
             <View style={styles.requirementsList}>
-              <Text style={[
-                styles.requirementItem,
-                newPassword.length >= 8 && styles.requirementMet
-              ]}>• At least 8 characters long</Text>
-              <Text style={[
-                styles.requirementItem,
-                /[A-Z]/.test(newPassword) && styles.requirementMet
-              ]}>• Contains at least one uppercase letter</Text>
-              <Text style={[
-                styles.requirementItem,
-                /[a-z]/.test(newPassword) && styles.requirementMet
-              ]}>• Contains at least one lowercase letter</Text>
-              <Text style={[
-                styles.requirementItem,
-                /\d/.test(newPassword) && styles.requirementMet
-              ]}>• Contains at least one number</Text>
+              <Text style={styles.requirementItem}>• At least 8 characters long</Text>
+              <Text style={styles.requirementItem}>• Contains at least one uppercase letter</Text>
+              <Text style={styles.requirementItem}>• Contains at least one number</Text>
+              <Text style={styles.requirementItem}>• Contains at least one special character</Text>
             </View>
           </View>
         </View>
@@ -333,11 +166,9 @@ export default function ChangePasswordScreen() {
 
       <View style={styles.footer}>
         <Button
-          title={isLoading ? "Changing Password..." : "Change Password"}
+          title="Change Password"
           onPress={handleSubmit}
           style={styles.submitButton}
-          disabled={isLoading}
-          isLoading={isLoading}
         />
       </View>
       
@@ -417,9 +248,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.card,
   },
-  inputError: {
-    borderColor: colors.error,
-  },
   input: {
     flex: 1,
     paddingHorizontal: 16,
@@ -429,31 +257,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   eyeButton: {
     padding: 12,
-  },
-  fieldError: {
-    fontSize: 12,
-    color: colors.error,
-    marginTop: 4,
-  },
-  passwordStrength: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-  },
-  strengthBar: {
-    flex: 1,
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-  },
-  strengthFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  strengthLabel: {
-    fontSize: 12,
-    fontWeight: '500',
   },
   requirements: {
     backgroundColor: colors.card,
@@ -489,9 +292,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   requirementItem: {
     fontSize: 14,
     color: colors.textSecondary,
-  },
-  requirementMet: {
-    color: colors.success,
   },
   footer: {
     padding: 24,
