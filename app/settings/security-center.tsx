@@ -202,12 +202,6 @@ export default function SecurityCenter() {
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Security Center</Text>
         </View>
-        <TouchableOpacity 
-          style={styles.refreshButton} 
-          onPress={handleRefresh}
-        >
-          <Ionicons name="refresh-outline" size={24} color={colors.text} />
-        </TouchableOpacity>
       </View>
 
       {/* App Lock Settings */}
@@ -247,7 +241,7 @@ export default function SecurityCenter() {
             <Switch
               value={biometricEnabled}
               onValueChange={() => handleBiometricToggle('app')}
-              trackColor={{ false: colors.border, true: colors.primary }}
+              trackColor={{ false: colors.border, true: '#93C5FD'}}
               thumbColor={biometricEnabled ? colors.primary : colors.backgroundSecondary }
               disabled={!biometricSupport?.isAvailable || !biometricSupport?.isEnrolled}
             />
@@ -259,14 +253,14 @@ export default function SecurityCenter() {
                 <Ionicons name="card-outline" size={20} color={colors.text} />
               </View>
               <View style={styles.settingText}>
-                <Text style={styles.settingTitle}>Apply Lock to Payout Confirmation</Text>
+                <Text style={styles.settingTitle}>Use Biometric for Payout Confirmation</Text>
                 <Text style={styles.settingSubtitle}>Require PIN/biometric for payout confirmations</Text>
               </View>
             </View>
             <Switch
               value={payoutBiometricEnabled}
               onValueChange={() => handleBiometricToggle('payout')}
-              trackColor={{ false: colors.border, true: colors.primary }}
+              trackColor={{ false: colors.border, true: '#93C5FD' }}
               thumbColor={payoutBiometricEnabled ? colors.primary : colors.backgroundSecondary }
             />
           </View>
@@ -277,68 +271,21 @@ export default function SecurityCenter() {
                 <Ionicons name="warning-outline" size={20} color={colors.text} />
               </View>
               <View style={styles.settingText}>
-                <Text style={styles.settingTitle}>Apply Lock to Emergency Withdrawals</Text>
+                <Text style={styles.settingTitle}>Use Biometric for Emergency Withdrawals Confirmation</Text>
                 <Text style={styles.settingSubtitle}>Require PIN/biometric for emergency withdrawals</Text>
               </View>
             </View>
             <Switch
               value={emergencyBiometricEnabled}
               onValueChange={() => handleBiometricToggle('emergency')}
-              trackColor={{ false: colors.border, true: colors.primary }}
+              trackColor={{ false: colors.border, true: '#93C5FD' }}
               thumbColor={emergencyBiometricEnabled ? colors.primary : colors.backgroundSecondary }
             />
           </View>
         </>
       ))}
 
-      {/* Debug Information */}
-      {__DEV__ && (
-        <View style={styles.debugSection}>
-          <Text style={styles.debugTitle}>Debug Information</Text>
-          <View style={styles.debugRow}>
-            <Text style={styles.debugLabel}>Biometric Support:</Text>
-            <Text style={styles.debugValue}>
-              {biometricSupport ? 'Loaded' : 'Not Loaded'}
-            </Text>
-          </View>
-          <View style={styles.debugRow}>
-            <Text style={styles.debugLabel}>Available:</Text>
-            <Text style={styles.debugValue}>
-              {biometricSupport?.isAvailable ? 'Yes' : 'No'}
-            </Text>
-          </View>
-          <View style={styles.debugRow}>
-            <Text style={styles.debugLabel}>Enrolled:</Text>
-            <Text style={styles.debugValue}>
-              {biometricSupport?.isEnrolled ? 'Yes' : 'No'}
-            </Text>
-          </View>
-          <View style={styles.debugRow}>
-            <Text style={styles.debugLabel}>Supported Types:</Text>
-            <Text style={styles.debugValue}>
-              {biometricSupport?.supportedTypes?.length || 0} types
-            </Text>
-          </View>
-          <View style={styles.debugRow}>
-            <Text style={styles.debugLabel}>App Biometric:</Text>
-            <Text style={styles.debugValue}>
-              {biometricEnabled ? 'Enabled' : 'Disabled'}
-            </Text>
-          </View>
-          <View style={styles.debugRow}>
-            <Text style={styles.debugLabel}>Payout Biometric:</Text>
-            <Text style={styles.debugValue}>
-              {payoutBiometricEnabled ? 'Enabled' : 'Disabled'}
-            </Text>
-          </View>
-          <View style={styles.debugRow}>
-            <Text style={styles.debugLabel}>Emergency Biometric:</Text>
-            <Text style={styles.debugValue}>
-              {emergencyBiometricEnabled ? 'Enabled' : 'Disabled'}
-            </Text>
-          </View>
-        </View>
-      )}
+      
     </ScrollView>
   );
 }
@@ -373,6 +320,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.text,
+    marginRight: 40,
     marginBottom: 8,
     textAlign: 'left',
   },

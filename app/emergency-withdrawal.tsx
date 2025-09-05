@@ -24,7 +24,7 @@ export default function EmergencyWithdrawalScreen() {
   const { payoutPlans } = useRealtimePayoutPlans();
   const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport } = usePin();
   
-  const [selectedOption, setSelectedOption] = useState<'instant' | '24h' | '72h' | null>(null);
+  const [selectedOption, setSelectedOption] = useState<'instant' | '24h' | '72h' | null>('instant');
   const [plan, setPlan] = useState<any>(null);
   const [showPinVerification, setShowPinVerification] = useState(false);
   const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
@@ -305,9 +305,6 @@ export default function EmergencyWithdrawalScreen() {
                 </View>
               )}
             </View>
-            <Text style={styles.optionDescription}>
-              Get your funds immediately with the highest processing fee.
-            </Text>
           </Pressable>
           
           <Pressable 
@@ -331,9 +328,6 @@ export default function EmergencyWithdrawalScreen() {
                 </View>
               )}
             </View>
-            <Text style={styles.optionDescription}>
-              Receive your funds within 24 hours with a reduced processing fee.
-            </Text>
           </Pressable>
           
           <Pressable 
@@ -357,9 +351,6 @@ export default function EmergencyWithdrawalScreen() {
                 </View>
               )}
             </View>
-            <Text style={styles.optionDescription}>
-              Wait 72 hours for your funds with no processing fee.
-            </Text>
           </Pressable>
         </View>
         
