@@ -499,28 +499,7 @@ export default function ReviewScreen() {
               </Text>
             </View>
 
-            {emergencyWithdrawal && (
-              <View style={styles.emergencyInfoBox}>
-                <View style={styles.emergencyInfoIcon}>
-                  <Shield size={20} color="#1E3A8A" />
-                </View>
-                <Text style={styles.emergencyInfoText}>
-                  You've enabled emergency withdrawals for this plan. You can access your funds before the scheduled dates if needed, subject to applicable fees.
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.balanceInfo}>
-              <Text style={styles.balanceInfoText}>
-                Current wallet balance: <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
-              </Text>
-              <Text style={styles.balanceInfoText}>
-                Available balance: <Text style={[
-                  styles.balanceAmount, 
-                  hasInsufficientBalance && styles.insufficientBalance
-                ]}>₦{availableBalance.toLocaleString()}</Text>
-              </Text>
-            </View>
+            
           </View>
         </ScrollView>
       </KeyboardAvoidingWrapper>
@@ -536,7 +515,7 @@ export default function ReviewScreen() {
         isVisible={showPinVerification}
         onClose={handlePinVerificationClose}
         onSuccess={handlePinVerificationSuccess}
-        title="Verify PIN"
+        title="Enter Pin to confirm"
         description="Enter your PIN to confirm payout plan"
         customVerifyPin={verifyPayoutPin}
       />

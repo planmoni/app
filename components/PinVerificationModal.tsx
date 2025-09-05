@@ -286,7 +286,7 @@ export default function PinVerificationModal({
                 onPress={handleBiometricAuth}
                 disabled={isVerifying}
               >
-                <Text style={styles.biometricText}>Verify by {getBiometricLabel()}</Text>
+                <Text style={styles.biometricText}>Use {getBiometricLabel()}</Text>
               </Pressable>
             )}
           </View>

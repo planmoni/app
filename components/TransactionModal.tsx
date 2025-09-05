@@ -518,11 +518,11 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
               </Pressable>
             </View>
             <View style={styles.amountSection}>
-              <View style={[styles.amountIcon, { backgroundColor: isPositive ? '#DCFCE7' : '#FEE2E2' }]}>
+              <View style={[styles.amountIcon, { backgroundColor: isPositive ? colors.iconBackground : colors.iconBackground }]}>
                 {isPositive ? (
-                  <BanknoteArrowDown size={24} color="#22C55E" />
+                  <BanknoteArrowDown size={24} color={colors.iconColor} />
                 ) : (
-                  <BanknoteArrowUp size={24} color="#EF4444" />
+                  <BanknoteArrowUp size={24} color={colors.iconColor} />
                 )}
               </View>
               <View>

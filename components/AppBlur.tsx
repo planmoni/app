@@ -61,7 +61,7 @@ export default function AppBlur({ children }: AppBlurProps) {
       
       {isBlurred && (
         <BlurView
-          intensity={20}
+          intensity={80}
           tint={isDark ? 'dark' : 'light'}
           style={styles.blurOverlay}
         >

@@ -404,7 +404,7 @@ export default function EmergencyWithdrawalScreen() {
         isVisible={showPinVerification}
         onClose={handlePinVerificationClose}
         onSuccess={handlePinVerificationSuccess}
-        title="Verify PIN"
+        title="Enter PIN to confirm"
         description="Enter your PIN to confirm emergency withdrawal"
         customVerifyPin={verifyEmergencyPin}
       />

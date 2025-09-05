@@ -275,9 +275,9 @@ export default function TransactionsScreen() {
               </Text>
               {transactions.map((transaction) => {
                 const isPositive = transaction.type === 'deposit';
-                const Icon = isPositive ? BanknoteArrowDown : transaction.type === 'payout' ? BanknoteArrowUp : BanknoteArrowDown;
-                const iconBg = isPositive ? colors.transactionLight : transaction.type === 'payout' ? colors.textTertiary : colors.textSecondary;
-                const iconColor = isPositive ? colors.primary : transaction.type === 'payout' ? colors.primary : colors.textTertiary;
+                const Icon = isPositive ? BanknoteArrowDown : transaction.type === 'payout' ? BanknoteArrowDown : BanknoteArrowUp;
+                const iconBg = isPositive ? colors.iconBackground : transaction.type === 'payout' ? colors.iconBackground : colors.iconBackground;
+                const iconColor = isPositive ? colors.iconColor : transaction.type === 'payout' ? colors.iconColor : colors.iconColor;
                 
                 // Format date and time
                 const txDate = new Date(transaction.created_at);

@@ -21,6 +21,8 @@ const lightColors = {
   backgroundTertiary: '#F1F5F9',
   backgroundBlack: '#F8FAFC',
   transactionLight: '#E2E8FF',
+  iconBackground: '#EFF6FF',
+  iconColor: '#203B8B',
   
   // Surface colors
   surface: '#FFFFFF',
@@ -68,6 +70,8 @@ const darkColors = {
   transactionLight: '#687A9B',
   backgroundTertiary: '#0C2241',
   backgroundBlack: '#000',
+  iconBackground: '#002964',
+  iconColor: '#85A9DE',
   
   // Surface colors
   surface: '#0E141F',

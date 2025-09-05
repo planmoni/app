@@ -860,11 +860,11 @@ export default function HomeScreen() {
                     <View style={styles.transaction}>
                       <View style={[
                         styles.transactionIcon,
-                        { backgroundColor: isPositive ? colors.transactionLight : colors.transactionLight }
+                        { backgroundColor: isPositive ? colors.iconBackground : colors.iconBackground }
                       ]}>
                         <Icon
                           size={24}
-                          color={isPositive ? colors.primary : colors.primary}
+                          color={isPositive ? colors.iconColor : colors.iconColor}
                         />
                       </View>
                       <View style={styles.transactionInfo}>
