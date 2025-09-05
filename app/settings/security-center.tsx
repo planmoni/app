@@ -195,7 +195,7 @@ export default function SecurityCenter() {
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton} 
-          onPress={() => router.push('/settings')}
+          onPress={() => router.back()}
         >
           <Ionicons name="arrow-back-outline" size={24} color={colors.text} />
         </TouchableOpacity>
