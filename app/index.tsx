@@ -3,59 +3,58 @@ import { router } from 'expo-router';
 import Animated, { 
   useAnimatedScrollHandler,
   useSharedValue,
+  useAnimatedStyle,
+  interpolate,
+  Extrapolate,
+  withSpring,
+  withTiming,
+  runOnJS,
 } from 'react-native-reanimated';
-import { Shield, Calendar, Wallet, TrendingUp } from 'lucide-react-native';
+import { Shield, Calendar, Wallet, TrendingUp, ArrowRight } from 'lucide-react-native';
 import Button from '@/components/Button';
 import PaginationDot from '@/components/PaginationDot';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { BlurView } from 'expo-blur';
+import { useRef } from 'react';
 
 const SLIDES = [
   {
     id: '1',
     title: 'Say hello to financial control',
-    description: 'Planmoni is a Smart Money Planner App with automated payouts scheduling and intelligent cash flow management',
-    image: require('@/assets/images/slider1 logo.png'),
-    icon: null,
-    color: '#EFF6FF',
-    iconColor: '#1E3A8A',
+    subtitle: 'Smart Financial Planning',
+    description: 'Planmoni helps you take full control of your money — by breaking your income into manageable payouts.',
+    image: require('@/assets/images/StayInControl.png'),
+    gradient: ['#1E3A8A', '#3B82F6'],
+    accentColor: '#60A5FA',
   },
   {
     id: '2',
-    title: 'Create automated payout plans',
-    description: 'Split deposits into small, scheduled weekly, bi-weekly or monthly payouts',
+    title: 'Create Personalized\nSalary Plans',
+    subtitle: 'Automated Scheduling',
+    description: 'Split deposits into scheduled weekly, bi-weekly or monthly payouts that work for your lifestyle.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
-    icon: Calendar,
-    color: '#F0FDF4',
-    iconColor: '#22C55E',
+    gradient: ['#059669', '#10B981'],
+    accentColor: '#34D399',
   },
   {
     id: '3',
-    title: 'Receive a stable income flow',
-    description: 'Secure your money, automate payouts & say goodbye to irregular income. ',
+    title: 'Receive Stable\nIncome Flow',
+    subtitle: 'Financial Security',
+    description: 'Secure your money, automate payouts & say goodbye to irregular income forever.',
     image: require('@/assets/images/SmartSavings.png'),
-    icon: Wallet,
-    color: '#EFF6FF',
-    iconColor: '#1E3A8A',
+    gradient: ['#1E3A8A', '#3B82F6'],
+    accentColor: '#60A5FA',
   },
   {
     id: '4',
-    title: 'Gain total control over your money',
-    description: 'No impulse spending. Your money stays locked until your chosen payday.',
-    image: require('@/assets/images/StayInControl.png'),
-    icon: Shield,
-    color: '#FEF3C7',
-    iconColor: '#D97706',
-  },
-  {
-    id: '5',
-    title: 'Build a healthy money habit',
+    title: 'Build Healthy\nMoney Habits',
+    subtitle: 'Long-term Success',
     description: 'Automate discipline and achieve long-term financial goals effortlessly.',
     image: require('@/assets/images/BuildHealthyHabits.png'),
-    icon: TrendingUp,
-    color: '#F3E8FF',
-    iconColor: '#9333EA',
+    gradient: ['#7C3AED', '#A855F7'],
+    accentColor: '#C084FC',
   },
 ];
 
@@ -64,6 +63,9 @@ export default function WelcomeScreen() {
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
   const scrollX = useSharedValue(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const scrollViewRef = useRef<Animated.ScrollView>(null);
+  const autoSlideTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Redirect to tabs if user is already authenticated
   useEffect(() => {
@@ -72,9 +74,76 @@ export default function WelcomeScreen() {
     }
   }, [session]);
 
+  // Auto-slide functionality
+  useEffect(() => {
+    const startAutoSlide = () => {
+      autoSlideTimerRef.current = setInterval(() => {
+        setCurrentIndex(prevIndex => {
+          const nextIndex = (prevIndex + 1) % SLIDES.length;
+          
+          // Scroll to next slide
+          scrollViewRef.current?.scrollTo({
+            x: nextIndex * width,
+            animated: true
+          });
+          
+          return nextIndex;
+        });
+      }, 4000); // Change slide every 4 seconds
+    };
+
+    const stopAutoSlide = () => {
+      if (autoSlideTimerRef.current) {
+        clearInterval(autoSlideTimerRef.current);
+        autoSlideTimerRef.current = null;
+      }
+    };
+
+    // Start auto-slide
+    startAutoSlide();
+
+    // Cleanup on unmount
+    return () => {
+      stopAutoSlide();
+    };
+  }, [width]);
+
+  // Handle manual scroll - pause auto-slide temporarily
+  const handleScrollBegin = () => {
+    if (autoSlideTimerRef.current) {
+      clearInterval(autoSlideTimerRef.current);
+      autoSlideTimerRef.current = null;
+    }
+  };
+
+  const handleScrollEnd = () => {
+    // Restart auto-slide after manual interaction
+    setTimeout(() => {
+      if (autoSlideTimerRef.current) {
+        clearInterval(autoSlideTimerRef.current);
+      }
+      autoSlideTimerRef.current = setInterval(() => {
+        setCurrentIndex(prevIndex => {
+          const nextIndex = (prevIndex + 1) % SLIDES.length;
+          
+          scrollViewRef.current?.scrollTo({
+            x: nextIndex * width,
+            animated: true
+          });
+          
+          return nextIndex;
+        });
+      }, 6000);
+    }, 2000); // Wait 2 seconds after manual interaction before resuming
+  };
+
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollX.value = event.contentOffset.x;
+    },
+    onMomentumEnd: (event) => {
+      const newIndex = Math.round(event.contentOffset.x / width);
+      runOnJS(setCurrentIndex)(newIndex);
     },
   });
 
@@ -83,91 +152,218 @@ export default function WelcomeScreen() {
   };
 
   const handleSignIn = () => {
-    router.push('/login');
+    router.push('/(auth)/login');
   };
 
   // Calculate responsive dimensions
   const isSmallScreen = height < 700;
-  const logoHeight = isSmallScreen ? 50 : 80;
-  const imageHeight = Math.min(height * 0.3, 280);
-  const verticalPadding = isSmallScreen ? 20 : 40;
-  const buttonHeight = isSmallScreen ? 44 : 56;
-  const titleSize = isSmallScreen ? 22 : 28;
+  const imageHeight = Math.min(height * 0.35, 200);
+  const verticalPadding = isSmallScreen ? 16 : 24;
+  const buttonHeight = isSmallScreen ? 48 : 56;
+  const titleSize = isSmallScreen ? 28 : 36;
+  const subtitleSize = isSmallScreen ? 14 : 16;
   const descriptionSize = isSmallScreen ? 14 : 16;
 
   const styles = createStyles(colors, isDark, {
-    logoHeight,
     imageHeight,
     verticalPadding,
     buttonHeight,
     titleSize,
+    subtitleSize,
     descriptionSize,
     height,
+    width,
+  });
+
+  // Animated background style
+  const backgroundStyle = useAnimatedStyle(() => {
+    const currentSlide = Math.floor(scrollX.value / width);
+    const progress = (scrollX.value % width) / width;
+    
+    // Use consistent blue gradient for all slides in dark mode
+    const baseColor = isDark ? '#1E3A8A' : '#FFFFFF';
+    const accentColor = isDark ? '#3B82F6' : '#FFFFFF';
+    
+    return {
+      backgroundColor: interpolate(
+        progress,
+        [0, 1],
+        [baseColor, accentColor],
+        Extrapolate.CLAMP
+      ),
+    };
   });
 
   return (
     <View style={styles.container}>
+      {isDark && <Animated.View style={[styles.backgroundGradient, backgroundStyle]} />}
+      
+      <View style={styles.logoContainer}>
+        <Image 
+          source={isDark ? require('@/assets/images/logo-dark.png') : require('@/assets/images/logo-light.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+      </View>
+      
       <View style={styles.sliderContainer}>
         <Animated.ScrollView
+          ref={scrollViewRef}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onScroll={scrollHandler}
           scrollEventThrottle={16}
+          onScrollBeginDrag={handleScrollBegin}
+          onScrollEndDrag={handleScrollEnd}
           style={styles.slider}
+          contentContainerStyle={styles.sliderContent}
         >
-          {SLIDES.map((slide, index) => (
-            <View 
-              key={slide.id} 
-              style={[
-                styles.slide, 
-                { width },
-                index === 0 && styles.firstSlide
-              ]}
-            >
-              <Image 
-                source={slide.image}
+          {SLIDES.map((slide, index) => {
+            const inputRange = [
+              (index - 1) * width,
+              index * width,
+              (index + 1) * width,
+            ];
+
+            const animatedStyle = useAnimatedStyle(() => {
+              const scale = interpolate(
+                scrollX.value,
+                inputRange,
+                [0.8, 1, 0.8],
+                Extrapolate.CLAMP
+              );
+              
+              const opacity = interpolate(
+                scrollX.value,
+                inputRange,
+                [0.3, 1, 0.3],
+                Extrapolate.CLAMP
+              );
+              
+              const translateY = interpolate(
+                scrollX.value,
+                inputRange,
+                [50, 0, 50],
+                Extrapolate.CLAMP
+              );
+
+              return {
+                transform: [{ scale }, { translateY }],
+                opacity,
+              };
+            });
+
+            return (
+              <Animated.View 
+                key={slide.id} 
                 style={[
-                  styles.slideImage,
-                  // Apply 50% size reduction only to the first slide image
-                  index === 0 && styles.firstSlideImage
+                  styles.slide, 
+                  { width },
+                  animatedStyle
                 ]}
-                resizeMode="contain"
-              />
-              <Text style={styles.slideTitle}>{slide.title}</Text>
-              <Text style={styles.slideDescription}>{slide.description}</Text>
-            </View>
-          ))}
+              >
+                <View style={styles.slideContent}>
+                  <View style={styles.imageContainer}>
+                    <View style={[
+                      styles.imageBackground,
+                      { backgroundColor: slide.accentColor + '20' }
+                    ]}>
+                      <Image 
+                        source={slide.image}
+                        style={[
+                          styles.slideImage,
+                          index === 0 && styles.firstSlideImage
+                        ]}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  </View>
+                  
+                  <View style={styles.textContainer}>
+                    <View style={styles.titleSection}>
+                      <Text style={styles.slideSubtitle}>{slide.subtitle}</Text>
+                      <Text style={styles.slideTitle}>{slide.title}</Text>
+                    </View>
+                    
+                    <Text style={styles.slideDescription}>{slide.description}</Text>
+                    
+                  </View>
+                </View>
+              </Animated.View>
+            );
+          })}
         </Animated.ScrollView>
 
         <View style={styles.pagination}>
-          {SLIDES.map((_, index) => (
-            <PaginationDot
-              key={index}
-              index={index}
-              scrollX={scrollX}
-              width={width}
-              activeColor={colors.primary}
-              inactiveColor={colors.primary}
-            />
-          ))}
+          {SLIDES.map((_, index) => {
+            const animatedDotStyle = useAnimatedStyle(() => {
+              const inputRange = [
+                (index - 1) * width,
+                index * width,
+                (index + 1) * width,
+              ];
+
+              const scale = interpolate(
+                scrollX.value,
+                inputRange,
+                [0.8, 1.2, 0.8],
+                Extrapolate.CLAMP
+              );
+
+              const opacity = interpolate(
+                scrollX.value,
+                inputRange,
+                [0.4, 1, 0.4],
+                Extrapolate.CLAMP
+              );
+
+              return {
+                transform: [{ scale }],
+                opacity,
+              };
+            });
+
+            return (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.paginationDot,
+                  animatedDotStyle,
+                  {
+                    backgroundColor: index === currentIndex 
+                      ? (currentIndex === SLIDES.length - 1 
+                          ? colors.primary 
+                          : SLIDES[currentIndex]?.accentColor || colors.primary)
+                      : colors.border
+                  }
+                ]}
+              />
+            );
+          })}
         </View>
       </View>
 
-      <View style={styles.footer}>
-        <Button
-          title="Create an account "
-          onPress={handleGetStarted}
-          variant="primary"
-          style={styles.getStartedButton}
-        />
-        <Button
-          title="Sign in to your account"
-          onPress={handleSignIn}
-          variant="secondary"
-          style={styles.signInButton}
-        />
-      </View>
+      <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={styles.footer}>
+        <View style={styles.footerContent}>
+        <Pressable
+            style={[styles.getStartedButton, {
+              backgroundColor: colors.primary
+            }]}
+            onPress={handleGetStarted}
+          >
+            <Text style={styles.getStartedButtonText}>Get Started</Text>
+          </Pressable>
+          
+          <Pressable
+            style={styles.signInButton}
+            onPress={handleSignIn}
+          >
+            <Text style={styles.signInButtonText}>Sign In</Text>
+          </Pressable>
+         
+        </View>
+      </BlurView>
     </View>
   );
 }
@@ -175,8 +371,14 @@ export default function WelcomeScreen() {
 const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: 'space-between',
+    backgroundColor: isDark ? colors.background : '#FFFFFF',
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   sliderContainer: {
     flex: 1,
@@ -185,58 +387,159 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   slider: {
     flex: 1,
   },
-  slide: {
-    flex: 1,
-    alignItems: 'flex-start',
-    paddingHorizontal: 40,
-    justifyContent: 'center',
-  },
-  firstSlide: {
+  sliderContent: {
     alignItems: 'center',
   },
+  slide: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: responsive.verticalPadding,
+  },
+  slideContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    maxWidth: 400,
+  },
+  logoContainer: {
+    paddingTop: responsive.verticalPadding * 3,
+    paddingBottom: responsive.verticalPadding,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  logo: {
+    width: 160,
+    height: 40,
+  },
+  imageContainer: {
+    marginBottom: responsive.verticalPadding,
+    alignItems: 'center',
+  },
+  imageBackground: {
+    borderRadius: 24,
+    padding: responsive.verticalPadding,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
+  },
   slideImage: {
-    width: '100%',
+    width: responsive.width * 0.6,
     height: responsive.imageHeight,
-    marginBottom: responsive.verticalPadding / 2,
   },
   firstSlideImage: {
-    width: '50%', // Reduce first slide image to 50% of the original size
-    height: responsive.imageHeight / 2, // Reduce height proportionally
+    width: responsive.width * 0.6,
+    height: responsive.imageHeight,
+  },
+  textContainer: {
+    alignItems: 'center',
+    paddingHorizontal: responsive.verticalPadding,
+  },
+  titleSection: {
+    alignItems: 'center',
+    marginBottom: responsive.verticalPadding,
+  },
+  slideSubtitle: {
+    fontSize: responsive.subtitleSize,
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: 8,
+    textAlign: 'center',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   slideTitle: {
     fontWeight: '800',
-    fontSize: 30,
-    marginTop: 20,
-    letterSpacing: -1,
+    fontSize: responsive.titleSize,
+    lineHeight: responsive.titleSize * 1.1,
+    letterSpacing: -0.5,
     color: colors.text,
-    marginBottom: 15,
-    alignSelf: 'center',
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   slideDescription: {
-    color: colors.textSecondary,
+    color: colors.text,
     textAlign: 'center',
-    fontSize: 20,
-    lineHeight: responsive.descriptionSize * 1.7,
+    fontSize: responsive.descriptionSize,
+    lineHeight: responsive.descriptionSize * 1.6,
+    marginBottom: responsive.verticalPadding,
+    maxWidth: '90%',
+  },
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
   },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: responsive.verticalPadding / 8,
+    gap: 12,
+    paddingVertical: responsive.verticalPadding,
+    paddingHorizontal: responsive.verticalPadding,
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 4,
   },
   footer: {
-    padding: responsive.verticalPadding / 2,
-    paddingBottom: responsive.verticalPadding,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingTop: responsive.verticalPadding,
+    paddingBottom: responsive.verticalPadding * 2.0,
+    paddingHorizontal: responsive.verticalPadding,
+  },
+  footerContent: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
   },
   getStartedButton: {
-    backgroundColor: colors.primary,
-    marginBottom: 12,
-    height: responsive.buttonHeight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    height: 65,
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    flex: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  getStartedButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   signInButton: {
-    marginBottom: 0,
-    height: responsive.buttonHeight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 65,
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  signInButtonText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

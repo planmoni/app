@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
   container: {
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: -15,
+    marginBottom: -25,
   },
   slide: {
     borderRadius: 8,
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 2,
-    marginBottom: 10,
+    marginBottom: 20,
   },
   loadingContainer: {
     justifyContent: 'center',

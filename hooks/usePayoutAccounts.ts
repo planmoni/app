@@ -11,6 +11,7 @@ export type PayoutAccount = {
   is_default: boolean;
   created_at: string;
   updated_at: string;
+  active_payout_plans_count?: number;
 };
 
 export function usePayoutAccounts() {
@@ -29,14 +30,35 @@ export function usePayoutAccounts() {
     try {
       setError(null);
       
-      const { data, error: fetchError } = await supabase
+      // First, fetch payout accounts
+      const { data: accounts, error: accountsError } = await supabase
         .from('payout_accounts')
         .select('*')
         .eq('user_id', session?.user?.id)
         .order('created_at', { ascending: false });
 
-      if (fetchError) throw fetchError;
-      setPayoutAccounts(data || []);
+      if (accountsError) throw accountsError;
+
+      // Then, fetch active payout plans count for each account
+      const accountsWithPlanCounts = await Promise.all(
+        (accounts || []).map(async (account) => {
+          const { count, error: countError } = await supabase
+            .from('payout_plans')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', session?.user?.id)
+            .eq('payout_account_id', account.id)
+            .in('status', ['active', 'pending']);
+
+          if (countError) {
+            console.error('Error fetching payout plans count for account:', account.id, countError);
+            return { ...account, active_payout_plans_count: 0 };
+          }
+
+          return { ...account, active_payout_plans_count: count || 0 };
+        })
+      );
+
+      setPayoutAccounts(accountsWithPlanCounts);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch payout accounts');
     } finally {
