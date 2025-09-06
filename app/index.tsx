@@ -156,14 +156,15 @@ export default function WelcomeScreen() {
 
       <View style={styles.footer}>
         <Button
-          title="Get Started"
+          title="Create an account "
           onPress={handleGetStarted}
+          variant="primary"
           style={styles.getStartedButton}
         />
         <Button
-          title="Already have an account? Sign In"
+          title="Sign in to your account"
           onPress={handleSignIn}
-          variant="outline"
+          variant="secondary"
           style={styles.signInButton}
         />
       </View>
@@ -235,7 +236,6 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     height: responsive.buttonHeight,
   },
   signInButton: {
-    borderColor: colors.border,
     marginBottom: 0,
     height: responsive.buttonHeight,
   },

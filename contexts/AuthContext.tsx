@@ -5,6 +5,7 @@ import { BiometricService } from '@/lib/biometrics';
 import { Platform } from 'react-native';
 import { intercomService } from '@/lib/intercom';
 import { supabase } from '@/lib/supabase';
+import { saveSession, clearSession } from '@/lib/session-persistence';
 
 interface BiometricSettings {
   isEnabled: boolean;
@@ -57,6 +58,7 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Note: Sessions are automatically persisted to secure storage via useSupabaseAuth
   const {
     session,
     isLoading,
