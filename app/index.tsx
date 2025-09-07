@@ -23,8 +23,8 @@ const SLIDES = [
   {
     id: '1',
     title: 'Say hello to financial control',
-    subtitle: 'Smart Financial Planning',
-    description: 'Planmoni helps you take full control of your money by breaking your income into manageable payouts to ensure you never run out of money on time.',
+    // subtitle: 'Smart Financial Planning',
+    description: 'Take full control of your money by breaking your income into manageable payouts to ensure you never run out of money on time.',
     image: require('@/assets/images/StayInControl.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
@@ -32,7 +32,7 @@ const SLIDES = [
   {
     id: '2',
     title: 'Create Personalized\nSalary Plans',
-    subtitle: 'Automated Scheduling',
+    // subtitle: 'Automated Scheduling',
     description: 'Split deposits into scheduled weekly, bi-weekly or monthly payouts that work for your lifestyle.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     gradient: ['#059669', '#10B981'],
@@ -41,7 +41,7 @@ const SLIDES = [
   {
     id: '3',
     title: 'Receive Stable\nIncome Flow',
-    subtitle: 'Financial Security',
+    // subtitle: 'Financial Security',
     description: 'Secure your money, automate payouts & say goodbye to irregular income forever.',
     image: require('@/assets/images/SmartSavings.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
@@ -50,7 +50,7 @@ const SLIDES = [
   {
     id: '4',
     title: 'Build Healthy\nMoney Habits',
-    subtitle: 'Long-term Success',
+    // subtitle: 'Long-term Success',
     description: 'Automate discipline and achieve long-term financial goals effortlessly.',
     image: require('@/assets/images/BuildHealthyHabits.png'),
     gradient: ['#7C3AED', '#A855F7'],

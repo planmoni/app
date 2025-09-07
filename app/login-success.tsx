@@ -10,7 +10,7 @@ import { CheckCircle, Loader2 } from 'lucide-react-native';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export default function LoginSuccessScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const haptics = useHaptics();
   
   // State to track current phase
@@ -148,9 +148,11 @@ export default function LoginSuccessScreen() {
     outputRange: ['0deg', '360deg'],
   });
 
+  const styles = createStyles(colors, isDark);
+
   return (
-    <Animated.View style={[styles.container, { backgroundColor: colors.primary, opacity: fadeAnim }]}>
-      <StatusBar style="light" backgroundColor={colors.primary} />
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+      <StatusBar style={isDark ? "light" : "dark"} backgroundColor={colors.background} />
       
       {/* Background Pattern */}
       <View style={styles.backgroundPattern}>
@@ -201,10 +203,10 @@ export default function LoginSuccessScreen() {
                   transform: [{ rotate: spinnerRotation }]
                 }}
               >
-                <Loader2 size={30} color="#FFFFFF" strokeWidth={2} />
+                <Loader2 size={30} color={colors.text} strokeWidth={2} />
               </Animated.View>
             ) : (
-              <CheckCircle size={60} color="#FFFFFF" strokeWidth={2} />
+              <CheckCircle size={60} color={colors.text} strokeWidth={2} />
             )}
           </Animated.View>
           
@@ -238,11 +240,12 @@ export default function LoginSuccessScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.background,
   },
   backgroundPattern: {
     position: 'absolute',
@@ -255,7 +258,7 @@ const styles = StyleSheet.create({
   patternCircle: {
     position: 'absolute',
     borderRadius: 1000,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(30, 58, 138, 0.1)',
   },
   patternCircle1: {
     width: 200,
@@ -298,21 +301,21 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     padding: 20,
     borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(30, 58, 138, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.text,
     textAlign: 'center',
     marginBottom: 12,
     letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
     maxWidth: 280,
@@ -325,7 +328,7 @@ const styles = StyleSheet.create({
   decorationLine: {
     width: 60,
     height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(30, 58, 138, 0.3)',
     borderRadius: 2,
     marginBottom: 8,
   },
