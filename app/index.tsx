@@ -24,7 +24,7 @@ const SLIDES = [
     id: '1',
     title: 'Say hello to financial control',
     subtitle: 'Smart Financial Planning',
-    description: 'Planmoni helps you take full control of your money — by breaking your income into manageable payouts.',
+    description: 'Planmoni helps you take full control of your money by breaking your income into manageable payouts to ensure you never run out of money on time.',
     image: require('@/assets/images/StayInControl.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
@@ -466,7 +466,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     textAlign: 'center',
     fontSize: responsive.descriptionSize,
     lineHeight: responsive.descriptionSize * 1.6,
-    marginBottom: responsive.verticalPadding,
+    marginBottom: responsive.verticalPadding * 3.4,
     maxWidth: '90%',
   },
   iconContainer: {
