@@ -33,7 +33,7 @@ function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
   const { isAppLocked } = useAutoLogout();
-  const [showSplash, setShowSplash] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
   
   // Track previous session state to detect transitions
   const previousSessionRef = useRef<typeof session>(null);
@@ -71,9 +71,9 @@ function RootLayoutNav() {
         currentUserId: currentSession?.user?.id
       });
       
-      // Show splash screen during transition immediately (disabled for login transitions)
-      // setIsAuthTransitioning(true); // Disabled for login transitions
-      // setShowSplash(true); // Disabled for login transitions
+      // Show splash screen during transition immediately
+      setIsAuthTransitioning(true);
+      setShowSplash(true);
       
       // For login transitions, show splash screen a bit longer to ensure smooth transition
       const transitionDuration = isLoggedIn ? 2000 : 1500; // 2 seconds for login, 1.5 for logout
@@ -96,7 +96,7 @@ function RootLayoutNav() {
   useEffect(() => {
     if (isAuthTransitioning && !showSplash) {
       console.log('🔄 Forcing splash screen to stay visible during transition');
-      // setShowSplash(true); // Disabled for login transitions
+      setShowSplash(true);
     }
   }, [isAuthTransitioning, showSplash]);
 
@@ -159,7 +159,7 @@ function RootLayoutNav() {
   }
 
   // Show our custom splash screen during initial load or auth transitions
-  if (showSplash && !session) {
+  if (showSplash) {
     return <CustomSplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
@@ -169,7 +169,6 @@ function RootLayoutNav() {
         {session ? (
           <React.Fragment key="authenticated-screens">
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="login-success" options={{ headerShown: false }} />
             <Stack.Screen name="profile" options={{ headerShown: false }} />
             <Stack.Screen name="add-funds" options={{ headerShown: false }} />
             <Stack.Screen name="all-payouts" options={{ headerShown: false }} />

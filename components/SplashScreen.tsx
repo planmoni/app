@@ -1,119 +1,41 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
-import LottieView from 'lottie-react-native';
-import { useTheme } from '@/contexts/ThemeContext';
-import { BlurView } from 'expo-blur';
-
-// Conditionally load the Player component only on web
-let Player: any = null;
-if (Platform.OS === 'web') {
-  try {
-    const LottieWeb = require('@lottiefiles/react-lottie-player');
-    Player = LottieWeb.Player;
-  } catch (error) {
-    console.error('Failed to import @lottiefiles/react-lottie-player:', error);
-  }
-}
+import { View, StyleSheet, Image, Dimensions } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 
 interface SplashScreenProps {
   onFinish?: () => void;
 }
 
+const { width: screenWidth } = Dimensions.get('window');
+
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
-  // Get the current theme
-  const { colors, isDark } = useTheme();
-  
-  // Reference to the animation
-  const animationRef = React.useRef<LottieView | null>(null);
-  const playerRef = React.useRef<any>(null);
-
   useEffect(() => {
-    // Play the animation when the component mounts
-    if (Platform.OS !== 'web') {
-      animationRef.current?.play();
-    }
-
-    // Set a timeout to call onFinish after animation completes
+    console.log('🚀 SplashScreen mounted');
+    
+    // Set a timeout to call onFinish after the splash screen duration
     const timer = setTimeout(() => {
+      console.log('⏰ SplashScreen timer finished, calling onFinish');
       onFinish?.();
-    }, 3000); // Animation duration in ms
+    }, 3500); // Display for 2.5 seconds
 
-    return () => clearTimeout(timer);
+    return () => {
+      console.log('🧹 SplashScreen cleanup');
+      clearTimeout(timer);
+    };
   }, [onFinish]);
 
-  const renderContent = () => {
-    if (Platform.OS === 'web') {
-      return (
-        <View style={styles.animationContainer}>
-          {Player && (
-            <Player
-              ref={playerRef}
-              src={require('@/assets/animations/planmoniloader.json')}
-              autoplay
-              loop={false}
-              style={styles.animation}
-              onEvent={event => {
-                if (event === 'complete') {
-                  onFinish?.();
-                }
-              }}
-            />
-          )}
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.animationContainer}>
-        <LottieView
-          ref={animationRef}
-          source={require('@/assets/animations/planmoniloader.json')}
-          style={styles.animation}
-          autoPlay
-          loop={false}
-          onAnimationFinish={onFinish}
-          colorFilters={isDark ? [
-            {
-              keypath: "Stroke 1",
-              color: "#EAF2FF" // Blue color for dark mode
-            },
-            {
-              keypath: "Fill 1",
-              color: "#EAF2FF" // Blue color for dark mode
-            }
-          ] : undefined}
+  return (
+    <View style={styles.container}>
+      <StatusBar style="light" backgroundColor="#2E4F99" />
+      
+      {/* Logo Container */}
+      <View style={styles.logoContainer}>
+        <Image 
+          source={require('@/assets/images/logo-dark.png')} 
+          style={styles.logo}
+          resizeMode="contain"
         />
       </View>
-    );
-  };
-
-  // For native platforms, use BlurView
-  if (Platform.OS !== 'web') {
-    return (
-      <BlurView 
-        intensity={40} 
-        tint={isDark ? 'dark' : 'light'} 
-        style={styles.container}
-      >
-        {renderContent()}
-      </BlurView>
-    );
-  }
-
-  // For web, use a semi-transparent background
-  return (
-    <View 
-      style={[
-        styles.container, 
-        { 
-          backgroundColor: isDark 
-            ? 'rgba(15, 23, 42, 0.9)' 
-            : 'rgba(255, 255, 255, 0.9)',
-          backdropFilter: 'blur(10px)'
-        }
-      ]}
-    >
-      {renderContent()}
     </View>
   );
 }
@@ -121,15 +43,17 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#2E4F99', // Dark blue background matching the design
     justifyContent: 'center',
     alignItems: 'center',
   },
-  animationContainer: {
-    justifyContent: 'center',
+  logoContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  animation: {
-    width: 200,
-    height: 200,
+  logo: {
+    width: Math.min(screenWidth * 0.4, 160), // Responsive width, max 160px
+    height: Math.min(screenWidth * 0.4, 160), // Keep it square
+    marginBottom: 20,
   },
 });

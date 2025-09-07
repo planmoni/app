@@ -104,7 +104,7 @@ export default function SettingsScreen() {
               }
               logAnalyticsEvent('sign_out');
               await signOut();
-              router.replace('/');
+              router.replace('/logging-out');
             }
           }
         ]
