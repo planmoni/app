@@ -347,6 +347,12 @@ export default function WelcomeScreen() {
       <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={styles.footer}>
         <View style={styles.footerContent}>
         <Pressable
+            style={styles.signInButton}
+            onPress={handleSignIn}
+          >
+            <Text style={styles.signInButtonText}>Sign In</Text>
+          </Pressable>
+        <Pressable
             style={[styles.getStartedButton, {
               backgroundColor: colors.primary
             }]}
@@ -355,12 +361,7 @@ export default function WelcomeScreen() {
             <Text style={styles.getStartedButtonText}>Get Started</Text>
           </Pressable>
           
-          <Pressable
-            style={styles.signInButton}
-            onPress={handleSignIn}
-          >
-            <Text style={styles.signInButtonText}>Sign In</Text>
-          </Pressable>
+         
          
         </View>
       </BlurView>
@@ -426,12 +427,12 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     elevation: 8,
   },
   slideImage: {
-    width: responsive.width * 0.6,
-    height: responsive.imageHeight,
+    width: responsive.width * 0.7,
+    height: responsive.imageHeight * 1.2,
   },
   firstSlideImage: {
-    width: responsive.width * 0.6,
-    height: responsive.imageHeight,
+    width: responsive.width * 0.7,
+    height: responsive.imageHeight * 1.2,
   },
   textContainer: {
     alignItems: 'center',
