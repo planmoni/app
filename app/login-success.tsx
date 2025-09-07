@@ -1,11 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Image, Dimensions, Animated, Text } from 'react-native';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
-import { CheckCircle } from 'lucide-react-native';
+import { CheckCircle, Loader2 } from 'lucide-react-native';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -13,25 +13,33 @@ export default function LoginSuccessScreen() {
   const { colors } = useTheme();
   const haptics = useHaptics();
   
+  // State to track current phase
+  const [isLoggingIn, setIsLoggingIn] = useState(true);
+  
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.3)).current;
-  const checkmarkAnim = useRef(new Animated.Value(0)).current;
+  const iconAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
-
+  const textFadeAnim = useRef(new Animated.Value(0)).current;
+  const spinnerRotate = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    console.log('🎉 LoginSuccessScreen mounted');
+    console.log('🔄 Combined Login Screen mounted');
     
-    // Trigger success haptic feedback
-    haptics.notification(Haptics.NotificationFeedbackType.Success);
+    // Start with logging in phase
+    startLoggingInPhase();
+  }, []);
+
+  const startLoggingInPhase = () => {
+    console.log('⏳ Starting logging in phase');
     
-    // Start animations
+    // Start animations for logging in
     Animated.parallel([
       // Fade in the entire screen
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 100,
+        duration: 200,
         useNativeDriver: true,
       }),
       // Scale in the logo
@@ -41,36 +49,104 @@ export default function LoginSuccessScreen() {
         friction: 7,
         useNativeDriver: true,
       }),
-      // Slide up the success message
+      // Slide up the message
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 600,
-        delay: 300,
+        delay: 200,
         useNativeDriver: true,
       }),
     ]).start();
 
-    // Animate checkmark after logo animation
+    // Start spinner rotation
+    const startSpinnerRotation = () => {
+      Animated.loop(
+        Animated.timing(spinnerRotate, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        })
+      ).start();
+    };
+
+    // Animate spinner after logo animation
     setTimeout(() => {
-      Animated.spring(checkmarkAnim, {
+      Animated.spring(iconAnim, {
         toValue: 1,
         tension: 100,
         friction: 8,
         useNativeDriver: true,
       }).start();
+      startSpinnerRotation();
+    }, 600);
+
+    // Fade in text
+    setTimeout(() => {
+      Animated.timing(textFadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
     }, 800);
 
-    // Navigate to main tabs after showing success
-    const timer = setTimeout(() => {
-      console.log('✅ Login success complete, navigating to main tabs');
-      router.replace('/(tabs)');
-    }, 2500); // Display for 2.5 seconds
+    // Transition to success phase after 2 seconds
+    setTimeout(() => {
+      transitionToSuccessPhase();
+    }, 2000);
+  };
 
-    return () => {
-      console.log('🧹 LoginSuccessScreen cleanup');
-      clearTimeout(timer);
-    };
-  }, [haptics, fadeAnim, scaleAnim, checkmarkAnim, slideAnim]);
+  const transitionToSuccessPhase = () => {
+    console.log('✅ Transitioning to success phase');
+    
+    // Stop spinner rotation
+    spinnerRotate.stopAnimation();
+    
+    // Fade out current content
+    Animated.parallel([
+      Animated.timing(iconAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(textFadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // Update state to success
+      setIsLoggingIn(false);
+      
+      // Trigger success haptic feedback
+      haptics.notification(Haptics.NotificationFeedbackType.Success);
+      
+      // Animate in success content
+      Animated.parallel([
+        Animated.spring(iconAnim, {
+          toValue: 1,
+          tension: 100,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+        Animated.timing(textFadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+
+    // Navigate to main tabs after showing success
+    setTimeout(() => {
+      console.log('✅ Login complete, navigating to main tabs');
+      router.replace('/(tabs)');
+    }, 1500); // Show success for 1.5 seconds
+  };
+
+  const spinnerRotation = spinnerRotate.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   return (
     <Animated.View style={[styles.container, { backgroundColor: colors.primary, opacity: fadeAnim }]}>
@@ -101,7 +177,7 @@ export default function LoginSuccessScreen() {
           />
         </Animated.View>
         
-        {/* Success Message */}
+        {/* Message Container */}
         <Animated.View 
           style={[
             styles.messageContainer,
@@ -110,23 +186,46 @@ export default function LoginSuccessScreen() {
             }
           ]}
         >
-          {/* Checkmark Icon */}
+          {/* Icon Container */}
           <Animated.View 
             style={[
-              styles.checkmarkContainer,
+              styles.iconContainer,
               {
-                transform: [{ scale: checkmarkAnim }]
+                transform: [{ scale: iconAnim }]
               }
             ]}
           >
-            <CheckCircle size={60} color="#FFFFFF" strokeWidth={2} />
+            {isLoggingIn ? (
+              <Animated.View
+                style={{
+                  transform: [{ rotate: spinnerRotation }]
+                }}
+              >
+                <Loader2 size={30} color="#FFFFFF" strokeWidth={2} />
+              </Animated.View>
+            ) : (
+              <CheckCircle size={60} color="#FFFFFF" strokeWidth={2} />
+            )}
           </Animated.View>
           
-          {/* Success Text */}
-          <Text style={styles.successTitle}>Welcome Back!</Text>
-          <Text style={styles.successSubtitle}>
-            You've successfully signed in to your account
-          </Text>
+          {/* Text Content */}
+          <Animated.View style={{ opacity: textFadeAnim }}>
+            {isLoggingIn ? (
+              <>
+                <Text style={styles.title}>Logging In...</Text>
+                <Text style={styles.subtitle}>
+                  Please wait while we sign you in
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.title}>Welcome Back!</Text>
+                <Text style={styles.subtitle}>
+                  You've successfully signed in to your account
+                </Text>
+              </>
+            )}
+          </Animated.View>
         </Animated.View>
       </View>
       
@@ -195,22 +294,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkmarkContainer: {
+  iconContainer: {
     marginBottom: 30,
     padding: 20,
     borderRadius: 50,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  successTitle: {
-    fontSize: 28,
+  title: {
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 12,
     letterSpacing: 0.5,
   },
-  successSubtitle: {
-    fontSize: 16,
+  subtitle: {
+    fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     lineHeight: 24,

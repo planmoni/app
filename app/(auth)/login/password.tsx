@@ -73,7 +73,7 @@ export default function LoginPasswordScreen() {
       haptics.notification(Haptics.NotificationFeedbackType.Success);
       
       // Navigate to logging-in screen immediately
-      router.replace('/logging-in');
+      router.replace('/login-success');
       // no need to unset submitting; we're leaving the screen
     } else {
       haptics.notification(Haptics.NotificationFeedbackType.Error);
