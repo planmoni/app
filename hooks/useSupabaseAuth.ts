@@ -200,7 +200,7 @@ export function useSupabaseAuth() {
         return { success: false, error: errorMessage };
       }
 
-      return { success: true };
+      return { success: true, data: authData };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create account';
       setError(message);

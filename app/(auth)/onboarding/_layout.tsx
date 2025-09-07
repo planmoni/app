@@ -19,7 +19,7 @@ export default function OnboardingLayout() {
       <Stack.Screen name="confirm-password" />
       <Stack.Screen name="bvn" />
       <Stack.Screen name="referral-code" />
-      <Stack.Screen name="success" />
+      <Stack.Screen name="account-creation" />
     </Stack>
   );
 }
