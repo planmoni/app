@@ -82,7 +82,7 @@ export default function ReferralCodeScreen() {
     }
     
     router.push({
-      pathname: '/onboarding/success',
+      pathname: '/account-creation',
       params: {
         firstName,
         lastName,
@@ -98,7 +98,7 @@ export default function ReferralCodeScreen() {
   const handleSkip = () => {
     haptics.lightImpact();
     router.push({
-      pathname: '/onboarding/success',
+      pathname: '/account-creation',
       params: {
         firstName,
         lastName,
