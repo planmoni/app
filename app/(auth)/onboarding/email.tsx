@@ -89,7 +89,7 @@ export default function EmailScreen() {
       
       // Navigate to OTP verification screen
       router.push({
-        pathname: '/onboarding/otp',
+        pathname: '/onboarding/verify-email',
         params: { 
           firstName,
           lastName,
@@ -136,7 +136,7 @@ export default function EmailScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={3} totalSteps={10} />
+      <OnboardingProgress currentStep={3} totalSteps={6} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>

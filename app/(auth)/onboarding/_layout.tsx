@@ -15,11 +15,11 @@ export default function OnboardingLayout() {
       <Stack.Screen name="first-name" />
       <Stack.Screen name="last-name" />
       <Stack.Screen name="email" />
+      <Stack.Screen name="verify-email" />
       <Stack.Screen name="create-password" />
       <Stack.Screen name="confirm-password" />
-      <Stack.Screen name="bvn" />
-      <Stack.Screen name="referral-code" />
-      <Stack.Screen name="account-creation" />
+      <Stack.Screen name="creating-account" />
+      <Stack.Screen name="success" />
     </Stack>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Card from '@/components/Card';
 import TransactionModal from '@/components/TransactionModal';
+import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import CountdownTimer from '@/components/CountdownTimer';
@@ -50,6 +51,7 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 import NotificationIcon from '@/components/NotificationIcon';
@@ -72,6 +74,7 @@ export default function HomeScreen() {
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
+  const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   
   // Debug: Track payoutPlans changes
   useEffect(() => {
@@ -91,6 +94,8 @@ export default function HomeScreen() {
   const [isHelpLoading, setIsHelpLoading] = useState(false);
   const [carouselImages, setCarouselImages] = useState<any[]>([]);
   const [imagesReady, setImagesReady] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
   const route = useRoute();
   const params = useLocalSearchParams();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
@@ -98,6 +103,19 @@ export default function HomeScreen() {
   // Get user info from session
   const firstName = session?.user?.user_metadata?.first_name || 'User';
   const lastName = session?.user?.user_metadata?.last_name || '';
+  const email = session?.user?.email || '';
+
+  // Show welcome modal if account was created recently
+  useEffect(() => {
+    if (!recentAccountLoading && isRecentAccount && !showWelcomeModal && !hasShownWelcomeModal) {
+      // Add a small delay to ensure the dashboard is fully loaded
+      const timer = setTimeout(() => {
+        setShowWelcomeModal(true);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
 
   // Log screen view for analytics
   useEffect(() => {
@@ -369,6 +387,18 @@ export default function HomeScreen() {
   const handleViewAllPayouts = () => {
     router.push('/all-payouts');
     logAnalyticsEvent('view_all_payouts');
+  };
+
+  const handleStartVerification = () => {
+    setShowWelcomeModal(false);
+    setHasShownWelcomeModal(true);
+    router.push('/kyc-upgrade');
+  };
+
+  const handleGoToDashboard = () => {
+    setShowWelcomeModal(false);
+    setHasShownWelcomeModal(true);
+    // Modal is already on dashboard, just close it
   };
 
   const handleTransactionPress = (transaction: any) => {
@@ -1046,6 +1076,18 @@ export default function HomeScreen() {
       
       )}
       
+      <AccountCreationSuccessModal
+        isVisible={showWelcomeModal}
+        onClose={() => {
+          setShowWelcomeModal(false);
+          setHasShownWelcomeModal(true);
+        }}
+        firstName={firstName}
+        lastName={lastName}
+        email={email}
+        onStartVerification={handleStartVerification}
+        onGoToDashboard={handleGoToDashboard}
+      />
       
     </SafeAreaView>
   );
