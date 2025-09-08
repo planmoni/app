@@ -61,21 +61,10 @@ export default function AppBlur({ children }: AppBlurProps) {
       
       {isBlurred && (
         <BlurView
-          intensity={80}
+          intensity={40}
           tint={isDark ? 'dark' : 'light'}
           style={styles.blurOverlay}
         >
-          <View style={styles.blurContent}>
-            <View style={[styles.lockIconContainer, { backgroundColor: colors.background }]}>
-              <Lock size={32} color={colors.primary} />
-            </View>
-            <Text style={[styles.blurText, { color: colors.text }]}>
-              Planmoni is Encrypted
-            </Text>
-            <Text style={[styles.blurSubtext, { color: colors.textSecondary }]}>
-              Tap to resume
-            </Text>
-          </View>
         </BlurView>
       )}
     </View>

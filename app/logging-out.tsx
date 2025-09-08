@@ -120,7 +120,7 @@ export default function LoggingOutScreen() {
               }
             ]}
           >
-            <LogOut size={30} color={colors.text} strokeWidth={2} />
+            <LogOut size={30} color={'#fff'} strokeWidth={2} />
           </Animated.View>
           
           {/* Logout Text */}
@@ -145,7 +145,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: isDark ? colors.background : colors.primary,
   },
   backgroundPattern: {
     position: 'absolute',
@@ -206,14 +206,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   logoutTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text,
+    color: '#fff',
     textAlign: 'center',
     marginBottom: 12,
     letterSpacing: 0.5,
   },
   logoutSubtitle: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: '#fff',
     textAlign: 'center',
     lineHeight: 24,
     maxWidth: 280,

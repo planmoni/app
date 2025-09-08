@@ -203,10 +203,10 @@ export default function LoginSuccessScreen() {
                   transform: [{ rotate: spinnerRotation }]
                 }}
               >
-                <Loader2 size={30} color={colors.text} strokeWidth={2} />
+                <Loader2 size={30} color={'#fff'} strokeWidth={2} />
               </Animated.View>
             ) : (
-              <CheckCircle size={60} color={colors.text} strokeWidth={2} />
+              <CheckCircle size={60} color={'#fff'} strokeWidth={2} />
             )}
           </Animated.View>
           
@@ -245,7 +245,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: isDark ? colors.background : colors.primary,
   },
   backgroundPattern: {
     position: 'absolute',
@@ -308,14 +308,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text,
+    color: '#fff',
     textAlign: 'center',
     marginBottom: 12,
     letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: '#fff',
     textAlign: 'center',
     lineHeight: 24,
     maxWidth: 280,

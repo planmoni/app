@@ -64,7 +64,7 @@ export default function CreatingAccountScreen() {
       });
       
       // Add initial delay to show the modal properly
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Use the account creation handler
       const result = await accountCreationHandler.createAccount({

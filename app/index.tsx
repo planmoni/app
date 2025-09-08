@@ -89,7 +89,7 @@ export default function WelcomeScreen() {
           
           return nextIndex;
         });
-      }, 4000); // Change slide every 4 seconds
+      }, 5000); // Change slide every 4 seconds
     };
 
     const stopAutoSlide = () => {
@@ -157,7 +157,7 @@ export default function WelcomeScreen() {
 
   // Calculate responsive dimensions
   const isSmallScreen = height < 700;
-  const imageHeight = Math.min(height * 0.35, 200);
+  const imageHeight = Math.min(height * 0.35, 220);
   const verticalPadding = isSmallScreen ? 16 : 24;
   const buttonHeight = isSmallScreen ? 48 : 56;
   const titleSize = isSmallScreen ? 28 : 36;
@@ -427,11 +427,11 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     elevation: 8,
   },
   slideImage: {
-    width: responsive.width * 0.7,
+    width: responsive.width * 0.6,
     height: responsive.imageHeight * 1.2,
   },
   firstSlideImage: {
-    width: responsive.width * 0.7,
+    width: responsive.width * 0.6,
     height: responsive.imageHeight * 1.2,
   },
   textContainer: {
