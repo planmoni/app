@@ -89,10 +89,10 @@ export default function LoginSuccessScreen() {
       }).start();
     }, 800);
 
-    // Transition to success phase after 2 seconds
+    // Transition to success phase after 1.5 seconds (reduced from 2 seconds)
     setTimeout(() => {
       transitionToSuccessPhase();
-    }, 2000);
+    }, 1500);
   };
 
   const transitionToSuccessPhase = () => {
@@ -136,11 +136,11 @@ export default function LoginSuccessScreen() {
       ]).start();
     });
 
-    // Navigate to main tabs after showing success
+    // Navigate to main tabs after showing success for 1 second (reduced from 1.5 seconds)
     setTimeout(() => {
       console.log('✅ Login complete, navigating to main tabs');
       router.replace('/(tabs)');
-    }, 1500); // Show success for 1.5 seconds
+    }, 3000);
   };
 
   const spinnerRotation = spinnerRotate.interpolate({

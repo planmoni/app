@@ -154,7 +154,8 @@ function RootLayoutNav() {
     );
   }
 
-  if (!fontsLoaded || isLoading) {
+  // Only show loading state for initial app load, not for auth transitions
+  if (!fontsLoaded) {
     return null; // Keep native splash screen visible
   }
 
@@ -168,8 +169,8 @@ function RootLayoutNav() {
       <Stack screenOptions={{ headerShown: false }}>
         {session ? (
           <React.Fragment key="authenticated-screens">
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="login-success" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="profile" options={{ headerShown: false }} />
             <Stack.Screen name="add-funds" options={{ headerShown: false }} />
             <Stack.Screen name="all-payouts" options={{ headerShown: false }} />

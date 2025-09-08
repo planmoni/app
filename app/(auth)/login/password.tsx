@@ -64,23 +64,23 @@ export default function LoginPasswordScreen() {
     if (submitting) return;
 
     setError(null);
-    setSubmitting(true); // start button loader immediately
-    const t0 = Date.now();
+    setSubmitting(true);
 
+    // Navigate to login success screen immediately to show progress
+    router.replace('/login-success');
+
+    // Perform sign in in the background
     const result = await signIn(email, password);
 
-    if (result.success) {
-      haptics.notification(Haptics.NotificationFeedbackType.Success);
-      
-      // Navigate to logging-in screen immediately
-      router.replace('/login-success');
-      // no need to unset submitting; we're leaving the screen
-    } else {
+    if (!result.success) {
+      // If sign in fails, navigate back and show error
+      router.back();
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       setError(result.error || 'Failed to sign in');
       showToast(result.error || 'Failed to sign in', 'error');
-      setSubmitting(false); // stop the button loader on failure
+      setSubmitting(false);
     }
+    // If successful, the login success screen will handle the navigation to main app
   };
 
   const handleTogglePasswordVisibility = () => {
@@ -171,10 +171,10 @@ export default function LoginPasswordScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton
-        title={submitting ? 'Signing you in…' : 'Sign In'}
+        title="Sign In"
         onPress={handleLogin}
         disabled={!isButtonEnabled || submitting}
-        loading={submitting} // show spinner before/during auth
+        loading={false} // Remove loading state
         icon={ArrowRight}
         hapticType="success"
       />
