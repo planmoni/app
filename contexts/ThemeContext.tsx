@@ -23,6 +23,8 @@ const lightColors = {
   transactionLight: '#E2E8FF',
   iconBackground: '#EFF6FF',
   iconColor: '#203B8B',
+  buttonPrimary: '#203B8B',
+  buttonTextPrimary: '#203B8B',
   
   // Surface colors
   surface: '#FFFFFF',
@@ -72,6 +74,8 @@ const darkColors = {
   backgroundBlack: '#000',
   iconBackground: '#002964',
   iconColor: '#85A9DE',
+  buttonPrimary: '#fff',
+  buttonTextPrimary: '#fff',
   
   // Surface colors
   surface: '#0E141F',
