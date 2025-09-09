@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AutoLogoutProvider, useAutoLogout } from '@/contexts/AutoLogoutContext';
@@ -125,19 +126,21 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <AuthProvider>
-          <PinProvider>
-            <AutoLogoutProvider>
-              <BalanceProvider>
-                <ThemedStatusBar />
-                <RootLayoutNav />
-              </BalanceProvider>
-            </AutoLogoutProvider>
-          </PinProvider>
-        </AuthProvider>
-      </ToastProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <PinProvider>
+              <AutoLogoutProvider>
+                <BalanceProvider>
+                  <ThemedStatusBar />
+                  <RootLayoutNav />
+                </BalanceProvider>
+              </AutoLogoutProvider>
+            </PinProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

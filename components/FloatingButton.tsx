@@ -8,6 +8,7 @@ import {
   Easing
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
 
@@ -30,7 +31,7 @@ export default function FloatingButton({
   variant = 'primary',
   hapticType = 'medium'
 }: FloatingButtonProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const animatedBottom = useRef(new Animated.Value(insets.bottom)).current;
   
@@ -86,17 +87,36 @@ export default function FloatingButton({
       ]}
       pointerEvents="box-none"
     >
-      <View style={styles.buttonContainer}>
-        <Button
-          title={title}
-          onPress={onPress}
-          disabled={disabled}
-          isLoading={loading}
-          style={styles.button}
-          icon={icon}
-          variant={variant}
-          hapticType={hapticType}
-        />
+      {/* Blurred underlay that extends below the button */}
+      <BlurView
+        intensity={60}
+        tint={isDark ? 'dark' : 'light'}
+        style={styles.blurUnderlay}
+        pointerEvents="none"
+      />
+      
+      {/* Main blur background for the button area */}
+      <BlurView
+        intensity={80}
+        tint={isDark ? 'dark' : 'light'}
+        style={styles.blurBackground}
+        pointerEvents="none"
+      />
+      
+      {/* Content overlay */}
+      <View style={styles.contentOverlay}>
+        <View style={styles.buttonContainer}>
+          <Button
+            title={title}
+            onPress={onPress}
+            disabled={disabled}
+            isLoading={loading}
+            style={styles.button}
+            icon={icon}
+            variant={variant}
+            hapticType={hapticType}
+          />
+        </View>
       </View>
     </Animated.View>
   );
@@ -107,13 +127,30 @@ const createStyles = (colors: any) => StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
+    zIndex: 1000,
+  },
+  blurUnderlay: {
+    position: 'absolute',
+    top: -1, // Extends 100px above the button
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 200, // Total height including the button area
+  },
+  blurBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  contentOverlay: {
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: 5,
     paddingHorizontal: 16,
     paddingBottom: 5,
-    zIndex: 1000,
   },
   buttonContainer: {
     width: '100%',
