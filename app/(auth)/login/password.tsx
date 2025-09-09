@@ -66,21 +66,30 @@ export default function LoginPasswordScreen() {
     setError(null);
     setSubmitting(true);
 
-    // Navigate to login success screen immediately to show progress
-    router.replace('/login-success');
+    try {
+      // Perform sign in first
+      const result = await signIn(email, password);
 
-    // Perform sign in in the background
-    const result = await signIn(email, password);
+      if (!result.success) {
+        // If sign in fails, show error on current screen
+        haptics.notification(Haptics.NotificationFeedbackType.Error);
+        setError(result.error || 'Invalid email or password. Please check your credentials and try again.');
+        showToast(result.error || 'Invalid email or password. Please check your credentials and try again.', 'error');
+        setSubmitting(false);
+        return;
+      }
 
-    if (!result.success) {
-      // If sign in fails, navigate back and show error
-      router.back();
+      // Only navigate to success screen if sign-in is successful
+      haptics.notification(Haptics.NotificationFeedbackType.Success);
+      router.replace('/login-success');
+    } catch (error) {
+      // Handle any unexpected errors
       haptics.notification(Haptics.NotificationFeedbackType.Error);
-      setError(result.error || 'Failed to sign in');
-      showToast(result.error || 'Failed to sign in', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
       setSubmitting(false);
     }
-    // If successful, the login success screen will handle the navigation to main app
   };
 
   const handleTogglePasswordVisibility = () => {

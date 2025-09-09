@@ -24,6 +24,7 @@ type PendingAction = {
 export default function PendingActionsCard() {
   const { colors, isDark } = useTheme();
   const [profileData, setProfileData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true); // Add loading state
   const { session } = useAuth();
   const { hasAppLockPin } = usePin();
   const haptics = useHaptics();
@@ -38,10 +39,12 @@ export default function PendingActionsCard() {
 
   const fetchProfileData = async () => {
     if (!isOnline) {
+      setIsLoading(false);
       return;
     }
     
     try {
+      setIsLoading(true);
       // Modify the query to exclude kyc_tier which doesn't exist yet
       const { data, error } = await supabase
         .from('profiles')
@@ -53,6 +56,8 @@ export default function PendingActionsCard() {
       setProfileData(data);
     } catch (error) {
       console.error('Error loading profile data:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -127,12 +132,27 @@ export default function PendingActionsCard() {
   // Filter out completed actions
   const filteredActions = pendingActions.filter(action => !isActionCompleted(action.id));
 
-  // Don't render if there are no pending actions
-  if (filteredActions.length === 0) {
+  // Create styles before any conditional returns
+  const styles = createStyles(colors, isDark);
+
+  // Don't render if there are no pending actions and data is loaded
+  if (!isLoading && filteredActions.length === 0) {
     return null;
   }
 
-  const styles = createStyles(colors, isDark);
+  // Show loading state
+  if (isLoading) {
+    return (
+      <View>
+        <Text style={styles.sectionTitle}>Pending Actions</Text>
+        <View style={styles.container}>
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading pending actions...</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   if (!isOnline) {
     return (
@@ -305,5 +325,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
     minWidth: 25,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
 });

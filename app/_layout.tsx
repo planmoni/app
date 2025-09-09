@@ -137,15 +137,16 @@ function RootLayoutNav() {
     }
   }, [fontsLoaded, isLoading]);
 
-  // Show error screen if there's a critical error
+  // Show error screen if there's a critical error (but not auth errors)
   if (error && !fontsLoaded) {
     return null; // Keep splash screen while fonts load
   }
 
-  if (error) {
+  // Don't show error screen for authentication errors - let individual screens handle them
+  if (error && !error.includes('Invalid email or password') && !error.includes('Invalid login credentials')) {
     return (
       <View style={styles.errorContainer}>
-        
+        <Text style={styles.errorTitle}>Configuration Error</Text>
         <Text style={styles.errorMessage}>{error}</Text>
         <Text style={styles.errorInstructions}>
           Please check your environment configuration and database setup as described in the README.md file.

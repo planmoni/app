@@ -132,7 +132,7 @@ export function useSupabaseAuth() {
 
   const signIn = async (email: string, password: string): Promise<AuthResult> => {
     try {
-      setError(null);
+      // Don't set global error state for auth failures - let the calling component handle it
       setIsLoading(true);
       
       const { error, data } = await supabase.auth.signInWithPassword({ 
@@ -153,14 +153,14 @@ export function useSupabaseAuth() {
           errorMessage = 'Too many login attempts. Please try again later.';
         }
         
-        setError(errorMessage);
+        // Don't set global error state - return error to calling component
         return { success: false, error: errorMessage };
       }
       
       return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign in';
-      setError(message);
+      // Don't set global error state - return error to calling component
       return { success: false, error: message };
     } finally {
       setIsLoading(false);
