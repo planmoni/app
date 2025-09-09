@@ -1,15 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { 
   View, 
-  StyleSheet, 
-  Animated, 
-  Keyboard, 
-  Platform,
-  Easing
+  StyleSheet
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useFabKeyboardOffset } from '@/hooks/useFabKeyboardOffset';
 import Button from '@/components/Button';
 
 type FloatingButtonProps = {
@@ -20,6 +16,14 @@ type FloatingButtonProps = {
   icon?: React.ComponentType<any>;
   variant?: 'primary' | 'secondary' | 'outline';
   hapticType?: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' | 'selection' | 'none';
+  /**
+   * Height of bottom tab bar if present
+   */
+  tabBarHeight?: number;
+  /**
+   * Additional gap above keyboard (default: 8)
+   */
+  keyboardGap?: number;
 };
 
 export default function FloatingButton({
@@ -29,61 +33,23 @@ export default function FloatingButton({
   loading = false,
   icon,
   variant = 'primary',
-  hapticType = 'medium'
+  hapticType = 'medium',
+  tabBarHeight = 0,
+  keyboardGap = 8,
 }: FloatingButtonProps) {
   const { colors, isDark } = useTheme();
-  const insets = useSafeAreaInsets();
-  const animatedBottom = useRef(new Animated.Value(insets.bottom)).current;
-  
-  useEffect(() => {
-    const keyboardWillShow = (event: any) => {
-      const keyboardHeight = event.endCoordinates?.height || 0;
-      const duration = event.duration || (Platform.OS === 'ios' ? 250 : 100);
-      const easing = Platform.OS === 'ios'
-        ? Easing.bezier(0.17, 0.59, 0.4, 0.77)
-        : Easing.out(Easing.ease);
-
-      Animated.timing(animatedBottom, {
-        toValue: keyboardHeight + insets.bottom,
-        duration,
-        easing,
-        useNativeDriver: false,
-      }).start();
-    };
-
-    const keyboardWillHide = (event: any) => {
-      const duration = event.duration || (Platform.OS === 'ios' ? 250 : 100);
-      const easing = Platform.OS === 'ios'
-        ? Easing.bezier(0.17, 0.59, 0.4, 0.77)
-        : Easing.out(Easing.ease);
-
-      Animated.timing(animatedBottom, {
-        toValue: insets.bottom,
-        duration,
-        easing,
-        useNativeDriver: false,
-      }).start();
-    };
-
-    const showListener = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideListener = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const keyboardWillShowListener = Keyboard.addListener(showListener, keyboardWillShow);
-    const keyboardWillHideListener = Keyboard.addListener(hideListener, keyboardWillHide);
-
-    return () => {
-      keyboardWillShowListener.remove();
-      keyboardWillHideListener.remove();
-    };
-  }, [insets.bottom]);
+  const { bottomOffset } = useFabKeyboardOffset({
+    gap: keyboardGap,
+    tabBarHeight,
+  });
 
   const styles = createStyles(colors);
 
   return (
-    <Animated.View 
+    <View 
       style={[
         styles.container, 
-        { bottom: animatedBottom }
+        { bottom: bottomOffset }
       ]}
       pointerEvents="box-none"
     >
@@ -118,7 +84,7 @@ export default function FloatingButton({
           />
         </View>
       </View>
-    </Animated.View>
+    </View>
   );
 }
 

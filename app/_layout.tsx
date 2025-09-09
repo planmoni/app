@@ -84,6 +84,7 @@ function RootLayoutNav() {
         <Stack.Screen name="create-payout" />
         <Stack.Screen name="deposit-flow" />
         <Stack.Screen name="edit-profile" />
+        <Stack.Screen name="email-preferences" />
         <Stack.Screen name="emergency-withdrawal" />
         <Stack.Screen name="forgot-pin" />
         <Stack.Screen name="forgot-pin-confirm" />
@@ -128,18 +129,17 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <ToastProvider>
+        <PinProvider>
           <AuthProvider>
-            <PinProvider>
-              <AutoLogoutProvider>
+            <AutoLogoutProvider>
+              <ToastProvider>
                 <BalanceProvider>
-                  <ThemedStatusBar />
                   <RootLayoutNav />
                 </BalanceProvider>
-              </AutoLogoutProvider>
-            </PinProvider>
+              </ToastProvider>
+            </AutoLogoutProvider>
           </AuthProvider>
-        </ToastProvider>
+        </PinProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

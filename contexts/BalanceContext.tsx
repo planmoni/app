@@ -10,6 +10,7 @@ type BalanceContextType = {
   availableBalance: number;
   isLoading: boolean;
   error: string | null;
+  refreshWallet: () => Promise<void>;
 };
 
 const BalanceContext = createContext<BalanceContextType | undefined>(undefined);
@@ -50,6 +51,7 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
         availableBalance: wallet.availableBalance,
         isLoading: wallet.isLoading,
         error: wallet.error,
+        refreshWallet: wallet.refreshWallet,
       }}
     >
       {children}

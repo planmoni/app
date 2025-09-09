@@ -3360,7 +3360,7 @@ export default function KYCUpgradeScreen() {
         <Text style={styles.headerTitle}>Account Verification</Text>
         
         <Pressable onPress={() => router.back()} style={styles.skipButton}>
-          <Text style={[styles.skipButtonText, { color: colors.primary }]}>Skip</Text>
+          <Text style={[styles.skipButtonText, { color: colors.primary }]}>Done</Text>
         </Pressable>
       </View>
       

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -11,6 +11,45 @@ export function useRealtimeWallet() {
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
 
+  const fetchWalletData = useCallback(async () => {
+    if (!session?.user?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const { data, error: fetchError } = await supabase
+        .from('wallets')
+        .select('balance, locked_balance, available_balance')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (fetchError) {
+        console.warn('Failed to fetch wallet data:', fetchError);
+        setError('Failed to load wallet data');
+        return;
+      }
+
+      if (data) {
+        setBalance(data.balance || 0);
+        setLockedBalance(data.locked_balance || 0);
+        setAvailableBalance(data.available_balance || 0);
+      }
+    } catch (err) {
+      console.warn('Error fetching wallet data:', err);
+      setError('Failed to load wallet data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [session?.user?.id]);
+
+  const refreshWallet = useCallback(async () => {
+    await fetchWalletData();
+  }, [fetchWalletData]);
+
   useEffect(() => {
     if (!session?.user?.id) {
       setIsLoading(false);
@@ -18,36 +57,6 @@ export function useRealtimeWallet() {
     }
 
     let channel: RealtimeChannel | null = null;
-
-    const fetchWalletData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const { data, error: fetchError } = await supabase
-          .from('wallets')
-          .select('balance, locked_balance, available_balance')
-          .eq('user_id', session.user.id)
-          .single();
-
-        if (fetchError) {
-          console.warn('Failed to fetch wallet data:', fetchError);
-          setError('Failed to load wallet data');
-          return;
-        }
-
-        if (data) {
-          setBalance(data.balance || 0);
-          setLockedBalance(data.locked_balance || 0);
-          setAvailableBalance(data.available_balance || 0);
-        }
-      } catch (err) {
-        console.warn('Error fetching wallet data:', err);
-        setError('Failed to load wallet data');
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
     const setupRealtimeSubscription = () => {
       try {
@@ -110,7 +119,7 @@ export function useRealtimeWallet() {
         supabase.removeChannel(channel);
       }
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, fetchWalletData]);
 
   return {
     balance,
@@ -118,5 +127,6 @@ export function useRealtimeWallet() {
     availableBalance,
     isLoading,
     error,
+    refreshWallet,
   };
 }

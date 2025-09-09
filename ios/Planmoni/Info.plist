@@ -31,6 +31,12 @@
           <string>com.planmoni</string>
         </array>
       </dict>
+      <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+          <string>exp+planmoni</string>
+        </array>
+      </dict>
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
@@ -73,8 +79,6 @@
     <key>UIUserInterfaceStyle</key>
     <string>Light</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
-    <false/>
-    <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
   </dict>
 </plist>
