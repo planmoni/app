@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, useWindowDimensions, Platform } from 'react-native';
-import { useAppLock } from '@/contexts/AppLockContext';
+import { useAutoLogout } from '@/contexts/AutoLogoutContext';
+import { usePin } from '@/contexts/PinContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
@@ -12,7 +13,8 @@ import { useNavigation } from 'expo-router';
 export default function LockScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
-  const { unlockApp, checkPin, appLockPin, isAppLocked } = useAppLock();
+  const { unlockApp, unlockAppWithBiometrics, checkPin, isAppLocked } = useAutoLogout();
+  const { hasAppLockPin } = usePin();
   const { showToast } = useToast();
   const navigation = useNavigation();
   
@@ -52,13 +54,13 @@ export default function LockScreen() {
   
   // Handle PIN input
   const handlePinChange = (digit: string) => {
-    if (pin.length < (appLockPin?.length || 6)) {
+    if (pin.length < (hasAppLockPin?.length || 6)) {
       const newPin = pin + digit;
       setPin(newPin);
       setError(null);
       
       // Check if PIN is complete
-      if (newPin.length === appLockPin?.length) {
+      if (newPin.length === hasAppLockPin?.length) {
         handleVerifyPin(newPin);
       }
     }
@@ -134,7 +136,7 @@ export default function LockScreen() {
         
         <View style={styles.pinContainer}>
           <PinDisplay 
-            length={appLockPin?.length || 6}
+            length={hasAppLockPin?.length || 6}
             value={pin}
           />
           

@@ -7,12 +7,16 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import CustomAppLayout from '../components/CustomAppLayout';
+import { useRouteTracking } from '@/hooks/useRouteTracking';
 
 export default function TabLayout() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { session } = useAuth();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const channelRef = useRef<any>(null);
+
+  // Track route changes for persistence
+  useRouteTracking();
 
   useEffect(() => {
     // Check if Supabase is properly configured
@@ -26,7 +30,11 @@ export default function TabLayout() {
 
     // Clean up any existing channel before creating a new one
     if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
+      try {
+        supabase.removeChannel(channelRef.current);
+      } catch (err) {
+        console.error('Error removing existing channel:', err);
+      }
       channelRef.current = null;
     }
 
@@ -48,25 +56,39 @@ export default function TabLayout() {
           filter: `user_id=eq.${session.user.id}`,
         },
         (payload: any) => {
-          console.log('Events change received:', payload);
-          // Refresh unread count when events change
-          fetchUnreadNotificationsCount();
+          try {
+            console.log('Events change received:', payload);
+            // Refresh unread count when events change
+            fetchUnreadNotificationsCount();
+          } catch (err) {
+            console.error('Error processing events change:', err);
+          }
         }
       );
 
-    // Only subscribe if the channel is not already subscribed
-    if (channel.state === 'closed' || channel.state === 'leaving') {
-      channel.subscribe((status: any) => {
-        console.log('Events subscription status:', status);
-      });
-    }
+    // Subscribe with proper error handling
+    channel.subscribe((status: any) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('Events subscription successful');
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error('Events subscription error:', status);
+      } else if (status === 'TIMED_OUT') {
+        console.error('Events subscription timed out');
+      } else if (status === 'CLOSED') {
+        console.log('Events subscription closed');
+      }
+    });
 
     // Store the channel reference
     channelRef.current = channel;
 
     return () => {
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+        try {
+          supabase.removeChannel(channelRef.current);
+        } catch (err) {
+          console.error('Error removing events channel:', err);
+        }
         channelRef.current = null;
       }
     };

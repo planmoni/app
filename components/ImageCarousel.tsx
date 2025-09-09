@@ -55,6 +55,16 @@ const SNAP_INTERVAL = SLIDE_WIDTH + SLIDE_MARGIN;
 const CACHE_KEY = 'image_carousel_cache';
 const CACHE_EXPIRY_DAYS = 7; // Cache images for 7 days
 
+// Utility function to validate image URL
+const isValidImageUrl = (url: string): boolean => {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.protocol === 'https:' && urlObj.hostname.includes('supabase.co');
+  } catch {
+    return false;
+  }
+};
+
 export default function ImageCarousel({
   autoPlay = true,
   autoPlayInterval = 7000,
@@ -192,24 +202,44 @@ export default function ImageCarousel({
           return;
         }
 
-        // Prefetch the image
-        await Image.prefetch(image.image_url);
+        // Validate image URL first
+        if (!isValidImageUrl(image.image_url)) {
+          console.warn('[ImageCarousel] Invalid image URL:', image.image_url);
+          return null;
+        }
+
+        // Prefetch the image with timeout
+        const prefetchPromise = Image.prefetch(image.image_url);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Prefetch timeout')), 10000)
+        );
         
-        // Get image size
+        await Promise.race([prefetchPromise, timeoutPromise]);
+        
+        // Get image size with timeout
         return new Promise<{ id: string; size: { width: number; height: number } }>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Image size timeout'));
+          }, 8000);
+
           Image.getSize(
             image.image_url,
             (width, height) => {
+              clearTimeout(timeout);
               resolve({ id: image.id, size: { width, height } });
             },
             (error) => {
-              console.error('[ImageCarousel] Failed to get size for cached image:', image.image_url, error);
+              clearTimeout(timeout);
+              // Don't log as error, just silently fail
+              console.warn('[ImageCarousel] Could not get size for image:', image.image_url);
               reject(error);
             }
           );
         });
       } catch (error) {
-        console.error('[ImageCarousel] Error prefetching image:', image.image_url, error);
+        // Don't log as error, just silently fail
+        console.warn('[ImageCarousel] Could not prefetch image:', image.image_url);
+        return null;
       }
     });
 
@@ -226,7 +256,7 @@ export default function ImageCarousel({
         }
       });
     } catch (error) {
-      console.error('[ImageCarousel] Error in batch prefetch:', error);
+      console.warn('[ImageCarousel] Error in batch prefetch:', error);
     }
   };
 
@@ -254,16 +284,24 @@ export default function ImageCarousel({
         if (cachedImage?.size) {
           setImageSizes((prev) => ({ ...prev, [image.id]: cachedImage.size! }));
         } else {
+          // Add timeout for getSize
+          const timeout = setTimeout(() => {
+            // Use default size as fallback if timeout
+            setImageSizes((prev) => ({ ...prev, [image.id]: { width: 300, height: 180 } }));
+          }, 5000);
+
           Image.getSize(
             image.image_url,
             (width: number, height: number) => {
+              clearTimeout(timeout);
               setImageSizes((prev) => ({ ...prev, [image.id]: { width, height } }));
               // Save size to cache
               saveToCache(image.id, image.image_url, { width, height });
             },
             (error: any) => {
-              console.error('[ImageCarousel] Failed to get image size for:', image.image_url, error);
-              // Use default size as fallback
+              clearTimeout(timeout);
+              // Don't log as error, use fallback silently
+              console.warn('[ImageCarousel] Using fallback size for image:', image.image_url);
               setImageSizes((prev) => ({ ...prev, [image.id]: { width: 300, height: 180 } }));
             }
           );

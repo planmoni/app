@@ -74,18 +74,11 @@ export default function LoggingOutScreen() {
   const styles = createStyles(colors, isDark);
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+    <View style={styles.container}>
       <StatusBar style={isDark ? "light" : "dark"} backgroundColor={colors.background} />
       
-      {/* Background Pattern */}
-      <View style={styles.backgroundPattern}>
-        <View style={[styles.patternCircle, styles.patternCircle1]} />
-        <View style={[styles.patternCircle, styles.patternCircle2]} />
-        <View style={[styles.patternCircle, styles.patternCircle3]} />
-      </View>
-      
       {/* Main Content */}
-      <View style={styles.content}>
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         {/* Logo Container */}
         <Animated.View 
           style={[
@@ -129,14 +122,14 @@ export default function LoggingOutScreen() {
             Thank you for using Planmoni. See you soon!
           </Text>
         </Animated.View>
-      </View>
+      </Animated.View>
       
       {/* Bottom Decoration */}
-      <View style={styles.bottomDecoration}>
+      <Animated.View style={[styles.bottomDecoration, { opacity: fadeAnim }]}>
         <View style={styles.decorationLine} />
         <View style={[styles.decorationLine, styles.decorationLineShort]} />
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -201,7 +194,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 30,
     padding: 20,
     borderRadius: 50,
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(30, 58, 138, 0.1)',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)',
   },
   logoutTitle: {
     fontSize: 18,

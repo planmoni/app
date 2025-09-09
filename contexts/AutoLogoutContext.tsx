@@ -5,6 +5,10 @@ import { usePin } from './PinContext';
 import { useAuth } from './AuthContext';
 import { isAppLockEnabled } from '@/lib/app-lock';
 import { supabase } from '@/lib/supabaseClient';
+import { createUserScopedStorage } from '@/lib/user-scoped-storage';
+import { createRoutePersistence } from '@/lib/route-persistence';
+import { restoreSession, isValidRouteForRestoration } from '@/lib/session-restoration';
+import { router } from 'expo-router';
 
 type AutoLogoutDuration = '5' | '60' | 'never';
 
@@ -48,7 +52,7 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const unlockTimestampRef = useRef<number | null>(null);
   const [lastActivePage, setLastActivePageState] = useState<string>('(tabs)');
   const { hasAppLockPin, verifyAppLockPin } = usePin();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const appState = useRef(AppState.currentState);
   const lastActiveRef = useRef<number>(Date.now());
 
@@ -121,42 +125,39 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Check app lock status when user changes
   useEffect(() => {
-    const checkInitialAppLockStatus = async () => {
-      if (user?.id) {
-        try {
-          const appLockEnabled = await checkAppLockEnabled();
+    const checkInitialAppLock = async () => {
+      if (!session?.user) {
+        setIsAppLocked(false);
+        return;
+      }
+
+      try {
+        // Check if app lock is enabled for this user
+        const appLockEnabled = await isAppLockEnabled(session.user.id);
+        
+        if (appLockEnabled) {
+          // Check if user has a PIN set up
+          const userStorage = createUserScopedStorage(session.user.id);
+          const hasPin = await userStorage.getItem('app_lock_pin') !== null;
           
-          // Only lock if:
-          // 1. App lock is enabled
-          // 2. User has a PIN set up
-          // 3. App lock was explicitly set by user (not just migrated)
-          if (appLockEnabled && hasAppLockPin) {
-            // Check if app lock was explicitly set (not migrated)
-            const userStorage = createUserScopedStorage(user.id);
-            const explicitlySet = await userStorage.getItem('app_lock_explicitly_set');
-            
-            if (explicitlySet === 'true') {
-              setIsAppLocked(true);
-            } else {
-              // App lock was migrated but not explicitly set, don't lock
-              setIsAppLocked(false);
-            }
+          if (hasPin) {
+            setIsAppLocked(true);
           } else {
+            // App lock is enabled but no PIN, disable app lock
+            // await setAppLockEnabled(session.user.id, false); // This line was removed from the new_code, so it's removed here.
             setIsAppLocked(false);
           }
-        } catch (error) {
-          console.error('Error checking app lock status:', error);
-          // On error, don't lock the app
+        } else {
           setIsAppLocked(false);
         }
-      } else {
-        // User signed out, unlock the app
+      } catch (error) {
+        console.error('[AutoLogoutContext] Failed to check app lock:', error);
         setIsAppLocked(false);
       }
     };
 
-    checkInitialAppLockStatus();
-  }, [user?.id, hasAppLockPin]);
+    checkInitialAppLock();
+  }, [session?.user?.id]);
 
   // Load saved auto-logout duration and last active page on mount
   useEffect(() => {

@@ -10,9 +10,6 @@ type BalanceContextType = {
   availableBalance: number;
   isLoading: boolean;
   error: string | null;
-  addFunds: (amount: number) => Promise<void>;
-  lockFunds: (amount: number) => Promise<void>;
-  refreshWallet: () => Promise<{ balance: number; lockedBalance: number; availableBalance: number }>;
 };
 
 const BalanceContext = createContext<BalanceContextType | undefined>(undefined);
@@ -53,13 +50,6 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
         availableBalance: wallet.availableBalance,
         isLoading: wallet.isLoading,
         error: wallet.error,
-        addFunds: async (amount: number) => {
-          await wallet.addFunds(amount);
-        },
-        lockFunds: wallet.lockFunds,
-        refreshWallet: async () => {
-          return await wallet.refreshWallet();
-        }
       }}
     >
       {children}

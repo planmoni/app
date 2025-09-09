@@ -155,11 +155,6 @@ export default function LoginSuccessScreen() {
       <StatusBar style={isDark ? "light" : "dark"} backgroundColor={colors.background} />
       
       {/* Background Pattern */}
-      <View style={styles.backgroundPattern}>
-        <View style={[styles.patternCircle, styles.patternCircle1]} />
-        <View style={[styles.patternCircle, styles.patternCircle2]} />
-        <View style={[styles.patternCircle, styles.patternCircle3]} />
-      </View>
       
       {/* Main Content */}
       <View style={styles.content}>
@@ -206,7 +201,7 @@ export default function LoginSuccessScreen() {
                 <Loader2 size={30} color={'#fff'} strokeWidth={2} />
               </Animated.View>
             ) : (
-              <CheckCircle size={60} color={'#fff'} strokeWidth={2} />
+              <CheckCircle size={30} color={'#fff'} strokeWidth={2} />
             )}
           </Animated.View>
           
