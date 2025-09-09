@@ -89,7 +89,7 @@ export default function WelcomeScreen() {
           
           return nextIndex;
         });
-      }, 5000); // Change slide every 4 seconds
+      }, 4000); // Change slide every 4 seconds
     };
 
     const stopAutoSlide = () => {
@@ -157,7 +157,7 @@ export default function WelcomeScreen() {
 
   // Calculate responsive dimensions
   const isSmallScreen = height < 700;
-  const imageHeight = Math.min(height * 0.35, 220);
+  const imageHeight = Math.min(height * 0.35, 230);
   const verticalPadding = isSmallScreen ? 16 : 24;
   const buttonHeight = isSmallScreen ? 48 : 56;
   const titleSize = isSmallScreen ? 28 : 36;
@@ -294,7 +294,10 @@ export default function WelcomeScreen() {
             );
           })}
         </Animated.ScrollView>
+      </View>
 
+      <BlurView intensity={2} tint={isDark ? 'dark' : 'light'} style={styles.footer}>
+        {/* Pagination Dots - moved above buttons */}
         <View style={styles.pagination}>
           {SLIDES.map((_, index) => {
             const animatedDotStyle = useAnimatedStyle(() => {
@@ -342,17 +345,15 @@ export default function WelcomeScreen() {
             );
           })}
         </View>
-      </View>
 
-      <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={styles.footer}>
         <View style={styles.footerContent}>
-        <Pressable
+          <Pressable
             style={styles.signInButton}
             onPress={handleSignIn}
           >
             <Text style={styles.signInButtonText}>Sign In</Text>
           </Pressable>
-        <Pressable
+          <Pressable
             style={[styles.getStartedButton, {
               backgroundColor: colors.primary
             }]}
@@ -360,9 +361,6 @@ export default function WelcomeScreen() {
           >
             <Text style={styles.getStartedButtonText}>Get Started</Text>
           </Pressable>
-          
-         
-         
         </View>
       </BlurView>
     </View>
@@ -384,6 +382,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   sliderContainer: {
     flex: 1,
     justifyContent: 'center',
+    marginBottom: responsive.verticalPadding * 3.1,
   },
   slider: {
     flex: 1,
@@ -414,7 +413,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     height: 40,
   },
   imageContainer: {
-    marginBottom: responsive.verticalPadding,
+    marginBottom: responsive.verticalPadding * 0.1,
     alignItems: 'center',
   },
   imageBackground: {
@@ -428,11 +427,11 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   slideImage: {
     width: responsive.width * 0.6,
-    height: responsive.imageHeight * 1.2,
+    height: responsive.imageHeight * 1.0,
   },
   firstSlideImage: {
     width: responsive.width * 0.6,
-    height: responsive.imageHeight * 1.2,
+    height: responsive.imageHeight * 1.0,
   },
   textContainer: {
     alignItems: 'center',
@@ -508,7 +507,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    height: 65,
+    height: 60,
     borderRadius: 8,
     paddingHorizontal: 24,
     flex: 1,
@@ -527,7 +526,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   signInButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 65,
+    height: 60,
     borderRadius: 8,
     paddingHorizontal: 24,
     flex: 1,

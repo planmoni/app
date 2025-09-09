@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal, Animated } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Shield, User, Calendar, Info, Lock, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, FileText, ChevronLeft, X } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import Button from '@/components/Button';
@@ -14,6 +16,8 @@ import { useWindowDimensions } from 'react-native';
 import LocationSearchModal from '@/components/LocationSearchModal';
 import { useKYCData } from '@/hooks/useKYCData';
 import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
+import { useBanks, Bank } from '@/hooks/useBanks';
+import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
 type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
 
@@ -22,6 +26,7 @@ export default function KYCUpgradeScreen() {
   const { width, height } = useWindowDimensions();
   const { showToast } = useToast();
   const { session } = useAuth();
+  const haptics = useHaptics();
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
@@ -29,6 +34,37 @@ export default function KYCUpgradeScreen() {
   // Custom hooks for KYC data and progress
   const { formData, loading: formDataLoading, saveFormData } = useKYCData();
   const { progress, loading: progressLoading, updateProgress, getStepProgress } = useKYCProgress();
+  const { banks, isLoading: banksLoading, error: banksError, refetch: refetchBanks } = useBanks();
+  
+  // Animation values for bank selection modal
+  const bankListSlideAnim = useRef(new Animated.Value(height)).current;
+  
+  // Debug banks state
+  useEffect(() => {
+    console.log('KYC Upgrade - Banks state:', {
+      banksCount: banks.length,
+      banksLoading,
+      banksError,
+      banks: banks.slice(0, 3) // Log first 3 banks for debugging
+    });
+  }, [banks, banksLoading, banksError]);
+  
+
+  
+  // Load form data when component mounts
+  useEffect(() => {
+    if (formData.bank_code && formData.bank_name) {
+      setSelectedBank({
+        id: 0, // We'll use the code to find the actual bank
+        name: formData.bank_name,
+        code: formData.bank_code,
+        country: 'Nigeria',
+        currency: 'NGN',
+        type: 'nuban',
+        is_active: true
+      });
+    }
+  }, [formData.bank_code, formData.bank_name]);
   
   // Step management
   const [currentStep, setCurrentStep] = useState<KYCStep>('personal');
@@ -73,10 +109,36 @@ export default function KYCUpgradeScreen() {
   
   // Identity information
   const [bvn, setBvn] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
   const [bvnMatchedName, setBvnMatchedName] = useState('');
   const [nin, setNin] = useState('');
   const [passportNumber, setPassportNumber] = useState('');
   const [driversLicense, setDriversLicense] = useState('');
+  
+  // Bank selection
+  const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
+  const [showBankSelection, setShowBankSelection] = useState(false);
+  const [bankSearchQuery, setBankSearchQuery] = useState(''); // Added for search functionality
+  
+  // Animation effects for bank selection modal
+  useEffect(() => {
+    if (showBankSelection) {
+      // Animate bank list in
+      Animated.spring(bankListSlideAnim, {
+        toValue: 0,
+        tension: 65,
+        friction: 11,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Animate bank list out
+      Animated.timing(bankListSlideAnim, {
+        toValue: height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showBankSelection]);
   
   // Document verification
   const [documentFrontImage, setDocumentFrontImage] = useState<string | null>(null);
@@ -224,6 +286,16 @@ export default function KYCUpgradeScreen() {
       newErrors.bvn = 'BVN must be 11 digits';
     }
     
+    if (!accountNumber.trim()) {
+      newErrors.accountNumber = 'Account number is required';
+    } else if (accountNumber.length !== 10 || !/^\d+$/.test(accountNumber)) {
+      newErrors.accountNumber = 'Account number must be 10 digits';
+    }
+    
+    if (!selectedBank) {
+      newErrors.selectedBank = 'Please select your bank';
+    }
+    
     setErrors(newErrors);
     
     if (Object.keys(newErrors).length > 0) {
@@ -302,43 +374,81 @@ export default function KYCUpgradeScreen() {
           if (validatePersonalInfo()) {
             setIsLoading(true);
             
-            // Save personal info data
-            const saveResult = await saveFormData({
-              first_name: firstName,
-              last_name: lastName,
-              middle_name: middleName,
-              date_of_birth: dateOfBirth,
-              phone_number: phoneNumber,
-              address: address,
-              house_url: houseUrl || undefined,
-              address_lat: addressLat,
-              address_lon: addressLon,
-              address_place_id: addressPlaceId
-            });
-            
-            if (!saveResult) {
-              showToast('Failed to save personal information. Please try again.', 'error');
-              return;
+            try {
+              // Save personal info data
+              const saveResult = await saveFormData({
+                first_name: firstName,
+                last_name: lastName,
+                middle_name: middleName,
+                date_of_birth: dateOfBirth,
+                phone_number: phoneNumber,
+                address: address,
+                house_url: houseUrl || undefined,
+                address_lat: addressLat,
+                address_lon: addressLon,
+                address_place_id: addressPlaceId
+              });
+              
+              if (!saveResult) {
+                showToast('Failed to save personal information. Please try again.', 'error');
+                return;
+              }
+              
+              // Create Paystack customer
+              const customerPayload = {
+                email: session?.user?.email || '',
+                first_name: firstName,
+                last_name: lastName,
+                phone: phoneNumber,
+                metadata: {
+                  user_id: session?.user?.id,
+                  middle_name: middleName,
+                  date_of_birth: dateOfBirth,
+                  address: address
+                }
+              };
+              
+              const customerResponse = await fetch('https://api.paystack.co/customer', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
+                },
+                body: JSON.stringify(customerPayload),
+              });
+              
+              if (!customerResponse.ok) {
+                throw new Error('Failed to create Paystack customer');
+              }
+              
+              const customerData = await customerResponse.json();
+              console.log('Paystack customer created:', customerData);
+              
+              // Update progress when personal info is completed
+              const progressResult = await updateProgress({
+                current_step: 'bvn_verification',
+                personal_info_completed: true
+              });
+              
+              if (!progressResult) {
+                showToast('Failed to update progress. Please try again.', 'error');
+                return;
+              }
+              
+              // Wait for toast to be visible before moving to next step
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              setCurrentStep('bvn_verification');
+              setTimeout(() => {
+                setIsManualVerification(false);
+              }, 1000);
+              
+            } catch (error) {
+              console.error('Error creating Paystack customer:', error);
+              showToast('Failed to create customer profile. Please try again.', 'error');
+            } finally {
+              setIsLoading(false);
             }
-            
-            // Update progress when personal info is completed
-            const progressResult = await updateProgress({
-              current_step: 'bvn_verification',
-              personal_info_completed: true
-            });
-            
-            if (!progressResult) {
-              showToast('Failed to update progress. Please try again.', 'error');
-              return;
-            }
-            
-            // Wait for toast to be visible before moving to next step
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            setCurrentStep('bvn_verification');
-            setTimeout(() => {
-              setIsManualVerification(false);
-            }, 1000);
           }
           break;
         case 'bvn_verification':
@@ -347,7 +457,8 @@ export default function KYCUpgradeScreen() {
             
             // Save BVN data
             const saveResult = await saveFormData({
-              bvn: bvn
+              bvn: bvn,
+              account_number: accountNumber
             });
             
             if (!saveResult) {
@@ -450,7 +561,7 @@ export default function KYCUpgradeScreen() {
       
       if (!appId || !privateKey) {
         console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
-        console.log('KYC service unavailable');
+        showToast('KYC service configuration error', 'error');
         return;
       }
       
@@ -577,8 +688,59 @@ export default function KYCUpgradeScreen() {
           .join(' ');
         
         setBvnMatchedName(displayName);
-        // Show success toast after verification completes
-        showToast(`BVN verified! Name: ${displayName}`, 'success');
+        
+        // Verify customer identity in Paystack
+        try {
+          // Get the customer code from the created customer (you might need to store this)
+          // For now, we'll use the user's email to find the customer
+          const customerResponse = await fetch(` https://api.paystack.co/customer?email=${encodeURIComponent(session?.user?.email || '')}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
+            }
+          });
+          
+          if (customerResponse.ok) {
+            const customerData = await customerResponse.json();
+            const customerCode = customerData.data?.[0]?.customer_code;
+            
+            if (customerCode) {
+              // Call Paystack identification endpoint
+              const identificationResponse = await fetch(`https://api.paystack.co/customer/${customerCode}/identification`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
+                },
+                body: JSON.stringify({
+                  country: "NG",
+                  type: "bank_account",
+                  account_number: accountNumber,
+                  bvn: bvn,
+                  bank_code: selectedBank?.code || "007", // Use selected bank or fallback to First Bank
+                  first_name: firstName,
+                  last_name: lastName
+                }),
+              });
+              
+              if (identificationResponse.ok) {
+                const identificationData = await identificationResponse.json();
+                console.log('Paystack identification successful:', identificationData);
+                showToast(`BVN verified and identity confirmed! Name: ${displayName}`, 'success');
+              } else {
+                console.error('Paystack identification failed:', await identificationResponse.text());
+                showToast(`BVN verified! Name: ${displayName}`, 'success');
+              }
+            } else {
+              showToast(`BVN verified! Name: ${displayName}`, 'success');
+            }
+          } else {
+            showToast(`BVN verified! Name: ${displayName}`, 'success');
+          }
+        } catch (error) {
+          console.error('Error with Paystack identification:', error);
+          showToast(`BVN verified! Name: ${displayName}`, 'success');
+        }
         
         // Update progress
         const progressResult = await updateProgress({
@@ -705,7 +867,7 @@ export default function KYCUpgradeScreen() {
       
       if (!appId || !privateKey) {
         console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
-        console.log('KYC service unavailable');
+        showToast('KYC service configuration error', 'error');
         return;
       }
 
@@ -736,7 +898,7 @@ export default function KYCUpgradeScreen() {
         }
       }
 
-      // Verify based on document type first (before saving anything)
+      // Verify based on document type first (before saving anything )
       if (selectedIdentityType === 'drivers_license') {
         await verifyDriversLicense(appId, privateKey);
       } else if (selectedIdentityType === 'nin') {
@@ -874,7 +1036,12 @@ export default function KYCUpgradeScreen() {
       
     } catch (error) {
       console.error('Driver\'s license verification error:', error);
-      throw error;
+      const errorMessage = error instanceof Error ? error.message : 'Driver\'s license verification failed';
+      showToast(errorMessage, 'error');
+      setErrors({ documentVerification: errorMessage });
+      // Reset manual verification flag on error
+      setIsManualVerification(false);
+      throw error; // Re-throw to be handled by verifyDocuments
     }
   };
 
@@ -1019,7 +1186,12 @@ export default function KYCUpgradeScreen() {
       
     } catch (error) {
       console.error('NIN verification error:', error);
-      throw error;
+      const errorMessage = error instanceof Error ? error.message : 'NIN verification failed';
+      showToast(errorMessage, 'error');
+      setErrors({ documentVerification: errorMessage });
+      // Reset manual verification flag on error
+      setIsManualVerification(false);
+      throw error; // Re-throw to be handled by verifyDocuments
     }
   };
   
@@ -1536,10 +1708,11 @@ export default function KYCUpgradeScreen() {
       <View style={styles.formContainer}>
         <Text style={styles.sectionTitle}>BVN Verification</Text>
         <Text style={styles.sectionDescription}>
-          Please enter your Bank Verification Number (BVN) for identity verification.
+          Please enter your Bank Verification Number (BVN) and the account number associated with it for identity verification.
         </Text>
         
         <View style={styles.inputGroup}>
+          <Text style={styles.label}>Bank Verification Number (BVN)</Text>
           <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
             <CreditCard size={20} color={colors.textSecondary} />
             <TextInput
@@ -1569,22 +1742,62 @@ export default function KYCUpgradeScreen() {
             )}
           </View>
           {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
-          
-          {bvnVerified && bvnMatchedName && (
-            <View style={styles.matchedNameContainer}>
-              <Check size={16} color={colors.success} />
-              <Text style={styles.matchedNameText}>
-                BVN matched! Name: {bvnMatchedName}
-              </Text>
-            </View>
-          )}
-          
-          <View style={styles.infoContainer}>
-            <Info size={20} color={colors.primary} />
-            <Text style={styles.infoText}>
-              Your BVN is not stored and is only used for verification purposes. This helps us confirm your identity and protect your account.
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Account Number</Text>
+          <View style={[styles.inputContainer, errors.accountNumber && styles.inputError]}>
+            <CreditCard size={20} color={colors.textSecondary} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your 10-digit account number"
+              placeholderTextColor={colors.textTertiary}
+              value={accountNumber}
+              onChangeText={(text) => {
+                // Only allow numbers and limit to 10 digits
+                const numericText = text.replace(/[^0-9]/g, '');
+                if (numericText.length <= 10) {
+                  setAccountNumber(numericText);
+                  setErrors(prev => ({ ...prev, accountNumber: '' }));
+                }
+              }}
+              keyboardType="numeric"
+              maxLength={10}
+              editable={!isResolvingBvn && !bvnVerified}
+            />
+          </View>
+          {errors.accountNumber && <Text style={styles.errorText}>{errors.accountNumber}</Text>}
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Bank</Text>
+          <Pressable
+            style={[styles.inputContainer, errors.selectedBank && styles.inputError]}
+            onPress={() => setShowBankSelection(true)}
+          >
+            <CreditCard size={20} color={colors.textSecondary} />
+            <Text style={[styles.input, !selectedBank && { color: colors.textTertiary }]}>
+              {selectedBank ? selectedBank.name : 'Select your bank'}
+            </Text>
+            <ChevronRight size={20} color={colors.textSecondary} />
+          </Pressable>
+          {errors.selectedBank && <Text style={styles.errorText}>{errors.selectedBank}</Text>}
+        </View>
+        
+        {bvnVerified && bvnMatchedName && (
+          <View style={styles.matchedNameContainer}>
+            <Check size={16} color={colors.success} />
+            <Text style={styles.matchedNameText}>
+              BVN verified! Name: {bvnMatchedName}
             </Text>
           </View>
+        )}
+        
+        <View style={styles.infoContainer}>
+          <Info size={20} color={colors.primary} />
+          <Text style={styles.infoText}>
+            Your BVN and account number are used for verification purposes only. This helps us confirm your identity and protect your account.
+          </Text>
         </View>
       </View>
     );
@@ -1945,6 +2158,7 @@ export default function KYCUpgradeScreen() {
           >
             <MapPin size={20} color={colors.textSecondary} />
             <TextInput
+              ref={addressInputRef}
               style={[styles.input, styles.multilineInput]}
               placeholder="Tap to search for your address"
               placeholderTextColor={colors.textTertiary}
@@ -2137,6 +2351,20 @@ export default function KYCUpgradeScreen() {
               <Text style={styles.reviewLabel}>BVN</Text>
               <Text style={styles.reviewValue}>
                 •••• •••• {bvn.slice(-3)} {bvnVerified && <Check size={16} color={colors.success} />}
+              </Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>Bank</Text>
+              <Text style={styles.reviewValue}>
+                {selectedBank ? selectedBank.name : 'Not selected'}
+              </Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>Account Number</Text>
+              <Text style={styles.reviewValue}>
+                •••• •••• {accountNumber.slice(-4)}
               </Text>
             </View>
             
@@ -2365,6 +2593,15 @@ export default function KYCUpgradeScreen() {
       backgroundColor: colors.surface,
       borderRadius: 20,
       marginRight: 8,
+    },
+    skipButton: {
+      padding: 8,
+      marginLeft: 'auto',
+      marginRight: 12,
+    },
+    skipButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
     },
     headerTitle: {
       fontSize: isSmallScreen ? 16 : 18,
@@ -2731,14 +2968,14 @@ export default function KYCUpgradeScreen() {
       fontWeight: '600',
       color: colors.text,
     },
-    closeButton: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: colors.backgroundTertiary,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
+    // closeButton: {
+    //   width: 32,
+    //   height: 32,
+    //   borderRadius: 16,
+    //   backgroundColor: colors.backgroundTertiary,
+    //   justifyContent: 'center',
+    //   alignItems: 'center',
+    // },
     calendarHeader: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2837,6 +3074,263 @@ export default function KYCUpgradeScreen() {
     requiredStatusText: {
       color: colors.warning,
     },
+    // Bank selection modal styles
+    bankModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 16,
+    },
+    bankModalContent: {
+      width: '100%',
+      maxWidth: 400,
+      maxHeight: '80%',
+      borderRadius: 16,
+      backgroundColor: colors.surface,
+      overflow: 'hidden',
+    },
+    bankModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 20,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    bankModalTitle: {
+      fontSize: 20,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    bankCloseButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    bankSearchContainer: {
+      padding: 20,
+      paddingTop: 0,
+      paddingBottom: 16,
+    },
+    bankSearchInput: {
+      backgroundColor: colors.backgroundTertiary,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: colors.text,
+    },
+    bankListContainer: {
+      flex: 1,
+      paddingHorizontal: 20,
+      paddingBottom: 20,
+    },
+    bankItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 16,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      marginBottom: 8,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    bankItemSelected: {
+      backgroundColor: colors.primary + '15',
+      borderColor: colors.primary,
+    },
+    bankIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 8,
+      backgroundColor: colors.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    bankIconText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    bankInfo: {
+      flex: 1,
+    },
+    bankName: {
+      fontSize: 16,
+      fontWeight: '500',
+      color: colors.text,
+      marginBottom: 2,
+    },
+    bankCode: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    bankCheckIcon: {
+      marginLeft: 12,
+    },
+    noBanksFound: {
+      padding: 40,
+      alignItems: 'center',
+    },
+          noBanksFoundText: {
+        fontSize: 16,
+        color: colors.textSecondary,
+        textAlign: 'center',
+      },
+      retryButton: {
+        backgroundColor: colors.primary,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 8,
+        marginTop: 16,
+      },
+      retryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '600',
+        textAlign: 'center',
+      },
+    // New bank selection modal styles
+    overlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+      zIndex: 1000,
+    },
+    overlayPressable: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+    },
+    bankListModal: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      width: '100%',
+      maxHeight: '80%',
+      borderWidth: isDark ? 1 : 0,
+      borderColor: isDark ? colors.border : 'transparent',
+      // Add shadow for iOS
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.1,
+          shadowRadius: 5,
+        },
+        android: {
+          elevation: 5,
+        },
+      }),
+    },
+    dragIndicator: {
+      width: 40,
+      height: 5,
+      borderRadius: 2.5,
+      backgroundColor: colors.border,
+      alignSelf: 'center',
+      marginTop: 12,
+      marginBottom: 8,
+    },
+    bankListHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: isSmallScreen ? 16 : 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    bankListTitle: {
+      fontSize: isSmallScreen ? 18 : 20,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    closeButton: {
+      width: isSmallScreen ? 36 : 40,
+      height: isSmallScreen ? 36 : 40,
+      borderRadius: isSmallScreen ? 18 : 20,
+      backgroundColor: colors.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    searchContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: isSmallScreen ? 12 : 16,
+      marginHorizontal: 2,
+      marginTop: 5,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: isSmallScreen ? 14 : 16,
+      color: colors.text,
+      borderRadius: 10,
+      padding: isSmallScreen ? 12 : 16,
+      marginHorizontal: 5,
+      height: 65,
+      borderBottomColor: colors.border,
+      backgroundColor: '#EBF1F9',
+    },
+    bankList: {
+      maxHeight: '60%',
+    },
+    bankOption: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: isSmallScreen ? 10 : 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    bankOptionContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    bankOptionLogo: {
+      width: 32,
+      height: 32,
+      borderRadius: 6,
+      marginRight: 12,
+    },
+    bankOptionIconContainer: {
+      width: 32,
+      height: 32,
+      borderRadius: 6,
+      marginRight: 12,
+      backgroundColor: colors.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    bankOptionText: {
+      fontSize: isSmallScreen ? 16 : 18,
+      fontWeight: 500,
+      color: colors.text,
+    },
+    noResultsContainer: {
+      padding: isSmallScreen ? 32 : 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    noResultsText: {
+      fontSize: isSmallScreen ? 14 : 16,
+      color: colors.textSecondary,
+    },
   });
   
   if ((formDataLoading || progressLoading) && !currentStep) {
@@ -2859,10 +3353,15 @@ export default function KYCUpgradeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        {/* <Pressable onPress={handlePreviousStep} style={styles.backButton}>
+        <Pressable onPress={handlePreviousStep} style={styles.backButton}>
           <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
-        </Pressable> */}
+        </Pressable>
+        
         <Text style={styles.headerTitle}>Account Verification</Text>
+        
+        <Pressable onPress={() => router.back()} style={styles.skipButton}>
+          <Text style={[styles.skipButtonText, { color: colors.primary }]}>Skip</Text>
+        </Pressable>
       </View>
       
       <View style={styles.progressContainer}>
@@ -2876,20 +3375,22 @@ export default function KYCUpgradeScreen() {
         {renderCurrentStep()}
       </KeyboardAvoidingWrapper>
       
-      <FloatingButton 
-        title={currentStep === 'review' ? "Submit Verification" : "Continue"}
-        onPress={handleNextStep}
-        disabled={
-          isLoading || 
-          formDataLoading ||
-          progressLoading ||
-          isResolvingBvn || 
-          isVerifyingDocuments || 
-          (currentStep === 'bvn_verification' && bvnVerified) ||
-          (currentStep === 'id_face_match' && documentsVerified)
-        }
-        loading={isLoading || formDataLoading || progressLoading || isResolvingBvn || isVerifyingDocuments}
-      />
+      {!(currentStep === 'review' && progress?.overall_completed) && (
+        <FloatingButton 
+          title={currentStep === 'review' ? "Submit Verification" : "Continue"}
+          onPress={handleNextStep}
+          disabled={
+            isLoading || 
+            formDataLoading ||
+            progressLoading ||
+            isResolvingBvn || 
+            isVerifyingDocuments || 
+            (currentStep === 'bvn_verification' && bvnVerified) ||
+            (currentStep === 'id_face_match' && documentsVerified)
+          }
+          loading={isLoading || formDataLoading || progressLoading || isResolvingBvn || isVerifyingDocuments}
+        />
+      )}
       
       {renderDatePickerModal()}
       
@@ -2899,6 +3400,166 @@ export default function KYCUpgradeScreen() {
         onSelectLocation={handleLocationSelect}
         placeholder="Search for your address..."
       />
+      
+      {/* Bank Selection Modal */}
+      <Animated.View 
+        style={[
+          styles.overlay,
+          { 
+            opacity: showBankSelection ? 1 : 0,
+            zIndex: showBankSelection ? 1100 : -1,
+          }
+        ]}
+        pointerEvents={showBankSelection ? 'auto' : 'none'}
+      >
+        <Pressable 
+          style={styles.overlayPressable} 
+          onPress={() => {
+            setShowBankSelection(false);
+            haptics.lightImpact();
+          }} 
+        />
+        
+        <Animated.View 
+          style={[
+            styles.bankListModal,
+            { 
+              transform: [{ translateY: bankListSlideAnim }]
+            }
+          ]}
+        >
+          <View style={styles.dragIndicator} />
+          
+          <View style={styles.bankListHeader}>
+            <Text style={styles.bankListTitle}>Select Bank</Text>
+            <Pressable 
+              style={styles.closeButton}
+              onPress={() => {
+                setShowBankSelection(false);
+                haptics.lightImpact();
+              }}
+            >
+              <X size={isSmallScreen ? 20 : 24} color={colors.text} />
+            </Pressable>
+          </View>
+          
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search banks..."
+              placeholderTextColor={colors.textTertiary}
+              value={bankSearchQuery}
+              onChangeText={setBankSearchQuery}
+              autoFocus
+            />
+          </View>
+          
+          <ScrollView style={styles.bankList} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+            {banksLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingText}>Loading banks...</Text>
+              </View>
+            ) : banksError ? (
+              <View style={styles.noResultsContainer}>
+                <Text style={styles.noResultsText}>
+                  Error loading banks: {banksError}
+                </Text>
+                <Pressable
+                  style={styles.retryButton}
+                  onPress={refetchBanks}
+                >
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </Pressable>
+              </View>
+            ) : (
+              (() => {
+                console.log('Bank Modal - Total banks:', banks.length);
+                console.log('Bank Modal - Search query:', bankSearchQuery);
+                
+                const filteredBanks = banks.filter(bank =>
+                  bank.name.toLowerCase().includes(bankSearchQuery.toLowerCase()) ||
+                  bank.code.toLowerCase().includes(bankSearchQuery.toLowerCase())
+                );
+                
+                console.log('Bank Modal - Filtered banks:', filteredBanks.length);
+                
+                if (filteredBanks.length === 0) {
+                  return (
+                    <View style={styles.noResultsContainer}>
+                      <Text style={styles.noResultsText}>
+                        {banks.length === 0 
+                          ? 'No banks available. Please check your connection.' 
+                          : `No banks match "${bankSearchQuery}"`
+                        }
+                      </Text>
+                      {banks.length === 0 && (
+                        <Text style={[styles.noResultsText, { fontSize: 12, marginTop: 8 }]}>
+                          Total banks loaded: {banks.length}
+                        </Text>
+                      )}
+                      {!bankSearchQuery && banks.length === 0 && (
+                        <Pressable
+                          style={styles.retryButton}
+                          onPress={refetchBanks}
+                        >
+                          <Text style={styles.retryButtonText}>Refresh Banks</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  );
+                }
+                
+                return filteredBanks.map((bank) => (
+                  <Pressable
+                    key={bank.id}
+                    style={styles.bankOption}
+                    onPress={() => {
+                      setSelectedBank(bank);
+                      setShowBankSelection(false);
+                      setBankSearchQuery(''); // Clear search on selection
+                      setErrors(prev => ({ ...prev, selectedBank: '' }));
+                      haptics.selection();
+                      
+                      // Save bank selection to form data
+                      saveFormData({
+                        bank_code: bank.code,
+                        bank_name: bank.name
+                      });
+                    }}
+                  >
+                    <View style={styles.bankOptionContent}>
+                      {bank.logoSvg ? (
+                        <View style={styles.bankOptionLogo}>
+                          {React.createElement(bank.logoSvg.default || bank.logoSvg, {
+                            width: 32,
+                            height: 32,
+                            fill: colors.textSecondary
+                          })}
+                        </View>
+                      ) : bank.logo ? (
+                        <Image
+                          source={bank.logo as any}
+                          style={styles.bankOptionLogo}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <View style={styles.bankOptionIconContainer}>
+                          <Ionicons name="business" size={20} color={colors.textSecondary} />
+                        </View>
+                      )}
+                      <Text style={styles.bankOptionText}>{bank.name}</Text>
+                    </View>
+                    {selectedBank?.id === bank.id && (
+                      <Check size={20} color={colors.primary} />
+                    )}
+                  </Pressable>
+                ));
+              })()
+            )}
+          </ScrollView>
+        </Animated.View>
+      </Animated.View>
     </SafeAreaView>
   );
 }

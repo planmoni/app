@@ -214,7 +214,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   actionCard: {
     width: 280,
-    backgroundColor: colors.background,
+    backgroundColor: isDark ? colors.background : '#EDF5FF',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,

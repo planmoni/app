@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePin } from './PinContext';
+import { useAuth } from './AuthContext';
+import { isAppLockEnabled } from '@/lib/app-lock';
+import { supabase } from '@/lib/supabaseClient';
 
 type AutoLogoutDuration = '5' | '60' | 'never';
 
@@ -45,6 +48,7 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const unlockTimestampRef = useRef<number | null>(null);
   const [lastActivePage, setLastActivePageState] = useState<string>('(tabs)');
   const { hasAppLockPin, verifyAppLockPin } = usePin();
+  const { user } = useAuth();
   const appState = useRef(AppState.currentState);
   const lastActiveRef = useRef<number>(Date.now());
 
@@ -84,6 +88,75 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       timestamp: new Date().toISOString()
     });
   }, [hasAppLockPin]);
+
+  // Check if app lock is enabled for the current user
+  const checkAppLockEnabled = async () => {
+    if (!user?.id) {
+      return false;
+    }
+    
+    try {
+      return await isAppLockEnabled(user.id);
+    } catch (error) {
+      console.error('Failed to check app lock enabled state:', error);
+      return false;
+    }
+  };
+
+  // Load auto-logout duration from storage
+  useEffect(() => {
+    const loadAutoLogoutDuration = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(AUTO_LOGOUT_KEY);
+        if (stored && ['5', '60', 'never'].includes(stored)) {
+          setAutoLogoutDurationState(stored as AutoLogoutDuration);
+        }
+      } catch (error) {
+        console.error('Failed to load auto-logout duration:', error);
+      }
+    };
+
+    loadAutoLogoutDuration();
+  }, []);
+
+  // Check app lock status when user changes
+  useEffect(() => {
+    const checkInitialAppLockStatus = async () => {
+      if (user?.id) {
+        try {
+          const appLockEnabled = await checkAppLockEnabled();
+          
+          // Only lock if:
+          // 1. App lock is enabled
+          // 2. User has a PIN set up
+          // 3. App lock was explicitly set by user (not just migrated)
+          if (appLockEnabled && hasAppLockPin) {
+            // Check if app lock was explicitly set (not migrated)
+            const userStorage = createUserScopedStorage(user.id);
+            const explicitlySet = await userStorage.getItem('app_lock_explicitly_set');
+            
+            if (explicitlySet === 'true') {
+              setIsAppLocked(true);
+            } else {
+              // App lock was migrated but not explicitly set, don't lock
+              setIsAppLocked(false);
+            }
+          } else {
+            setIsAppLocked(false);
+          }
+        } catch (error) {
+          console.error('Error checking app lock status:', error);
+          // On error, don't lock the app
+          setIsAppLocked(false);
+        }
+      } else {
+        // User signed out, unlock the app
+        setIsAppLocked(false);
+      }
+    };
+
+    checkInitialAppLockStatus();
+  }, [user?.id, hasAppLockPin]);
 
   // Load saved auto-logout duration and last active page on mount
   useEffect(() => {
@@ -379,204 +452,56 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const unlockApp = () => {
-    const startTime = Date.now();
-    console.log('🔓 AutoLogoutContext - unlockApp() called', {
-      timestamp: new Date().toISOString(),
-      startTime,
-      currentState: {
-        isAppLocked,
-        justUnlocked,
-        unlockTimestamp,
-        biometricUnlockInProgress,
-        globalUnlockProtection
-      }
-    });
-    
-    const now = Date.now();
-    
-    // Set protection flags BEFORE changing the locked state
-    console.log('🔒 AutoLogoutContext - Setting protection flags', {
-      timestamp: new Date().toISOString(),
-      beforeSetJustUnlocked: justUnlocked,
-      beforeSetUnlockTimestamp: unlockTimestamp,
-      beforeSetGlobalProtection: globalUnlockProtection
-    });
-    
-    // Set both state AND refs synchronously to prevent race conditions
-    setJustUnlocked(true);
-    setUnlockTimestamp(now);
-    setGlobalUnlockProtection(true);
-    
-    // Also set refs immediately for synchronous access
-    justUnlockedRef.current = true;
-    unlockTimestampRef.current = now;
-    globalUnlockProtectionRef.current = true;
-    
-    const afterSetGlobalProtection = Date.now();
-    console.log('🛡️ AutoLogoutContext - Global unlock protection activated (state + refs)', {
-      timestamp: new Date().toISOString(),
-      afterSetGlobalProtection,
-      timeSinceStart: afterSetGlobalProtection - startTime,
-      refsSet: {
-        justUnlockedRef: justUnlockedRef.current,
-        unlockTimestampRef: unlockTimestampRef.current,
-        globalUnlockProtectionRef: globalUnlockProtectionRef.current
-      }
-    });
-    
-    // Then unlock the app
-    console.log('🔓 AutoLogoutContext - Setting isAppLocked to false', {
-      timestamp: new Date().toISOString(),
-      beforeSetIsAppLocked: isAppLocked
-    });
-    
+    if (globalUnlockProtectionRef.current) {
+      console.log('AutoLogoutContext - Unlock blocked by global protection');
+      return;
+    }
+
+    console.log('AutoLogoutContext - Unlocking app');
     setIsAppLocked(false);
-    const afterSetIsAppLocked = Date.now();
+    setJustUnlocked(true);
+    setUnlockTimestamp(Date.now());
+    setBiometricUnlockInProgress(false);
     
-    console.log('✅ AutoLogoutContext - App unlocked successfully', {
-      timestamp: new Date().toISOString(),
-      afterSetIsAppLocked,
-      unlockDuration: afterSetIsAppLocked - startTime,
-      newState: {
-        isAppLocked: false,
-        justUnlocked: true,
-        globalUnlockProtection: true
-      }
-    });
+    // Update refs
+    justUnlockedRef.current = true;
+    unlockTimestampRef.current = Date.now();
     
-    // Verify all state changes were applied
+    // Reset just unlocked state after a short delay
     setTimeout(() => {
-      const verifyTime = Date.now();
-      console.log('🔍 AutoLogoutContext - Verifying state changes after 50ms', {
-        timestamp: new Date().toISOString(),
-        verifyTime,
-        timeSinceUnlock: verifyTime - afterSetIsAppLocked,
-        expectedState: {
-          isAppLocked: false,
-          justUnlocked: true,
-          globalUnlockProtection: true
-        }
-      });
-    }, 50);
-    
-    // Verify timestamp was set correctly
-    setTimeout(() => {
-      const verifyTime = Date.now();
-      console.log('🔍 AutoLogoutContext - Verifying unlock timestamp after 100ms', {
-        timestamp: new Date().toISOString(),
-        verifyTime,
-        currentUnlockTimestamp: unlockTimestamp,
-        expectedTimestamp: now,
-        match: unlockTimestamp === now,
-        timeSinceUnlock: verifyTime - afterSetIsAppLocked
-      });
-    }, 100);
-    
-    // Reset unlock timestamp after 30 seconds to allow normal locking behavior
-    // This gives the same protection as biometric unlock for consistency
-    setTimeout(() => {
-      const resetTime = Date.now();
-      console.log('⏰ AutoLogoutContext - Resetting unlock protection after 30 seconds', {
-        timestamp: new Date().toISOString(),
-        resetTime,
-        timeSinceUnlock: resetTime - afterSetIsAppLocked,
-        beforeReset: {
-          unlockTimestamp,
-          justUnlocked,
-          globalUnlockProtection
-        }
-      });
-      
-      setUnlockTimestamp(null);
       setJustUnlocked(false);
-      setGlobalUnlockProtection(false);
-      
-      // Also clear refs when protection expires
       justUnlockedRef.current = false;
-      unlockTimestampRef.current = null;
-      globalUnlockProtectionRef.current = false;
-      
-      console.log('✅ AutoLogoutContext - Unlock protection expired after 30 seconds, normal locking behavior restored', {
-        timestamp: new Date().toISOString(),
-        afterReset: {
-          unlockTimestamp: null,
-          justUnlocked: false,
-          globalUnlockProtection: false,
-          refsCleared: {
-            justUnlockedRef: justUnlockedRef.current,
-            unlockTimestampRef: unlockTimestampRef.current,
-            globalUnlockProtectionRef: globalUnlockProtectionRef.current
-          }
-        }
-      });
-    }, 30000);
+    }, 1000);
   };
 
   const unlockAppWithBiometrics = () => {
-    console.log('AutoLogoutContext - unlockAppWithBiometrics() called');
-    console.log('AutoLogoutContext - Current isAppLocked state:', isAppLocked);
-    
-    const now = Date.now();
-    
-    // Set biometric unlock flag to prevent any lock checks
     setBiometricUnlockInProgress(true);
-    
-    // Set protection flags BEFORE changing the locked state
-    setJustUnlocked(true);
-    setUnlockTimestamp(now);
-    
-    // Then unlock the app
-    setIsAppLocked(false);
-    
-    console.log('AutoLogoutContext - App unlocked successfully with biometrics:', {
-      isAppLocked: false,
-      justUnlocked: true,
-      unlockTimestamp: now,
-      biometricUnlockInProgress: true,
-      timestamp: new Date(now).toISOString()
-    });
-    
-    // Verify timestamp was set correctly
-    setTimeout(() => {
-      console.log('AutoLogoutContext - Verifying unlock timestamp after 100ms:', {
-        currentUnlockTimestamp: unlockTimestamp,
-        expectedTimestamp: now,
-        match: unlockTimestamp === now
-      });
-    }, 100);
-    
-    // Clear biometric unlock flag after 5 seconds to allow normal operation
-    setTimeout(() => {
-      setBiometricUnlockInProgress(false);
-      console.log('AutoLogoutContext - Biometric unlock flag cleared after 5 seconds');
-    }, 5000);
-    
-    // Reset unlock timestamp after 30 seconds to allow normal locking behavior
-    setTimeout(() => {
-      setUnlockTimestamp(null);
-      setJustUnlocked(false);
-      console.log('AutoLogoutContext - Unlock protection expired after 30 seconds, normal locking behavior restored');
-    }, 30000);
+    // The actual biometric verification will be handled by the BiometricsLock component
   };
 
   const checkPin = async (pin: string): Promise<boolean> => {
     try {
-      return await verifyAppLockPin(pin);
+      const isValid = await verifyAppLockPin(pin);
+      if (isValid) {
+        unlockApp();
+      }
+      return isValid;
     } catch (error) {
-      console.error('Error verifying PIN:', error);
+      console.error('AutoLogoutContext - Error checking PIN:', error);
       return false;
     }
   };
 
   const setLastActivePage = (page: string) => {
     setLastActivePageState(page);
-    // Also save to AsyncStorage for persistence
-    AsyncStorage.setItem(LAST_ACTIVE_PAGE_KEY, page).catch(error => {
-      console.error('Error saving last active page:', error);
-    });
+    try {
+      AsyncStorage.setItem(LAST_ACTIVE_PAGE_KEY, page);
+    } catch (error) {
+      console.error('Failed to save last active page:', error);
+    }
   };
 
-  const getLastActivePage = () => {
+  const getLastActivePage = (): string => {
     return lastActivePage;
   };
 

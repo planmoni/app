@@ -47,11 +47,6 @@ export default function VerifyEmailScreen() {
   }, [otp]);
 
   useEffect(() => {
-    // Send OTP when component mounts
-    sendOTP();
-  }, []);
-
-  useEffect(() => {
     if (timer <= 0) return;
     
     const interval = setInterval(() => {

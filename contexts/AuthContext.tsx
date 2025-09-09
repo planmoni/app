@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 import { intercomService } from '@/lib/intercom';
 import { supabase } from '@/lib/supabase';
 import { saveSession, clearSession } from '@/lib/session-persistence';
+import { migrateLegacyAppLock } from '@/lib/app-lock';
 
 interface BiometricSettings {
   isEnabled: boolean;
@@ -78,23 +79,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshBiometricSettings();
   }, []);
 
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    (async () => {
-      try {
-        if (session?.user?.id) {
-          const { default: Intercom } = await import('@intercom/intercom-react-native');
-          await Intercom.loginUserWithUserAttributes({
-            userId: session.user.id,
-            email: session.user.email || '',
-          });
-        }
-      } catch (e) {
-        // ignore
-      }
-    })();
-  }, [session?.user?.id]);
-
   const refreshBiometricSettings = async () => {
     try {
       if (Platform.OS === 'web') {
@@ -127,18 +111,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Enhanced signIn function that sends login notification
+  // Enhanced signIn function that sends login notification and migrates app lock settings
   const signIn = async (email: string, password: string) => {
     const result = await supabaseSignIn(email, password);
     
     if (result.success && (result as any)?.data?.session?.access_token) {
+      const sessionData = (result as any).data.session;
+      const userId = sessionData.user.id;
+
+      // Migrate legacy app lock settings to user-scoped storage
+      try {
+        await migrateLegacyAppLock(userId);
+        console.log('App lock migration completed for user:', userId);
+      } catch (error) {
+        console.error('App lock migration failed:', error);
+        // Don't fail the sign-in if migration fails
+      }
+
       try {
         // Initialize and login user to Intercom (native only)
         if (Platform.OS !== 'web') {
           const { default: Intercom } = await import('@intercom/intercom-react-native');
           await Intercom.loginUserWithUserAttributes({
-            userId: session?.user?.id || '',
-            email: session?.user?.email || '',
+            userId: userId,
+            email: sessionData.user.email || '',
           });
         }
       } catch (e) {
@@ -155,15 +151,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
         if (supabaseUrl) {
-          const session: any = (result as any).data.session;
           const response = await fetch(`${supabaseUrl}/functions/v1/login-notification`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`
+              'Authorization': `Bearer ${sessionData.access_token}`
             },
             body: JSON.stringify({
-              userId: session.user.id,
+              userId: userId,
               loginInfo: deviceInfo
             })
           });
@@ -176,7 +171,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase
           .from('events')
           .insert({
-            user_id: (result as any).data.session.user.id,
+            user_id: userId,
             type: 'security_alert',
             title: 'New Login Detected',
             description: `New login from ${deviceInfo.device} at ${deviceInfo.time}`,
@@ -203,19 +198,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user]);
 
   return (
-    <AuthContext.Provider value={{
-      session,
-      user,
-      isLoading,
-      signIn,
-      signUp,
-      resetPassword,
-      signOut,
-      error,
-      biometricSettings,
-      setBiometricEnabled,
-      refreshBiometricSettings
-    }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user,
+        isLoading,
+        signIn,
+        signUp,
+        resetPassword,
+        signOut,
+        error,
+        biometricSettings,
+        setBiometricEnabled,
+        refreshBiometricSettings,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
