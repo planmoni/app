@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { supabase } from '@/lib/supabase';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { 
@@ -31,6 +32,7 @@ import {
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View , Platform } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -40,6 +42,7 @@ import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import React from 'react';
 
 export default function SettingsScreen() {
   const { colors, theme, setTheme } = useTheme();
@@ -54,6 +57,11 @@ export default function SettingsScreen() {
   const [vaultAlerts, setVaultAlerts] = useState(true);
   const [loginAlerts, setLoginAlerts] = useState(true);
   const [expiryReminders, setExpiryReminders] = useState(false);
+  
+  // 2FA status state
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorMethod, setTwoFactorMethod] = useState<string>('email');
+  const [isLoading2FA, setIsLoading2FA] = useState(true);
 
   // Modal visibility states
   const [showAccountStatement, setShowAccountStatement] = useState(false);
@@ -71,6 +79,49 @@ export default function SettingsScreen() {
       screen_class: 'SettingsScreen',
     });
   }, []);
+
+  // Load 2FA status
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetch2FAStatus();
+    }
+  }, [session?.user?.id]);
+
+  // Refresh 2FA status when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (session?.user?.id) {
+        fetch2FAStatus();
+      }
+    }, [session?.user?.id])
+  );
+
+  const fetch2FAStatus = async () => {
+    try {
+      setIsLoading2FA(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('two_factor_enabled, two_factor_method, totp_enabled, totp_secret')
+        .eq('id', session?.user?.id)
+        .single();
+
+      if (error) throw error;
+      
+      // Only consider 2FA enabled if both flags are true AND there's a TOTP secret
+      const isActuallyEnabled = !!(
+        data?.two_factor_enabled && 
+        data?.totp_enabled && 
+        data?.totp_secret
+      );
+      
+      setTwoFactorEnabled(isActuallyEnabled);
+      setTwoFactorMethod(data?.two_factor_method || 'email');
+    } catch (error) {
+      console.error('Error fetching 2FA status:', error);
+    } finally {
+      setIsLoading2FA(false);
+    }
+  };
 
   const handleProfilePress = () => {
     router.push('/profile');
@@ -162,7 +213,10 @@ export default function SettingsScreen() {
       haptics.lightImpact();
     }
     router.push('/two-factor-auth');
-    logAnalyticsEvent('two_factor_auth');
+    logAnalyticsEvent('two_factor_auth', { 
+      current_status: twoFactorEnabled ? 'enabled' : 'disabled',
+      method: twoFactorMethod 
+    });
   };
 
   const handleTransactionLimits = () => {
@@ -253,8 +307,16 @@ export default function SettingsScreen() {
             <View style={styles.profileInfo}>
               <Text style={styles.profileName}>{firstName} {lastName}</Text>
               <Text style={styles.profileEmail}>{email}</Text>
-              <View style={styles.verifiedBadge}>
-                <Text style={styles.verifiedText}>Verified</Text>
+              <View style={styles.badgeContainer}>
+                <View style={styles.verifiedBadge}>
+                  <Text style={styles.verifiedText}>Verified</Text>
+                </View>
+                {!isLoading2FA && twoFactorEnabled && (
+                  <View style={styles.twoFactorBadge}>
+                    <Shield size={12} color="#22C55E" />
+                    <Text style={styles.twoFactorText}>2FA</Text>
+                  </View>
+                )}
               </View>
             </View>
           </View>
@@ -482,12 +544,37 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleTwoFactorAuth}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
-                <Shield size={20} color={colors.textSecondary} />
+              <View style={[
+                styles.settingIcon, 
+                { backgroundColor: twoFactorEnabled ? '#F0FDF4' : '#FEF2F2' }
+              ]}>
+                <Shield size={20} color={twoFactorEnabled ? "#22C55E" : "#EF4444"} />
               </View>
               <View style={styles.settingContent}>
-                <Text style={styles.settingLabel}>Two-Factor Authentication</Text>
-                <Text style={styles.settingDescription}>Add an extra layer of security</Text>
+                <View style={styles.settingLabelContainer}>
+                  <Text style={styles.settingLabel}>Two-Factor Authentication</Text>
+                  {!isLoading2FA && (
+                    <View style={[
+                      styles.statusBadge,
+                      { backgroundColor: twoFactorEnabled ? '#DCFCE7' : '#FEE2E2' }
+                    ]}>
+                      <Text style={[
+                        styles.statusText,
+                        { color: twoFactorEnabled ? '#22C55E' : '#EF4444' }
+                      ]}>
+                        {twoFactorEnabled ? 'Enabled' : 'Disabled'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.settingDescription}>
+                  {isLoading2FA 
+                    ? 'Loading...' 
+                    : twoFactorEnabled 
+                      ? `Protected with ${twoFactorMethod === 'authenticator' ? 'Authenticator App' : 'Email'}`
+                      : 'Add an extra layer of security'
+                  }
+                </Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
@@ -794,16 +881,34 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: Platform.OS === 'ios' ? 6 : 4,
   },
+  badgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   verifiedBadge: {
     backgroundColor: '#F0FDF4',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,
-    alignSelf: 'flex-start',
   },
   verifiedText: {
     fontSize: Platform.OS === 'ios' ? 12 : 10,
     color: '#22C55E',
+    fontWeight: '500',
+  },
+  twoFactorBadge: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  twoFactorText: {
+    fontSize: 12,
+    color: '#1E3A8A',
     fontWeight: '500',
   },
   section: {
@@ -840,11 +945,26 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  settingLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
   settingLabel: {
     fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '500',
     color: colors.text,
-    marginBottom: 2,
+    flex: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   settingDescription: {
     fontSize: Platform.OS === 'ios' ? 13 : 12,
