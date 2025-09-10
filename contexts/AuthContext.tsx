@@ -86,9 +86,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setBiometricSettings(defaultBiometricSettings);
         return;
       }
-      
       const settings = await BiometricService.checkBiometricSupport();
-      setBiometricSettings(settings);
+      setBiometricSettings({
+        ...settings,
+        supportedTypes: settings.supportedTypes.map(type => type.toString())
+      });
     } catch (error) {
       console.error('Failed to check biometric support:', error);
       setBiometricSettings(defaultBiometricSettings);

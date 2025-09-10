@@ -49,7 +49,7 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
     return this.memoryCache.get(key) || null;
   }
 
-  private clearCache(key: string) {
+  private clearCacheEntry(key: string) {
     this.memoryCache.delete(key);
     this.cacheExpiry.delete(key);
   }
@@ -120,7 +120,7 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
   async removeItem(key: string): Promise<void> {
     try {
       // Clear cache
-      this.clearCache(key);
+      this.clearCache();
 
       // Remove from appropriate storage
       if (this.isSensitiveKey(key)) {

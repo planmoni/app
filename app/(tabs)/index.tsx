@@ -552,9 +552,9 @@ export default function HomeScreen() {
         </ImageBackground>
 
         {/* Banner Carousel - Only show when images are ready */}
-        {imagesReady && carouselImages.length > 0 && (
-          <ImageCarousel images={carouselImages} />
-        )}
+     
+        <ImageCarousel images={carouselImages} />
+
         
         <PendingActionsCard />
 

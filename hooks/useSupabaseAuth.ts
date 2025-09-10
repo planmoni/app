@@ -38,7 +38,7 @@ export function useSupabaseAuth() {
           console.log('✅ Valid stored session found, attempting restoration...');
           console.log('📊 Session details:', {
             userId: storedSession.user?.id,
-            expiresAt: new Date(storedSession.expires_at * 1000).toISOString(),
+            expiresAt: storedSession.expires_at ? new Date(storedSession.expires_at * 1000).toISOString() : 'unknown',
             isExpired: isSessionExpired(storedSession)
           });
           
@@ -134,9 +134,8 @@ export function useSupabaseAuth() {
     };
 
     initializeAuth();
-
     // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: Session | null) => {
       console.log('🔐 Auth state change:', event, session ? 'Session exists' : 'No session');
       
       if (!mounted) return;

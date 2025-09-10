@@ -111,11 +111,12 @@ export function useIntercom() {
             console.log('✅ JWT received successfully, length:', jwt?.length);
             
           } catch (jwtError) {
-            console.warn('⚠️ JWT authentication failed, falling back to basic authentication:', jwtError);
+            const error = jwtError as Error;
+            console.warn('⚠️ JWT authentication failed, falling back to basic authentication:', error);
             console.warn('⚠️ JWT Error details:', {
-              message: jwtError.message,
-              name: jwtError.name,
-              stack: jwtError.stack
+              message: error.message,
+              name: error.name,
+              stack: error.stack
             });
             // Continue without JWT - Intercom will still work but without secure authentication
           }
@@ -149,11 +150,11 @@ export function useIntercom() {
         
       } catch (error) {
         console.error('❌ Background Intercom authentication failed:', error);
-        console.error('❌ Error details:', {
+        console.error('❌ Error details:', error instanceof Error ? {
           message: error.message,
           name: error.name,
           stack: error.stack
-        });
+        } : error);
         // Reset authentication state on failure
         isIntercomAuthenticated = false;
         authenticationPromise = null;
@@ -218,11 +219,10 @@ export function useIntercom() {
     } catch (error) {
       console.error('❌ Failed to open Intercom:', error);
       console.error('❌ Error details:', {
-        message: error.message,
-        name: error.name,
-        stack: error.stack
+        message: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : 'Unknown',
+        stack: error instanceof Error ? error.stack : undefined
       });
-      
       // Show user-friendly error with retry option
       Alert.alert(
         'Support Chat Unavailable',

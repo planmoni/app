@@ -4,7 +4,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePin } from './PinContext';
 import { useAuth } from './AuthContext';
 import { isAppLockEnabled } from '@/lib/app-lock';
-import { supabase } from '@/lib/supabaseClient';
 import { createUserScopedStorage } from '@/lib/user-scoped-storage';
 import { createRoutePersistence } from '@/lib/route-persistence';
 import { restoreSession, isValidRouteForRestoration } from '@/lib/session-restoration';

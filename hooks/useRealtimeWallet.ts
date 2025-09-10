@@ -111,7 +111,14 @@ export function useRealtimeWallet() {
               table: 'wallets',
               filter: `user_id=eq.${session.user.id}`,
             },
-            (payload) => {
+            (payload: {
+              eventType: string;
+              new?: {
+                balance: number;
+                locked_balance: number;
+                available_balance: number;
+              };
+            }) => {
               if (payload.eventType === 'UPDATE' && payload.new) {
                 setBalance(payload.new.balance || 0);
                 setLockedBalance(payload.new.locked_balance || 0);
@@ -119,7 +126,7 @@ export function useRealtimeWallet() {
               }
             }
           )
-          .subscribe((status) => {
+          .subscribe((status: 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED') => {
             switch (status) {
               case 'SUBSCRIBED':
                 console.log('Wallet subscription successful');
