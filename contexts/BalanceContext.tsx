@@ -10,7 +10,7 @@ type BalanceContextType = {
   availableBalance: number;
   isLoading: boolean;
   error: string | null;
-  refreshWallet: () => Promise<void>;
+  refreshWallet: () => Promise<{ balance: number; lockedBalance: number; availableBalance: number } | null>;
 };
 
 const BalanceContext = createContext<BalanceContextType | undefined>(undefined);

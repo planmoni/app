@@ -47,8 +47,47 @@ export function useRealtimeWallet() {
   }, [session?.user?.id]);
 
   const refreshWallet = useCallback(async () => {
-    await fetchWalletData();
-  }, [fetchWalletData]);
+    if (!session?.user?.id) {
+      return null;
+    }
+
+    try {
+      setError(null);
+
+      const { data, error: fetchError } = await supabase
+        .from('wallets')
+        .select('balance, locked_balance, available_balance')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (fetchError) {
+        console.warn('Failed to fetch wallet data:', fetchError);
+        setError('Failed to load wallet data');
+        return null;
+      }
+
+      if (data) {
+        const walletData = {
+          balance: data.balance || 0,
+          lockedBalance: data.locked_balance || 0,
+          availableBalance: data.available_balance || 0
+        };
+        
+        // Update state
+        setBalance(walletData.balance);
+        setLockedBalance(walletData.lockedBalance);
+        setAvailableBalance(walletData.availableBalance);
+        
+        return walletData;
+      }
+      
+      return null;
+    } catch (err) {
+      console.warn('Error fetching wallet data:', err);
+      setError('Failed to load wallet data');
+      return null;
+    }
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (!session?.user?.id) {

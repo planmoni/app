@@ -68,9 +68,16 @@ export const PinProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [emergencyBiometricEnabled, setEmergencyBiometricEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Get user-scoped storage instance
+  // Get user-scoped storage instance with better debugging
   const getUserStorage = () => {
+    console.log('PinContext - getUserStorage called');
+    console.log('PinContext - User object:', user);
+    console.log('PinContext - User ID:', user?.id);
+    console.log('PinContext - User exists:', !!user);
+    
     if (!user?.id) {
+      console.error('PinContext - User not authenticated when trying to get storage');
+      console.error('PinContext - User object details:', JSON.stringify(user, null, 2));
       throw new Error('User not authenticated');
     }
     return createUserScopedStorage(user.id);
@@ -126,15 +133,42 @@ export const PinProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     loadPinStates();
   }, [user?.id]);
 
-  // App Lock PIN methods (user-scoped)
+  // App Lock PIN methods (user-scoped) with better error handling
   const setupAppLockPin = async (pin: string): Promise<boolean> => {
     try {
+      console.log('PinContext - setupAppLockPin called with PIN length:', pin.length);
+      console.log('PinContext - Current user state:', { 
+        exists: !!user, 
+        id: user?.id, 
+        email: user?.email 
+      });
+      
+      // Wait for user authentication with multiple retries
+      let retries = 0;
+      const maxRetries = 20; // Wait up to 2 seconds
+      
+      while (!user?.id && retries < maxRetries) {
+        console.log(`PinContext - User not ready, waiting... (attempt ${retries + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        retries++;
+      }
+      
+      if (!user?.id) {
+        console.error('PinContext - User still not available after all retries');
+        console.error('PinContext - This might indicate an authentication issue');
+        throw new Error('User authentication not ready. Please ensure you are logged in and try again.');
+      }
+      
+      console.log('PinContext - User is now available, proceeding with PIN setup');
       const userStorage = getUserStorage();
+      console.log('PinContext - Got user storage, setting PIN...');
+      
       await userStorage.setItem(APP_LOCK_PIN_KEY, pin);
       setHasAppLockPin(true);
+      console.log('PinContext - PIN setup completed successfully');
       return true;
     } catch (error) {
-      console.error('Failed to setup app lock PIN:', error);
+      console.error('PinContext - Failed to setup app lock PIN:', error);
       return false;
     }
   };

@@ -22,7 +22,7 @@ export default function EmergencyWithdrawalScreen() {
   const haptics = useHaptics();
   const { processEmergencyWithdrawal, isLoading, calculateFee, calculateNetAmount } = useEmergencyWithdrawal();
   const { payoutPlans } = useRealtimePayoutPlans();
-  const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport } = usePin();
+  const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport, hasEmergencyPin } = usePin();
   
   const [selectedOption, setSelectedOption] = useState<'instant' | '24h' | '72h' | null>('instant');
   const [plan, setPlan] = useState<any>(null);
@@ -171,6 +171,13 @@ export default function EmergencyWithdrawalScreen() {
     
     haptics.mediumImpact();
     
+    // Check if emergency PIN is set up
+    if (!hasEmergencyPin) {
+      // No PIN set up, proceed directly without verification
+      await handleConfirmWithdrawal();
+      return;
+    }
+    
     // If biometric authentication is enabled and available, try biometric first
     if (emergencyBiometricEnabled && biometricSupport?.isAvailable && Platform.OS !== 'web') {
       await attemptBiometricAuthentication();
@@ -178,7 +185,7 @@ export default function EmergencyWithdrawalScreen() {
       // Fall back to PIN verification
       setShowPinVerification(true);
     }
-  }, [selectedOption, plan, haptics, emergencyBiometricEnabled, biometricSupport, attemptBiometricAuthentication]);
+  }, [selectedOption, plan, haptics, emergencyBiometricEnabled, biometricSupport, attemptBiometricAuthentication, hasEmergencyPin, handleConfirmWithdrawal]);
 
   const handlePinVerificationSuccess = useCallback(async () => {
     setShowPinVerification(false);

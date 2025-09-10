@@ -29,7 +29,7 @@ export default function ReviewScreen() {
   const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
   const [biometricSupport, setBiometricSupport] = useState<any>(null);
   const { banks } = useBanks();
-  const { payoutBiometricEnabled, verifyPayoutPin, checkBiometricSupport } = usePin();
+  const { payoutBiometricEnabled, verifyPayoutPin, checkBiometricSupport, hasPayoutPin } = usePin();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -202,6 +202,13 @@ export default function ReviewScreen() {
       haptics.mediumImpact();
     }
     
+    // Check if payout PIN is set up
+    if (!hasPayoutPin) {
+      // No PIN set up, proceed directly without verification
+      await handleConfirmPayout();
+      return;
+    }
+    
     // If biometric authentication is enabled and available, try biometric first
     if (payoutBiometricEnabled && biometricSupport?.isAvailable && Platform.OS !== 'web') {
       await attemptBiometricAuthentication();
@@ -209,7 +216,7 @@ export default function ReviewScreen() {
       // Fall back to PIN verification
       setShowPinVerification(true);
     }
-  }, [hasInsufficientBalance, numericTotalAmount, availableBalance, haptics, payoutBiometricEnabled, biometricSupport, attemptBiometricAuthentication]);
+  }, [hasInsufficientBalance, numericTotalAmount, availableBalance, haptics, payoutBiometricEnabled, biometricSupport, attemptBiometricAuthentication, hasPayoutPin, handleConfirmPayout]);
 
   const handlePinVerificationSuccess = useCallback(async () => {
     setShowPinVerification(false);
