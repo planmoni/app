@@ -8,6 +8,10 @@ export default {
     slug: "planmoni",
     version: "1.0.0",
     scheme: "myapp",
+    updates: {
+      url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83"
+    },
+    runtimeVersion: "1.0.0",
     android: {
       package: "com.planmoni", // ← choose your unique package name
       "permissions": ["android.permission.CAMERA"]

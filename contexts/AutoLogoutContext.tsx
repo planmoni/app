@@ -126,12 +126,28 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Check app lock status when user changes
   useEffect(() => {
     const checkInitialAppLock = async () => {
+      // Only check app lock if user is fully authenticated and not during sign-in process
+      if (!session?.user || !session?.access_token) {
+        console.log('AutoLogoutContext - No authenticated session, skipping app lock check');
+        setIsAppLocked(false);
+        return;
+      }
+
+      // Add a delay to ensure the authentication process is complete
+      // This prevents app lock from being triggered during sign-in/account creation
+      console.log('AutoLogoutContext - Adding delay before app lock check to prevent interference with auth flow');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Check if we're still authenticated after the delay
       if (!session?.user) {
+        console.log('AutoLogoutContext - Session lost during delay, skipping app lock check');
         setIsAppLocked(false);
         return;
       }
 
       try {
+        console.log('AutoLogoutContext - Checking app lock status for authenticated user');
+        
         // Check if app lock is enabled for this user
         const appLockEnabled = await isAppLockEnabled(session.user.id);
         
@@ -141,13 +157,14 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const hasPin = await userStorage.getItem('app_lock_pin') !== null;
           
           if (hasPin) {
+            console.log('AutoLogoutContext - App lock enabled and PIN exists, locking app');
             setIsAppLocked(true);
           } else {
-            // App lock is enabled but no PIN, disable app lock
-            // await setAppLockEnabled(session.user.id, false); // This line was removed from the new_code, so it's removed here.
+            console.log('AutoLogoutContext - App lock enabled but no PIN, keeping app unlocked');
             setIsAppLocked(false);
           }
         } else {
+          console.log('AutoLogoutContext - App lock not enabled, keeping app unlocked');
           setIsAppLocked(false);
         }
       } catch (error) {
@@ -157,7 +174,7 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     checkInitialAppLock();
-  }, [session?.user?.id]);
+  }, [session?.user?.id, session?.access_token]);
 
   // Load saved auto-logout duration and last active page on mount
   useEffect(() => {

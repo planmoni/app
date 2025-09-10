@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Clock, Zap, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -22,7 +22,7 @@ export default function EmergencyWithdrawalScreen() {
   const haptics = useHaptics();
   const { processEmergencyWithdrawal, isLoading, calculateFee, calculateNetAmount } = useEmergencyWithdrawal();
   const { payoutPlans } = useRealtimePayoutPlans();
-  const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport, hasEmergencyPin } = usePin();
+  const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport, hasEmergencyPin, hasAppLockPin } = usePin();
   
   const [selectedOption, setSelectedOption] = useState<'instant' | '24h' | '72h' | null>('instant');
   const [plan, setPlan] = useState<any>(null);
@@ -30,7 +30,8 @@ export default function EmergencyWithdrawalScreen() {
   const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
   const [biometricSupport, setBiometricSupport] = useState<any>(null);
   
-  const styles = createStyles(colors, isDark);
+  // Memoize styles to prevent recreation on every render
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   
   // Find the plan details
   useEffect(() => {
@@ -171,9 +172,9 @@ export default function EmergencyWithdrawalScreen() {
     
     haptics.mediumImpact();
     
-    // Check if emergency PIN is set up
-    if (!hasEmergencyPin) {
-      // No PIN set up, proceed directly without verification
+    // Check if ANY PIN is set up (emergency PIN or app lock PIN)
+    if (!hasEmergencyPin && !hasAppLockPin) {
+      // No PIN set up at all, proceed directly without verification
       await handleConfirmWithdrawal();
       return;
     }
@@ -185,7 +186,7 @@ export default function EmergencyWithdrawalScreen() {
       // Fall back to PIN verification
       setShowPinVerification(true);
     }
-  }, [selectedOption, plan, haptics, emergencyBiometricEnabled, biometricSupport, attemptBiometricAuthentication, hasEmergencyPin, handleConfirmWithdrawal]);
+  }, [selectedOption, plan, haptics, emergencyBiometricEnabled, biometricSupport, attemptBiometricAuthentication, hasEmergencyPin, hasAppLockPin, handleConfirmWithdrawal]);
 
   const handlePinVerificationSuccess = useCallback(async () => {
     setShowPinVerification(false);

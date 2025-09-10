@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { ProfileProvider } from '@/contexts/ProfileContext';
 import { AutoLogoutProvider, useAutoLogout } from '@/contexts/AutoLogoutContext';
 import { PinProvider } from '@/contexts/PinContext';
 import { ToastProvider } from '@/contexts/ToastContext';
@@ -11,6 +12,7 @@ import { BalanceProvider } from '@/contexts/BalanceContext';
 import { router } from 'expo-router';
 import SplashScreen from '@/components/SplashScreen';
 import LockScreen from '@/components/LockScreen';
+import AppBlur from '@/components/AppBlur';
 
 function ThemedStatusBar() {
   const { isDark } = useTheme();
@@ -56,8 +58,8 @@ function RootLayoutNav() {
     return <SplashScreen />;
   }
 
-  // Show lock screen if app is locked
-  if (isAppLocked) {
+  // Show lock screen only if app is locked AND user has a valid session AND not during loading
+  if (isAppLocked && session && !isLoading) {
     return <LockScreen />;
   }
 
@@ -129,17 +131,21 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <PinProvider>
-          <AuthProvider>
-            <AutoLogoutProvider>
-              <ToastProvider>
-                <BalanceProvider>
-                  <RootLayoutNav />
-                </BalanceProvider>
-              </ToastProvider>
-            </AutoLogoutProvider>
-          </AuthProvider>
-        </PinProvider>
+        <AuthProvider>
+          <ProfileProvider>
+            <PinProvider>
+              <AutoLogoutProvider>
+                <ToastProvider>
+                  <BalanceProvider>
+                    <AppBlur>
+                      <RootLayoutNav />
+                    </AppBlur>
+                  </BalanceProvider>
+                </ToastProvider>
+              </AutoLogoutProvider>
+            </PinProvider>
+          </ProfileProvider>
+        </AuthProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

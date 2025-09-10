@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
+import { secureStoreAdapter } from './SecureStoreAdapter';
 
 // Get Supabase configuration from environment
 const supabaseUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -9,66 +10,35 @@ const supabaseAnonKey = Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_ANON_K
 let supabase: any;
 
 if (supabaseUrl && supabaseAnonKey) {
-  // Valid configuration - create real client
+  // Valid configuration - create real client with SecureStore adapter
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
+      storage: secureStoreAdapter,
     },
   });
-  console.log('✅ Supabase client initialized successfully');
+  console.log('✅ Supabase client initialized successfully with SecureStore adapter');
 } else {
   // Missing configuration - create mock client that returns user-friendly errors
   console.log('⚠️  Supabase configuration not found, using mock client');
   
   supabase = {
     auth: {
-      signUp: () => Promise.resolve({ 
-        data: null, 
-        error: { message: 'Service temporarily unavailable. Please try again later.', name: 'AuthApiError' } 
-      }),
-      signInWithPassword: () => Promise.resolve({ 
-        data: null, 
-        error: { message: 'Invalid email or password. Please check your credentials and try again.', name: 'AuthApiError' } 
-      }),
-      signOut: () => Promise.resolve({ success: false, error: 'Service temporarily unavailable' }),
-      getSession: () => Promise.resolve({ 
-        data: { session: null }, 
-        error: { message: 'Service temporarily unavailable', name: 'AuthApiError' } 
-      }),
-      onAuthStateChange: () => ({ 
-        data: { subscription: { unsubscribe: () => {} } }, 
-        error: null 
-      }),
+      signUp: async () => ({ data: { user: null, session: null }, error: { message: 'Supabase not configured' } }),
+      signInWithPassword: async () => ({ data: { user: null, session: null }, error: { message: 'Supabase not configured' } }),
+      signOut: async () => ({ error: { message: 'Supabase not configured' } }),
+      getSession: async () => ({ data: { session: null }, error: { message: 'Supabase not configured' } }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      setSession: async () => ({ data: { session: null }, error: { message: 'Supabase not configured' } }),
+      refreshSession: async () => ({ data: { session: null }, error: { message: 'Supabase not configured' } }),
     },
     from: () => ({
-      select: () => Promise.resolve({ 
-        data: [], 
-        error: { message: 'Service temporarily unavailable', name: 'DatabaseError' } 
-      }),
-      insert: () => Promise.resolve({ 
-        data: [], 
-        error: { message: 'Service temporarily unavailable', name: 'DatabaseError' } 
-      }),
-      update: () => Promise.resolve({ 
-        data: [], 
-        error: { message: 'Service temporarily unavailable', name: 'DatabaseError' } 
-      }),
-      delete: () => Promise.resolve({ 
-        data: [], 
-        error: { message: 'Service temporarily unavailable', name: 'DatabaseError' } 
-      }),
-    }),
-    functions: {
-      invoke: () => Promise.resolve({ 
-        data: null, 
-        error: { message: 'Service temporarily unavailable', name: 'FunctionsError' } 
-      }),
-    },
-    rpc: () => Promise.resolve({ 
-      data: null, 
-      error: { message: 'Service temporarily unavailable', name: 'RpcError' } 
+      select: () => ({ eq: () => ({ single: async () => ({ data: null, error: { message: 'Supabase not configured' } }) }) }),
+      insert: () => ({ select: async () => ({ data: null, error: { message: 'Supabase not configured' } }) }),
+      update: () => ({ eq: () => ({ select: async () => ({ data: null, error: { message: 'Supabase not configured' } }) }) }),
+      delete: () => ({ eq: async () => ({ data: null, error: { message: 'Supabase not configured' } }) }),
     }),
   };
 }
