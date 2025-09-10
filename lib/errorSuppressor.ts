@@ -9,6 +9,8 @@ console.error = (...args: any[]) => {
   // Suppress specific errors that are not critical
   if (
     message.includes('Events subscription timed out') ||
+    message.includes('Channel subscription error') ||
+    message.includes('Channel subscription timed out') ||
     message.includes('refreshWallet is not a function') ||
     message.includes('Paystack API error') ||
     message.includes('network request failed') ||
@@ -16,7 +18,9 @@ console.error = (...args: any[]) => {
     message.includes('502') ||
     message.includes('503') ||
     message.includes('timeout') ||
-    message.includes('fetch failed')
+    message.includes('fetch failed') ||
+    message.includes('subscription error') ||
+    message.includes('realtime subscription')
   ) {
     // Suppress these errors silently
     return;
@@ -44,7 +48,11 @@ console.warn = (...args: any[]) => {
   // Suppress specific warnings
   if (
     message.includes('Events subscription timed out') ||
-    message.includes('refreshWallet is not a function')
+    message.includes('Channel subscription error') ||
+    message.includes('Channel subscription timed out') ||
+    message.includes('refreshWallet is not a function') ||
+    message.includes('subscription error') ||
+    message.includes('realtime subscription')
   ) {
     return;
   }
@@ -60,7 +68,7 @@ console.warn = (...args: any[]) => {
 
 // Suppress unhandled promise rejections
 const originalUnhandledRejection = global.onunhandledrejection;
-global.onunhandledrejection = (event: any) => {
+global.onunhandledRejection = (event: any) => {
   // Suppress unhandled promise rejections
   event.preventDefault();
 }; 

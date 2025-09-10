@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -40,17 +40,52 @@ export function useRealtimePayoutPlans() {
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
 
-  useEffect(() => {
-    if (!session?.user?.id) return;
+  const fetchPayoutPlans = useCallback(async () => {
+    try {
+      setError(null);
+      const { data, error: fetchError } = await supabase
+        .from('payout_plans')
+        .select(`
+          *,
+          bank_accounts (
+            bank_name,
+            account_number,
+            account_name
+          ),
+          payout_accounts (
+            bank_name,
+            account_number,
+            account_name
+          )
+        `)
+        .eq('user_id', session?.user?.id)
+        .order('created_at', { ascending: false });
 
-    let channel: RealtimeChannel;
+      if (fetchError) throw fetchError;
+      setPayoutPlans(data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch payout plans');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!session?.user?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    let channel: RealtimeChannel | null = null;
+    let retryCount = 0;
+    const maxRetries = 3;
 
     const setupRealtimeSubscription = async () => {
       try {
         // Initial fetch
         await fetchPayoutPlans();
 
-        // Set up real-time subscription
+        // Set up real-time subscription with improved error handling
         const channelName = `payout-plans-changes-${session.user.id}`;
         console.log('🔗 Setting up real-time subscription for channel:', channelName);
         
@@ -96,21 +131,25 @@ export function useRealtimePayoutPlans() {
             }
           );
         
-        // Always subscribe (removed the conditional check)
+        // Subscribe with improved error handling
         channel.subscribe((status: any) => {
           console.log('📡 Payout plans subscription status:', status);
           if (status === 'SUBSCRIBED') {
             console.log('✅ Successfully subscribed to payout plans changes');
+            retryCount = 0; // Reset retry count on successful subscription
           } else if (status === 'CHANNEL_ERROR') {
-            console.error('❌ Channel subscription error');
+            console.warn('⚠️ Channel subscription error - continuing without realtime updates');
+            // Don't set error state, just log warning and continue
           } else if (status === 'TIMED_OUT') {
-            console.error('⏰ Channel subscription timed out');
+            console.warn('⚠️ Channel subscription timed out - continuing without realtime updates');
+            // Don't set error state, just log warning and continue
           } else if (status === 'CLOSED') {
             console.log('🔒 Channel subscription closed');
           }
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to setup payout plans subscription');
+        console.warn('Failed to setup payout plans subscription:', err);
+        // Don't set error state for subscription failures, just log warning
       }
     };
 
@@ -121,37 +160,7 @@ export function useRealtimePayoutPlans() {
         supabase.removeChannel(channel);
       }
     };
-  }, [session?.user?.id]);
-
-  const fetchPayoutPlans = async () => {
-    try {
-      setError(null);
-      const { data, error: fetchError } = await supabase
-        .from('payout_plans')
-        .select(`
-          *,
-          bank_accounts (
-            bank_name,
-            account_number,
-            account_name
-          ),
-          payout_accounts (
-            bank_name,
-            account_number,
-            account_name
-          )
-        `)
-        .eq('user_id', session?.user?.id)
-        .order('created_at', { ascending: false });
-
-      if (fetchError) throw fetchError;
-      setPayoutPlans(data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch payout plans');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [session?.user?.id, fetchPayoutPlans]);
 
   const pausePlan = async (planId: string) => {
     try {

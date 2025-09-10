@@ -7,6 +7,7 @@ import { intercomService } from '@/lib/intercom';
 import { supabase } from '@/lib/supabase';
 import { saveSession, clearSession } from '@/lib/session-persistence';
 import { migrateLegacyAppLock } from '@/lib/app-lock';
+import { intercomManager } from '@/lib/intercomManager';
 
 interface BiometricSettings {
   isEnabled: boolean;
@@ -196,6 +197,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })();
     }
   }, [user]);
+
+  // Add Intercom authentication when user logs in
+  useEffect(() => {
+    if (session?.user?.id && session?.access_token) {
+      console.log('🚀 AuthContext: User logged in, starting Intercom authentication...');
+      intercomManager.authenticateUser(
+        session.user.id,
+        session.access_token,
+        session.user.user_metadata
+      ).catch(error => {
+        console.warn('Intercom authentication failed:', error);
+      });
+    } else if (!session?.user?.id) {
+      console.log('🔄 AuthContext: User logged out, logging out Intercom...');
+      intercomManager.logout();
+    }
+  }, [session?.user?.id, session?.access_token]);
 
   return (
     <AuthContext.Provider
