@@ -19,7 +19,7 @@ export default function SecurityCenter() {
     enableBiometric, 
     disableBiometric 
   } = usePin();
-  const { autoLogoutDuration, setAutoLogoutDuration, lockApp, isAppLocked } = useAutoLogout();
+  const { autoLogoutDuration, setAutoLogoutDuration, lockApp, isAppLocked, enableNavigationProtection } = useAutoLogout();
   const { isDark, colors } = useTheme();
   
   const [payoutBiometrics, setPayoutBiometrics] = useState(false);
@@ -153,6 +153,14 @@ export default function SecurityCenter() {
       console.error('SecurityCenter - Error in handleBiometricToggle:', error);
       Alert.alert('Error', `Failed to update biometric settings: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  };
+
+  const handleDone = () => {
+    // Enable navigation protection to prevent app lock loop
+    enableNavigationProtection();
+    
+    // Navigate back to tabs
+    router.push('/(tabs)/');
   };
 
   const renderSection = (title: string, children: React.ReactNode) => (
@@ -290,7 +298,7 @@ export default function SecurityCenter() {
       <View style={styles.doneButtonContainer}>
         <TouchableOpacity 
           style={styles.doneButton} 
-          onPress={() => router.push('/(tabs)/')}
+          onPress={handleDone}
         >
           <Text style={styles.doneButtonText}>Done</Text>
         </TouchableOpacity>

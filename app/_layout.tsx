@@ -11,7 +11,7 @@ import { ToastProvider } from '@/contexts/ToastContext';
 import { BalanceProvider } from '@/contexts/BalanceContext';
 import { router } from 'expo-router';
 import SplashScreen from '@/components/SplashScreen';
-import LockScreen from '@/components/LockScreen';
+import SimplePinLock from '@/components/SimplePinLock'; // Changed from LockScreen
 import AppBlur from '@/components/AppBlur';
 
 function ThemedStatusBar() {
@@ -60,7 +60,7 @@ function RootLayoutNav() {
 
   // Show lock screen only if app is locked AND user has a valid session AND not during loading
   if (isAppLocked && session && !isLoading) {
-    return <LockScreen />;
+    return <SimplePinLock />; // Changed from LockScreen
   }
 
   // Show error screen only for critical errors, not auth errors

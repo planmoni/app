@@ -57,7 +57,7 @@ import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 import NotificationIcon from '@/components/NotificationIcon';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { supabase } from '@/lib/supabase';
-import { useIntercom } from '@/hooks/useIntercom';
+import intercomService from '@/lib/IntercomService';
 
 interface Banner {
   id: string;
@@ -100,7 +100,6 @@ export default function HomeScreen() {
   const route = useRoute();
   const params = useLocalSearchParams();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
-  const { openIntercom, isLoading: isIntercomLoading } = useIntercom();
 
   // Get user info from session
   const firstName = session?.user?.user_metadata?.first_name || 'User';
@@ -198,7 +197,41 @@ export default function HomeScreen() {
   };
   
   const handleHelpPress = async () => {
-    await openIntercom();
+    try {
+      setIsHelpLoading(true);
+      console.log('🎯 Help button pressed - opening Intercom instantly');
+      
+      // Check if Intercom is ready
+      if (!intercomService.isReady()) {
+        console.warn('⚠️ Intercom not ready, showing fallback');
+        Alert.alert(
+          'Support',
+          'Support chat is initializing. Please try again in a moment.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      // Open Intercom instantly - no waiting, no async work
+      await intercomService.open();
+      
+      logAnalyticsEvent('help_click');
+      
+    } catch (error) {
+      console.error('❌ Intercom error:', error);
+      
+      // Show more helpful error message
+      Alert.alert(
+        'Support Chat Unavailable',
+        'We\'re having trouble connecting to support chat. Please try again or contact us directly.',
+        [
+          { text: 'Try Again', onPress: () => handleHelpPress() },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } finally {
+      setIsHelpLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -459,9 +492,9 @@ export default function HomeScreen() {
               <Pressable 
                 onPress={handleHelpPress} 
                 style={styles.helpButton}
-                disabled={isIntercomLoading}
+                disabled={isHelpLoading}
               >
-                {isIntercomLoading ? (
+                {isHelpLoading ? (
                   <PlanmoniLoader size="small" />
                 ) : (
                   <HelpCircleIcon size={24} color={colors.text} />

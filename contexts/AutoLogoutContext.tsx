@@ -21,6 +21,7 @@ interface AutoLogoutContextType {
   lockApp: () => void;
   setLastActivePage: (page: string) => void;
   getLastActivePage: () => string;
+  enableNavigationProtection: () => void;
 }
 
 const AutoLogoutContext = createContext<AutoLogoutContextType | undefined>(undefined);
@@ -54,6 +55,10 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const { user, session } = useAuth();
   const appState = useRef(AppState.currentState);
   const lastActiveRef = useRef<number>(Date.now());
+  
+  // Add protection against unnecessary app locking during navigation
+  const navigationProtectionRef = useRef(false);
+  const lastUnlockTimeRef = useRef<number>(0);
 
   // Enhanced debug logging for isAppLocked changes
   useEffect(() => {
@@ -122,25 +127,26 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     loadAutoLogoutDuration();
   }, []);
 
-  // Check app lock status when user changes
+  // Check app lock status when user changes - WITH PROTECTION
   useEffect(() => {
     const checkInitialAppLock = async () => {
       // Only check app lock if user is fully authenticated and not during sign-in process
-      if (!session?.user || !session?.access_token) {
-        console.log('AutoLogoutContext - No authenticated session, skipping app lock check');
+      if (!session?.user?.id || !session?.access_token) {
+        console.log('AutoLogoutContext - No session, keeping app unlocked');
         setIsAppLocked(false);
         return;
       }
 
-      // Add a delay to ensure the authentication process is complete
-      // This prevents app lock from being triggered during sign-in/account creation
-      console.log('AutoLogoutContext - Adding delay before app lock check to prevent interference with auth flow');
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // PROTECTION: Don't lock if we just unlocked recently (within 5 seconds)
+      const timeSinceLastUnlock = Date.now() - lastUnlockTimeRef.current;
+      if (timeSinceLastUnlock < 5000) {
+        console.log('AutoLogoutContext - Recently unlocked, skipping app lock check');
+        return;
+      }
 
-      // Check if we're still authenticated after the delay
-      if (!session?.user) {
-        console.log('AutoLogoutContext - Session lost during delay, skipping app lock check');
-        setIsAppLocked(false);
+      // PROTECTION: Don't lock if we're in navigation protection mode
+      if (navigationProtectionRef.current) {
+        console.log('AutoLogoutContext - Navigation protection active, skipping app lock check');
         return;
       }
 
@@ -483,6 +489,7 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Update refs
     justUnlockedRef.current = true;
     unlockTimestampRef.current = Date.now();
+    lastUnlockTimeRef.current = Date.now(); // Track unlock time for protection
     
     // Reset just unlocked state after a short delay
     setTimeout(() => {
@@ -522,6 +529,17 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return lastActivePage;
   };
 
+  const enableNavigationProtection = () => {
+    navigationProtectionRef.current = true;
+    console.log('AutoLogoutContext - Navigation protection enabled');
+    
+    // Disable protection after 3 seconds
+    setTimeout(() => {
+      navigationProtectionRef.current = false;
+      console.log('AutoLogoutContext - Navigation protection disabled');
+    }, 3000);
+  };
+
   const value: AutoLogoutContextType = {
     autoLogoutDuration,
     setAutoLogoutDuration,
@@ -532,6 +550,7 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     lockApp,
     setLastActivePage,
     getLastActivePage,
+    enableNavigationProtection,
   };
 
   return (

@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { BiometricService } from '@/lib/biometrics';
 import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
+import intercomService from '@/lib/IntercomService';
 
 interface BiometricSettings {
   isAvailable: boolean;
@@ -61,6 +62,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     refreshBiometricSettings();
   }, []);
+
+  useEffect(() => {
+    // Initialize Intercom when session changes
+    if (session) {
+      console.log('🔗 AuthContext - Initializing Intercom with session');
+      intercomService.init(session);
+    } else {
+      console.log(' AuthContext - Logging out Intercom (no session)');
+      intercomService.logout();
+    }
+  }, [session]);
 
   // Save profile snapshots when session changes
   useEffect(() => {
