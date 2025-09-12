@@ -62,7 +62,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
           bankName = plan.bank_accounts.bank_name;
           accountNumber = plan.bank_accounts.account_number;
         }
-        description = 'Payout sent to';
+        description = 'Paid to';
       } else if (tx.type === 'deposit') {
         planName = 'Wallet Deposit';
         description = 'Added to your Planmoni wallet';
@@ -135,7 +135,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
     const startAutoSlide = () => {
       autoSlideTimer.current = setInterval(() => {
         setCurrentIndex(prev => (prev + 1) % recentTransactions.length);
-      }, 4000); // Change slide every 4 seconds
+      }, 6000); // Change slide every 4 seconds
     };
 
     startAutoSlide();
@@ -210,13 +210,13 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
                   styles.amount,
                   { 
                     color: currentTransaction.type === 'deposit' 
-                      ? '#22C55E' // Green for deposits
+                      ? colors.text // Green for deposits
                       : currentTransaction.type === 'withdrawal'
                       ? '#F97316' // Orange for withdrawals  
-                      : colors.text // Default for payouts
+                      : '#22C55E' // Default for payouts
                   }
                 ]}>
-                  {currentTransaction.type === 'deposit' ? '' : currentTransaction.type === 'withdrawal' ? '-' : ''}
+                  {currentTransaction.type === 'deposit' ? '+' : currentTransaction.type === 'withdrawal' ? '-' : ''}
                   {formatCurrency(currentTransaction.amount)}
                 </Text>
                 <Text style={styles.dateTime}>

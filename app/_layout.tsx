@@ -6,11 +6,12 @@ import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ProfileProvider } from '@/contexts/ProfileContext';
 import { AutoLogoutProvider, useAutoLogout } from '@/contexts/AutoLogoutContext';
-import { PinProvider } from '@/contexts/PinContext';
+import { PinProvider, usePin } from '@/contexts/PinContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { BalanceProvider } from '@/contexts/BalanceContext';
 import { router } from 'expo-router';
 import SplashScreen from '@/components/SplashScreen';
+import BiometricsLock from '@/components/BiometricsLock';
 import SimplePinLock from '@/components/SimplePinLock'; // Changed from LockScreen
 import AppBlur from '@/components/AppBlur';
 
@@ -22,9 +23,11 @@ function ThemedStatusBar() {
 function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
   const { isAppLocked } = useAutoLogout();
+  const { biometricEnabled } = usePin(); // Add this import
   const [showSplash, setShowSplash] = useState(true);
   const [navigationReady, setNavigationReady] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [hasShownLockScreen, setHasShownLockScreen] = useState(false);
 
   // Initialize app - show splash only on first load
   useEffect(() => {
@@ -32,19 +35,16 @@ function RootLayoutNav() {
       setShowSplash(false);
       setNavigationReady(true);
       setHasInitialized(true);
-    }, 3000); // 3 seconds splash for initial load only
+    }, 3000);
 
     return () => clearTimeout(timer);
-  }, []); // Empty dependency array - runs only once
+  }, []);
 
   // Handle navigation - allow auth flows but prevent splash interference
   useEffect(() => {
     if (!showSplash && navigationReady && !isLoading) {
-      // Only auto-navigate on initial load, not during auth flows
       if (hasInitialized && !session) {
-        // Small delay to ensure router is ready
         const navigationTimer = setTimeout(() => {
-          // Only navigate to welcome page if no session and we just initialized
           router.replace('/');
         }, 100);
 
@@ -53,14 +53,24 @@ function RootLayoutNav() {
     }
   }, [showSplash, navigationReady, isLoading, session, hasInitialized]);
 
+  // Handle lock screen display logic
+  useEffect(() => {
+    if (isAppLocked && session && !isLoading && !hasShownLockScreen) {
+      setHasShownLockScreen(true);
+    } else if (!isAppLocked) {
+      setHasShownLockScreen(false);
+    }
+  }, [isAppLocked, session, isLoading, hasShownLockScreen]);
+
   // Show splash screen only during initial loading
   if (showSplash || (isLoading && !hasInitialized)) {
     return <SplashScreen />;
   }
 
-  // Show lock screen only if app is locked AND user has a valid session AND not during loading
-  if (isAppLocked && session && !isLoading) {
-    return <SimplePinLock />; // Changed from LockScreen
+  // Show lock screen only if app is locked AND user has a valid session AND not during loading AND we haven't shown it yet
+  if (isAppLocked && session && !isLoading && !hasShownLockScreen) {
+    // Use BiometricsLock as default if biometrics are enabled, otherwise fall back to SimplePinLock
+    return biometricEnabled ? <BiometricsLock /> : <SimplePinLock />;
   }
 
   // Show error screen only for critical errors, not auth errors

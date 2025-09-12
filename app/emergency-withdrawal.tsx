@@ -47,8 +47,16 @@ export default function EmergencyWithdrawalScreen() {
     try {
       const support = await checkBiometricSupport();
       setBiometricSupport(support);
+      
+      // Log biometric support status for debugging
+      console.log('Emergency Withdrawal - Biometric support:', {
+        isAvailable: support?.isAvailable,
+        isEnrolled: support?.isEnrolled,
+        supportedTypes: support?.supportedTypes
+      });
     } catch (error) {
       console.error('Error checking biometric support:', error);
+      setBiometricSupport(null);
     }
   }, [checkBiometricSupport]);
   

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -23,6 +23,9 @@ export default function BiometricsLock() {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showPinFallback, setShowPinFallback] = useState(false);
   const [hasAttemptedAutoAuth, setHasAttemptedAutoAuth] = useState(false);
+  
+  // Add a ref to track if we've already attempted biometrics for this session
+  const biometricAttemptedRef = useRef(false);
 
   const loadBiometricSupport = async () => {
     try {
@@ -38,11 +41,12 @@ export default function BiometricsLock() {
     loadBiometricSupport();
   }, []);
 
-  // Auto-attempt biometric authentication when component mounts
+  // Auto-attempt biometric authentication when component mounts - BUT ONLY ONCE PER SESSION
   useEffect(() => {
     const attemptAutoBiometricAuth = async () => {
-      // Only attempt if biometrics are enabled, available, and we haven't tried yet
-      if (biometricEnabled && biometricSupport?.isAvailable && !hasAttemptedAutoAuth && Platform.OS !== 'web') {
+      // Only attempt if biometrics are enabled, available, we haven't tried yet, AND we haven't attempted for this session
+      if (biometricEnabled && biometricSupport?.isAvailable && !hasAttemptedAutoAuth && !biometricAttemptedRef.current && Platform.OS !== 'web') {
+        biometricAttemptedRef.current = true; // Mark as attempted for this session
         setHasAttemptedAutoAuth(true);
         await handleBiometricUnlock();
       } else if (!biometricEnabled || !biometricSupport?.isAvailable) {
@@ -55,6 +59,15 @@ export default function BiometricsLock() {
     const timer = setTimeout(attemptAutoBiometricAuth, 500);
     return () => clearTimeout(timer);
   }, [biometricEnabled, biometricSupport, hasAttemptedAutoAuth]);
+
+  // Reset biometric attempt flag when app is unlocked
+  useEffect(() => {
+    if (!isAppLocked) {
+      biometricAttemptedRef.current = false;
+      setHasAttemptedAutoAuth(false);
+      setShowPinFallback(false); // Reset fallback state
+    }
+  }, [isAppLocked]);
 
   // Don't render if not locked or if we've already unlocked
   if (!isAppLocked || isUnlocked) {
