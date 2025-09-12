@@ -7,6 +7,7 @@ import PlanmoniLoader from '@/components/PlanmoniLoader';
 import CountdownTimer from '@/components/CountdownTimer';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import ImageCarousel from '@/components/ImageCarousel';
+import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -318,16 +319,33 @@ export default function HomeScreen() {
     // Modal is already on dashboard, just close it
   };
 
+  // Handle transaction press from MostRecentPayoutsCard
   const handleTransactionPress = (transaction: any) => {
+    // Find the payout plan to get bank information
+    const plan = payoutPlans.find(p => p.id === transaction.payout_plan_id);
+    
+    // Get bank info from the payout plan's linked account
+    let bankName = 'Unknown Bank';
+    let accountNumber = '****';
+    
+    if (plan?.payout_accounts) {
+      bankName = plan.payout_accounts.bank_name;
+      accountNumber = plan.payout_accounts.account_number;
+    } else if (plan?.bank_accounts) {
+      bankName = plan.bank_accounts.bank_name;
+      accountNumber = plan.bank_accounts.account_number;
+    }
+
     // Format transaction data for the modal
     const formattedTransaction = {
+      ...transaction,
       amount: `₦${transaction.amount.toLocaleString()}`,
       status: transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1),
       date: new Date(transaction.created_at).toLocaleDateString(),
       time: new Date(transaction.created_at).toLocaleTimeString(),
       type: transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1),
       source: transaction.source,
-      destination: transaction.destination,
+      destination: `${bankName} •••• ${accountNumber.slice(-4)}`, // Use actual bank name
       transactionId: transaction.id,
       planRef: transaction.payout_plan_id || '',
       paymentMethod: transaction.type === 'deposit' ? 'Bank Transfer' : 
@@ -591,6 +609,9 @@ export default function HomeScreen() {
         
         <PendingActionsCard />
 
+        {/* Most Recent Payouts Section */}
+        <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
+
         {/* Next Payout Section */}
         {nextPayout && (
           <View style={styles.section}>
@@ -793,7 +814,7 @@ export default function HomeScreen() {
             recentTransactions.map((transaction) => {
               const isPositive = transaction.type === 'deposit';
               const Icon = isPositive ? BanknoteArrowDown : 
-                          transaction.type === 'payout' ? BanknoteArrowDown : BanknoteArrowUp;
+                          transaction.type === 'payout' ? BanknoteArrowUp: BanknoteArrowUp;
               
               // Format date and time
               const txDate = new Date(transaction.created_at);
@@ -984,13 +1005,13 @@ export default function HomeScreen() {
         
       </Animated.View>
 
+      {/* Transaction Modal - Rendered at the top level */}
       {selectedTransaction && (
         <TransactionModal
           isVisible={isTransactionModalVisible}
           onClose={() => setIsTransactionModalVisible(false)}
           transaction={selectedTransaction}
         />
-      
       )}
       
       <AccountCreationSuccessModal

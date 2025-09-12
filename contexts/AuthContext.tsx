@@ -5,6 +5,7 @@ import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { BiometricService } from '@/lib/biometrics';
 import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
 import intercomService from '@/lib/IntercomService';
+import SessionExpiredModal from '@/components/SessionExpiredModal';
 
 interface BiometricSettings {
   isAvailable: boolean;
@@ -55,6 +56,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   } = useSupabaseAuth();
 
   const [biometricSettings, setBiometricSettings] = useState<BiometricSettings | null>(null);
+  const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
 
   // Get user from session
   const user = session?.user || null;
@@ -91,6 +93,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Note: We don't clear here as we want to keep snapshots for potential re-login
     }
   }, [session?.user?.id]);
+
+  // Monitor for session expiration
+  useEffect(() => {
+    if (error && (error.includes('JWT expired') || error.includes('refresh_token_not_found') || error.includes('Invalid Refresh Token'))) {
+      setShowSessionExpiredModal(true);
+    }
+  }, [error]);
 
   const refreshBiometricSettings = async () => {
     try {
@@ -167,6 +176,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+
+  const handleSessionExpiredModalClose = () => {
+    setShowSessionExpiredModal(false);
+  };
   const value: AuthContextType = {
     session,
     user,
@@ -184,6 +197,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <AuthContext.Provider value={value}>
       {children}
+      <SessionExpiredModal 
+        isVisible={showSessionExpiredModal}
+        onClose={handleSessionExpiredModalClose}
+      />
     </AuthContext.Provider>
   );
 };

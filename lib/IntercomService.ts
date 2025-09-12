@@ -1,6 +1,5 @@
-import { InteractionManager } from 'react-native';
+import { InteractionManager, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Intercom from '@intercom/intercom-react-native';
 
 interface JWTCache {
   jwt: string;
@@ -30,6 +29,7 @@ class IntercomService {
   private refreshTimer: NodeJS.Timeout | null = null;
   private retryCount = 0;
   private maxRetries = 3;
+  private Intercom: any = null; // Will hold the dynamic import
   
   private readonly CACHE_KEY = 'intercom_jwt_cache';
   private readonly SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
@@ -40,6 +40,29 @@ class IntercomService {
       IntercomService.instance = new IntercomService();
     }
     return IntercomService.instance;
+  }
+
+  /**
+   * Load Intercom dynamically for real device compatibility
+   */
+  private async loadIntercom(): Promise<any> {
+    if (this.Intercom) {
+      return this.Intercom;
+    }
+
+    try {
+      console.log(' IntercomService - Loading Intercom dynamically...');
+      
+      // Dynamic import for real device compatibility
+      const { default: Intercom } = await import('@intercom/intercom-react-native');
+      this.Intercom = Intercom;
+      
+      console.log('✅ IntercomService - Intercom loaded successfully');
+      return this.Intercom;
+    } catch (error) {
+      console.error('❌ IntercomService - Failed to load Intercom:', error);
+      throw new Error('Failed to load Intercom module');
+    }
   }
 
   /**
@@ -73,6 +96,9 @@ class IntercomService {
     try {
       console.log(` IntercomService - Initializing (attempt ${this.retryCount + 1}/${this.maxRetries + 1})...`);
       
+      // Load Intercom first
+      const Intercom = await this.loadIntercom();
+      
       // Load cached JWT
       await this.loadCachedJWT();
       
@@ -84,7 +110,7 @@ class IntercomService {
       }
       
       // Try to authenticate with Intercom
-      await this.authenticateWithIntercom(session);
+      await this.authenticateWithIntercom(session, Intercom);
       
       // Set up automatic refresh
       this.scheduleJWTRefresh();
@@ -124,6 +150,8 @@ class IntercomService {
     try {
       console.log('👤 IntercomService - Falling back to unidentified user...');
       
+      const Intercom = await this.loadIntercom();
+      
       await Intercom.logout(); // Clear any existing session
       await Intercom.loginUnidentifiedUser();
       
@@ -150,6 +178,7 @@ class IntercomService {
       try {
         await this.fallbackToUnidentifiedUser();
         if (this.isAuthenticated) {
+          const Intercom = await this.loadIntercom();
           await Intercom.present();
           return;
         }
@@ -162,7 +191,10 @@ class IntercomService {
 
     try {
       console.log('🎯 IntercomService - Opening Intercom instantly...');
+      
+      const Intercom = await this.loadIntercom();
       await Intercom.present();
+      
       console.log('✅ IntercomService - Opened successfully');
     } catch (error) {
       console.error('❌ IntercomService - Failed to open:', error);
@@ -172,6 +204,7 @@ class IntercomService {
         console.log('🔄 IntercomService - Retrying with re-authentication...');
         try {
           await this.fallbackToUnidentifiedUser();
+          const Intercom = await this.loadIntercom();
           await Intercom.present();
           return;
         } catch (retryError) {
@@ -190,13 +223,16 @@ class IntercomService {
     try {
       console.log(' IntercomService - Logging out...');
       
-      await Intercom.logout();
+      if (this.Intercom) {
+        await this.Intercom.logout();
+      }
       
       // Clear state
       this.isAuthenticated = false;
       this.currentUserId = null;
       this.jwtCache = null;
       this.retryCount = 0;
+      this.Intercom = null; // Clear the module reference
       
       // Clear cache
       await AsyncStorage.removeItem(this.CACHE_KEY);
@@ -224,11 +260,12 @@ class IntercomService {
   /**
    * Get detailed status for debugging
    */
-  getStatus(): { isReady: boolean; userId: string | null; retryCount: number } {
+  getStatus(): { isReady: boolean; userId: string | null; retryCount: number; platform: string } {
     return {
       isReady: this.isAuthenticated,
       userId: this.currentUserId,
-      retryCount: this.retryCount
+      retryCount: this.retryCount,
+      platform: Platform.OS
     };
   }
 
@@ -297,7 +334,7 @@ class IntercomService {
   /**
    * Authenticate with Intercom using cached JWT
    */
-  private async authenticateWithIntercom(session: UserSession): Promise<void> {
+  private async authenticateWithIntercom(session: UserSession, Intercom: any): Promise<void> {
     try {
       console.log(' IntercomService - Authenticating with Intercom...');
       
