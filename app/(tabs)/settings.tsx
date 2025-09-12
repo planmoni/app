@@ -331,7 +331,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Management</Text>
+          <Text style={styles.sectionTitle}>Account</Text>
           
           <View style={styles.card}>
             <Pressable 

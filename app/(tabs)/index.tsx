@@ -605,7 +605,6 @@ export default function HomeScreen() {
         {nextPayout && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Your Next Payout</Text>
             </View>
             <Pressable 
               style={styles.payoutCard}
@@ -616,7 +615,7 @@ export default function HomeScreen() {
                   <Text style={styles.payoutName}>{nextPayout.name}</Text>
                   <View style={styles.activeTag}>
                     <Text style={styles.activeTagText}>
-                      {nextPayout.status === 'active' ? 'Scheduled' : 'Paused'}
+                      {nextPayout.status === 'active' ? 'Next Payout' : 'Paused'}
                     </Text>
                   </View>
                 </View>
