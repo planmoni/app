@@ -135,7 +135,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
     const startAutoSlide = () => {
       autoSlideTimer.current = setInterval(() => {
         setCurrentIndex(prev => (prev + 1) % recentTransactions.length);
-      }, 8000); // Change slide every 4 seconds
+      }, 4000); // Change slide every 4 seconds
     };
 
     startAutoSlide();
