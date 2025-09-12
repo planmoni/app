@@ -142,7 +142,7 @@ export default function InsightsScreen() {
             <Text style={styles.sectionTitle}>Vault Performance</Text>
             {vaultStats.length === 0 ? (
               <Card style={styles.emptyVaultCard}>
-                <Text style={styles.emptyVaultText}>No active vaults found</Text>
+                <Text style={styles.emptyVaultText}>No active payouts found</Text>
                 <Text style={styles.emptyVaultSubtext}>
                   Create a payout plan to start tracking your vault performance
                 </Text>
@@ -370,6 +370,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '500',
     color: colors.text,
     marginBottom: 8,
+    textAlign: 'center',
   },
   emptyVaultSubtext: {
     fontSize: 14,

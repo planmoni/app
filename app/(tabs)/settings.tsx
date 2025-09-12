@@ -26,7 +26,8 @@ import {
   Moon, 
   Shield, 
   Trash2,
-  Wallet
+  Wallet,
+  History
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
@@ -171,6 +172,14 @@ export default function SettingsScreen() {
     }
     router.push('/transaction-limits');
     logAnalyticsEvent('transaction_limits');
+  };
+
+  const handleViewTransactionHistory = () => {
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
+    router.push('/transactions');
+    logAnalyticsEvent('view_transaction_history', { source: 'settings' });
   };
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
@@ -347,6 +356,21 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleViewTransactionHistory}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
+                <History size={20} color="#22C55E" />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Transaction History</Text>
+                <Text style={styles.settingDescription}>View all your transaction records</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+
+            <View style={styles.divider} />
 
             {/* Linked account tab */}
 

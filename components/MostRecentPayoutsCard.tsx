@@ -7,14 +7,16 @@ import { getBankIconLogo } from '@/lib/bankIcons';
 import { formatCurrency } from '@/lib/formatters';
 import TransactionModal from '@/components/TransactionModal';
 
-interface RecentPayout {
+interface RecentTransaction {
   id: string;
-  planName: string;
+  type: 'payout' | 'deposit' | 'withdrawal';
+  planName?: string;
   amount: number;
   bankName: string;
   accountNumber: string;
   date: string;
   time: string;
+  description: string;
 }
 
 interface MostRecentPayoutsCardProps {
@@ -26,31 +28,59 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
   const { transactions } = useRealtimeTransactions();
   const { payoutPlans } = useRealtimePayoutPlans();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [recentPayouts, setRecentPayouts] = useState<RecentPayout[]>([]);
+  const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
   const slideAnimation = useRef(new Animated.Value(0)).current;
   const autoSlideTimer = useRef<number | null>(null);
 
-  // Process transactions to get recent payouts
+  // Process transactions to get recent payouts, deposits, and withdrawals
   useEffect(() => {
-    const payoutTransactions = transactions
-      .filter(tx => tx.type === 'payout' && tx.status === 'completed')
+    // Get all relevant transactions (payouts, deposits, withdrawals)
+    const relevantTransactions = transactions
+      .filter(tx => 
+        (tx.type === 'payout' && tx.status === 'completed') ||
+        (tx.type === 'deposit' && tx.status === 'completed') ||
+        (tx.type === 'withdrawal' && tx.status === 'completed')
+      )
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 10); // Get max 5 recent payouts
+      .slice(0, 5); // Get max 5 recent transactions
 
-    const processedPayouts: RecentPayout[] = payoutTransactions.map(tx => {
-      const plan = payoutPlans.find(p => p.id === tx.payout_plan_id);
-      const planName = plan?.name || 'Payout Plan';
-      
-      // Get bank info from the payout plan's linked account
+    const processedTransactions: RecentTransaction[] = relevantTransactions.map(tx => {
+      let planName = '';
       let bankName = 'Unknown Bank';
       let accountNumber = '****';
-      
-      if (plan?.payout_accounts) {
-        bankName = plan.payout_accounts.bank_name;
-        accountNumber = plan.payout_accounts.account_number;
-      } else if (plan?.bank_accounts) {
-        bankName = plan.bank_accounts.bank_name;
-        accountNumber = plan.bank_accounts.account_number;
+      let description = '';
+
+      if (tx.type === 'payout') {
+        const plan = payoutPlans.find(p => p.id === tx.payout_plan_id);
+        planName = plan?.name || 'Payout Plan';
+        
+        // Get bank info from the payout plan's linked account
+        if (plan?.payout_accounts) {
+          bankName = plan.payout_accounts.bank_name;
+          accountNumber = plan.payout_accounts.account_number;
+        } else if (plan?.bank_accounts) {
+          bankName = plan.bank_accounts.bank_name;
+          accountNumber = plan.bank_accounts.account_number;
+        }
+        description = 'Payout sent to';
+      } else if (tx.type === 'deposit') {
+        planName = 'Wallet Deposit';
+        description = 'Added to your Planmoni wallet';
+        // For deposits, we might not have bank info, so use a default
+        bankName = 'Planmoni Wallet';
+        accountNumber = '';
+      } else if (tx.type === 'withdrawal') {
+        planName = 'Emergency Withdrawal';
+        description = 'Emergency withdrawal processed to';
+        // For withdrawals, try to get bank info from destination
+        if (tx.destination) {
+          // Try to extract bank name from destination
+          const destParts = tx.destination.split(' ');
+          if (destParts.length > 0) {
+            bankName = destParts[0];
+            accountNumber = destParts[destParts.length - 1] || '****';
+          }
+        }
       }
       
       const date = new Date(tx.created_at);
@@ -63,8 +93,8 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
       // Format relative date
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const payoutDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      const diffTime = today.getTime() - payoutDate.getTime();
+      const transactionDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const diffTime = today.getTime() - transactionDate.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       
       let dateStr = '';
@@ -84,25 +114,27 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
 
       return {
         id: tx.id,
+        type: tx.type,
         planName,
         amount: tx.amount,
         bankName,
         accountNumber,
         date: dateStr,
         time: timeStr,
+        description,
       };
     });
 
-    setRecentPayouts(processedPayouts);
+    setRecentTransactions(processedTransactions);
   }, [transactions, payoutPlans]);
 
   // Auto-slide functionality
   useEffect(() => {
-    if (recentPayouts.length <= 1) return;
+    if (recentTransactions.length <= 1) return;
 
     const startAutoSlide = () => {
       autoSlideTimer.current = setInterval(() => {
-        setCurrentIndex(prev => (prev + 1) % recentPayouts.length);
+        setCurrentIndex(prev => (prev + 1) % recentTransactions.length);
       }, 8000); // Change slide every 4 seconds
     };
 
@@ -113,7 +145,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
         clearInterval(autoSlideTimer.current);
       }
     };
-  }, [recentPayouts.length]);
+  }, [recentTransactions.length]);
 
   // Animate slide changes with up slide effect
   useEffect(() => {
@@ -130,11 +162,11 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
 
   // Handle card press to open transaction modal
   const handleCardPress = () => {
-    const currentPayout = recentPayouts[currentIndex];
-    if (currentPayout && onTransactionPress) {
+    const currentTransaction = recentTransactions[currentIndex];
+    if (currentTransaction && onTransactionPress) {
       // Find the original transaction data
       const originalTransaction = transactions.find(tx => 
-        tx.id === currentPayout.id && tx.type === 'payout' && tx.status === 'completed'
+        tx.id === currentTransaction.id
       );
       
       if (originalTransaction) {
@@ -144,12 +176,12 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
   };
 
   // Don't render if no recent payouts
-  if (recentPayouts.length === 0) {
+  if (recentTransactions.length === 0) {
     return null;
   }
 
   const styles = createStyles(colors, isDark);
-  const currentPayout = recentPayouts[currentIndex];
+  const currentTransaction = recentTransactions[currentIndex];
 
   return (
     <View style={styles.container}>
@@ -166,53 +198,74 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
                 ],
                 opacity: slideAnimation.interpolate({
                   inputRange: [0, 50],
-                  outputRange: [10, 40],
+                  outputRange: [1, 60],
                   extrapolate: 'clamp',
                 }),
               },
             ]}
           >
             <View style={styles.cardHeader}>
-              <Text style={styles.amount}>{formatCurrency(currentPayout.amount)}</Text>
+              <View style={styles.amountContainer}>
+                <Text style={[
+                  styles.amount,
+                  { 
+                    color: currentTransaction.type === 'deposit' 
+                      ? '#22C55E' // Green for deposits
+                      : currentTransaction.type === 'withdrawal'
+                      ? '#F97316' // Orange for withdrawals  
+                      : colors.text // Default for payouts
+                  }
+                ]}>
+                  {currentTransaction.type === 'deposit' ? '' : currentTransaction.type === 'withdrawal' ? '-' : ''}
+                  {formatCurrency(currentTransaction.amount)}
+                </Text>
+                <Text style={styles.dateTime}>
+                  {currentTransaction.date} {currentTransaction.time}
+                </Text>
+              </View>
             </View>
             
             <View style={styles.paymentRow}>
               <View style={styles.paymentInfo}>
-                <Text style={styles.paymentLabel}>Transfer sent to </Text>
-                <View style={styles.bankInfo}>
-                  <View style={styles.bankLogo}>
-                    {(() => {
-                      const bankIcon = getBankIconLogo(currentPayout.bankName);
-                      
-                      if (bankIcon.logoSvg) {
-                        // Handle SVG components
-                        return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
-                          width: 20,
-                          height: 20,
-                          fill: colors.textSecondary
-                        });
-                      } else if (bankIcon.logo) {
-                        return (
-                          <Image
-                            source={bankIcon.logo}
-                            style={styles.bankIconImage}
-                            resizeMode="contain"
-                          />
-                        );
-                      } else {
-                        // Fallback to a generic bank icon
-                        return <View style={styles.bankIconFallback} />;
-                      }
-                    })()}
+                <Text style={styles.paymentLabel}>{currentTransaction.description} </Text>
+                {currentTransaction.type !== 'deposit' && (
+                  <View style={styles.bankInfo}>
+                    <View style={styles.bankLogo}>
+                      {(() => {
+                        const bankIcon = getBankIconLogo(currentTransaction.bankName);
+                        
+                        if (bankIcon.logoSvg) {
+                          // Handle SVG components
+                          return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                            width: 16,
+                            height: 16,
+                          });
+                        } else if (bankIcon.logo) {
+                          // Handle PNG/JPG images
+                          return (
+                            <Image
+                              source={bankIcon.logo}
+                              style={{ width: 16, height: 16 }}
+                              resizeMode="contain"
+                            />
+                          );
+                        } else {
+                          // Fallback to bank name initials
+                          return (
+                            <Text style={styles.bankInitials}>
+                              {currentTransaction.bankName.substring(0, 2).toUpperCase()}
+                            </Text>
+                          );
+                        }
+                      })()}
+                    </View>
+                    <Text style={styles.bankName}>{currentTransaction.bankName}</Text>
+                    {currentTransaction.accountNumber && (
+                      <Text style={styles.accountNumber}>**{currentTransaction.accountNumber.slice(-4)}</Text>
+                    )}
                   </View>
-                  <Text style={styles.bankDetails}>
-                    {currentPayout.bankName.slice(0,20)} ***{currentPayout.accountNumber.slice(-4)}
-                  </Text>
-                </View>
+                )}
               </View>
-              <Text style={styles.dateTime}>
-                {currentPayout.date} {currentPayout.time}
-              </Text>
             </View>
           </Animated.View>
         </Pressable>
@@ -239,7 +292,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: isDark ? colors.card : '#FFFFFF',
     borderRadius: 16,
     paddingHorizontal: 15,
-    paddingVertical: 10,
+    paddingVertical:15,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden', // Hide content that slides outside the card
@@ -264,14 +317,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   amount: {
     fontSize: 25,
     fontWeight: '700',
-    color: '#10B981',
     textAlign: 'left',
     flex: 0,
+  },
+  amountContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+    justifyContent: 'space-between',
   },
   paymentRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 8,
   },
   paymentInfo: {
@@ -281,25 +338,39 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
   },
   paymentLabel: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textSecondary,
   },
   bankInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'nowrap', // Prevent wrapping
   },
   bankLogo: {
     width: 24,
     height: 24,
-    marginRight: 8,
+    marginRight: 3,
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0, // Prevent logo from shrinking
   },
-  bankDetails: {
+  bankName: {
     fontSize: 14,
     fontWeight: '500',
     color: colors.text,
-    flex: 1,
+    marginRight: 4, // Add small margin between name and account number
+    flexShrink: 1, // Allow name to shrink if needed
+  },
+  accountNumber: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    flexShrink: 0, // Prevent account number from shrinking
+  },
+  bankInitials: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
   },
   cardFooter: {
     alignItems: 'center', // Center the date/time
@@ -308,10 +379,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'flex-start',
   },
   dateTime: {
-    fontSize: 12,
+    fontSize: 14,
+    marginTop: 5,
     color: colors.textSecondary,
-    fontWeight: '500',
-    textAlign: 'center',
+    fontWeight: '400',
+    textAlign: 'right', // Change from 'center' to 'right'
     flex: 0,
   },
   // Remove pagination-related styles

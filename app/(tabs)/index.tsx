@@ -28,7 +28,9 @@ import {
   Plus,
   RefreshCw,
   Star,
-  CalendarCheck
+  CalendarCheck,
+  ArrowLeft,
+  History
 } from 'lucide-react-native';
 import {
   Alert,
@@ -463,6 +465,11 @@ export default function HomeScreen() {
   // Get recent transactions for display
   const recentTransactions = transactions.slice(0, 5);
 
+  const handleViewHistory = () => {
+    router.push('/transactions');
+    logAnalyticsEvent('view_transaction_history', { source: 'balance_card' });
+  };
+
   const styles = createStyles(colors, isDark);
 
   // Show loader if any data is loading
@@ -533,44 +540,26 @@ export default function HomeScreen() {
         >
           <View style={styles.balanceCardContent}>
             <View style={styles.balanceLabelContainer}>
-              {/* <Text style={styles.balanceLabel}>Available Wallet Balance</Text>
-              <View style={styles.balanceActions}>
-                <Pressable 
-                  onPress={handleRefresh}
-                  style={styles.refreshButton}
-                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                >
-                  <RefreshCw 
-                    size={20} 
-                    color={colors.textSecondary} 
-                    style={[
-                      (balanceLoading || paystackLoading || isRefreshing) && { transform: [{ rotate: '360deg' }] }
-                    ]}
-                  />
-                </Pressable>
+              <View style={styles.balanceLabelGroup}>
+                <Text style={styles.balanceLabel}>Available Balance</Text>
                 <Pressable 
                   onPress={toggleBalances}
                   style={styles.eyeIconButton}
                   hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                 >
                   {showBalances ? (
-                    <EyeOff size={20} color={colors.textSecondary} />
+                    <EyeOff size={16} color={colors.textSecondary} />
                   ) : (
-                    <Eye size={20} color={colors.textSecondary} />
+                    <Eye size={16} color={colors.textSecondary} />
                   )}
                 </Pressable>
-              </View> */}
-              <Text style={styles.balanceLabel}>Available Balance</Text>
+              </View>
               <Pressable 
-                onPress={toggleBalances}
-                style={styles.eyeIconButton}
+                onPress={handleViewHistory}
+                style={styles.historyButton}
                 hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
               >
-                {showBalances ? (
-                  <EyeOff size={16} color={colors.textSecondary} />
-                ) : (
-                  <Eye size={16} color={colors.textSecondary} />
-                )}
+                <History size={20} color={colors.textSecondary} />
               </Pressable>
             </View>
             <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
@@ -796,7 +785,7 @@ export default function HomeScreen() {
           )}
         </View>
 
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Transactions</Text>
             <Pressable 
@@ -816,7 +805,7 @@ export default function HomeScreen() {
               const Icon = isPositive ? BanknoteArrowDown : 
                           transaction.type === 'payout' ? BanknoteArrowUp: BanknoteArrowUp;
               
-              // Format date and time
+            
               const txDate = new Date(transaction.created_at);
               const formattedDate = txDate.toLocaleDateString('en-US', {
                 month: 'short',
@@ -829,7 +818,7 @@ export default function HomeScreen() {
                 hour12: true
               });
               
-              // Determine transaction method
+              
               const transactionMethod = isPositive ? 'Bank Transfer' : 
                                        transaction.bank_account_id ? 
                                        `Bank Account •••• ${transaction.bank_account_id.slice(-4)}` : 
@@ -855,9 +844,7 @@ export default function HomeScreen() {
                         <Text style={styles.transactionTitle}>
                           {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
                         </Text>
-                        {/* <Text style={styles.transactionMethod}>
-                          {transactionMethod}
-                        </Text> */}
+                     
                         <Text style={styles.transactionDateTime}>
                           {formattedDate} • {formattedTime}
                         </Text>
@@ -891,11 +878,10 @@ export default function HomeScreen() {
               <ChevronRight size={20} color={colors.textSecondary} />
             </Pressable>
           )}
-        </View>
+        </View> */}
 
         <View style={styles.bottomPadding} />
 
-        
 
         <Card style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
@@ -1098,27 +1084,25 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   balanceLabelContainer: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  balanceLabel: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  balanceActions: {
+  balanceLabelGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  refreshButton: {
-    padding: 8,
-    margin: -8,
+  balanceLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  historyButton: {
+    padding: 4,
   },
   eyeIconButton: {
-    padding: 8,
-    paddingLeft: 10,
-    margin: -8,
+    padding: 4,
   },
   balanceAmount: {
     fontSize: 30,
