@@ -485,6 +485,22 @@ export default function HomeScreen() {
     );
   }
 
+  // Calculate the next payout date across all active plans
+  const getNextPayoutDate = () => {
+    const activePlans = payoutPlans.filter(plan => plan.status === 'active');
+    if (activePlans.length === 0) return null;
+    
+    const nextPayoutDates = activePlans
+      .map(plan => plan.next_payout_date)
+      .filter(date => date !== null)
+      .map(date => new Date(date))
+      .sort((a, b) => a.getTime() - b.getTime());
+    
+    return nextPayoutDates.length > 0 ? nextPayoutDates[0] : null;
+  };
+
+  const nextPayoutDate = getNextPayoutDate();
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView 
