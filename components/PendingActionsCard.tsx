@@ -223,7 +223,7 @@ export default function PendingActionsCard() {
 const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     marginTop: 20,
-    marginBottom: 10,
+    marginBottom: -20,
     borderRadius: 16,
     borderColor: colors.border,
     overflow: 'hidden',
@@ -293,7 +293,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
     marginBottom: -20,
-    marginTop: 25,
+    marginTop: 45,
   },
   titleContainer: {
     flexDirection: 'row',
@@ -306,7 +306,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: -20,
-    marginTop: 25,
+    marginTop: 45,
   },
   progressBar: {
     height: 6,

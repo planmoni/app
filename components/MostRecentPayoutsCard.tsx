@@ -223,7 +223,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
 
 const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
-    marginTop: 10,
+    marginTop: 20,
     marginBottom: 20,
   },
   sectionTitle: {

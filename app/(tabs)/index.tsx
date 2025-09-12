@@ -603,11 +603,11 @@ export default function HomeScreen() {
         </ImageBackground>
 
         {/* Banner Carousel - Only show when images are ready */}
+        <PendingActionsCard />
      
         <ImageCarousel images={carouselImages} />
 
         
-        <PendingActionsCard />
 
         {/* Most Recent Payouts Section */}
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
