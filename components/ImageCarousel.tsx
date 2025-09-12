@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   container: {
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 40,
+    marginTop: 10,
   },
   slide: {
     borderRadius: 8,

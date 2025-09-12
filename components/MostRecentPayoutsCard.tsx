@@ -198,7 +198,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
                 ],
                 opacity: slideAnimation.interpolate({
                   inputRange: [0, 50],
-                  outputRange: [1, 60],
+                  outputRange: [1, 20],
                   extrapolate: 'clamp',
                 }),
               },
@@ -276,7 +276,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
 
 const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
-    marginTop: 20,
+    marginTop: 15,
     marginBottom: 5,
   },
   sectionTitle: {
@@ -344,7 +344,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   bankInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'nowrap', // Prevent wrapping
+    flexWrap: 'wrap', // Prevent wrapping
+    maxWidth: '90%',
   },
   bankLogo: {
     width: 24,
@@ -358,7 +359,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: colors.text,
-    marginRight: 4, // Add small margin between name and account number
+    marginRight: 1, // Add small margin between name and account number
     flexShrink: 1, // Allow name to shrink if needed
   },
   accountNumber: {

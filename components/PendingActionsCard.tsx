@@ -223,7 +223,7 @@ export default function PendingActionsCard() {
 const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     marginTop: 20,
-    marginBottom: -20,
+    marginBottom: 10,
     borderRadius: 16,
     borderColor: colors.border,
     overflow: 'hidden',
