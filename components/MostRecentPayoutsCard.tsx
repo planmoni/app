@@ -6,6 +6,8 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { formatCurrency } from '@/lib/formatters';
 import TransactionModal from '@/components/TransactionModal';
+import { router } from 'expo-router';
+import { logAnalyticsEvent } from '@/lib/firebase';
 
 interface RecentTransaction {
   id: string;
@@ -62,7 +64,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
           bankName = plan.bank_accounts.bank_name;
           accountNumber = plan.bank_accounts.account_number;
         }
-        description = 'Paid to';
+        description = 'Payout sent to';
       } else if (tx.type === 'deposit') {
         planName = 'Wallet Deposit';
         description = 'Added to your Planmoni wallet';
@@ -150,12 +152,12 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
   // Animate slide changes with up slide effect
   useEffect(() => {
     // Reset animation to start from bottom
-    slideAnimation.setValue(50);
+    slideAnimation.setValue(100);
     
     // Animate to center position
     Animated.timing(slideAnimation, {
       toValue: 0,
-      duration: 300,
+      duration: 200,
       useNativeDriver: true,
     }).start();
   }, [currentIndex, slideAnimation]);
@@ -175,6 +177,12 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
     }
   };
 
+  // Handle view all transactions
+  const handleViewAllTransactions = () => {
+    router.push('/transactions');
+    logAnalyticsEvent('view_all_transactions', { source: 'most_recent_card' });
+  };
+
   // Don't render if no recent payouts
   if (recentTransactions.length === 0) {
     return null;
@@ -185,6 +193,12 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
 
   return (
     <View style={styles.container}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Most Recent</Text>
+        <Pressable style={styles.viewAllButton} onPress={handleViewAllTransactions}>
+          <Text style={styles.viewAllText}>View all</Text>
+        </Pressable>
+      </View>
       <View style={styles.cardContainer}>
         <Pressable style={styles.card} onPress={handleCardPress}>
           <Animated.View 
@@ -210,10 +224,10 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
                   styles.amount,
                   { 
                     color: currentTransaction.type === 'deposit' 
-                      ? colors.text // Green for deposits
+                      ? '#22C55E' // Green for deposits
                       : currentTransaction.type === 'withdrawal'
                       ? '#F97316' // Orange for withdrawals  
-                      : '#22C55E' // Default for payouts
+                      : colors.text // Default for payouts
                   }
                 ]}>
                   {currentTransaction.type === 'deposit' ? '+' : currentTransaction.type === 'withdrawal' ? '-' : ''}
@@ -277,13 +291,26 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
 const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     marginTop: 15,
-    marginBottom: 5,
+    marginBottom: 10,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 16,
+  },
+  viewAllButton: {
+    paddingVertical: 4,
+  },
+  viewAllText: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '600',
   },
   cardContainer: {
     position: 'relative',

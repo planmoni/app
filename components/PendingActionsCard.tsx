@@ -293,7 +293,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
     marginBottom: -20,
-    marginTop: 45,
+    marginTop: 10,
   },
   titleContainer: {
     flexDirection: 'row',
@@ -306,7 +306,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: -20,
-    marginTop: 45,
   },
   progressBar: {
     height: 6,

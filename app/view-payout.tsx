@@ -547,6 +547,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
+    
   },
   nameContainer: {
     flexDirection: 'row',
@@ -558,6 +559,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
+    maxWidth: '80%',
   },
   editButton: {
     width: 40,
@@ -570,6 +572,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   payoutDescription: {
     fontSize: 13,
     color: colors.textSecondary,
+    maxWidth: '90%',
   },
   editContainer: {
     gap: 12,

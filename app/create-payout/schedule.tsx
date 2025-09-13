@@ -308,7 +308,14 @@ export default function ScheduleScreen() {
       }
     }
   }, [params.totalAmount]);
-  
+
+  // Handle suggested frequency from AI suggestions
+  useEffect(() => {
+    if (params.suggestedFrequency) {
+      const frequency = params.suggestedFrequency as string;
+      setSelectedSchedule(frequency);
+    }
+  }, [params.suggestedFrequency]);  
   // Update duration options when frequency changes
   useEffect(() => {
     const durationOptions = getDurationOptions(selectedSchedule || '');
@@ -320,6 +327,24 @@ export default function ScheduleScreen() {
     }
   }, [selectedSchedule]);
 
+  // Handle AI suggestions - override frequency change useEffect
+  useEffect(() => {
+    if (params.suggestedFrequency && params.suggestedDuration) {
+      const frequency = params.suggestedFrequency as string;
+      const duration = parseInt(params.suggestedDuration as string);
+      
+      // Find and set the matching duration option
+      const durationOptions = getDurationOptions(frequency);
+      const matchingDuration = durationOptions.find(option => option.value === duration);
+      if (matchingDuration) {
+        setSelectedDuration(matchingDuration);
+        setNumberOfPayouts(duration);
+        if (isYearlySplit && totalAmount) {
+          calculatePayoutAmount(totalAmount, duration);
+        }
+      }
+    }
+  }, [params.suggestedFrequency, params.suggestedDuration, totalAmount, isYearlySplit, selectedSchedule]);
   const calculatePayoutAmount = (total: string, payouts: number) => {
     const numericTotal = parseFloat(total.replace(/,/g, ''));
     if (!isNaN(numericTotal) && payouts > 0) {

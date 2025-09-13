@@ -436,6 +436,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+    maxWidth: '90%',
   },
   statusTag: {
     alignSelf: 'flex-start',
