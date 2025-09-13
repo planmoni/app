@@ -284,7 +284,7 @@ export default function EmergencyWithdrawalScreen() {
         <View style={styles.planInfoCard}>
           <Text style={styles.planInfoTitle}>Withdrawal Details</Text>
           <View style={styles.planInfoRow}>
-            <Text style={styles.planInfoLabel}>Plan Name:</Text>
+            <Text style={styles.planInfoLabel}>Plan Name:  </Text>
             <Text style={styles.planInfoValue}>{plan.name}</Text>
           </View>
           <View style={styles.planInfoRow}>
@@ -524,6 +524,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+    maxWidth: '70%',
   },
   planInfoLabel: {
     fontSize: 14,

@@ -625,18 +625,10 @@ export default function HomeScreen() {
           onSuggestionPress={handleAISuggestionPress}
         />
         <ImageCarousel images={carouselImages} />
+        <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
-        
-
-
-        {/* Banner Carousel - Only show when images are ready */}
-        <PendingActionsCard />
-     
-
-        
 
         {/* Most Recent Payouts Section */}
-        <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
         {/* Next Payout Section */}
         <NextPayoutCard nextPayout={nextPayout} />

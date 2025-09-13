@@ -258,9 +258,9 @@ export default function AISuggestionCard({
         <View style={styles.titleContainer}>
           {/* <Sparkles size={14} color={colors.primary} /> */}
           <Text style={[styles.title, { color: colors.text }]}>
-            Quick Suggestions
+            Plan Suggestions
           </Text>
-          {/* <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Based on your balance</Text> */}
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Based on your balance</Text>
         </View>
       </View>
 
@@ -322,6 +322,7 @@ export default function AISuggestionCard({
 
 const styles = StyleSheet.create({
   container: {
+    marginTop: 5,
     marginBottom: 15,
   },
   header: {
@@ -334,7 +335,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
   },
   subtitle: {
