@@ -625,6 +625,7 @@ export default function HomeScreen() {
           onSuggestionPress={handleAISuggestionPress}
         />
         <ImageCarousel images={carouselImages} />
+        <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
 

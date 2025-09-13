@@ -256,7 +256,7 @@ export default function AISuggestionCard({
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.titleContainer}>
-          {/* <Sparkles size={14} color={colors.primary} /> */}
+          <Sparkles size={14} color={colors.primary} />
           <Text style={[styles.title, { color: colors.text }]}>
             Plan Suggestions
           </Text>
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   scrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 5,
   },
   suggestionCard: {
     marginRight: CARD_SPACING,
