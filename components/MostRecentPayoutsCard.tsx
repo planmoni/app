@@ -101,11 +101,11 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
       
       let dateStr = '';
       if (diffDays === 0) {
-        dateStr = 'Today';
+        dateStr = 'Today at';
       } else if (diffDays === 1) {
-        dateStr = 'Yesterday';
+        dateStr = 'Yesterday at';
       } else if (diffDays <= 7) {
-        dateStr = `${diffDays} days ago`;
+        dateStr = `${diffDays} days ago at`;
       } else {
         // For older dates, show the actual date
         dateStr = date.toLocaleDateString('en-US', { 
