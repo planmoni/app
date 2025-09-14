@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Image, Pressable, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, useWindowDimensions, Platform } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { 
   useAnimatedScrollHandler,
@@ -155,14 +155,20 @@ export default function WelcomeScreen() {
     router.push('/(auth)/login');
   };
 
-  // Calculate responsive dimensions
+  // Calculate responsive dimensions with platform-specific adjustments
   const isSmallScreen = height < 700;
-  const imageHeight = Math.min(height * 0.35, 230);
-  const verticalPadding = isSmallScreen ? 16 : 24;
-  const buttonHeight = isSmallScreen ? 48 : 56;
-  const titleSize = isSmallScreen ? 28 : 36;
-  const subtitleSize = isSmallScreen ? 14 : 16;
-  const descriptionSize = isSmallScreen ? 14 : 16;
+  const isAndroid = Platform.OS === 'android';
+  
+  // Platform-specific adjustments
+  const platformMultiplier = isAndroid ? 0.8 : 1.0; // Reduce sizes on Android
+  const marginMultiplier = isAndroid ? 0.7 : 1.0; // Reduce margins on Android
+  
+  const imageHeight = Math.min(height * 0.35 * platformMultiplier, 230);
+  const verticalPadding = (isSmallScreen ? 16 : 24) * marginMultiplier;
+  const buttonHeight = (isSmallScreen ? 48 : 56) * platformMultiplier;
+  const titleSize = (isSmallScreen ? 28 : 36) * platformMultiplier;
+  const subtitleSize = (isSmallScreen ? 14 : 16) * platformMultiplier;
+  const descriptionSize = (isSmallScreen ? 14 : 16) * platformMultiplier;
 
   const styles = createStyles(colors, isDark, {
     imageHeight,
@@ -173,6 +179,7 @@ export default function WelcomeScreen() {
     descriptionSize,
     height,
     width,
+    isAndroid,
   });
 
   // Animated background style
@@ -419,11 +426,6 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   imageBackground: {
     borderRadius: 24,
     padding: responsive.verticalPadding,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 8,
   },
   slideImage: {
     width: responsive.width * 0.6,

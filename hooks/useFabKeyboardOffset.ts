@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Platform, Animated, Easing, Keyboard } from 'react-native';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Platform, Animated, Easing, Keyboard, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Try to import the native module, but provide a fallback if it fails
@@ -24,24 +24,65 @@ interface UseFabKeyboardOffsetOptions {
    * Animation duration in milliseconds (default: 250)
    */
   animationDuration?: number;
+  /**
+   * Use dynamic calculation for Android (default: true)
+   */
+  useDynamicCalculation?: boolean;
 }
 
 export function useFabKeyboardOffset(options: UseFabKeyboardOffsetOptions = {}) {
   const {
-    gap = 8, // Reduced from 8 to 4
+    gap = 8,
     tabBarHeight = 0,
     animationDuration = 250,
+    useDynamicCalculation = true,
   } = options;
 
   const insets = useSafeAreaInsets();
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [bottomOffset, setBottomOffset] = useState(insets.bottom + tabBarHeight);
+  const [screenHeight, setScreenHeight] = useState(Dimensions.get('window').height);
   const animatedBottom = useRef(new Animated.Value(insets.bottom + tabBarHeight)).current;
+  const keyboardListeners = useRef<any[]>([]);
 
   // Use native module if available, otherwise fallback to Keyboard API
   const softKeyboardOffset = useSoftKeyboardOffset ? useSoftKeyboardOffset() : 0;
 
+  // Calculate dynamic keyboard height for Android
+  const calculateAndroidKeyboardHeight = useCallback((keyboardEventHeight: number) => {
+    if (!useDynamicCalculation || Platform.OS !== 'android') {
+      return keyboardEventHeight;
+    }
+
+    const windowHeight = Dimensions.get('window').height;
+    const screenHeight = Dimensions.get('screen').height;
+    
+    // Calculate the difference between screen and window height
+    const statusBarHeight = screenHeight - windowHeight;
+    
+    // Adjust keyboard height based on screen dimensions
+    const adjustedHeight = Math.max(
+      keyboardEventHeight - statusBarHeight - insets.bottom,
+      0
+    );
+    
+    return adjustedHeight;
+  }, [useDynamicCalculation, insets.bottom]);
+
+  // Update screen height when dimensions change
   useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenHeight(window.height);
+    });
+
+    return () => subscription?.remove();
+  }, []);
+
+  useEffect(() => {
+    // Clean up existing listeners
+    keyboardListeners.current.forEach(listener => listener.remove());
+    keyboardListeners.current = [];
+
     if (useSoftKeyboardOffset) {
       // Use react-native-avoid-softinput if available
       setKeyboardHeight(softKeyboardOffset);
@@ -52,37 +93,64 @@ export function useFabKeyboardOffset(options: UseFabKeyboardOffsetOptions = {}) 
 
       setBottomOffset(finalBottom);
     } else {
-      // Fallback to standard Keyboard API
-      const keyboardWillShow = (event: any) => {
+      // Enhanced keyboard handling with multiple event listeners
+      const handleKeyboardShow = (event: any) => {
         const height = event.endCoordinates?.height || 0;
-        setKeyboardHeight(height);
+        const adjustedHeight = calculateAndroidKeyboardHeight(height);
         
-        const finalBottom = height > 0 
-          ? height + gap + insets.bottom
-          : insets.bottom + tabBarHeight;
+        setKeyboardHeight(adjustedHeight);
+        
+        let finalBottom;
+        if (Platform.OS === 'android') {
+          // For Android, position the button just above the keyboard
+          finalBottom = adjustedHeight > 0 
+            ? adjustedHeight + gap
+            : insets.bottom + tabBarHeight;
+        } else {
+          // iOS behavior
+          finalBottom = height > 0 
+            ? height + gap + insets.bottom
+            : insets.bottom + tabBarHeight;
+        }
 
         setBottomOffset(finalBottom);
       };
 
-      const keyboardWillHide = () => {
+      const handleKeyboardHide = () => {
         setKeyboardHeight(0);
-        
         const finalBottom = insets.bottom + tabBarHeight;
         setBottomOffset(finalBottom);
       };
 
-      const showListener = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-      const hideListener = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+      // Add multiple listeners for better Android support
+      const listeners = [
+        Keyboard.addListener('keyboardDidShow', handleKeyboardShow),
+        Keyboard.addListener('keyboardDidHide', handleKeyboardHide),
+      ];
 
-      const keyboardWillShowListener = Keyboard.addListener(showListener, keyboardWillShow);
-      const keyboardWillHideListener = Keyboard.addListener(hideListener, keyboardWillHide);
+      // Add iOS-specific listeners
+      if (Platform.OS === 'ios') {
+        listeners.push(
+          Keyboard.addListener('keyboardWillShow', handleKeyboardShow),
+          Keyboard.addListener('keyboardWillHide', handleKeyboardHide)
+        );
+      }
 
-      return () => {
-        keyboardWillShowListener.remove();
-        keyboardWillHideListener.remove();
-      };
+      // Add Android-specific listeners for better detection
+      if (Platform.OS === 'android') {
+        listeners.push(
+          Keyboard.addListener('keyboardDidChangeFrame', handleKeyboardShow)
+        );
+      }
+
+      keyboardListeners.current = listeners;
     }
-  }, [softKeyboardOffset, insets.bottom, gap, tabBarHeight]);
+
+    return () => {
+      keyboardListeners.current.forEach(listener => listener.remove());
+      keyboardListeners.current = [];
+    };
+  }, [softKeyboardOffset, insets.bottom, gap, tabBarHeight, calculateAndroidKeyboardHeight]);
 
   // Animate when bottomOffset changes
   useEffect(() => {
@@ -98,7 +166,7 @@ export function useFabKeyboardOffset(options: UseFabKeyboardOffsetOptions = {}) 
 
   return {
     /**
-     * Current bottom offset (no animation for now)
+     * Current bottom offset
      */
     bottomOffset,
     /**
@@ -113,5 +181,9 @@ export function useFabKeyboardOffset(options: UseFabKeyboardOffsetOptions = {}) 
      * Safe area bottom inset
      */
     safeAreaBottom: insets.bottom,
+    /**
+     * Screen height for debugging
+     */
+    screenHeight,
   };
 } 

@@ -13,6 +13,7 @@ import FloatingButton from '@/components/FloatingButton';
 import SafeFooter from '@/components/SafeFooter';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { supabase } from '@/lib/supabase';
+import { Platform } from 'react-native';
 
 export default function LoginPasswordScreen() {
   const { colors } = useTheme();
@@ -186,6 +187,7 @@ export default function LoginPasswordScreen() {
         loading={false} // Remove loading state
         icon={ArrowRight}
         hapticType="success"
+        keyboardGap={Platform.OS === 'android' ? -220 : -20}
       />
 
       <SafeFooter />

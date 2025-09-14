@@ -55,8 +55,8 @@ export default function AmountScreen() {
   };
 
   const formatAmount = (value: string) => {
-    // Allow digits, decimal point, and commas
-    let cleanValue = value.replace(/[^0-9.,]/g, '');
+    // Remove all non-numeric characters except decimal point
+    let cleanValue = value.replace(/[^0-9.]/g, '');
     
     // Handle multiple decimal points - keep only the first one
     const parts = cleanValue.split('.');
@@ -69,8 +69,8 @@ export default function AmountScreen() {
     // Split by decimal point
     const [integerPart, decimalPart] = cleanValue.split('.');
     
-    // Format integer part with commas
-    const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    // Format integer part with commas (only if it has digits)
+    const formattedInteger = integerPart ? integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '';
     
     // Limit decimal part to 2 digits
     const limitedDecimalPart = decimalPart ? decimalPart.substring(0, 2) : '';
@@ -146,7 +146,7 @@ export default function AmountScreen() {
               style={styles.amountInput}
               placeholder="0"
               placeholderTextColor={colors.textTertiary}
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={amount}
               onChangeText={handleAmountChange}
             />

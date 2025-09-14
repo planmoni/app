@@ -1,7 +1,8 @@
 import React from 'react';
 import { 
   View, 
-  StyleSheet
+  StyleSheet,
+  Platform
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -21,7 +22,7 @@ type FloatingButtonProps = {
    */
   tabBarHeight?: number;
   /**
-   * Additional gap above keyboard (default: 8)
+   * Additional gap above keyboard (default: platform-specific)
    */
   keyboardGap?: number;
 };
@@ -35,7 +36,7 @@ export default function FloatingButton({
   variant = 'primary',
   hapticType = 'medium',
   tabBarHeight = 0,
-  keyboardGap = 8,
+  keyboardGap = Platform.OS === 'android' ? -180 : -20, // Platform-specific default
 }: FloatingButtonProps) {
   const { colors, isDark } = useTheme();
   const { bottomOffset } = useFabKeyboardOffset({
