@@ -7,6 +7,7 @@ import {
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useFabKeyboardOffset } from '@/hooks/useFabKeyboardOffset';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '@/components/Button';
 
 type FloatingButtonProps = {
@@ -39,6 +40,9 @@ export default function FloatingButton({
   keyboardGap = Platform.OS === 'android' ? -180 : -20, // Platform-specific default
 }: FloatingButtonProps) {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  
+  // Only use keyboard offset on iOS - Android maintains constant position
   const { bottomOffset } = useFabKeyboardOffset({
     gap: keyboardGap,
     tabBarHeight,
@@ -46,17 +50,28 @@ export default function FloatingButton({
 
   const styles = createStyles(colors);
 
+  // Calculate the final bottom position
+  const getBottomPosition = () => {
+    if (Platform.OS === 'android') {
+      // Android: constant position at bottom with safe area
+      return insets.bottom + tabBarHeight;
+    } else {
+      // iOS: floating behavior with keyboard awareness
+      return bottomOffset;
+    }
+  };
+
   return (
     <View 
       style={[
         styles.container, 
-        { bottom: bottomOffset }
+        { bottom: getBottomPosition() }
       ]}
       pointerEvents="box-none"
     >
       {/* Blurred underlay that extends below the button */}
       <BlurView
-        intensity={60}
+        intensity={Platform.OS === 'android' ? 40 : 60}
         tint={isDark ? 'dark' : 'light'}
         style={styles.blurUnderlay}
         pointerEvents="none"
@@ -64,21 +79,27 @@ export default function FloatingButton({
       
       {/* Main blur background for the button area */}
       <BlurView
-        intensity={80}
+        intensity={Platform.OS === 'android' ? 60 : 80}
         tint={isDark ? 'dark' : 'light'}
         style={styles.blurBackground}
         pointerEvents="none"
       />
       
       {/* Content overlay */}
-      <View style={styles.contentOverlay}>
+      <View style={[
+        styles.contentOverlay,
+        Platform.OS === 'android' && styles.androidContentOverlay
+      ]}>
         <View style={styles.buttonContainer}>
           <Button
             title={title}
             onPress={onPress}
             disabled={disabled}
             isLoading={loading}
-            style={styles.button}
+            style={[
+              styles.button,
+              Platform.OS === 'android' && styles.androidButton
+            ]}
             icon={icon}
             variant={variant}
             hapticType={hapticType}
@@ -119,6 +140,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 5,
   },
+  androidContentOverlay: {
+    // Android-specific styling for constant position
+    borderTopWidth: 0,
+    backgroundColor: 'transparent',
+    paddingTop: 4,
+    paddingBottom: 4,
+  },
   buttonContainer: {
     width: '100%',
   },
@@ -126,5 +154,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: '100%',
     height: 55,
     backgroundColor: colors.primary,
+  },
+  androidButton: {
+    // Android-specific button styling for constant position
+    height: 52,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });

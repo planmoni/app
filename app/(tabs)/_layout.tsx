@@ -177,7 +177,7 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: Platform.OS === 'ios' ? 85 : 95,
+    height: Platform.OS === 'ios' ? 85 : 90,
     paddingBottom: 15,
     paddingTop: 8,
   },
