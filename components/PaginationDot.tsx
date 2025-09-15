@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   interpolate,
@@ -67,9 +67,9 @@ export default function PaginationDot({
 
 const styles = StyleSheet.create({
   dot: {
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 4,
+    height: Platform.OS === 'ios' ? 8 : 6,
+    borderRadius: Platform.OS === 'ios' ? 4 : 3,
+    marginHorizontal: Platform.OS === 'ios' ? 4 : 2,
     
   },
 });

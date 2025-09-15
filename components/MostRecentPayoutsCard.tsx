@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, Dimensions, Image, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
@@ -290,8 +290,8 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
 
 const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: Platform.OS === 'ios' ? 20 : 1,
+    marginBottom: Platform.OS === 'ios' ? 10 : 8,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -300,7 +300,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '700',
     color: colors.text,
   },
@@ -308,7 +308,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical: 4,
   },
   viewAllText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.text,
     fontWeight: '600',
   },
@@ -342,7 +342,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     maxWidth: '60%',
   },
   amount: {
-    fontSize: 25,
+    fontSize: Platform.OS === 'ios' ? 25 : 20,
     fontWeight: '700',
     textAlign: 'left',
     flex: 0,
@@ -365,7 +365,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
   },
   paymentLabel: {
-    fontSize: 15,
+    fontSize: Platform.OS === 'ios' ? 15 : 13,
     color: colors.textSecondary,
   },
   bankInfo: {
@@ -375,28 +375,28 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     maxWidth: '90%',
   },
   bankLogo: {
-    width: 24,
-    height: 24,
-    marginRight: 3,
+    width: Platform.OS === 'ios' ? 24 : 20,
+    height: Platform.OS === 'ios' ? 24 : 20,
+    marginRight: Platform.OS === 'ios' ? 3 : 2,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0, // Prevent logo from shrinking
   },
   bankName: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '500',
     color: colors.text,
     marginRight: 1, // Add small margin between name and account number
     flexShrink: 1, // Allow name to shrink if needed
   },
   accountNumber: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '500',
     color: colors.textSecondary,
     flexShrink: 0, // Prevent account number from shrinking
   },
   bankInitials: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '500',
     color: colors.textSecondary,
   },
@@ -407,7 +407,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'flex-start',
   },
   dateTime: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     marginTop: 5,
     color: colors.textSecondary,
     fontWeight: '400',

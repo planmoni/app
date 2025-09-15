@@ -722,13 +722,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingBottom: 150,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: Platform.OS === 'ios' ? 20 : 10,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   headerActions: {
     flexDirection: 'row',
@@ -751,13 +751,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginLeft: 0,
   },
   greeting: {
-    fontSize: 20,
+    fontSize: Platform.OS === 'ios' ? 20 : 18,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   subGreeting: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '400',
     color: colors.textSecondary,
     lineHeight: 18,
@@ -771,14 +771,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   balanceCardContent: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 10,
+    paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
   },
   balanceLabelContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Platform.OS === 'ios' ? 8 : 0,
   },
   balanceLabelGroup: {
     flexDirection: 'row',
@@ -786,7 +786,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   balanceLabel: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
     color: colors.text,
   },
@@ -797,10 +797,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 4,
   },
   balanceAmount: {
-    fontSize: 30,
+    fontSize: Platform.OS === 'ios' ? 30 : 24,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 10 : 0,
   },
   lockedSection: {
     flexDirection: 'row',
@@ -809,7 +809,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 10 : 0,
   },
   lockedLabelContainer: {
     flexDirection: 'row',
@@ -817,11 +817,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   lockedLabel: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     color: colors.textSecondary,
   },
   lockedAmount: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
     color: colors.text,
   },
@@ -833,7 +833,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     backgroundColor: colors.primary,
-    padding: 14,
+    padding: Platform.OS === 'ios' ? 14 : 10,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -841,7 +841,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   createButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
   },
   addFundsButton: {
@@ -850,7 +850,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.backgroundBlack,
     borderWidth: 1,
     borderColor: colors.textSecondary,
-    padding: 14,
+    padding: Platform.OS === 'ios' ? 14 : 10,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -858,7 +858,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   addFundsText: {
     color: colors.textSecondary,
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
   },
   summaryCard: {

@@ -37,47 +37,47 @@ export default function RatingCard() {
 
 const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   feedbackCard: {
-    marginBottom: 20,
+    marginBottom: Platform.OS === 'ios' ? 20 : 10,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
-    padding: 24,
+    padding: Platform.OS === 'ios' ? 24 : 16  ,
   },
   feedbackContent: {
     alignItems: 'center',
     gap: 8,
   },
   feedbackTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   feedbackSubtitle: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     textAlign: 'center',
     color: colors.textSecondary,
     marginBottom: 10,
   },
   feedbackButton: {
     backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
+    paddingHorizontal: Platform.OS === 'ios' ? 24 : 16,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
     borderRadius: 12,
   },
   feedbackButtonText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
   },
   starsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: Platform.OS === 'ios' ? 8 : 4,
     gap: 2,
   },
   starIcon: {

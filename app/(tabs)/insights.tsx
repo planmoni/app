@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
 import { TrendingUp, TrendingDown, Users, ArrowUpRight, ArrowDownRight, Wallet, Clock, Calendar, Send } from 'lucide-react-native';
 import Card from '@/components/Card';
 import { useMemo } from 'react';
@@ -189,7 +189,7 @@ export default function InsightsScreen() {
                     <View 
                       style={[
                         styles.progressFill,
-                        { width: vault.progress }
+                        { width: parseFloat(vault.progress) }
                       ]} 
                     />
                   </View>
@@ -216,7 +216,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: Platform.OS === 'ios' ? 24 : 20,
     fontWeight: '700',
     color: colors.text,
   },
@@ -224,7 +224,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
   },
   contentPadding: {
-    padding: 16,
+    padding: Platform.OS === 'ios' ? 16 : 10,
     paddingBottom: 32,
   },
   loadingContainer: {
@@ -234,7 +234,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 16,
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     color: colors.textSecondary,
   },
   errorContainer: {
@@ -244,17 +244,17 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 24,
   },
   errorText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     color: colors.error,
     textAlign: 'center',
     marginBottom: 16,
   },
   retryButton: {
-    minWidth: 120,
+    minWidth: Platform.OS === 'ios' ? 120 : 100,
     backgroundColor: colors.primary,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: Platform.OS === 'ios' ? 18 : 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 16,
@@ -262,12 +262,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: Platform.OS === 'ios' ? 12 : 10,
     marginBottom: 24,
   },
   metricCard: {
     flex: 1,
-    minWidth: '48%',
+    minWidth: Platform.OS === 'ios' ? '48%' : '40%',
     padding: 16,
   },
   metricHeader: {
@@ -277,18 +277,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 12,
   },
   metricTitle: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
   },
   metricIcon: {
-    width: 36,
-    height: 36,
+    width: Platform.OS === 'ios' ? 36 : 32,
+    height: Platform.OS === 'ios' ? 36 : 32,
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
   metricValue: {
-    fontSize: 24,
+    fontSize: Platform.OS === 'ios' ? 24 : 20,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -300,38 +300,38 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 8,
   },
   metricChangeText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '500',
   },
   metricDescription: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     color: colors.textSecondary,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   trendCard: {
-    marginBottom: 12,
+    marginBottom: Platform.OS === 'ios' ? 12 : 10,
   },
   trendContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: 16,
+    padding: Platform.OS === 'ios' ? 16 : 10,
   },
   trendTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '500',
     color: colors.text,
     marginBottom: 4,
   },
   trendDescription: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
     marginBottom: 12,
   },
   trendDetails: {
-    gap: 8,
+    gap: Platform.OS === 'ios' ? 8 : 6,
   },
   detailItem: {
     flexDirection: 'row',
@@ -339,26 +339,26 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   detailLabel: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     color: colors.textSecondary,
   },
   detailValue: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     fontWeight: '500',
     color: colors.text,
   },
   trendValue: {
-    paddingHorizontal: 12,
+    paddingHorizontal: Platform.OS === 'ios' ? 12 : 10,
     paddingVertical: 6,
     borderRadius: 16,
   },
   trendValueText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
   },
   vaultCard: {
-    marginBottom: 12,
-    padding: 16,
+    marginBottom: Platform.OS === 'ios' ? 12 : 10 ,
+    padding: Platform.OS === 'ios' ? 16 : 10,
   },
   emptyVaultCard: {
     padding: 32,
@@ -366,14 +366,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
   },
   emptyVaultText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '500',
     color: colors.text,
     marginBottom: 8,
     textAlign: 'center',
   },
   emptyVaultSubtext: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
     textAlign: 'center',
   },
@@ -384,39 +384,40 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 16,
   },
   vaultTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '500',
     color: colors.text,
+    maxWidth: '80%',
   },
   vaultStatus: {
-    paddingHorizontal: 8,
+    paddingHorizontal: Platform.OS === 'ios' ? 8 : 6,
     paddingVertical: 4,
     borderRadius: 12,
   },
   vaultStatusText: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     fontWeight: '500',
   },
   vaultStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: Platform.OS === 'ios' ? 16 : 10,
   },
   vaultStat: {
     alignItems: 'center',
   },
   vaultStatLabel: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     color: colors.textSecondary,
     marginBottom: 4,
   },
   vaultStatValue: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '600',
     color: colors.text,
   },
   progressBar: {
-    height: 4,
+    height: Platform.OS === 'ios' ? 4 : 3,
     backgroundColor: colors.border,
     borderRadius: 2,
   },

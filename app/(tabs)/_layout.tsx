@@ -177,12 +177,12 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: Platform.OS === 'ios' ? 85 : 90,
-    paddingBottom: 15,
+    height: Platform.OS === 'ios' ? 85 : 70,
+    paddingBottom: Platform.OS === 'ios' ? 15 : 10 ,
     paddingTop: 8,
   },
   tabBarLabel: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     fontWeight: '500',
   },
   notificationBadge: {

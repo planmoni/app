@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { 
@@ -335,11 +336,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '400',
   },
   scrollContent: {
@@ -361,7 +362,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   amount: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '700',
     marginBottom: 4,
     textAlign: 'left',

@@ -1324,14 +1324,14 @@ export default function AIAssistantScreen() {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 16,
+      paddingHorizontal: Platform.OS === 'ios' ? 16 : 14,
+      paddingVertical: Platform.OS === 'ios' ? 16 : 14,
       backgroundColor: colors.background,
       borderBottomWidth: 0.4,
       borderBottomColor: colors.border,
     },
     headerTitle: {
-      fontSize: 25,
+      fontSize: Platform.OS === 'ios' ? 25 : 20,
       fontWeight: '800',
       color: colors.text,
       textAlign: 'left',
@@ -1343,7 +1343,7 @@ export default function AIAssistantScreen() {
       ...StyleSheet.absoluteFillObject,
     },
     headerSubtitle: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       color: colors.textSecondary,
     },
     aiIconContainer: {
@@ -1356,7 +1356,7 @@ export default function AIAssistantScreen() {
     },
     messagesContainer: {
       flex: 1,
-      padding: 16,
+      padding: Platform.OS === 'ios' ? 16 : 10,
     },
     messageRow: {
       marginBottom: 16,
@@ -1370,7 +1370,7 @@ export default function AIAssistantScreen() {
     },
     messageBubble: {
       borderRadius: 20,
-      padding: 16,
+      padding: Platform.OS === 'ios' ? 16 : 10,
       marginBottom: 8,
       maxWidth: '80%',
     },
@@ -1389,7 +1389,7 @@ export default function AIAssistantScreen() {
       width: '95%',
     },
     messageText: {
-      fontSize:18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       lineHeight: 24,
     },
     userText: {
@@ -1405,8 +1405,8 @@ export default function AIAssistantScreen() {
       marginBottom: 16,
       backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary,
       borderRadius: 20,
-      padding: 12,
-      paddingHorizontal: 16,
+      padding: Platform.OS === 'ios' ? 12 : 10,
+      paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
     },
     typingDot: {
       width: 8,
@@ -1416,14 +1416,14 @@ export default function AIAssistantScreen() {
       marginRight: 4,
     },
     typingText: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       color: colors.textSecondary,
       marginLeft: 8,
     },
     inputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: 12,
+      padding: Platform.OS === 'ios' ? 12 : 10,
       backgroundColor: colors.surface,
       borderTopWidth: 1,
       borderTopColor: colors.border,
@@ -1432,9 +1432,9 @@ export default function AIAssistantScreen() {
       flex: 1,
       backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary,
       borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      fontSize: 18,
+      paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
+      paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       color: colors.text,
       marginRight: 8,
       maxHeight: 120,
@@ -1451,11 +1451,11 @@ export default function AIAssistantScreen() {
       backgroundColor: colors.border,
     },
     suggestionsContainer: {
-      padding: 16,
+      padding: Platform.OS === 'ios' ? 16 : 10,
       backgroundColor: colors.surface,
     },
     suggestionsTitle: {
-      fontSize:16,
+      fontSize: Platform.OS === 'ios' ? 16 : 14,
       fontWeight: '500',
       color: colors.textSecondary,
       marginBottom: 12,
@@ -1466,14 +1466,14 @@ export default function AIAssistantScreen() {
     suggestionBubble: {
       backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary,
       borderRadius: 16,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
+      paddingVertical: Platform.OS === 'ios' ? 12 : 10,
       marginRight: 8,
       borderWidth: 1,
       borderColor: colors.border,
     },
     suggestionText: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       color: colors.text,
     },
     planOptions: {
@@ -1483,7 +1483,7 @@ export default function AIAssistantScreen() {
     planOption: {
       backgroundColor: colors.card,
       borderRadius: 12,
-      padding: 16,
+      padding: Platform.OS === 'ios' ? 16 : 10,
       borderWidth: 1,
       borderColor: colors.border,
     },
@@ -1497,16 +1497,16 @@ export default function AIAssistantScreen() {
       flex: 1,
     },
     planTitle: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       fontWeight: '600',
       marginBottom: 4,
     },
     planAmount: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       fontWeight: '700',
     },
     planDescription: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       marginBottom: 16,
     },
     planButton: {
@@ -1515,13 +1515,13 @@ export default function AIAssistantScreen() {
       justifyContent: 'center',
       backgroundColor: colors.primary,
       borderRadius: 8,
-      paddingVertical: 10,
-      paddingHorizontal: 16,
+      paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+      paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
       gap: 8,
     },
     planButtonText: {
       color: '#FFFFFF',
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       fontWeight: '600',
     },
     insightsContainer: {
@@ -1531,7 +1531,7 @@ export default function AIAssistantScreen() {
     insightCard: {
       backgroundColor: colors.card,
       borderRadius: 12,
-      padding: 16,
+      padding: Platform.OS === 'ios' ? 16 : 10,
       borderWidth: 1,
       borderColor: colors.border,
     },
@@ -1542,26 +1542,26 @@ export default function AIAssistantScreen() {
       marginBottom: 8,
     },
     insightTitle: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       fontWeight: '600',
     },
     insightValue: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       fontWeight: '700',
     },
     insightDescription: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
     },
     recommendationsContainer: {
       marginTop: 16,
       backgroundColor: isDark ? colors.backgroundSecondary : colors.card,
       borderRadius: 12,
-      padding: 16,
+      padding: Platform.OS === 'ios' ? 16 : 10 ,
       borderWidth: 1,
       borderColor: colors.border,
     },
     recommendationsTitle: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       fontWeight: '600',
       marginBottom: 12,
     },
@@ -1579,7 +1579,7 @@ export default function AIAssistantScreen() {
     },
     recommendationText: {
       flex: 1,
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       lineHeight: 20,
     },
     emptyContainer: {
@@ -1594,14 +1594,14 @@ export default function AIAssistantScreen() {
       marginBottom: 24,
     },
     emptyTitle: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       fontWeight: '600',
       color: colors.text,
       marginBottom: 8,
       textAlign: 'center',
     },
     emptyText: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       color: colors.textSecondary,
       textAlign: 'center',
       marginBottom: 24,
@@ -1614,7 +1614,7 @@ export default function AIAssistantScreen() {
       gap: 4,
     },
     aiBadgeText: {
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       color: '#888',
       marginLeft: 4,
     },
@@ -1632,7 +1632,7 @@ export default function AIAssistantScreen() {
     },
     errorText: {
       color: '#E57373',
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
       flex: 1,
     },
     retryButton: {
@@ -1645,7 +1645,7 @@ export default function AIAssistantScreen() {
     retryText: {
       color: '#FFF',
       fontWeight: '600',
-      fontSize: 18,
+      fontSize: Platform.OS === 'ios' ? 18 : 16,
     },
   });
 

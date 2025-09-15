@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { Calendar, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -104,7 +104,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '700',
     color: colors.text,
   },
@@ -126,7 +126,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 10,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    marginTop: 16,
+    marginTop: Platform.OS === 'ios' ? 16 : 10,
   },
   summaryItem: {
     flexDirection: 'row',
@@ -134,11 +134,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   summaryLabel: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
   },
   summaryValue: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '600',
     color: colors.text,
   },
@@ -147,13 +147,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    paddingVertical: 16,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 10,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    marginTop: 16,
+    marginTop: Platform.OS === 'ios' ? 16 : 10,
   },
   seeMoreText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     color: colors.textSecondary,
     fontWeight: '600',
   },

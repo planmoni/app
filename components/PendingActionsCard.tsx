@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { ChevronRight, X, Mail, Lock, Shield, Fingerprint, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -233,7 +233,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 12,
   },
   actionCard: {
-    width: 280,
+    width: Platform.OS === 'ios' ? 280 : 240,
     backgroundColor: isDark ? colors.background : '#EDF5FF',
     borderRadius: 12,
     padding: 16,
@@ -244,25 +244,25 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     position: 'relative',
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: Platform.OS === 'ios' ? 48 : 40,
+    height: Platform.OS === 'ios' ? 48 : 40,
+    borderRadius: Platform.OS === 'ios' ? 24 : 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: Platform.OS === 'ios' ? 12 : 10,
   },
   actionContent: {
     flex: 1,
     marginRight: 8,
   },
   actionTitle: {
-    fontSize: 15,
+    fontSize: Platform.OS === 'ios' ? 15 : 13,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   actionDescription: {
-    fontSize: 13,
+    fontSize: Platform.OS === 'ios' ? 13 : 12,
     color: colors.textSecondary,
     lineHeight: 16,
   },
@@ -272,8 +272,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   actionArrow: {
-    width: 24,
-    height: 24,
+    width: Platform.OS === 'ios' ? 24 : 20,
+    height: Platform.OS === 'ios' ? 24 : 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -281,15 +281,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: Platform.OS === 'ios' ? 16 : 12,
+    height: Platform.OS === 'ios' ? 16 : 12,
+    borderRadius: Platform.OS === 'ios' ? 8 : 6,
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '700',
     color: colors.text,
     marginBottom: -20,

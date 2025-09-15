@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { Plus } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -140,10 +140,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
     color: colors.text,
   },
@@ -151,7 +151,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical: 4,
   },
   viewAllText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.text,
     fontWeight: '600',
   },
@@ -159,11 +159,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingRight: 1,
   },
   payoutPlanCard: {
-    width: 300,
-    marginRight: 16,
+    width: Platform.OS === 'ios' ? 300 : 280,
+    marginRight: Platform.OS === 'ios' ? 16 : 10,
     borderRadius: 16,
-    padding: 15,
-    marginBottom: 10,
+    padding: Platform.OS === 'ios' ? 15 : 10,
+    marginBottom: Platform.OS === 'ios' ? 10 : 5,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -172,50 +172,50 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   planType: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
     maxWidth: '75%',
   },
   activeTag: {
     backgroundColor: colors.backgroundTertiary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: Platform.OS === 'ios' ? 10 : 8,
+    paddingVertical: Platform.OS === 'ios' ? 6 : 4,
+    borderRadius: Platform.OS === 'ios' ? 20 : 16,
   },
   activeTagText: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     color: '#22C55E',
     fontWeight: '600',
   },
   planAmount: {
-    fontSize: 22,
+    fontSize: Platform.OS === 'ios' ? 22 : 20,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   planDetails: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   planFrequency: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
   },
   planDot: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     color: colors.textSecondary,
   },
   planValue: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
   },
   progressBar: {
-    height: 6,
+    height: Platform.OS === 'ios' ? 6 : 4 ,
     backgroundColor: colors.border,
     borderRadius: 3,
     marginBottom: 8,
@@ -231,17 +231,17 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   progressText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
   },
   progressCount: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
   },
   nextPayoutDate: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   addPayoutCard: {
     width: 300,
