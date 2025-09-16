@@ -17,8 +17,34 @@ export default {
       "permissions": ["android.permission.CAMERA"]
     },
     ios: {
-      "bundleIdentifier": "com.planmoni"
+      "bundleIdentifier": "com.planmoni",
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"] // ✅ Required for push notifications
+      },
+      "entitlements": {
+        "aps-environment": "development", // ✅ Required for push notification, change to "production" for Testflight and App Store builds
+        "com.apple.security.application-groups": [
+          "group.${ios.bundleIdentifier}.onesignal" // // ✅ Required for confirmed delivery
+        ]
+      }
     },
+    "plugins": [
+      [
+        "onesignal-expo-plugin",
+        {
+          "mode": "development"
+        }
+      ],
+      [
+        "@intercom/intercom-react-native",
+        {
+          "appId": "tf4dp3qt",
+          "androidApiKey": "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",
+          "iosApiKey": "ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4",
+          "intercomRegion": "US"
+        }
+      ]
+    ],
     extra: {
       "eas": {
         "projectId": "05caad20-9b74-4ba8-8280-dc5939b7ca83"

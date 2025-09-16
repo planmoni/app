@@ -1,259 +1,183 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert, Platform } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
-import { logAnalyticsEvent } from '@/lib/firebase';
+import Intercom from '@intercom/intercom-react-native';
 
-// Global state to track authentication status
-let isIntercomAuthenticated = false;
-let authenticationPromise: Promise<void> | null = null;
-let lastAuthenticationAttempt = 0;
-const AUTHENTICATION_COOLDOWN = 30000; // 30 seconds
-
-// Helper function to create timeout for fetch requests
-const createTimeoutSignal = (timeoutMs: number) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  
-  // Clean up timeout when signal is aborted
-  controller.signal.addEventListener('abort', () => {
-    clearTimeout(timeoutId);
-  });
-  
-  return controller.signal;
+// Global state to track authentication across app
+let globalAuthState = {
+  isAuthenticated: false,
+  currentUserId: null as string | null,
+  isAuthenticating: false,
+  authPromise: null as Promise<void> | null
 };
 
 export function useIntercom() {
   const [isLoading, setIsLoading] = useState(false);
   const { session } = useAuth();
+  const isAuthenticatedRef = useRef(false);
 
   // Check if Intercom is supported on this platform
   const isSupported = Platform.OS !== 'web';
 
-  // Enhanced authentication function with better error handling and fallbacks
-  const authenticateIntercom = useCallback(async () => {
-    // If already authenticated, return immediately
-    if (isIntercomAuthenticated) {
-      console.log('✅ Intercom already authenticated, skipping...');
+  // Authenticate user with Intercom
+  const authenticateUser = useCallback(async () => {
+    if (!session?.user?.id) {
       return;
     }
 
-    // Check cooldown to prevent rapid retries
-    const now = Date.now();
-    if (now - lastAuthenticationAttempt < AUTHENTICATION_COOLDOWN) {
-      console.log('🕐 Intercom authentication in cooldown period, skipping...');
+    // If already authenticated for this user, return immediately
+    if (globalAuthState.isAuthenticated && globalAuthState.currentUserId === session.user.id) {
+      console.log('✅ Intercom already authenticated for this user');
+      isAuthenticatedRef.current = true;
       return;
     }
 
     // If authentication is in progress, wait for it
-    if (authenticationPromise) {
+    if (globalAuthState.isAuthenticating && globalAuthState.authPromise) {
       console.log('⏳ Intercom authentication in progress, waiting...');
-      return authenticationPromise;
+      await globalAuthState.authPromise;
+      return;
     }
 
     // Start new authentication
-    lastAuthenticationAttempt = now;
-    authenticationPromise = (async () => {
+    globalAuthState.isAuthenticating = true;
+    globalAuthState.authPromise = (async () => {
       try {
-        console.log('🔐 Background Intercom authentication starting...');
-        console.log('📱 Platform:', Platform.OS);
-        console.log('👤 Session exists:', !!session);
-        console.log(' User ID:', session?.user?.id);
+        console.log('🔐 Authenticating user with Intercom...');
         
-        const { default: Intercom } = await import('@intercom/intercom-react-native');
-        console.log('📦 Intercom module loaded successfully');
-        
-        if (!session?.user?.id) {
-          console.log('👤 No user session, logging in as unidentified user...');
-          await Intercom.loginUnidentifiedUser();
-          console.log('✅ Unidentified user logged in');
-        } else {
-          console.log(' User session found, authenticating with user data...');
-          
-          // Get user name from metadata
-          const firstName = session.user.user_metadata?.first_name || '';
-          const lastName = session.user.user_metadata?.last_name || '';
-          const fullName = `${firstName} ${lastName}`.trim();
-          
-          console.log('👤 User data for Intercom:', {
-            userId: session.user.id,
-            email: session.user.email,
-            firstName,
-            lastName,
-            fullName
-          });
-          
-          // Try to get JWT with timeout and fallback
-          let jwt = null;
-          try {
-            console.log('🔐 Getting JWT from server...');
-            console.log('🌐 Supabase URL:', process.env.EXPO_PUBLIC_SUPABASE_URL);
-            
-            const jwtResponse = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/intercom-jwt`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`,
-                'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
-              },
-              // Add timeout to prevent hanging - using compatible method
-              signal: createTimeoutSignal(10000) // 10 second timeout
-            });
-            
-            console.log('📡 JWT Response status:', jwtResponse.status);
-            console.log(' JWT Response ok:', jwtResponse.ok);
-            
-            if (!jwtResponse.ok) {
-              throw new Error(`JWT request failed with status: ${jwtResponse.status}`);
-            }
-            
-            const jwtData = await jwtResponse.json();
-            jwt = jwtData.jwt;
-            console.log('✅ JWT received successfully, length:', jwt?.length);
-            
-          } catch (jwtError) {
-            const error = jwtError as Error;
-            console.warn('⚠️ JWT authentication failed, falling back to basic authentication:', error);
-            console.warn('⚠️ JWT Error details:', {
-              message: error.message,
-              name: error.name,
-              stack: error.stack
-            });
-            // Continue without JWT - Intercom will still work but without secure authentication
+        // Get JWT from your backend
+        const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/intercom-jwt`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
           }
-          
-          // Set JWT if available
-          if (jwt) {
-            console.log('🔐 Setting JWT for Intercom...');
-            await Intercom.setUserJwt(jwt);
-            console.log('✅ JWT set successfully');
-          }
-          
-          // Login with user attributes (with or without JWT)
-          console.log('👤 Logging in user with attributes...');
-          await Intercom.loginUserWithUserAttributes({
-            userId: session.user.id,
-            email: session.user.email,
-            name: fullName || session.user.email?.split('@')[0] || 'User',
-            phone: session.user.phone || undefined,
-            customAttributes: {
-              first_name: firstName,
-              last_name: lastName,
-              user_type: 'customer',
-              app_version: '1.0.0'
-            }
-          });
-          console.log('✅ User logged in to Intercom');
+        });
+
+        if (!response.ok) {
+          throw new Error(`JWT request failed: ${response.status}`);
         }
+
+        const { jwt } = await response.json();
+        console.log('🔐 JWT received:', jwt);
         
-        isIntercomAuthenticated = true;
-        console.log('✅ Intercom background authentication completed');
+        if (!jwt) {
+          throw new Error('No JWT received from server');
+        }
+
+        console.log('✅ JWT received, setting for Intercom...');
+
+        // Set the JWT token before logging in your user
+        await Intercom.setUserJwt(jwt);
+
+        // Get user data
+        const firstName = session.user.user_metadata?.first_name || '';
+        const lastName = session.user.user_metadata?.last_name || '';
+        const fullName = `${firstName} ${lastName}`.trim();
+
+        // Login user with the same user_id used in the JWT
+        await Intercom.loginUserWithUserAttributes({
+          userId: session.user.id,
+          email: session.user.email,
+          name: fullName || session.user.email?.split('@')[0] || 'User',
+          phone: session.user.phone || undefined,
+          customAttributes: {
+            first_name: firstName,
+            last_name: lastName,
+            user_type: 'customer',
+            app_version: '1.0.0'
+          }
+        });
+
+        // Update global state
+        globalAuthState.isAuthenticated = true;
+        globalAuthState.currentUserId = session.user.id;
+        isAuthenticatedRef.current = true;
         
+        console.log('✅ User authenticated with Intercom successfully');
+
       } catch (error) {
-        console.error('❌ Background Intercom authentication failed:', error);
-        console.error('❌ Error details:', error instanceof Error ? {
-          message: error.message,
-          name: error.name,
-          stack: error.stack
-        } : error);
-        // Reset authentication state on failure
-        isIntercomAuthenticated = false;
-        authenticationPromise = null;
-        throw error;
+        console.error('❌ Failed to authenticate with Intercom:', error);
+        
+        // Fallback to unidentified user
+        try {
+          console.log('🔄 Falling back to unidentified user...');
+          await Intercom.loginUnidentifiedUser();
+          
+          // Update global state for fallback
+          globalAuthState.isAuthenticated = true;
+          globalAuthState.currentUserId = 'unidentified';
+          isAuthenticatedRef.current = true;
+          
+          console.log('✅ Fallback to unidentified user successful');
+        } catch (fallbackError) {
+          console.error('❌ Fallback failed:', fallbackError);
+          globalAuthState.isAuthenticated = false;
+          globalAuthState.currentUserId = null;
+          isAuthenticatedRef.current = false;
+        }
+      } finally {
+        globalAuthState.isAuthenticating = false;
+        globalAuthState.authPromise = null;
       }
     })();
 
-    return authenticationPromise;
+    return globalAuthState.authPromise;
   }, [session]);
 
-  // Start background authentication when user session is available
+  // Authenticate when user session is available
   useEffect(() => {
-    if (session?.user?.id && !isIntercomAuthenticated && !authenticationPromise) {
-      console.log('🚀 Starting background Intercom authentication...');
-      authenticateIntercom().catch(error => {
+    if (session?.user?.id) {
+      // Start authentication in background
+      authenticateUser().catch(error => {
         console.warn('Background Intercom authentication failed:', error);
       });
+    } else if (!session?.user?.id && globalAuthState.isAuthenticated) {
+      // Logout when user session is lost
+      console.log('🔄 User logged out, clearing Intercom authentication');
+      Intercom.logout();
+      globalAuthState.isAuthenticated = false;
+      globalAuthState.currentUserId = null;
+      isAuthenticatedRef.current = false;
     }
-  }, [session, authenticateIntercom]);
+  }, [session, authenticateUser]);
 
-  // Reset authentication state when user logs out
-  useEffect(() => {
-    if (!session?.user?.id) {
-      console.log('🔄 User logged out, resetting Intercom authentication state');
-      isIntercomAuthenticated = false;
-      authenticationPromise = null;
+  // Open Intercom chat
+  const openChat = useCallback(async () => {
+    if (!isSupported) {
+      Alert.alert('Not Supported', 'Intercom is not supported on web platform');
+      return;
     }
-  }, [session?.user?.id]);
 
-  const openIntercom = async () => {
     try {
       setIsLoading(true);
-      console.log('🎯 Intercom: Opening support chat');
-      console.log('📱 Platform:', Platform.OS);
-      console.log('🔐 Is authenticated:', isIntercomAuthenticated);
+      console.log('🎯 Opening Intercom chat...');
+
+      // Ensure user is authenticated (this will be instant if already authenticated)
+      await authenticateUser();
+
+      // Present the Intercom messenger
+      await Intercom.present();
       
-      // Check if we're on a supported platform
-      if (Platform.OS === 'web') {
-        throw new Error('Intercom is not supported on web platform');
-      }
-      
-      // Ensure authentication is complete before opening
-      console.log('🔐 Ensuring authentication is complete...');
-      await authenticateIntercom();
-      console.log('✅ Authentication confirmed');
-      
-      const { default: Intercom } = await import('@intercom/intercom-react-native');
-      console.log('📦 Intercom module loaded for presentation');
-      
-      // Present Intercom with timeout
-      console.log('🎯 Presenting Intercom (already authenticated)...');
-      await Promise.race([
-        Intercom.present(),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Intercom presentation timeout')), 15000)
-        )
-      ]);
-      
-      console.log('✅ Intercom presented successfully');
-      logAnalyticsEvent('intercom_chat_opened');
-      
+      console.log('✅ Intercom chat opened successfully');
+
     } catch (error) {
-      console.error('❌ Failed to open Intercom:', error);
-      console.error('❌ Error details:', {
-        message: error instanceof Error ? error.message : String(error),
-        name: error instanceof Error ? error.name : 'Unknown',
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      // Show user-friendly error with retry option
+      console.error('❌ Failed to open Intercom chat:', error);
       Alert.alert(
         'Support Chat Unavailable',
-        'Unable to open support chat at the moment. This might be due to network connectivity issues. Would you like to try again?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Retry', 
-            onPress: () => {
-              // Reset authentication state and try again
-              console.log('🔄 Retrying Intercom authentication...');
-              isIntercomAuthenticated = false;
-              authenticationPromise = null;
-              openIntercom();
-            }
-          }
-        ]
+        'Unable to open support chat at the moment. Please try again later.',
+        [{ text: 'OK' }]
       );
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Alias for compatibility with existing components
-  const present = openIntercom;
+  }, [isSupported, authenticateUser]);
 
   return {
-    openIntercom,
-    present, // Alias for compatibility
+    openChat,
     isLoading,
-    isAuthenticated: isIntercomAuthenticated,
+    isAuthenticated: globalAuthState.isAuthenticated,
     isSupported
   };
 }

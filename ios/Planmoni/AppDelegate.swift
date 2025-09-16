@@ -1,6 +1,8 @@
 import Expo
 import React
 import ReactAppDependencyProvider
+import Intercom
+// import IntercomModule.h
 
 @UIApplicationMain
 public class AppDelegate: ExpoAppDelegate {
@@ -13,6 +15,9 @@ public class AppDelegate: ExpoAppDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    
+    Intercom.setApiKey("ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4", forAppId: "tf4dp3qt")
+
     let delegate = ReactNativeDelegate()
     let factory = ExpoReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()

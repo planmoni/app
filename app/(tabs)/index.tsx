@@ -6,6 +6,7 @@ import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
+import { IntercomButton } from '@/components/IntercomButton';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -55,12 +56,12 @@ import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import NotificationIcon from '@/components/NotificationIcon';
 import { supabase } from '@/lib/supabase';
-import intercomService from '@/lib/IntercomService';
 import NextPayoutCard from '@/components/NextPayoutCard';
 import PayoutPlansSection from '@/components/PayoutPlansSection';
 import SummaryCard from '@/components/SummaryCard';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
+import { intercomService } from '@/lib/intercom';
 
 interface Banner {
   id: string;
@@ -121,6 +122,7 @@ export default function HomeScreen() {
     }
   }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
 
+  
   // Log screen view for analytics
   useEffect(() => {
     logAnalyticsEvent('screen_view', {
@@ -201,18 +203,18 @@ export default function HomeScreen() {
       console.log('🎯 Help button pressed - opening Intercom instantly');
       
       // Check if Intercom is ready
-      if (!intercomService.isReady()) {
-        console.warn('⚠️ Intercom not ready, showing fallback');
-        Alert.alert(
-          'Support',
-          'Support chat is initializing. Please try again in a moment.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
+      // if (!intercomService.isReady()) {
+      //   console.warn('⚠️ Intercom not ready, showing fallback');
+      //   Alert.alert(
+      //     'Support',
+      //     'Support chat is initializing. Please try again in a moment.',
+      //     [{ text: 'OK' }]
+      //   );
+      //   return;
+      // }
       
       // Open Intercom instantly - no waiting, no async work
-      await intercomService.open();
+      await intercomService.initialize();
       
       logAnalyticsEvent('help_click');
       
@@ -624,6 +626,7 @@ export default function HomeScreen() {
           availableBalance={availableBalance}
           onSuggestionPress={handleAISuggestionPress}
         />
+        {/* <IntercomButton /> */}
         <ImageCarousel images={carouselImages} />
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
@@ -704,6 +707,9 @@ export default function HomeScreen() {
         onStartVerification={handleStartVerification}
         onGoToDashboard={handleGoToDashboard}
       />
+      
+      {/* Floating Intercom Support Button */}
+      <IntercomButton variant="floating" />
       
     </SafeAreaView>
   );

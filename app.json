@@ -21,9 +21,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.planmoni",
       "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"],
         "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
+        "aps-environment": "development",
+        "com.apple.security.application-groups": [
+          "group.${ios.bundleIdentifier}.onesignal"
+        ],
         "keychain-access-groups": ["$(AppIdentifierPrefix)com.planmoni"]
       }
     },
@@ -33,6 +38,21 @@
       "favicon": "./assets/images/AppIcon.png"
     },
     "plugins": [
+      [
+        "onesignal-expo-plugin",
+        {
+          "mode": "development"
+        }
+      ],
+      [
+        "@intercom/intercom-react-native",
+        {
+          "appId": "tf4dp3qt",
+          "androidApiKey": "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",
+          "iosApiKey": "ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4",
+          "intercomRegion": "US"
+        }
+      ],
       "expo-router",
       "expo-font",
       "expo-web-browser",
@@ -45,7 +65,7 @@
         {
           "appId": "tf4dp3qt",
           "androidApiKey": "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",
-          "iosApiKey": "ios_sdk-de52645ae34ab0f059890a422f90b18092032115",
+          "iosApiKey": "ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4",
           "intercomRegion": "US"
         }
       ]
