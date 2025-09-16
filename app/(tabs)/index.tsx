@@ -62,6 +62,7 @@ import SummaryCard from '@/components/SummaryCard';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 import { intercomService } from '@/lib/intercom';
+import { useIntercom } from '@/hooks/useIntercom';
 
 interface Banner {
   id: string;
@@ -105,6 +106,8 @@ export default function HomeScreen() {
   const params = useLocalSearchParams();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
 
+  // Intercom
+  const { openChat, isLoading, isSupported } = useIntercom();
   // Get user info from session
   const firstName = session?.user?.user_metadata?.first_name || 'User';
   const lastName = session?.user?.user_metadata?.last_name || '';
@@ -196,25 +199,15 @@ export default function HomeScreen() {
       setIsRefreshing(false);
     }
   };
-  
+  // Intercom not supported on web
+  if (!isSupported) {
+    return null; // Don't render on web
+  }
   const handleHelpPress = async () => {
     try {
       setIsHelpLoading(true);
       console.log('🎯 Help button pressed - opening Intercom instantly');
-      
-      // Check if Intercom is ready
-      // if (!intercomService.isReady()) {
-      //   console.warn('⚠️ Intercom not ready, showing fallback');
-      //   Alert.alert(
-      //     'Support',
-      //     'Support chat is initializing. Please try again in a moment.',
-      //     [{ text: 'OK' }]
-      //   );
-      //   return;
-      // }
-      
-      // Open Intercom instantly - no waiting, no async work
-      await intercomService.initialize();
+      await openChat();
       
       logAnalyticsEvent('help_click');
       
@@ -548,9 +541,9 @@ export default function HomeScreen() {
               <Pressable 
                 onPress={handleHelpPress} 
                 style={styles.helpButton}
-                disabled={isHelpLoading}
+                disabled={isLoading}
               >
-                {isHelpLoading ? (
+                {isLoading ? (
                   <PlanmoniLoader size="small" />
                 ) : (
                   <HelpCircleIcon size={24} color={colors.text} />
@@ -709,7 +702,7 @@ export default function HomeScreen() {
       />
       
       {/* Floating Intercom Support Button */}
-      <IntercomButton variant="floating" />
+      {/* <IntercomButton variant="floating" /> */}
       
     </SafeAreaView>
   );
