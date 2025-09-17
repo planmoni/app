@@ -34,11 +34,10 @@ export default function KYCUpgradeScreen() {
   // Custom hooks for KYC data and progress
   const { formData, loading: formDataLoading, saveFormData } = useKYCData();
   const { progress, loading: progressLoading, updateProgress, getStepProgress } = useKYCProgress();
-  const { banks, isLoading: banksLoading, error: banksError, refetch: refetchBanks } = useBanks();
+  const { banks, isLoading: banksLoading, error: banksError, fetchBanks } = useBanks();
   
   // Animation values for bank selection modal
   const bankListSlideAnim = useRef(new Animated.Value(height)).current;
-  
   // Debug banks state
   useEffect(() => {
     console.log('KYC Upgrade - Banks state:', {
@@ -458,7 +457,7 @@ export default function KYCUpgradeScreen() {
             // Save BVN data
             const saveResult = await saveFormData({
               bvn: bvn,
-              account_number: accountNumber
+              accountNumber: accountNumber
             });
             
             if (!saveResult) {

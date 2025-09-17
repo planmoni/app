@@ -331,11 +331,8 @@ export function useInsightsData() {
         },
       ];
 
-      // Set vault stats data - AUTOMATICALLY EXCLUDE COMPLETED PAYOUTS
-      // Only show active, paused, and other non-completed plans in the "Percentage completed" section
-      const nonCompletedPlans = payoutPlans?.filter(plan => plan.status !== 'completed') || [];
-      
-      const vaultStatsData = nonCompletedPlans.map(plan => {
+      // Set vault stats data
+      const vaultStatsData = payoutPlans?.map(plan => {
         const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
         return {
           title: plan.name,
@@ -346,15 +343,7 @@ export function useInsightsData() {
             : 'N/A',
           status: plan.status.charAt(0).toUpperCase() + plan.status.slice(1),
         };
-      });
-
-      // Log the filtering for debugging
-      console.log('Vault Stats Filtering:', {
-        totalPlans: payoutPlans?.length || 0,
-        completedPlans: payoutPlans?.filter(p => p.status === 'completed').length || 0,
-        nonCompletedPlans: nonCompletedPlans.length,
-        filteredOut: (payoutPlans?.length || 0) - nonCompletedPlans.length
-      });
+      }) || [];
 
       setMetrics(metricsData);
       setTrends(trendsData);
@@ -375,9 +364,3 @@ export function useInsightsData() {
     refreshInsights: fetchInsightsData,
   };
 }
-
-// Add a comment to document the automatic filtering
-// AUTOMATIC COMPLETED PAYOUT REMOVAL:
-// This hook automatically filters out completed payouts from the vault stats
-// to prevent them from appearing in the "Percentage completed" section.
-// Only active, paused, and other non-completed plans are shown.

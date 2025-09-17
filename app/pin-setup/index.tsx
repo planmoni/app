@@ -16,7 +16,7 @@ export default function PinSetupScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
   const { showToast } = useToast();
-  const { setupPin } = usePin();
+  usePin();
   const haptics = useHaptics();
   
   const [pin, setPin] = useState('');

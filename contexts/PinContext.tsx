@@ -49,7 +49,7 @@ interface PinContextType {
 
 const PinContext = createContext<PinContextType | undefined>(undefined);
 
-export function usePin() {
+export function usePin(originalPin: string) {
   const context = useContext(PinContext);
   if (context === undefined) {
     throw new Error('usePin must be used within a PinProvider');

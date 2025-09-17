@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
 export interface KYCFormData {
+  bank_code: any;
+  bank_name: any;
   id?: string;
   user_id?: string;
   
@@ -46,7 +48,10 @@ export interface KYCFormData {
 
 export const useKYCData = () => {
   const { session } = useAuth();
-  const [formData, setFormData] = useState<KYCFormData>({});
+  const [formData, setFormData] = useState<KYCFormData>({
+    bank_code: null,
+    bank_name: null
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,7 +76,10 @@ export const useKYCData = () => {
       if (data) {
         setFormData(data);
       } else {
-        setFormData({});
+        setFormData({
+          bank_code: null,
+          bank_name: null
+        });
       }
     } catch (err) {
       console.error('Error loading KYC form data:', err);

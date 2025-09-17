@@ -11,7 +11,7 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
 import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 
-type TabType = 'all' | 'active' | 'paused' | 'completed';
+type TabType = 'all' | 'active' | 'completed';
 
 export default function AllPayoutsScreen() {
   const { colors } = useTheme();
@@ -91,7 +91,7 @@ export default function AllPayoutsScreen() {
   const tabs = [
     { key: 'all', label: 'All', count: payoutPlans.length },
     { key: 'active', label: 'Active', count: payoutPlans.filter(p => p.status === 'active').length },
-    { key: 'paused', label: 'Paused', count: payoutPlans.filter(p => p.status === 'paused').length },
+    // { key: 'paused', label: 'Paused', count: payoutPlans.filter(p => p.status === 'paused').length },
     { key: 'completed', label: 'Completed', count: payoutPlans.filter(p => p.status === 'completed').length },
   ];
 
@@ -209,7 +209,7 @@ export default function AllPayoutsScreen() {
                         </Text>
                       </View>
                     </View>
-                    <View style={styles.planActions}>
+                    {/* <View style={styles.planActions}>
                       {plan.status === 'active' ? (
                         <Pressable
                           style={styles.actionButton}
@@ -225,7 +225,7 @@ export default function AllPayoutsScreen() {
                           <Play size={16} color="#22C55E" />
                         </Pressable>
                       ) : null}
-                    </View>
+                    </View> */}
                   </View>
 
                   <Text style={styles.amount}>{formatCurrency(plan.total_amount)}</Text>
