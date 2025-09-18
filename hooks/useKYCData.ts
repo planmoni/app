@@ -25,6 +25,9 @@ export interface KYCFormData {
   
   // Identity Information
   bvn?: string;
+  account_number?: string;
+  bank_code?: string;
+  bank_name?: string;
   nin?: string;
   document_type?: 'bvn' | 'nin' | 'passport' | 'drivers_license';
   document_number?: string;
@@ -36,6 +39,8 @@ export interface KYCFormData {
   
   // Address Documents (Optional)
   utility_bill_url?: string;
+  utility_bill_validated?: boolean;
+  utility_bill_validation_result?: any;
   
   // Admin Approval
   approved?: boolean;

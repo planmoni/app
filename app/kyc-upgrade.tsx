@@ -100,6 +100,12 @@ export default function KYCUpgradeScreen() {
   const [lga, setLga] = useState('');
   const [state, setState] = useState('');
   const [utilityBill, setUtilityBill] = useState<string | null>(null);
+
+  // Utility bill validation
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadDate, setUploadDate] = useState<Date | null>(null);
+  const [validationResult, setValidationResult] = useState<any>(null);
+  const [isValidating, setIsValidating] = useState(false);
   
   // Location search
   const [showLocationSearch, setShowLocationSearch] = useState(false);
@@ -230,7 +236,7 @@ export default function KYCUpgradeScreen() {
       setBvnVerified(progress.bvn_verified);
       setDocumentsVerified(progress.documents_verified);
       
-          // Set verification status without showing toasts on initial load
+      // Set verification status without showing toasts on initial load
       if (progress.overall_completed) {
         setVerificationStatus('fully_verified');
         // Don't show toast on initial load - only show when user completes verification
@@ -364,8 +370,126 @@ export default function KYCUpgradeScreen() {
     
     return true;
   };
-  
 
+  const validateUtilityBill = async (utilityBill: string): Promise<any> => {
+    // Example validation: check if utilityBill is a non-empty string
+    if (!session?.user?.id) {
+      throw new Error('Authentication required');
+    }
+
+    // Get user's address from KYC data for validation
+    const userAddress = addressNo || '';
+
+    const response = await fetch('/api/utility-bill-validation', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        utilityBillImage: utilityBill,
+        userAddress: userAddress
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Validation failed');
+    }
+
+    const result = await response.json();
+    return result;
+  };
+
+  
+  const uploadUtilityBill = async () => {
+    if (!utilityBill || !session?.user?.id) {
+      showToast('Please select a utility bill image first.', 'error');
+      return;
+    }
+
+    setIsUploading(true);
+    setIsValidating(true);
+
+    try {
+      // Upload image to Supabase storage
+      showToast('Uploading utility bill...', 'info');
+      
+      // Get file extension from URI
+      const fileExtension = utilityBill.split('.').pop() || 'jpg';
+      const fileName = `utility-bill.${fileExtension}`;
+      const filePath = `${session.user.id}/${fileName}`;
+
+      // Convert image to blob for upload
+      const response = await fetch(utilityBill);
+      const blob = await response.blob();
+
+      // Upload to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, blob, {
+          contentType: blob.type,
+          upsert: true // Replace if file already exists
+        });
+
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+
+      // Get the public URL for the uploaded file
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+      const storageUrl = urlData.publicUrl;
+
+      // Validate utility bill with Dojah using the storage URL
+      showToast('Validating utility bill...', 'info');
+      const validation = await validateUtilityBill(storageUrl);
+      setValidationResult(validation);
+
+      if (!validation.isValid) {
+        // Show validation errors
+        const errors = [];
+        if (!validation.validationChecks.isRecent) {
+          errors.push('Utility bill is not recent (must be within 3 months)');
+        }
+        if (!validation.validationChecks.hasAddressInfo) {
+          errors.push('Address information could not be extracted from the utility bill');
+        }
+        if (!validation.validationChecks.addressMatches) {
+          errors.push('Address on utility bill does not match your registered address');
+        }
+
+        showToast(`Validation failed: ${errors.join(', ')}`, 'error');
+        setIsValidating(false);
+        return;
+      }
+
+      // Validation passed, save to KYC data
+      showToast('Validation passed! Saving utility bill...', 'success');
+      
+      // const success = await saveFormData({
+      //   utility_bill_url: storageUrl,
+      //   utility_bill_validated: true,
+      //   utility_bill_validation_result: validation
+      // });
+
+      // if (success) {
+      //   setUploadDate(new Date());
+      //   showToast('Utility bill uploaded and validated successfully!', 'success');
+      // } else {
+      //   showToast('Failed to save utility bill. Please try again.', 'error');
+      // }
+    } catch (error) {
+      console.error('Error uploading utility bill:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      showToast(`Failed to upload utility bill: ${errorMessage}`, 'error');
+    } finally {
+      setIsUploading(false);
+      setIsValidating(false);
+    }
+  };
 
   const handleNextStep = async () => {
     try {
@@ -498,6 +622,9 @@ export default function KYCUpgradeScreen() {
         case 'address_details':
           if (validateAddressDetails()) {
             setIsLoading(true);
+            if (utilityBill) {
+              await uploadUtilityBill();
+            }
             
             // Save address details data
             const saveResult = await saveFormData({
@@ -505,7 +632,9 @@ export default function KYCUpgradeScreen() {
               lga: lga,
               state: state,
               house_url: houseUrl || undefined,
-              utility_bill_url: utilityBill || undefined
+              utility_bill_url: utilityBill || undefined,
+              utility_bill_validated: validationResult?.isValid || false,
+              utility_bill_validation_result: validationResult || undefined,
             });
             
             if (!saveResult) {
