@@ -67,17 +67,7 @@ export default function TabLayout() {
       );
 
     // Subscribe with proper error handling
-    channel.subscribe((status: any) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('Events subscription successful');
-      } else if (status === 'CHANNEL_ERROR') {
-        console.error('Events subscription error:', status);
-      } else if (status === 'TIMED_OUT') {
-        console.error('Events subscription timed out');
-      } else if (status === 'CLOSED') {
-        console.log('Events subscription closed');
-      }
-    });
+   
 
     // Store the channel reference
     channelRef.current = channel;

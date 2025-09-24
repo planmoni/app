@@ -509,7 +509,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Date: {transaction.date} {transaction.time}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Transaction ID: {transaction.transactionId}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Type: {transaction.type}</Text>
-      <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Source: {transaction.source}</Text>
+      <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Source Plan: {transaction.source}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Destination: {transaction.destination}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Plan Ref: {transaction.planRef}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Payment Method: {transaction.paymentMethod}</Text>
@@ -591,7 +591,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
                 </View>
 
                 <View style={styles.field}>
-                  <Text style={styles.label}>Source</Text>
+                  <Text style={styles.label}>Source Plan</Text>
                   <Text style={styles.value}>{transaction.source}</Text>
                 </View>
 
@@ -628,10 +628,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
                   <Text style={styles.value}>{transaction.paymentMethod}</Text>
                 </View>
 
-                <View style={styles.field}>
-                  <Text style={styles.label}>Initiated By</Text>
-                  <Text style={styles.value}>{transaction.initiatedBy}</Text>
-                </View>
+               
 
                 <View style={styles.field}>
                   <Text style={styles.label}>Processing Time</Text>

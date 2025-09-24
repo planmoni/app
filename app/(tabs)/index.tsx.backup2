@@ -358,7 +358,7 @@ export default function HomeScreen() {
       date: new Date(transaction.created_at).toLocaleDateString(),
       time: new Date(transaction.created_at).toLocaleTimeString(),
       type: transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1),
-      source: plan?.name || transaction.source,
+      source: transaction.source,
       destination: `${bankName} •••• ${accountNumber.slice(-4)}`, // Use actual bank name
       transactionId: transaction.id,
       planRef: transaction.payout_plan_id || '',
@@ -551,7 +551,7 @@ export default function HomeScreen() {
           onSuggestionPress={handleAISuggestionPress}
         />
         <ImageCarousel images={carouselImages} />
-        {/* <PendingActionsCard /> */}
+        <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
 

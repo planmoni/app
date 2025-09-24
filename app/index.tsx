@@ -65,7 +65,7 @@ export default function WelcomeScreen() {
   const scrollX = useSharedValue(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<Animated.ScrollView>(null);
-  const autoSlideTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSlideTimerRef = useRef<number | NodeJS.Timeout | null>(null);
 
   // Redirect to tabs if user is already authenticated
   useEffect(() => {
@@ -181,12 +181,11 @@ export default function WelcomeScreen() {
     width,
     isAndroid,
   });
-
   // Animated background style
   const backgroundStyle = useAnimatedStyle(() => {
     const currentSlide = Math.floor(scrollX.value / width);
     const progress = (scrollX.value % width) / width;
-    
+
     // Use consistent blue gradient for all slides in dark mode
     const baseColor = isDark ? '#1E3A8A' : '#FFFFFF';
     const accentColor = isDark ? '#3B82F6' : '#FFFFFF';

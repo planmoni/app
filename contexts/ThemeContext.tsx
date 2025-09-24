@@ -25,6 +25,9 @@ const lightColors = {
   iconColor: '#203B8B',
   buttonPrimary: '#203B8B',
   buttonTextPrimary: '#203B8B',
+  accent: '#C3F57E',
+  accentText: '#153875',
+  accentBackground: '#F8FCF4',
   
   // Surface colors
   surface: '#FFFFFF',
@@ -76,6 +79,9 @@ const darkColors = {
   iconColor: '#85A9DE',
   buttonPrimary: '#fff',
   buttonTextPrimary: '#fff',
+  accent: '#C3F57E',
+  accentText: '#C3F57E',
+  accentBackground: '#0E141F',
   
   // Surface colors
   surface: '#0E141F',
