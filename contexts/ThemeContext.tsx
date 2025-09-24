@@ -26,7 +26,7 @@ const lightColors = {
   buttonPrimary: '#203B8B',
   buttonTextPrimary: '#203B8B',
   accent: '#C3F57E',
-  accentText: '#153875',
+  accentText: '#C3F57E',
   accentBackground: '#F8FCF4',
   
   // Surface colors

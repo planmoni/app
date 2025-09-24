@@ -146,7 +146,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     maxWidth: '72%',
   },
   activeTag: {
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#F8FCF4',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
@@ -208,7 +208,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#F8FCF4',
     paddingHorizontal: 10,
     paddingVertical: 10,
     borderRadius: 8,

@@ -180,7 +180,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     maxWidth: '75%',
   },
   activeTag: {
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#F8FCF4',
     paddingHorizontal: Platform.OS === 'ios' ? 10 : 8,
     paddingVertical: Platform.OS === 'ios' ? 6 : 4,
     borderRadius: Platform.OS === 'ios' ? 20 : 16,
