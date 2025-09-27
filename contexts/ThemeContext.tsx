@@ -28,6 +28,7 @@ const lightColors = {
   accent: '#C3F57E',
   accentText: '#C3F57E',
   accentBackground: '#F8FCF4',
+  accentBorder: '#C3F57E',
   
   // Surface colors
   surface: '#FFFFFF',
@@ -82,6 +83,7 @@ const darkColors = {
   accent: '#C3F57E',
   accentText: '#C3F57E',
   accentBackground: '#0E141F',
+  accentBorder: '#fff',
   
   // Surface colors
   surface: '#0E141F',
