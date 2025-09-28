@@ -1,13 +1,12 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowRight, Chrome as Home, LogIn } from 'lucide-react-native';
+import { ArrowRight, Home as Home } from 'lucide-react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
-import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -49,7 +48,7 @@ export default function SuccessScreen() {
       <OnboardingProgress currentStep={10} totalSteps={10} />
       
       <View style={styles.content}>
-        <SuccessAnimation />
+        {/* <SuccessAnimation /> */}
         
         <Text style={styles.title}>Welcome to Planmoni, {firstName}!</Text>
         <Text style={styles.subtitle}>
@@ -88,37 +87,26 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: 32,
   },
   title: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: 12,
     textAlign: 'center',
+    marginTop: 16,
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 32,
-    lineHeight: 24,
-  },
-  errorContainer: {
-    backgroundColor: colors.errorLight,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 24,
-    width: '100%',
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 14,
-    textAlign: 'center',
+    lineHeight: 22,
   },
   buttonContainer: {
     width: '100%',
-    gap: 16,
+    gap: 12,
   },
   createButton: {
     backgroundColor: colors.primary,

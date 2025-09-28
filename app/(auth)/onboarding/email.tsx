@@ -22,6 +22,7 @@ export default function EmailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // Add processing state
   const emailInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -36,6 +37,11 @@ export default function EmailScreen() {
   }, [email]);
 
   const handleContinue = async () => {
+    // Prevent multiple calls
+    if (isProcessing) {
+      return;
+    }
+
     if (!email.trim()) {
       setError('Please enter your email address');
       showToast('Please enter your email address', 'error');
@@ -55,6 +61,7 @@ export default function EmailScreen() {
     }
     
     setIsLoading(true);
+    setIsProcessing(true); // Set processing flag
     
     try {
       // Call the Edge Function to send OTP
@@ -89,7 +96,7 @@ export default function EmailScreen() {
       
       // Navigate to OTP verification screen
       router.push({
-        pathname: '/onboarding/otp',
+        pathname: '/onboarding/verify-email',
         params: { 
           firstName,
           lastName,
@@ -104,6 +111,7 @@ export default function EmailScreen() {
       }
     } finally {
       setIsLoading(false);
+      setIsProcessing(false); // Clear processing flag
     }
   };
 
@@ -136,7 +144,7 @@ export default function EmailScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={3} totalSteps={10} />
+      <OnboardingProgress currentStep={3} totalSteps={6} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -181,7 +189,7 @@ export default function EmailScreen() {
       <FloatingButton 
         title={isLoading ? "Processing..." : "Continue"}
         onPress={handleContinue}
-        disabled={!isButtonEnabled || isLoading}
+        disabled={!isButtonEnabled || isLoading || isProcessing}
       />
     </SafeAreaView>
   );

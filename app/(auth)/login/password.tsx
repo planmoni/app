@@ -13,6 +13,7 @@ import FloatingButton from '@/components/FloatingButton';
 import SafeFooter from '@/components/SafeFooter';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { supabase } from '@/lib/supabase';
+import { Platform } from 'react-native';
 
 export default function LoginPasswordScreen() {
   const { colors } = useTheme();
@@ -64,22 +65,31 @@ export default function LoginPasswordScreen() {
     if (submitting) return;
 
     setError(null);
-    setSubmitting(true); // start button loader immediately
-    const t0 = Date.now();
+    setSubmitting(true);
 
-    const result = await signIn(email, password);
+    try {
+      // Perform sign in first
+      const result = await signIn(email, password);
 
-    if (result.success) {
+      if (!result.success) {
+        // If sign in fails, show error on current screen
+        haptics.notification(Haptics.NotificationFeedbackType.Error);
+        setError(result.error || 'Invalid email or password. Please check your credentials and try again.');
+        showToast(result.error || 'Invalid email or password. Please check your credentials and try again.', 'error');
+        setSubmitting(false);
+        return;
+      }
+
+      // Only navigate to success screen if sign-in is successful
       haptics.notification(Haptics.NotificationFeedbackType.Success);
-      
-      // Navigate to logging-in screen immediately
       router.replace('/login-success');
-      // no need to unset submitting; we're leaving the screen
-    } else {
+    } catch (error) {
+      // Handle any unexpected errors
       haptics.notification(Haptics.NotificationFeedbackType.Error);
-      setError(result.error || 'Failed to sign in');
-      showToast(result.error || 'Failed to sign in', 'error');
-      setSubmitting(false); // stop the button loader on failure
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
+      setSubmitting(false);
     }
   };
 
@@ -171,12 +181,13 @@ export default function LoginPasswordScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton
-        title={submitting ? 'Signing you in…' : 'Sign In'}
+        title="Sign In"
         onPress={handleLogin}
         disabled={!isButtonEnabled || submitting}
-        loading={submitting} // show spinner before/during auth
+        loading={false} // Remove loading state
         icon={ArrowRight}
         hapticType="success"
+        keyboardGap={Platform.OS === 'android' ? -220 : -20}
       />
 
       <SafeFooter />

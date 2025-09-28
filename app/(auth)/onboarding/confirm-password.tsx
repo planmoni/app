@@ -4,12 +4,17 @@ import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Eye, EyeOff, Lock } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/contexts/ToastContext';
+import { useHaptics } from '@/hooks/useHaptics';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
+import { Platform } from 'react-native';
 
 export default function ConfirmPasswordScreen() {
   const { colors } = useTheme();
+  const { showToast } = useToast();
+  const haptics = useHaptics();
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
   const lastName = params.lastName as string;
@@ -36,12 +41,17 @@ export default function ConfirmPasswordScreen() {
 
   const handleContinue = () => {
     if (confirmPassword !== password) {
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
       setError('Passwords do not match');
+      showToast('Passwords do not match', 'error');
       return;
     }
     
+    // Navigate to account creation page
     router.push({
-      pathname: '/onboarding/bvn',
+      pathname: '/(auth)/onboarding/creating-account',
       params: { 
         firstName,
         lastName,
@@ -57,15 +67,31 @@ export default function ConfirmPasswordScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.back();
+          }}
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Pressable onPress={() => router.push('/login')} style={styles.signInButton}>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.push('/login');
+          }} 
+          style={styles.signInButton}
+        >
           <Text style={styles.signInText}>Sign in instead</Text>
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={5} totalSteps={6} />
+      <OnboardingProgress currentStep={6} totalSteps={6} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -161,7 +187,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingTop: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -177,7 +203,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: '100%',
   },
   question: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 24,

@@ -89,10 +89,10 @@ export default function LoginSuccessScreen() {
       }).start();
     }, 800);
 
-    // Transition to success phase after 2 seconds
+    // Transition to success phase after 1.5 seconds (reduced from 2 seconds)
     setTimeout(() => {
       transitionToSuccessPhase();
-    }, 2000);
+    }, 1500);
   };
 
   const transitionToSuccessPhase = () => {
@@ -136,11 +136,11 @@ export default function LoginSuccessScreen() {
       ]).start();
     });
 
-    // Navigate to main tabs after showing success
+    // Navigate to main tabs after showing success for 1 second (reduced from 1.5 seconds)
     setTimeout(() => {
       console.log('✅ Login complete, navigating to main tabs');
       router.replace('/(tabs)');
-    }, 1500); // Show success for 1.5 seconds
+    }, 3000);
   };
 
   const spinnerRotation = spinnerRotate.interpolate({
@@ -155,11 +155,6 @@ export default function LoginSuccessScreen() {
       <StatusBar style={isDark ? "light" : "dark"} backgroundColor={colors.background} />
       
       {/* Background Pattern */}
-      <View style={styles.backgroundPattern}>
-        <View style={[styles.patternCircle, styles.patternCircle1]} />
-        <View style={[styles.patternCircle, styles.patternCircle2]} />
-        <View style={[styles.patternCircle, styles.patternCircle3]} />
-      </View>
       
       {/* Main Content */}
       <View style={styles.content}>
@@ -203,10 +198,10 @@ export default function LoginSuccessScreen() {
                   transform: [{ rotate: spinnerRotation }]
                 }}
               >
-                <Loader2 size={30} color={colors.text} strokeWidth={2} />
+                <Loader2 size={30} color={'#fff'} strokeWidth={2} />
               </Animated.View>
             ) : (
-              <CheckCircle size={60} color={colors.text} strokeWidth={2} />
+              <CheckCircle size={30} color={'#fff'} strokeWidth={2} />
             )}
           </Animated.View>
           
@@ -245,7 +240,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: isDark ? colors.background : colors.primary,
   },
   backgroundPattern: {
     position: 'absolute',
@@ -308,14 +303,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.text,
+    color: '#fff',
     textAlign: 'center',
     marginBottom: 12,
     letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: '#fff',
     textAlign: 'center',
     lineHeight: 24,
     maxWidth: 280,

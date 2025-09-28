@@ -11,10 +11,13 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
 import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 
+type TabType = 'all' | 'active' | 'completed';
+
 export default function AllPayoutsScreen() {
   const { colors } = useTheme();
   const { payoutPlans, isLoading, pausePlan, resumePlan } = useRealtimePayoutPlans();
   const { showBalances } = useBalance();
+  const [activeTab, setActiveTab] = useState<TabType>('all');
 
   const handleCreatePayout = () => {
     router.push('/create-payout/amount');
@@ -79,6 +82,19 @@ export default function AllPayoutsScreen() {
     return Math.round((plan.completed_payouts / plan.duration) * 100);
   };
 
+  // Filter payout plans based on active tab
+  const filteredPayoutPlans = payoutPlans.filter(plan => {
+    if (activeTab === 'all') return true;
+    return plan.status === activeTab;
+  });
+
+  const tabs = [
+    { key: 'all', label: 'All', count: payoutPlans.length },
+    { key: 'active', label: 'Active', count: payoutPlans.filter(p => p.status === 'active').length },
+    // { key: 'paused', label: 'Paused', count: payoutPlans.filter(p => p.status === 'paused').length },
+    { key: 'completed', label: 'Completed', count: payoutPlans.filter(p => p.status === 'completed').length },
+  ];
+
   const styles = createStyles(colors);
 
   if (isLoading) {
@@ -111,20 +127,65 @@ export default function AllPayoutsScreen() {
         </Pressable>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {payoutPlans.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No Payout Plans Yet</Text>
-            <Text style={styles.emptyDescription}>
-              Create your first payout plan to start automating your financial goals
-            </Text>
-            <Pressable style={styles.createFirstButton} onPress={handleCreatePayout}>
-              <Plus size={20} color="#FFFFFF" />
-              <Text style={styles.createFirstButtonText}>Create Your First Plan</Text>
+      {/* Tabs */}
+      <View style={styles.tabsContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsContent}
+        >
+          {tabs.map((tab) => (
+            <Pressable
+              key={tab.key}
+              style={[
+                styles.tab,
+                activeTab === tab.key && styles.activeTab
+              ]}
+              onPress={() => setActiveTab(tab.key as TabType)}
+            >
+              <Text style={[
+                styles.tabText,
+                activeTab === tab.key && styles.activeTabText
+              ]}>
+                {tab.label}
+              </Text>
+              <View style={[
+                styles.tabBadge,
+                activeTab === tab.key && styles.activeTabBadge
+              ]}>
+                <Text style={[
+                  styles.tabBadgeText,
+                  activeTab === tab.key && styles.activeTabBadgeText
+                ]}>
+                  {tab.count}
+                </Text>
+              </View>
             </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {filteredPayoutPlans.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>
+              {activeTab === 'all' ? 'No Payout Plans Yet' : `No ${tabs.find(t => t.key === activeTab)?.label} Plans`}
+            </Text>
+            <Text style={styles.emptyDescription}>
+              {activeTab === 'all' 
+                ? 'Create your first payout plan to start automating your financial goals'
+                : `You don't have any ${tabs.find(t => t.key === activeTab)?.label.toLowerCase()} payout plans yet`
+              }
+            </Text>
+            {activeTab === 'all' && (
+              <Pressable style={styles.createFirstButton} onPress={handleCreatePayout}>
+                <Plus size={20} color="#FFFFFF" />
+                <Text style={styles.createFirstButtonText}>Create Your First Plan</Text>
+              </Pressable>
+            )}
           </View>
         ) : (
-          payoutPlans.map((plan) => {
+          filteredPayoutPlans.map((plan) => {
             const statusColors = getStatusColor(plan.status);
             const progress = calculateProgress(plan);
             
@@ -148,7 +209,7 @@ export default function AllPayoutsScreen() {
                         </Text>
                       </View>
                     </View>
-                    <View style={styles.planActions}>
+                    {/* <View style={styles.planActions}>
                       {plan.status === 'active' ? (
                         <Pressable
                           style={styles.actionButton}
@@ -164,7 +225,7 @@ export default function AllPayoutsScreen() {
                           <Play size={16} color="#22C55E" />
                         </Pressable>
                       ) : null}
-                    </View>
+                    </View> */}
                   </View>
 
                   <Text style={styles.amount}>{formatCurrency(plan.total_amount)}</Text>
@@ -231,8 +292,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   backButton: {
     width: 40,
@@ -252,6 +311,53 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  tabsContainer: {
+    backgroundColor: colors.surface,
+  },
+  tabsContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundTertiary,
+    marginRight: 8,
+  },
+  activeTab: {
+    backgroundColor: colors.primary,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginRight: 6,
+  },
+  activeTabText: {
+    color: '#FFFFFF',
+  },
+  tabBadge: {
+    backgroundColor: colors.border,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  activeTabBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  tabBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  activeTabBadgeText: {
+    color: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,
@@ -330,6 +436,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+    maxWidth: '90%',
   },
   statusTag: {
     alignSelf: 'flex-start',

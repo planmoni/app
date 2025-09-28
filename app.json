@@ -14,13 +14,17 @@
       "backgroundColor": "#1E3A8A"
     },
     "android": {
-      "package": "com.planmoni"
+      "package": "com.planmoni",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.planmoni",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "keychain-access-groups": ["$(AppIdentifierPrefix)com.planmoni"]
       }
     },
     "web": {

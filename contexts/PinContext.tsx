@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import { saveItem, getItem, deleteItem, BIOMETRIC_ENABLED_KEY } from '@/lib/secure-storage';
 import { BiometricService } from '@/lib/biometrics';
 
@@ -44,11 +44,12 @@ interface PinContextType {
   // General
   isLoading: boolean;
   checkBiometricSupport: () => Promise<any>;
+  refreshPinState: () => Promise<void>;
 }
 
 const PinContext = createContext<PinContextType | undefined>(undefined);
 
-export function usePin() {
+export function usePin(originalPin: string) {
   const context = useContext(PinContext);
   if (context === undefined) {
     throw new Error('usePin must be used within a PinProvider');
@@ -68,6 +69,20 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
   // Load PIN state on mount
   useEffect(() => {
     loadPinState();
+  }, []);
+
+  // Refresh PIN state when app comes back to focus
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'active') {
+        // App has come to the foreground, refresh PIN state
+        console.log('PinContext - App came to foreground, refreshing PIN state');
+        loadPinState();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
   }, []);
 
   const loadPinState = async () => {
@@ -91,11 +106,25 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
       setBiometricEnabled(biometric === 'true');
       setPayoutBiometricEnabled(payoutBiometric === 'true');
       setEmergencyBiometricEnabled(emergencyBiometric === 'true');
+      
+      console.log('PinContext - PIN state loaded:', {
+        hasAppLockPin: !!appLockPin,
+        hasPayoutPin: !!payoutPin,
+        hasEmergencyPin: !!emergencyPin,
+        biometricEnabled: biometric === 'true',
+        payoutBiometricEnabled: payoutBiometric === 'true',
+        emergencyBiometricEnabled: emergencyBiometric === 'true'
+      });
     } catch (error) {
       console.error('Error loading PIN state:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const refreshPinState = async () => {
+    console.log('PinContext - Refreshing PIN state manually');
+    await loadPinState();
   };
 
   const setupAppLockPin = async (pin: string): Promise<boolean> => {
@@ -445,7 +474,6 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-
   const checkBiometricSupport = async () => {
     try {
       if (Platform.OS === 'web') {
@@ -502,6 +530,7 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
       // General
       isLoading,
       checkBiometricSupport,
+      refreshPinState,
     }}>
       {children}
     </PinContext.Provider>

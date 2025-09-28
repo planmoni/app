@@ -12,7 +12,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 
-export default function OTPScreen() {
+export default function VerifyEmailScreen() {
   const { colors } = useTheme();
   const { showToast } = useToast();
   const haptics = useHaptics();
@@ -45,11 +45,6 @@ export default function OTPScreen() {
   useEffect(() => {
     setIsButtonEnabled(otp.every(digit => digit !== ''));
   }, [otp]);
-
-  useEffect(() => {
-    // Send OTP when component mounts
-    sendOTP();
-  }, []);
 
   useEffect(() => {
     if (timer <= 0) return;
@@ -102,17 +97,28 @@ export default function OTPScreen() {
       setIsResending(true);
       setError(null);
       
-      // Call the Supabase function to send OTP
-      const { data, error: otpError } = await supabase.rpc('send_otp_email', {
-        p_email: email.trim().toLowerCase()
-      });
+      // Call the Edge Function to send OTP
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
       
-      if (otpError) {
-        throw new Error(otpError.message || 'Failed to send verification code');
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL not configured');
       }
       
-      if (!data) {
-        throw new Error('Failed to send verification code');
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-otp-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`
+        },
+        body: JSON.stringify({ email: email.trim().toLowerCase() })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('Error from Edge Function:', data);
+        throw new Error(data.error || 'Failed to send verification code');
       }
       
       // Reset timer
@@ -153,17 +159,34 @@ export default function OTPScreen() {
     setError(null);
     
     try {
-      // Call the Supabase function to verify OTP
-      const { data, error: verifyError } = await supabase.rpc('verify_otp', {
-        p_email: email.trim().toLowerCase(),
-        p_otp: otpValue
-      });
+      // Call the Edge Function to verify OTP
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
       
-      if (verifyError) {
-        throw new Error(verifyError.message || 'Failed to verify OTP');
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL not configured');
       }
       
-      if (!data) {
+      const response = await fetch(`${supabaseUrl}/functions/v1/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`
+        },
+        body: JSON.stringify({ 
+          email: email.trim().toLowerCase(),
+          otp: otpValue
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('Error from Edge Function:', data);
+        throw new Error(data.error || 'Failed to verify OTP');
+      }
+      
+      if (!data.success) {
         throw new Error('Invalid or expired verification code');
       }
       
@@ -219,7 +242,7 @@ export default function OTPScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={4} totalSteps={10} />
+      <OnboardingProgress currentStep={4} totalSteps={6} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>

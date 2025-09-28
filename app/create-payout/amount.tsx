@@ -55,8 +55,28 @@ export default function AmountScreen() {
   };
 
   const formatAmount = (value: string) => {
-    const numericValue = value.replace(/[^0-9]/g, '');
-    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    // Remove all non-numeric characters except decimal point
+    let cleanValue = value.replace(/[^0-9.]/g, '');
+    
+    // Handle multiple decimal points - keep only the first one
+    const parts = cleanValue.split('.');
+    if (parts.length > 2) {
+      const integerPart = parts[0];
+      const decimalPart = parts.slice(1).join('');
+      cleanValue = integerPart + '.' + decimalPart;
+    }
+    
+    // Split by decimal point
+    const [integerPart, decimalPart] = cleanValue.split('.');
+    
+    // Format integer part with commas (only if it has digits)
+    const formattedInteger = integerPart ? integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '';
+    
+    // Limit decimal part to 2 digits
+    const limitedDecimalPart = decimalPart ? decimalPart.substring(0, 2) : '';
+    
+    // Return formatted amount with decimal part if it exists
+    return limitedDecimalPart ? `${formattedInteger}.${limitedDecimalPart}` : formattedInteger;
   };
 
   const handleAmountChange = (value: string) => {
@@ -67,7 +87,7 @@ export default function AmountScreen() {
 
   const handleMaxPress = () => {
     haptics.selection();
-    setAmount(availableBalance.toLocaleString());
+    setAmount(formatAmount(availableBalance.toString()));
     setError(null);
   };
 
@@ -126,7 +146,7 @@ export default function AmountScreen() {
               style={styles.amountInput}
               placeholder="0"
               placeholderTextColor={colors.textTertiary}
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={amount}
               onChangeText={handleAmountChange}
             />

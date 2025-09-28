@@ -8,6 +8,10 @@ type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 type ToastContextType = {
   showToast: (message: string, type?: ToastType, duration?: number) => void;
+  showSuccess: (message: string, duration?: number) => void;
+  showError: (message: string, duration?: number) => void;
+  showWarning: (message: string, duration?: number) => void;
+  showInfo: (message: string, duration?: number) => void;
   hideToast: () => void;
 };
 
@@ -49,12 +53,36 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Convenience methods for different toast types
+  const showSuccess = (message: string, duration: number = 3000) => {
+    showToast(message, 'success', duration);
+  };
+
+  const showError = (message: string, duration: number = 4000) => {
+    showToast(message, 'error', duration);
+  };
+
+  const showWarning = (message: string, duration: number = 3500) => {
+    showToast(message, 'warning', duration);
+  };
+
+  const showInfo = (message: string, duration: number = 3000) => {
+    showToast(message, 'info', duration);
+  };
+
   const hideToast = () => {
     setVisible(false);
   };
 
   return (
-    <ToastContext.Provider value={{ showToast, hideToast }}>
+    <ToastContext.Provider value={{ 
+      showToast, 
+      showSuccess, 
+      showError, 
+      showWarning, 
+      showInfo, 
+      hideToast 
+    }}>
       {children}
       <Toast
         visible={visible}

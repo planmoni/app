@@ -1,63 +1,49 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
-import { Session, User } from '@supabase/supabase-js';
-import { BiometricService } from '@/lib/biometrics';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Session } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
-import { intercomService } from '@/lib/intercom';
-import { supabase } from '@/lib/supabase';
-import { saveSession, clearSession } from '@/lib/session-persistence';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { BiometricService } from '@/lib/biometrics';
+import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
+import intercomService from '@/lib/IntercomService';
+import SessionExpiredModal from '@/components/SessionExpiredModal';
 
 interface BiometricSettings {
-  isEnabled: boolean;
-  supportedTypes: any[];
-  isEnrolled: boolean;
   isAvailable: boolean;
+  isEnabled: boolean;
+  supportedTypes: string[];
 }
 
 interface AuthContextType {
   session: Session | null;
-  user: User | null;
+  user: any;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string; data?: any }>;
-  signUp: (email: string, password: string, firstName: string, lastName: string, referralCode?: string) => Promise<{ success: boolean; error?: string; data?: any }>;
-  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
-  signOut: () => Promise<{ success: boolean; error?: string }>;
   error: string | null;
+  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signUp: (email: string, password: string, metadata?: any) => Promise<{ success: boolean; error?: string }>;
+  signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   biometricSettings: BiometricSettings | null;
   setBiometricEnabled: (enabled: boolean) => Promise<boolean>;
   refreshBiometricSettings: () => Promise<void>;
 }
 
-const defaultBiometricSettings: BiometricSettings = {
-  isEnabled: false,
-  supportedTypes: [],
-  isEnrolled: false,
-  isAvailable: false
-};
-
-const AuthContext = createContext<AuthContextType>({
-  session: null,
-  user: null,
-  isLoading: true,
-  signIn: async () => ({ success: false }),
-  signUp: async () => ({ success: false }),
-  resetPassword: async () => ({ success: false }),
-  signOut: async () => ({ success: false }),
-  error: null,
-  biometricSettings: defaultBiometricSettings,
-  setBiometricEnabled: async () => false,
-  refreshBiometricSettings: async () => {},
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const defaultBiometricSettings: BiometricSettings = {
+  isAvailable: false,
+  isEnabled: false,
+  supportedTypes: [],
+};
+
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Note: Sessions are automatically persisted to secure storage via useSupabaseAuth
   const {
     session,
@@ -65,11 +51,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn: supabaseSignIn,
     signUp,
     resetPassword,
-    signOut,
+    signOut: supabaseSignOut,
     error
   } = useSupabaseAuth();
 
   const [biometricSettings, setBiometricSettings] = useState<BiometricSettings | null>(null);
+  const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
 
   // Get user from session
   const user = session?.user || null;
@@ -79,21 +66,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    if (Platform.OS === 'web') return;
-    (async () => {
-      try {
-        if (session?.user?.id) {
-          const { default: Intercom } = await import('@intercom/intercom-react-native');
-          await Intercom.loginUserWithUserAttributes({
-            userId: session.user.id,
-            email: session.user.email || '',
-          });
-        }
-      } catch (e) {
-        // ignore
+    // Initialize Intercom when session changes
+    if (session) {
+      console.log('🔗 AuthContext - Initializing Intercom with session');
+      intercomService.init(session);
+    } else {
+      console.log(' AuthContext - Logging out Intercom (no session)');
+      intercomService.logout();
+    }
+  }, [session]);
+
+  // Save profile snapshots when session changes
+  useEffect(() => {
+    if (session?.user?.id) {
+      // Save metadata snapshot immediately
+      if (session.user.user_metadata) {
+        ProfileSnapshotManager.saveMetadataSnapshot(session.user.id, session.user.user_metadata);
       }
-    })();
+      
+      // Refresh profile snapshot in background
+      ProfileSnapshotManager.refreshProfileSnapshot(session.user.id).catch(error => {
+        console.error('Failed to refresh profile snapshot:', error);
+      });
+    } else {
+      // Clear profile snapshots when no session
+      // Note: We don't clear here as we want to keep snapshots for potential re-login
+    }
   }, [session?.user?.id]);
+
+  // Monitor for session expiration
+  useEffect(() => {
+    if (error && (error.includes('JWT expired') || error.includes('refresh_token_not_found') || error.includes('Invalid Refresh Token'))) {
+      setShowSessionExpiredModal(true);
+    }
+  }, [error]);
 
   const refreshBiometricSettings = async () => {
     try {
@@ -101,9 +107,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setBiometricSettings(defaultBiometricSettings);
         return;
       }
-      
       const settings = await BiometricService.checkBiometricSupport();
-      setBiometricSettings(settings);
+      setBiometricSettings({
+        ...settings,
+        supportedTypes: settings.supportedTypes.map(type => type.toString())
+      });
     } catch (error) {
       console.error('Failed to check biometric support:', error);
       setBiometricSettings(defaultBiometricSettings);
@@ -127,96 +135,72 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Enhanced signIn function that sends login notification
-  const signIn = async (email: string, password: string) => {
-    const result = await supabaseSignIn(email, password);
-    
-    if (result.success && (result as any)?.data?.session?.access_token) {
-      try {
-        // Initialize and login user to Intercom (native only)
-        if (Platform.OS !== 'web') {
-          const { default: Intercom } = await import('@intercom/intercom-react-native');
-          await Intercom.loginUserWithUserAttributes({
-            userId: session?.user?.id || '',
-            email: session?.user?.email || '',
+  // Enhanced signIn function that sends login notification and migrates app lock settings
+  const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const result = await supabaseSignIn(email, password);
+      
+      if (result.success && session?.user?.id) {
+        // Send login notification
+        try {
+          const { supabase } = await import('@/lib/supabase');
+          await supabase.functions.invoke('login-notification', {
+            body: { userId: session.user.id }
           });
+        } catch (error) {
+          console.error('Failed to send login notification:', error);
+          // Don't fail the sign-in if notification fails
         }
-      } catch (e) {
-        console.warn('Intercom login failed:', e);
       }
-      try {
-        // Get device and location info
-        const deviceInfo = {
-          device: Platform.OS === 'web' ? 'Web Browser' : Platform.OS === 'ios' ? 'iOS Device' : 'Android Device',
-          location: 'Unknown Location',
-          time: new Date().toLocaleString(),
-          ip: '0.0.0.0'
-        };
-        
-        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-        if (supabaseUrl) {
-          const session: any = (result as any).data.session;
-          const response = await fetch(`${supabaseUrl}/functions/v1/login-notification`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({
-              userId: session.user.id,
-              loginInfo: deviceInfo
-            })
-          });
-          
-          if (!response.ok) {
-            console.error('Failed to send login notification:', await response.text());
-          }
-        }
-        
-        await supabase
-          .from('events')
-          .insert({
-            user_id: (result as any).data.session.user.id,
-            type: 'security_alert',
-            title: 'New Login Detected',
-            description: `New login from ${deviceInfo.device} at ${deviceInfo.time}`,
-            status: 'unread'
-          });
-      } catch (error) {
-        console.error('Failed to send login notification:', error);
-      }
+      
+      return result;
+    } catch (error) {
+      console.error('Sign-in error:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Sign-in failed' };
     }
-    
-    return result;
   };
 
-  useEffect(() => {
-    // Logout Intercom when user logs out (native only)
-    if (!user && Platform.OS !== 'web') {
-      (async () => {
-        try {
-          const { default: Intercom } = await import('@intercom/intercom-react-native');
-          await Intercom.logout();
-        } catch {}
-      })();
+  // Enhanced signOut function that clears profile snapshots
+  const signOut = async (): Promise<void> => {
+    try {
+      // Clear profile snapshots for current user
+      if (session?.user?.id) {
+        await ProfileSnapshotManager.clearProfileSnapshot(session.user.id);
+      }
+      
+      // Sign out from Supabase
+      await supabaseSignOut();
+    } catch (error) {
+      console.error('Sign-out error:', error);
+      throw error;
     }
-  }, [user]);
+  };
+
+
+  const handleSessionExpiredModalClose = () => {
+    setShowSessionExpiredModal(false);
+  };
+  const value: AuthContextType = {
+    session,
+    user,
+    isLoading,
+    error,
+    signIn,
+    signUp,
+    resetPassword,
+    signOut,
+    biometricSettings,
+    setBiometricEnabled,
+    refreshBiometricSettings,
+  };
 
   return (
-    <AuthContext.Provider value={{
-      session,
-      user,
-      isLoading,
-      signIn,
-      signUp,
-      resetPassword,
-      signOut,
-      error,
-      biometricSettings,
-      setBiometricEnabled,
-      refreshBiometricSettings
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
+      <SessionExpiredModal 
+        isVisible={showSessionExpiredModal}
+        onClose={handleSessionExpiredModalClose}
+      />
     </AuthContext.Provider>
   );
 };

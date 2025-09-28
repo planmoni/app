@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, Image, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface SplashScreenProps {
   onFinish?: () => void;
@@ -9,6 +10,8 @@ interface SplashScreenProps {
 const { width: screenWidth } = Dimensions.get('window');
 
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
+  const { colors, isDark } = useTheme();
+
   useEffect(() => {
     console.log('🚀 SplashScreen mounted');
     
@@ -16,7 +19,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
     const timer = setTimeout(() => {
       console.log('⏰ SplashScreen timer finished, calling onFinish');
       onFinish?.();
-    }, 3500); // Display for 2.5 seconds
+    }, 3500); // Display for 3.5 seconds
 
     return () => {
       console.log('🧹 SplashScreen cleanup');
@@ -24,14 +27,16 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
     };
   }, [onFinish]);
 
+  const styles = createStyles(colors, isDark);
+
   return (
     <View style={styles.container}>
-      <StatusBar style="light" backgroundColor="#2E4F99" />
+      <StatusBar style={'light'} />
       
       {/* Logo Container */}
       <View style={styles.logoContainer}>
         <Image 
-          source={require('@/assets/images/logo-dark.png')} 
+          source={isDark ? require('@/assets/images/logo-dark.png') : require('@/assets/images/logo-dark.png')} 
           style={styles.logo}
           resizeMode="contain"
         />
@@ -40,10 +45,10 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2E4F99', // Dark blue background matching the design
+    backgroundColor: isDark ? colors.background : colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },

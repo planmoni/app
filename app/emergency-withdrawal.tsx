@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Clock, Zap, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -22,7 +22,7 @@ export default function EmergencyWithdrawalScreen() {
   const haptics = useHaptics();
   const { processEmergencyWithdrawal, isLoading, calculateFee, calculateNetAmount } = useEmergencyWithdrawal();
   const { payoutPlans } = useRealtimePayoutPlans();
-  const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport } = usePin();
+  const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport, hasEmergencyPin, hasAppLockPin } = usePin();
   
   const [selectedOption, setSelectedOption] = useState<'instant' | '24h' | '72h' | null>('instant');
   const [plan, setPlan] = useState<any>(null);
@@ -30,7 +30,8 @@ export default function EmergencyWithdrawalScreen() {
   const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
   const [biometricSupport, setBiometricSupport] = useState<any>(null);
   
-  const styles = createStyles(colors, isDark);
+  // Memoize styles to prevent recreation on every render
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
   
   // Find the plan details
   useEffect(() => {
@@ -46,8 +47,16 @@ export default function EmergencyWithdrawalScreen() {
     try {
       const support = await checkBiometricSupport();
       setBiometricSupport(support);
+      
+      // Log biometric support status for debugging
+      console.log('Emergency Withdrawal - Biometric support:', {
+        isAvailable: support?.isAvailable,
+        isEnrolled: support?.isEnrolled,
+        supportedTypes: support?.supportedTypes
+      });
     } catch (error) {
       console.error('Error checking biometric support:', error);
+      setBiometricSupport(null);
     }
   }, [checkBiometricSupport]);
   
@@ -171,6 +180,13 @@ export default function EmergencyWithdrawalScreen() {
     
     haptics.mediumImpact();
     
+    // Check if ANY PIN is set up (emergency PIN or app lock PIN)
+    if (!hasEmergencyPin && !hasAppLockPin) {
+      // No PIN set up at all, proceed directly without verification
+      await handleConfirmWithdrawal();
+      return;
+    }
+    
     // If biometric authentication is enabled and available, try biometric first
     if (emergencyBiometricEnabled && biometricSupport?.isAvailable && Platform.OS !== 'web') {
       await attemptBiometricAuthentication();
@@ -178,7 +194,7 @@ export default function EmergencyWithdrawalScreen() {
       // Fall back to PIN verification
       setShowPinVerification(true);
     }
-  }, [selectedOption, plan, haptics, emergencyBiometricEnabled, biometricSupport, attemptBiometricAuthentication]);
+  }, [selectedOption, plan, haptics, emergencyBiometricEnabled, biometricSupport, attemptBiometricAuthentication, hasEmergencyPin, hasAppLockPin, handleConfirmWithdrawal]);
 
   const handlePinVerificationSuccess = useCallback(async () => {
     setShowPinVerification(false);
@@ -268,7 +284,7 @@ export default function EmergencyWithdrawalScreen() {
         <View style={styles.planInfoCard}>
           <Text style={styles.planInfoTitle}>Withdrawal Details</Text>
           <View style={styles.planInfoRow}>
-            <Text style={styles.planInfoLabel}>Plan Name:</Text>
+            <Text style={styles.planInfoLabel}>Plan Name:  </Text>
             <Text style={styles.planInfoValue}>{plan.name}</Text>
           </View>
           <View style={styles.planInfoRow}>
@@ -508,6 +524,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+    maxWidth: '70%',
   },
   planInfoLabel: {
     fontSize: 14,

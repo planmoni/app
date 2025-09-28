@@ -185,8 +185,8 @@ export default function NotificationsScreen() {
       alignItems: 'center',
     },
     headerTitle: {
-      fontSize: 24,
-      fontWeight: '700',
+      fontSize: 18,
+      fontWeight: '600',
       color: colors.text,
       flex: 1,
       marginLeft: 12,

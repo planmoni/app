@@ -26,7 +26,8 @@ import {
   Moon, 
   Shield, 
   Trash2,
-  Wallet
+  Wallet,
+  History
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
@@ -173,6 +174,14 @@ export default function SettingsScreen() {
     logAnalyticsEvent('transaction_limits');
   };
 
+  const handleViewTransactionHistory = () => {
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
+    router.push('/transactions');
+    logAnalyticsEvent('view_transaction_history', { source: 'settings' });
+  };
+
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
     if (Platform.OS !== 'web') {
       haptics.selection();
@@ -258,8 +267,8 @@ export default function SettingsScreen() {
           
           <View style={styles.card}>
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Eye size={20} color="#1E3A8A" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Eye size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Show Dashboard Balances</Text>
@@ -322,7 +331,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Management</Text>
+          <Text style={styles.sectionTitle}>Account</Text>
           
           <View style={styles.card}>
             <Pressable 
@@ -335,8 +344,8 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_account_statement');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}>
-                <Terms size={20} color="#0EA5E9" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Terms size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Generate Account Statement</Text>
@@ -347,6 +356,21 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
+            <Pressable 
+              style={styles.settingItem}
+              onPress={handleViewTransactionHistory}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <History size={20} color={colors.textSecondary} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Transaction History</Text>
+                <Text style={styles.settingDescription}>View all your transaction records</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
+
+            <View style={styles.divider} />
 
             {/* Linked account tab */}
 
@@ -370,8 +394,8 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleViewPayoutAccounts}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
-                <Wallet size={20} color="#22C55E" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Wallet size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Payout Accounts</Text>
@@ -386,8 +410,8 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleTransactionLimits}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#FEF3C7' }]}>
-                <DollarSign size={20} color="#D97706" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <DollarSign size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Transaction Limits</Text>
@@ -428,8 +452,8 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_security_center');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#FEF3C7' }]}>
-                <Shield size={20} color="#D97706" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Shield size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Security Center</Text>
@@ -444,8 +468,8 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleChangePassword}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
-                <Lock size={20} color="#EF4444" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Lock size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Change Password</Text>
@@ -460,8 +484,8 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleTwoFactorAuth}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
-                <Shield size={20} color="#22C55E" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Shield size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Two-Factor Authentication</Text>
@@ -477,8 +501,8 @@ export default function SettingsScreen() {
           
           <View style={styles.card}>
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: '#FEF9C3' }]}>
-                <Bell size={20} color="#CA8A04" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Bell size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Vault Payout Alerts</Text>
@@ -495,8 +519,8 @@ export default function SettingsScreen() {
             <View style={styles.divider} />
 
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Shield size={20} color="#1E3A8A" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Shield size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>New Login Notifications</Text>
@@ -513,8 +537,8 @@ export default function SettingsScreen() {
             <View style={styles.divider} />
 
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: '#F5F3FF' }]}>
-                <Clock size={20} color="#8B5CF6" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Clock size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Plan Expiry Reminders</Text>
@@ -566,8 +590,8 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_help_center');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
-                <MessageSquare size={20} color="#F97316" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <MessageSquare size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Help & Support</Text>
@@ -729,7 +753,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: Platform.OS === 'ios' ? 24 : 20,
     fontWeight: '700',
     color: colors.text,
   },
@@ -737,8 +761,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 24,
-    paddingBottom: 40,
+    padding: Platform.OS === 'ios' ? 24 : 16,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
   },
   profileCard: {
     flexDirection: 'row',
@@ -746,8 +770,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
+    padding: Platform.OS === 'ios' ? 16 : 10,
+    marginBottom: Platform.OS === 'ios' ? 24 : 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -761,15 +785,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   profileName: {
-    fontSize: 18,
+    fontSize: Platform.OS === 'ios' ? 18 : 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   profileEmail: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
-    marginBottom: 6,
+    marginBottom: Platform.OS === 'ios' ? 6 : 4,
   },
   verifiedBadge: {
     backgroundColor: '#F0FDF4',
@@ -779,19 +803,19 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignSelf: 'flex-start',
   },
   verifiedText: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     color: '#22C55E',
     fontWeight: '500',
   },
   section: {
-    marginBottom: 24,
+    marginBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 12,
-    paddingHorizontal: 4,
+    paddingHorizontal: Platform.OS === 'ios' ? 4 : 2,
   },
   card: {
     backgroundColor: colors.surface,
@@ -803,53 +827,53 @@ const createStyles = (colors: any) => StyleSheet.create({
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: Platform.OS === 'ios' ? 16 : 14,
   },
   settingIcon: {
-    width: 40,
-    height: 40,
+    width: Platform.OS === 'ios' ? 40 : 32,
+    height: Platform.OS === 'ios' ? 40 : 32,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: Platform.OS === 'ios' ? 16 : 10,
   },
   settingContent: {
     flex: 1,
     marginRight: 8,
   },
   settingLabel: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '500',
     color: colors.text,
     marginBottom: 2,
   },
   settingDescription: {
-    fontSize: 13,
+    fontSize: Platform.OS === 'ios' ? 13 : 12,
     color: colors.textSecondary,
   },
   divider: {
     height: 1,
     backgroundColor: colors.border,
-    marginHorizontal: 16,
+    marginHorizontal: Platform.OS === 'ios' ? 16 : 10,
   },
   themeSelector: {
     flexDirection: 'row',
     backgroundColor: colors.backgroundTertiary,
     borderRadius: 8,
-    padding: 2,
+    padding: Platform.OS === 'ios' ? 2 : 1,
   },
   themeOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: Platform.OS === 'ios' ? 12 : 10,
+    paddingVertical: Platform.OS === 'ios' ? 6 : 4,
     borderRadius: 6,
-    minWidth: 50,
+    minWidth: Platform.OS === 'ios' ? 50 : 40,
     alignItems: 'center',
   },
   activeThemeOption: {
     backgroundColor: colors.primary,
   },
   themeOptionText: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     fontWeight: '500',
     color: colors.textSecondary,
   },

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Image, Pressable, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, useWindowDimensions, Platform } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { 
   useAnimatedScrollHandler,
@@ -65,7 +65,7 @@ export default function WelcomeScreen() {
   const scrollX = useSharedValue(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<Animated.ScrollView>(null);
-  const autoSlideTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSlideTimerRef = useRef<number | NodeJS.Timeout | null>(null);
 
   // Redirect to tabs if user is already authenticated
   useEffect(() => {
@@ -155,14 +155,20 @@ export default function WelcomeScreen() {
     router.push('/(auth)/login');
   };
 
-  // Calculate responsive dimensions
+  // Calculate responsive dimensions with platform-specific adjustments
   const isSmallScreen = height < 700;
-  const imageHeight = Math.min(height * 0.35, 200);
-  const verticalPadding = isSmallScreen ? 16 : 24;
-  const buttonHeight = isSmallScreen ? 48 : 56;
-  const titleSize = isSmallScreen ? 28 : 36;
-  const subtitleSize = isSmallScreen ? 14 : 16;
-  const descriptionSize = isSmallScreen ? 14 : 16;
+  const isAndroid = Platform.OS === 'android';
+  
+  // Platform-specific adjustments
+  const platformMultiplier = isAndroid ? 0.8 : 1.0; // Reduce sizes on Android
+  const marginMultiplier = isAndroid ? 0.7 : 1.0; // Reduce margins on Android
+  
+  const imageHeight = Math.min(height * 0.35 * platformMultiplier, 230);
+  const verticalPadding = (isSmallScreen ? 16 : 24) * marginMultiplier;
+  const buttonHeight = (isSmallScreen ? 48 : 56) * platformMultiplier;
+  const titleSize = (isSmallScreen ? 28 : 36) * platformMultiplier;
+  const subtitleSize = (isSmallScreen ? 14 : 16) * platformMultiplier;
+  const descriptionSize = (isSmallScreen ? 14 : 16) * platformMultiplier;
 
   const styles = createStyles(colors, isDark, {
     imageHeight,
@@ -173,13 +179,13 @@ export default function WelcomeScreen() {
     descriptionSize,
     height,
     width,
+    isAndroid,
   });
-
   // Animated background style
   const backgroundStyle = useAnimatedStyle(() => {
     const currentSlide = Math.floor(scrollX.value / width);
     const progress = (scrollX.value % width) / width;
-    
+
     // Use consistent blue gradient for all slides in dark mode
     const baseColor = isDark ? '#1E3A8A' : '#FFFFFF';
     const accentColor = isDark ? '#3B82F6' : '#FFFFFF';
@@ -294,7 +300,10 @@ export default function WelcomeScreen() {
             );
           })}
         </Animated.ScrollView>
+      </View>
 
+      <BlurView intensity={2} tint={isDark ? 'dark' : 'light'} style={styles.footer}>
+        {/* Pagination Dots - moved above buttons */}
         <View style={styles.pagination}>
           {SLIDES.map((_, index) => {
             const animatedDotStyle = useAnimatedStyle(() => {
@@ -342,17 +351,15 @@ export default function WelcomeScreen() {
             );
           })}
         </View>
-      </View>
 
-      <BlurView intensity={20} tint={isDark ? 'dark' : 'light'} style={styles.footer}>
         <View style={styles.footerContent}>
-        <Pressable
+          <Pressable
             style={styles.signInButton}
             onPress={handleSignIn}
           >
             <Text style={styles.signInButtonText}>Sign In</Text>
           </Pressable>
-        <Pressable
+          <Pressable
             style={[styles.getStartedButton, {
               backgroundColor: colors.primary
             }]}
@@ -360,9 +367,6 @@ export default function WelcomeScreen() {
           >
             <Text style={styles.getStartedButtonText}>Get Started</Text>
           </Pressable>
-          
-         
-         
         </View>
       </BlurView>
     </View>
@@ -384,6 +388,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   sliderContainer: {
     flex: 1,
     justifyContent: 'center',
+    marginBottom: responsive.verticalPadding * 3.1,
   },
   slider: {
     flex: 1,
@@ -414,25 +419,20 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     height: 40,
   },
   imageContainer: {
-    marginBottom: responsive.verticalPadding,
+    marginBottom: responsive.verticalPadding * 0.1,
     alignItems: 'center',
   },
   imageBackground: {
     borderRadius: 24,
     padding: responsive.verticalPadding,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 8,
   },
   slideImage: {
-    width: responsive.width * 0.7,
-    height: responsive.imageHeight * 1.2,
+    width: responsive.width * 0.6,
+    height: responsive.imageHeight * 1.0,
   },
   firstSlideImage: {
-    width: responsive.width * 0.7,
-    height: responsive.imageHeight * 1.2,
+    width: responsive.width * 0.6,
+    height: responsive.imageHeight * 1.0,
   },
   textContainer: {
     alignItems: 'center',
@@ -458,9 +458,6 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     letterSpacing: -0.5,
     color: colors.text,
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
   },
   slideDescription: {
     color: colors.text,
@@ -511,7 +508,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    height: 65,
+    height: 60,
     borderRadius: 8,
     paddingHorizontal: 24,
     flex: 1,
@@ -530,16 +527,16 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   signInButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 65,
+    height: 60,
     borderRadius: 8,
     paddingHorizontal: 24,
     flex: 1,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 2,
+    borderColor: colors.buttonPrimary,
   },
   signInButtonText: {
-    color: colors.text,
+    color: colors.buttonTextPrimary,
     fontSize: 16,
     fontWeight: '600',
   },

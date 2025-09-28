@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { Platform } from 'react-native';
-import { saveSession, loadSession, isSessionExpired, clearSession, restoreSessionInSupabase, refreshExpiredSession, canRefreshSession } from '@/lib/session-persistence';
+import { supabase } from '@/lib/supabase';
+import { 
+  saveSession, 
+  loadSession, 
+  clearSession, 
+  restoreSessionInSupabase, 
+  refreshExpiredSession, 
+  canRefreshSession, 
+  isSessionExpired 
+} from '@/lib/session-persistence';
+import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
 
 type AuthResult = {
   success: boolean;
@@ -30,7 +38,7 @@ export function useSupabaseAuth() {
           console.log('✅ Valid stored session found, attempting restoration...');
           console.log('📊 Session details:', {
             userId: storedSession.user?.id,
-            expiresAt: new Date(storedSession.expires_at * 1000).toISOString(),
+            expiresAt: storedSession.expires_at ? new Date(storedSession.expires_at * 1000).toISOString() : 'unknown',
             isExpired: isSessionExpired(storedSession)
           });
           
@@ -41,6 +49,14 @@ export function useSupabaseAuth() {
             setSession(storedSession);
             console.log('✅ Session fully restored and set in state');
             console.log('🎉 User should now be logged in after device restart');
+            
+            // Load profile snapshot immediately for instant UI
+            if (storedSession.user?.id) {
+              const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(storedSession.user.id);
+              if (profileSnapshot) {
+                console.log('📸 Profile snapshot loaded for instant UI');
+              }
+            }
           } else {
             console.log('❌ Failed to restore session in Supabase, falling back to Supabase check');
             console.log('🔄 This might happen if the session is invalid or corrupted');
@@ -57,6 +73,14 @@ export function useSupabaseAuth() {
             if (refreshedSession && mounted) {
               setSession(refreshedSession);
               console.log('✅ Session refreshed and restored successfully');
+              
+              // Load profile snapshot for refreshed session
+              if (refreshedSession.user?.id) {
+                const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(refreshedSession.user.id);
+                if (profileSnapshot) {
+                  console.log('📸 Profile snapshot loaded for refreshed session');
+                }
+              }
             } else {
               console.log('❌ Failed to refresh session, clearing it...');
               await clearSession();
@@ -88,14 +112,20 @@ export function useSupabaseAuth() {
             // Save session to secure storage
             if (session) {
               await saveSession(session);
+              
+              // Load profile snapshot for new session
+              if (session.user?.id) {
+                const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(session.user.id);
+                if (profileSnapshot) {
+                  console.log('📸 Profile snapshot loaded for new session');
+                }
+              }
             }
           }
         }
       } catch (err) {
-        console.error('❌ Failed to initialize auth:', err);
-        if (mounted) {
-          setError('Failed to initialize authentication');
-        }
+        console.error('❌ Error during auth initialization:', err);
+        setError(err instanceof Error ? err.message : 'Authentication initialization failed');
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -104,25 +134,52 @@ export function useSupabaseAuth() {
     };
 
     initializeAuth();
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: Session | null) => {
+      console.log('🔐 Auth state change:', event, session ? 'Session exists' : 'No session');
+      
+      if (!mounted) return;
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: string, session: Session | null) => {
-        console.log('🔄 Auth state changed:', event, session ? 'Session exists' : 'No session');
+      // Handle different auth events
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        console.log('✅ User signed in or token refreshed');
+        setSession(session);
+        setError(null);
         
-        if (mounted) {
-          setSession(session);
-          setIsLoading(false);
+        if (session) {
+          await saveSession(session);
           
-          // Save session to secure storage
-          try {
-            await saveSession(session);
-          } catch (error) {
-            console.error('❌ Error saving session on auth state change:', error);
+          // Load profile snapshot for new/refreshed session
+          if (session.user?.id) {
+            const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(session.user.id);
+            if (profileSnapshot) {
+              console.log('📸 Profile snapshot loaded for auth state change');
+            }
+          }
+        }
+      } else if (event === 'SIGNED_OUT') {
+        console.log('🚪 User signed out');
+        setSession(null);
+        setError(null);
+        await clearSession();
+        
+        // Clear profile snapshots on sign out
+        if (session?.user?.id) {
+          await ProfileSnapshotManager.clearProfileSnapshot(session.user.id);
+        }
+      } else if (event === 'USER_UPDATED') {
+        console.log('👤 User updated');
+        if (session) {
+          setSession(session);
+          await saveSession(session);
+          
+          // Update metadata snapshot
+          if (session.user?.id && session.user.user_metadata) {
+            await ProfileSnapshotManager.saveMetadataSnapshot(session.user.id, session.user.user_metadata);
           }
         }
       }
-    );
+    });
 
     return () => {
       mounted = false;
@@ -132,103 +189,67 @@ export function useSupabaseAuth() {
 
   const signIn = async (email: string, password: string): Promise<AuthResult> => {
     try {
-      setError(null);
       setIsLoading(true);
-      
-      const { error, data } = await supabase.auth.signInWithPassword({ 
-        email: email.toLowerCase().trim(), 
-        password 
-      });
-      
-      if (error) {
-        // Format error message for better user experience
-        let errorMessage = error.message;
-        
-        // Handle specific error cases
-        if (error.message.includes('Invalid login credentials')) {
-          errorMessage = 'Invalid email or password. Please check your credentials and try again.';
-        } else if (error.message.includes('Email not confirmed')) {
-          errorMessage = 'Please verify your email address before signing in.';
-        } else if (error.message.includes('rate limit')) {
-          errorMessage = 'Too many login attempts. Please try again later.';
-        }
-        
-        setError(errorMessage);
-        return { success: false, error: errorMessage };
-      }
-      
-      return { success: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to sign in';
-      setError(message);
-      return { success: false, error: message };
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      setError(null);
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string, referralCode?: string): Promise<AuthResult> => {
-    try {
-      setError(null);
-      setIsLoading(true);
-      
-      // Create the user account with metadata that will be used by the database trigger
-      const { error: signUpError, data: authData } = await supabase.auth.signUp({
-        email: email.toLowerCase().trim(),
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
         password,
-        options: {
-          data: {
-            first_name: firstName.trim(),
-            last_name: lastName.trim(),
-            referral_code: referralCode?.trim() || null,
+      });
+
+      if (error) {
+        setError(error.message);
+        return { success: false, error: error.message };
+      }
+
+      if (data.session) {
+        setSession(data.session);
+        await saveSession(data.session);
+        
+        // Load profile snapshot for signed in user
+        if (data.session.user?.id) {
+          const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(data.session.user.id);
+          if (profileSnapshot) {
+            console.log('📸 Profile snapshot loaded for sign in');
           }
         }
-      });
-      
-      if (signUpError) {
-        // Format error message for better user experience
-        let errorMessage = signUpError.message;
         
-        // Handle specific error cases
-        if (signUpError.message.includes('already registered')) {
-          errorMessage = 'This email is already registered. Please sign in or use a different email.';
-        } else if (signUpError.message.includes('password')) {
-          errorMessage = 'Password is too weak. Please use a stronger password.';
-        }
-        
-        setError(errorMessage);
-        return { success: false, error: errorMessage };
+        return { success: true };
       }
 
-      return { success: true, data: authData };
+      return { success: false, error: 'No session returned' };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create account';
-      setError(message);
-      return { success: false, error: message };
+      const errorMessage = err instanceof Error ? err.message : 'Sign in failed';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signOut = async (): Promise<AuthResult> => {
+  const signUp = async (email: string, password: string, metadata?: any): Promise<AuthResult> => {
     try {
-      setError(null);
       setIsLoading(true);
-      const { error } = await supabase.auth.signOut();
+      setError(null);
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: metadata,
+        },
+      });
+
       if (error) {
-        const message = error.message;
-        setError(message);
-        return { success: false, error: message };
+        setError(error.message);
+        return { success: false, error: error.message };
       }
-      
-      // Clear session from secure storage
-      await clearSession();
-      
+
       return { success: true };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to sign out';
-      setError(message);
-      return { success: false, error: message };
+      const errorMessage = err instanceof Error ? err.message : 'Sign up failed';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
     } finally {
       setIsLoading(false);
     }
@@ -236,21 +257,49 @@ export function useSupabaseAuth() {
 
   const resetPassword = async (email: string): Promise<AuthResult> => {
     try {
-      setError(null);
       setIsLoading(true);
-      const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
-        redirectTo: 'planmoni://reset-password',
-      });
+      setError(null);
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+
       if (error) {
-        const message = error.message;
-        setError(message);
-        return { success: false, error: message };
+        setError(error.message);
+        return { success: false, error: error.message };
       }
+
       return { success: true };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to send reset email';
-      setError(message);
-      return { success: false, error: message };
+      const errorMessage = err instanceof Error ? err.message : 'Password reset failed';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signOut = async (): Promise<void> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Clear profile snapshots before signing out
+      if (session?.user?.id) {
+        await ProfileSnapshotManager.clearProfileSnapshot(session.user.id);
+      }
+
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        setError(error.message);
+        throw error;
+      }
+
+      setSession(null);
+      await clearSession();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Sign out failed';
+      setError(errorMessage);
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -262,7 +311,7 @@ export function useSupabaseAuth() {
     error,
     signIn,
     signUp,
-    signOut,
     resetPassword,
+    signOut,
   };
 }
