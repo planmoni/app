@@ -1,7 +1,13 @@
 import React, { ReactNode, useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { 
+  useFonts, 
+  PlusJakartaSans_400Regular, 
+  PlusJakartaSans_500Medium, 
+  PlusJakartaSans_600SemiBold, 
+  PlusJakartaSans_700Bold 
+} from '@expo-google-fonts/plus-jakarta-sans';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useErrorHandling } from '@/hooks/useErrorHandling';
@@ -22,10 +28,10 @@ export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
   const [showSplash, setShowSplash] = useState(true);
 
   const [fontsLoaded, fontError] = useFonts({
-    'Inter-Regular': Inter_400Regular,
-    'Inter-Medium': Inter_500Medium,
-    'Inter-SemiBold': Inter_600SemiBold,
-    'Inter-Bold': Inter_700Bold,
+    'PlusJakartaSans-Regular': PlusJakartaSans_400Regular,
+    'PlusJakartaSans-Medium': PlusJakartaSans_500Medium,
+    'PlusJakartaSans-SemiBold': PlusJakartaSans_600SemiBold,
+    'PlusJakartaSans-Bold': PlusJakartaSans_700Bold,
   });
 
   useEffect(() => {
@@ -34,11 +40,8 @@ export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
     }
   }, [fontError]);
 
-  useEffect(() => {
-    if (fontsLoaded && !isLoading) {
-      SplashScreen.hideAsync().catch(e => console.warn("Failed to hide splash screen:", e));
-    }
-  }, [fontsLoaded, isLoading]);
+  // Removed the problematic SplashScreen.hideAsync() call since it's not needed
+  // The splash screen is handled by the showSplash state
 
   useEffect(() => {
     const setupAnalytics = async () => {
@@ -113,13 +116,14 @@ const styles = StyleSheet.create({
   },
   offlineTitle: {
     fontSize: 24,
-    fontWeight: '600',
+    fontFamily: 'PlusJakartaSans-SemiBold',
     marginBottom: 12,
     textAlign: 'center',
   },
   offlineMessage: {
     fontSize: 16,
+    fontFamily: 'PlusJakartaSans-Regular',
     textAlign: 'center',
     lineHeight: 24,
   },
-}); 
+});
