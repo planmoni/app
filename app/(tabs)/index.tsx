@@ -63,6 +63,7 @@ import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
+import LivenessTest from '@/components/LivenessTest';
 
 interface Banner {
   id: string;
@@ -105,6 +106,7 @@ export default function HomeScreen() {
   const route = useRoute();
   const params = useLocalSearchParams();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
+  const [showLivenessTest, setShowLivenessTest] = useState(false);
 
   // Intercom
   const { openChat, isLoading, isSupported } = useIntercom();
@@ -556,6 +558,17 @@ export default function HomeScreen() {
             <Text style={styles.subGreeting}>It's time to plan some payouts</Text>
           </View>
         </View>
+        <Pressable 
+          style={styles.livenessTestButton}
+          onPress={() => {
+            impact();
+            setShowLivenessTest(true);
+            logAnalyticsEvent('liveness_test_button_clicked');
+          }}
+        >
+          <Text style={styles.livenessTestButtonText}>Complete Liveness Test</Text>
+        </Pressable>
+
 
         <ImageBackground 
           source={require('@/assets/images/background.png')} 
@@ -700,6 +713,11 @@ export default function HomeScreen() {
         onStartVerification={handleStartVerification}
         onGoToDashboard={handleGoToDashboard}
       />
+
+      <LivenessTest 
+        isVisible={showLivenessTest}
+        onClose={() => setShowLivenessTest(false)}
+      />
       
       {/* Floating Intercom Support Button */}
       {/* <IntercomButton variant="floating" /> */}
@@ -761,7 +779,26 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 18,
   },
-
+  livenessTestButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  livenessTestButtonText: {
+    color: '#FFFFFF',
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
   balanceCard: {
     borderRadius: 16,
     borderWidth: 1,
