@@ -456,7 +456,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     fontSize: responsive.titleSize,
     lineHeight: responsive.titleSize * 1.1,
     letterSpacing: -0.5,
-    color: colors.text,
+    color: isDark ? colors.text : colors.primary,
     textAlign: 'center',
   },
   slideDescription: {
@@ -531,7 +531,6 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     borderRadius: 8,
     paddingHorizontal: 24,
     flex: 1,
-    backgroundColor: colors.surface,
     borderWidth: 2,
     borderColor: colors.buttonPrimary,
   },

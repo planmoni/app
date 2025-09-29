@@ -234,7 +234,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   actionCard: {
     width: Platform.OS === 'ios' ? 280 : 240,
-    backgroundColor: isDark ? colors.background : '#EDF5FF',
+    backgroundColor: isDark ? colors.background : colors.accentBackground,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,

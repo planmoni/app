@@ -65,7 +65,7 @@ export default function SummaryCard({
               <Text style={styles.summaryValue}>{payoutPlans.length}</Text>
             </View>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Last payout date</Text>
+              <Text style={styles.summaryLabel}>Final payout date</Text>
               <Text style={styles.summaryValue}>
                 {getLastPayoutDate()}
               </Text>
