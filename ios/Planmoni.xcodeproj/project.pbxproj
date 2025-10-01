@@ -8,11 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		25EC6FD27E4FD4424DA67734 /* libPods-Planmoni.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8F5C1FF9A9017BBEF0207C04 /* libPods-Planmoni.a */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		79E6B55C5FE6368DF6F082FA /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FC5E24DDF722D207ABDA1A3 /* ExpoModulesProvider.swift */; };
+		5F6FFBAF164AE625DECEC4F3 /* libPods-Planmoni.a in Frameworks */ = {isa = PBXBuildFile; fileRef = EA458F4D798D0177AFBA4477 /* libPods-Planmoni.a */; };
+		B2D408889141F665F23737FA /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DE0A206B734BC0AE110E1774 /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		C0397ECECFBD5CFBFCE98132 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 99AC52690A218E02EFBBFE4C /* PrivacyInfo.xcprivacy */; };
+		D6C7177C3B2A1EF24D47BF33 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA5FF0F3CFC4265E52090D43 /* ExpoModulesProvider.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -20,14 +20,14 @@
 		13B07F961A680F5B00A75B9A /* Planmoni.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Planmoni.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Planmoni/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Planmoni/Info.plist; sourceTree = "<group>"; };
-		1FC5E24DDF722D207ABDA1A3 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Planmoni/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		218072F7CF7519328D3E6A78 /* Pods-Planmoni.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Planmoni.debug.xcconfig"; path = "Target Support Files/Pods-Planmoni/Pods-Planmoni.debug.xcconfig"; sourceTree = "<group>"; };
-		8F5C1FF9A9017BBEF0207C04 /* libPods-Planmoni.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Planmoni.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		99AC52690A218E02EFBBFE4C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Planmoni/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		42C8CF3645B29339993056C4 /* Pods-Planmoni.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Planmoni.debug.xcconfig"; path = "Target Support Files/Pods-Planmoni/Pods-Planmoni.debug.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Planmoni/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		E4796194F1C13EFAAC60905E /* Pods-Planmoni.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Planmoni.release.xcconfig"; path = "Target Support Files/Pods-Planmoni/Pods-Planmoni.release.xcconfig"; sourceTree = "<group>"; };
+		DE0A206B734BC0AE110E1774 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Planmoni/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		EA458F4D798D0177AFBA4477 /* libPods-Planmoni.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Planmoni.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EA5FF0F3CFC4265E52090D43 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Planmoni/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		EF5330CD4814A73E2413BBF3 /* Pods-Planmoni.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Planmoni.release.xcconfig"; path = "Target Support Files/Pods-Planmoni/Pods-Planmoni.release.xcconfig"; sourceTree = "<group>"; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Planmoni/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Planmoni-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Planmoni-Bridging-Header.h"; path = "Planmoni/Planmoni-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -37,7 +37,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				25EC6FD27E4FD4424DA67734 /* libPods-Planmoni.a in Frameworks */,
+				5F6FFBAF164AE625DECEC4F3 /* libPods-Planmoni.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -53,7 +53,15 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				99AC52690A218E02EFBBFE4C /* PrivacyInfo.xcprivacy */,
+				DE0A206B734BC0AE110E1774 /* PrivacyInfo.xcprivacy */,
+			);
+			name = Planmoni;
+			sourceTree = "<group>";
+		};
+		24F4D7FDAEAA603C08C215B5 /* Planmoni */ = {
+			isa = PBXGroup;
+			children = (
+				EA5FF0F3CFC4265E52090D43 /* ExpoModulesProvider.swift */,
 			);
 			name = Planmoni;
 			sourceTree = "<group>";
@@ -62,17 +70,17 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				8F5C1FF9A9017BBEF0207C04 /* libPods-Planmoni.a */,
+				EA458F4D798D0177AFBA4477 /* libPods-Planmoni.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		749CA46291F63C0105A4E3F3 /* Planmoni */ = {
+		32FFD0980C58DC429338E0FB /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				1FC5E24DDF722D207ABDA1A3 /* ExpoModulesProvider.swift */,
+				24F4D7FDAEAA603C08C215B5 /* Planmoni */,
 			);
-			name = Planmoni;
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -89,8 +97,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				C06BFB0A5C83DE0DDABE98B4 /* Pods */,
-				D9AE8A051DEB5A502CDD4630 /* ExpoModulesProviders */,
+				9ED184942840939031720E33 /* Pods */,
+				32FFD0980C58DC429338E0FB /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -105,6 +113,16 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		9ED184942840939031720E33 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				42C8CF3645B29339993056C4 /* Pods-Planmoni.debug.xcconfig */,
+				EF5330CD4814A73E2413BBF3 /* Pods-Planmoni.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
@@ -112,24 +130,6 @@
 			);
 			name = Supporting;
 			path = Planmoni/Supporting;
-			sourceTree = "<group>";
-		};
-		C06BFB0A5C83DE0DDABE98B4 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				218072F7CF7519328D3E6A78 /* Pods-Planmoni.debug.xcconfig */,
-				E4796194F1C13EFAAC60905E /* Pods-Planmoni.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
-		D9AE8A051DEB5A502CDD4630 /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				749CA46291F63C0105A4E3F3 /* Planmoni */,
-			);
-			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -140,13 +140,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Planmoni" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				4EFF2EC543467B1FFC3DD25A /* [Expo] Configure project */,
+				D535936BEC9178B0B3E97281 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				8CE8A14EB51133F46941250F /* [CP] Embed Pods Frameworks */,
+				BA9030FBEECA67C7D58495B3 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -196,7 +196,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				C0397ECECFBD5CFBFCE98132 /* PrivacyInfo.xcprivacy in Resources */,
+				B2D408889141F665F23737FA /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -240,25 +240,6 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		4EFF2EC543467B1FFC3DD25A /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Planmoni/expo-configure-project.sh\"\n";
-		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -270,12 +251,14 @@
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXNotifications/ExpoNotifications_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXUpdates/EXUpdates.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoDevice/ExpoDevice_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoSystemUI/ExpoSystemUI_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RCT-Folly/RCT-Folly_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RNCAsyncStorage/RNCAsyncStorage_resources.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RNSVG/RNSVGFilters.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ReachabilitySwift/ReachabilitySwift.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/SDWebImage/SDWebImage.bundle",
@@ -294,12 +277,14 @@
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoNotifications_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXUpdates.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoDevice_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoSystemUI_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCT-Folly_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNCAsyncStorage_resources.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNSVGFilters.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ReachabilitySwift.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/SDWebImage.bundle",
@@ -317,7 +302,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Planmoni/Pods-Planmoni-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		8CE8A14EB51133F46941250F /* [CP] Embed Pods Frameworks */ = {
+		BA9030FBEECA67C7D58495B3 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -337,6 +322,25 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Planmoni/Pods-Planmoni-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		D535936BEC9178B0B3E97281 /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Planmoni/expo-configure-project.sh\"\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -345,7 +349,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				79E6B55C5FE6368DF6F082FA /* ExpoModulesProvider.swift in Sources */,
+				D6C7177C3B2A1EF24D47BF33 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -354,7 +358,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 218072F7CF7519328D3E6A78 /* Pods-Planmoni.debug.xcconfig */;
+			baseConfigurationReference = 42C8CF3645B29339993056C4 /* Pods-Planmoni.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -390,7 +394,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E4796194F1C13EFAAC60905E /* Pods-Planmoni.release.xcconfig */;
+			baseConfigurationReference = EF5330CD4814A73E2413BBF3 /* Pods-Planmoni.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;

@@ -1,19 +1,21 @@
-import React, { ReactNode, useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
+
+import { useFonts } from 'expo-font';
+import { SplashScreen } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { View, Text, StyleSheet } from 'react-native';
 import { 
-  useFonts, 
   PlusJakartaSans_400Regular, 
   PlusJakartaSans_500Medium, 
   PlusJakartaSans_600SemiBold, 
   PlusJakartaSans_700Bold 
 } from '@expo-google-fonts/plus-jakarta-sans';
-import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useErrorHandling } from '@/hooks/useErrorHandling';
-import { useIsOnline } from '@/hooks/useIsOnline';
+import CustomSplashScreen from '@/components/SplashScreen';
+
 import OfflineBanner from '@/components/OfflineBanner';
-import SplashScreen from '@/components/SplashScreen';
+import { ReactNode } from 'react';
 import { initializeAnalytics, logAnalyticsEvent } from '@/lib/firebase';
 
 interface CustomAppLayoutProps {
@@ -23,8 +25,6 @@ interface CustomAppLayoutProps {
 export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
   const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
-  const { isOnline } = useIsOnline();
-  const { handleError, clearError, errorState } = useErrorHandling();
   const [showSplash, setShowSplash] = useState(true);
 
   const [fontsLoaded, fontError] = useFonts({
@@ -40,8 +40,11 @@ export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
     }
   }, [fontError]);
 
-  // Removed the problematic SplashScreen.hideAsync() call since it's not needed
-  // The splash screen is handled by the showSplash state
+  useEffect(() => {
+    if (fontsLoaded && !isLoading) {
+      SplashScreen.hideAsync().catch(e => console.warn("Failed to hide splash screen:", e));
+    }
+  }, [fontsLoaded, isLoading]);
 
   useEffect(() => {
     const setupAnalytics = async () => {
@@ -51,37 +54,18 @@ export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
     setupAnalytics();
   }, []);
 
-  // Handle auth errors gracefully
-  useEffect(() => {
-    if (error) {
-      handleError(error, {
-        showAlert: false,
-        showToast: true,
-        logError: true
-      });
-    } else {
-      clearError();
-    }
-  }, [error, handleError, clearError]);
-
   if (error && !fontsLoaded) {
     return null;
   }
 
-  // Show offline banner if not online, but don't block the app
-  if (!isOnline && !isLoading) {
+  if (error) {
     return (
-      <View style={styles.container}>
-        <OfflineBanner />
-        <View style={styles.offlineContainer}>
-          <Text style={[styles.offlineTitle, { color: isDark ? '#fff' : '#000' }]}>
-            No Internet Connection
-          </Text>
-          <Text style={[styles.offlineMessage, { color: isDark ? '#ccc' : '#666' }]}>
-            Please check your internet connection and try again.
-          </Text>
-        </View>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
+      <View style={styles.errorContainer}>
+        
+        <Text style={styles.errorMessage}>{error}</Text>
+        <Text style={styles.errorInstructions}>
+          Please check your environment configuration and database setup as described in the README.md file.
+        </Text>
       </View>
     );
   }
@@ -91,7 +75,7 @@ export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
   }
 
   if (showSplash) {
-    return <SplashScreen onFinish={() => setShowSplash(false)} />;
+    return <CustomSplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
   return (
@@ -104,26 +88,31 @@ export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    padding: 20,
+    backgroundColor: '#f5f5f5',
   },
-  offlineContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  offlineTitle: {
+  errorTitle: {
     fontSize: 24,
-    fontFamily: 'PlusJakartaSans-SemiBold',
-    marginBottom: 12,
+    fontWeight: 'bold',
+    color: '#d32f2f',
+    marginBottom: 16,
     textAlign: 'center',
   },
-  offlineMessage: {
+  errorMessage: {
     fontSize: 16,
-    fontFamily: 'PlusJakartaSans-Regular',
+    color: '#666',
+    marginBottom: 16,
     textAlign: 'center',
     lineHeight: 24,
   },
-});
+  errorInstructions: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+}); 

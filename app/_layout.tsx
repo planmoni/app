@@ -1,162 +1,258 @@
-import React, { useState, useEffect } from 'react';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import React, { useEffect, useState, useRef } from 'react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { ProfileProvider } from '@/contexts/ProfileContext';
-import { AutoLogoutProvider, useAutoLogout } from '@/contexts/AutoLogoutContext';
-import { PinProvider, usePin } from '@/contexts/PinContext';
-import { ToastProvider } from '@/contexts/ToastContext';
 import { BalanceProvider } from '@/contexts/BalanceContext';
-import { router } from 'expo-router';
-import SplashScreen from '@/components/SplashScreen';
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { ToastProvider } from '@/contexts/ToastContext';
+import { PinProvider } from '@/contexts/PinContext';
+import { AutoLogoutProvider, useAutoLogout } from '@/contexts/AutoLogoutContext';
+
+import { usePageTracking } from '@/hooks/usePageTracking';
+import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import { useFonts } from 'expo-font';
+import { SplashScreen, Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { initializeNotifications } from '@/lib/notifications';
+import { 
+  PlusJakartaSans_400Regular, 
+  PlusJakartaSans_500Medium, 
+  PlusJakartaSans_600SemiBold, 
+  PlusJakartaSans_700Bold 
+} from '@expo-google-fonts/plus-jakarta-sans';
+import CustomSplashScreen from '@/components/SplashScreen';
 import BiometricsLock from '@/components/BiometricsLock';
-import SimplePinLock from '@/components/SimplePinLock'; // Changed from LockScreen
 import AppBlur from '@/components/AppBlur';
 
-function ThemedStatusBar() {
-  const { isDark } = useTheme();
-  return <StatusBar style={isDark ? "light" : "dark"} />;
-}
+import { SessionDebugger } from '@/components/SessionDebugger';
+
+// Prevent the splash screen from auto-hiding
+SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
 
 function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
+  const { isDark } = useTheme();
   const { isAppLocked } = useAutoLogout();
-  const { biometricEnabled } = usePin(); // Add this import
-  const [showSplash, setShowSplash] = useState(true);
-  const [navigationReady, setNavigationReady] = useState(false);
-  const [hasInitialized, setHasInitialized] = useState(false);
-  const [hasShownLockScreen, setHasShownLockScreen] = useState(false);
+  const [showSplash, setShowSplash] = useState(false);
+  
+  // Track previous session state to detect transitions
+  const previousSessionRef = useRef<typeof session>(null);
+  const [isAuthTransitioning, setIsAuthTransitioning] = useState(false);
+  
+  // Track page changes for redirect after unlock
+  usePageTracking();
 
-  // Initialize app - show splash only on first load
+  // Handle authentication state transitions
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowSplash(false);
-      setNavigationReady(true);
-      setHasInitialized(true);
-    }, 3000);
+    // Skip on initial load when we're still loading
+    if (isLoading) return;
+    
+    const previousSession = previousSessionRef.current;
+    const currentSession = session;
+    
+    console.log('🔍 Auth transition check:', {
+      previousSession: previousSession ? 'exists' : 'null',
+      currentSession: currentSession ? 'exists' : 'null',
+      isLoading,
+      showSplash,
+      isAuthTransitioning
+    });
+    
+    // Detect authentication state changes (login/logout)
+    const wasLoggedIn = !!previousSession;
+    const isLoggedIn = !!currentSession;
+    
+    // More robust transition detection
+    if (previousSession !== null && wasLoggedIn !== isLoggedIn) {
+      console.log('🔄 Authentication state transition detected:', {
+        from: wasLoggedIn ? 'logged in' : 'logged out',
+        to: isLoggedIn ? 'logged in' : 'logged out',
+        previousUserId: previousSession?.user?.id,
+        currentUserId: currentSession?.user?.id
+      });
+      
+      // Show splash screen during transition immediately (disabled for login transitions)
+      // setIsAuthTransitioning(true); // Disabled for login transitions
+      // setShowSplash(true); // Disabled for login transitions
+      
+      // For login transitions, show splash screen a bit longer to ensure smooth transition
+      const transitionDuration = isLoggedIn ? 2000 : 1500; // 2 seconds for login, 1.5 for logout
+      
+      // Hide splash screen after transition duration
+      const timer = setTimeout(() => {
+        console.log('✅ Auth transition complete, hiding splash screen');
+        setIsAuthTransitioning(false);
+        setShowSplash(false);
+      }, transitionDuration);
+      
+      return () => clearTimeout(timer);
+    }
+    
+    // Update previous session reference
+    previousSessionRef.current = currentSession;
+  }, [session, isLoading]);
 
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Handle navigation - allow auth flows but prevent splash interference
+  // Additional effect to handle the case where splash screen should stay visible during transitions
   useEffect(() => {
-    if (!showSplash && navigationReady && !isLoading) {
-      if (hasInitialized && !session) {
-        const navigationTimer = setTimeout(() => {
-          router.replace('/');
-        }, 100);
+    if (isAuthTransitioning && !showSplash) {
+      console.log('🔄 Forcing splash screen to stay visible during transition');
+      // setShowSplash(true); // Disabled for login transitions
+    }
+  }, [isAuthTransitioning, showSplash]);
 
-        return () => clearTimeout(navigationTimer);
+  // Initialize notifications when user is authenticated
+  useEffect(() => {
+    if (session?.user?.id) {
+      try {
+        initializeNotifications(session.user.id).then(cleanup => {
+          return () => {
+            if (cleanup) cleanup();
+          };
+        }).catch(error => {
+          console.warn('Failed to initialize notifications:', error);
+        });
+      } catch (error) {
+        console.error('Error setting up notification initialization:', error);
       }
     }
-  }, [showSplash, navigationReady, isLoading, session, hasInitialized]);
+  }, [session?.user?.id]);
 
-  // Handle lock screen display logic
+  const [fontsLoaded, fontError] = useFonts({
+    'PlusJakartaSans-Regular': PlusJakartaSans_400Regular,
+    'PlusJakartaSans-Medium': PlusJakartaSans_500Medium,
+    'PlusJakartaSans-SemiBold': PlusJakartaSans_600SemiBold,
+    'PlusJakartaSans-Bold': PlusJakartaSans_700Bold,
+  });
+
   useEffect(() => {
-    if (isAppLocked && session && !isLoading && !hasShownLockScreen) {
-      setHasShownLockScreen(true);
-    } else if (!isAppLocked) {
-      setHasShownLockScreen(false);
+    if (fontError) {
+      console.error('Font loading error:', fontError);
     }
-  }, [isAppLocked, session, isLoading, hasShownLockScreen]);
+  }, [fontError]);
 
-  // Show splash screen only during initial loading
-  if (showSplash || (isLoading && !hasInitialized)) {
-    return <SplashScreen />;
+  useEffect(() => {
+    if (fontsLoaded && !isLoading) {
+      // Hide the native splash screen
+      SplashScreen.hideAsync().catch(e => console.warn("Failed to hide splash screen:", e));
+    }
+  }, [fontsLoaded, isLoading]);
+
+  // Show error screen if there's a critical error
+  if (error && !fontsLoaded) {
+    return null; // Keep splash screen while fonts load
   }
 
-  // Show lock screen only if app is locked AND user has a valid session AND not during loading AND we haven't shown it yet
-  if (isAppLocked && session && !isLoading && !hasShownLockScreen) {
-    // Use BiometricsLock as default if biometrics are enabled, otherwise fall back to SimplePinLock
-    return biometricEnabled ? <BiometricsLock /> : <SimplePinLock />;
-  }
-
-  // Show error screen only for critical errors, not auth errors
-  if (error && !error.includes('Invalid email or password') && !error.includes('Invalid login credentials')) {
+  if (error) {
     return (
-      <Stack>
-        <Stack.Screen name="+not-found" options={{ headerShown: false }} />
-      </Stack>
+      <View style={styles.errorContainer}>
+        
+        <Text style={styles.errorMessage}>{error}</Text>
+        <Text style={styles.errorInstructions}>
+          Please check your environment configuration and database setup as described in the README.md file.
+        </Text>
+      </View>
     );
   }
 
-  // Show authenticated screens if user has session
-  if (session) {
-    return (
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="add-card" />
-        <Stack.Screen name="add-funds" />
-        <Stack.Screen name="add-ussd" />
-        <Stack.Screen name="all-payouts" />
-        <Stack.Screen name="bank-selection-demo" />
-        <Stack.Screen name="change-password" />
-        <Stack.Screen name="create-payout" />
-        <Stack.Screen name="deposit-flow" />
-        <Stack.Screen name="edit-profile" />
-        <Stack.Screen name="email-preferences" />
-        <Stack.Screen name="emergency-withdrawal" />
-        <Stack.Screen name="forgot-pin" />
-        <Stack.Screen name="forgot-pin-confirm" />
-        <Stack.Screen name="forgot-pin-new" />
-        <Stack.Screen name="forgot-pin-otp" />
-        <Stack.Screen name="forgot-pin-success" />
-        <Stack.Screen name="help" />
-        <Stack.Screen name="kyc-upgrade" />
-        <Stack.Screen name="linked-accounts" />
-        <Stack.Screen name="logging-out" />
-        <Stack.Screen name="login-success" />
-        <Stack.Screen name="notifications" />
-        <Stack.Screen name="pause-confirmation" />
-        <Stack.Screen name="payout-accounts" />
-        <Stack.Screen name="pin-setup" />
-        <Stack.Screen name="privacy-settings" />
-        <Stack.Screen name="profile" />
-        <Stack.Screen name="referral" />
-        <Stack.Screen name="settings" />
-        <Stack.Screen name="transaction-limits" />
-        <Stack.Screen name="transactions" />
-        <Stack.Screen name="two-factor-auth" />
-        <Stack.Screen name="verify-email" />
-        <Stack.Screen name="verify-otp" />
-        <Stack.Screen name="view-payout" />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-    );
+  if (!fontsLoaded || isLoading) {
+    return null; // Keep native splash screen visible
   }
 
-  // Show unauthenticated screens (welcome page and auth pages)
+  // Show our custom splash screen during initial load or auth transitions
+  if (showSplash && !session) {
+    return <CustomSplashScreen onFinish={() => setShowSplash(false)} />;
+  }
+
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="+not-found" />
-    </Stack>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false }}>
+        {session ? (
+          <React.Fragment key="authenticated-screens">
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="login-success" options={{ headerShown: false }} />
+            <Stack.Screen name="profile" options={{ headerShown: false }} />
+            <Stack.Screen name="add-funds" options={{ headerShown: false }} />
+            <Stack.Screen name="all-payouts" options={{ headerShown: false }} />
+            <Stack.Screen name="change-password" options={{ headerShown: false }} />
+            <Stack.Screen name="create-payout" options={{ headerShown: false }} />
+            <Stack.Screen name="deposit-flow" options={{ headerShown: false }} />
+            <Stack.Screen name="linked-accounts" options={{ headerShown: false }} />
+            <Stack.Screen name="pause-confirmation" options={{ headerShown: false }} />
+            <Stack.Screen name="referral" options={{ headerShown: false }} />
+            <Stack.Screen name="transaction-limits" options={{ headerShown: false }} />
+            <Stack.Screen name="transactions" options={{ headerShown: false }} />
+            <Stack.Screen name="two-factor-auth" options={{ headerShown: false }} />
+            <Stack.Screen name="view-payout" options={{ headerShown: false }} />
+            <Stack.Screen name="app-lock-setup" options={{ headerShown: false }} />
+            <Stack.Screen name="logging-out" options={{ headerShown: false }} />
+          </React.Fragment>
+        ) : (
+          <React.Fragment key="unauthenticated-screens">
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="logging-out" options={{ headerShown: false }} />
+          </React.Fragment>
+        )}
+        <Stack.Screen name="+not-found" options={{ title: 'Page Not Found' }} />
+      </Stack>
+      
+      {/* Lock Screen Overlay - Renders at root level */}
+      {isAppLocked && <BiometricsLock />}
+      
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      {/* <SessionDebugger /> */}
+    </GestureHandlerRootView>
   );
 }
 
 export default function RootLayout() {
+  useFrameworkReady();
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
+    <ThemeProvider>
+      <ToastProvider>
         <AuthProvider>
-          <ProfileProvider>
-            <PinProvider>
-              <AutoLogoutProvider>
-                <ToastProvider>
-                  <BalanceProvider>
-                    <AppBlur>
-                      <RootLayoutNav />
-                    </AppBlur>
-                  </BalanceProvider>
-                </ToastProvider>
-              </AutoLogoutProvider>
-            </PinProvider>
-          </ProfileProvider>
+          <PinProvider>
+            <AutoLogoutProvider>
+              <BalanceProvider>
+                <AppBlur>
+                <RootLayoutNav />
+                </AppBlur>
+              </BalanceProvider>
+            </AutoLogoutProvider>
+          </PinProvider>
         </AuthProvider>
-      </ThemeProvider>
-    </GestureHandlerRootView>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f5f5f5',
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#d32f2f',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  errorInstructions: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+});

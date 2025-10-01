@@ -15,7 +15,6 @@ import { useBanks } from '@/hooks/useBanks';
 import React from 'react';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { usePin } from '@/contexts/PinContext';
-import { BiometricService } from '@/lib/biometrics';
 import PinVerificationModal from '@/components/PinVerificationModal';
 
 export default function ReviewScreen() {
@@ -26,10 +25,8 @@ export default function ReviewScreen() {
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPinVerification, setShowPinVerification] = useState(false);
-  const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
-  const [biometricSupport, setBiometricSupport] = useState<any>(null);
   const { banks } = useBanks();
-  const { payoutBiometricEnabled, verifyPayoutPin, checkBiometricSupport } = usePin();
+  const { verifyPayoutPin } = usePin();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -55,15 +52,6 @@ export default function ReviewScreen() {
   // Check if user has insufficient balance
   const hasInsufficientBalance = numericTotalAmount > availableBalance;
 
-  const checkBiometrics = useCallback(async () => {
-    try {
-      const support = await checkBiometricSupport();
-      setBiometricSupport(support);
-    } catch (error) {
-      console.error('Error checking biometric support:', error);
-    }
-  }, [checkBiometricSupport]);
-
   useEffect(() => {
     const fetchBalance = async () => {
       setIsRefreshing(true);
@@ -80,10 +68,6 @@ export default function ReviewScreen() {
     
     fetchBalance();
   }, []);
-
-  useEffect(() => {
-    checkBiometrics();
-  }, [checkBiometrics]);
 
   const handleConfirmPayout = useCallback(async () => {
     try {
@@ -126,68 +110,6 @@ export default function ReviewScreen() {
     }
   }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, emergencyWithdrawal, haptics, createPayout]);
 
-  const attemptBiometricAuthentication = useCallback(async () => {
-    try {
-      setIsBiometricAuthenticating(true);
-      haptics.mediumImpact();
-
-      const result = await BiometricService.authenticateWithBiometrics(
-        "Authenticate to confirm payout plan"
-      );
-
-      if (result.success) {
-        // Biometric authentication successful
-        haptics.success();
-        await handleConfirmPayout();
-      } else {
-        // Biometric failed or cancelled - fall back to PIN
-        haptics.error();
-        
-        if (result.error === "Authentication cancelled" || result.error === "User chose fallback authentication") {
-          // User cancelled or chose fallback - show PIN modal
-          setShowPinVerification(true);
-        } else {
-          // Other error - show alert and then PIN modal
-          Alert.alert(
-            'Biometric Authentication Failed',
-            'Please use your PIN to confirm the payout plan.',
-            [
-              {
-                text: 'Use PIN',
-                onPress: () => setShowPinVerification(true)
-              },
-              {
-                text: 'Cancel',
-                style: 'cancel'
-              }
-            ]
-          );
-        }
-      }
-    } catch (error) {
-      console.error('Biometric authentication error:', error);
-      haptics.error();
-      
-      // Fall back to PIN on error
-      Alert.alert(
-        'Authentication Error',
-        'Biometric authentication failed. Please use your PIN.',
-        [
-          {
-            text: 'Use PIN',
-            onPress: () => setShowPinVerification(true)
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          }
-        ]
-      );
-    } finally {
-      setIsBiometricAuthenticating(false);
-    }
-  }, [haptics, handleConfirmPayout]);
-
   const handleStartPlan = useCallback(async () => {
     if (hasInsufficientBalance) {
       Alert.alert(
@@ -202,14 +124,9 @@ export default function ReviewScreen() {
       haptics.mediumImpact();
     }
     
-    // If biometric authentication is enabled and available, try biometric first
-    if (payoutBiometricEnabled && biometricSupport?.isAvailable && Platform.OS !== 'web') {
-      await attemptBiometricAuthentication();
-    } else {
-      // Fall back to PIN verification
-      setShowPinVerification(true);
-    }
-  }, [hasInsufficientBalance, numericTotalAmount, availableBalance, haptics, payoutBiometricEnabled, biometricSupport, attemptBiometricAuthentication]);
+    // Show PIN verification
+    setShowPinVerification(true);
+  }, [hasInsufficientBalance, numericTotalAmount, availableBalance, haptics]);
 
   const handlePinVerificationSuccess = useCallback(async () => {
     setShowPinVerification(false);
@@ -505,10 +422,10 @@ export default function ReviewScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title={isLoading ? "Processing..." : isBiometricAuthenticating ? "Authenticating..." : "Start Payout Plan"}
+        title={isLoading ? "Processing..." : "Start Payout Plan"}
         onPress={handleStartPlan}
-        disabled={isLoading || isRefreshing || hasInsufficientBalance || isBiometricAuthenticating}
-        loading={isLoading || isBiometricAuthenticating}
+        disabled={isLoading || isRefreshing || hasInsufficientBalance}
+        loading={isLoading}
       />
 
       <PinVerificationModal
