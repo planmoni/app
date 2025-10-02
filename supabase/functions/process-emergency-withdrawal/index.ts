@@ -381,31 +381,40 @@ serve(async (req: Request) => {
         console.error("Error updating withdrawal to completed:", completeError)
       }
 
-      // Deduct the withdrawal amount from locked balance
-      const { error: unlockError } = await supabase.rpc("unlock_funds", {
+      // Deduct the withdrawal amount from locked balance (since it's being withdrawn)
+      const { error: deductError } = await supabase.rpc("deduct_locked_funds", {
         arg_user_id: userId,
         arg_amount: withdrawal.withdrawal_amount
       })
 
-      if (unlockError) {
-        console.error("Error unlocking funds:", unlockError)
-        throw new Error(`Failed to unlock funds: ${unlockError.message}`)
+      if (deductError) {
+        console.error("Error deducting locked funds:", deductError)
+        throw new Error(`Failed to deduct locked funds: ${deductError.message}`)
       }
 
-      // Update the transaction status to completed
-      const { error: txUpdateError } = await supabase
-        .from("transactions")
-        .update({ 
-          status: "completed",
-          metadata: {
-            paystack_transfer_id: transferData.data.id,
-            transfer_code: transferData.data.transfer_code
-          }
-        })
-        .eq("reference", withdrawal.reference)
+      // Create transaction record for emergency withdrawal
+      const { error: txCreateError } = await supabase.rpc('create_transaction_record', {
+        p_user_id: userId,
+        p_type: 'withdrawal',
+        p_amount: netAmount,
+        p_status: 'completed',
+        p_source: 'Wallet',
+        p_destination: 'Bank Transfer',
+        p_reference: withdrawal.reference,
+        p_payout_plan_id: withdrawal.payout_plan_id,
+        p_description: 'Emergency withdrawal transfer',
+        p_metadata: {
+          paystack_transfer_id: transferData.data.id,
+          transfer_code: transferData.data.transfer_code,
+          emergency_withdrawal_id: withdrawal.id,
+          withdrawal_type: correctWithdrawalType,
+          fee_percentage: feePercentage,
+          fee_amount: feeAmount
+        }
+      })
 
-      if (txUpdateError) {
-        console.error("Error updating transaction status:", txUpdateError)
+      if (txCreateError) {
+        console.error("Error creating transaction record:", txCreateError)
       }
 
       // Create success notification
@@ -451,11 +460,22 @@ serve(async (req: Request) => {
         })
         .eq("id", emergencyWithdrawalId)
 
-      // Update transaction status to failed
-      await supabase
-        .from("transactions")
-        .update({ status: "failed" })
-        .eq("reference", withdrawal.reference)
+      // Create transaction record for failed emergency withdrawal
+      await supabase.rpc('create_transaction_record', {
+        p_user_id: userId,
+        p_type: 'withdrawal',
+        p_amount: withdrawal.withdrawal_amount,
+        p_status: 'failed',
+        p_source: 'Wallet',
+        p_destination: 'Bank Transfer',
+        p_reference: withdrawal.reference,
+        p_payout_plan_id: withdrawal.payout_plan_id,
+        p_description: 'Emergency withdrawal transfer (failed)',
+        p_metadata: {
+          emergency_withdrawal_id: withdrawal.id,
+          error_message: error.message
+        }
+      })
 
       // Create failure notification
       await supabase
