@@ -8,10 +8,12 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import CustomAppLayout from '../components/CustomAppLayout';
 import { useRouteTracking } from '@/hooks/useRouteTracking';
+import { useBottomNav } from '@/contexts/BottomNavContext';
 
 export default function TabLayout() {
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
+  const { isBottomNavVisible } = useBottomNav();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const channelRef = useRef<any>(null);
 
@@ -66,14 +68,70 @@ export default function TabLayout() {
         }
       );
 
-    // Subscribe with proper error handling
+    // Subscribe with proper error handling and retry logic
+    let retryCount = 0;
+    const maxRetries = 3;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const retrySubscription = () => {
+      if (retryCount < maxRetries) {
+        retryCount++;
+        console.log(`Retrying events subscription (${retryCount}/${maxRetries})...`);
+        retryTimeout = setTimeout(() => {
+          if (channelRef.current) {
+            supabase.removeChannel(channelRef.current);
+          }
+          // Re-setup the subscription
+          const newChannel = supabase
+            .channel(channelName)
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'events',
+                filter: `user_id=eq.${session.user.id}`,
+              },
+              (payload: any) => {
+                try {
+                  console.log('Events change received:', payload);
+                  fetchUnreadNotificationsCount();
+                } catch (err) {
+                  console.error('Error processing events change:', err);
+                }
+              }
+            );
+          
+          newChannel.subscribe((status: any) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('Events subscription successful');
+              retryCount = 0;
+            } else if (status === 'CHANNEL_ERROR') {
+              console.error('Events subscription error:', status);
+              retrySubscription();
+            } else if (status === 'TIMED_OUT') {
+              console.error('Events subscription timed out');
+              retrySubscription();
+            } else if (status === 'CLOSED') {
+              console.log('Events subscription closed');
+            }
+          });
+          
+          channelRef.current = newChannel;
+        }, 2000 * retryCount); // Exponential backoff
+      }
+    };
+
     channel.subscribe((status: any) => {
       if (status === 'SUBSCRIBED') {
         console.log('Events subscription successful');
+        retryCount = 0; // Reset retry count on successful connection
       } else if (status === 'CHANNEL_ERROR') {
         console.error('Events subscription error:', status);
+        retrySubscription();
       } else if (status === 'TIMED_OUT') {
         console.error('Events subscription timed out');
+        retrySubscription();
       } else if (status === 'CLOSED') {
         console.log('Events subscription closed');
       }
@@ -83,6 +141,9 @@ export default function TabLayout() {
     channelRef.current = channel;
 
     return () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
       if (channelRef.current) {
         try {
           supabase.removeChannel(channelRef.current);
@@ -132,7 +193,8 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
+        tabBarStyle: isBottomNavVisible ? [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }] : { display: 'none' },
+        // tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
         tabBarLabelStyle: styles.tabBarLabel,
         headerShown: false,
       }}>

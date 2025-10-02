@@ -9,6 +9,7 @@ import { AutoLogoutProvider, useAutoLogout } from '@/contexts/AutoLogoutContext'
 import { PinProvider, usePin } from '@/contexts/PinContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { BalanceProvider } from '@/contexts/BalanceContext';
+import { BottomNavProvider } from '@/contexts/BottomNavContext';
 import { router } from 'expo-router';
 import SplashScreen from '@/components/SplashScreen';
 import BiometricsLock from '@/components/BiometricsLock';
@@ -147,9 +148,11 @@ export default function RootLayout() {
               <AutoLogoutProvider>
                 <ToastProvider>
                   <BalanceProvider>
+                    <BottomNavProvider>
                     <AppBlur>
                       <RootLayoutNav />
                     </AppBlur>
+                    </BottomNavProvider>
                   </BalanceProvider>
                 </ToastProvider>
               </AutoLogoutProvider>

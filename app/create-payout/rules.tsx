@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, Switch, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Switch, useWindowDimensions, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useEmergencyWithdrawalOptions } from '@/hooks/useEmergencyWithdrawalOptions';
 import { Platform } from 'react-native';
 
 export default function RulesScreen() {
@@ -15,6 +16,7 @@ export default function RulesScreen() {
   const [emergencyWithdrawal, setEmergencyWithdrawal] = useState(true);
   const { width, height } = useWindowDimensions();
   const haptics = useHaptics();
+  const { options, loading, error, getDisplayName, getColorForType } = useEmergencyWithdrawalOptions();
 
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
@@ -115,26 +117,25 @@ export default function RulesScreen() {
                   When enabled, you'll have access to the following emergency withdrawal options:
                 </Text>
                 
-                <View style={styles.optionItem}>
-                  <View style={[styles.optionDot, { backgroundColor: '#EF4444' }]} />
-                  <Text style={styles.optionText}>
-                    <Text style={styles.optionHighlight}>Instant withdrawal:</Text> 12% processing fee
-                  </Text>
-                </View>
-                
-                <View style={styles.optionItem}>
-                  <View style={[styles.optionDot, { backgroundColor: '#F59E0B' }]} />
-                  <Text style={styles.optionText}>
-                    <Text style={styles.optionHighlight}>24-hour withdrawal:</Text> 6% processing fee
-                  </Text>
-                </View>
-                
-                <View style={styles.optionItem}>
-                  <View style={[styles.optionDot, { backgroundColor: '#22C55E' }]} />
-                  <Text style={styles.optionText}>
-                    <Text style={styles.optionHighlight}>72-hour withdrawal:</Text> No processing fee
-                  </Text>
-                </View>
+                {loading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                    <Text style={styles.loadingText}>Loading options...</Text>
+                  </View>
+                ) : error ? (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>Failed to load withdrawal options</Text>
+                  </View>
+                ) : (
+                  options.map((option) => (
+                    <View key={option.id} style={styles.optionItem}>
+                      <View style={[styles.optionDot, { backgroundColor: getColorForType(option.type) }]} />
+                      <Text style={styles.optionText}>
+                        <Text style={styles.optionHighlight}>{getDisplayName(option.type)}:</Text> {option.percentage}% processing fee
+                      </Text>
+                    </View>
+                  ))
+                )}
               </View>
             )}
 
@@ -392,5 +393,25 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  errorContainer: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#EF4444',
+    textAlign: 'center',
   },
 });
