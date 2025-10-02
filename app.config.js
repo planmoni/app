@@ -19,13 +19,17 @@ export default {
     ios: {
       "bundleIdentifier": "com.planmoni",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"] // ✅ Required for push notifications
+        "UIBackgroundModes": ["remote-notification"], // ✅ Required for push notifications
+        "NSCameraUsageDescription": "This app needs access to camera for liveness verification",
+        "NSMicrophoneUsageDescription": "This app uses the microphone to provide a better experience.",
+        "NSPhotoLibraryUsageDescription": "This app uses the photo library to provide a better experience."
       },
       "entitlements": {
         "aps-environment": "development", // ✅ Required for push notification, change to "production" for Testflight and App Store builds
         "com.apple.security.application-groups": [
           "group.${ios.bundleIdentifier}.onesignal" // // ✅ Required for confirmed delivery
-        ]
+        ],
+        "keychain-access-groups": ["$(AppIdentifierPrefix)com.planmoni"]
       }
     },
     "plugins": [
@@ -42,6 +46,29 @@ export default {
           "androidApiKey": "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",
           "iosApiKey": "ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4",
           "intercomRegion": "US"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 29,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+       
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "$(PRODUCT_NAME) needs access to your Camera to take photos for liveness verification.",
+          "enableMicrophonePermission": false,
+          "enableFrameProcessors": true
         }
       ]
     ],

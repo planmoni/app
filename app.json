@@ -15,14 +15,21 @@
     },
     "android": {
       "package": "com.planmoni",
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": ["android.permission.CAMERA"]
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.planmoni",
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "This app uses location services to provide a better experience.",
+        "NSLocationAlwaysUsageDescription": "This app uses location services to provide a better experience.",
+        "NSLocationUsageDescription": "This app uses location services to provide a better experience.",
+        "NSPhotoLibraryUsageDescription": "This app uses the photo library to provide a better experience.",
+        "NSCameraUsageDescription": "This app needs access to camera for liveness verification",
+        "NSMicrophoneUsageDescription": "This app uses the microphone to provide a better experience."
       },
       "entitlements": {
         "aps-environment": "development",
@@ -45,6 +52,14 @@
         }
       ],
       [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "$(PRODUCT_NAME) needs access to your Camera to perform liveness verification.",
+          "enableMicrophonePermission": false,
+          "enableCodeScanner": false
+        }
+      ],
+      [
         "@intercom/intercom-react-native",
         {
           "appId": "tf4dp3qt",
@@ -54,11 +69,22 @@
         }
       ],
       "expo-router",
+      "expo-secure-store",
       "expo-font",
       "expo-web-browser",
       [
         "expo-build-properties",
-        { "android": { "compileSdkVersion": 35, "targetSdkVersion": 35, "minSdkVersion": 23 } }
+        { 
+          "android": { 
+            "compileSdkVersion": 35, 
+            "targetSdkVersion": 35, 
+            "minSdkVersion": 29,
+            "buildToolsVersion": "35.0.0"
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
       ],
       [
         "@intercom/intercom-react-native",
