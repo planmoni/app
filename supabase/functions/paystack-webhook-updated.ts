@@ -261,7 +261,7 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal, data) {
       amount: emergencyWithdrawal.net_amount,
       reference: emergencyWithdrawal.reference,
       payout_plan_id: emergencyWithdrawal.payout_plan_id
-    }, data, 'completed', 'emergency_withdrawal');
+    }, data, 'completed', 'withdrawal');
 
     // Send push notification
     await supabase.rpc('send_push_notification', {
@@ -408,7 +408,7 @@ async function handleEmergencyWithdrawalFailed(emergencyWithdrawal, data) {
       amount: emergencyWithdrawal.net_amount,
       reference: emergencyWithdrawal.reference,
       payout_plan_id: emergencyWithdrawal.payout_plan_id
-    }, data, 'failed', 'emergency_withdrawal');
+    }, data, 'failed', 'withdrawal');
 
     // Send push notification
     await supabase.rpc('send_push_notification', {
@@ -553,7 +553,7 @@ async function handleEmergencyWithdrawalReversed(emergencyWithdrawal, data) {
       amount: emergencyWithdrawal.net_amount,
       reference: emergencyWithdrawal.reference,
       payout_plan_id: emergencyWithdrawal.payout_plan_id
-    }, data, 'reversed', 'emergency_withdrawal');
+    }, data, 'reversed', 'withdrawal');
 
     // Send push notification
     await supabase.rpc('send_push_notification', {
@@ -1049,7 +1049,7 @@ async function createTransactionRecord(payoutData, paystackData, status, type = 
       p_reference: paystackData.reference,
       p_payout_plan_id: type === 'deposit' ? null : payoutData.payout_plan_id,
       p_description: type === 'deposit' ? `Funds received via virtual account` : 
-                    type === 'emergency_withdrawal' ? `Emergency withdrawal transfer` : 
+                    type === 'withdrawal' ? `Emergency withdrawal transfer` : 
                     `Automated payout transfer`,
       p_metadata: {
         paystack_transfer_code: paystackData.transfer_code,
