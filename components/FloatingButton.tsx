@@ -153,12 +153,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   button: {
     width: '100%',
     height: 55,
+    borderRadius: 100,
     backgroundColor: colors.primary,
   },
   androidButton: {
     // Android-specific button styling for constant position
     height: 52,
-    borderRadius: 12,
+    borderRadius: 100,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

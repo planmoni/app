@@ -253,7 +253,7 @@ export default function EmailNotificationSettings() {
           <Switch
             value={localSettings.login_alerts}
             onValueChange={() => handleToggle('login_alerts')}
-            trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+            trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
             thumbColor={localSettings.login_alerts ? '#1E3A8A' : colors.backgroundTertiary}
             disabled={isSaving}
           />
@@ -272,7 +272,7 @@ export default function EmailNotificationSettings() {
           <Switch
             value={localSettings.payout_alerts}
             onValueChange={() => handleToggle('payout_alerts')}
-            trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+            trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
             thumbColor={localSettings.payout_alerts ? '#1E3A8A' : colors.backgroundTertiary}
             disabled={isSaving}
           />
@@ -291,7 +291,7 @@ export default function EmailNotificationSettings() {
           <Switch
             value={localSettings.expiry_reminders}
             onValueChange={() => handleToggle('expiry_reminders')}
-            trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+            trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
             thumbColor={localSettings.expiry_reminders ? '#1E3A8A' : colors.backgroundTertiary}
             disabled={isSaving}
           />

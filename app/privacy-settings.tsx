@@ -80,7 +80,7 @@ export default function PrivacySettingsScreen() {
             <Switch
               value={dataCollection}
               onValueChange={setDataCollection}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+              trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
               thumbColor={dataCollection ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
@@ -96,7 +96,7 @@ export default function PrivacySettingsScreen() {
             <Switch
               value={analyticsTracking}
               onValueChange={setAnalyticsTracking}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+              trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
               thumbColor={analyticsTracking ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
@@ -112,7 +112,7 @@ export default function PrivacySettingsScreen() {
             <Switch
               value={thirdPartySharing}
               onValueChange={setThirdPartySharing}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+              trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
               thumbColor={thirdPartySharing ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
@@ -132,7 +132,7 @@ export default function PrivacySettingsScreen() {
             <Switch
               value={marketingEmails}
               onValueChange={setMarketingEmails}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+              trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
               thumbColor={marketingEmails ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
@@ -152,7 +152,7 @@ export default function PrivacySettingsScreen() {
             <Switch
               value={profileVisibility}
               onValueChange={setProfileVisibility}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+              trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
               thumbColor={profileVisibility ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
@@ -168,7 +168,7 @@ export default function PrivacySettingsScreen() {
             <Switch
               value={activityTracking}
               onValueChange={setActivityTracking}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+              trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
               thumbColor={activityTracking ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
@@ -184,7 +184,7 @@ export default function PrivacySettingsScreen() {
             <Switch
               value={locationTracking}
               onValueChange={setLocationTracking}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+              trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
               thumbColor={locationTracking ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>
@@ -204,7 +204,7 @@ export default function PrivacySettingsScreen() {
             <Switch
               value={cookieConsent}
               onValueChange={setCookieConsent}
-              trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+              trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
               thumbColor={cookieConsent ? '#1E3A8A' : colors.backgroundTertiary}
             />
           </View>

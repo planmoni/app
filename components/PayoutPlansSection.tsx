@@ -112,7 +112,7 @@ export default function PayoutPlansSection({ activePlans }: PayoutPlansSectionPr
             style={styles.addPayoutCard}
             onPress={handleCreatePayout}
           >
-            <Plus size={24} color={colors.primary} />
+            <Plus size={24} color={colors.text} />
             <Text style={styles.addPayoutText}>Create New Payout</Text>
             <Text style={styles.addPayoutDescription}>
               Set up a new automated payout plan
@@ -123,7 +123,7 @@ export default function PayoutPlansSection({ activePlans }: PayoutPlansSectionPr
         <View style={styles.emptyPayoutsContainer}>
           <Text style={styles.emptyPayoutsText}>No scheduled payout plans</Text>
           <Pressable style={styles.createFirstPayoutButton} onPress={handleCreatePayout}>
-            <Plus size={20} color="#FFFFFF" />
+            <Plus size={20} color={colors.text} />
             <Text style={styles.createFirstPayoutText}>Create Your First Plan</Text>
           </Pressable>
         </View>
@@ -283,13 +283,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.backgroundTertiary,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8,
+    height: 55,
+    borderRadius: 100,
   },
   createFirstPayoutText: {
-    color: '#FFFFFF',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '600',
   },

@@ -872,10 +872,18 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
   },
   receiptButton: {
     backgroundColor: colors.primary,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   reportButton: {
     borderColor: colors.border,
     backgroundColor: colors.surface,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   formatModalOverlay: {
     flex: 1,

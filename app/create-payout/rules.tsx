@@ -103,7 +103,7 @@ export default function RulesScreen() {
               <Switch
                 value={emergencyWithdrawal}
                 onValueChange={handleToggleEmergencyWithdrawal}
-                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={emergencyWithdrawal ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>

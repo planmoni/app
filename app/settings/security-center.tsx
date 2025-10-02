@@ -243,7 +243,7 @@ export default function SecurityCenter() {
             <Switch
               value={biometricEnabled}
               onValueChange={() => handleBiometricToggle('app')}
-              trackColor={{ false: colors.border, true: '#93C5FD'}}
+              trackColor={{ false: colors.border, true: '#D1EAAE'}}
               thumbColor={biometricEnabled ? colors.primary : colors.backgroundSecondary }
               disabled={!biometricSupport?.isAvailable || !biometricSupport?.isEnrolled}
             />
@@ -262,7 +262,7 @@ export default function SecurityCenter() {
             <Switch
               value={payoutBiometricEnabled}
               onValueChange={() => handleBiometricToggle('payout')}
-              trackColor={{ false: colors.border, true: '#93C5FD' }}
+              trackColor={{ false: colors.border, true: '#D1EAAE' }}
               thumbColor={payoutBiometricEnabled ? colors.primary : colors.backgroundSecondary }
             />
           </View>
@@ -280,7 +280,7 @@ export default function SecurityCenter() {
             <Switch
               value={emergencyBiometricEnabled}
               onValueChange={() => handleBiometricToggle('emergency')}
-              trackColor={{ false: colors.border, true: '#93C5FD' }}
+              trackColor={{ false: colors.border, true: '#D1EAAE' }}
               thumbColor={emergencyBiometricEnabled ? colors.primary : colors.backgroundSecondary }
             />
           </View>

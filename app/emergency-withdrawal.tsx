@@ -274,28 +274,8 @@ export default function EmergencyWithdrawalScreen() {
       </View>
       
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.warningCard}>
-          <AlertTriangle size={24} color={isDark ? '#FCD34D' : '#F97316'} />
-          <Text style={styles.warningText}>
-            Emergency withdrawals allow you to access your funds before the scheduled payout date, but may incur fees depending on the option you choose.
-          </Text>
-        </View>
         
-        <View style={styles.planInfoCard}>
-          <Text style={styles.planInfoTitle}>Withdrawal Details</Text>
-          <View style={styles.planInfoRow}>
-            <Text style={styles.planInfoLabel}>Plan Name:  </Text>
-            <Text style={styles.planInfoValue}>{plan.name}</Text>
-          </View>
-          <View style={styles.planInfoRow}>
-            <Text style={styles.planInfoLabel}>Available Amount:</Text>
-            <Text style={styles.planInfoValue}>₦{withdrawalAmount.toLocaleString()}</Text>
-          </View>
-          <View style={styles.planInfoRow}>
-            <Text style={styles.planInfoLabel}>Completed Payouts:</Text>
-            <Text style={styles.planInfoValue}>{plan.completed_payouts} of {plan.duration}</Text>
-          </View>
-        </View>
+        
         
         <Text style={styles.sectionTitle}>Select Withdrawal Option</Text>
         
@@ -648,8 +628,16 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   confirmButton: {
     backgroundColor: colors.primary,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   cancelButton: {
     borderColor: colors.border,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
 });

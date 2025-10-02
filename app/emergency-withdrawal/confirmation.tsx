@@ -310,8 +310,16 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   transactionsButton: {
     backgroundColor: colors.primary,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   dashboardButton: {
     borderColor: colors.border,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
 });

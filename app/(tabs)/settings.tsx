@@ -272,7 +272,6 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Show Dashboard Balances</Text>
-                <Text style={styles.settingDescription}>Hide or display wallet and vault balances</Text>
               </View>
               <Switch
                 value={showBalances}
@@ -283,7 +282,7 @@ export default function SettingsScreen() {
                   toggleBalances();
                   logAnalyticsEvent('toggle_balance_visibility', { show_balances: !showBalances });
                 }}
-                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={showBalances ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
@@ -511,7 +510,7 @@ export default function SettingsScreen() {
               <Switch
                 value={vaultAlerts}
                 onValueChange={() => handleToggleSwitch(setVaultAlerts, 'vault_alerts')}
-                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={vaultAlerts ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
@@ -529,7 +528,7 @@ export default function SettingsScreen() {
               <Switch
                 value={loginAlerts}
                 onValueChange={() => handleToggleSwitch(setLoginAlerts, 'login_alerts')}
-                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={loginAlerts ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
@@ -547,7 +546,7 @@ export default function SettingsScreen() {
               <Switch
                 value={expiryReminders}
                 onValueChange={() => handleToggleSwitch(setExpiryReminders, 'expiry_reminders')}
-                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={expiryReminders ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
@@ -892,7 +891,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: '#FEF2F2',
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 12,
+    borderRadius: 100,
     borderWidth: 1,
     borderColor: '#FECACA',
     width: '100%',

@@ -756,7 +756,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   },
   doneButton: {
     width: '100%',
-    height: 50,
+    height: 55,
+    borderRadius: 100,
     backgroundColor: colors.primary,
   },
   bankSelectionButton: {
@@ -764,7 +765,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderWidth: 1,
     borderColor: colors.border,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     marginBottom: 16,
   },
   bankSelectionButtonSelected: {
@@ -780,18 +781,20 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     flex: 1,
   },
   bankSelectionLabel: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: '500',
     color: colors.textSecondary,
     marginBottom: 4,
   },
   bankSelectionText: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '500',
     color: colors.text,
   },
   createAccountButton: {
     backgroundColor: colors.primary,
+    borderRadius: 100,
+    height: 55,
   },
   createAccountButtonDisabled: {
     backgroundColor: colors.textSecondary,
@@ -902,7 +905,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     backgroundColor: colors.backgroundSecondary,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: 100,
     padding: 16,
     alignItems: 'center',
   },

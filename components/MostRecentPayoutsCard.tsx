@@ -73,16 +73,54 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
         accountNumber = '';
       } else if (tx.type === 'withdrawal') {
         planName = 'Emergency Withdrawal';
-        description = 'Emergency withdrawal processed to';
-        // For withdrawals, try to get bank info from destination
-        if (tx.destination) {
-          // Try to extract bank name from destination
-          const destParts = tx.destination.split(' ');
-          if (destParts.length > 0) {
-            bankName = destParts[0];
-            accountNumber = destParts[destParts.length - 1] || '****';
+        
+        // For emergency withdrawals, get account info from the plan's linked account
+        const plan = payoutPlans.find(p => p.id === tx.payout_plan_id);
+        if (plan) {
+          // Get bank info from the payout plan's linked account
+          if (plan.payout_accounts) {
+            bankName = plan.payout_accounts.bank_name;
+            const fullAccountNumber = plan.payout_accounts.account_number;
+            accountNumber = fullAccountNumber && fullAccountNumber.length >= 4 
+              ? `*** ${fullAccountNumber.slice(-4)}`
+              : '****';
+          } else if (plan.bank_accounts) {
+            bankName = plan.bank_accounts.bank_name;
+            const fullAccountNumber = plan.bank_accounts.account_number;
+            accountNumber = fullAccountNumber && fullAccountNumber.length >= 4 
+              ? `*** ${fullAccountNumber.slice(-4)}`
+              : '****';
           }
         }
+        
+        // If we still don't have account info, try to get it from destination
+        if (!bankName || bankName === 'Unknown Bank') {
+          if (tx.destination && tx.destination !== 'bank_account') {
+            // Try to extract bank name and account number from destination
+            // Format is typically "BankName AccountNumber"
+            const destParts = tx.destination.split(' ');
+            if (destParts.length >= 2) {
+              // Bank name is everything except the last part (account number)
+              bankName = destParts.slice(0, -1).join(' ');
+              const fullAccountNumber = destParts[destParts.length - 1];
+              // Mask the account number showing only last 4 digits
+              accountNumber = fullAccountNumber.length >= 4 
+                ? `*** ${fullAccountNumber.slice(-4)}`
+                : '****';
+            } else if (destParts.length === 1) {
+              // Fallback if only one part
+              bankName = destParts[0];
+              accountNumber = '****';
+            }
+          } else {
+            // Final fallback for generic destination
+            bankName = 'Bank Account';
+            accountNumber = '****';
+          }
+        }
+        
+        // Update description to include the masked account info
+        description = `Emergency withdrawal processed to ${bankName} ${accountNumber}`;
       }
       
       const date = new Date(tx.created_at);
@@ -241,8 +279,8 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
             
             <View style={styles.paymentRow}>
               <View style={styles.paymentInfo}>
-                <Text style={styles.paymentLabel}>{currentTransaction.description} </Text>
-                {currentTransaction.type !== 'deposit' && (
+                <Text style={styles.paymentLabel}>{currentTransaction.description}</Text>
+                {currentTransaction.type !== 'deposit' && currentTransaction.type !== 'withdrawal' && (
                   <View style={styles.bankInfo}>
                     <View style={styles.bankLogo}>
                       {(() => {

@@ -24,9 +24,9 @@ export function useEmergencyWithdrawal() {
   const calculateFee = (amount: number, option: EmergencyWithdrawalOption): number => {
     switch (option) {
       case 'instant':
-        return amount * 0.12; // 12% fee
+        return Math.round(amount * 0.12 * 100) / 100; // 12% fee, rounded to 2 decimal places
       case '24h':
-        return amount * 0.06; // 6% fee
+        return Math.round(amount * 0.06 * 100) / 100; // 6% fee, rounded to 2 decimal places
       case '72h':
         return 0; // No fee
       default:
@@ -35,7 +35,8 @@ export function useEmergencyWithdrawal() {
   };
 
   const calculateNetAmount = (amount: number, option: EmergencyWithdrawalOption): number => {
-    return amount - calculateFee(amount, option);
+    const fee = calculateFee(amount, option);
+    return Math.round((amount - fee) * 100) / 100; // Round to 2 decimal places
   };
 
   const processEmergencyWithdrawal = async (request: EmergencyWithdrawalRequest) => {
@@ -126,6 +127,27 @@ export function useEmergencyWithdrawal() {
 
       console.log('Emergency withdrawal processed successfully:', result);
 
+      // Update the transaction record with account details if available
+      if (result.data?.account_details) {
+        const { error: updateError } = await supabase
+          .from('transactions')
+          .update({
+            destination: result.data.account_details,
+            metadata: {
+              withdrawal_type: request.option,
+              fee_amount: feeAmount,
+              net_amount: netAmount,
+              emergency_withdrawal_id: withdrawalRecord.id,
+              account_details: result.data.account_details
+            }
+          })
+          .eq('reference', reference);
+
+        if (updateError) {
+          console.error('Error updating transaction with account details:', updateError);
+        }
+      }
+
       // Show success toast
       showToast('Emergency withdrawal processed successfully', 'success');
 
@@ -140,7 +162,7 @@ export function useEmergencyWithdrawal() {
           feeAmount: feeAmount.toString(),
           netAmount: netAmount.toString(),
           reference: reference,
-          destination: accountDetails || 'Your bank account',
+          destination: result.data?.account_details || 'Your bank account',
           processingTime: request.option === 'instant' ? 'Immediate' : 
                          request.option === '24h' ? 'Within 24 hours' : 
                          'Within 72 hours'

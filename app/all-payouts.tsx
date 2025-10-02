@@ -308,7 +308,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 40,
     height: 40,
     backgroundColor: colors.primary,
-    borderRadius: 20,
+    borderRadius: 100,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -403,7 +403,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 100,
     marginTop: 16,
   },
   createFirstButtonText: {
@@ -455,7 +455,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   actionButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 100,
     backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',

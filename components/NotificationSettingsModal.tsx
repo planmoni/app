@@ -133,7 +133,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 <Switch
                   value={pushEnabled}
                   onValueChange={() => handleTogglePush(setPushEnabled)}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                   thumbColor={pushEnabled ? '#1E3A8A' : colors.backgroundTertiary}
                 />
               </View>
@@ -151,7 +151,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 <Switch
                   value={payoutAlerts}
                   onValueChange={() => handleTogglePush(setPayoutAlerts)}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                   thumbColor={payoutAlerts ? '#1E3A8A' : colors.backgroundTertiary}
                   disabled={!pushEnabled}
                 />
@@ -170,7 +170,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 <Switch
                   value={securityAlerts}
                   onValueChange={() => handleTogglePush(setSecurityAlerts)}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                   thumbColor={securityAlerts ? '#1E3A8A' : colors.backgroundTertiary}
                   disabled={!pushEnabled}
                 />
@@ -189,7 +189,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 <Switch
                   value={marketingAlerts}
                   onValueChange={() => handleTogglePush(setMarketingAlerts)}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                   thumbColor={marketingAlerts ? '#1E3A8A' : colors.backgroundTertiary}
                   disabled={!pushEnabled}
                 />
@@ -212,7 +212,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 <Switch
                   value={localSettings.login_alerts}
                   onValueChange={() => handleToggleEmail('login_alerts')}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                   thumbColor={localSettings.login_alerts ? '#1E3A8A' : colors.backgroundTertiary}
                 />
               </View>
@@ -230,7 +230,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 <Switch
                   value={localSettings.payout_alerts}
                   onValueChange={() => handleToggleEmail('payout_alerts')}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                   thumbColor={localSettings.payout_alerts ? '#1E3A8A' : colors.backgroundTertiary}
                 />
               </View>
@@ -248,7 +248,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 <Switch
                   value={localSettings.expiry_reminders}
                   onValueChange={() => handleToggleEmail('expiry_reminders')}
-                  trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                   thumbColor={localSettings.expiry_reminders ? '#1E3A8A' : colors.backgroundTertiary}
                 />
               </View>
