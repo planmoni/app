@@ -287,8 +287,8 @@ export default function ReviewScreen() {
 
             <View style={styles.detailsList}>
               <View style={styles.detailItem}>
-                <View style={[styles.detailIcon, { backgroundColor: '#F0FDF4' }]}>
-                  <Wallet size={20} color="#22C55E" />
+                <View style={[styles.detailIcon, { backgroundColor:colors.backgroundTertiary}]}>
+                  <Wallet size={20} color={colors.text} />
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Total Amount</Text>
@@ -308,8 +308,8 @@ export default function ReviewScreen() {
               </View>
 
               <View style={styles.detailItem}>
-                <View style={[styles.detailIcon, { backgroundColor: '#EFF6FF' }]}>
-                  <Calendar size={20} color="#1E3A8A" />
+                <View style={[styles.detailIcon, { backgroundColor:colors.backgroundTertiary}]}>
+                  <Calendar size={20} color={colors.text} />
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Payout Frequency</Text>
@@ -330,8 +330,8 @@ export default function ReviewScreen() {
               </View>
 
               <View style={styles.detailItem}>
-                <View style={[styles.detailIcon, { backgroundColor: '#F5F3FF' }]}>
-                  <Clock size={20} color="#8B5CF6" />
+                <View style={[styles.detailIcon, { backgroundColor:colors.backgroundTertiary}]}>
+                  <Clock size={20} color={colors.text} />
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Duration</Text>
@@ -352,7 +352,7 @@ export default function ReviewScreen() {
               </View>
 
               <View style={styles.detailItem}>
-                <View style={[styles.detailIcon, { backgroundColor: '#F0F9FF' }]}>
+                <View style={[styles.detailIcon, { backgroundColor:colors.backgroundTertiary}]}>
                   {(() => {
                     const bankIcon = getBankIconLogo(bankName);
                     if (bankIcon.logoSvg) {
@@ -360,7 +360,7 @@ export default function ReviewScreen() {
                       return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
                         width: 20,
                         height: 20,
-                        fill: "#0EA5E9"
+                        fill: colors.text
                       });
                     } else if (bankIcon.logo) {
                       return (

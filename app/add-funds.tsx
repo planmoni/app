@@ -262,7 +262,7 @@ export default function AddFundsScreen() {
         <Pressable onPress={handleBack} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Deposit Funds</Text>
+        <Text style={styles.headerTitle}>Add funds</Text>
       </View>
 
       {/* <View style={styles.tabContainer}>

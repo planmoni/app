@@ -753,7 +753,7 @@ export default function ScheduleScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Text style={styles.title}>How frequent do you want us to send this money?</Text>
+          <Text style={styles.title}>How often do you want us to send this money?</Text>
           <Text style={styles.description}>Choose your payout schedule</Text>
 
           <ScrollView 
