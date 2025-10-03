@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Info, Plus } from 'lucide-react-native';
+import { ArrowLeft, Info, Plus, X } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -111,6 +111,17 @@ export default function AmountScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.push('/(tabs)');
+          }} 
+          style={styles.cancelButton}
+        >
+          <X size={24} color={colors.text} />
+        </Pressable>
       </View>
 
       <View style={styles.progressContainer}>
@@ -183,6 +194,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: colors.surface,
@@ -200,6 +212,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+    flex: 1,
+    textAlign: 'center',
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   progressContainer: {
     padding: 20,

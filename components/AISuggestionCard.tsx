@@ -30,7 +30,7 @@ interface Suggestion {
   title: string;
   description: string;
   amount: number;
-  frequency: 'weekly' | 'biweekly' | 'monthly' | 'end_of_month';
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'end_of_month';
   duration: number;
   icon: React.ReactNode;
   color: string;
@@ -88,6 +88,12 @@ export default function AISuggestionCard({
   // Get duration options based on frequency (matching the schedule page logic)
   const getDurationOptions = (frequency: string) => {
     switch (frequency) {
+      case 'daily':
+        return [
+          { value: 7, label: '1 Week', description: '7 daily payments' },
+          { value: 30, label: '1 Month', description: '30 daily payments' },
+          { value: 90, label: '3 Months', description: '90 daily payments' }
+        ];
       case 'weekly':
         return [
           { value: 4, label: '1 Month', description: '4 weekly payments' },
@@ -129,6 +135,22 @@ export default function AISuggestionCard({
 
     // Default suggestion structure with fixed payout counts
     const defaultSuggestions = [
+      {
+        id: 'daily-30-suggestion',
+        title: 'Daily Plan',
+        description: '30 daily payments',
+        frequency: 'daily' as const,
+        color: '#8B5CF6',
+        icon: <TrendingUp size={20} color="#8B5CF6" />,
+      },
+      {
+        id: 'daily-7-suggestion',
+        title: 'Daily Plan',
+        description: '7 daily payments',
+        frequency: 'daily' as const,
+        color: '#7C3AED',
+        icon: <TrendingUp size={20} color="#7C3AED" />,
+      },
       {
         id: 'weekly-suggestion',
         title: 'Weekly Plan',
@@ -176,6 +198,12 @@ export default function AISuggestionCard({
       // Special case for weekly-4-suggestion - always use 4 payouts
       if (suggestion.id === 'weekly-4-suggestion') {
         selectedDuration = { value: 4, label: '1 Month', description: '4 weekly payments' };
+      } else if (suggestion.id === 'daily-30-suggestion') {
+        // Special case for daily-30-suggestion - always use 30 payouts
+        selectedDuration = { value: 30, label: '1 Month', description: '30 daily payments' };
+      } else if (suggestion.id === 'daily-7-suggestion') {
+        // Special case for daily-7-suggestion - always use 7 payouts
+        selectedDuration = { value: 7, label: '1 Week', description: '7 daily payments' };
       } else if (userPatterns.totalPlans > 0 && suggestion.frequency === userPatterns.mostCommonFrequency) {
         // For user's preferred frequency, use a longer duration
         selectedDuration = durationOptions[durationOptions.length - 1]; // Use the longest duration
@@ -236,6 +264,7 @@ export default function AISuggestionCard({
 
   const getFrequencyText = (frequency: string) => {
     switch (frequency) {
+      case 'daily': return 'Daily';
       case 'weekly': return 'Weekly';
       case 'biweekly': return 'Bi-weekly';
       case 'monthly': return 'Monthly';

@@ -22,16 +22,16 @@ import { useRef } from 'react';
 const SLIDES = [
   {
     id: '1',
-    title: 'Say hello to financial control',
+    title: "Say 'hello!' to financial control",
     // subtitle: 'Smart Financial Planning',
-    description: 'Take full control of your money by breaking your income into manageable payouts to ensure you never run out of money on time.',
+    description: "Planmoni helps you stay in complete financial control with automated payouts scheduling and intelligent cash flow management system - equipped with advanced tools, insights & A.I",
     image: require('@/assets/images/StayInControl.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
   },
   {
     id: '2',
-    title: 'Create Personalized\nSalary Plans',
+    title: 'Receive your Deposits in Instalments',
     // subtitle: 'Automated Scheduling',
     description: 'Split deposits into scheduled weekly, bi-weekly or monthly payouts that work for your lifestyle.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
@@ -40,7 +40,7 @@ const SLIDES = [
   },
   {
     id: '3',
-    title: 'Receive Stable\nIncome Flow',
+    title: 'Stabilize your Cash Flow',
     // subtitle: 'Financial Security',
     description: 'Secure your money, automate payouts & say goodbye to irregular income forever.',
     image: require('@/assets/images/SmartSavings.png'),

@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, Pressable, useWindowDimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions, Image, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Building2, Plus, Info, Check } from 'lucide-react-native';
+import { ArrowLeft, Building2, Plus, Info, Check, X } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '@/components/Button';
 import { useState, useEffect } from 'react';
@@ -174,6 +174,17 @@ export default function DestinationScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.push('/(tabs)');
+          }} 
+          style={styles.cancelButton}
+        >
+          <X size={24} color={colors.text} />
+        </Pressable>
       </View>
 
       <View style={styles.progressContainer}>
@@ -416,6 +427,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: colors.surface,
@@ -433,6 +445,15 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+    flex: 1,
+    textAlign: 'center',
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   progressContainer: {
     padding: 20,

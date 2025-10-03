@@ -7,6 +7,8 @@
  */
 export function formatPayoutFrequency(frequency: string, dayOfWeek?: number | null): string {
   switch (frequency) {
+    case 'daily':
+      return 'Daily';
     case 'weekly':
       return 'Weekly';
     case 'weekly_specific':

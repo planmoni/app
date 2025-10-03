@@ -24,13 +24,15 @@ export function useCreatePayout() {
     payoutAccountId,
     customDates,
     emergencyWithdrawalEnabled = false,
-    dayOfWeek
+    dayOfWeek,
+    payoutHour,
+    payoutMinute
   }: {
     name: string;
     description?: string;
     totalAmount: number;
     payoutAmount: number;
-    frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom' | 'weekly_specific' | 'end_of_month' | 'quarterly' | 'biannual' | 'annually';
+    frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom' | 'weekly_specific' | 'end_of_month' | 'quarterly' | 'biannual' | 'annually';
     duration: number;
     startDate: string;
     bankAccountId?: string | null;
@@ -38,6 +40,8 @@ export function useCreatePayout() {
     customDates?: string[];
     emergencyWithdrawalEnabled?: boolean;
     dayOfWeek?: number;
+    payoutHour?: number;
+    payoutMinute?: number;
   }) => {
     try {
       setIsLoading(true);
@@ -67,14 +71,14 @@ export function useCreatePayout() {
         throw new Error('Unable to fetch current wallet balance. Please try again.');
       }
 
-      const { balance: currentBalance, lockedBalance: currentLockedBalance, availableBalance: currentAvailableBalance } = walletData;
+      const { balance, lockedBalance, availableBalance } = walletData;
       
-      console.log('- Current Balance:', currentBalance);
-      console.log('- Locked Balance:', currentLockedBalance);
+      console.log('- Current Balance:', balance);
+      console.log('- Locked Balance:', lockedBalance);
 
       // Check if user has enough available balance using fresh data
-      if (totalAmount > currentBalance) {
-        throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${currentBalance.toLocaleString()} available.`);
+      if (totalAmount > balance) {
+        throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${balance.toLocaleString()} available.`);
       }
 
       // Map frequency values to database-compatible values
@@ -82,6 +86,7 @@ export function useCreatePayout() {
       let dbFrequency: 'weekly' | 'biweekly' | 'monthly' | 'custom';
       
       switch (frequency) {
+        case 'daily':
         case 'weekly_specific':
         case 'end_of_month':
         case 'quarterly':
@@ -99,7 +104,12 @@ export function useCreatePayout() {
       const startDateObj = new Date(startDate);
       let nextPayoutDate = new Date(startDateObj);
 
-      if (frequency === 'weekly') {
+      if (frequency === 'daily') {
+        nextPayoutDate.setDate(startDateObj.getDate() + 1);
+        if (payoutHour !== undefined && payoutMinute !== undefined) {
+          nextPayoutDate.setHours(payoutHour, payoutMinute, 0, 0);
+        }
+      } else if (frequency === 'weekly') {
         nextPayoutDate.setDate(startDateObj.getDate() + 7);
       } else if (frequency === 'weekly_specific' && dayOfWeek !== undefined) {
         // Calculate the next occurrence of the specified day of week
@@ -130,7 +140,9 @@ export function useCreatePayout() {
       // Store additional metadata for special frequency types
       const metadata = {
         originalFrequency: frequency,
-        dayOfWeek: dayOfWeek
+        dayOfWeek: dayOfWeek,
+        payoutHour: payoutHour,
+        payoutMinute: payoutMinute
       };
 
       // ➕ Insert payout plan into DB
@@ -159,18 +171,18 @@ export function useCreatePayout() {
         .select()
         .single();
 
-        if (payoutError) {
-          console.error('Error creating payout plan:', payoutError);
-          throw payoutError;
-        }
+      if (payoutError) {
+        console.error('Error creating payout plan:', payoutError);
+        throw payoutError;
+      }
 
-        console.log('Payout plan created:', payoutPlan.id);
+      console.log('Payout plan created:', payoutPlan.id);
 
-        // 🔒 Lock funds via RPC with unambiguous parameter names
-        const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
-          arg_user_id: session.user.id,
-          arg_amount: totalAmount
-        });
+      // 🔒 Lock funds via RPC with unambiguous parameter names
+      const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
+        arg_user_id: session.user.id,
+        arg_amount: totalAmount
+      });
 
       if (lockError) {
         console.error('Error locking funds:', lockError);

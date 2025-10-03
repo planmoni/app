@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform }
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check } from 'lucide-react-native';
+import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCreatePayout } from '@/hooks/useCreatePayout';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -42,6 +42,8 @@ export default function ReviewScreen() {
   const emergencyWithdrawal = params.emergencyWithdrawal === 'true';
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
   const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
+  const payoutHour = params.payoutHour ? parseInt(params.payoutHour as string) : undefined;
+  const payoutMinute = params.payoutMinute ? parseInt(params.payoutMinute as string) : undefined;
 
   // Calculate available balance
   const availableBalance = balance - lockedBalance;
@@ -100,7 +102,9 @@ export default function ReviewScreen() {
         bankAccountId: bankAccountId || null,
         payoutAccountId: payoutAccountId || null,
         customDates,
-        emergencyWithdrawalEnabled: emergencyWithdrawal
+        emergencyWithdrawalEnabled: emergencyWithdrawal,
+        payoutHour: payoutHour,
+        payoutMinute: payoutMinute,
       });
     } catch (err) {
       console.error('Error in handleConfirmPayout:', err);
@@ -151,6 +155,8 @@ export default function ReviewScreen() {
     const durationNum = parseInt(duration);
     
     switch (frequency) {
+      case 'daily':
+        return durationNum === 1 ? '1 day' : `${durationNum} days`;
       case 'weekly':
         return durationNum === 1 ? '1 week' : `${durationNum} weeks`;
       case 'weekly_specific':
@@ -180,6 +186,10 @@ export default function ReviewScreen() {
 
     const start = new Date(startDate);
     const next = new Date(start);
+    if (frequency === 'daily') {
+      next.setDate(start.getDate() + 1);
+      return formatDisplayDate(next.toISOString());
+    }
 
     if (frequency === 'weekly_specific' && typeof dayOfWeek === 'number') {
       // Find the next occurrence of the selected dayOfWeek (0=Sunday, 6=Saturday) on or after startDate
@@ -192,6 +202,9 @@ export default function ReviewScreen() {
     }
 
     switch (frequency) {
+      case 'daily':
+        next.setDate(start.getDate() + 1);
+        break;
       case 'weekly':
         next.setDate(start.getDate() + 7);
         break;
@@ -233,6 +246,17 @@ export default function ReviewScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.push('/(tabs)');
+          }} 
+          style={styles.cancelButton}
+        >
+          <X size={24} color={colors.text} />
+        </Pressable>
       </View>
 
       <View style={styles.progressContainer}>
@@ -312,7 +336,7 @@ export default function ReviewScreen() {
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Duration</Text>
                   <Text style={styles.detailValue}>{getDurationDisplay()}</Text>
-                  <Text style={styles.detailSubtext}>First payout on {getNextPayoutDate(startDate, frequency, customDates, dayOfWeek)}</Text>
+                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
                 </View>
                 <Pressable 
                   style={styles.editButton} 
@@ -448,6 +472,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: colors.surface,
@@ -465,6 +490,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+    flex: 1,
+    textAlign: 'center',
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   progressContainer: {
     padding: 20,

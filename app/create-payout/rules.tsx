@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, Pressable, Switch, useWindowDimensions } from '
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, TriangleAlert as AlertTriangle, Clock, Info, Shield } from 'lucide-react-native';
+import { ArrowLeft, TriangleAlert as AlertTriangle, Clock, Info, Shield, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
@@ -71,6 +71,17 @@ export default function RulesScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.push('/(tabs)');
+          }} 
+          style={styles.cancelButton}
+        >
+          <X size={24} color={colors.text} />
+        </Pressable>
       </View>
 
       <View style={styles.progressContainer}>
@@ -159,6 +170,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: colors.surface,
@@ -176,6 +188,15 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+    flex: 1,
+    textAlign: 'center',
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   progressContainer: {
     padding: 20,

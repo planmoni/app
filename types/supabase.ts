@@ -46,7 +46,7 @@ export interface Database {
           description: string | null
           total_amount: number
           payout_amount: number
-          frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom'
+          frequency: 'daily' | 'weekly' | 'weekly_specific' | 'biweekly' | 'monthly' | 'end_of_month' | 'quarterly' | 'biannual' | 'annually' | 'custom'
           day_of_week: number | null
           duration: number
           start_date: string
@@ -67,7 +67,7 @@ export interface Database {
           description?: string | null
           total_amount: number
           payout_amount: number
-          frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom'
+          frequency: 'daily' | 'weekly' | 'weekly_specific' | 'biweekly' | 'monthly' | 'end_of_month' | 'quarterly' | 'biannual' | 'annually' | 'custom'
           day_of_week?: number | null
           duration: number
           start_date: string
@@ -88,7 +88,7 @@ export interface Database {
           description?: string | null
           total_amount?: number
           payout_amount?: number
-          frequency?: 'weekly' | 'biweekly' | 'monthly' | 'custom'
+          frequency?: 'daily' | 'weekly' | 'weekly_specific' | 'biweekly' | 'monthly' | 'end_of_month' | 'quarterly' | 'biannual' | 'annually' | 'custom'
           day_of_week?: number | null
           duration?: number
           start_date?: string
