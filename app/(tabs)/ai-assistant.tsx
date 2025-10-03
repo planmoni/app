@@ -47,7 +47,9 @@ interface Message {
 // Suggested prompts for the user
 const SUGGESTED_PROMPTS = [
   "Help me plan 50k for 2 months",
+  "Create a daily payout plan for 30k",
   "How can I improve my money habits?",
+  "Set up daily savings for 1 week",
   "Analyze my money patterns",
 ];
 
@@ -131,6 +133,7 @@ export default function AIAssistantScreen() {
 
   // Add frequency options
   const frequencyOptions = [
+    'daily',
     'weekly',
     'specific day',
     'bi-weekly',
@@ -162,6 +165,13 @@ export default function AIAssistantScreen() {
       keyboardDidHideListener.remove();
     };
   }, []);
+
+  // Show suggestions when input field is clear (regardless of conversation history)
+  useEffect(() => {
+    if (!inputText.trim() && !keyboardVisible) {
+      setShowSuggestions(true);
+    }
+  }, [inputText, keyboardVisible]);
 
   // Add welcome message when component mounts
   useEffect(() => {
@@ -428,14 +438,35 @@ export default function AIAssistantScreen() {
     const endOfMonthAmount = Math.ceil(targetAmount / timeframe);
     const firstOfMonthAmount = Math.ceil(targetAmount / timeframe);
     const freq = userMessage ? extractFrequency(userMessage) : null;
+    
+    // Calculate daily amounts for different durations
+    const dailyAmount7 = Math.ceil(targetAmount / 7);
+    const dailyAmount30 = Math.ceil(targetAmount / 30);
+    const dailyAmount90 = Math.ceil(targetAmount / 90);
+    
     if (freq === 'daily') {
-      // If user requests daily, fallback to weekly or show a message
+      // Provide multiple daily options
       return [
         {
-          title: "Weekly Payout",
-          amount: weeklyAmount,
-          frequency: "weekly",
-          description: `Daily payouts are not supported. Here is a weekly payout option: ₦${weeklyAmount.toLocaleString()} every week for ${timeframe} months.`
+          title: "Daily Payout (7 days)",
+          amount: dailyAmount7,
+          frequency: "daily",
+          duration: 7,
+          description: `Schedule a payout of ₦${dailyAmount7.toLocaleString()} every day for 7 days.`
+        },
+        {
+          title: "Daily Payout (30 days)",
+          amount: dailyAmount30,
+          frequency: "daily",
+          duration: 30,
+          description: `Schedule a payout of ₦${dailyAmount30.toLocaleString()} every day for 30 days.`
+        },
+        {
+          title: "Daily Payout (90 days)",
+          amount: dailyAmount90,
+          frequency: "daily",
+          duration: 90,
+          description: `Schedule a payout of ₦${dailyAmount90.toLocaleString()} every day for 90 days.`
         }
       ];
     } else if (freq === 'weekly') {
@@ -484,8 +515,22 @@ export default function AIAssistantScreen() {
         }
       ];
     }
-    // Default: show all options except daily
+    // Default: show all options including daily
     return [
+      {
+        title: "Daily Payout (7 days)",
+        amount: dailyAmount7,
+        frequency: "daily",
+        duration: 7,
+        description: `Schedule a payout of ₦${dailyAmount7.toLocaleString()} every day for 7 days.`
+      },
+      {
+        title: "Daily Payout (30 days)",
+        amount: dailyAmount30,
+        frequency: "daily",
+        duration: 30,
+        description: `Schedule a payout of ₦${dailyAmount30.toLocaleString()} every day for 30 days.`
+      },
       {
         title: "Weekly Payout",
         amount: weeklyAmount,
@@ -875,13 +920,18 @@ export default function AIAssistantScreen() {
         
         // Calculate payout amount and duration
         const payoutAmount = Math.ceil(targetAmount / timeframe);
-        const duration = timeframe;
+        let duration = timeframe;
         
         // Map frequency to database format
         let frequency: any = 'monthly';
         let dayOfWeek: number | undefined;
         
         switch (plan.frequency) {
+          case 'daily':
+            frequency = 'daily';
+            // Use the duration from the plan if available, otherwise calculate from timeframe
+            duration = plan.duration || Math.ceil(timeframe * 30); // Default to days if timeframe is in months
+            break;
           case 'weekly':
             frequency = 'weekly';
             break;
@@ -1235,9 +1285,12 @@ export default function AIAssistantScreen() {
                         ₦{plan.amount.toLocaleString()}
                       </Text>
                     </View>
-                    {plan.frequency === 'weekly' && <Calendar size={20} color={colors.primary} />}
-                    {plan.frequency === 'biweekly' && <Calendar size={20} color={colors.primary} />}
-                    {plan.frequency === 'monthly' && <Calendar size={20} color={colors.primary} />}
+                    {plan.frequency === 'daily' && <Clock size={20} color={colors.primary} />}
+                    {plan.frequency === 'weekly' && <Clock size={20} color={colors.primary} />}
+                    {plan.frequency === 'biweekly' && <Clock size={20} color={colors.primary} />}
+                    {plan.frequency === 'monthly' && <Clock size={20} color={colors.primary} />}
+                    {plan.frequency === 'end_of_month' && <Clock size={20} color={colors.primary} />}
+                    {plan.frequency === 'first_of_month' && <Clock size={20} color={colors.primary} />}
                   </View>
                   
                   <Text style={[styles.planDescription, { color: colors.textSecondary }]}>
@@ -1514,7 +1567,7 @@ export default function AIAssistantScreen() {
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.primary,
-      borderRadius: 8,
+      borderRadius: 100,
       paddingVertical: Platform.OS === 'ios' ? 10 : 8,
       paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
       gap: 8,
@@ -1833,7 +1886,7 @@ export default function AIAssistantScreen() {
         )}
       </ScrollView>
 
-      {showSuggestions && messages.length === 1 && !keyboardVisible && (
+      {showSuggestions && !inputText.trim() && !keyboardVisible && (
         <View style={styles.suggestionsContainer}>
           <Text style={styles.suggestionsTitle}>Try asking about:</Text>
           <ScrollView 

@@ -1600,10 +1600,12 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   },
   modalCancelButton: {
     flex: 1,
+    borderRadius: 100,
   },
   modalConfirmButton: {
     flex: 1,
     backgroundColor: '#1E3A8A',
+    borderRadius: 100,
   },
   amountHeader: {
     flexDirection: 'row',
@@ -1739,14 +1741,14 @@ const createTimePickerStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundTertiary,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 100,
     alignItems: 'center',
   },
   confirmButton: {
     flex: 1,
     backgroundColor: colors.primary,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 100,
     alignItems: 'center',
   },
   cancelButtonText: {
@@ -1873,9 +1875,11 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
   },
   cancelButton: {
     backgroundColor: colors.backgroundTertiary,
+    borderRadius: 100,
   },
   confirmButton: {
     backgroundColor: '#1E3A8A',
+    borderRadius: 100,
   },
   cancelButtonText: {
     fontSize: isSmallScreen ? 14 : 16,
