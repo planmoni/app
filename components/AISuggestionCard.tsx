@@ -229,10 +229,29 @@ export default function AISuggestionCard({
       });
     });
 
-    // Sort by recommended first, then by amount
+    // Sort by frequency priority (Daily first), then by recommended, then by amount
     return suggestions.sort((a, b) => {
+      // Priority order: Daily > Weekly > Bi-weekly > Monthly > Others
+      const frequencyPriority = {
+        'daily': 1,
+        'weekly': 2,
+        'biweekly': 3,
+        'monthly': 4,
+        'end_of_month': 5
+      };
+      
+      const aPriority = frequencyPriority[a.frequency as keyof typeof frequencyPriority] || 6;
+      const bPriority = frequencyPriority[b.frequency as keyof typeof frequencyPriority] || 6;
+      
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      // If same frequency, sort by recommended first
       if (a.recommended && !b.recommended) return -1;
       if (!a.recommended && b.recommended) return 1;
+      
+      // Finally sort by amount (highest first)
       return b.amount - a.amount;
     });
   };

@@ -415,15 +415,18 @@ export default function ScheduleScreen() {
       // Handle AI suggestion parameters
       if (params.suggestedFrequency) {
         const frequency = params.suggestedFrequency as string;
+        console.log('AI Suggestion - Frequency:', frequency);
         setSelectedSchedule(frequency);
         
         // Handle suggested duration
         if (params.suggestedDuration) {
           const duration = parseInt(params.suggestedDuration as string);
+          console.log('AI Suggestion - Duration:', duration);
           const durationOptions = getDurationOptions(frequency);
           const matchingDuration = durationOptions.find(opt => opt.value === duration);
           
           if (matchingDuration) {
+            console.log('AI Suggestion - Found matching duration:', matchingDuration);
             setSelectedDuration(matchingDuration);
             setNumberOfPayouts(duration);
             if (isYearlySplit) {
@@ -468,8 +471,17 @@ export default function ScheduleScreen() {
     }
   }, [params.totalAmount, params.suggestedFrequency, params.suggestedDuration]);
   
-  // Update duration options when frequency changes
+  // Update duration options when frequency changes (but not when coming from AI suggestions)
   useEffect(() => {
+    // Only run this effect if we don't have AI suggestion parameters
+    // This prevents overriding AI suggestion settings
+    if (params.suggestedFrequency && params.suggestedDuration) {
+      console.log('Skipping duration override - AI suggestion detected');
+      return; // Skip this effect if we have AI suggestion parameters
+    }
+    
+    console.log('Running default duration logic for frequency:', selectedSchedule);
+    
     const durationOptions = getDurationOptions(selectedSchedule || '');
     
     // For daily frequency, default to 30 days (1 month) instead of the longest duration
@@ -486,7 +498,7 @@ export default function ScheduleScreen() {
     if (isYearlySplit && totalAmount) {
       calculatePayoutAmount(totalAmount, defaultDuration.value);
     }
-  }, [selectedSchedule]);
+  }, [selectedSchedule, params.suggestedFrequency, params.suggestedDuration]);
 
   const calculatePayoutAmount = (total: string, payouts: number) => {
     const numericTotal = parseFloat(total.replace(/,/g, ''));
