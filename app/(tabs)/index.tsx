@@ -22,6 +22,7 @@ import {
   EyeOff,
   CircleHelp as HelpCircle,
   Lock,
+  Clock,
   Plus,
   RefreshCw,
   Star,
@@ -569,7 +570,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.greetingContainer}>
             <Text style={styles.greeting}>{getGreeting()}, {firstName}.</Text>
-            <Text style={styles.subGreeting}>It's time to plan some payouts</Text>
+            {/* <Text style={styles.subGreeting}>It's time to plan some payouts</Text> */}
           </View>
         </View>
 
@@ -581,7 +582,7 @@ export default function HomeScreen() {
           <View style={styles.balanceCardContent}>
             <View style={styles.balanceLabelContainer}>
               <View style={styles.balanceLabelGroup}>
-                <Text style={styles.balanceLabel}>Available Balance</Text>
+                <Text style={styles.balanceLabel}>Your balance</Text>
                 <Pressable 
                   onPress={toggleBalances}
                   style={styles.eyeIconButton}
@@ -605,10 +606,10 @@ export default function HomeScreen() {
             <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
             <View style={styles.lockedSection}>
               <View style={styles.lockedLabelContainer}>
-                <Lock size={16} color={colors.textSecondary} />
-                <Text style={styles.lockedLabel}>Locked for payouts</Text>
+                {/* <Clock size={16} color={colors.textSecondary} /> */}
+                <Text style={styles.lockedLabel}>You have {formatBalance(lockedBalance)} in payout plans</Text>
               </View>
-              <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text>
+              {/* <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text> */}
             </View>
             <View style={styles.buttonGroup}>
               <Pressable 
@@ -616,15 +617,15 @@ export default function HomeScreen() {
                 onPress={handleAddFunds}
               >
                 
-                <BanknoteArrowDown size={24} color={colors.textSecondary}/>
-                <Text style={styles.addFundsText}>Deposit</Text>
+                <Plus size={20} color={colors.textSecondary}/>
+                <Text style={styles.addFundsText}>Add funds</Text>
               </Pressable>
               <Pressable 
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
                 <CalendarCheck size={22} color='#fff' />
-                <Text style={styles.createButtonText}>Create Plan</Text>
+                <Text style={styles.createButtonText}>New plan</Text>
               </Pressable>
               
             </View>
@@ -636,7 +637,7 @@ export default function HomeScreen() {
           onSuggestionPress={handleAISuggestionPress}
         />
         <ImageCarousel images={carouselImages} />
-        <PendingActionsCard />
+        {/* <PendingActionsCard /> */}
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
 
@@ -670,15 +671,15 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
-          <BanknoteArrowDown size={24} color={colors.textSecondary} />
-          <Text style={styles.addFundsText}>Deposit</Text>
+          <Plus size={20} color={colors.textSecondary} />
+          <Text style={styles.addFundsText}>Add funds</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
           <CalendarCheck size={22} color='#fff' />
-          <Text style={styles.createButtonText}>Create Plan</Text>
+          <Text style={styles.createButtonText}>New plan</Text>
         </Pressable>
         
       </Animated.View>
@@ -719,7 +720,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 150,
+    paddingBottom: 80,
   },
   header: {
     marginBottom: Platform.OS === 'ios' ? 20 : 10,
@@ -754,7 +755,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: Platform.OS === 'ios' ? 20 : 18,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: Platform.OS === 'ios' ? 10 : 5,
+    marginTop: Platform.OS === 'ios' ? 5 : 5,
+    marginBottom: Platform.OS === 'ios' ? 5 : 5,
   },
   subGreeting: {
     fontSize: Platform.OS === 'ios' ? 16 : 14,
@@ -800,16 +802,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: Platform.OS === 'ios' ? 30 : 24,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: Platform.OS === 'ios' ? 10 : 0,
+    marginBottom: Platform.OS === 'ios' ? 5 : 0,
   },
   lockedSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    marginBottom: Platform.OS === 'ios' ? 10 : 0,
+    paddingVertical: 5,
+    marginBottom: Platform.OS === 'ios' ? 10 : 10,
   },
   lockedLabelContainer: {
     flexDirection: 'row',
@@ -835,6 +835,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
     padding: Platform.OS === 'ios' ? 14 : 10,
     borderRadius: 100,
+    height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
@@ -852,6 +853,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.textSecondary,
     padding: Platform.OS === 'ios' ? 14 : 10,
     borderRadius: 100,
+    height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,

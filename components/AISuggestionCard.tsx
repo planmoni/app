@@ -307,9 +307,9 @@ export default function AISuggestionCard({
         <View style={styles.titleContainer}>
           <Sparkles size={14} color={colors.primary} />
           <Text style={[styles.title, { color: colors.text }]}>
-            Plan Suggestions
+            Suggested plans for you
           </Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Based on your balance</Text>
+          {/* <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Based on your balance</Text> */}
         </View>
       </View>
 
