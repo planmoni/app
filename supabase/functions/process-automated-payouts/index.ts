@@ -281,18 +281,21 @@ serve(async (req) => {
 
         // Calculate next payout date if plan is not completed
         if (newCompletedPayouts < plan.duration) {
-          const currentPayoutDate = new Date(plan.next_payout_date)
-          const nextDate = new Date(currentPayoutDate)
+          const startDate = new Date(plan.start_date)
+          let nextDate = new Date(startDate)
 
+          // Calculate the next payout date based on start_date and completed_payouts count
+          // This ensures the first payout happens on start_date, and subsequent payouts
+          // are calculated from the start_date + (completed_payouts * frequency_interval)
           switch (plan.frequency) {
             case "weekly":
-              nextDate.setDate(currentPayoutDate.getDate() + 7)
+              nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
               break
             case "biweekly":
-              nextDate.setDate(currentPayoutDate.getDate() + 14)
+              nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 14))
               break
             case "monthly":
-              nextDate.setMonth(currentPayoutDate.getMonth() + 1)
+              nextDate.setMonth(startDate.getMonth() + newCompletedPayouts)
               break
             case "custom":
               // For custom frequency, get the next date from custom_payout_dates

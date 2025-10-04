@@ -1126,15 +1126,6 @@ export default function ScheduleScreen() {
               {numberOfPayouts} payout{numberOfPayouts !== 1 ? 's' : ''} of ₦{payoutAmount}
             </Text>
           </View>
-
-          <View style={styles.notice}>
-            <View style={styles.noticeIcon}>
-              <Info size={20} color={colors.primary} />
-            </View>
-            <Text style={styles.noticeText}>
-              Your funds will be automatically deposited to your bank account on the dates you've selected
-            </Text>
-          </View>
         </View>
       </KeyboardAvoidingWrapper>
 
@@ -1302,6 +1293,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   scheduleOption: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
     padding: isSmallScreen ? 10 : 12,
     backgroundColor: colors.backgroundTertiary,
@@ -1519,14 +1511,14 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     color: colors.text,
   },
   splitTag: {
-    backgroundColor: '#F0F9FF',
+    backgroundColor: colors.backgroundTertiary,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
   },
   splitText: {
     fontSize: 14,
-    color: '#1E3A8A',
+    color: colors.text,
     fontWeight: '500',
   },
   payoutCount: {
@@ -1626,7 +1618,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     color: colors.textSecondary,
   },
   splitToggleTextActive: {
-    color: '#1E3A8A',
+    color: colors.textTertiary,
   },
   timeSection: {
     marginTop: 24,

@@ -161,7 +161,6 @@ export default function EmailScreen() {
             )}
             
             <View style={styles.inputContainer}>
-              <Mail size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 ref={emailInputRef}
                 style={styles.input}
@@ -224,7 +223,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   signInText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.text,
   },
   contentContainer: {
     flexGrow: 1,

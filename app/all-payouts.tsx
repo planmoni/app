@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
-import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
+import { formatPayoutFrequency, getDayOfWeekName, formatPayoutDateTime } from '@/lib/formatters';
 
 type TabType = 'all' | 'active' | 'completed';
 
@@ -261,7 +261,7 @@ export default function AllPayoutsScreen() {
                   <View style={styles.footer}>
                     <Text style={styles.nextPayout}>
                       {plan.next_payout_date 
-                        ? `Next payout: ${new Date(plan.next_payout_date).toLocaleDateString()}`
+                        ? `Next payout: ${formatPayoutDateTime(plan.next_payout_date)}`
                         : plan.status === 'completed' 
                           ? 'Plan completed'
                           : 'Plan paused'

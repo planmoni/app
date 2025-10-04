@@ -14,7 +14,7 @@ import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
 import * as Haptics from 'expo-haptics';
-import { formatPayoutFrequency } from '@/lib/formatters';
+import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
 
 export default function ViewPayoutScreen() {
@@ -316,7 +316,7 @@ export default function ViewPayoutScreen() {
           <Text style={styles.amount}>{formatCurrency(plan.payout_amount)}</Text>
           <Text style={styles.nextPayout}>
             {plan.next_payout_date 
-              ? `Next payout: ${new Date(plan.next_payout_date).toLocaleDateString()}`
+              ? `Next payout: ${formatPayoutDateTime(plan.next_payout_date)}`
               : plan.status === 'completed' 
                 ? 'Plan completed'
                 : 'Plan paused'

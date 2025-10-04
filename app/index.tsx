@@ -22,7 +22,7 @@ import { useRef } from 'react';
 const SLIDES = [
   {
     id: '1',
-    title: "Say 'hello!' to financial control",
+    title: "Say hello! to financial control",
     // subtitle: 'Smart Financial Planning',
     description: "Planmoni helps you stay in complete financial control with automated payouts scheduling and intelligent cash flow management system - equipped with advanced tools, insights & A.I",
     image: require('@/assets/images/StayInControl.png'),

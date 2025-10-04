@@ -111,7 +111,6 @@ export default function ForgotPasswordScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email Address</Text>
               <View style={styles.inputContainer}>
-                <Mail size={20} color={colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your email"
@@ -247,7 +246,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   signInText: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: colors.text,
   },
   signInLink: {
     fontSize: 14,

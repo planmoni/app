@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-n
 import { Plus } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
-import { formatPayoutFrequency } from '@/lib/formatters';
+import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
 import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
 
@@ -98,11 +98,7 @@ export default function PayoutPlansSection({ activePlans }: PayoutPlansSectionPr
                 
                 {plan.next_payout_date && (
                   <Text style={styles.nextPayoutDate}>
-                    Payday: {new Date(plan.next_payout_date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
+                    Payday: {formatPayoutDateTime(plan.next_payout_date)}
                   </Text>
                 )}
               </Pressable>

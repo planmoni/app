@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions, Modal, Image } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Copy, Info, ChevronRight, CreditCard, Smartphone, Building2, CircleCheck as CheckCircle, Clock } from 'lucide-react-native';
+import { getBankIconLogo } from '@/lib/bankIcons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -358,7 +359,7 @@ export default function AddFundsScreen() {
             </View>
             ) : (
               <View style={{ marginTop: 40, marginBottom: 24 }}>
-                <Text style={{ fontWeight: 900, color: "#f3f3f3" }}>Create Virtual Account</Text>
+                <Text style={{ marginBottom: 16, fontWeight: 700, color: colors.text }}>Request a bank account</Text>
                 
                 {/* Bank Selection Button */}
                 <Pressable 
@@ -490,36 +491,49 @@ export default function AddFundsScreen() {
             </View>
             
             <View style={styles.bankOptionsContainer}>
-              {banks.map(bank => (
-                <Pressable
-                  key={bank.id}
-                  onPress={() => handleBankSelection(bank.id)}
-                  style={[
-                    styles.bankOption,
-                    selectedBank === bank.id && styles.selectedBankOption
-                  ]}
-                >
-                  <View style={styles.bankOptionIcon}>
-                    <Building2 size={24} color={selectedBank === bank.id ? colors.primary : colors.textSecondary} />
-                  </View>
-                  <View style={styles.bankOptionInfo}>
-                    <Text style={[
-                      styles.bankOptionText,
-                      selectedBank === bank.id && styles.selectedBankOptionText
-                    ]}>
-                      {bank.name}
-                    </Text>
-                    <Text style={styles.bankOptionDescription}>
-                      {bank.id === 'wema' ? 'Traditional banking partner' : 'Digital payment solution'}
-                    </Text>
-                  </View>
-                  {selectedBank === bank.id && (
-                    <View style={styles.selectedIndicator}>
-                      <View style={styles.selectedDot} />
+              {banks.map(bank => {
+                const bankIcon = getBankIconLogo(bank.name);
+                return (
+                  <Pressable
+                    key={bank.id}
+                    onPress={() => handleBankSelection(bank.id)}
+                    style={[
+                      styles.bankOption,
+                      selectedBank === bank.id && styles.selectedBankOption
+                    ]}
+                  >
+                    <View style={styles.bankOptionIcon}>
+                      {bankIcon.logo ? (
+                        <Image 
+                          source={bankIcon.logo} 
+                          style={styles.bankLogo} 
+                          resizeMode="contain"
+                        />
+                      ) : bankIcon.logoSvg ? (
+                        <bankIcon.logoSvg width={24} height={24} />
+                      ) : (
+                        <Building2 size={24} color={selectedBank === bank.id ? colors.primary : colors.textSecondary} />
+                      )}
                     </View>
-                  )}
-                </Pressable>
-              ))}
+                    <View style={styles.bankOptionInfo}>
+                      <Text style={[
+                        styles.bankOptionText,
+                        selectedBank === bank.id && styles.selectedBankOptionText
+                      ]}>
+                        {bank.name}
+                      </Text>
+                      <Text style={styles.bankOptionDescription}>
+                        {bank.id === 'wema' ? 'Traditional banking partner' : 'Digital payment solution'}
+                      </Text>
+                    </View>
+                    {selectedBank === bank.id && (
+                      <View style={styles.selectedIndicator}>
+                        <View style={styles.selectedDot} />
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
             </View>
 
             <View style={styles.modalActions}>
@@ -864,6 +878,10 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
+  },
+  bankLogo: {
+    width: 24,
+    height: 24,
   },
   bankOptionInfo: {
     flex: 1,

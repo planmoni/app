@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatPayoutDateTime } from '@/lib/formatters';
 
 export type Metric = {
   title: string;
@@ -342,7 +343,7 @@ export function useInsightsData() {
           total: formatCurrency(plan.total_amount),
           progress: `${progress}%`,
           nextPayout: plan.next_payout_date 
-            ? new Date(plan.next_payout_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            ? formatPayoutDateTime(plan.next_payout_date)
             : 'N/A',
           status: plan.status.charAt(0).toUpperCase() + plan.status.slice(1),
         };
