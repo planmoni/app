@@ -778,9 +778,15 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
   },
   addButton: {
     backgroundColor: colors.primary,
+    height: 55,
+    borderRadius: 100,
+    justifyContent: 'center',
   },
   cancelButton: {
     borderColor: colors.border,
+    height: 55,
+    borderRadius: 100,
+    justifyContent: 'center',
   },
   bankListModal: {
     backgroundColor: colors.surface,

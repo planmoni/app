@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal, Animated } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal, Animated, KeyboardAvoidingView } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,7 +18,9 @@ import { useKYCData } from '@/hooks/useKYCData';
 import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
 import { useBanks, Bank } from '@/hooks/useBanks';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useAccountResolution } from '@/hooks/useAccountResolution';
 import { supabase } from '@/lib/supabase';
+import * as Haptics from 'expo-haptics';
 type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
 
 export default function KYCUpgradeScreen() {
@@ -34,10 +36,12 @@ export default function KYCUpgradeScreen() {
   // Custom hooks for KYC data and progress
   const { formData, loading: formDataLoading, saveFormData } = useKYCData();
   const { progress, loading: progressLoading, updateProgress, getStepProgress } = useKYCProgress();
-  const { banks, isLoading: banksLoading, error: banksError, fetchBanks } = useBanks();
+  const { banks, isLoading: banksLoading, error: banksError } = useBanks();
+  const { resolveAccount, isResolving: isResolvingAccount, error: accountResolutionError, setError: setAccountResolutionError } = useAccountResolution();
   
   // Animation values for bank selection modal
   const bankListSlideAnim = useRef(new Animated.Value(height)).current;
+  
   // Debug banks state
   useEffect(() => {
     console.log('KYC Upgrade - Banks state:', {
@@ -99,6 +103,12 @@ export default function KYCUpgradeScreen() {
   const [lga, setLga] = useState('');
   const [state, setState] = useState('');
   const [utilityBill, setUtilityBill] = useState<string | null>(null);
+
+  // Utility bill validation
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadDate, setUploadDate] = useState<Date | null>(null);
+  const [validationResult, setValidationResult] = useState<any>(null);
+  const [isValidating, setIsValidating] = useState(false);
   
   // Location search
   const [showLocationSearch, setShowLocationSearch] = useState(false);
@@ -109,6 +119,8 @@ export default function KYCUpgradeScreen() {
   // Identity information
   const [bvn, setBvn] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [accountResolved, setAccountResolved] = useState(false);
   const [bvnMatchedName, setBvnMatchedName] = useState('');
   const [nin, setNin] = useState('');
   const [passportNumber, setPassportNumber] = useState('');
@@ -229,7 +241,7 @@ export default function KYCUpgradeScreen() {
       setBvnVerified(progress.bvn_verified);
       setDocumentsVerified(progress.documents_verified);
       
-          // Set verification status without showing toasts on initial load
+      // Set verification status without showing toasts on initial load
       if (progress.overall_completed) {
         setVerificationStatus('fully_verified');
         // Don't show toast on initial load - only show when user completes verification
@@ -293,6 +305,11 @@ export default function KYCUpgradeScreen() {
     
     if (!selectedBank) {
       newErrors.selectedBank = 'Please select your bank';
+    }
+    
+    // Validate account resolution
+    if (accountNumber.length === 10 && selectedBank && !accountResolved) {
+      newErrors.accountResolution = 'Account verification failed. Please check your account number and bank selection.';
     }
     
     setErrors(newErrors);
@@ -363,8 +380,126 @@ export default function KYCUpgradeScreen() {
     
     return true;
   };
-  
 
+  const validateUtilityBill = async (utilityBill: string): Promise<any> => {
+    // Example validation: check if utilityBill is a non-empty string
+    if (!session?.user?.id) {
+      throw new Error('Authentication required');
+    }
+
+    // Get user's address from KYC data for validation
+    const userAddress = addressNo || '';
+
+    const response = await fetch('/api/utility-bill-validation', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        utilityBillImage: utilityBill,
+        userAddress: userAddress
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Validation failed');
+    }
+
+    const result = await response.json();
+    return result;
+  };
+
+  
+  const uploadUtilityBill = async () => {
+    if (!utilityBill || !session?.user?.id) {
+      showToast('Please select a utility bill image first.', 'error');
+      return;
+    }
+
+    setIsUploading(true);
+    setIsValidating(true);
+
+    try {
+      // Upload image to Supabase storage
+      showToast('Uploading utility bill...', 'info');
+      
+      // Get file extension from URI
+      const fileExtension = utilityBill.split('.').pop() || 'jpg';
+      const fileName = `utility-bill.${fileExtension}`;
+      const filePath = `${session.user.id}/${fileName}`;
+
+      // Convert image to blob for upload
+      const response = await fetch(utilityBill);
+      const blob = await response.blob();
+
+      // Upload to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, blob, {
+          contentType: blob.type,
+          upsert: true // Replace if file already exists
+        });
+
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+
+      // Get the public URL for the uploaded file
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+      const storageUrl = urlData.publicUrl;
+
+      // Validate utility bill with Dojah using the storage URL
+      showToast('Validating utility bill...', 'info');
+      const validation = await validateUtilityBill(storageUrl);
+      setValidationResult(validation);
+
+      if (!validation.isValid) {
+        // Show validation errors
+        const errors = [];
+        if (!validation.validationChecks.isRecent) {
+          errors.push('Utility bill is not recent (must be within 3 months)');
+        }
+        if (!validation.validationChecks.hasAddressInfo) {
+          errors.push('Address information could not be extracted from the utility bill');
+        }
+        if (!validation.validationChecks.addressMatches) {
+          errors.push('Address on utility bill does not match your registered address');
+        }
+
+        showToast(`Validation failed: ${errors.join(', ')}`, 'error');
+        setIsValidating(false);
+        return;
+      }
+
+      // Validation passed, save to KYC data
+      showToast('Validation passed! Saving utility bill...', 'success');
+      
+      // const success = await saveFormData({
+      //   utility_bill_url: storageUrl,
+      //   utility_bill_validated: true,
+      //   utility_bill_validation_result: validation
+      // });
+
+      // if (success) {
+      //   setUploadDate(new Date());
+      //   showToast('Utility bill uploaded and validated successfully!', 'success');
+      // } else {
+      //   showToast('Failed to save utility bill. Please try again.', 'error');
+      // }
+    } catch (error) {
+      console.error('Error uploading utility bill:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      showToast(`Failed to upload utility bill: ${errorMessage}`, 'error');
+    } finally {
+      setIsUploading(false);
+      setIsValidating(false);
+    }
+  };
 
   const handleNextStep = async () => {
     try {
@@ -457,7 +592,7 @@ export default function KYCUpgradeScreen() {
             // Save BVN data
             const saveResult = await saveFormData({
               bvn: bvn,
-              accountNumber: accountNumber
+              account_number: accountNumber
             });
             
             if (!saveResult) {
@@ -497,6 +632,9 @@ export default function KYCUpgradeScreen() {
         case 'address_details':
           if (validateAddressDetails()) {
             setIsLoading(true);
+            if (utilityBill) {
+              await uploadUtilityBill();
+            }
             
             // Save address details data
             const saveResult = await saveFormData({
@@ -504,7 +642,9 @@ export default function KYCUpgradeScreen() {
               lga: lga,
               state: state,
               house_url: houseUrl || undefined,
-              utility_bill_url: utilityBill || undefined
+              utility_bill_url: utilityBill || undefined,
+              utility_bill_validated: validationResult?.isValid || false,
+              utility_bill_validation_result: validationResult || undefined,
             });
             
             if (!saveResult) {
@@ -1456,6 +1596,29 @@ export default function KYCUpgradeScreen() {
     setDateOfBirth(formattedDate);
     setErrors(prev => ({ ...prev, dateOfBirth: '' }));
   };
+
+  const handleResolveAccount = async (accountNumber: string, bankCode: string) => {
+    if (accountNumber.length !== 10 || !bankCode) {
+      return;
+    }
+    
+    haptics.impact(Haptics.ImpactFeedbackStyle.Medium);
+    
+    try {
+      const accountDetails = await resolveAccount(accountNumber, bankCode);
+      
+      if (accountDetails) {
+        setAccountName(accountDetails.account_name);
+        setAccountResolved(true);
+        setAccountResolutionError(null);
+        haptics.notification(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      setAccountResolved(false);
+      setAccountName('');
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
+    }
+  };
   
 
   
@@ -1758,11 +1921,23 @@ export default function KYCUpgradeScreen() {
                 if (numericText.length <= 10) {
                   setAccountNumber(numericText);
                   setErrors(prev => ({ ...prev, accountNumber: '' }));
+                  
+                  // Reset account resolution if account number changes
+                  if (accountResolved) {
+                    setAccountResolved(false);
+                    setAccountName('');
+                    setAccountResolutionError(null);
+                  }
+                  
+                  // If account number is 10 digits and bank is selected, try to resolve
+                  if (numericText.length === 10 && selectedBank) {
+                    handleResolveAccount(numericText, selectedBank.code);
+                  }
                 }
               }}
               keyboardType="numeric"
               maxLength={10}
-              editable={!isResolvingBvn && !bvnVerified}
+              editable={!isResolvingBvn}
             />
           </View>
           {errors.accountNumber && <Text style={styles.errorText}>{errors.accountNumber}</Text>}
@@ -1782,6 +1957,31 @@ export default function KYCUpgradeScreen() {
           </Pressable>
           {errors.selectedBank && <Text style={styles.errorText}>{errors.selectedBank}</Text>}
         </View>
+        
+        {/* Account Name Display - Only show when account is resolved */}
+        {accountResolved && accountName && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Account Name</Text>
+            <View style={[styles.inputContainer, styles.resolvedInput]}>
+              <Check size={20} color={colors.success} />
+              <Text style={[styles.input, { color: colors.text }]}>
+                {accountName}
+              </Text>
+              {isResolvingAccount && (
+                <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
+              )}
+            </View>
+          </View>
+        )}
+        
+        {/* Account Resolution Error Display */}
+        {(accountResolutionError || errors.accountResolution) && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>
+              {accountResolutionError || errors.accountResolution}
+            </Text>
+          </View>
+        )}
         
         {bvnVerified && bvnMatchedName && (
           <View style={styles.matchedNameContainer}>
@@ -2668,6 +2868,10 @@ export default function KYCUpgradeScreen() {
     inputError: {
       borderColor: colors.error,
     },
+    resolvedInput: {
+      borderColor: colors.success,
+      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
+    },
     input: {
       flex: 1,
       fontSize: 16,
@@ -3221,7 +3425,7 @@ export default function KYCUpgradeScreen() {
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       width: '100%',
-      maxHeight: '80%',
+      maxHeight: '85%',
       borderWidth: isDark ? 1 : 0,
       borderColor: isDark ? colors.border : 'transparent',
       // Add shadow for iOS
@@ -3236,6 +3440,10 @@ export default function KYCUpgradeScreen() {
           elevation: 5,
         },
       }),
+    },
+    keyboardAvoidingContainer: {
+      flex: 1,
+      minHeight: 0, // Allow flex to work properly
     },
     dragIndicator: {
       width: 40,
@@ -3273,6 +3481,8 @@ export default function KYCUpgradeScreen() {
       padding: isSmallScreen ? 12 : 16,
       marginHorizontal: 2,
       marginTop: 5,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
     },
     searchInput: {
       flex: 1,
@@ -3286,7 +3496,8 @@ export default function KYCUpgradeScreen() {
       backgroundColor: '#EBF1F9',
     },
     bankList: {
-      maxHeight: '60%',
+      flex: 1,
+      minHeight: 200, // Ensure minimum height for scrolling
     },
     bankOption: {
       flexDirection: 'row',
@@ -3423,7 +3634,11 @@ export default function KYCUpgradeScreen() {
           style={[
             styles.bankListModal,
             { 
-              transform: [{ translateY: bankListSlideAnim }]
+              transform: [{ translateY: bankListSlideAnim }],
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
             }
           ]}
         >
@@ -3442,18 +3657,27 @@ export default function KYCUpgradeScreen() {
             </Pressable>
           </View>
           
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search banks..."
-              placeholderTextColor={colors.textTertiary}
-              value={bankSearchQuery}
-              onChangeText={setBankSearchQuery}
-              autoFocus
-            />
-          </View>
-          
-          <ScrollView style={styles.bankList} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardAvoidingContainer}
+          >
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search banks..."
+                placeholderTextColor={colors.textTertiary}
+                value={bankSearchQuery}
+                onChangeText={setBankSearchQuery}
+                autoFocus
+              />
+            </View>
+            
+            <ScrollView 
+              style={styles.bankList} 
+              nestedScrollEnabled 
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
             {banksLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={colors.primary} />
@@ -3464,12 +3688,7 @@ export default function KYCUpgradeScreen() {
                 <Text style={styles.noResultsText}>
                   Error loading banks: {banksError}
                 </Text>
-                <Pressable
-                  style={styles.retryButton}
-                  onPress={refetchBanks}
-                >
-                  <Text style={styles.retryButtonText}>Retry</Text>
-                </Pressable>
+                <Text style={styles.retryButtonText}>Please restart the app to retry</Text>
               </View>
             ) : (
               (() => {
@@ -3498,12 +3717,7 @@ export default function KYCUpgradeScreen() {
                         </Text>
                       )}
                       {!bankSearchQuery && banks.length === 0 && (
-                        <Pressable
-                          style={styles.retryButton}
-                          onPress={refetchBanks}
-                        >
-                          <Text style={styles.retryButtonText}>Refresh Banks</Text>
-                        </Pressable>
+                        <Text style={styles.retryButtonText}>Please restart the app to refresh</Text>
                       )}
                     </View>
                   );
@@ -3519,6 +3733,18 @@ export default function KYCUpgradeScreen() {
                       setBankSearchQuery(''); // Clear search on selection
                       setErrors(prev => ({ ...prev, selectedBank: '' }));
                       haptics.selection();
+                      
+                      // Reset account resolution if bank changes
+                      if (accountResolved) {
+                        setAccountResolved(false);
+                        setAccountName('');
+                        setAccountResolutionError(null);
+                      }
+                      
+                      // If account number is already 10 digits, try to resolve account
+                      if (accountNumber.length === 10) {
+                        handleResolveAccount(accountNumber, bank.code);
+                      }
                       
                       // Save bank selection to form data
                       saveFormData({
@@ -3556,7 +3782,8 @@ export default function KYCUpgradeScreen() {
                 ));
               })()
             )}
-          </ScrollView>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </Animated.View>
       </Animated.View>
     </SafeAreaView>

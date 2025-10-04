@@ -52,7 +52,6 @@ export default function CalendarScreen() {
       case 'scheduled':
         return <Clock size={16} color="#FFFFFF" />;
       case 'failed':
-      case 'expiring':
         return <AlertTriangle size={16} color="#FFFFFF" />;
     }
   };
@@ -86,13 +85,6 @@ export default function CalendarScreen() {
         border: isDark ? '#EF4444' : '#FECACA',
         text: isDark ? '#FEE2E2' : '#991B1B',
         icon: '#FFFFFF'
-      },
-      expiring: {
-        primary: '#F97316',
-        light: isDark ? '#9A3412' : '#FFF7ED',
-        border: isDark ? '#F97316' : '#FED7AA',
-        text: isDark ? '#FFEDD5' : '#9A3412',
-        icon: '#FFFFFF'
       }
     };
 
@@ -110,8 +102,6 @@ export default function CalendarScreen() {
         return '#EAB308'; // Yellow for scheduled payouts
       case 'failed':
         return '#EF4444'; // Red for failed payouts
-      case 'expiring':
-        return '#F97316'; // Orange for expiring payouts (different from failed)
       default:
         return '#6B7280'; // Gray fallback
     }
@@ -176,8 +166,8 @@ export default function CalendarScreen() {
     const dateEvents = getEventsForDate(date);
     if (dateEvents.length === 0) return null;
     
-    // Priority order: expiring > failed > scheduled > completed > pending
-    const priorityOrder: CalendarEvent['type'][] = ['expiring', 'failed', 'scheduled', 'completed', 'pending'];
+    // Priority order: failed > scheduled > completed > pending
+    const priorityOrder: CalendarEvent['type'][] = ['failed', 'scheduled', 'completed', 'pending'];
     
     for (const priority of priorityOrder) {
       const event = dateEvents.find(e => e.type === priority);
@@ -344,40 +334,37 @@ export default function CalendarScreen() {
           {getEventsForDate(selectedDate).map(event => {
             const eventColors = getEventColors(event.type);
             return (
-              <Card key={event.id} style={[styles.eventCard, { 
-                backgroundColor: eventColors.light,
-                borderColor: eventColors.border,
-                borderWidth: 1,
-              }]}>
-                <View style={styles.eventContent}>
-                  <View style={[styles.eventIcon, { backgroundColor: eventColors.primary }]}>
-                    {getEventIcon(event.type)}
+              <Pressable
+                key={event.id}
+                onPress={() => {
+                  if (event.payout_plan_id) {
+                    router.push({
+                      pathname: '/view-payout',
+                      params: { id: event.payout_plan_id }
+                    });
+                  }
+                }}
+              >
+                <Card style={[styles.eventCard, { 
+                  backgroundColor: eventColors.light,
+                  borderColor: eventColors.border,
+                  borderWidth: 1,
+                }]}>
+                  <View style={styles.eventContent}>
+                    <View style={[styles.eventIcon, { backgroundColor: eventColors.primary }]}>
+                      {getEventIcon(event.type)}
+                    </View>
+                    <View style={styles.eventDetails}>
+                      <Text style={[styles.eventTitle, { color: eventColors.text }]} numberOfLines={1}>
+                        {event.title}
+                      </Text>
+                      <Text style={[styles.eventDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+                        {event.description} • {event.time}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.eventDetails}>
-                    <Text style={[styles.eventTitle, { color: eventColors.text }]} numberOfLines={1}>
-                      {event.title}
-                    </Text>
-                    <Text style={[styles.eventDescription, { color: colors.textSecondary }]} numberOfLines={2}>
-                      {event.description} • {event.time}
-                    </Text>
-                  </View>
-                  <Pressable 
-                    style={[styles.eventAction, { backgroundColor: eventColors.primary }]}
-                    onPress={() => {
-                      if (event.payout_plan_id) {
-                        router.push({
-                          pathname: '/view-payout',
-                          params: { id: event.payout_plan_id }
-                        });
-                      }
-                    }}
-                  >
-                    <Text style={styles.eventActionText}>
-                      View
-                    </Text>
-                  </Pressable>
-                </View>
-              </Card>
+                </Card>
+              </Pressable>
             );
           })}
         </View>
@@ -396,10 +383,6 @@ export default function CalendarScreen() {
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EAB308' }]} />
               <Text style={styles.legendText} numberOfLines={1}>Scheduled payout</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#F97316' }]} />
-              <Text style={styles.legendText} numberOfLines={1}>Payout expiring</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
@@ -481,40 +464,37 @@ export default function CalendarScreen() {
           {getEventsForDate(selectedDate).map(event => {
             const eventColors = getEventColors(event.type);
             return (
-              <Card key={event.id} style={[styles.eventCard, { 
-                backgroundColor: eventColors.light,
-                borderColor: eventColors.border,
-                borderWidth: 1,
-              }]}>
-                <View style={styles.eventContent}>
-                  <View style={[styles.eventIcon, { backgroundColor: eventColors.primary }]}>
-                    {getEventIcon(event.type)}
+              <Pressable
+                key={event.id}
+                onPress={() => {
+                  if (event.payout_plan_id) {
+                    router.push({
+                      pathname: '/view-payout',
+                      params: { id: event.payout_plan_id }
+                    });
+                  }
+                }}
+              >
+                <Card style={[styles.eventCard, { 
+                  backgroundColor: eventColors.light,
+                  borderColor: eventColors.border,
+                  borderWidth: 1,
+                }]}>
+                  <View style={styles.eventContent}>
+                    <View style={[styles.eventIcon, { backgroundColor: eventColors.primary }]}>
+                      {getEventIcon(event.type)}
+                    </View>
+                    <View style={styles.eventDetails}>
+                      <Text style={[styles.eventTitle, { color: eventColors.text }]} numberOfLines={1}>
+                        {event.title}
+                      </Text>
+                      <Text style={[styles.eventDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+                        {event.description} • {event.time}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.eventDetails}>
-                    <Text style={[styles.eventTitle, { color: eventColors.text }]} numberOfLines={1}>
-                      {event.title}
-                    </Text>
-                    <Text style={[styles.eventDescription, { color: colors.textSecondary }]} numberOfLines={2}>
-                      {event.description} • {event.time}
-                    </Text>
-                  </View>
-                  <Pressable 
-                    style={[styles.eventAction, { backgroundColor: eventColors.primary }]}
-                    onPress={() => {
-                      if (event.payout_plan_id) {
-                        router.push({
-                          pathname: '/view-payout',
-                          params: { id: event.payout_plan_id }
-                        });
-                      }
-                    }}
-                  >
-                    <Text style={styles.eventActionText}>
-                      View
-                    </Text>
-                  </Pressable>
-                </View>
-              </Card>
+                </Card>
+              </Pressable>
             );
           })}
         </View>
@@ -533,10 +513,6 @@ export default function CalendarScreen() {
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EAB308' }]} />
               <Text style={styles.legendText} numberOfLines={1}>Scheduled payout</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#F97316' }]} />
-              <Text style={styles.legendText} numberOfLines={1}>Payout expiring</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
@@ -664,10 +640,6 @@ export default function CalendarScreen() {
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EAB308' }]} />
               <Text style={styles.legendText} numberOfLines={1}>Scheduled payout</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#F97316' }]} />
-              <Text style={styles.legendText} numberOfLines={1}>Payout expiring</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
@@ -1035,16 +1007,6 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
   eventDescription: {
     fontSize: Platform.OS === 'ios' ? 12 : 10,
     lineHeight: 16,
-  },
-  eventAction: {
-    paddingHorizontal: Platform.OS === 'ios' ? 12 : 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  eventActionText: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
-    fontWeight: '600',
-    color: '#FFFFFF',
   },
   legend: {
     padding: Platform.OS === 'ios' ? 16 : 10,

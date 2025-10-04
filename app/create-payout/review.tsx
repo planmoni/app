@@ -179,6 +179,20 @@ export default function ReviewScreen() {
         return `${durationNum} payouts`;
     }
   }, [duration, frequency]);
+
+  const getPayoutTimeDisplay = useCallback(() => {
+    if (payoutHour !== undefined && payoutMinute !== undefined) {
+      const date = new Date();
+      date.setHours(payoutHour, payoutMinute, 0, 0);
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+    return '9:00 AM'; // Default time
+  }, [payoutHour, payoutMinute]);
+
   function getNextPayoutDate(startDate: string, frequency: string, customDates: string[] = [], dayOfWeek?: number): string {
     if (frequency === 'custom' && customDates.length > 0) {
       return formatDisplayDate(customDates[0]);
@@ -336,7 +350,7 @@ export default function ReviewScreen() {
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Duration</Text>
                   <Text style={styles.detailValue}>{getDurationDisplay()}</Text>
-                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)}</Text>
+                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)} at {getPayoutTimeDisplay()}</Text>
                 </View>
                 <Pressable 
                   style={styles.editButton} 

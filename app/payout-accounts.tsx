@@ -216,16 +216,6 @@ export default function PayoutAccountsScreen() {
             ))
           )}
 
-          <Pressable
-            style={styles.addAccountButton}
-            onPress={() => {
-              haptics.mediumImpact();
-              setShowAddAccount(true);
-            }}
-          >
-            <Plus size={20} color={colors.primary} />
-            <Text style={styles.addAccountText}>Add New Payout Account</Text>
-          </Pressable>
         </View>
 
         
@@ -437,7 +427,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 100,
     backgroundColor: colors.backgroundTertiary,
     borderWidth: 1,
     borderColor: colors.border,
@@ -498,6 +488,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   addButton: {
     backgroundColor: colors.primary,
+    height: 55,
+    borderRadius: 100,
+    justifyContent: 'center',
   },
   addAccountButton: {
     flexDirection: 'row',
@@ -508,7 +501,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: colors.primary,
-    borderRadius: 12,
+    borderRadius: 100,
     backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : colors.backgroundTertiary,
   },
   addAccountText: {

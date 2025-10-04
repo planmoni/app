@@ -3,8 +3,6 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
 export interface KYCFormData {
-  bank_code: any;
-  bank_name: any;
   id?: string;
   user_id?: string;
   
@@ -27,6 +25,9 @@ export interface KYCFormData {
   
   // Identity Information
   bvn?: string;
+  account_number?: string;
+  bank_code?: string;
+  bank_name?: string;
   nin?: string;
   document_type?: 'bvn' | 'nin' | 'passport' | 'drivers_license';
   document_number?: string;
@@ -38,6 +39,8 @@ export interface KYCFormData {
   
   // Address Documents (Optional)
   utility_bill_url?: string;
+  utility_bill_validated?: boolean;
+  utility_bill_validation_result?: any;
   
   // Admin Approval
   approved?: boolean;
@@ -48,10 +51,7 @@ export interface KYCFormData {
 
 export const useKYCData = () => {
   const { session } = useAuth();
-  const [formData, setFormData] = useState<KYCFormData>({
-    bank_code: null,
-    bank_name: null
-  });
+  const [formData, setFormData] = useState<KYCFormData>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,10 +76,7 @@ export const useKYCData = () => {
       if (data) {
         setFormData(data);
       } else {
-        setFormData({
-          bank_code: null,
-          bank_name: null
-        });
+        setFormData({});
       }
     } catch (err) {
       console.error('Error loading KYC form data:', err);

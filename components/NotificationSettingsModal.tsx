@@ -1,5 +1,5 @@
 import { Modal, View, Text, StyleSheet, Pressable, Switch, ScrollView, useWindowDimensions } from 'react-native';
-import { X, Bell, Shield, Clock, Mail, Wallet, Calendar } from 'lucide-react-native';
+import { X, Bell, Shield, Clock, Mail, BanknoteArrowUp, Key, Wallet, Megaphone, Calendar } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEmailNotifications, EmailNotificationSettings } from '@/hooks/useEmailNotifications';
@@ -123,12 +123,15 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
             </Text>
             
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Push Notifications</Text>
-              
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
-                  <Text style={styles.settingTitle}>Push Notifications</Text>
-                  <Text style={styles.settingDescription}>Receive alerts on your device</Text>
+                  <View style={styles.settingIconContainer}>
+                    <Bell size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Push Notifications</Text>
+                    <Text style={styles.settingDescription}>Receive alerts on your device</Text>
+                  </View>
                 </View>
                 <Switch
                   value={pushEnabled}
@@ -141,7 +144,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
-                    <Bell size={isSmallScreen ? 16 : 20} color="#F97316" />
+                    <BanknoteArrowUp size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
                   </View>
                   <View>
                     <Text style={styles.settingTitle}>Payout Alerts</Text>
@@ -160,7 +163,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
-                    <Shield size={isSmallScreen ? 16 : 20} color="#1E3A8A" />
+                    <Shield size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
                   </View>
                   <View>
                     <Text style={styles.settingTitle}>Security Alerts</Text>
@@ -179,7 +182,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
-                    <Clock size={isSmallScreen ? 16 : 20} color="#8B5CF6" />
+                    <Megaphone size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
                   </View>
                   <View>
                     <Text style={styles.settingTitle}>Marketing & Updates</Text>
@@ -202,10 +205,10 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
-                    <Shield size={isSmallScreen ? 16 : 20} color="#EF4444" />
+                    <Key size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
                   </View>
                   <View>
-                    <Text style={styles.settingTitle}>Login Alerts</Text>
+                    <Text style={styles.settingTitle}>Login Attempt</Text>
                     <Text style={styles.settingDescription}>Get notified about new logins to your account</Text>
                   </View>
                 </View>
@@ -220,7 +223,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
-                    <Wallet size={isSmallScreen ? 16 : 20} color="#22C55E" />
+                    <BanknoteArrowUp size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
                   </View>
                   <View>
                     <Text style={styles.settingTitle}>Payout Alerts</Text>
@@ -238,7 +241,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
-                    <Calendar size={isSmallScreen ? 16 : 20} color="#F59E0B" />
+                    <Clock size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
                   </View>
                   <View>
                     <Text style={styles.settingTitle}>Plan Expiry Reminders</Text>
@@ -311,13 +314,6 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                   ]}>Never</Text>
                 </Pressable>
               </View>
-            </View>
-            
-            <View style={styles.infoContainer}>
-              <Mail size={16} color={colors.primary} />
-              <Text style={styles.infoText}>
-                Email notifications help you stay informed about important account activities and updates.
-              </Text>
             </View>
           </ScrollView>
 
@@ -440,12 +436,14 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   settingDescription: {
     fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
+    maxWidth: '95%',
   },
   summaryOptions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 12,
+
   },
   summaryOption: {
     flex: 1,
@@ -453,7 +451,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     backgroundColor: colors.backgroundTertiary,
     paddingVertical: 12,
     paddingHorizontal: 8,
-    borderRadius: 8,
+    borderRadius: 100,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
@@ -462,6 +460,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   selectedOption: {
     backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
     borderColor: colors.primary,
+    borderRadius: 100,
   },
   summaryOptionText: {
     fontSize: isSmallScreen ? 12 : 14,
@@ -490,7 +489,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   saveButton: {
     backgroundColor: colors.primary,
     padding: isSmallScreen ? 12 : 16,
-    borderRadius: 8,
+    borderRadius: 100,
+    height: 55,
     alignItems: 'center',
   },
   saveButtonText: {
