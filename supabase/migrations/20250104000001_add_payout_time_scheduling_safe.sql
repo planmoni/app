@@ -349,3 +349,4 @@ BEGIN
   RAISE NOTICE '- All processing functions updated for time-based scheduling';
   RAISE NOTICE '- Helper functions added for time management';
 END $$;
+

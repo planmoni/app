@@ -286,3 +286,4 @@ BEGIN
   RAISE NOTICE '- Added helper functions to extract/set time from next_payout_date';
   RAISE NOTICE '- All time information is now stored in next_payout_date column';
 END $$;
+
