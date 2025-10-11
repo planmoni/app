@@ -28,7 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>myapp</string>
-          <string>com.planmoni</string>
+          <string>app.planmoni</string>
         </array>
       </dict>
       <dict>

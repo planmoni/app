@@ -128,9 +128,18 @@ export default function ReviewScreen() {
       haptics.mediumImpact();
     }
     
+    // Check if payout PIN is set up
+    if (!hasPayoutPin) {
+      console.log('Create Payout - No payout PIN set up, proceeding without verification');
+      await handleConfirmPayout();
+      return;
+    }
+    
+    console.log('Create Payout - PIN verification required', { hasPayoutPin });
+    
     // Show PIN verification
     setShowPinVerification(true);
-  }, [hasInsufficientBalance, numericTotalAmount, availableBalance, haptics]);
+  }, [hasInsufficientBalance, numericTotalAmount, availableBalance, haptics, hasPayoutPin, handleConfirmPayout]);
 
   const handlePinVerificationSuccess = useCallback(async () => {
     setShowPinVerification(false);

@@ -82,14 +82,15 @@ export default function PinVerificationModal({
         })
       ]).start();
       
-      // Auto-trigger biometric if enabled and available
-      if (biometricEnabled) {
+      // Auto-trigger biometric if enabled and available AND we have a custom verify function
+      // This ensures we only auto-trigger when we're actually verifying a PIN that exists
+      if (biometricEnabled && customVerifyPin) {
         setTimeout(() => {
           handleBiometricAuth();
         }, 500);
       }
     }
-  }, [isVisible, biometricEnabled]);
+  }, [isVisible, biometricEnabled, customVerifyPin]);
 
   const checkBiometrics = async () => {
     try {

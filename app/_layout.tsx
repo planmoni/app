@@ -4,7 +4,7 @@ import { BalanceProvider } from '@/contexts/BalanceContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { PinProvider } from '@/contexts/PinContext';
-import { AutoLogoutProvider, useAutoLogout } from '@/contexts/AutoLogoutContext';
+import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
 
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
@@ -21,7 +21,7 @@ import {
   PlusJakartaSans_700Bold 
 } from '@expo-google-fonts/plus-jakarta-sans';
 import CustomSplashScreen from '@/components/SplashScreen';
-import BiometricsLock from '@/components/BiometricsLock';
+import AppLockScreen from '@/components/AppLockScreen';
 import AppBlur from '@/components/AppBlur';
 
 import { SessionDebugger } from '@/components/SessionDebugger';
@@ -32,7 +32,7 @@ SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent s
 function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
-  const { isAppLocked } = useAutoLogout();
+  const { isAppLocked } = useAppLock();
   const [showSplash, setShowSplash] = useState(false);
   
   // Track previous session state to detect transitions
@@ -197,7 +197,7 @@ function RootLayoutNav() {
       </Stack>
       
       {/* Lock Screen Overlay - Renders at root level */}
-      {isAppLocked && <BiometricsLock />}
+      {isAppLocked && <AppLockScreen />}
       
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* <SessionDebugger /> */}
@@ -213,13 +213,13 @@ export default function RootLayout() {
       <ToastProvider>
         <AuthProvider>
           <PinProvider>
-            <AutoLogoutProvider>
+            <AppLockProvider>
               <BalanceProvider>
                 <AppBlur>
                 <RootLayoutNav />
                 </AppBlur>
               </BalanceProvider>
-            </AutoLogoutProvider>
+            </AppLockProvider>
           </PinProvider>
         </AuthProvider>
       </ToastProvider>

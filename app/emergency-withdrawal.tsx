@@ -183,9 +183,17 @@ export default function EmergencyWithdrawalScreen() {
     // Check if ANY PIN is set up (emergency PIN or app lock PIN)
     if (!hasEmergencyPin && !hasAppLockPin) {
       // No PIN set up at all, proceed directly without verification
+      console.log('Emergency Withdrawal - No PIN set up, proceeding without verification');
       await handleConfirmWithdrawal();
       return;
     }
+    
+    console.log('Emergency Withdrawal - PIN verification required', {
+      hasEmergencyPin,
+      hasAppLockPin,
+      emergencyBiometricEnabled,
+      biometricAvailable: biometricSupport?.isAvailable
+    });
     
     // If biometric authentication is enabled and available, try biometric first
     if (emergencyBiometricEnabled && biometricSupport?.isAvailable && Platform.OS !== 'web') {

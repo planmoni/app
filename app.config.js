@@ -17,7 +17,7 @@ export default {
       "permissions": ["android.permission.CAMERA"]
     },
     ios: {
-      "bundleIdentifier": "com.planmoni"
+      "bundleIdentifier": "app.planmoni"
     },
     extra: {
       "eas": {
