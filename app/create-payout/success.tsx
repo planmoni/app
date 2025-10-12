@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, Dimensions, Image, Pressable, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +16,7 @@ export default function SuccessScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const haptics = useHaptics();
+  const { navigateToHome } = useSafeNavigation();
   
   // Get screen dimensions for responsive design
   const { width: screenWidth } = Dimensions.get('window');
@@ -69,7 +71,7 @@ export default function SuccessScreen() {
             if (Platform.OS !== 'web') {
               haptics.lightImpact();
             }
-            router.push('/(tabs)');
+            navigateToHome();
           }} 
           style={styles.cancelButton}
         >

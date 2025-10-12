@@ -27,6 +27,7 @@ interface PinVerificationModalProps {
   amount?: string;
   description?: string;
   customVerifyPin?: (pin: string) => Promise<boolean>;
+  biometricType?: 'app' | 'payout' | 'emergency';
 }
 
 export default function PinVerificationModal({
@@ -37,10 +38,11 @@ export default function PinVerificationModal({
   amount,
   description = "Enter your PIN to continue",
   customVerifyPin,
+  biometricType = 'app',
 }: PinVerificationModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
-  const { verifyBiometric, biometricEnabled, checkBiometricSupport, verifyAppLockPin } = usePin();
+  const { verifyBiometric, biometricEnabled, payoutBiometricEnabled, emergencyBiometricEnabled, checkBiometricSupport, verifyAppLockPin } = usePin();
   const haptics = useHaptics();
   const router = useRouter();
   
@@ -56,6 +58,21 @@ export default function PinVerificationModal({
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
+
+  // Get the correct biometric setting based on type
+  const getBiometricEnabled = () => {
+    switch (biometricType) {
+      case 'payout':
+        return payoutBiometricEnabled;
+      case 'emergency':
+        return emergencyBiometricEnabled;
+      case 'app':
+      default:
+        return biometricEnabled;
+    }
+  };
+
+  const isBiometricEnabled = getBiometricEnabled();
 
   useEffect(() => {
     if (isVisible) {
@@ -84,19 +101,19 @@ export default function PinVerificationModal({
       
       // Auto-trigger biometric if enabled and available AND we have a custom verify function
       // This ensures we only auto-trigger when we're actually verifying a PIN that exists
-      if (biometricEnabled && customVerifyPin) {
+      if (isBiometricEnabled && customVerifyPin) {
         setTimeout(() => {
           handleBiometricAuth();
         }, 500);
       }
     }
-  }, [isVisible, biometricEnabled, customVerifyPin]);
+  }, [isVisible, isBiometricEnabled, customVerifyPin]);
 
   const checkBiometrics = async () => {
     try {
       const support = await checkBiometricSupport();
       setBiometricSupport(support);
-      setShowBiometricOption(biometricEnabled && support.isAvailable && support.isEnrolled);
+      setShowBiometricOption(isBiometricEnabled && support.isAvailable && support.isEnrolled);
     } catch (error) {
       console.error('Error checking biometric support:', error);
     }
@@ -159,7 +176,7 @@ export default function PinVerificationModal({
   };
 
   const handleBiometricAuth = async () => {
-    if (!biometricSupport?.isAvailable || Platform.OS === 'web') {
+    if (!isBiometricEnabled || !biometricSupport?.isAvailable || Platform.OS === 'web') {
       return;
     }
 

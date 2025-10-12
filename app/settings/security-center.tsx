@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { usePin } from '@/contexts/PinContext';
-import { useAutoLogout } from '@/contexts/AutoLogoutContext';
+import { useAppLock } from '@/contexts/AppLockContext';
 import { BiometricService } from '@/lib/biometrics';
 import AppBlurSettings from '@/components/AppBlurSettings';
 
@@ -19,8 +20,9 @@ export default function SecurityCenter() {
     enableBiometric, 
     disableBiometric 
   } = usePin();
-  const { autoLogoutDuration, setAutoLogoutDuration, lockApp, isAppLocked } = useAutoLogout();
+  const { autoLockDuration, setAutoLockDuration, lockApp, isAppLocked } = useAppLock();
   const { isDark, colors } = useTheme();
+  const { navigateToHome } = useSafeNavigation();
   
   const [payoutBiometrics, setPayoutBiometrics] = useState(false);
   const [emergencyBiometrics, setEmergencyBiometrics] = useState(false);
@@ -219,13 +221,13 @@ export default function SecurityCenter() {
           {renderSettingItem(
             'time-outline',
             'Auto Logout',
-            `Current: ${autoLogoutDuration === '5' ? 'After 5 mins' : 
-                       autoLogoutDuration === '60' ? 'After 60 mins' : 
-                       autoLogoutDuration === 'never' ? 'OFF' : 'Not set'}`,
+            `Current: ${autoLockDuration === '5' ? 'After 5 mins' : 
+                       autoLockDuration === '60' ? 'After 60 mins' : 
+                       autoLockDuration === 'never' ? 'OFF' : 'Not set'}`,
             () => Alert.alert('Auto Logout', 'Select auto logout duration', [
-              { text: 'After 5 mins', onPress: () => setAutoLogoutDuration('5') },
-              { text: 'After 60 mins', onPress: () => setAutoLogoutDuration('60') },
-              { text: 'OFF', onPress: () => setAutoLogoutDuration('never') },
+              { text: 'After 5 mins', onPress: () => setAutoLockDuration('5') },
+              { text: 'After 60 mins', onPress: () => setAutoLockDuration('60') },
+              { text: 'OFF', onPress: () => setAutoLockDuration('never') },
               { text: 'Cancel', style: 'cancel' }
             ])
           )}
@@ -290,8 +292,11 @@ export default function SecurityCenter() {
       <View style={styles.doneButtonContainer}>
         <TouchableOpacity 
           style={styles.doneButton} 
-          // onPress={() => router.push('/(tabs)')}
-          onPress={() => router.back()}
+          onPress={() => {
+            console.log('🔘 Security Center - Done button pressed');
+            navigateToHome();
+          }}
+          // onPress={() => router.back()}
         >
           <Text style={styles.doneButtonText}>Done</Text>
         </TouchableOpacity>

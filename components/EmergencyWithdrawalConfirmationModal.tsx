@@ -324,6 +324,7 @@ export default function EmergencyWithdrawalConfirmationModal({
         title="Emergency Withdrawal PIN"
         description="Enter your emergency withdrawal PIN to confirm"
         customVerifyPin={verifyEmergencyPin}
+        biometricType="emergency"
       />
     </>
   );

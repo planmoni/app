@@ -27,13 +27,18 @@ export default function AppLockScreen() {
   useEffect(() => {
     checkBiometrics();
     
-    // Auto-trigger biometric if enabled
-    if (biometricEnabled) {
-      setTimeout(() => {
+    // Auto-trigger biometric if enabled, but only after a longer delay
+    // This prevents accidental triggering when the component is briefly rendered
+    if (biometricEnabled && hasAppLockPin) {
+      const timer = setTimeout(() => {
+        // Only auto-trigger if the component is still mounted and visible
+        // and we actually have an app lock PIN set up
         handleBiometricUnlock();
-      }, 500);
+      }, 2000); // Increased delay to prevent accidental triggering
+      
+      return () => clearTimeout(timer);
     }
-  }, [biometricEnabled]);
+  }, [biometricEnabled, hasAppLockPin]);
 
   const checkBiometrics = async () => {
     try {

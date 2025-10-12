@@ -411,6 +411,7 @@ export default function EmergencyWithdrawalScreen() {
         title="Enter PIN to confirm"
         description="Enter your PIN to confirm emergency withdrawal"
         customVerifyPin={verifyEmergencyPin}
+        biometricType="emergency"
       />
     </SafeAreaView>
   );

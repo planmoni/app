@@ -197,7 +197,9 @@ function RootLayoutNav() {
       </Stack>
       
       {/* Lock Screen Overlay - Renders at root level */}
-      {isAppLocked && <AppLockScreen />}
+      {isAppLocked && session && (
+        <AppLockScreen />
+      )}
       
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* <SessionDebugger /> */}

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePin } from './PinContext';
+import { isNavigationInProgress } from '@/hooks/useSafeNavigation';
 
 type AutoLockDuration = '5' | '60' | 'never';
 
@@ -86,7 +87,10 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     
     if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
       // App is becoming active - check if we should lock
-      checkIfShouldLock();
+      // Add a small delay to prevent race conditions during navigation
+      setTimeout(() => {
+        checkIfShouldLock();
+      }, 100);
     } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
       // App is becoming inactive - update last active time
       updateLastActive();
@@ -116,6 +120,42 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (unlockTimestampRef.current && (Date.now() - unlockTimestampRef.current) < 30000) {
       console.log('🛡️ AppLock - Recently unlocked, skipping lock check');
       return;
+    }
+
+    // Don't lock if already locked
+    if (isAppLocked) {
+      console.log('🛡️ AppLock - Already locked, skipping lock check');
+      return;
+    }
+
+    // Don't lock if navigation is in progress (check global flag first for immediate protection)
+    const globalNavFlag = isNavigationInProgress();
+    console.log('🛡️ AppLock - Checking global navigation flag:', globalNavFlag);
+    if (globalNavFlag) {
+      console.log('🛡️ AppLock - Global navigation flag active, skipping lock check');
+      return;
+    }
+
+    // Also check AsyncStorage flag for additional protection
+    try {
+      const navigationInProgress = await AsyncStorage.getItem('navigation_in_progress');
+      if (navigationInProgress) {
+        const navigationTime = parseInt(navigationInProgress, 10);
+        const timeSinceNavigation = Date.now() - navigationTime;
+        if (timeSinceNavigation < 3000) { // 3 seconds protection window
+          console.log('🛡️ AppLock - Navigation in progress, skipping lock check', {
+            timeSinceNavigation: `${timeSinceNavigation}ms`,
+            protectionWindow: '3s'
+          });
+          return;
+        } else {
+          // Clean up expired navigation flag
+          await AsyncStorage.removeItem('navigation_in_progress');
+          console.log('🧹 AppLock - Cleaned up expired navigation flag');
+        }
+      }
+    } catch (error) {
+      console.warn('AppLock - Error checking navigation status:', error);
     }
 
     try {
@@ -155,6 +195,12 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (hasAppLockPin && !isAppLocked) {
       console.log('🔒 AppLock - Locking app');
       setIsAppLocked(true);
+    } else {
+      console.log('🔒 AppLock - Cannot lock app', {
+        hasAppLockPin,
+        isAppLocked,
+        reason: !hasAppLockPin ? 'no_pin' : 'already_locked'
+      });
     }
   };
 

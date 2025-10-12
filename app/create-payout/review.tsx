@@ -26,7 +26,7 @@ export default function ReviewScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPinVerification, setShowPinVerification] = useState(false);
   const { banks } = useBanks();
-  const { verifyPayoutPin } = usePin();
+  const { verifyPayoutPin, hasPayoutPin } = usePin();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -482,6 +482,7 @@ export default function ReviewScreen() {
         title="Enter Pin to confirm"
         description="Enter your PIN to confirm payout plan"
         customVerifyPin={verifyPayoutPin}
+        biometricType="payout"
       />
     </SafeAreaView>
   );

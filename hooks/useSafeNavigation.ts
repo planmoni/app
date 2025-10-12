@@ -1,74 +1,142 @@
-import { useRouter } from 'expo-router';
-import { useErrorHandling } from './useErrorHandling';
+import { useCallback, useRef } from 'react';
+import { router } from 'expo-router';
+import { useAppLock } from '@/contexts/AppLockContext';
 
+// Global navigation flag to prevent race conditions
+let globalNavigationInProgress = false;
+
+/**
+ * Custom navigation hook that prevents app lock checks during navigation
+ * This solves the issue where router.push('/(tabs)') triggers biometric authentication
+ */
 export function useSafeNavigation() {
-  const router = useRouter();
-  const { handleError } = useErrorHandling();
+  const { setLastActivePage } = useAppLock();
 
-  const safePush = (path: string) => {
+  /**
+   * Navigate to home screen without triggering app state changes
+   * This method temporarily disables app lock checks during navigation
+   */
+  const navigateToHome = useCallback(async () => {
     try {
-      // Validate path exists
-      if (!path || path === '' || path.includes('undefined') || path.includes('null')) {
-        handleError('Invalid navigation path', { preventNavigation: true });
-        return false;
-      }
+      console.log('🚀 SafeNavigation - navigateToHome called');
+      
+      // Set global flag immediately to prevent race conditions
+      globalNavigationInProgress = true;
+      console.log('🚀 SafeNavigation - Global flag set to true');
+      
+      // Set a flag to prevent app lock checks during navigation
+      const navigationStartTime = Date.now();
+      
+      // Import AsyncStorage synchronously to set the flag immediately
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      
+      // Set the navigation flag immediately and synchronously
+      await AsyncStorage.setItem('navigation_in_progress', navigationStartTime.toString());
+      console.log('🚀 SafeNavigation - AsyncStorage flag set');
+      
+      console.log('🚀 SafeNavigation - Setting navigation flag, navigating to home');
 
-      // Check for common error paths
-      if (path.includes('error') || path.includes('not-found') || path.includes('404')) {
-        handleError('Navigation to error page prevented', { preventNavigation: true });
-        return false;
-      }
+      // Navigate to home screen
+      router.push('/(tabs)');
+      console.log('🚀 SafeNavigation - router.push called');
 
-      router.push(path);
-      return true;
+      // Clear the navigation flag after a short delay
+      setTimeout(async () => {
+        try {
+          globalNavigationInProgress = false;
+          await AsyncStorage.removeItem('navigation_in_progress');
+          console.log('🚀 SafeNavigation - Navigation flag cleared');
+        } catch (error) {
+          console.warn('SafeNavigation - Error clearing navigation flag:', error);
+        }
+      }, 1500); // Increased to 1.5 seconds for more protection
     } catch (error) {
-      handleError(`Navigation failed: ${error}`, { preventNavigation: true });
-      return false;
+      console.error('🚀 SafeNavigation - Error in navigateToHome:', error);
+      // Reset global flag on error
+      globalNavigationInProgress = false;
     }
-  };
+  }, []);
 
-  const safeReplace = (path: string) => {
-    try {
-      // Validate path exists
-      if (!path || path === '' || path.includes('undefined') || path.includes('null')) {
-        handleError('Invalid navigation path', { preventNavigation: true });
-        return false;
+  /**
+   * Navigate to home screen and replace current route
+   */
+  const replaceWithHome = useCallback(async () => {
+    // Set a flag to prevent app lock checks during navigation
+    const navigationStartTime = Date.now();
+    
+    // Import AsyncStorage synchronously to set the flag immediately
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    
+    // Set the navigation flag immediately and synchronously
+    await AsyncStorage.setItem('navigation_in_progress', navigationStartTime.toString());
+    
+    console.log('🚀 SafeNavigation - Setting navigation flag, replacing with home');
+
+    // Navigate to home screen and replace current route
+    router.replace('/(tabs)');
+
+    // Clear the navigation flag after a short delay
+    setTimeout(async () => {
+      try {
+        await AsyncStorage.removeItem('navigation_in_progress');
+        console.log('🚀 SafeNavigation - Navigation flag cleared');
+      } catch (error) {
+        console.warn('SafeNavigation - Error clearing navigation flag:', error);
       }
+    }, 1500);
+  }, []);
 
-      // Check for common error paths
-      if (path.includes('error') || path.includes('not-found') || path.includes('404')) {
-        handleError('Navigation to error page prevented', { preventNavigation: true });
-        return false;
-      }
+  /**
+   * Navigate to any route with protection against app lock checks
+   */
+  const navigateTo = useCallback((route: string) => {
+    // Set a flag to prevent app lock checks during navigation
+    const navigationStartTime = Date.now();
+    
+    import('@react-native-async-storage/async-storage').then(({ default: AsyncStorage }) => {
+      AsyncStorage.setItem('navigation_in_progress', navigationStartTime.toString());
+    });
 
-      router.replace(path);
-      return true;
-    } catch (error) {
-      handleError(`Navigation failed: ${error}`, { preventNavigation: true });
-      return false;
-    }
-  };
+    // Navigate to the specified route
+    router.push(route);
 
-  const safeBack = () => {
-    try {
-      if (router.canGoBack()) {
-        router.back();
-        return true;
-      } else {
-        // If can't go back, go to home
-        safeReplace('/(tabs)');
-        return true;
-      }
-    } catch (error) {
-      handleError(`Back navigation failed: ${error}`, { preventNavigation: true });
-      return false;
-    }
-  };
+    // Clear the navigation flag after a short delay
+    setTimeout(() => {
+      import('@react-native-async-storage/async-storage').then(({ default: AsyncStorage }) => {
+        AsyncStorage.removeItem('navigation_in_progress');
+      });
+    }, 1000);
+  }, []);
+
+  /**
+   * Replace current route with any route, with protection against app lock checks
+   */
+  const replaceWith = useCallback((route: string) => {
+    // Set a flag to prevent app lock checks during navigation
+    const navigationStartTime = Date.now();
+    
+    import('@react-native-async-storage/async-storage').then(({ default: AsyncStorage }) => {
+      AsyncStorage.setItem('navigation_in_progress', navigationStartTime.toString());
+    });
+
+    // Replace current route with the specified route
+    router.replace(route);
+
+    // Clear the navigation flag after a short delay
+    setTimeout(() => {
+      import('@react-native-async-storage/async-storage').then(({ default: AsyncStorage }) => {
+        AsyncStorage.removeItem('navigation_in_progress');
+      });
+    }, 1000);
+  }, []);
 
   return {
-    safePush,
-    safeReplace,
-    safeBack,
-    router
+    navigateToHome,
+    replaceWithHome,
+    navigateTo,
+    replaceWith,
   };
 }
+
+// Export the global flag for AppLockContext to check
+export const isNavigationInProgress = () => globalNavigationInProgress;

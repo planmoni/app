@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useAutoLogout } from '@/contexts/AutoLogoutContext';
+import { useAppLock } from '@/contexts/AppLockContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePin } from '@/contexts/PinContext';
 import { useRouter } from 'expo-router';
@@ -10,7 +10,7 @@ import { BiometricService } from '@/lib/biometrics';
 
 export default function SimplePinLock() {
   const { colors, isDark } = useTheme();
-  const { isAppLocked, unlockApp, getLastActivePage } = useAutoLogout();
+  const { isAppLocked, unlockApp, getLastActivePage } = useAppLock();
   const { session } = useAuth();
   const { verifyAppLockPin, verifyAppLockPinWithBiometrics, biometricEnabled } = usePin();
   const router = useRouter();
