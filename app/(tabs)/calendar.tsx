@@ -3,11 +3,10 @@ import PlanmoniLoader from '@/components/PlanmoniLoader';
 import { router } from 'expo-router';
 import { TriangleAlert as AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, Plus } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions , Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCalendarEvents, CalendarEvent } from '@/hooks/useCalendarEvents';
-import { Platform } from 'react-native';
 
 type ViewType = 'month' | 'week' | 'list';
 

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable , Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,7 +11,6 @@ import { useOnlineStatus } from '@/components/OnlineStatusProvider';
 import OfflineNotice from '@/components/OfflineNotice';
 import { useToast } from '@/contexts/ToastContext';
 import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
 
 export default function VerifyEmailScreen() {
   const { colors } = useTheme();

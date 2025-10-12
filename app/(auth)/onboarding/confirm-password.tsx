@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable , Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,6 @@ import { useHaptics } from '@/hooks/useHaptics';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
-import { Platform } from 'react-native';
 
 export default function ConfirmPasswordScreen() {
   const { colors } = useTheme();

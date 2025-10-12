@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Alert , Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,6 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 
 export default function VerifyEmailScreen() {
@@ -28,7 +27,7 @@ export default function VerifyEmailScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
 
   // Callback ref for setting inputRefs
   const setInputRef = useCallback((el: TextInput | null, index: number) => {

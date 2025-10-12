@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Building2, Plus, Info, Check, X } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '@/components/Button';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
 import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,7 +14,7 @@ import { useBanks } from '@/hooks/useBanks';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
-import React from 'react'; // Added missing import for React
+// ...existing code...
 import { getBankIconLogo } from '@/lib/bankIcons';
 
 export default function DestinationScreen() {

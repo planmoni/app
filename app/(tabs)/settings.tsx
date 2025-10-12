@@ -30,7 +30,7 @@ import {
   History
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View , Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -40,7 +40,6 @@ import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
 import { logAnalyticsEvent } from '@/lib/firebase';
-import { Platform } from 'react-native';
 
 export default function SettingsScreen() {
   const { colors, isDark, theme, setTheme } = useTheme();

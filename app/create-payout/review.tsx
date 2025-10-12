@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -12,7 +12,6 @@ import ErrorMessage from '@/components/ErrorMessage';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatDisplayDate, formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 import { useBanks } from '@/hooks/useBanks';
-import React from 'react';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { usePin } from '@/contexts/PinContext';
 import PinVerificationModal from '@/components/PinVerificationModal';

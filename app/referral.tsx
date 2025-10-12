@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Share, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Share, ActivityIndicator , Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Gift, Copy, Share2, Users, Info } from 'lucide-react-native';
@@ -9,7 +9,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import * as Clipboard from 'expo-clipboard';
-import { Platform } from 'react-native';
 import { useToast } from '@/contexts/ToastContext';
 
 export default function ReferralScreen() {

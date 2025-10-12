@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable , Platform } from 'react-native';
 import { router, useLocalSearchParams, Link } from 'expo-router';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,7 +13,6 @@ import FloatingButton from '@/components/FloatingButton';
 import SafeFooter from '@/components/SafeFooter';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { supabase } from '@/lib/supabase';
-import { Platform } from 'react-native';
 
 export default function LoginPasswordScreen() {
   const { colors } = useTheme();

@@ -1,7 +1,6 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions , Modal, Animated } from 'react-native';
 import { X, FileText, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Modal, Animated } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useRef, useState } from 'react';
 

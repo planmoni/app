@@ -1,10 +1,10 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert , Image } from 'react-native';
 import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
 import HorizontalLoader from '@/components/HorizontalLoader';
 import SafeFooter from '@/components/SafeFooter';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
@@ -12,8 +12,6 @@ import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import EditPayoutAccountModal from '@/components/EditPayoutAccountModal';
 import { useHaptics } from '@/hooks/useHaptics';
 import { getBankIconLogo } from '@/lib/bankIcons';
-import React from 'react';
-import { Image } from 'react-native';
 
 export default function PayoutAccountsScreen() {
   const { colors, isDark } = useTheme();

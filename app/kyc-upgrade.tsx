@@ -1,7 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal, Animated, KeyboardAvoidingView } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal, Animated, KeyboardAvoidingView , useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Shield, User, Calendar, Info, Lock, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, FileText, ChevronLeft, X } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,7 +11,6 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useAuth } from '@/contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
-import { useWindowDimensions } from 'react-native';
 import LocationSearchModal from '@/components/LocationSearchModal';
 import { useKYCData } from '@/hooks/useKYCData';
 import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';

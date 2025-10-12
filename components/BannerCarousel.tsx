@@ -52,7 +52,7 @@ export default function BannerCarousel({
   const [imageLoadedMap, setImageLoadedMap] = useState<Record<string, boolean>>({});
 
   const scrollViewRef = useRef<ScrollView>(null);
-  const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoPlayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const animatedIndex = useSharedValue(0);
 
@@ -97,11 +97,12 @@ export default function BannerCarousel({
 
   useEffect(() => {
     if (autoPlay && banners.length > 1 && !isLoading) {
-      autoPlayTimerRef.current = setInterval(() => {
+      // cast setInterval return to environment-agnostic ReturnType<typeof setInterval>
+      autoPlayTimerRef.current = (setInterval(() => {
         const nextIndex = (currentIndex + 1) % banners.length;
         scrollToIndex(nextIndex);
         setCurrentIndex(nextIndex);
-      }, autoPlayInterval);
+      }, autoPlayInterval) as unknown) as ReturnType<typeof setInterval>;
     }
     return () => {
       if (autoPlayTimerRef.current) {

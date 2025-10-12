@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert , Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Shield, CheckCircle } from 'lucide-react-native';
@@ -10,7 +10,6 @@ import { usePin } from '@/contexts/PinContext';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
-import { Platform } from 'react-native';
 
 export default function ForgotPinConfirmScreen() {
   const { colors, isDark } = useTheme();

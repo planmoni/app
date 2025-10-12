@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Switch, Pressable, ActivityIndicator , Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { Bell, Calendar, Wallet, Mail } from 'lucide-react-native';
 import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
 import { useEmailNotifications } from '@/hooks/useEmailNotifications';
 
 export default function EmailNotificationSettings() {

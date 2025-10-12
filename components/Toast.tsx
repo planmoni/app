@@ -25,7 +25,7 @@ export default function Toast({
   const translateY = useRef(new Animated.Value(100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.8)).current;
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getToastConfig = () => {
     switch (type) {
@@ -101,9 +101,10 @@ export default function Toast({
       ]).start();
 
       // Auto hide after duration
-      timeoutRef.current = setTimeout(() => {
+      // Return type may vary between environments; cast to ReturnType<typeof setTimeout>
+      timeoutRef.current = (setTimeout(() => {
         hideToast();
-      }, duration);
+      }, duration) as unknown) as ReturnType<typeof setTimeout>;
     }
 
     return () => {

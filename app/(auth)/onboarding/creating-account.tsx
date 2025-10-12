@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable , Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +8,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import { accountCreationHandler } from '@/scripts/account-creation-handler';
-import { Platform } from 'react-native';
 import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
 
 export default function CreatingAccountScreen() {

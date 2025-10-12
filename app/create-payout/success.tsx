@@ -5,11 +5,10 @@ import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatDisplayDate, formatPayoutFrequency } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
-import React from 'react';
 import { Building2, X } from 'lucide-react-native';
 
 export default function SuccessScreen() {

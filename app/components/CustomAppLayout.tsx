@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState , ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -15,7 +15,6 @@ import {
 import CustomSplashScreen from '@/components/SplashScreen';
 
 import OfflineBanner from '@/components/OfflineBanner';
-import { ReactNode } from 'react';
 import { initializeAnalytics, logAnalyticsEvent } from '@/lib/firebase';
 
 interface CustomAppLayoutProps {

@@ -15,9 +15,8 @@ import Button from '@/components/Button';
 import PaginationDot from '@/components/PaginationDot';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useState , useRef } from 'react';
 import { BlurView } from 'expo-blur';
-import { useRef } from 'react';
 
 const SLIDES = [
   {

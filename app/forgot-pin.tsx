@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert , Platform } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, Shield, Info } from 'lucide-react-native';
@@ -9,7 +9,6 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
 import FloatingButton from '@/components/FloatingButton';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
-import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 
 export default function ForgotPinScreen() {

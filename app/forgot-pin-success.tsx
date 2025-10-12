@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet , Platform } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CheckCircle, Shield } from 'lucide-react-native';
@@ -7,7 +7,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import FloatingButton from '@/components/FloatingButton';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
-import { Platform } from 'react-native';
 
 export default function ForgotPinSuccessScreen() {
   const { colors, isDark } = useTheme();

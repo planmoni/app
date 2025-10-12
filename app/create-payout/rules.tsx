@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, Switch, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Switch, useWindowDimensions , Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,7 +7,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
 
 export default function RulesScreen() {
   const { colors, isDark } = useTheme();

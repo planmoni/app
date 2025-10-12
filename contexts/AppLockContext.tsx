@@ -87,12 +87,15 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     
     if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
       // App is becoming active - check if we should lock
-      // Add a small delay to prevent race conditions during navigation
+      // Add a slightly larger delay to prevent race conditions during navigation
+      // (gives navigation flags/AsyncStorage a bit more time to settle)
       setTimeout(() => {
         checkIfShouldLock();
-      }, 100);
-    } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
-      // App is becoming inactive - update last active time
+      }, 300);
+    } else if (appState.current === 'active' && nextAppState === 'background') {
+      // App moved from active -> background (not just transient inactive)
+      // Update last active time only when app actually goes to background to avoid
+      // treating short navigation-driven 'inactive' states as a real app switch.
       updateLastActive();
     }
     
@@ -136,22 +139,40 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return;
     }
 
-    // Also check AsyncStorage flag for additional protection
+    // Also check AsyncStorage flag for additional protection (supports token-based JSON and legacy numeric)
     try {
       const navigationInProgress = await AsyncStorage.getItem('navigation_in_progress');
       if (navigationInProgress) {
-        const navigationTime = parseInt(navigationInProgress, 10);
-        const timeSinceNavigation = Date.now() - navigationTime;
-        if (timeSinceNavigation < 3000) { // 3 seconds protection window
+        let navigationTime: number | null = null;
+        let navigationToken: string | null = null;
+
+        // Try parsing JSON { token, ts }
+        try {
+          const parsed = JSON.parse(navigationInProgress);
+          if (parsed && (parsed.ts || parsed.token)) {
+            navigationTime = parsed.ts ? parseInt(parsed.ts, 10) : null;
+            navigationToken = parsed.token ? String(parsed.token) : null;
+          }
+        } catch (err) {
+          // Not JSON: fall back to legacy numeric timestamp string
+          const legacy = parseInt(navigationInProgress, 10);
+          if (!Number.isNaN(legacy)) navigationTime = legacy;
+        }
+
+        const timeSinceNavigation = navigationTime ? Date.now() - navigationTime : null;
+        console.log('🛡️ AppLock - navigation flag found', { navigationToken, navigationTime, timeSinceNavigation });
+
+        if (timeSinceNavigation !== null && timeSinceNavigation < 3500) { // 3.5 seconds protection window
           console.log('🛡️ AppLock - Navigation in progress, skipping lock check', {
             timeSinceNavigation: `${timeSinceNavigation}ms`,
-            protectionWindow: '3s'
+            protectionWindow: '3.5s',
+            navigationToken,
           });
           return;
         } else {
-          // Clean up expired navigation flag
+          // Clean up expired or malformed navigation flag
           await AsyncStorage.removeItem('navigation_in_progress');
-          console.log('🧹 AppLock - Cleaned up expired navigation flag');
+          console.log('🧹 AppLock - Cleaned up expired/malformed navigation flag');
         }
       }
     } catch (error) {

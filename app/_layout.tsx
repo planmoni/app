@@ -9,7 +9,7 @@ import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
-import { SplashScreen, Stack } from 'expo-router';
+import { SplashScreen, Stack , usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -41,6 +41,35 @@ function RootLayoutNav() {
   
   // Track page changes for redirect after unlock
   usePageTracking();
+
+  // Deterministic navigation-finish clearing: when the pathname changes,
+  // clear the stored navigation token so AppLockContext won't falsely skip or lock.
+  const pathname = usePathname();
+  useEffect(() => {
+    // Clear navigation_in_progress when the route actually changed (navigation finished)
+    (async () => {
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const stored = await AsyncStorage.getItem('navigation_in_progress');
+        if (!stored) return;
+
+        // Try parsing token JSON and then remove (we are at the destination)
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed?.token) {
+            await AsyncStorage.removeItem('navigation_in_progress');
+            console.log('🚀 RootLayoutNav - Cleared navigation_in_progress after pathname change', pathname);
+          }
+        } catch (err) {
+          // If malformed or legacy numeric, remove it as well
+          await AsyncStorage.removeItem('navigation_in_progress');
+          console.log('🚀 RootLayoutNav - Cleared legacy/malformed navigation_in_progress after pathname change', pathname);
+        }
+      } catch (error) {
+        console.warn('RootLayoutNav - Error clearing navigation flag on pathname change:', error);
+      }
+    })();
+  }, [pathname]);
 
   // Handle authentication state transitions
   useEffect(() => {

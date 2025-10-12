@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, TextInput, Modal, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Modal, useWindowDimensions , Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Calendar, ChevronRight, Clock, Info, Plus, ChevronLeft, ChevronDown, ArrowLeft, Check, X } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -8,7 +8,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { ScrollView } from 'react-native-gesture-handler';
-import { Platform } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 
 type DatePickerProps = {

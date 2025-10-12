@@ -1,17 +1,15 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Animated, Dimensions, Platform, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Animated, Dimensions, Platform, Modal , Image } from 'react-native';
 import { X, Copy, ArrowUpRight, BanknoteArrowUp, ArrowDownRight, FileText, Image as LucideImage, BanknoteArrowDown } from 'lucide-react-native';
-import { Image } from 'react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system';
 import * as Print from 'expo-print';
 import { useToast } from '@/contexts/ToastContext';
-import React from 'react';
 import { captureRef } from 'react-native-view-shot';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 

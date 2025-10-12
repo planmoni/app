@@ -1,11 +1,10 @@
-import { Modal, View, Text, StyleSheet, Pressable, Switch, ScrollView, useWindowDimensions } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, Switch, ScrollView, useWindowDimensions , Platform } from 'react-native';
 import { X, Bell, Shield, Clock, Mail, BanknoteArrowUp, Key, Wallet, Megaphone, Calendar } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEmailNotifications, EmailNotificationSettings } from '@/hooks/useEmailNotifications';
 import { useToast } from '@/contexts/ToastContext';
 import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
 
 interface NotificationSettingsModalProps {
   isVisible: boolean;

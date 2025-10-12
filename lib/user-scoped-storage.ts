@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { saveItem, getItem, deleteItem } from './secure-storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as LocalAuthentication from 'expo-local-authentication';
 
 // Import SecureStore only on native platforms for advanced options
 let SecureStore: any = null;
@@ -29,20 +30,17 @@ async function getDeviceCapabilities(): Promise<DeviceCapabilities> {
   let hasBiometrics = false;
   let hasPasscode = false;
 
-  if (Platform.OS !== 'web' && SecureStore) {
+  if (Platform.OS !== 'web') {
     try {
-      // Try to detect if device has biometrics/passcode by testing keychain access
-      await SecureStore.setItemAsync('_test_keychain_access', 'test', {
-        requireAuthentication: true,
-        keychainService: 'planmoni-test'
-      });
-      hasBiometrics = true;
-      hasPasscode = true;
-      await SecureStore.deleteItemAsync('_test_keychain_access', {
-        keychainService: 'planmoni-test'
-      });
+      // Use expo-local-authentication to detect biometric hardware and enrollment
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      hasBiometrics = !!hasHardware && !!isEnrolled;
+
+      // We cannot reliably detect device passcode state across platforms; keep conservative default
+      hasPasscode = false;
     } catch (error) {
-      // If authentication fails, device might not have biometrics/passcode
+      // If detection fails, fall back to conservative defaults
       hasBiometrics = false;
       hasPasscode = false;
     }

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView , Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,7 +7,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import EmailNotificationSettings from '@/components/EmailNotificationSettings';
 import SafeFooter from '@/components/SafeFooter';
 import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
 
 export default function EmailPreferencesScreen() {
   const { colors, isDark } = useTheme();
