@@ -13,7 +13,6 @@ import OfflineNotice from './OfflineNotice';
 type PendingAction = {
   id: string;
   title: string;
-  description: string;
   icon: React.ComponentType<any>;
   iconBg: string;
   iconColor: string;
@@ -65,7 +64,6 @@ export default function PendingActionsCard() {
     {
       id: 'account-verification',
       title: 'Start KYC Verification',
-      description: 'Verify your identity to start using Planmoni',
       icon: Shield,
       iconBg: colors.backgroundTertiary,
       iconColor: colors.text,
@@ -75,7 +73,6 @@ export default function PendingActionsCard() {
     {
       id: 'verify-email',
       title: 'Verify your email address',
-      description: 'Confirm your email to secure your account',
       icon: Mail,
       iconBg: colors.backgroundTertiary,
       iconColor: colors.text,
@@ -85,7 +82,6 @@ export default function PendingActionsCard() {
     {
       id: 'setup-app-lock',
       title: 'Setup App PIN',
-      description: 'Secure your account with a PIN code',
       icon: Lock,
       iconBg: colors.backgroundTertiary,
       iconColor: colors.text,
@@ -96,7 +92,6 @@ export default function PendingActionsCard() {
     {
       id: 'setup-2fa',
       title: 'Setup 2FA',
-      description: 'Add two-factor authentication for better security',
       icon: Fingerprint,
       iconBg: colors.backgroundTertiary,
       iconColor: colors.text,
@@ -236,11 +231,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     width: Platform.OS === 'ios' ? 280 : 240,
     backgroundColor: isDark ? colors.background : colors.accentBackground,
     borderRadius: 12,
+    height: 110,
     padding: 16,
     borderWidth: 1,
     borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
   },
   iconContainer: {
@@ -259,7 +256,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: Platform.OS === 'ios' ? 15 : 13,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 4,
+    marginTop: 10,
   },
   actionDescription: {
     fontSize: Platform.OS === 'ios' ? 13 : 12,
