@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePin } from '@/contexts/PinContext';
 import { useAppLock } from '@/contexts/AppLockContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { BiometricService } from '@/lib/biometrics';
 import { useHaptics } from '@/hooks/useHaptics';
 import PinDisplay from '@/components/PinDisplay';
@@ -14,6 +15,7 @@ export default function AppLockScreen() {
   const { colors, isDark } = useTheme();
   const { hasAppLockPin, verifyAppLockPin, biometricEnabled, checkBiometricSupport } = usePin();
   const { unlockApp, getLastActivePage } = useAppLock();
+  const { session } = useAuth();
   const router = useRouter();
   const haptics = useHaptics();
   
@@ -151,14 +153,21 @@ export default function AppLockScreen() {
   };
 
   const getUserName = () => {
-    // You can get this from your auth context
-    return 'User';
+    // Get the first name from the user's metadata
+    const firstName = session?.user?.user_metadata?.first_name || 'User';
+    
+    console.log('AppLockScreen - Using first_name from metadata:', { 
+      first_name: session?.user?.user_metadata?.first_name,
+      result: firstName 
+    });
+    
+    return firstName;
   };
 
   const getBiometricText = () => {
     if (!biometricSupport) return 'Unlock with biometrics';
     
-    const label = biometricSupport.supportedTypes;
+    const label = BiometricService.getBiometricTypeLabel(biometricSupport.supportedTypes);
     return `Unlock with ${label}`;
   };
 
@@ -217,6 +226,27 @@ export default function AppLockScreen() {
             <Text style={styles.biometricText}>{getBiometricText()}</Text>
           </Pressable>
         )}
+
+        {/* Forgot Pin Button */}
+        <Pressable 
+          style={({ pressed }) => [
+            styles.forgotPinButton,
+            pressed && styles.forgotPinButtonPressed,
+            isVerifying && styles.forgotPinButtonDisabled
+          ]}
+          onPress={() => {
+            haptics.lightImpact();
+            router.push('/forgot-pin');
+          }}
+          disabled={isVerifying}
+        >
+          <Text style={[
+            styles.forgotPinButtonText,
+            isVerifying && styles.forgotPinButtonTextDisabled
+          ]}>
+            Forgot Pin?
+          </Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -224,8 +254,13 @@ export default function AppLockScreen() {
 
 const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   container: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: colors.background,
+    zIndex: 9999,
   },
   content: {
     flex: 1,
@@ -271,7 +306,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     marginTop: 24,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: 100,
     backgroundColor: colors.primary + '20',
     borderWidth: 1,
     borderColor: colors.primary,
@@ -281,5 +316,40 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  forgotPinButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 100,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  forgotPinButtonPressed: {
+    backgroundColor: colors.backgroundSecondary,
+    borderColor: colors.primary,
+    transform: [{ scale: 0.98 }],
+  },
+  forgotPinButtonDisabled: {
+    opacity: 0.5,
+    backgroundColor: colors.backgroundTertiary,
+  },
+  forgotPinButtonText: {
+    color: colors.textSecondary,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  forgotPinButtonTextDisabled: {
+    color: colors.textTertiary,
   },
 });
