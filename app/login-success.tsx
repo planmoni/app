@@ -167,11 +167,11 @@ export default function LoginSuccessScreen() {
             }
           ]}
         >
-          <Image 
+          {/* <Image 
             source={require('@/assets/images/logo-dark.png')} 
             style={styles.logo}
             resizeMode="contain"
-          />
+          /> */}
         </Animated.View>
         
         {/* Message Container */}

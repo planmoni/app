@@ -88,11 +88,11 @@ export default function LoggingOutScreen() {
             }
           ]}
         >
-          <Image 
+          {/* <Image 
             source={require('@/assets/images/logo-dark.png')} 
             style={styles.logo}
             resizeMode="contain"
-          />
+          /> */}
         </Animated.View>
         
         {/* Logout Message */}
