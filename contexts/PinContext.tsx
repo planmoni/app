@@ -44,6 +44,8 @@ interface PinContextType {
   // General
   isLoading: boolean;
   checkBiometricSupport: () => Promise<any>;
+  // Backwards-compatible alias used by some screens
+  setupPin: (pin: string) => Promise<boolean>;
 }
 
 const PinContext = createContext<PinContextType | undefined>(undefined);
@@ -472,6 +474,8 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
       // App Lock PIN
       hasAppLockPin,
       setupAppLockPin,
+      // Backwards-compatible alias
+      setupPin: setupAppLockPin,
       verifyAppLockPin,
       verifyAppLockPinWithBiometrics,
       updateAppLockPin,

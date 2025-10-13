@@ -69,7 +69,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Initialize Intercom when session changes
     if (session) {
       console.log('🔗 AuthContext - Initializing Intercom with session');
-      intercomService.init(session);
+      // Cast to any because IntercomService expects a lighter UserSession shape
+      intercomService.init(session as any);
     } else {
       console.log(' AuthContext - Logging out Intercom (no session)');
       intercomService.logout();

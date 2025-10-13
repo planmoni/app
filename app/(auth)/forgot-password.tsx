@@ -71,7 +71,7 @@ export default function ForgotPasswordScreen() {
             <Button
               title="Back to Sign In"
               onPress={() => router.replace('/(auth)/login')}
-              style={styles.backButton}
+              style={styles.backToSignInButton}
             />
             <Pressable onPress={() => setIsEmailSent(false)}>
               <Text style={styles.resendText}>Try a different email</Text>
@@ -296,7 +296,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 16,
     alignItems: 'center',
   },
-  backButton: {
+  backToSignInButton: {
     width: '100%',
     height: 56,
     borderRadius: 12,

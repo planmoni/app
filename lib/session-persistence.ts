@@ -140,7 +140,7 @@ export function canRefreshSession(session: Session | null): boolean {
   
   // Check if refresh token exists and is not expired
   const now = Math.floor(Date.now() / 1000);
-  const refreshExpiresAt = session.refresh_token_expires_at || 0;
+  const refreshExpiresAt = (session as any).refresh_token_expires_at || 0;
   
   return !!session.refresh_token && now < refreshExpiresAt;
 }

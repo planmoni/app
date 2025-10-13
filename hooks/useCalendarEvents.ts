@@ -73,7 +73,7 @@ export function useCalendarEvents() {
       const calendarEvents: CalendarEvent[] = [];
 
       // Process completed payouts from transactions
-      transactions?.forEach(transaction => {
+      transactions?.forEach((transaction: any) => {
         const date = new Date(transaction.created_at);
         const formattedDate = date.toLocaleDateString('en-US', {
           month: 'long',
@@ -83,8 +83,8 @@ export function useCalendarEvents() {
 
         calendarEvents.push({
           id: transaction.id,
-          title: `₦${transaction.amount.toLocaleString()} disbursed`,
-          amount: `₦${transaction.amount.toLocaleString()}`,
+          title: `₦${Number(transaction.amount).toLocaleString()} disbursed`,
+          amount: `₦${Number(transaction.amount).toLocaleString()}`,
           time: date.toLocaleTimeString('en-US', {
             hour: 'numeric',
             minute: '2-digit',
@@ -100,7 +100,7 @@ export function useCalendarEvents() {
       });
 
       // Process payout plan creation dates
-      payoutPlans?.forEach(plan => {
+      payoutPlans?.forEach((plan: any) => {
         const createdDate = new Date(plan.created_at);
         const formattedCreatedDate = createdDate.toLocaleDateString('en-US', {
           month: 'long',

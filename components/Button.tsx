@@ -116,13 +116,13 @@ export default function Button({
 
   return (
     <Pressable
-      style={[
+      style={([
         styles.button,
         getVariantStyle(),
         getSizeStyle(),
         disabled && styles.disabledButton,
         style,
-      ]}
+      ] as any)}
       disabled={disabled || isLoading}
       {...props}
       onPress={handlePress}

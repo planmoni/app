@@ -217,75 +217,78 @@ export default function SecurityCenter() {
             hasAppLockPin ? 'Change your app lock PIN' : 'Create a PIN to lock your app',
             handlePinSetup
           )}
-          
-          {renderSettingItem(
-            'time-outline',
-            'Auto Logout',
-            `Current: ${autoLockDuration === '5' ? 'After 5 mins' : 
-                       autoLockDuration === '60' ? 'After 60 mins' : 
-                       autoLockDuration === 'never' ? 'OFF' : 'Not set'}`,
-            () => Alert.alert('Auto Logout', 'Select auto logout duration', [
-              { text: 'After 5 mins', onPress: () => setAutoLockDuration('5') },
-              { text: 'After 60 mins', onPress: () => setAutoLockDuration('60') },
-              { text: 'OFF', onPress: () => setAutoLockDuration('never') },
-              { text: 'Cancel', style: 'cancel' }
-            ])
+          {hasAppLockPin && (
+            <>
+              {renderSettingItem(
+                'time-outline',
+                'Auto Logout',
+                `Current: ${autoLockDuration === '5' ? 'After 5 mins' : 
+                           autoLockDuration === '60' ? 'After 60 mins' : 
+                           autoLockDuration === 'never' ? 'OFF' : 'Not set'}`,
+                () => Alert.alert('Auto Logout', 'Select auto logout duration', [
+                  { text: 'After 5 mins', onPress: () => setAutoLockDuration('5') },
+                  { text: 'After 60 mins', onPress: () => setAutoLockDuration('60') },
+                  { text: 'OFF', onPress: () => setAutoLockDuration('never') },
+                  { text: 'Cancel', style: 'cancel' }
+                ])
+              )}
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingLeft}>
+                  <View style={styles.iconContainer}>
+                    <Ionicons name={getBiometricIcon() as any} size={20} color={colors.text} />
+                  </View>
+                  <View style={styles.settingText}>
+                    <Text style={styles.settingTitle}>{getBiometricText('app')}</Text>
+                    <Text style={styles.settingSubtitle}>{getBiometricSubtitle('app')}</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={biometricEnabled}
+                  onValueChange={() => handleBiometricToggle('app')}
+                  trackColor={{ false: colors.border, true: '#D1EAAE'}}
+                  thumbColor={biometricEnabled ? colors.primary : colors.backgroundSecondary }
+                  disabled={!biometricSupport?.isAvailable || !biometricSupport?.isEnrolled}
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingLeft}>
+                  <View style={styles.iconContainer}>
+                    <Ionicons name="card-outline" size={20} color={colors.text} />
+                  </View>
+                  <View style={styles.settingText}>
+                    <Text style={styles.settingTitle}>Use Biometric for Payout Confirmation</Text>
+                    <Text style={styles.settingSubtitle}>Require PIN/biometric for payout confirmations</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={payoutBiometricEnabled}
+                  onValueChange={() => handleBiometricToggle('payout')}
+                  trackColor={{ false: colors.border, true: '#D1EAAE' }}
+                  thumbColor={payoutBiometricEnabled ? colors.primary : colors.backgroundSecondary }
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingLeft}>
+                  <View style={styles.iconContainer}>
+                    <Ionicons name="warning-outline" size={20} color={colors.text} />
+                  </View>
+                  <View style={styles.settingText}>
+                    <Text style={styles.settingTitle}>Use Biometric for Emergency Withdrawals Confirmation</Text>
+                    <Text style={styles.settingSubtitle}>Require PIN/biometric for emergency withdrawals</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={emergencyBiometricEnabled}
+                  onValueChange={() => handleBiometricToggle('emergency')}
+                  trackColor={{ false: colors.border, true: '#D1EAAE' }}
+                  thumbColor={emergencyBiometricEnabled ? colors.primary : colors.backgroundSecondary }
+                />
+              </View>
+            </>
           )}
-          
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <View style={styles.iconContainer}>
-                <Ionicons name={getBiometricIcon() as any} size={20} color={colors.text} />
-              </View>
-              <View style={styles.settingText}>
-                <Text style={styles.settingTitle}>{getBiometricText('app')}</Text>
-                <Text style={styles.settingSubtitle}>{getBiometricSubtitle('app')}</Text>
-              </View>
-            </View>
-            <Switch
-              value={biometricEnabled}
-              onValueChange={() => handleBiometricToggle('app')}
-              trackColor={{ false: colors.border, true: '#D1EAAE'}}
-              thumbColor={biometricEnabled ? colors.primary : colors.backgroundSecondary }
-              disabled={!biometricSupport?.isAvailable || !biometricSupport?.isEnrolled}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <View style={styles.iconContainer}>
-                <Ionicons name="card-outline" size={20} color={colors.text} />
-              </View>
-              <View style={styles.settingText}>
-                <Text style={styles.settingTitle}>Use Biometric for Payout Confirmation</Text>
-                <Text style={styles.settingSubtitle}>Require PIN/biometric for payout confirmations</Text>
-              </View>
-            </View>
-            <Switch
-              value={payoutBiometricEnabled}
-              onValueChange={() => handleBiometricToggle('payout')}
-              trackColor={{ false: colors.border, true: '#D1EAAE' }}
-              thumbColor={payoutBiometricEnabled ? colors.primary : colors.backgroundSecondary }
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <View style={styles.iconContainer}>
-                <Ionicons name="warning-outline" size={20} color={colors.text} />
-              </View>
-              <View style={styles.settingText}>
-                <Text style={styles.settingTitle}>Use Biometric for Emergency Withdrawals Confirmation</Text>
-                <Text style={styles.settingSubtitle}>Require PIN/biometric for emergency withdrawals</Text>
-              </View>
-            </View>
-            <Switch
-              value={emergencyBiometricEnabled}
-              onValueChange={() => handleBiometricToggle('emergency')}
-              trackColor={{ false: colors.border, true: '#D1EAAE' }}
-              thumbColor={emergencyBiometricEnabled ? colors.primary : colors.backgroundSecondary }
-            />
-          </View>
         </>
       ))}
 

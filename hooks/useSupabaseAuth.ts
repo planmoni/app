@@ -11,6 +11,7 @@ import {
   isSessionExpired 
 } from '@/lib/session-persistence';
 import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
+import { useAppError } from '@/contexts/AppErrorContext';
 
 type AuthResult = {
   success: boolean;
@@ -21,6 +22,7 @@ export function useSupabaseAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { setError: setAppError } = useAppError();
 
   useEffect(() => {
     let mounted = true;
@@ -124,8 +126,18 @@ export function useSupabaseAuth() {
           }
         }
       } catch (err) {
+        const message = err instanceof Error ? err.message : 'Authentication initialization failed';
         console.error('❌ Error during auth initialization:', err);
-        setError(err instanceof Error ? err.message : 'Authentication initialization failed');
+        setError(message);
+        // Treat initialization exceptions as fatal startup errors so the layout
+        // can render a blocking fallback. This avoids leaving the app in a
+        // partially-initialized state.
+        try {
+          setAppError(message, true);
+        } catch (e) {
+          // If AppError context is not available for any reason, just log.
+          console.warn('useSupabaseAuth: failed to report fatal app error', e);
+        }
       } finally {
         if (mounted) {
           setIsLoading(false);

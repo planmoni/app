@@ -84,12 +84,12 @@ export default function PendingActionsCard() {
     },
     {
       id: 'setup-app-lock',
-      title: 'Setup App Lock',
-      description: 'Secure your account with a passcode',
+      title: 'Setup App PIN',
+      description: 'Secure your account with a PIN code',
       icon: Lock,
       iconBg: colors.backgroundTertiary,
       iconColor: colors.text,
-      route: '/settings/security-center',
+      route: '/settings/setup-pin',
       priority: 'high',
     },
     

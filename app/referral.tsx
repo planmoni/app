@@ -97,7 +97,7 @@ export default function ReferralScreen() {
 
       if (transactionsError) throw transactionsError;
 
-      const earned = transactions?.reduce((sum, tx) => sum + tx.amount, 0) || 0;
+  const earned = transactions?.reduce((sum: number, tx: any) => sum + Number(tx.amount), 0) || 0;
       setTotalEarned(earned);
 
     } catch (err) {
@@ -155,13 +155,13 @@ export default function ReferralScreen() {
         .eq('referrer_id', session?.user?.id);
       if (refErr) throw refErr;
       // For each referred user, get their total deposits
-      const usersWithDeposits = await Promise.all((referrals || []).map(async (ref: any) => {
+        const usersWithDeposits = await Promise.all((referrals || []).map(async (ref: any) => {
         const { data: deposits, error: depErr } = await supabase
           .from('deposits')
           .select('amount')
           .eq('user_id', ref.referred_id)
           .eq('status', 'completed');
-        const totalDeposits = (deposits || []).reduce((sum, d) => sum + Number(d.amount), 0);
+        const totalDeposits = (deposits || []).reduce((sum: number, d: any) => sum + Number(d.amount), 0);
         return {
           id: ref.referred_id,
           name: ref.referred?.first_name + ' ' + (ref.referred?.last_name || ''),

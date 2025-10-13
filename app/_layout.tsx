@@ -25,6 +25,7 @@ import AppLockScreen from '@/components/AppLockScreen';
 import AppBlur from '@/components/AppBlur';
 
 import { SessionDebugger } from '@/components/SessionDebugger';
+import AppErrorProvider, { useAppError } from '@/contexts/AppErrorContext';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
@@ -166,16 +167,22 @@ function RootLayoutNav() {
     }
   }, [fontsLoaded, isLoading]);
 
-  // Show error screen if there's a critical error
-  if (error && !fontsLoaded) {
-    return null; // Keep splash screen while fonts load
+  // Show error screen if there's a critical fatal error during startup
+  // Non-fatal errors should not unmount the app; they are handled via the
+  // AppErrorContext and displayed as overlays/toasts so the current page
+  // remains mounted (e.g. credential validation failures).
+  const { appError, clearError } = useAppError();
+
+  if (appError && !fontsLoaded) {
+    // Keep splash screen visible when fonts are not yet loaded
+    return null;
   }
 
-  if (error) {
+  if (appError?.fatal) {
+    // Only render a blocking fatal startup error here
     return (
       <View style={styles.errorContainer}>
-        
-        <Text style={styles.errorMessage}>{error}</Text>
+        <Text style={styles.errorMessage}>{appError.message}</Text>
         <Text style={styles.errorInstructions}>
           Please check your environment configuration and database setup as described in the README.md file.
         </Text>
@@ -194,6 +201,13 @@ function RootLayoutNav() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* Non-fatal app error banner (non-blocking) */}
+      {appError && !appError.fatal && (
+        <View style={styles.nonFatalBanner}>
+          <Text style={styles.nonFatalText}>{appError.message}</Text>
+          <Text onPress={() => clearError()} style={styles.nonFatalDismiss}>Dismiss</Text>
+        </View>
+      )}
       <Stack screenOptions={{ headerShown: false }}>
         {session ? (
           <React.Fragment key="authenticated-screens">
@@ -240,21 +254,23 @@ export default function RootLayout() {
   useFrameworkReady();
 
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <AuthProvider>
-          <PinProvider>
-            <AppLockProvider>
-              <BalanceProvider>
-                <AppBlur>
-                <RootLayoutNav />
-                </AppBlur>
-              </BalanceProvider>
-            </AppLockProvider>
-          </PinProvider>
-        </AuthProvider>
-      </ToastProvider>
-    </ThemeProvider>
+    <AppErrorProvider>
+      <ThemeProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <PinProvider>
+              <AppLockProvider>
+                <BalanceProvider>
+                  <AppBlur>
+                  <RootLayoutNav />
+                  </AppBlur>
+                </BalanceProvider>
+              </AppLockProvider>
+            </PinProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    </AppErrorProvider>
   );
 }
 
@@ -285,5 +301,27 @@ const styles = StyleSheet.create({
     color: '#888',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  nonFatalBanner: {
+    position: 'absolute',
+    top: 40,
+    left: 16,
+    right: 16,
+    backgroundColor: '#ffecec',
+    padding: 12,
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  nonFatalText: {
+    color: '#8a1f1f',
+    flex: 1,
+    marginRight: 12,
+  },
+  nonFatalDismiss: {
+    color: '#8a1f1f',
+    fontWeight: '600',
   },
 });

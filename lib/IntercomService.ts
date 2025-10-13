@@ -26,7 +26,7 @@ class IntercomService {
   private isAuthenticated = false;
   private currentUserId: string | null = null;
   private jwtCache: JWTCache | null = null;
-  private refreshTimer: NodeJS.Timeout | null = null;
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private retryCount = 0;
   private maxRetries = 3;
   private Intercom: any = null; // Will hold the dynamic import
@@ -239,7 +239,7 @@ class IntercomService {
       
       // Clear refresh timer
       if (this.refreshTimer) {
-        clearTimeout(this.refreshTimer);
+        clearTimeout(this.refreshTimer as any);
         this.refreshTimer = null;
       }
       

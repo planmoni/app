@@ -5,6 +5,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   interpolate,
+  interpolateColor,
   Extrapolate,
   withSpring,
   withTiming,
@@ -189,13 +190,10 @@ export default function WelcomeScreen() {
     const baseColor = isDark ? '#1E3A8A' : '#FFFFFF';
     const accentColor = isDark ? '#3B82F6' : '#FFFFFF';
     
+    // interpolateColor returns a color string usable as backgroundColor
+    const bg = interpolateColor(progress, [0, 1], [baseColor, accentColor]);
     return {
-      backgroundColor: interpolate(
-        progress,
-        [0, 1],
-        [baseColor, accentColor],
-        Extrapolate.CLAMP
-      ),
+      backgroundColor: bg as unknown as string,
     };
   });
 
@@ -287,7 +285,9 @@ export default function WelcomeScreen() {
                   
                   <View style={styles.textContainer}>
                     <View style={styles.titleSection}>
-                      <Text style={styles.slideSubtitle}>{slide.subtitle}</Text>
+                      {((slide as any).subtitle) && (
+                        <Text style={styles.slideSubtitle}>{(slide as any).subtitle}</Text>
+                      )}
                       <Text style={styles.slideTitle}>{slide.title}</Text>
                     </View>
                     

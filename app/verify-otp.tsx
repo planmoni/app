@@ -17,7 +17,7 @@ export default function VerifyOTPScreen() {
   const { session } = useAuth();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const email = params.email as string || session?.user?.email;
+  const email = (params.email as string) || session?.user?.email || '';
   
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState<string | null>(null);
@@ -110,8 +110,9 @@ export default function VerifyOTPScreen() {
       }
       
       // Call the Supabase function to send OTP
+      const emailParam = email ? email.trim().toLowerCase() : '';
       const { data, error: otpError } = await supabase.rpc('send_otp_email', {
-        p_email: email.trim().toLowerCase()
+        p_email: emailParam
       });
       
       if (otpError) {
@@ -160,8 +161,9 @@ export default function VerifyOTPScreen() {
     
     try {
       // Call the Supabase function to verify OTP
+      const verifyEmailParam = email ? email.trim().toLowerCase() : '';
       const { data, error: verifyError } = await supabase.rpc('verify_otp', {
-        p_email: email.trim().toLowerCase(),
+        p_email: verifyEmailParam,
         p_otp: otpValue
       });
       

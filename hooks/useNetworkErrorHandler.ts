@@ -29,16 +29,17 @@ export function useNetworkErrorHandler() {
       return handleNetworkError(error, {
         showAlert,
         showToast,
-        retryable: retryable ?? true
-      });
+        // handleNetworkError expects specific option shape; pass retryable as part of a second param if supported
+        ...(typeof retryable !== 'undefined' ? { retryable } : { retryable: true })
+      } as any);
     }
 
     // Handle other API errors
     return handleNetworkError(error, {
       showAlert,
       showToast,
-      retryable: retryable ?? isRetryableError(error)
-    });
+      ...(typeof retryable !== 'undefined' ? { retryable } : { retryable: isRetryableError(error) })
+    } as any);
   }, [handleNetworkError, isNetworkError, isRetryableError]);
 
   const createApiWrapper = useCallback((

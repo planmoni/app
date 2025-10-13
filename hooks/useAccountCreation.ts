@@ -67,11 +67,12 @@ export function useAccountCreation() {
 
       const result = await accountCreationHandler.createAccount({
         ...options,
-        onProgress: (progress) => {
+        referralCode: options.referralCode ?? '',
+        onProgress: (progress: any) => {
           updateState({ progress });
           options.onProgress?.(progress);
         },
-        onError: (error) => {
+        onError: (error: any) => {
           console.error('Account creation error:', error);
           updateState({
             error: error.message,
@@ -86,7 +87,7 @@ export function useAccountCreation() {
           
           options.onError?.(error);
         },
-        onSuccess: (data) => {
+        onSuccess: (data: any) => {
           updateState({
             progress: 'Account created successfully!',
             error: null,

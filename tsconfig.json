@@ -17,7 +17,6 @@
     "supabase/functions/**",
     "node_modules",
     "dist",
-    "build",
-    "**/*.d.ts"
+    "build"
   ]
 }

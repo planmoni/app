@@ -25,6 +25,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
   const [localSettings, setLocalSettings] = useState<EmailNotificationSettings>({
     login_alerts: true,
     payout_alerts: true,
+    deposit_alerts: true,
     expiry_reminders: true,
     wallet_summary: 'weekly'
   });

@@ -49,7 +49,7 @@ export function useAutomatedPayouts(planId?: string) {
             table: 'automated_payouts',
             filter: `user_id=eq.${session.user.id}`,
           },
-          (payload) => {
+          (payload: any) => {
             console.log('Automated payout change received:', payload);
             
             if (payload.eventType === 'INSERT' && payload.new) {
@@ -67,7 +67,7 @@ export function useAutomatedPayouts(planId?: string) {
             }
           }
         )
-        .subscribe((status) => {
+        .subscribe((status: any) => {
           console.log('Automated payouts subscription status:', status);
         });
 

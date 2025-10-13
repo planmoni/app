@@ -38,6 +38,7 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [unlockTimestamp, setUnlockTimestamp] = useState<number | null>(null);
   const [biometricUnlockInProgress, setBiometricUnlockInProgress] = useState(false);
   const [lastActivePage, setLastActivePageState] = useState<string>('(tabs)');
+  const globalUnlockProtection = false; // placeholder flag used in logging; can be wired to settings later
   const { hasAppLockPin, verifyAppLockPin } = usePin();
   const appState = useRef(AppState.currentState);
   const lastActiveRef = useRef<number>(Date.now());

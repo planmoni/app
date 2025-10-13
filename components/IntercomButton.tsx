@@ -53,7 +53,7 @@ export const IntercomButton: React.FC<IntercomButtonProps> = ({
       {variant === 'icon' ? (
         <MessageCircle size={24} color="#FFFFFF" />
       ) : (
-        <Text style={textStyles}>{title}</Text>
+        <Text style={textStyles as any}>{title}</Text>
       )}
     </TouchableOpacity>
   );
