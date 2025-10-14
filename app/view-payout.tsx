@@ -408,7 +408,7 @@ export default function ViewPayoutScreen() {
           </Card>
         </View>
 
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <Text style={styles.sectionTitle}>Payout Control</Text>
           <Card style={styles.pauseCard}>
             <View style={styles.pauseContent}>
@@ -435,7 +435,7 @@ export default function ViewPayoutScreen() {
               />
             </View>
           </Card>
-        </View>
+        </View> */}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Emergency Access</Text>

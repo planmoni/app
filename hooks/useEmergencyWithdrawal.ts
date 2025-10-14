@@ -132,6 +132,12 @@ export function useEmergencyWithdrawal() {
       // Get account details from the response
       const accountDetails = result.data?.account_details || 'Your bank account';
 
+      // Get processing time from response or calculate it
+      const processingTime = result.data?.processing_time_text || 
+                           (request.option === 'instant' ? 'Immediate' : 
+                            request.option === '24hrs' ? 'Within 24 hours' : 
+                            'Within 72 hours');
+
       // Navigate to confirmation screen with withdrawal details
       router.replace({
         pathname: '/emergency-withdrawal/confirmation',
@@ -144,9 +150,8 @@ export function useEmergencyWithdrawal() {
           netAmount: netAmount.toString(),
           reference: reference,
           destination: accountDetails,
-          processingTime: request.option === 'instant' ? 'Immediate' : 
-                         request.option === '24hrs' ? 'Within 24 hours' : 
-                         'Within 72 hours'
+          processingTime: processingTime,
+          status: result.data?.status || 'completed'
         }
       });
 

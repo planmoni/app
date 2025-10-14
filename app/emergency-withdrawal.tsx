@@ -378,6 +378,11 @@ export default function EmergencyWithdrawalScreen() {
                       <Text style={[styles.optionFee, isDisabled && styles.disabledText]}>
                         {option.percentage}% processing fee
                       </Text>
+                      <Text style={[styles.optionDescription, isDisabled && styles.disabledText]}>
+                        {option.type === 'instant' ? 'Money sent immediately' :
+                         option.type === '24hrs' ? 'Money sent within 24 hours' :
+                         'Money sent within 72 hours'}
+                      </Text>
                     </View>
                     {isSelected && (
                       <View style={styles.checkIcon}>

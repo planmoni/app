@@ -211,12 +211,31 @@ serve(async (req: Request) => {
       )
     }
 
-    // Update withdrawal status to processing
+    // Calculate scheduled processing time based on withdrawal type
+    let scheduledProcessingTime = new Date()
+    let status = "processing"
+    
+    if (correctWithdrawalType === "instant") {
+      // Process immediately
+      scheduledProcessingTime = new Date()
+      status = "processing"
+    } else if (correctWithdrawalType === "24hrs") {
+      // Schedule for processing within 24 hours
+      scheduledProcessingTime = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
+      status = "scheduled"
+    } else if (correctWithdrawalType === "72hrs") {
+      // Schedule for processing within 72 hours
+      scheduledProcessingTime = new Date(Date.now() + 72 * 60 * 60 * 1000) // 72 hours from now
+      status = "scheduled"
+    }
+
+    // Update withdrawal status and scheduled time
     const { error: updateError } = await supabase
       .from("emergency_withdrawals")
       .update({ 
-        status: "processing",
-        processed_at: new Date().toISOString()
+        status: status,
+        processed_at: status === "processing" ? new Date().toISOString() : null,
+        scheduled_processing_time: scheduledProcessingTime.toISOString()
       })
       .eq("id", emergencyWithdrawalId)
 
@@ -228,13 +247,15 @@ serve(async (req: Request) => {
       )
     }
 
-    try {
-      // Get Paystack secret key
-      const paystackSecretKey = Deno.env.get("PAYSTACK_SECRET_KEY")
-      
-      if (!paystackSecretKey) {
-        throw new Error("Paystack secret key not configured")
-      }
+    // Only process immediately for instant withdrawals
+    if (correctWithdrawalType === "instant") {
+      try {
+        // Get Paystack secret key
+        const paystackSecretKey = Deno.env.get("PAYSTACK_SECRET_KEY")
+        
+        if (!paystackSecretKey) {
+          throw new Error("Paystack secret key not configured")
+        }
 
       // Determine recipient code and account details based on account type
       let recipientCode = ""
@@ -381,15 +402,15 @@ serve(async (req: Request) => {
         console.error("Error updating withdrawal to completed:", completeError)
       }
 
-      // Deduct the withdrawal amount from locked balance (since it's being withdrawn)
-      const { error: deductError } = await supabase.rpc("deduct_locked_funds", {
+      // Unlock the withdrawal amount from locked balance (since it's being withdrawn)
+      const { error: unlockError } = await supabase.rpc("unlock_funds", {
         arg_user_id: userId,
         arg_amount: withdrawal.withdrawal_amount
       })
 
-      if (deductError) {
-        console.error("Error deducting locked funds:", deductError)
-        throw new Error(`Failed to deduct locked funds: ${deductError.message}`)
+      if (unlockError) {
+        console.error("Error unlocking funds:", unlockError)
+        throw new Error(`Failed to unlock funds: ${unlockError.message}`)
       }
 
       // Create transaction record for emergency withdrawal
@@ -447,7 +468,7 @@ serve(async (req: Request) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
 
-    } catch (error) {
+      } catch (error) {
       console.error("Error processing transfer:", error)
       
       // Update withdrawal status to failed
@@ -495,6 +516,39 @@ serve(async (req: Request) => {
           details: error.message
         }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+      }
+    } else {
+      // For scheduled withdrawals (24hrs, 72hrs), just return success without processing
+      const processingTimeText = correctWithdrawalType === "24hrs" ? "within 24 hours" : "within 72 hours"
+      
+      // Create notification for scheduled withdrawal
+      await supabase
+        .from("events")
+        .insert({
+          user_id: userId,
+          type: "withdrawal_scheduled",
+          title: "Emergency Withdrawal Scheduled",
+          description: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been scheduled for processing ${processingTimeText}.`,
+          status: "unread"
+        })
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Emergency withdrawal scheduled for processing ${processingTimeText}`,
+          data: {
+            withdrawal_type: correctWithdrawalType,
+            fee_percentage: feePercentage,
+            fee_amount: feeAmount,
+            net_amount: netAmount,
+            remaining_amount: remainingAmount,
+            status: "scheduled",
+            scheduled_processing_time: scheduledProcessingTime.toISOString(),
+            processing_time_text: processingTimeText
+          }
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 
