@@ -78,7 +78,7 @@ export default function EmergencyWithdrawalScreen() {
   // Set default option when available options change
   useEffect(() => {
     if (defaultOption && !selectedOption) {
-      setSelectedOption(defaultOption);
+      setSelectedOption(defaultOption as 'instant' | '24hrs' | '72hrs');
     }
   }, [defaultOption, selectedOption]);
 

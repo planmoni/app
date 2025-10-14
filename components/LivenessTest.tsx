@@ -10,9 +10,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 interface LivenessTestProps {
   isVisible: boolean;
   onClose: () => void;
+  onComplete?: (capturedImage: string) => void;
 }
 
-export default function LivenessTest({ isVisible, onClose }: LivenessTestProps) {
+export default function LivenessTest({ isVisible, onClose, onComplete }: LivenessTestProps) {
+  // Liveness test component with onComplete callback support
   const {hasPermission} = useCameraPermission()
   const {width, height} = useWindowDimensions();
   const { colors, isDark } = useTheme();
@@ -268,6 +270,10 @@ export default function LivenessTest({ isVisible, onClose }: LivenessTestProps) 
     setIsSubmitting(true);
     speakInstruction("Submitting liveness test", true);
     
+    // If we have a captured image and onComplete callback, call it
+    if (capturedImage && onComplete) {
+      onComplete(capturedImage);
+    }
    
     setTimeout(() => {
       setIsSubmitting(false);

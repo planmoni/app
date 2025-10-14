@@ -19,6 +19,7 @@ import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
 import { useBanks, Bank } from '@/hooks/useBanks';
 import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
+import LivenessTest from '@/components/LivenessTest';
 type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
 
 export default function KYCUpgradeScreen() {
@@ -157,12 +158,17 @@ export default function KYCUpgradeScreen() {
   // Flag to prevent automatic toasts during manual verification
   const [isManualVerification, setIsManualVerification] = useState(false);
   
+  // Liveness test state
+  const [showLivenessTest, setShowLivenessTest] = useState(false);
+  
   // Refs for auto-focus
   const lastNameInputRef = useRef<TextInput>(null);
   const middleNameInputRef = useRef<TextInput>(null);
   const dobInputRef = useRef<TextInput>(null);
   const phoneInputRef = useRef<TextInput>(null);
   const addressInputRef = useRef<TextInput>(null);
+  const bvnInputRef = useRef<TextInput>(null);
+  const accountNumberInputRef = useRef<TextInput>(null);
   
   // Add back the house number state
   const [addressNo, setAddressNo] = useState('');
@@ -250,6 +256,17 @@ export default function KYCUpgradeScreen() {
       }
     }
   }, [progress, showToast, isManualVerification]);
+
+  // Auto-focus BVN input when step changes to bvn_verification
+  useEffect(() => {
+    if (currentStep === 'bvn_verification' && !bvnVerified && bvnInputRef.current) {
+      // Small delay to ensure the component is fully rendered
+      const timer = setTimeout(() => {
+        bvnInputRef.current?.focus();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, bvnVerified]);
   
 
   
@@ -1659,6 +1676,48 @@ export default function KYCUpgradeScreen() {
       showToast('Failed to capture image', 'error');
     }
   };
+
+  const handleLivenessTestComplete = (capturedImage: string) => {
+    setSelfieImage(capturedImage);
+    setErrors(prev => ({ ...prev, selfie: '' }));
+    setShowLivenessTest(false);
+    showToast('Liveness test completed successfully!', 'success');
+  };
+
+  const handleLivenessTestClose = () => {
+    setShowLivenessTest(false);
+  };
+
+  // Helper function for numeric input handling
+  const handleNumericInput = (
+    text: string, 
+    setter: (value: string) => void, 
+    maxLength: number,
+    errorKey: string
+  ) => {
+    // Remove all non-numeric characters
+    const numericText = text.replace(/[^0-9]/g, '');
+    
+    // Only update if within length limit
+    if (numericText.length <= maxLength) {
+      setter(numericText);
+      setErrors(prev => ({ ...prev, [errorKey]: '' }));
+    }
+  };
+
+  // Force focus on input (for problematic devices)
+  const forceFocusInput = (inputRef: React.RefObject<TextInput | null>) => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+      // For some devices, we need to blur and focus again
+      setTimeout(() => {
+        inputRef.current?.blur();
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 100);
+      }, 100);
+    }
+  };
   
   const renderPersonalInfoStep = () => {
     return (
@@ -1845,22 +1904,34 @@ export default function KYCUpgradeScreen() {
           <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
             <CreditCard size={20} color={colors.textSecondary} />
             <TextInput
+              ref={bvnInputRef}
               style={styles.input}
               placeholder="Enter your 11-digit BVN"
               placeholderTextColor={colors.textTertiary}
               value={bvn}
-              onChangeText={(text) => {
-                // Only allow numbers and limit to 11 digits
-                const numericText = text.replace(/[^0-9]/g, '');
-                if (numericText.length <= 11) {
-                  setBvn(numericText);
-                  setErrors(prev => ({ ...prev, bvn: '' }));
-                }
-              }}
+              onChangeText={(text) => handleNumericInput(text, setBvn, 11, 'bvn')}
               keyboardType="numeric"
               maxLength={11}
               editable={!isResolvingBvn && !bvnVerified}
+              autoCorrect={false}
+              autoCapitalize="none"
+              selectTextOnFocus={true}
+              blurOnSubmit={false}
+              returnKeyType="next"
+              textContentType="none"
+              autoComplete="off"
+              importantForAutofill="no"
+              spellCheck={false}
+              onSubmitEditing={() => accountNumberInputRef.current?.focus()}
             />
+            {!bvn && !isResolvingBvn && !bvnVerified && (
+              <Pressable
+                style={styles.focusButton}
+                onPress={() => forceFocusInput(bvnInputRef)}
+              >
+                <Text style={styles.focusButtonText}>Tap to focus</Text>
+              </Pressable>
+            )}
             {isResolvingBvn && (
               <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
             )}
@@ -1871,31 +1942,54 @@ export default function KYCUpgradeScreen() {
             )}
           </View>
           {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
+          {!bvn && (
+            <Text style={styles.inputHelpText}>
+              💡 Having trouble typing? Tap the "Tap to focus" button above
+            </Text>
+          )}
         </View>
+
         
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Account Number</Text>
           <View style={[styles.inputContainer, errors.accountNumber && styles.inputError]}>
             <CreditCard size={20} color={colors.textSecondary} />
             <TextInput
+              ref={accountNumberInputRef}
               style={styles.input}
               placeholder="Enter your 10-digit account number"
               placeholderTextColor={colors.textTertiary}
               value={accountNumber}
-              onChangeText={(text) => {
-                // Only allow numbers and limit to 10 digits
-                const numericText = text.replace(/[^0-9]/g, '');
-                if (numericText.length <= 10) {
-                  setAccountNumber(numericText);
-                  setErrors(prev => ({ ...prev, accountNumber: '' }));
-                }
-              }}
+              onChangeText={(text) => handleNumericInput(text, setAccountNumber, 10, 'accountNumber')}
               keyboardType="numeric"
               maxLength={10}
-              editable={!isResolvingBvn && !bvnVerified}
+              editable={!isResolvingBvn && bvnVerified}
+              autoCorrect={false}
+              autoCapitalize="none"
+              selectTextOnFocus={true}
+              blurOnSubmit={false}
+              returnKeyType="done"
+              textContentType="none"
+              autoComplete="off"
+              importantForAutofill="no"
+              spellCheck={false}
             />
+            {/* {!accountNumber && (
+              <Pressable
+                style={styles.focusButton}
+                onPress={() => forceFocusInput(accountNumberInputRef)}
+                disabled={isResolvingBvn || bvnVerified}
+              >
+                <Text style={styles.focusButtonText}>Tap to focus</Text>
+              </Pressable>
+            )} */}
           </View>
           {errors.accountNumber && <Text style={styles.errorText}>{errors.accountNumber}</Text>}
+          {/* {!accountNumber && (
+            <Text style={styles.inputHelpText}>
+              💡 Having trouble typing? Tap the "Tap to focus" button above
+            </Text>
+          )} */}
         </View>
         
         <View style={styles.inputGroup}>
@@ -2194,7 +2288,7 @@ export default function KYCUpgradeScreen() {
               </View>
             </View>
             <Text style={styles.documentDescription}>
-              Take a clear selfie showing your face. Look straight at the camera with neutral expression.
+              Take a clear selfie showing your face. For enhanced security, we recommend using the liveness test.
             </Text>
             
             {selfieImage ? (
@@ -2214,6 +2308,18 @@ export default function KYCUpgradeScreen() {
               </View>
             ) : (
               <View style={styles.documentActions}>
+                <Pressable 
+                  style={[styles.documentButton, styles.livenessButton]}
+                  onPress={() => {
+                    setShowLivenessTest(true);
+                    haptics.lightImpact();
+                  }}
+                  disabled={isVerifyingDocuments || documentsVerified}
+                >
+                  <Shield size={16} color={colors.primary} />
+                  <Text style={styles.documentButtonText}>Liveness Test</Text>
+                </Pressable>
+                
                 <Pressable 
                   style={styles.documentButton}
                   onPress={() => pickImage(setSelfieImage, 'selfie')}
@@ -2986,6 +3092,28 @@ export default function KYCUpgradeScreen() {
       color: colors.primary,
       fontWeight: '500',
     },
+    livenessButton: {
+      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
+      borderColor: colors.success,
+    },
+    focusButton: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      backgroundColor: colors.backgroundTertiary,
+      borderRadius: 6,
+      marginLeft: 8,
+    },
+    focusButtonText: {
+      fontSize: 12,
+      color: colors.primary,
+      fontWeight: '500',
+    },
+    inputHelpText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 4,
+      fontStyle: 'italic',
+    },
     imagePreviewContainer: {
       width: '100%',
       height: 200,
@@ -3689,6 +3817,12 @@ export default function KYCUpgradeScreen() {
           </ScrollView>
         </Animated.View>
       </Animated.View>
+      
+      <LivenessTest 
+        isVisible={showLivenessTest}
+        onClose={handleLivenessTestClose}
+        onComplete={handleLivenessTestComplete}
+      />
     </SafeAreaView>
   );
 }
