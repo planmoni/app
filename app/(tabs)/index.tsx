@@ -91,7 +91,7 @@ export default function HomeScreen() {
     });
   }, [payoutPlans]);
   const { transactions, isLoading: transactionsLoading } = useRealtimeTransactions();
-  const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
+  // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
@@ -193,7 +193,7 @@ export default function HomeScreen() {
       // Refresh wallet balance
       await refreshWallet();
       // Fetch latest Paystack transactions
-      await fetchPaystackTransactions();
+      // await fetchPaystackTransactions();
       // Add haptic feedback for successful refresh
       impact();
     } catch (error) {

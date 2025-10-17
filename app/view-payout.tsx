@@ -286,15 +286,17 @@ export default function ViewPayoutScreen() {
               <>
                 <View style={styles.nameContainer}>
                   <Text style={styles.payoutName}>{plan.name}</Text>
-                  <Pressable 
-                    style={styles.editButton} 
-                    onPress={() => {
-                      haptics.selection();
-                      setIsEditing(true);
-                    }}
-                  >
-                    <PencilLine size={20} color={colors.textSecondary} />
-                  </Pressable>
+                  {plan.status === 'active' && (
+                    <Pressable 
+                      style={styles.editButton} 
+                      onPress={() => {
+                        haptics.selection();
+                        setIsEditing(true);
+                      }}
+                    >
+                      <PencilLine size={20} color={colors.textSecondary} />
+                    </Pressable>
+                  )}
                 </View>
                 {plan.description && (
                   <Text style={styles.payoutDescription}>{plan.description}</Text>
@@ -315,11 +317,13 @@ export default function ViewPayoutScreen() {
           </View>
           <Text style={styles.amount}>{formatCurrency(plan.payout_amount)}</Text>
           <Text style={styles.nextPayout}>
-            {plan.next_payout_date 
-              ? `Next payout: ${new Date(plan.next_payout_date).toLocaleDateString()}`
-              : plan.status === 'completed' 
-                ? 'Plan completed'
-                : 'Plan paused'
+            {plan.status === 'cancelled' 
+              ? `Cancelled: ${new Date(plan.updated_at).toLocaleDateString()}`
+              : plan.next_payout_date 
+                ? `Next payout: ${new Date(plan.next_payout_date).toLocaleDateString()}`
+                : plan.status === 'completed' 
+                  ? 'Plan completed'
+                  : 'Plan paused'
             }
           </Text>
           <View style={styles.progressBar}>
@@ -437,39 +441,59 @@ export default function ViewPayoutScreen() {
           </Card>
         </View> */}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Emergency Access</Text>
-          <Card style={styles.emergencyCard}>
-            <View style={styles.warningHeader}>
-              <AlertTriangle size={20} color="#F97316" />
-              <Text style={styles.warningTitle}>
+        {plan.status !== 'cancelled' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Emergency Access</Text>
+            <Card style={styles.emergencyCard}>
+              <View style={styles.warningHeader}>
+                <AlertTriangle size={20} color="#F97316" />
+                <Text style={styles.warningTitle}>
+                  {plan.emergency_withdrawal_enabled 
+                    ? "Emergency Withdrawal Available" 
+                    : "Emergency Withdrawal Not Enabled"}
+                </Text>
+              </View>
+              <Text style={styles.warningDescription}>
                 {plan.emergency_withdrawal_enabled 
-                  ? "Emergency Withdrawal Available" 
-                  : "Emergency Withdrawal Not Enabled"}
+                  ? "You can withdraw your funds before the scheduled date, but this may attract a fee depending on how quickly you need the funds."
+                  : "This payout plan does not have emergency withdrawal enabled. You can enable this feature when creating new payout plans."}
               </Text>
-            </View>
-            <Text style={styles.warningDescription}>
-              {plan.emergency_withdrawal_enabled 
-                ? "You can withdraw your funds before the scheduled date, but this may attract a fee depending on how quickly you need the funds."
-                : "This payout plan does not have emergency withdrawal enabled. You can enable this feature when creating new payout plans."}
-            </Text>
-            <Pressable 
-              style={[
-                styles.withdrawButton,
-                !plan.emergency_withdrawal_enabled && styles.disabledButton
-              ]}
-              onPress={handleEmergencyWithdrawal}
-              disabled={!plan.emergency_withdrawal_enabled}
-            >
-              <Text style={[
-                styles.withdrawButtonText,
-                !plan.emergency_withdrawal_enabled && styles.disabledButtonText
-              ]}>
-                Request Emergency Withdrawal
+              <Pressable 
+                style={[
+                  styles.withdrawButton,
+                  !plan.emergency_withdrawal_enabled && styles.disabledButton
+                ]}
+                onPress={handleEmergencyWithdrawal}
+                disabled={!plan.emergency_withdrawal_enabled}
+              >
+                <Text style={[
+                  styles.withdrawButtonText,
+                  !plan.emergency_withdrawal_enabled && styles.disabledButtonText
+                ]}>
+                  Request Emergency Withdrawal
+                </Text>
+              </Pressable>
+            </Card>
+          </View>
+        )}
+
+        {plan.status === 'cancelled' && plan.emergency_withdrawal_enabled && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Cancellation Details</Text>
+            <Card style={styles.emergencyCard}>
+              <View style={styles.warningHeader}>
+                <AlertTriangle size={20} color="#F97316" />
+                <Text style={styles.warningTitle}>Emergency Withdrawal Completed</Text>
+              </View>
+              <Text style={styles.warningDescription}>
+                This payout plan was cancelled due to an emergency withdrawal. The remaining funds have been withdrawn and the plan is no longer active.
               </Text>
-            </Pressable>
-          </Card>
-        </View>
+              <Text style={styles.cancellationDate}>
+                Withdrawn on: {new Date(plan.updated_at).toLocaleDateString()}
+              </Text>
+            </Card>
+          </View>
+        )}
       </ScrollView>
       
       <SafeFooter />
@@ -785,5 +809,11 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   disabledButtonText: {
     color: colors.textTertiary,
+  },
+  cancellationDate: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 8,
+    fontWeight: '500',
   },
 });

@@ -11,7 +11,7 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
 import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 
-type TabType = 'all' | 'active' | 'paused' | 'completed';
+type TabType = 'all' | 'active' | 'cancelled' | 'completed';
 
 export default function AllPayoutsScreen() {
   const { colors } = useTheme();
@@ -67,7 +67,7 @@ export default function AllPayoutsScreen() {
     switch (status) {
       case 'active':
         return { bg: '#DCFCE7', text: '#22C55E' };
-      case 'paused':
+      case 'cancelled':
         return { bg: '#FEE2E2', text: '#EF4444' };
       case 'completed':
         return { bg: '#EFF6FF', text: '#1E3A8A' };
@@ -91,7 +91,7 @@ export default function AllPayoutsScreen() {
   const tabs = [
     { key: 'all', label: 'All', count: payoutPlans.length },
     { key: 'active', label: 'Active', count: payoutPlans.filter(p => p.status === 'active').length },
-    { key: 'paused', label: 'Paused', count: payoutPlans.filter(p => p.status === 'paused').length },
+    { key: 'cancelled', label: 'Cancelled', count: payoutPlans.filter(p => p.status === 'cancelled').length },
     { key: 'completed', label: 'Completed', count: payoutPlans.filter(p => p.status === 'completed').length },
   ];
 
@@ -208,23 +208,6 @@ export default function AllPayoutsScreen() {
                           {plan.status.charAt(0).toUpperCase() + plan.status.slice(1)}
                         </Text>
                       </View>
-                    </View>
-                    <View style={styles.planActions}>
-                      {plan.status === 'active' ? (
-                        <Pressable
-                          style={styles.actionButton}
-                          onPress={() => handlePausePlan(plan.id, plan.name)}
-                        >
-                          <Pause size={16} color="#EF4444" />
-                        </Pressable>
-                      ) : plan.status === 'paused' ? (
-                        <Pressable
-                          style={styles.actionButton}
-                          onPress={() => handleResumePlan(plan.id)}
-                        >
-                          <Play size={16} color="#22C55E" />
-                        </Pressable>
-                      ) : null}
                     </View>
                   </View>
 

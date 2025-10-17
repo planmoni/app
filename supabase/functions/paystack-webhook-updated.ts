@@ -263,16 +263,16 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal, data) {
       payout_plan_id: emergencyWithdrawal.payout_plan_id
     }, data, 'completed', 'withdrawal');
 
-    // Update wallet balance - unlock funds from locked balance (since emergency withdrawal removes money from the plan)
-    const { error: unlockError } = await supabase.rpc("unlock_funds", {
+    // Update wallet balance - reduce both balance and locked_balance since money is being withdrawn from the system
+    const { error: reduceError } = await supabase.rpc("transfer_funds", {
       arg_user_id: emergencyWithdrawal.user_id,
       arg_amount: emergencyWithdrawal.withdrawal_amount
     });
 
-    if (unlockError) {
-      console.error(`❌ Error unlocking funds for emergency withdrawal:`, unlockError);
+    if (reduceError) {
+      console.error(`❌ Error reducing wallet balance for emergency withdrawal:`, reduceError);
     } else {
-      console.log(`✅ Successfully unlocked ₦${emergencyWithdrawal.withdrawal_amount} from locked balance for user ${emergencyWithdrawal.user_id}`);
+      console.log(`✅ Successfully reduced ₦${emergencyWithdrawal.withdrawal_amount} from wallet for user ${emergencyWithdrawal.user_id}`);
     }
 
     // Send push notification
@@ -567,16 +567,27 @@ async function handleEmergencyWithdrawalReversed(emergencyWithdrawal, data) {
       payout_plan_id: emergencyWithdrawal.payout_plan_id
     }, data, 'reversed', 'withdrawal');
 
-    // Update wallet balance - lock funds back (since reversal means money goes back to the plan)
-    const { error: lockError } = await supabase.rpc("lock_funds", {
+    // Update wallet balance - add funds back to both balance and locked_balance (since reversal means money goes back to the plan)
+    // First add to total balance
+    const { error: addError } = await supabase.rpc("add_funds", {
       arg_user_id: emergencyWithdrawal.user_id,
       arg_amount: emergencyWithdrawal.withdrawal_amount
     });
 
-    if (lockError) {
-      console.error(`❌ Error locking funds for emergency withdrawal reversal:`, lockError);
+    if (addError) {
+      console.error(`❌ Error adding funds back for emergency withdrawal reversal:`, addError);
     } else {
-      console.log(`✅ Successfully locked ₦${emergencyWithdrawal.withdrawal_amount} back to locked balance for user ${emergencyWithdrawal.user_id}`);
+      // Then lock the funds back (since it was originally in a payout plan)
+      const { error: lockError } = await supabase.rpc("lock_funds", {
+        arg_user_id: emergencyWithdrawal.user_id,
+        arg_amount: emergencyWithdrawal.withdrawal_amount
+      });
+
+      if (lockError) {
+        console.error(`❌ Error locking funds back for emergency withdrawal reversal:`, lockError);
+      } else {
+        console.log(`✅ Successfully added and locked ₦${emergencyWithdrawal.withdrawal_amount} back to wallet for user ${emergencyWithdrawal.user_id}`);
+      }
     }
 
     // Send push notification

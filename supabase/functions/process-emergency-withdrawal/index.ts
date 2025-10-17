@@ -402,15 +402,15 @@ serve(async (req: Request) => {
         console.error("Error updating withdrawal to completed:", completeError)
       }
 
-      // Unlock the withdrawal amount from locked balance (since it's being withdrawn)
-      const { error: unlockError } = await supabase.rpc("unlock_funds", {
+      // Reduce both balance and locked_balance since money is being withdrawn from the system
+      const { error: reduceError } = await supabase.rpc("transfer_funds", {
         arg_user_id: userId,
         arg_amount: withdrawal.withdrawal_amount
       })
 
-      if (unlockError) {
-        console.error("Error unlocking funds:", unlockError)
-        throw new Error(`Failed to unlock funds: ${unlockError.message}`)
+      if (reduceError) {
+        console.error("Error reducing wallet balance:", reduceError)
+        throw new Error(`Failed to reduce wallet balance: ${reduceError.message}`)
       }
 
       // Create transaction record for emergency withdrawal
