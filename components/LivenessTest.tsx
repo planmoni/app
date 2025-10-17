@@ -31,9 +31,10 @@ interface FaceData {
 interface LivenessTestProps {
   isVisible: boolean;
   onClose: () => void;
+  onComplete?: (capturedImage: string) => void;
 }
 
-export default function LivenessTest({ isVisible, onClose }: LivenessTestProps) {
+export default function LivenessTest({ isVisible, onClose, onComplete }: LivenessTestProps) {
   const {hasPermission} = useCameraPermission()
   const {width, height} = useWindowDimensions();
   const { colors, isDark } = useTheme();
@@ -1157,6 +1158,10 @@ export default function LivenessTest({ isVisible, onClose }: LivenessTestProps) 
                 style={[styles.retryButton, { backgroundColor: colors.primary }]}
                 onPress={() => {
                   setShowSuccessModal(false);
+                  // Call onComplete with captured image if available
+                  if (onComplete && capturedImage) {
+                    onComplete(capturedImage);
+                  }
                   handleClose();
                 }}
               >

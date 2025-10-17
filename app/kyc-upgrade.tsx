@@ -835,58 +835,8 @@ export default function KYCUpgradeScreen() {
         
         setBvnMatchedName(displayName);
         
-        // Verify customer identity in Paystack
-        try {
-          // Get the customer code from the created customer (you might need to store this)
-          // For now, we'll use the user's email to find the customer
-          const customerResponse = await fetch(` https://api.paystack.co/customer?email=${encodeURIComponent(session?.user?.email || '')}`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
-            }
-          });
-          
-          if (customerResponse.ok) {
-            const customerData = await customerResponse.json();
-            const customerCode = customerData.data?.[0]?.customer_code;
-            
-            if (customerCode) {
-              // Call Paystack identification endpoint
-              const identificationResponse = await fetch(`https://api.paystack.co/customer/${customerCode}/identification`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
-                },
-                body: JSON.stringify({
-                  country: "NG",
-                  type: "bank_account",
-                  account_number: accountNumber,
-                  bvn: bvn,
-                  bank_code: selectedBank?.code || "007", // Use selected bank or fallback to First Bank
-                  first_name: firstName,
-                  last_name: lastName
-                }),
-              });
-              
-              if (identificationResponse.ok) {
-                const identificationData = await identificationResponse.json();
-                console.log('Paystack identification successful:', identificationData);
-                showToast(`BVN verified and identity confirmed! Name: ${displayName}`, 'success');
-              } else {
-                console.error('Paystack identification failed:', await identificationResponse.text());
-                showToast(`BVN verified! Name: ${displayName}`, 'success');
-              }
-            } else {
-              showToast(`BVN verified! Name: ${displayName}`, 'success');
-            }
-          } else {
-            showToast(`BVN verified! Name: ${displayName}`, 'success');
-          }
-        } catch (error) {
-          console.error('Error with Paystack identification:', error);
-          showToast(`BVN verified! Name: ${displayName}`, 'success');
-        }
+        // BVN verification successful with Dojah
+        showToast(`BVN verified! Name: ${displayName}`, 'success');
         
         // Update progress
         const progressResult = await updateProgress({
@@ -1963,7 +1913,7 @@ export default function KYCUpgradeScreen() {
               onChangeText={(text) => handleNumericInput(text, setAccountNumber, 10, 'accountNumber')}
               keyboardType="numeric"
               maxLength={10}
-              editable={!isResolvingBvn && bvnVerified}
+              editable={!isResolvingBvn || !bvnVerified}
               autoCorrect={false}
               autoCapitalize="none"
               selectTextOnFocus={true}
@@ -2288,7 +2238,7 @@ export default function KYCUpgradeScreen() {
               </View>
             </View>
             <Text style={styles.documentDescription}>
-              Take a clear selfie showing your face. For enhanced security, we recommend using the liveness test.
+              Complete the liveness test to capture a secure selfie for verification. This advanced security feature ensures your identity is verified through facial recognition and prevents fraud.
             </Text>
             
             {selfieImage ? (
@@ -2300,16 +2250,20 @@ export default function KYCUpgradeScreen() {
                 />
                 <Pressable 
                   style={styles.retakeButton}
-                  onPress={() => setSelfieImage(null)}
+                  onPress={() => {
+                    setSelfieImage(null);
+                    setShowLivenessTest(true);
+                    haptics.lightImpact();
+                  }}
                   disabled={isVerifyingDocuments || documentsVerified}
                 >
-                  <Text style={styles.retakeButtonText}>Retake</Text>
+                  <Text style={styles.retakeButtonText}>Retake with Liveness Test</Text>
                 </Pressable>
               </View>
             ) : (
               <View style={styles.documentActions}>
                 <Pressable 
-                  style={[styles.documentButton, styles.livenessButton]}
+                  style={[styles.documentButton, styles.livenessButton, { flex: 1 }]}
                   onPress={() => {
                     setShowLivenessTest(true);
                     haptics.lightImpact();
@@ -2317,25 +2271,7 @@ export default function KYCUpgradeScreen() {
                   disabled={isVerifyingDocuments || documentsVerified}
                 >
                   <Shield size={16} color={colors.primary} />
-                  <Text style={styles.documentButtonText}>Liveness Test</Text>
-                </Pressable>
-                
-                <Pressable 
-                  style={styles.documentButton}
-                  onPress={() => pickImage(setSelfieImage, 'selfie')}
-                  disabled={isVerifyingDocuments || documentsVerified}
-                >
-                  <Upload size={16} color={colors.primary} />
-                  <Text style={styles.documentButtonText}>Upload</Text>
-                </Pressable>
-                
-                <Pressable 
-                  style={styles.documentButton}
-                  onPress={() => takePicture(setSelfieImage, 'selfie')}
-                  disabled={isVerifyingDocuments || documentsVerified}
-                >
-                  <Camera size={16} color={colors.primary} />
-                  <Text style={styles.documentButtonText}>Take Selfie</Text>
+                  <Text style={styles.documentButtonText}>Start Liveness Test</Text>
                 </Pressable>
               </View>
             )}
