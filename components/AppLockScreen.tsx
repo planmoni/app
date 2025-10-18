@@ -15,7 +15,7 @@ import PinKeypad from '@/components/PinKeypad';
 export default function AppLockScreen() {
   const { colors, isDark } = useTheme();
   const { hasAppLockPin, verifyAppLockPin, biometricEnabled, checkBiometricSupport } = usePin();
-  const { unlockApp, getLastActivePage } = useAppLock();
+  const { unlockApp, getLastActivePage, setPinResetMode } = useAppLock();
   const { session } = useAuth();
   const router = useRouter();
   const haptics = useHaptics();
@@ -279,6 +279,9 @@ export default function AppLockScreen() {
           ]}
           onPress={() => {
             haptics.lightImpact();
+            // Enable pin reset mode to hide the lock screen
+            setPinResetMode(true);
+            // Navigate to forgot PIN flow
             router.push('/forgot-pin');
           }}
           disabled={isVerifying}

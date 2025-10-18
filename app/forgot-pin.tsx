@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, Shield, Info } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAppLock } from '@/contexts/AppLockContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
 import FloatingButton from '@/components/FloatingButton';
@@ -14,6 +15,7 @@ import { supabase } from '@/lib/supabase';
 export default function ForgotPinScreen() {
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
+  const { setPinResetMode } = useAppLock();
   const haptics = useHaptics();
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -78,6 +80,8 @@ export default function ForgotPinScreen() {
     if (Platform.OS !== 'web') {
       haptics.lightImpact();
     }
+    // Disable pin reset mode when going back
+    setPinResetMode(false);
     router.back();
   };
 

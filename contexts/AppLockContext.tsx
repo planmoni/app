@@ -14,6 +14,8 @@ interface AppLockContextType {
   lockApp: () => void;
   setLastActivePage: (page: string) => void;
   getLastActivePage: () => string;
+  isPinResetMode: boolean;
+  setPinResetMode: (enabled: boolean) => void;
 }
 
 const AppLockContext = createContext<AppLockContextType | undefined>(undefined);
@@ -34,6 +36,7 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [autoLockDuration, setAutoLockDurationState] = useState<AutoLockDuration>('5');
   const [isAppLocked, setIsAppLocked] = useState(false);
   const [lastActivePage, setLastActivePageState] = useState<string>('(tabs)');
+  const [isPinResetMode, setIsPinResetMode] = useState(false);
   const { hasAppLockPin } = usePin();
   const appState = useRef(AppState.currentState);
   const lastActiveRef = useRef<number>(Date.now());
@@ -247,6 +250,10 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return lastActivePage;
   };
 
+  const setPinResetMode = (enabled: boolean) => {
+    setIsPinResetMode(enabled);
+  };
+
   const value: AppLockContextType = {
     autoLockDuration,
     setAutoLockDuration,
@@ -255,6 +262,8 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     lockApp,
     setLastActivePage,
     getLastActivePage,
+    isPinResetMode,
+    setPinResetMode,
   };
 
   return (

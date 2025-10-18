@@ -4,12 +4,14 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CheckCircle, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAppLock } from '@/contexts/AppLockContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import FloatingButton from '@/components/FloatingButton';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 
 export default function ForgotPinSuccessScreen() {
   const { colors, isDark } = useTheme();
+  const { setPinResetMode } = useAppLock();
   const haptics = useHaptics();
   
   const styles = createStyles(colors, isDark);
@@ -25,6 +27,9 @@ export default function ForgotPinSuccessScreen() {
     if (Platform.OS !== 'web') {
       haptics.mediumImpact();
     }
+    
+    // Disable pin reset mode since PIN reset is complete
+    setPinResetMode(false);
     
     // Navigate back to settings or wherever the user came from
     router.replace('/settings/security-center');

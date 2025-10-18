@@ -34,7 +34,7 @@ SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent s
 function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
-  const { isAppLocked } = useAppLock();
+  const { isAppLocked, isPinResetMode } = useAppLock();
   const [showSplash, setShowSplash] = useState(false);
   
   // Track previous session state to detect transitions
@@ -248,7 +248,7 @@ function RootLayoutNav() {
       </Stack>
       
       {/* Lock Screen Overlay - Renders at root level */}
-      {isAppLocked && session && (
+      {isAppLocked && session && !isPinResetMode && (
         <AppLockScreen />
       )}
       
