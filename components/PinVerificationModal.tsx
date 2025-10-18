@@ -14,6 +14,7 @@ import { X, Fingerprint } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePin } from '@/contexts/PinContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useToast } from '@/contexts/ToastContext';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 import { BiometricService } from '@/lib/biometrics';
@@ -45,6 +46,7 @@ export default function PinVerificationModal({
   const { verifyBiometric, biometricEnabled, payoutBiometricEnabled, emergencyBiometricEnabled, checkBiometricSupport, verifyAppLockPin } = usePin();
   const haptics = useHaptics();
   const router = useRouter();
+  const { showError } = useToast();
   
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +57,7 @@ export default function PinVerificationModal({
   // Animation values
   const slideAnim = useRef(new Animated.Value(height)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const shakeAnimation = useRef(new Animated.Value(0)).current;
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
@@ -119,6 +122,37 @@ export default function PinVerificationModal({
     }
   };
 
+  // Shake animation function
+  const triggerShake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnimation, {
+        toValue: 10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: -10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: 10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: -10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: 0,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   const handlePinChange = (digit: string) => {
     if (pin.length < 4 && !isVerifying) {
       haptics.selection();
@@ -165,6 +199,12 @@ export default function PinVerificationModal({
         haptics.error();
         setError('Incorrect PIN. Please try again.');
         setPin('');
+        
+        // Show toast notification
+        showError('Incorrect PIN. Please try again.');
+        
+        // Trigger shake animation
+        triggerShake();
       }
     } catch (error) {
       haptics.error();
@@ -275,10 +315,12 @@ export default function PinVerificationModal({
             </View>
           )}
           
-          <PinDisplay 
-            length={4}
-            value={pin}
-          />
+          <Animated.View style={{ transform: [{ translateX: shakeAnimation }] }}>
+            <PinDisplay 
+              length={4}
+              value={pin}
+            />
+          </Animated.View>
           
           <PinKeypad 
             onKeyPress={isVerifying ? () => {} : handlePinChange}

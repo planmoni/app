@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Platform, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -8,6 +8,7 @@ import { useAppLock } from '@/contexts/AppLockContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { BiometricService } from '@/lib/biometrics';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useToast } from '@/contexts/ToastContext';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 
@@ -18,6 +19,7 @@ export default function AppLockScreen() {
   const { session } = useAuth();
   const router = useRouter();
   const haptics = useHaptics();
+  const { showError } = useToast();
   
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -25,6 +27,40 @@ export default function AppLockScreen() {
   const [biometricSupport, setBiometricSupport] = useState<any>(null);
   const [showBiometricOption, setShowBiometricOption] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
+  
+  // Shake animation for incorrect PIN
+  const shakeAnimation = useRef(new Animated.Value(0)).current;
+
+  // Shake animation function
+  const triggerShake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnimation, {
+        toValue: 10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: -10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: 10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: -10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: 0,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
   useEffect(() => {
     checkBiometrics();
@@ -99,8 +135,13 @@ export default function AppLockScreen() {
         }, 500);
       } else {
         haptics.error();
-        setError('Incorrect PIN');
         setPin('');
+        
+        // Show toast notification
+        showError('Incorrect PIN. Please try again.');
+        
+        // Trigger shake animation
+        triggerShake();
       }
     } catch (error) {
       console.error('AppLockScreen - PIN verification error:', error);
@@ -206,10 +247,12 @@ export default function AppLockScreen() {
           </View>
         )}
 
-        <PinDisplay 
-          length={4}
-          value={pin}
-        />
+        <Animated.View style={{ transform: [{ translateX: shakeAnimation }] }}>
+          <PinDisplay 
+            length={4}
+            value={pin}
+          />
+        </Animated.View>
 
         <PinKeypad 
           onKeyPress={isVerifying ? () => {} : handlePinChange}
