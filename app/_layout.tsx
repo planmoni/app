@@ -14,6 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications } from '@/lib/notifications';
+import { intercomInstant } from '@/lib/IntercomInstant';
 import { 
   PlusJakartaSans_400Regular, 
   PlusJakartaSans_500Medium, 
@@ -146,6 +147,13 @@ function RootLayoutNav() {
       }
     }
   }, [session?.user?.id]);
+
+  // Initialize IntercomInstant for instant access
+  useEffect(() => {
+    intercomInstant.initialize().catch(error => {
+      console.warn('Failed to initialize IntercomInstant:', error);
+    });
+  }, []);
 
   const [fontsLoaded, fontError] = useFonts({
     'PlusJakartaSans-Regular': PlusJakartaSans_400Regular,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { useIntercom } from '@/hooks/useIntercom';
+import { useIntercomOptimized } from '@/hooks/useIntercomOptimized';
 import { useTheme } from '@/contexts/ThemeContext';
 import { MessageCircle } from 'lucide-react-native';
 
@@ -17,7 +17,7 @@ export const IntercomButton: React.FC<IntercomButtonProps> = ({
   size = 'medium',
   onPress
 }) => {
-  const { present, isSupported } = useIntercom();
+  const { present, isSupported } = useIntercomOptimized();
   const { colors } = useTheme();
 
   const handlePress = async () => {

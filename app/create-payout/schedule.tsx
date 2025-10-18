@@ -1480,7 +1480,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     justifyContent: 'center',
     padding: 12,
     backgroundColor: '#F0F9FF',
-    borderRadius: 8,
+    borderRadius: 100,
     gap: 8,
     borderWidth: 1,
     borderColor: '#1E3A8A',

@@ -15,6 +15,7 @@ import {
   Image,
   Button,
 } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,7 +23,7 @@ import { useBalance } from '@/contexts/BalanceContext';
 import { Send, Sparkles, ArrowRight, Wallet, TrendingUp, Calendar, Clock, X, AlertTriangle } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 import { router } from 'expo-router';
-import { getOpenAIChatCompletion } from '../../lib/openai';
+import { getOpenAIChatCompletion, testOpenAIConnection } from '../../lib/openai';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
@@ -116,8 +117,16 @@ export default function AIAssistantScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const windowHeight = Dimensions.get('window').height;
   const [error, setError] = useState<string | null>(null);
+  
+  // Rate limiting and daily limits
+  const [lastPromptTime, setLastPromptTime] = useState<number>(0);
+  const [dailyPromptCount, setDailyPromptCount] = useState<number>(0);
+  const [lastResetDate, setLastResetDate] = useState<string>('');
+  const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
+  const [isDailyLimitReached, setIsDailyLimitReached] = useState<boolean>(false);
   const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
   const [lastType, setLastType] = useState<'plan' | 'insight' | 'text' | null>(null);
   // Plan creation conversational state
@@ -173,6 +182,62 @@ export default function AIAssistantScreen() {
     }
   }, [inputText, keyboardVisible]);
 
+  // Initialize rate limiting and daily limits from secure storage
+  useEffect(() => {
+    const initializeUsageData = async () => {
+      const today = new Date().toDateString();
+      const savedData = await loadUsageData();
+      
+      if (savedData) {
+        // Check if we need to reset daily count (new day)
+        if (savedData.lastResetDate !== today) {
+          // New day - reset counters
+          setDailyPromptCount(0);
+          setLastResetDate(today);
+          setLastPromptTime(0);
+          setIsDailyLimitReached(false);
+          // Save reset data
+          await saveUsageData({
+            dailyPromptCount: 0,
+            lastResetDate: today,
+            lastPromptTime: 0
+          });
+        } else {
+          // Same day - restore saved data
+          setDailyPromptCount(savedData.dailyPromptCount || 0);
+          setLastResetDate(savedData.lastResetDate || today);
+          setLastPromptTime(savedData.lastPromptTime || 0);
+          setIsDailyLimitReached((savedData.dailyPromptCount || 0) >= 20);
+        }
+      } else {
+        // No saved data - initialize with today's date
+        setDailyPromptCount(0);
+        setLastResetDate(today);
+        setLastPromptTime(0);
+        setIsDailyLimitReached(false);
+        // Save initial data
+        await saveUsageData({
+          dailyPromptCount: 0,
+          lastResetDate: today,
+          lastPromptTime: 0
+        });
+      }
+    };
+
+    initializeUsageData();
+  }, []);
+
+  // Update secure storage when usage data changes
+  useEffect(() => {
+    if (lastResetDate) { // Only save after initialization
+      saveUsageData({
+        dailyPromptCount,
+        lastResetDate,
+        lastPromptTime
+      });
+    }
+  }, [dailyPromptCount, lastResetDate, lastPromptTime]);
+
   // Add welcome message when component mounts
   useEffect(() => {
     const welcomeMessage: Message = {
@@ -200,6 +265,22 @@ export default function AIAssistantScreen() {
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
 
+    // Check rate limiting first
+    const rateLimitCheck = checkRateLimit();
+    if (!rateLimitCheck.canProceed) {
+      // Show friendly rate limit message
+      const rateLimitMessage: Message = {
+        id: `rate-limit-${Date.now()}`,
+        content: rateLimitCheck.message!,
+        sender: 'ai',
+        type: 'text',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, rateLimitMessage]);
+      setInputText('');
+      return;
+    }
+
     // If in a plan creation step, route input to plan step handler
     if (planCreationStep !== 'idle') {
       handlePlanStepInput(inputText.trim());
@@ -223,6 +304,41 @@ export default function AIAssistantScreen() {
     setLastUserMessage(inputText.trim());
     setLastType(null);
 
+    // Update rate limiting counters
+    const now = Date.now();
+    const newCount = dailyPromptCount + 1;
+    
+    setLastPromptTime(now);
+    setDailyPromptCount(newCount);
+
+    // Save updated data to secure storage
+    saveUsageData({
+      dailyPromptCount: newCount,
+      lastResetDate,
+      lastPromptTime: now
+    });
+
+    // Show warning when approaching daily limit
+    if (newCount === 18) {
+      const warningMessage: Message = {
+        id: `warning-${Date.now()}`,
+        content: "Just a friendly heads up! You have 2 prompts left for today. Make them count! 😊",
+        sender: 'ai',
+        type: 'text',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, warningMessage]);
+    } else if (newCount === 19) {
+      const warningMessage: Message = {
+        id: `warning-${Date.now()}`,
+        content: "Last prompt for today! Choose wisely! 🎯",
+        sender: 'ai',
+        type: 'text',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, warningMessage]);
+    }
+
     setTimeout(() => {
       generateAIResponse(userMessage.content, { availableBalance, balance, lockedBalance });
     }, 500);
@@ -231,6 +347,7 @@ export default function AIAssistantScreen() {
   const handleSuggestionPress = (suggestion: string) => {
     setInputText(suggestion);
     setShowSuggestions(false);
+    setInputFocused(true);
     inputRef.current?.focus();
   };
 
@@ -249,27 +366,41 @@ export default function AIAssistantScreen() {
 
   const generateAIResponse = async (userMessage: string, balances: { availableBalance: number, balance: number, lockedBalance: number }) => {
     const lowerCaseMessage = userMessage.toLowerCase();
-    if (
-      lowerCaseMessage.includes('save') || 
-      lowerCaseMessage.includes('plan') || 
-      lowerCaseMessage.includes('budget') ||
-      lowerCaseMessage.includes('pay myself') ||
-      lowerCaseMessage.includes('earn') && (lowerCaseMessage.includes('monthly') || lowerCaseMessage.includes('weekly'))
-    ) {
+    
+    // Check for clear plan-related keywords with context
+    const hasPlanKeywords = lowerCaseMessage.includes('plan') || 
+                           lowerCaseMessage.includes('budget') ||
+                           lowerCaseMessage.includes('pay myself') ||
+                           (lowerCaseMessage.includes('earn') && (lowerCaseMessage.includes('monthly') || lowerCaseMessage.includes('weekly')));
+    
+    // Check for clear insight-related keywords with context
+    const hasInsightKeywords = lowerCaseMessage.includes('analyze') || 
+                              lowerCaseMessage.includes('pattern') || 
+                              lowerCaseMessage.includes('spending') ||
+                              lowerCaseMessage.includes('habits') ||
+                              lowerCaseMessage.includes('improve');
+    
+    // Check for specific plan patterns (amount + timeframe)
+    const hasPlanPattern = /\d+[kmb]?\s*(for|over|in)\s*\d+\s*(month|week|year)/i.test(userMessage) ||
+                          /plan\s+\d+[kmb]?/i.test(userMessage) ||
+                          /schedule\s+\d+[kmb]?/i.test(userMessage);
+    
+    // Check for specific insight patterns
+    const hasInsightPattern = /analyze\s+(my|your)/i.test(userMessage) ||
+                             /spending\s+pattern/i.test(userMessage) ||
+                             /money\s+habits/i.test(userMessage);
+    
+    // Prioritize specific patterns over general keywords
+    if (hasPlanPattern || (hasPlanKeywords && !hasInsightKeywords)) {
       setLastType('plan');
       await generatePlanResponse(userMessage, balances);
     } 
-    else if (
-      lowerCaseMessage.includes('analyze') || 
-      lowerCaseMessage.includes('pattern') || 
-      lowerCaseMessage.includes('spending') ||
-      lowerCaseMessage.includes('habits') ||
-      lowerCaseMessage.includes('improve')
-    ) {
+    else if (hasInsightPattern || (hasInsightKeywords && !hasPlanKeywords)) {
       setLastType('insight');
       await generateInsightResponse(userMessage, balances);
     } 
     else {
+      // For ambiguous messages, use text response which is more flexible
       setLastType('text');
       await generateTextResponse(userMessage, balances);
     }
@@ -289,9 +420,31 @@ export default function AIAssistantScreen() {
         temperature: 0.7,
         max_tokens: 256
       });
-    } catch (err) {
-      setError('Sorry, I couldn\'t process your request right now. Please try again.');
-      response = "Sorry, I couldn't process your request right now. Please try again.";
+    } catch (err: any) {
+      console.error('AI Text Response Error:', {
+        error: err.message,
+        userMessage: userMessage.substring(0, 100),
+        platform: Platform.OS,
+        isDev: __DEV__
+      });
+      
+      // Provide more specific error messages based on the error type
+      if (err.message?.includes('API key')) {
+        setError('AI service configuration issue. Please contact support.');
+        response = "I'm having trouble connecting to my AI service right now. This might be a configuration issue. Please contact our support team for assistance.";
+      } else if (err.message?.includes('Network') || err.message?.includes('connection')) {
+        setError('Network connection issue. Please check your internet connection.');
+        response = "I'm having trouble connecting to the internet right now. Please check your connection and try again.";
+      } else if (err.message?.includes('timeout')) {
+        setError('Request timed out. Please try again.');
+        response = "The request is taking longer than expected. Please try asking your question again.";
+      } else if (err.message?.includes('authentication')) {
+        setError('AI service authentication failed. Please contact support.');
+        response = "I'm experiencing an authentication issue with my AI service. Please contact our support team.";
+      } else {
+        setError('AI service temporarily unavailable. Please try again.');
+        response = "I'm temporarily unable to process your request. Please try again in a moment.";
+      }
     }
     const aiMessage: Message = {
       id: Date.now().toString(),
@@ -391,10 +544,43 @@ export default function AIAssistantScreen() {
           metadata: parsed.metadata
         };
       } else {
-        throw new Error('Invalid AI response');
+        // Handle invalid or ambiguous AI response gracefully
+        console.warn('AI returned invalid response for plan request:', {
+          userMessage: userMessage.substring(0, 100),
+          aiResponse: openaiResponse.substring(0, 200),
+          parsed: parsed,
+          platform: Platform.OS
+        });
+        
+        // Provide a helpful fallback response instead of throwing an error
+        aiMessage = {
+          id: Date.now().toString(),
+          content: "I'd be happy to help you create a payout plan! Could you please be more specific about what you'd like to plan? For example:\n\n• \"Plan 50k for 3 months\"\n• \"Create a weekly payout schedule for 100k\"\n• \"Help me plan 200k over 6 months\"\n\nWhat amount and timeframe are you thinking about?",
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+        };
       }
-    } catch (err) {
-      setError('Sorry, I couldn\'t process your plan request right now. Please try again.');
+    } catch (err: any) {
+      console.error('AI Plan Response Error:', {
+        error: err.message,
+        userMessage: userMessage.substring(0, 100),
+        platform: Platform.OS,
+        isDev: __DEV__
+      });
+      
+      // Provide more specific error messages based on the error type
+      if (err.message?.includes('API key')) {
+        setError('AI service configuration issue. Please contact support.');
+      } else if (err.message?.includes('Network') || err.message?.includes('connection')) {
+        setError('Network connection issue. Please check your internet connection.');
+      } else if (err.message?.includes('timeout')) {
+        setError('Request timed out. Please try again.');
+      } else if (err.message?.includes('authentication')) {
+        setError('AI service authentication failed. Please contact support.');
+      } else {
+        setError('AI service temporarily unavailable. Please try again.');
+      }
     }
     if (!aiMessage && !error) {
       const targetAmount = extractAmount(userMessage) || 500000;
@@ -596,10 +782,43 @@ export default function AIAssistantScreen() {
           metadata: parsed.metadata
         };
       } else {
-        throw new Error('Invalid AI response');
+        // Handle invalid or ambiguous AI response gracefully
+        console.warn('AI returned invalid response for insight request:', {
+          userMessage: userMessage.substring(0, 100),
+          aiResponse: openaiResponse.substring(0, 200),
+          parsed: parsed,
+          platform: Platform.OS
+        });
+        
+        // Provide a helpful fallback response instead of throwing an error
+        aiMessage = {
+          id: Date.now().toString(),
+          content: "I'd be happy to help you analyze your finances! Could you please be more specific about what you'd like to know? For example:\n\n• \"Analyze my spending patterns\"\n• \"How can I improve my money habits?\"\n• \"What are my financial insights?\"\n\nWhat specific aspect of your finances would you like me to help you with?",
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+        };
       }
-    } catch (err) {
-      setError('Sorry, I couldn\'t process your insights request right now. Please try again.');
+    } catch (err: any) {
+      console.error('AI Insight Response Error:', {
+        error: err.message,
+        userMessage: userMessage.substring(0, 100),
+        platform: Platform.OS,
+        isDev: __DEV__
+      });
+      
+      // Provide more specific error messages based on the error type
+      if (err.message?.includes('API key')) {
+        setError('AI service configuration issue. Please contact support.');
+      } else if (err.message?.includes('Network') || err.message?.includes('connection')) {
+        setError('Network connection issue. Please check your internet connection.');
+      } else if (err.message?.includes('timeout')) {
+        setError('Request timed out. Please try again.');
+      } else if (err.message?.includes('authentication')) {
+        setError('AI service authentication failed. Please contact support.');
+      } else {
+        setError('AI service temporarily unavailable. Please try again.');
+      }
     }
     if (!aiMessage && !error) {
       // fallback local logic
@@ -1196,6 +1415,135 @@ export default function AIAssistantScreen() {
 
   const getUserName = () => session?.user?.user_metadata?.first_name || 'User';
 
+  // Secure storage helper functions
+  const saveUsageData = async (data: { dailyPromptCount: number; lastResetDate: string; lastPromptTime: number }) => {
+    try {
+      await SecureStore.setItemAsync('ai_usage_data', JSON.stringify(data));
+    } catch (error) {
+      console.error('Failed to save usage data:', error);
+    }
+  };
+
+  const loadUsageData = async () => {
+    try {
+      const data = await SecureStore.getItemAsync('ai_usage_data');
+      if (data) {
+        return JSON.parse(data);
+      }
+    } catch (error) {
+      console.error('Failed to load usage data:', error);
+    }
+    return null;
+  };
+
+  const clearUsageData = async () => {
+    try {
+      await SecureStore.deleteItemAsync('ai_usage_data');
+    } catch (error) {
+      console.error('Failed to clear usage data:', error);
+    }
+  };
+
+  // Rate limiting check
+  const checkRateLimit = (): { canProceed: boolean; message?: string } => {
+    const now = Date.now();
+    const timeSinceLastPrompt = now - lastPromptTime;
+    const minInterval = 2000; // 2 seconds between prompts
+    
+    // Check if user is sending prompts too frequently
+    if (timeSinceLastPrompt < minInterval) {
+      const remainingTime = Math.ceil((minInterval - timeSinceLastPrompt) / 1000);
+      return {
+        canProceed: false,
+        message: `Please wait ${remainingTime} second${remainingTime > 1 ? 's' : ''} before sending another message. I need a moment to process your requests properly! 😊`
+      };
+    }
+    
+    // Check daily limit
+    if (isDailyLimitReached) {
+      return {
+        canProceed: false,
+        message: `You've reached your daily limit of 20 prompts! 🎉 That's quite a productive day! Come back tomorrow and I'll be here to help you with more financial planning. In the meantime, feel free to explore the other features of the app!`
+      };
+    }
+    
+    return { canProceed: true };
+  };
+
+  // Function to close input and dismiss keyboard
+  const closeInput = () => {
+    setInputFocused(false);
+    setInputText('');
+    setShowSuggestions(true);
+    inputRef.current?.blur();
+    Keyboard.dismiss();
+  };
+
+  // Debug function to test AI connection
+  const testAIConnection = async () => {
+    try {
+      console.log('Testing AI connection...');
+      const isConnected = await testOpenAIConnection();
+      console.log('AI Connection Test Result:', isConnected);
+      
+      if (isConnected) {
+        setMessages(prev => [...prev, {
+          id: `debug-${Date.now()}`,
+          content: '✅ AI connection test successful! The AI service is working properly.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          id: `debug-${Date.now()}`,
+          content: '❌ AI connection test failed. There may be an issue with the AI service configuration.',
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+        }]);
+      }
+    } catch (error: any) {
+      console.error('AI Connection Test Error:', error);
+      setMessages(prev => [...prev, {
+        id: `debug-error-${Date.now()}`,
+        content: `❌ AI connection test error: ${error.message}`,
+        sender: 'ai',
+        type: 'text',
+        timestamp: new Date(),
+      }]);
+    }
+  };
+
+  // Debug function to reset usage data (for testing)
+  const resetUsageData = async () => {
+    try {
+      await clearUsageData();
+      const today = new Date().toDateString();
+      setDailyPromptCount(0);
+      setLastResetDate(today);
+      setLastPromptTime(0);
+      setIsDailyLimitReached(false);
+      
+      setMessages(prev => [...prev, {
+        id: `debug-reset-${Date.now()}`,
+        content: '🔄 Usage data reset successfully! Daily limits have been cleared.',
+        sender: 'ai',
+        type: 'text',
+        timestamp: new Date(),
+      }]);
+    } catch (error: any) {
+      console.error('Reset Usage Data Error:', error);
+      setMessages(prev => [...prev, {
+        id: `debug-reset-error-${Date.now()}`,
+        content: `❌ Failed to reset usage data: ${error.message}`,
+        sender: 'ai',
+        type: 'text',
+        timestamp: new Date(),
+      }]);
+    }
+  };
+
 
 
   const renderMessage = (message: Message, index: number) => {
@@ -1251,8 +1599,6 @@ export default function AIAssistantScreen() {
             </Text>
             {!isUser && (
               <View style={styles.aiBadgeContainer}>
-                <Sparkles size={14} color={colors.primary} />
-                <Text style={styles.aiBadgeText}>Planmoni AI</Text>
               </View>
             )}
           </Animated.View>
@@ -1444,6 +1790,7 @@ export default function AIAssistantScreen() {
     messageText: {
       fontSize: Platform.OS === 'ios' ? 18 : 16,
       lineHeight: 24,
+      flexWrap: 'wrap',
     },
     userText: {
       color: '#FFFFFF',
@@ -1548,19 +1895,24 @@ export default function AIAssistantScreen() {
     },
     planTitleContainer: {
       flex: 1,
+      marginRight: 8,
     },
     planTitle: {
       fontSize: Platform.OS === 'ios' ? 18 : 16,
       fontWeight: '600',
       marginBottom: 4,
+      flexWrap: 'wrap',
     },
     planAmount: {
       fontSize: Platform.OS === 'ios' ? 18 : 16,
       fontWeight: '700',
+      flexShrink: 1,
+      textAlign: 'right',
     },
     planDescription: {
       fontSize: Platform.OS === 'ios' ? 18 : 16,
       marginBottom: 16,
+      flexWrap: 'wrap',
     },
     planButton: {
       flexDirection: 'row',
@@ -1597,13 +1949,18 @@ export default function AIAssistantScreen() {
     insightTitle: {
       fontSize: Platform.OS === 'ios' ? 18 : 16,
       fontWeight: '600',
+      flex: 1,
+      marginRight: 8,
     },
     insightValue: {
       fontSize: Platform.OS === 'ios' ? 18 : 16,
       fontWeight: '700',
+      flexShrink: 1,
+      textAlign: 'right',
     },
     insightDescription: {
       fontSize: Platform.OS === 'ios' ? 18 : 16,
+      flexWrap: 'wrap',
     },
     recommendationsContainer: {
       marginTop: 16,
@@ -1634,6 +1991,7 @@ export default function AIAssistantScreen() {
       flex: 1,
       fontSize: Platform.OS === 'ios' ? 18 : 16,
       lineHeight: 20,
+      flexWrap: 'wrap',
     },
     emptyContainer: {
       flex: 1,
@@ -1700,6 +2058,47 @@ export default function AIAssistantScreen() {
       fontWeight: '600',
       fontSize: Platform.OS === 'ios' ? 18 : 16,
     },
+    debugButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      marginLeft: 8,
+    },
+    debugButtonText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    closeButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginLeft: 8,
+      marginBottom: -10,
+    },
+    headerRightContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    promptCounter: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      minWidth: 50,
+      alignItems: 'center',
+    },
+    promptCounterText: {
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    debugButtonsContainer: {
+      flexDirection: 'row',
+      gap: 8,
+      marginLeft: 8,
+    },
   });
 
   // Add this function to handle navigation to Add Funds
@@ -1728,9 +2127,54 @@ export default function AIAssistantScreen() {
             </LinearGradient>
           </MaskedView>
         </View>
-        {/* <View style={styles.aiIconContainer}> */}
-          {/* <Sparkles size={20} color={colors.primary} /> */}
-        {/* </View> */}
+        <View style={styles.headerRightContainer}>
+          {/* Daily prompt counter - only show when limit is reached */}
+          {isDailyLimitReached && (
+            <View style={[
+              styles.promptCounter, 
+              { 
+                backgroundColor: '#FFE6E6',
+                borderWidth: 1,
+                borderColor: '#FF6B6B'
+              }
+            ]}>
+              <Text style={[
+                styles.promptCounterText, 
+                { 
+                  color: '#FF6B6B',
+                  fontWeight: '700'
+                }
+              ]}>
+                {dailyPromptCount}/20
+              </Text>
+            </View>
+          )}
+          
+          {inputFocused && (
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: colors.border }]}
+              onPress={closeInput}
+            >
+              <X size={20} color={colors.text} />
+            </TouchableOpacity>
+          )}
+        </View>
+        {/* {__DEV__ && (
+          <View style={styles.debugButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.debugButton, { backgroundColor: colors.primary }]}
+              onPress={testAIConnection}
+            >
+              <Text style={styles.debugButtonText}>Test AI</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.debugButton, { backgroundColor: '#FF6B6B' }]}
+              onPress={resetUsageData}
+            >
+              <Text style={styles.debugButtonText}>Reset Usage</Text>
+            </TouchableOpacity>
+          </View>
+        )} */}
       </View>
 
       <ScrollView
@@ -1933,17 +2377,21 @@ export default function AIAssistantScreen() {
               value={inputText}
               onChangeText={setInputText}
               multiline
-              onFocus={() => setShowSuggestions(false)}
+              onFocus={() => {
+                setShowSuggestions(false);
+                setInputFocused(true);
+              }}
+              onBlur={() => setInputFocused(false)}
               maxLength={500}
               editable={!isCreatingPayout}
             />
             <TouchableOpacity
               style={[
                 styles.sendButton,
-                (!inputText.trim() || isCreatingPayout) && styles.sendButtonDisabled
+                (!inputText.trim() || isCreatingPayout || isRateLimited || isDailyLimitReached) && styles.sendButtonDisabled
               ]}
               onPress={handleSendMessage}
-              disabled={!inputText.trim() || isTyping || isCreatingPayout}
+              disabled={!inputText.trim() || isTyping || isCreatingPayout || isRateLimited || isDailyLimitReached}
             >
               {isCreatingPayout ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />

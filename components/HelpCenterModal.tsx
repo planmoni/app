@@ -3,7 +3,7 @@ import { X, Search, CircleHelp as HelpCircle, MessageSquare, FileText, ExternalL
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { PanGestureHandler } from 'react-native-gesture-handler';
-import { useIntercom } from '@/hooks/useIntercom';
+import { useIntercomOptimized } from '@/hooks/useIntercomOptimized';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 
 interface HelpCenterModalProps {
@@ -16,7 +16,7 @@ const DRAG_DISMISS_THRESHOLD = 120;
 export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
-  const { openIntercom, isLoading } = useIntercom();
+  const { openIntercom, isLoading } = useIntercomOptimized();
   const translateY = useRef(new Animated.Value(0)).current;
   const [dragging, setDragging] = useState(false);
   

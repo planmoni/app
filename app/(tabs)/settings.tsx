@@ -205,8 +205,8 @@ export default function SettingsScreen() {
       haptics.notification(Haptics.NotificationFeedbackType.Error);
     }
     Alert.alert(
-      "Delete Account",
-      "Are you sure you want to delete your account? This action cannot be undone.",
+      "Close Account",
+      "Are you sure you want to close your account?",
       [
         {
           text: "Cancel",
@@ -218,7 +218,7 @@ export default function SettingsScreen() {
           }
         },
         {
-          text: "Delete",
+          text: "Yes, Close!",
           style: "destructive",
           onPress: () => {
             if (Platform.OS !== 'web') {
@@ -658,7 +658,7 @@ export default function SettingsScreen() {
             onPress={handleDeleteAccount}
           >
             <Trash2 size={20} color={colors.textTertiary} />
-            <Text style={styles.deleteAccountText}>Delete Account</Text>
+            <Text style={styles.deleteAccountText}>Close your account</Text>
           </Pressable>
         </View>
       </ScrollView>
