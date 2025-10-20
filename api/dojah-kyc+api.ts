@@ -116,22 +116,22 @@ export async function POST(request: Request) {
         endpoint = '/v1/kyc/nin';
         payload = { nin: verificationData.nin };
         break;
-      case 'passport':
-        endpoint = '/v1/kyc/passport';
-        payload = { 
-          passport_number: verificationData.passportNumber,
-          first_name: verificationData.firstName,
-          last_name: verificationData.lastName
-        };
-        break;
-      case 'drivers_license':
-        endpoint = '/v1/kyc/dl';
-        payload = { 
-          license_number: verificationData.licenseNumber,
-          first_name: verificationData.firstName,
-          last_name: verificationData.lastName
-        };
-        break;
+      // case 'passport':
+      //   endpoint = '/v1/kyc/passport';
+      //   payload = { 
+      //     passport_number: verificationData.passportNumber,
+      //     first_name: verificationData.firstName,
+      //     last_name: verificationData.lastName
+      //   };
+      //   break;
+      // case 'drivers_license':
+      //   endpoint = '/v1/kyc/dl';
+      //   payload = { 
+      //     license_number: verificationData.licenseNumber,
+      //     first_name: verificationData.firstName,
+      //     last_name: verificationData.lastName
+      //   };
+      //   break;
       default:
         return createJsonResponse({ error: 'Invalid verification type' }, 400);
     }

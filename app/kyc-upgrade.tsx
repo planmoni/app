@@ -535,35 +535,35 @@ export default function KYCUpgradeScreen() {
                 return;
               }
               
-              // Create Paystack customer
-              const customerPayload = {
-                email: session?.user?.email || '',
-                first_name: firstName,
-                last_name: lastName,
-                phone: phoneNumber,
-                metadata: {
-                  user_id: session?.user?.id,
-                  middle_name: middleName,
-                  date_of_birth: dateOfBirth,
-                  address: address
-                }
-              };
-              
-              const customerResponse = await fetch('https://api.paystack.co/customer', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
-                },
-                body: JSON.stringify(customerPayload),
-              });
-              
-              if (!customerResponse.ok) {
-                throw new Error('Failed to create Paystack customer');
-              }
-              
-              const customerData = await customerResponse.json();
-              console.log('Paystack customer created:', customerData);
+              // Create Paystack customer (disabled)
+              // const customerPayload = {
+              //   email: session?.user?.email || '',
+              //   first_name: firstName,
+              //   last_name: lastName,
+              //   phone: phoneNumber,
+              //   metadata: {
+              //     user_id: session?.user?.id,
+              //     middle_name: middleName,
+              //     date_of_birth: dateOfBirth,
+              //     address: address
+              //   }
+              // };
+              // 
+              // const customerResponse = await fetch('https://api.paystack.co/customer', {
+              //   method: 'POST',
+              //   headers: {
+              //     'Content-Type': 'application/json',
+              //     'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
+              //   },
+              //   body: JSON.stringify(customerPayload),
+              // });
+              // 
+              // if (!customerResponse.ok) {
+              //   throw new Error('Failed to create Paystack customer');
+              // }
+              // 
+              // const customerData = await customerResponse.json();
+              // console.log('Paystack customer created:', customerData);
               
               // Update progress when personal info is completed
               const progressResult = await updateProgress({
@@ -585,8 +585,8 @@ export default function KYCUpgradeScreen() {
               }, 1000);
               
             } catch (error) {
-              console.error('Error creating Paystack customer:', error);
-              showToast('Failed to create customer profile. Please try again.', 'error');
+              console.error('Error proceeding after personal info:', error);
+              showToast('An error occurred. Please try again.', 'error');
             } finally {
               setIsLoading(false);
             }
@@ -987,17 +987,18 @@ export default function KYCUpgradeScreen() {
         throw new Error(selfieValidation.error);
       }
 
-      if (documentBackImage) {
-        const backImageValidation = validateImage(documentBackImage);
-        if (!backImageValidation.isValid) {
-          throw new Error(backImageValidation.error);
-        }
-      }
+      // if (documentBackImage) {
+      //   const backImageValidation = validateImage(documentBackImage);
+      //   if (!backImageValidation.isValid) {
+      //     throw new Error(backImageValidation.error);
+      //   }
+      // }
 
       // Verify based on document type first (before saving anything )
-      if (selectedIdentityType === 'drivers_license') {
-        await verifyDriversLicense(appId, privateKey);
-      } else if (selectedIdentityType === 'nin') {
+      // if (selectedIdentityType === 'drivers_license') {
+      //   await verifyDriversLicense(appId, privateKey);
+      // } else 
+      if (selectedIdentityType === 'nin') {
         await verifyNIN(appId, privateKey);
       } else {
         throw new Error('Unsupported document type');
@@ -1015,131 +1016,9 @@ export default function KYCUpgradeScreen() {
     }
   };
 
-  const verifyDriversLicense = async (appId: string, privateKey: string) => {
-    try {
-      if (!driversLicense.trim()) {
-        throw new Error('Driver\'s license number is required');
-      }
-
-      // Make Dojah API call for driver's license verification
-      const response = await fetch(`https://api.dojah.io/api/v1/kyc/dl?license_number=${driversLicense}`, {
-        method: 'GET',
-        headers: {
-          'AppId': appId,
-          'Authorization': privateKey,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Driver's license verification failed: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      console.log('Driver\'s license verification response:', data);
-      
-      if (!data.entity) {
-        throw new Error('Invalid driver\'s license or no data returned');
-      }
-      
-      const dlData = data.entity;
-      
-      // Get names from driver's license data
-      const dlFirstName = dlData.firstName || '';
-      const dlLastName = dlData.lastName || '';
-      const dlMiddleName = dlData.middleName || '';
-      
-      // Get names from user's saved data
-      const userFirstName = firstName || '';
-      const userLastName = lastName || '';
-      const userMiddleName = middleName || '';
-      
-      console.log('Driver\'s license name comparison:', {
-        dl: { firstName: dlFirstName, lastName: dlLastName, middleName: dlMiddleName },
-        user: { firstName: userFirstName, lastName: userLastName, middleName: userMiddleName }
-      });
-      
-      // Check if any name matches (considering possible swaps)
-      const allDlNames = [dlFirstName, dlLastName, dlMiddleName].filter(Boolean);
-      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
-      
-      let nameMatches = 0;
-      let totalNames = Math.max(allDlNames.length, allUserNames.length);
-      
-      // Check for matches (including swapped positions)
-      for (const dlName of allDlNames) {
-        for (const userName of allUserNames) {
-          if (isNameMatch(dlName, userName)) {
-            nameMatches++;
-            break;
-          }
-        }
-      }
-      
-      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
-      console.log(`Driver's license name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
-      
-      // Consider it a match if at least 60% of names match
-      if (matchPercentage >= 60) {
-        // Only save data after successful verification
-        try {
-          await saveFormData({
-            document_type: 'drivers_license',
-            document_number: driversLicense,
-            document_front_url: documentFrontImage || undefined,
-            document_back_url: documentBackImage || undefined,
-            selfie_url: selfieImage || undefined
-          });
-          
-          console.log('Driver\'s license data saved successfully');
-        } catch (saveError) {
-          console.error('Error saving driver\'s license data:', saveError);
-          // Don't throw error if data might have been saved despite network issues
-          console.log('Continuing with verification process...');
-        }
-        
-        setDocumentsVerified(true);
-        
-        // Create a display name from DL data
-        const displayName = [dlFirstName, dlMiddleName, dlLastName]
-          .filter(Boolean)
-          .join(' ');
-        
-        // Show success toast after verification completes
-        showToast(`Driver's license verified! Name: ${displayName}`, 'success');
-        
-        // Update progress
-        const progressResult = await updateProgress({
-          current_step: 'address_details',
-          documents_verified: true
-        });
-        
-        if (!progressResult) {
-          showToast('Failed to update progress. Please try again.', 'error');
-          return;
-        }
-        
-        // Wait for toast to be visible before moving to next step
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        setCurrentStep('address_details');
-        setTimeout(() => {
-          setIsManualVerification(false);
-        }, 1000);
-      } else {
-        throw new Error('Name mismatch detected. Please verify your personal information.');
-      }
-      
-    } catch (error) {
-      console.error('Driver\'s license verification error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Driver\'s license verification failed';
-      showToast(errorMessage, 'error');
-      setErrors({ documentVerification: errorMessage });
-      // Reset manual verification flag on error
-      setIsManualVerification(false);
-      throw error; // Re-throw to be handled by verifyDocuments
-    }
-  };
+  // const verifyDriversLicense = async (appId: string, privateKey: string) => {
+  //   // Disabled: Driver's license verification is not supported. Use NIN only.
+  // };
 
   const verifyNIN = async (appId: string, privateKey: string) => {
     try {
