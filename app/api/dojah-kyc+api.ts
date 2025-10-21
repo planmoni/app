@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { kycAuditService } from '../../lib/kyc-audit-service';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
@@ -75,9 +76,13 @@ async function safeParseResponse(response: Response) {
 
 // Verify BVN
 export async function POST(request: Request) {
+  let auditLogId: string | null = null;
+  let user: any = null;
+  const startTime = Date.now();
+  
   try {
     // Verify authentication
-    const user = await verifyAuth(request);
+    user = await verifyAuth(request);
     if (!user) {
       return createJsonResponse({ error: 'Unauthorized' }, 401);
     }
@@ -97,6 +102,38 @@ export async function POST(request: Request) {
     // Get verification data from request body
     const requestBody = await request.json();
     const { verificationType, verificationData } = requestBody;
+
+    // Extract client information for audit logging
+    const clientInfo = {
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+      userAgent: request.headers.get('user-agent') || 'unknown'
+    };
+
+    // Create initial audit log entry
+    auditLogId = await kycAuditService.logKYCOperation(
+      user.id,
+      'kyc_initiated',
+      {
+        verificationType: verificationType as any,
+        verificationProvider: 'dojah',
+        requestData: {
+          verificationType,
+          verificationData: {
+            ...verificationData,
+            // Mask sensitive data for audit trail
+            bvn: verificationData?.bvn ? '***' + verificationData.bvn.slice(-4) : undefined,
+            nin: verificationData?.nin ? '***' + verificationData.nin.slice(-4) : undefined
+          }
+        },
+        ipAddress: clientInfo.ipAddress,
+        userAgent: clientInfo.userAgent,
+        metadata: {
+          endpoint: 'POST /api/dojah-kyc',
+          timestamp: new Date().toISOString(),
+          requestId: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        }
+      }
+    );
 
     // Validate required fields
     if (!verificationType || !verificationData) {
@@ -177,6 +214,20 @@ export async function POST(request: Request) {
         statusText: response.statusText,
         data
       });
+
+      // Update audit log with failure
+      if (auditLogId) {
+        await kycAuditService.updateAuditLogStatus(
+          auditLogId,
+          'failed',
+          `HTTP_${response.status}`,
+          data?.message || `Verification service error: ${response.status} ${response.statusText}`,
+          data,
+          undefined,
+          Date.now() - startTime
+        );
+      }
+
       return createJsonResponse({ 
         error: data?.message || `Verification service error: ${response.status} ${response.statusText}`,
         details: data
@@ -204,27 +255,99 @@ export async function POST(request: Request) {
       // Continue anyway, as the verification was successful
     }
 
+    // Update audit log with success
+    if (auditLogId) {
+      const verificationStatus = data.entity?.verification_status || 'pending';
+      const isSuccess = verificationStatus === 'verified' || verificationStatus === 'success';
+      
+      await kycAuditService.updateAuditLogStatus(
+        auditLogId,
+        isSuccess ? 'success' : 'pending',
+        data.entity?.status_code || 'SUCCESS',
+        data.entity?.message || 'Identity verification completed',
+        {
+          ...data,
+          // Mask sensitive data in response
+          entity: data.entity ? {
+            ...data.entity,
+            bvn: data.entity.bvn ? '***' + data.entity.bvn.slice(-4) : undefined,
+            nin: data.entity.nin ? '***' + data.entity.nin.slice(-4) : undefined
+          } : undefined
+        },
+        data.entity?.confidence_score || null,
+        Date.now() - startTime
+      );
+
+      // Create additional audit event for verification completion
+      await kycAuditService.createAuditEvent({
+        auditLogId,
+        userId: user.id,
+        eventType: isSuccess ? 'verification_completed' : 'verification_failed',
+        eventData: {
+          verificationType,
+          provider: 'dojah',
+          responseTime: Date.now() - startTime,
+          status: verificationStatus
+        },
+        severity: isSuccess ? 'medium' : 'high'
+      });
+    }
+
     // Return the verification result
     return createJsonResponse({
       status: 'success',
       message: 'Identity verified successfully',
-      data: data.entity || data.data || data
+      data: data.entity || data.data || data,
+      auditLogId: auditLogId // Include audit log ID for tracking
     });
   } catch (error) {
     console.error('Error verifying identity:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    
+    // Update audit log with error if it exists
+    if (auditLogId) {
+      await kycAuditService.updateAuditLogStatus(
+        auditLogId,
+        'failed',
+        'INTERNAL_ERROR',
+        errorMessage,
+        { error: errorMessage, stack: error instanceof Error ? error.stack : undefined },
+        undefined,
+        Date.now() - startTime
+      );
+
+      // Create audit event for the error
+      if (user) {
+        await kycAuditService.createAuditEvent({
+          auditLogId,
+          userId: user.id,
+          eventType: 'verification_failed',
+          eventData: {
+            error: errorMessage,
+            timestamp: new Date().toISOString()
+          },
+          severity: 'critical'
+        });
+      }
+    }
+    
     return createJsonResponse({ 
       error: 'Internal server error during identity verification',
-      details: errorMessage
+      details: errorMessage,
+      auditLogId: auditLogId // Include audit log ID for tracking
     }, 500);
   }
 }
 
 // Document verification endpoint
 export async function PUT(request: Request) {
+  let auditLogId: string | null = null;
+  let user: any = null;
+  const startTime = Date.now();
+  
   try {
     // Verify authentication
-    const user = await verifyAuth(request);
+    user = await verifyAuth(request);
     if (!user) {
       return createJsonResponse({ error: 'Unauthorized' }, 401);
     }
@@ -244,6 +367,36 @@ export async function PUT(request: Request) {
     if (!documentType || !documentImage) {
       return createJsonResponse({ error: 'Document type and image are required' }, 400);
     }
+
+    // Extract client information for audit logging
+    const clientInfo = {
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+      userAgent: request.headers.get('user-agent') || 'unknown'
+    };
+
+    // Create initial audit log entry for document verification
+    auditLogId = await kycAuditService.logKYCOperation(
+      user.id,
+      'document_uploaded',
+      {
+        verificationType: 'document',
+        verificationProvider: 'dojah',
+        requestData: {
+          documentType,
+          hasDocumentImage: !!documentImage,
+          hasSelfieImage: !!selfieImage,
+          documentImageSize: documentImage ? documentImage.length : 0,
+          selfieImageSize: selfieImage ? selfieImage.length : 0
+        },
+        ipAddress: clientInfo.ipAddress,
+        userAgent: clientInfo.userAgent,
+        metadata: {
+          endpoint: 'PUT /api/dojah-kyc',
+          timestamp: new Date().toISOString(),
+          requestId: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        }
+      }
+    );
 
     console.log('Making document verification request to Dojah API');
 
@@ -281,6 +434,20 @@ export async function PUT(request: Request) {
         statusText: response.statusText,
         data
       });
+
+      // Update audit log with failure
+      if (auditLogId) {
+        await kycAuditService.updateAuditLogStatus(
+          auditLogId,
+          'failed',
+          `HTTP_${response.status}`,
+          data?.message || `Document verification service error: ${response.status} ${response.statusText}`,
+          data,
+          undefined,
+          Date.now() - startTime
+        );
+      }
+
       return createJsonResponse({ 
         error: data?.message || `Document verification service error: ${response.status} ${response.statusText}`,
         details: data
@@ -307,18 +474,86 @@ export async function PUT(request: Request) {
       // Continue anyway, as the verification was successful
     }
 
+    // Update audit log with success
+    if (auditLogId) {
+      const verificationStatus = data.entity?.verification_status || 'pending';
+      const isSuccess = verificationStatus === 'verified' || verificationStatus === 'success';
+      
+      await kycAuditService.updateAuditLogStatus(
+        auditLogId,
+        isSuccess ? 'success' : 'pending',
+        data.entity?.status_code || 'SUCCESS',
+        data.entity?.message || 'Document verification completed',
+        {
+          ...data,
+          // Remove sensitive image data from audit trail
+          entity: data.entity ? {
+            ...data.entity,
+            document_image: '[REDACTED]',
+            selfie_image: '[REDACTED]'
+          } : undefined
+        },
+        data.entity?.confidence_score || null,
+        Date.now() - startTime
+      );
+
+      // Create additional audit event for document verification completion
+      await kycAuditService.createAuditEvent({
+        auditLogId,
+        userId: user.id,
+        eventType: isSuccess ? 'document_verified' : 'document_processed',
+        eventData: {
+          documentType,
+          provider: 'dojah',
+          responseTime: Date.now() - startTime,
+          status: verificationStatus
+        },
+        severity: isSuccess ? 'medium' : 'high'
+      });
+    }
+
     // Return the verification result
     return createJsonResponse({
       status: 'success',
       message: 'Document verified successfully',
-      data: data.entity
+      data: data.entity,
+      auditLogId: auditLogId // Include audit log ID for tracking
     });
   } catch (error) {
     console.error('Error verifying document:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    
+    // Update audit log with error if it exists
+    if (auditLogId) {
+      await kycAuditService.updateAuditLogStatus(
+        auditLogId,
+        'failed',
+        'INTERNAL_ERROR',
+        errorMessage,
+        { error: errorMessage, stack: error instanceof Error ? error.stack : undefined },
+        undefined,
+        Date.now() - startTime
+      );
+
+      // Create audit event for the error
+      if (user) {
+        await kycAuditService.createAuditEvent({
+          auditLogId,
+          userId: user.id,
+          eventType: 'verification_failed',
+          eventData: {
+            error: errorMessage,
+            timestamp: new Date().toISOString()
+          },
+          severity: 'critical'
+        });
+      }
+    }
+    
     return createJsonResponse({ 
       error: 'Internal server error during document verification',
-      details: errorMessage
+      details: errorMessage,
+      auditLogId: auditLogId // Include audit log ID for tracking
     }, 500);
   }
 }
