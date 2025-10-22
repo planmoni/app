@@ -78,9 +78,15 @@ console.warn = (...args: any[]) => {
   originalConsoleWarn(...args);
 };
 
-// Suppress unhandled promise rejections
-const originalUnhandledRejection = global.onunhandledrejection;
-global.onunhandledRejection = (event: any) => {
-  // Suppress unhandled promise rejections
-  event.preventDefault();
-}; 
+// Suppress unhandled promise rejections (safe assignment)
+try {
+  if (typeof (global as any).onunhandledrejection !== 'undefined') {
+    (global as any).onunhandledrejection = (event: any) => {
+      try { event.preventDefault(); } catch (e) { /* ignore */ }
+    };
+  } else if (typeof (global as any).addEventListener === 'function') {
+    // no-op: React Native doesn't expose window.onunhandledrejection in some environments
+  }
+} catch (e) {
+  // ignore assignment errors
+}

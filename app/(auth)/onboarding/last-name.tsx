@@ -74,7 +74,6 @@ export default function LastNameScreen() {
             )}
             
             <View style={styles.inputContainer}>
-              <User size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 ref={lastNameInputRef}
                 style={styles.input}
@@ -131,7 +130,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   signInText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.text,
   },
   contentContainer: {
     flexGrow: 1,

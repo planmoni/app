@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { usePathname } from 'expo-router';
-import { useAutoLogout } from '@/contexts/AutoLogoutContext';
+import { useAppLock } from '@/contexts/AppLockContext';
 
 export const usePageTracking = () => {
   const pathname = usePathname();
-  const { setLastActivePage, isAppLocked } = useAutoLogout();
+  const { setLastActivePage, isAppLocked } = useAppLock();
 
   useEffect(() => {
     // Only track pages when the app is not locked

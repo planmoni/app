@@ -1,7 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal, Animated } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal, Animated, KeyboardAvoidingView , useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Shield, User, Calendar, Info, Lock, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, FileText, ChevronLeft, X } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,12 +11,12 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useAuth } from '@/contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
-import { useWindowDimensions } from 'react-native';
 import LocationSearchModal from '@/components/LocationSearchModal';
 import { useKYCData } from '@/hooks/useKYCData';
 import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
 import { useBanks, Bank } from '@/hooks/useBanks';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useAccountResolution } from '@/hooks/useAccountResolution';
 import { supabase } from '@/lib/supabase';
 import LivenessTest from '@/components/LivenessTest';
 type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
@@ -35,7 +34,8 @@ export default function KYCUpgradeScreen() {
   // Custom hooks for KYC data and progress
   const { formData, loading: formDataLoading, saveFormData } = useKYCData();
   const { progress, loading: progressLoading, updateProgress, getStepProgress } = useKYCProgress();
-  const { banks, isLoading: banksLoading, error: banksError, refetch: refetchBanks } = useBanks();
+  const { banks, isLoading: banksLoading, error: banksError } = useBanks();
+  const { resolveAccount, isResolving: isResolvingAccount, error: accountResolutionError, setError: setAccountResolutionError } = useAccountResolution();
   
   // Animation values for bank selection modal
   const bankListSlideAnim = useRef(new Animated.Value(height)).current;
@@ -117,6 +117,8 @@ export default function KYCUpgradeScreen() {
   // Identity information
   const [bvn, setBvn] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [accountResolved, setAccountResolved] = useState(false);
   const [bvnMatchedName, setBvnMatchedName] = useState('');
   const [nin, setNin] = useState('');
   const [passportNumber, setPassportNumber] = useState('');
@@ -317,6 +319,11 @@ export default function KYCUpgradeScreen() {
     
     if (!selectedBank) {
       newErrors.selectedBank = 'Please select your bank';
+    }
+    
+    // Validate account resolution
+    if (accountNumber.length === 10 && selectedBank && !accountResolved) {
+      newErrors.accountResolution = 'Account verification failed. Please check your account number and bank selection.';
     }
     
     setErrors(newErrors);
@@ -1432,6 +1439,29 @@ export default function KYCUpgradeScreen() {
     setDateOfBirth(formattedDate);
     setErrors(prev => ({ ...prev, dateOfBirth: '' }));
   };
+
+  const handleResolveAccount = async (accountNumber: string, bankCode: string) => {
+    if (accountNumber.length !== 10 || !bankCode) {
+      return;
+    }
+    
+    haptics.impact(Haptics.ImpactFeedbackStyle.Medium);
+    
+    try {
+      const accountDetails = await resolveAccount(accountNumber, bankCode);
+      
+      if (accountDetails) {
+        setAccountName(accountDetails.account_name);
+        setAccountResolved(true);
+        setAccountResolutionError(null);
+        haptics.notification(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      setAccountResolved(false);
+      setAccountName('');
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
+    }
+  };
   
 
   
@@ -1836,6 +1866,31 @@ export default function KYCUpgradeScreen() {
           {errors.selectedBank && <Text style={styles.errorText}>{errors.selectedBank}</Text>}
         </View>
         
+        {/* Account Name Display - Only show when account is resolved */}
+        {accountResolved && accountName && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Account Name</Text>
+            <View style={[styles.inputContainer, styles.resolvedInput]}>
+              <Check size={20} color={colors.success} />
+              <Text style={[styles.input, { color: colors.text }]}>
+                {accountName}
+              </Text>
+              {isResolvingAccount && (
+                <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
+              )}
+            </View>
+          </View>
+        )}
+        
+        {/* Account Resolution Error Display */}
+        {(accountResolutionError || errors.accountResolution) && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>
+              {accountResolutionError || errors.accountResolution}
+            </Text>
+          </View>
+        )}
+        
         {bvnVerified && bvnMatchedName && (
           <View style={styles.matchedNameContainer}>
             <Check size={16} color={colors.success} />
@@ -1923,7 +1978,7 @@ export default function KYCUpgradeScreen() {
               <Text style={[
                 styles.idOptionText,
                 selectedIdentityType === 'drivers_license' && styles.selectedIdOptionText
-              ]}>Driver's License</Text>
+              ]}>Drivers License</Text>
             </Pressable>
           </View>
         </View>
@@ -1979,7 +2034,7 @@ export default function KYCUpgradeScreen() {
         
         {selectedIdentityType === 'drivers_license' && (
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Driver's License Number</Text>
+            <Text style={styles.label}>Drivers License Number</Text>
             <View style={[styles.inputContainer, errors.driversLicense && styles.inputError]}>
               <CreditCard size={20} color={colors.textSecondary} />
               <TextInput
@@ -2719,6 +2774,10 @@ export default function KYCUpgradeScreen() {
     inputError: {
       borderColor: colors.error,
     },
+    resolvedInput: {
+      borderColor: colors.success,
+      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
+    },
     input: {
       flex: 1,
       fontSize: 16,
@@ -3294,7 +3353,7 @@ export default function KYCUpgradeScreen() {
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       width: '100%',
-      maxHeight: '80%',
+      maxHeight: '85%',
       borderWidth: isDark ? 1 : 0,
       borderColor: isDark ? colors.border : 'transparent',
       // Add shadow for iOS
@@ -3309,6 +3368,10 @@ export default function KYCUpgradeScreen() {
           elevation: 5,
         },
       }),
+    },
+    keyboardAvoidingContainer: {
+      flex: 1,
+      minHeight: 0, // Allow flex to work properly
     },
     dragIndicator: {
       width: 40,
@@ -3346,6 +3409,8 @@ export default function KYCUpgradeScreen() {
       padding: isSmallScreen ? 12 : 16,
       marginHorizontal: 2,
       marginTop: 5,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
     },
     searchInput: {
       flex: 1,
@@ -3359,7 +3424,8 @@ export default function KYCUpgradeScreen() {
       backgroundColor: '#EBF1F9',
     },
     bankList: {
-      maxHeight: '60%',
+      flex: 1,
+      minHeight: 200, // Ensure minimum height for scrolling
     },
     bankOption: {
       flexDirection: 'row',
@@ -3496,7 +3562,11 @@ export default function KYCUpgradeScreen() {
           style={[
             styles.bankListModal,
             { 
-              transform: [{ translateY: bankListSlideAnim }]
+              transform: [{ translateY: bankListSlideAnim }],
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
             }
           ]}
         >
@@ -3515,18 +3585,27 @@ export default function KYCUpgradeScreen() {
             </Pressable>
           </View>
           
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search banks..."
-              placeholderTextColor={colors.textTertiary}
-              value={bankSearchQuery}
-              onChangeText={setBankSearchQuery}
-              autoFocus
-            />
-          </View>
-          
-          <ScrollView style={styles.bankList} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardAvoidingContainer}
+          >
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search banks..."
+                placeholderTextColor={colors.textTertiary}
+                value={bankSearchQuery}
+                onChangeText={setBankSearchQuery}
+                autoFocus
+              />
+            </View>
+            
+            <ScrollView 
+              style={styles.bankList} 
+              nestedScrollEnabled 
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
             {banksLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={colors.primary} />
@@ -3537,12 +3616,7 @@ export default function KYCUpgradeScreen() {
                 <Text style={styles.noResultsText}>
                   Error loading banks: {banksError}
                 </Text>
-                <Pressable
-                  style={styles.retryButton}
-                  onPress={refetchBanks}
-                >
-                  <Text style={styles.retryButtonText}>Retry</Text>
-                </Pressable>
+                <Text style={styles.retryButtonText}>Please restart the app to retry</Text>
               </View>
             ) : (
               (() => {
@@ -3571,12 +3645,7 @@ export default function KYCUpgradeScreen() {
                         </Text>
                       )}
                       {!bankSearchQuery && banks.length === 0 && (
-                        <Pressable
-                          style={styles.retryButton}
-                          onPress={refetchBanks}
-                        >
-                          <Text style={styles.retryButtonText}>Refresh Banks</Text>
-                        </Pressable>
+                        <Text style={styles.retryButtonText}>Please restart the app to refresh</Text>
                       )}
                     </View>
                   );
@@ -3592,6 +3661,18 @@ export default function KYCUpgradeScreen() {
                       setBankSearchQuery(''); // Clear search on selection
                       setErrors(prev => ({ ...prev, selectedBank: '' }));
                       haptics.selection();
+                      
+                      // Reset account resolution if bank changes
+                      if (accountResolved) {
+                        setAccountResolved(false);
+                        setAccountName('');
+                        setAccountResolutionError(null);
+                      }
+                      
+                      // If account number is already 10 digits, try to resolve account
+                      if (accountNumber.length === 10) {
+                        handleResolveAccount(accountNumber, bank.code);
+                      }
                       
                       // Save bank selection to form data
                       saveFormData({
@@ -3629,7 +3710,8 @@ export default function KYCUpgradeScreen() {
                 ));
               })()
             )}
-          </ScrollView>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </Animated.View>
       </Animated.View>
       

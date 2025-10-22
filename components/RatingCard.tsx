@@ -16,7 +16,7 @@ export default function RatingCard() {
         <Text style={styles.feedbackSubtitle}>Rate it and help us improve</Text>
         <View style={styles.starsRow}>
           {[...Array(5)].map((_, i) => (
-            <Star key={i} size={28} color={colors.primary} fill={colors.primary} style={styles.starIcon} />
+            <Star key={i} size={28} color={colors.text} fill={colors.backgroundTertiary} style={styles.starIcon} />
           ))}
         </View>
         <Pressable
@@ -63,13 +63,16 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   feedbackButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.backgroundTertiary,
     paddingHorizontal: Platform.OS === 'ios' ? 24 : 16,
     paddingVertical: Platform.OS === 'ios' ? 10 : 8,
-    borderRadius: 12,
+    borderRadius: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 55,
   },
   feedbackButtonText: {
-    color: '#fff',
+    color: colors.text,
     fontWeight: '600',
     fontSize: Platform.OS === 'ios' ? 14 : 12,
   },

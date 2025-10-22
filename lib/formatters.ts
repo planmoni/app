@@ -7,6 +7,8 @@
  */
 export function formatPayoutFrequency(frequency: string, dayOfWeek?: number | null): string {
   switch (frequency) {
+    case 'daily':
+      return 'Daily';
     case 'weekly':
       return 'Weekly';
     case 'weekly_specific':
@@ -74,4 +76,30 @@ export function formatDisplayDate(dateString: string): string {
  */
 export function formatCurrency(amount: number, showCurrency: boolean = true): string {
   return showCurrency ? `₦${amount.toLocaleString()}` : amount.toLocaleString();
+}
+
+/**
+ * Formats a payout date and time for display
+ * 
+ * @param dateString Date string in any valid format
+ * @returns Formatted date and time string (e.g., "Oct 5, 2025 at 3:00PM")
+ */
+export function formatPayoutDateTime(dateString: string): string {
+  const date = new Date(dateString);
+  
+  // Format date
+  const dateFormatted = date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+  
+  // Format time
+  const timeFormatted = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+  
+  return `${dateFormatted} at ${timeFormatted}`;
 }

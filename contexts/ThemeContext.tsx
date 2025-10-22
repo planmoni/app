@@ -25,6 +25,10 @@ const lightColors = {
   iconColor: '#203B8B',
   buttonPrimary: '#203B8B',
   buttonTextPrimary: '#203B8B',
+  accent: '#C3F57E',
+  accentText: '#C3F57E',
+  accentBackground: '#F8FCF4',
+  accentBorder: '#C3F57E',
   
   // Surface colors
   surface: '#FFFFFF',
@@ -76,6 +80,10 @@ const darkColors = {
   iconColor: '#85A9DE',
   buttonPrimary: '#fff',
   buttonTextPrimary: '#fff',
+  accent: '#C3F57E',
+  accentText: '#C3F57E',
+  accentBackground: '#0E141F',
+  accentBorder: '#fff',
   
   // Surface colors
   surface: '#0E141F',
@@ -121,7 +129,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('system');
   const [isLoading, setIsLoading] = useState(true);
   const [systemColorScheme, setSystemColorScheme] = useState<ColorSchemeName>(
-    Appearance.getColorScheme()
+    Appearance.getColorScheme() || 'light' // Fallback to light if null
   );
 
   // Load theme preference from storage on mount
@@ -129,12 +137,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const loadThemePreference = async () => {
       try {
         const savedTheme = await getItem(THEME_PREFERENCE_KEY);
+        const currentSystemScheme = Appearance.getColorScheme() || 'light';
+        
+        console.log('🎨 Theme initialization:');
+        console.log('   - Saved theme preference:', savedTheme);
+        console.log('   - Current system scheme:', currentSystemScheme);
+        console.log('   - Initial systemColorScheme state:', systemColorScheme);
+        
         if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
           console.log('🎨 Loading saved theme preference:', savedTheme);
           setThemeState(savedTheme as Theme);
         } else {
           console.log('🎨 No saved theme preference, using system default');
         }
+        
+        // Ensure system color scheme is up to date
+        setSystemColorScheme(currentSystemScheme);
       } catch (error) {
         console.error('❌ Failed to load theme preference:', error);
       } finally {
@@ -145,19 +163,48 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     loadThemePreference();
   }, []);
 
+  // Ensure system color scheme is properly detected on startup
+  useEffect(() => {
+    const detectSystemScheme = () => {
+      const currentScheme = Appearance.getColorScheme() || 'light';
+      console.log('🎨 Detecting system color scheme:', currentScheme);
+      setSystemColorScheme(currentScheme);
+    };
+    
+    // Detect immediately
+    detectSystemScheme();
+    
+    // Also detect after a short delay to ensure system is ready
+    const timeoutId = setTimeout(detectSystemScheme, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, []);
+
   // Listen to system appearance changes
   useEffect(() => {
     const subscription = Appearance.addChangeListener(({ colorScheme }) => {
-      setSystemColorScheme(colorScheme);
+      const newScheme = colorScheme || 'light'; // Fallback to light if null
+      console.log('🎨 System appearance changed:', {
+        from: systemColorScheme,
+        to: newScheme,
+        currentTheme: theme,
+        willBeDark: theme === 'dark' || (theme === 'system' && newScheme === 'dark')
+      });
+      setSystemColorScheme(newScheme);
     });
 
     return () => subscription?.remove();
-  }, []);
+  }, [systemColorScheme, theme]);
 
   // Save theme preference to storage when it changes
   const setTheme = async (newTheme: Theme) => {
     try {
-      console.log('🎨 Setting theme preference:', newTheme);
+      console.log('🎨 Setting theme preference:', {
+        from: theme,
+        to: newTheme,
+        currentSystemScheme: systemColorScheme,
+        willBeDark: newTheme === 'dark' || (newTheme === 'system' && systemColorScheme === 'dark')
+      });
       setThemeState(newTheme);
       await saveItem(THEME_PREFERENCE_KEY, newTheme);
       console.log('✅ Theme preference saved successfully');

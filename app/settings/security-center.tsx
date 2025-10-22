@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { usePin } from '@/contexts/PinContext';
-import { useAutoLogout } from '@/contexts/AutoLogoutContext';
+import { useAppLock } from '@/contexts/AppLockContext';
 import { BiometricService } from '@/lib/biometrics';
 import AppBlurSettings from '@/components/AppBlurSettings';
 
@@ -19,8 +20,9 @@ export default function SecurityCenter() {
     enableBiometric, 
     disableBiometric 
   } = usePin();
-  const { autoLogoutDuration, setAutoLogoutDuration, lockApp, isAppLocked, enableNavigationProtection } = useAutoLogout();
+  const { autoLockDuration, setAutoLockDuration, lockApp, isAppLocked } = useAppLock();
   const { isDark, colors } = useTheme();
+  const { navigateToHome } = useSafeNavigation();
   
   const [payoutBiometrics, setPayoutBiometrics] = useState(false);
   const [emergencyBiometrics, setEmergencyBiometrics] = useState(false);
@@ -155,14 +157,6 @@ export default function SecurityCenter() {
     }
   };
 
-  const handleDone = () => {
-    // Enable navigation protection to prevent app lock loop
-    enableNavigationProtection();
-    
-    // Navigate back to tabs
-    router.push('/(tabs)/');
-  };
-
   const renderSection = (title: string, children: React.ReactNode) => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -223,82 +217,89 @@ export default function SecurityCenter() {
             hasAppLockPin ? 'Change your app lock PIN' : 'Create a PIN to lock your app',
             handlePinSetup
           )}
-          
-          {renderSettingItem(
-            'time-outline',
-            'Auto Logout',
-            `Current: ${autoLogoutDuration === '5' ? 'After 5 mins' : 
-                       autoLogoutDuration === '60' ? 'After 60 mins' : 
-                       autoLogoutDuration === 'never' ? 'OFF' : 'Not set'}`,
-            () => Alert.alert('Auto Logout', 'Select auto logout duration', [
-              { text: 'After 5 mins', onPress: () => setAutoLogoutDuration('5') },
-              { text: 'After 60 mins', onPress: () => setAutoLogoutDuration('60') },
-              { text: 'OFF', onPress: () => setAutoLogoutDuration('never') },
-              { text: 'Cancel', style: 'cancel' }
-            ])
+          {hasAppLockPin && (
+            <>
+              {renderSettingItem(
+                'time-outline',
+                'Auto Logout',
+                `Current: ${autoLockDuration === '5' ? 'After 5 mins' : 
+                           autoLockDuration === '60' ? 'After 60 mins' : 
+                           autoLockDuration === 'never' ? 'OFF' : 'Not set'}`,
+                () => Alert.alert('Auto Logout', 'Select auto logout duration', [
+                  { text: 'After 5 mins', onPress: () => setAutoLockDuration('5') },
+                  { text: 'After 60 mins', onPress: () => setAutoLockDuration('60') },
+                  { text: 'OFF', onPress: () => setAutoLockDuration('never') },
+                  { text: 'Cancel', style: 'cancel' }
+                ])
+              )}
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingLeft}>
+                  <View style={styles.iconContainer}>
+                    <Ionicons name={getBiometricIcon() as any} size={20} color={colors.text} />
+                  </View>
+                  <View style={styles.settingText}>
+                    <Text style={styles.settingTitle}>{getBiometricText('app')}</Text>
+                    <Text style={styles.settingSubtitle}>{getBiometricSubtitle('app')}</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={biometricEnabled}
+                  onValueChange={() => handleBiometricToggle('app')}
+                  trackColor={{ false: colors.border, true: '#D1EAAE'}}
+                  thumbColor={biometricEnabled ? colors.primary : colors.backgroundSecondary }
+                  disabled={!biometricSupport?.isAvailable || !biometricSupport?.isEnrolled}
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingLeft}>
+                  <View style={styles.iconContainer}>
+                    <Ionicons name="card-outline" size={20} color={colors.text} />
+                  </View>
+                  <View style={styles.settingText}>
+                    <Text style={styles.settingTitle}>Use Biometric for Payout Confirmation</Text>
+                    <Text style={styles.settingSubtitle}>Require PIN/biometric for payout confirmations</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={payoutBiometricEnabled}
+                  onValueChange={() => handleBiometricToggle('payout')}
+                  trackColor={{ false: colors.border, true: '#D1EAAE' }}
+                  thumbColor={payoutBiometricEnabled ? colors.primary : colors.backgroundSecondary }
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingLeft}>
+                  <View style={styles.iconContainer}>
+                    <Ionicons name="warning-outline" size={20} color={colors.text} />
+                  </View>
+                  <View style={styles.settingText}>
+                    <Text style={styles.settingTitle}>Use Biometric for Emergency Withdrawals Confirmation</Text>
+                    <Text style={styles.settingSubtitle}>Require PIN/biometric for emergency withdrawals</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={emergencyBiometricEnabled}
+                  onValueChange={() => handleBiometricToggle('emergency')}
+                  trackColor={{ false: colors.border, true: '#D1EAAE' }}
+                  thumbColor={emergencyBiometricEnabled ? colors.primary : colors.backgroundSecondary }
+                />
+              </View>
+            </>
           )}
-          
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <View style={styles.iconContainer}>
-                <Ionicons name={getBiometricIcon() as any} size={20} color={colors.text} />
-              </View>
-              <View style={styles.settingText}>
-                <Text style={styles.settingTitle}>{getBiometricText('app')}</Text>
-                <Text style={styles.settingSubtitle}>{getBiometricSubtitle('app')}</Text>
-              </View>
-            </View>
-            <Switch
-              value={biometricEnabled}
-              onValueChange={() => handleBiometricToggle('app')}
-              trackColor={{ false: colors.border, true: '#93C5FD'}}
-              thumbColor={biometricEnabled ? colors.primary : colors.backgroundSecondary }
-              disabled={!biometricSupport?.isAvailable || !biometricSupport?.isEnrolled}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <View style={styles.iconContainer}>
-                <Ionicons name="card-outline" size={20} color={colors.text} />
-              </View>
-              <View style={styles.settingText}>
-                <Text style={styles.settingTitle}>Use Biometric for Payout Confirmation</Text>
-                <Text style={styles.settingSubtitle}>Require PIN/biometric for payout confirmations</Text>
-              </View>
-            </View>
-            <Switch
-              value={payoutBiometricEnabled}
-              onValueChange={() => handleBiometricToggle('payout')}
-              trackColor={{ false: colors.border, true: '#93C5FD' }}
-              thumbColor={payoutBiometricEnabled ? colors.primary : colors.backgroundSecondary }
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <View style={styles.iconContainer}>
-                <Ionicons name="warning-outline" size={20} color={colors.text} />
-              </View>
-              <View style={styles.settingText}>
-                <Text style={styles.settingTitle}>Use Biometric for Emergency Withdrawals Confirmation</Text>
-                <Text style={styles.settingSubtitle}>Require PIN/biometric for emergency withdrawals</Text>
-              </View>
-            </View>
-            <Switch
-              value={emergencyBiometricEnabled}
-              onValueChange={() => handleBiometricToggle('emergency')}
-              trackColor={{ false: colors.border, true: '#93C5FD' }}
-              thumbColor={emergencyBiometricEnabled ? colors.primary : colors.backgroundSecondary }
-            />
-          </View>
         </>
       ))}
 
       <View style={styles.doneButtonContainer}>
         <TouchableOpacity 
           style={styles.doneButton} 
-          onPress={handleDone}
+          onPress={() => {
+            console.log('🔘 Security Center - Done button pressed');
+            navigateToHome();
+          }}
+          // onPress={() => router.back()}
         >
           <Text style={styles.doneButtonText}>Done</Text>
         </TouchableOpacity>

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput , Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +10,6 @@ import { supabase } from '@/lib/supabase';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
 
 export default function VerifyOTPScreen() {
   const { colors } = useTheme();
@@ -18,7 +17,7 @@ export default function VerifyOTPScreen() {
   const { session } = useAuth();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const email = params.email as string || session?.user?.email;
+  const email = (params.email as string) || session?.user?.email || '';
   
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +27,7 @@ export default function VerifyOTPScreen() {
   const [timer, setTimer] = useState(60);
   const [isResending, setIsResending] = useState(false);
   
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
 
   // Callback ref for setting inputRefs
   const setInputRef = useCallback((el: TextInput | null, index: number) => {
@@ -111,8 +110,9 @@ export default function VerifyOTPScreen() {
       }
       
       // Call the Supabase function to send OTP
+      const emailParam = email ? email.trim().toLowerCase() : '';
       const { data, error: otpError } = await supabase.rpc('send_otp_email', {
-        p_email: email.trim().toLowerCase()
+        p_email: emailParam
       });
       
       if (otpError) {
@@ -161,8 +161,9 @@ export default function VerifyOTPScreen() {
     
     try {
       // Call the Supabase function to verify OTP
+      const verifyEmailParam = email ? email.trim().toLowerCase() : '';
       const { data, error: verifyError } = await supabase.rpc('verify_otp', {
-        p_email: email.trim().toLowerCase(),
+        p_email: verifyEmailParam,
         p_otp: otpValue
       });
       

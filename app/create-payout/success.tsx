@@ -1,20 +1,21 @@
-import { View, Text, StyleSheet, ScrollView, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Dimensions, Image, Pressable, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatDisplayDate, formatPayoutFrequency } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
-import React from 'react';
-import { Building2 } from 'lucide-react-native';
+import { Building2, X } from 'lucide-react-native';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const haptics = useHaptics();
+  const { navigateToHome } = useSafeNavigation();
   
   // Get screen dimensions for responsive design
   const { width: screenWidth } = Dimensions.get('window');
@@ -61,6 +62,22 @@ export default function SuccessScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
+        <View style={styles.headerSpacer} />
+        <Text style={styles.headerTitle}>Payout Plan Created</Text>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            navigateToHome();
+          }} 
+          style={styles.cancelButton}
+        >
+          <X size={24} color={colors.text} />
+        </Pressable>
+      </View>
+      
       <ScrollView 
         style={styles.scrollView} 
         contentContainerStyle={styles.scrollContent}
@@ -144,6 +161,32 @@ const createStyles = (colors: any, isSmallScreen: boolean, isMediumScreen: boole
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    flex: 1,
+    textAlign: 'center',
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollView: {
     flex: 1,
@@ -265,8 +308,16 @@ const createStyles = (colors: any, isSmallScreen: boolean, isMediumScreen: boole
   },
   viewPayoutsButton: {
     backgroundColor: '#1E3A8A',
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   dashboardButton: {
     borderColor: colors.border,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
 });

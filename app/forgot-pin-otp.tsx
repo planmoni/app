@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput , Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, Shield } from 'lucide-react-native';
@@ -9,7 +9,6 @@ import { useToast } from '@/contexts/ToastContext';
 import FloatingButton from '@/components/FloatingButton';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { supabase } from '@/lib/supabase';
-import { Platform } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function ForgotPinOTPScreen() {
@@ -27,7 +26,7 @@ export default function ForgotPinOTPScreen() {
   const [timer, setTimer] = useState(60);
   const [isResending, setIsResending] = useState(false);
   
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
   const styles = createStyles(colors, isDark);
 
   // Callback ref for setting inputRefs

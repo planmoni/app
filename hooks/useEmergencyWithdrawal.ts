@@ -35,7 +35,8 @@ export function useEmergencyWithdrawal() {
   };
 
   const calculateNetAmount = (amount: number, option: EmergencyWithdrawalOption): number => {
-    return amount - calculateFee(amount, option);
+    const fee = calculateFee(amount, option);
+    return Math.round((amount - fee) * 100) / 100; // Round to 2 decimal places
   };
 
   const processEmergencyWithdrawal = async (request: EmergencyWithdrawalRequest) => {
@@ -125,6 +126,27 @@ export function useEmergencyWithdrawal() {
       }
 
       console.log('Emergency withdrawal processed successfully:', result);
+
+      // Update the transaction record with account details if available
+      if (result.data?.account_details) {
+        const { error: updateError } = await supabase
+          .from('transactions')
+          .update({
+            destination: result.data.account_details,
+            metadata: {
+              withdrawal_type: request.option,
+              fee_amount: feeAmount,
+              net_amount: netAmount,
+              emergency_withdrawal_id: withdrawalRecord.id,
+              account_details: result.data.account_details
+            }
+          })
+          .eq('reference', reference);
+
+        if (updateError) {
+          console.error('Error updating transaction with account details:', updateError);
+        }
+      }
 
       // Show success toast
       showToast('Emergency withdrawal processed successfully', 'success');

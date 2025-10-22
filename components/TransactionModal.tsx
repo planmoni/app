@@ -1,17 +1,15 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Animated, Dimensions, Platform, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Animated, Dimensions, Platform, Modal , Image } from 'react-native';
 import { X, Copy, ArrowUpRight, BanknoteArrowUp, ArrowDownRight, FileText, Image as LucideImage, BanknoteArrowDown } from 'lucide-react-native';
-import { Image } from 'react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system';
 import * as Print from 'expo-print';
 import { useToast } from '@/contexts/ToastContext';
-import React from 'react';
 import { captureRef } from 'react-native-view-shot';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
@@ -509,7 +507,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Date: {transaction.date} {transaction.time}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Transaction ID: {transaction.transactionId}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Type: {transaction.type}</Text>
-      <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Source: {transaction.source}</Text>
+      <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Source Plan: {transaction.source}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Destination: {transaction.destination}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Plan Ref: {transaction.planRef}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Payment Method: {transaction.paymentMethod}</Text>
@@ -591,7 +589,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
                 </View>
 
                 <View style={styles.field}>
-                  <Text style={styles.label}>Source</Text>
+                  <Text style={styles.label}>Source Plan</Text>
                   <Text style={styles.value}>{transaction.source}</Text>
                 </View>
 
@@ -628,10 +626,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
                   <Text style={styles.value}>{transaction.paymentMethod}</Text>
                 </View>
 
-                <View style={styles.field}>
-                  <Text style={styles.label}>Initiated By</Text>
-                  <Text style={styles.value}>{transaction.initiatedBy}</Text>
-                </View>
+               
 
                 <View style={styles.field}>
                   <Text style={styles.label}>Processing Time</Text>
@@ -875,10 +870,18 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
   },
   receiptButton: {
     backgroundColor: colors.primary,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   reportButton: {
     borderColor: colors.border,
     backgroundColor: colors.surface,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   formatModalOverlay: {
     flex: 1,

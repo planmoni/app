@@ -23,6 +23,7 @@ import {
   EyeOff,
   CircleHelp as HelpCircle,
   Lock,
+  Clock,
   Plus,
   RefreshCw,
   Star,
@@ -54,11 +55,11 @@ import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { intercomInstant } from '@/lib/IntercomInstant';
 import NotificationIcon from '@/components/NotificationIcon';
 import { supabase } from '@/lib/supabase';
 import NextPayoutCard from '@/components/NextPayoutCard';
 import PayoutPlansSection from '@/components/PayoutPlansSection';
-import SummaryCard from '@/components/SummaryCard';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 import { intercomService } from '@/lib/intercom';
@@ -98,7 +99,6 @@ export default function HomeScreen() {
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isHelpLoading, setIsHelpLoading] = useState(false);
   const [carouselImages, setCarouselImages] = useState<any[]>([]);
   const [imagesReady, setImagesReady] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -214,18 +214,23 @@ export default function HomeScreen() {
       logAnalyticsEvent('help_click');
       
     } catch (error) {
+      console.error('❌ Failed to open Intercom:', error);
       
-      // Show more helpful error message
+      // Show user-friendly error
       Alert.alert(
         'Support Chat Unavailable',
-        'We\'re having trouble connecting to support chat. Please try again or contact us directly.',
+        'Unable to open support chat at the moment. This might be due to network connectivity issues. Would you like to try again?',
         [
-          { text: 'Try Again', onPress: () => handleHelpPress() },
-          { text: 'Cancel', style: 'cancel' }
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Retry', 
+            onPress: () => {
+              console.log('🔄 Retrying Intercom...');
+              handleHelpPress();
+            }
+          }
         ]
       );
-    } finally {
-      setIsHelpLoading(false);
     }
   };
 
@@ -356,7 +361,7 @@ export default function HomeScreen() {
       date: new Date(transaction.created_at).toLocaleDateString(),
       time: new Date(transaction.created_at).toLocaleTimeString(),
       type: transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1),
-      source: transaction.source,
+      source: plan?.name || transaction.source,
       destination: `${bankName} •••• ${accountNumber.slice(-4)}`, // Use actual bank name
       transactionId: transaction.id,
       planRef: transaction.payout_plan_id || '',
@@ -400,79 +405,6 @@ export default function HomeScreen() {
       return dateA.getTime() - dateB.getTime();
     })[0]; // Get the first one (earliest date)
 
-  // Calculate summary stats from actual data
-  const totalPaidOut = payoutPlans.reduce((sum, plan) => 
-    sum + (plan.completed_payouts * plan.payout_amount), 0
-  );
-  
-  const pendingPayouts = payoutPlans
-    .filter(plan => plan.status === 'active')
-    .reduce((sum, plan) => 
-      sum + ((plan.duration - plan.completed_payouts) * plan.payout_amount), 0
-    );
-
-  const completionRate = payoutPlans.length > 0 
-    ? Math.round((payoutPlans.filter(plan => plan.status === 'completed').length / payoutPlans.length) * 100)
-    : 0;
-
-  // Find the last payout date - the most recent completed payout
-  const getLastPayoutDate = () => {
-    // Sort all plans by their completed_payouts and find the most recent one
-    const completedPayouts = payoutPlans.filter(plan => plan.completed_payouts > 0);
-    
-    if (completedPayouts.length === 0) {
-      return 'No payouts yet';
-    }
-    
-    // For simplicity, we'll use the start_date and completed_payouts to estimate the last payout date
-    // In a real app, you would track actual payout dates in transactions
-    const mostRecentPlan = completedPayouts.reduce((latest, current) => {
-      const latestDate = new Date(latest.start_date);
-      const currentDate = new Date(current.start_date);
-      
-      // Add time based on frequency and completed payouts
-      let latestPayoutDate = new Date(latestDate);
-      let currentPayoutDate = new Date(currentDate);
-      
-      if (latest.frequency === 'weekly') {
-        latestPayoutDate.setDate(latestDate.getDate() + (7 * (latest.completed_payouts - 1)));
-      } else if (latest.frequency === 'biweekly') {
-        latestPayoutDate.setDate(latestDate.getDate() + (14 * (latest.completed_payouts - 1)));
-      } else if (latest.frequency === 'monthly') {
-        latestPayoutDate.setMonth(latestDate.getMonth() + (latest.completed_payouts - 1));
-      }
-      
-      if (current.frequency === 'weekly') {
-        currentPayoutDate.setDate(currentDate.getDate() + (7 * (current.completed_payouts - 1)));
-      } else if (current.frequency === 'biweekly') {
-        currentPayoutDate.setDate(currentDate.getDate() + (14 * (current.completed_payouts - 1)));
-      } else if (current.frequency === 'monthly') {
-        currentPayoutDate.setMonth(currentDate.getMonth() + (current.completed_payouts - 1));
-      }
-      
-      return currentPayoutDate > latestPayoutDate ? current : latest;
-    });
-    
-    // Calculate the estimated last payout date
-    const startDate = new Date(mostRecentPlan.start_date);
-    let lastPayoutDate = new Date(startDate);
-    
-    if (mostRecentPlan.frequency === 'weekly') {
-      lastPayoutDate.setDate(startDate.getDate() + (7 * (mostRecentPlan.completed_payouts - 1)));
-    } else if (mostRecentPlan.frequency === 'biweekly') {
-      lastPayoutDate.setDate(startDate.getDate() + (14 * (mostRecentPlan.completed_payouts - 1)));
-    } else if (mostRecentPlan.frequency === 'monthly') {
-      lastPayoutDate.setMonth(startDate.getMonth() + (mostRecentPlan.completed_payouts - 1));
-    }
-    
-    return lastPayoutDate.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  // Get recent transactions for display
   const recentTransactions = transactions.slice(0, 5);
 
   const handleViewHistory = () => {
@@ -555,7 +487,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.greetingContainer}>
             <Text style={styles.greeting}>{getGreeting()}, {firstName}.</Text>
-            <Text style={styles.subGreeting}>It's time to plan some payouts</Text>
+            {/* <Text style={styles.subGreeting}>It's time to plan some payouts</Text> */}
           </View>
         </View>
         <Pressable 
@@ -578,7 +510,7 @@ export default function HomeScreen() {
           <View style={styles.balanceCardContent}>
             <View style={styles.balanceLabelContainer}>
               <View style={styles.balanceLabelGroup}>
-                <Text style={styles.balanceLabel}>Available Balance</Text>
+                <Text style={styles.balanceLabel}>Your balance</Text>
                 <Pressable 
                   onPress={toggleBalances}
                   style={styles.eyeIconButton}
@@ -602,10 +534,10 @@ export default function HomeScreen() {
             <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
             <View style={styles.lockedSection}>
               <View style={styles.lockedLabelContainer}>
-                <Lock size={16} color={colors.textSecondary} />
-                <Text style={styles.lockedLabel}>Locked for payouts</Text>
+                {/* <Clock size={16} color={colors.textSecondary} /> */}
+                <Text style={styles.lockedLabel}>You have {formatBalance(lockedBalance)} in payout plans</Text>
               </View>
-              <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text>
+              {/* <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text> */}
             </View>
             <View style={styles.buttonGroup}>
               <Pressable 
@@ -613,15 +545,15 @@ export default function HomeScreen() {
                 onPress={handleAddFunds}
               >
                 
-                <BanknoteArrowDown size={24} color={colors.textSecondary}/>
-                <Text style={styles.addFundsText}>Deposit</Text>
+                <Plus size={20} color={colors.textSecondary}/>
+                <Text style={styles.addFundsText}>Add funds</Text>
               </Pressable>
               <Pressable 
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
                 <CalendarCheck size={22} color='#fff' />
-                <Text style={styles.createButtonText}>Create Plan</Text>
+                <Text style={styles.createButtonText}>New plan</Text>
               </Pressable>
               
             </View>
@@ -648,17 +580,6 @@ export default function HomeScreen() {
 
         <View style={styles.bottomPadding} />
 
-        {/* Summary Card */}
-        <SummaryCard 
-          totalPaidOut={totalPaidOut}
-          pendingPayouts={pendingPayouts}
-          completionRate={completionRate}
-          activePlans={activePlans}
-          payoutPlans={payoutPlans}
-          getLastPayoutDate={getLastPayoutDate}
-        />
-
-        {/* Rating Card */}
         <RatingCard />
 
       </ScrollView>
@@ -679,15 +600,15 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
-          <BanknoteArrowDown size={24} color={colors.textSecondary} />
-          <Text style={styles.addFundsText}>Deposit</Text>
+          <Plus size={20} color={colors.textSecondary} />
+          <Text style={styles.addFundsText}>Add funds</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
           <CalendarCheck size={22} color='#fff' />
-          <Text style={styles.createButtonText}>Create Plan</Text>
+          <Text style={styles.createButtonText}>New plan</Text>
         </Pressable>
         
       </Animated.View>
@@ -736,7 +657,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 150,
+    paddingBottom: 80,
   },
   header: {
     marginBottom: Platform.OS === 'ios' ? 20 : 10,
@@ -771,7 +692,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: Platform.OS === 'ios' ? 20 : 18,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: Platform.OS === 'ios' ? 10 : 5,
+    marginTop: Platform.OS === 'ios' ? 5 : 5,
+    marginBottom: Platform.OS === 'ios' ? 5 : 5,
   },
   subGreeting: {
     fontSize: Platform.OS === 'ios' ? 16 : 14,
@@ -836,16 +758,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: Platform.OS === 'ios' ? 30 : 24,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: Platform.OS === 'ios' ? 10 : 0,
+    marginBottom: Platform.OS === 'ios' ? 5 : 0,
   },
   lockedSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    marginBottom: Platform.OS === 'ios' ? 10 : 0,
+    paddingVertical: 5,
+    marginBottom: Platform.OS === 'ios' ? 10 : 10,
   },
   lockedLabelContainer: {
     flexDirection: 'row',
@@ -870,13 +790,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.primary,
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderRadius: 10,
+    borderRadius: 100,
+    height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 5,
   },
   createButtonText: {
-    color: '#FFFFFF',
+    color: '#fff',
     fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
   },
@@ -887,7 +808,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.textSecondary,
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderRadius: 10,
+    borderRadius: 100,
+    height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -1175,7 +1097,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 100,
   },
   createFirstPayoutText: {
     color: '#FFFFFF',

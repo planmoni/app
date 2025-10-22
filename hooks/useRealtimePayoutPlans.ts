@@ -132,7 +132,8 @@ export function useRealtimePayoutPlans() {
           );
         
         // Subscribe with improved error handling
-        channel.subscribe((status: any) => {
+        if (channel) {
+          channel.subscribe((status: any) => {
           console.log('📡 Payout plans subscription status:', status);
           if (status === 'SUBSCRIBED') {
             console.log('✅ Successfully subscribed to payout plans changes');
@@ -146,7 +147,8 @@ export function useRealtimePayoutPlans() {
           } else if (status === 'CLOSED') {
             console.log('🔒 Channel subscription closed');
           }
-        });
+          });
+        }
       } catch (err) {
         console.warn('Failed to setup payout plans subscription:', err);
         // Don't set error state for subscription failures, just log warning

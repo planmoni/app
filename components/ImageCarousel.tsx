@@ -356,7 +356,7 @@ export default function ImageCarousel({
               currentIndex={currentIndex}
               scrollX={Platform.OS === 'web' ? undefined : scrollX}
               screenWidth={SNAP_INTERVAL}
-              color={colors.primary}
+              color={isDark ? colors.text : colors.primary}
               isDark={isDark}
             />
           ))}

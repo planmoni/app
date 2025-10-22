@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-n
 import { Plus } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
-import { formatPayoutFrequency } from '@/lib/formatters';
+import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
 import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
 
@@ -98,11 +98,7 @@ export default function PayoutPlansSection({ activePlans }: PayoutPlansSectionPr
                 
                 {plan.next_payout_date && (
                   <Text style={styles.nextPayoutDate}>
-                    Payday: {new Date(plan.next_payout_date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
+                    Payday: {formatPayoutDateTime(plan.next_payout_date)}
                   </Text>
                 )}
               </Pressable>
@@ -112,7 +108,7 @@ export default function PayoutPlansSection({ activePlans }: PayoutPlansSectionPr
             style={styles.addPayoutCard}
             onPress={handleCreatePayout}
           >
-            <Plus size={24} color={colors.primary} />
+            <Plus size={24} color={colors.text} />
             <Text style={styles.addPayoutText}>Create New Payout</Text>
             <Text style={styles.addPayoutDescription}>
               Set up a new automated payout plan
@@ -123,7 +119,7 @@ export default function PayoutPlansSection({ activePlans }: PayoutPlansSectionPr
         <View style={styles.emptyPayoutsContainer}>
           <Text style={styles.emptyPayoutsText}>No scheduled payout plans</Text>
           <Pressable style={styles.createFirstPayoutButton} onPress={handleCreatePayout}>
-            <Plus size={20} color="#FFFFFF" />
+            <Plus size={20} color={colors.text} />
             <Text style={styles.createFirstPayoutText}>Create Your First Plan</Text>
           </Pressable>
         </View>
@@ -180,7 +176,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     maxWidth: '75%',
   },
   activeTag: {
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#F8FCF4',
     paddingHorizontal: Platform.OS === 'ios' ? 10 : 8,
     paddingVertical: Platform.OS === 'ios' ? 6 : 4,
     borderRadius: Platform.OS === 'ios' ? 20 : 16,
@@ -283,13 +279,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.backgroundTertiary,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8,
+    height: 55,
+    borderRadius: 100,
   },
   createFirstPayoutText: {
-    color: '#FFFFFF',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '600',
   },

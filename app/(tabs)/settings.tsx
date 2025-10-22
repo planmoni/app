@@ -30,7 +30,7 @@ import {
   History
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View , Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -40,7 +40,6 @@ import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
 import { logAnalyticsEvent } from '@/lib/firebase';
-import { Platform } from 'react-native';
 
 export default function SettingsScreen() {
   const { colors, isDark, theme, setTheme } = useTheme();
@@ -206,8 +205,8 @@ export default function SettingsScreen() {
       haptics.notification(Haptics.NotificationFeedbackType.Error);
     }
     Alert.alert(
-      "Delete Account",
-      "Are you sure you want to delete your account? This action cannot be undone.",
+      "Close Account",
+      "Are you sure you want to close your account?",
       [
         {
           text: "Cancel",
@@ -219,7 +218,7 @@ export default function SettingsScreen() {
           }
         },
         {
-          text: "Delete",
+          text: "Yes, Close!",
           style: "destructive",
           onPress: () => {
             if (Platform.OS !== 'web') {
@@ -267,12 +266,11 @@ export default function SettingsScreen() {
           
           <View style={styles.card}>
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Eye size={20} color="#1E3A8A" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Eye size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Show Dashboard Balances</Text>
-                <Text style={styles.settingDescription}>Hide or display wallet and vault balances</Text>
               </View>
               <Switch
                 value={showBalances}
@@ -283,7 +281,7 @@ export default function SettingsScreen() {
                   toggleBalances();
                   logAnalyticsEvent('toggle_balance_visibility', { show_balances: !showBalances });
                 }}
-                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={showBalances ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
@@ -344,8 +342,8 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_account_statement');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}>
-                <Terms size={20} color="#0EA5E9" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Terms size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Generate Account Statement</Text>
@@ -360,8 +358,8 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleViewTransactionHistory}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
-                <History size={20} color="#22C55E" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <History size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Transaction History</Text>
@@ -394,8 +392,8 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleViewPayoutAccounts}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
-                <Wallet size={20} color="#22C55E" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Wallet size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Payout Accounts</Text>
@@ -410,8 +408,8 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleTransactionLimits}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#FEF3C7' }]}>
-                <DollarSign size={20} color="#D97706" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <DollarSign size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Transaction Limits</Text>
@@ -452,8 +450,8 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_security_center');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#FEF3C7' }]}>
-                <Shield size={20} color="#D97706" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Shield size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Security Center</Text>
@@ -468,8 +466,8 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleChangePassword}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
-                <Lock size={20} color="#EF4444" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Lock size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Change Password</Text>
@@ -484,8 +482,8 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleTwoFactorAuth}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#F0FDF4' }]}>
-                <Shield size={20} color="#22C55E" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Shield size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Two-Factor Authentication</Text>
@@ -501,8 +499,8 @@ export default function SettingsScreen() {
           
           <View style={styles.card}>
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: '#FEF9C3' }]}>
-                <Bell size={20} color="#CA8A04" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Bell size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Vault Payout Alerts</Text>
@@ -511,7 +509,7 @@ export default function SettingsScreen() {
               <Switch
                 value={vaultAlerts}
                 onValueChange={() => handleToggleSwitch(setVaultAlerts, 'vault_alerts')}
-                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={vaultAlerts ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
@@ -519,8 +517,8 @@ export default function SettingsScreen() {
             <View style={styles.divider} />
 
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
-                <Shield size={20} color="#1E3A8A" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Shield size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>New Login Notifications</Text>
@@ -529,7 +527,7 @@ export default function SettingsScreen() {
               <Switch
                 value={loginAlerts}
                 onValueChange={() => handleToggleSwitch(setLoginAlerts, 'login_alerts')}
-                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={loginAlerts ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
@@ -537,8 +535,8 @@ export default function SettingsScreen() {
             <View style={styles.divider} />
 
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: '#F5F3FF' }]}>
-                <Clock size={20} color="#8B5CF6" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Clock size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Plan Expiry Reminders</Text>
@@ -547,7 +545,7 @@ export default function SettingsScreen() {
               <Switch
                 value={expiryReminders}
                 onValueChange={() => handleToggleSwitch(setExpiryReminders, 'expiry_reminders')}
-                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={expiryReminders ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
@@ -590,8 +588,8 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_help_center');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
-                <MessageSquare size={20} color="#F97316" />
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <MessageSquare size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Help & Support</Text>
@@ -660,7 +658,7 @@ export default function SettingsScreen() {
             onPress={handleDeleteAccount}
           >
             <Trash2 size={20} color={colors.textTertiary} />
-            <Text style={styles.deleteAccountText}>Delete Account</Text>
+            <Text style={styles.deleteAccountText}>Close your account</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -892,7 +890,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: '#FEF2F2',
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 12,
+    borderRadius: 100,
     borderWidth: 1,
     borderColor: '#FECACA',
     width: '100%',

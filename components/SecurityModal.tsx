@@ -96,7 +96,7 @@ export default function SecurityModal({ isVisible, onClose }: SecurityModalProps
                   <Switch
                     value={biometricEnabled}
                     onValueChange={setBiometricEnabled}
-                    trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                    trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                     thumbColor={biometricEnabled ? '#1E3A8A' : colors.backgroundTertiary}
                   />
                 </View>
@@ -114,7 +114,7 @@ export default function SecurityModal({ isVisible, onClose }: SecurityModalProps
                   <Switch
                     value={pinEnabled}
                     onValueChange={setPinEnabled}
-                    trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                    trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                     thumbColor={pinEnabled ? '#1E3A8A' : colors.backgroundTertiary}
                   />
                 </View>
@@ -132,7 +132,7 @@ export default function SecurityModal({ isVisible, onClose }: SecurityModalProps
                   <Switch
                     value={twoFactorEnabled}
                     onValueChange={setTwoFactorEnabled}
-                    trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                    trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                     thumbColor={twoFactorEnabled ? '#1E3A8A' : colors.backgroundTertiary}
                   />
                 </View>
@@ -154,7 +154,7 @@ export default function SecurityModal({ isVisible, onClose }: SecurityModalProps
                   <Switch
                     value={sessionTimeout}
                     onValueChange={setSessionTimeout}
-                    trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                    trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                     thumbColor={sessionTimeout ? '#1E3A8A' : colors.backgroundTertiary}
                   />
                 </View>

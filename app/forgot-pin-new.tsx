@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable , Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Shield, Lock } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAppLock } from '@/contexts/AppLockContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
-import { Platform } from 'react-native';
 
 export default function ForgotPinNewScreen() {
   const { colors, isDark } = useTheme();
+  const { setPinResetMode } = useAppLock();
   const haptics = useHaptics();
   const { showToast } = useToast();
   const params = useLocalSearchParams();
@@ -87,6 +88,8 @@ export default function ForgotPinNewScreen() {
     if (Platform.OS !== 'web') {
       haptics.lightImpact();
     }
+    // Disable pin reset mode when going back
+    setPinResetMode(false);
     router.back();
   };
 

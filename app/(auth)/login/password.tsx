@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable , Platform } from 'react-native';
 import { router, useLocalSearchParams, Link } from 'expo-router';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,7 +13,6 @@ import FloatingButton from '@/components/FloatingButton';
 import SafeFooter from '@/components/SafeFooter';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { supabase } from '@/lib/supabase';
-import { Platform } from 'react-native';
 
 export default function LoginPasswordScreen() {
   const { colors } = useTheme();
@@ -138,7 +137,6 @@ export default function LoginPasswordScreen() {
             )}
 
             <View style={[styles.inputContainer, error && { borderColor: colors.error }]}>
-              <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 ref={passwordInputRef}
                 style={styles.input}
@@ -225,7 +223,7 @@ const createStyles = (colors: any) =>
     signUpText: {
       fontSize: 14,
       fontWeight: '600',
-      color: colors.primary,
+      color: colors.text,
     },
     contentContainer: {
       flexGrow: 1,

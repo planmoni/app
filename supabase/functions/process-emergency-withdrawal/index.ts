@@ -438,6 +438,22 @@ serve(async (req: Request) => {
         console.error("Error creating transaction record:", txCreateError)
       }
 
+      // Update the payout plan status to cancelled after successful emergency withdrawal
+      const { error: planUpdateError } = await supabase
+        .from("payout_plans")
+        .update({ 
+          status: "cancelled",
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", withdrawal.payout_plan_id)
+
+      if (planUpdateError) {
+        console.error("Error updating plan status to cancelled:", planUpdateError)
+        // Don't throw error here as the withdrawal was successful
+      } else {
+        console.log(`Successfully updated plan ${withdrawal.payout_plan_id} status to cancelled`)
+      }
+
       // Create success notification
       await supabase
         .from("events")

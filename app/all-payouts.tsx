@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
-import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
+import { formatPayoutFrequency, getDayOfWeekName, formatPayoutDateTime } from '@/lib/formatters';
 
 type TabType = 'all' | 'active' | 'cancelled' | 'completed';
 
@@ -71,8 +71,6 @@ export default function AllPayoutsScreen() {
         return { bg: '#FEE2E2', text: '#EF4444' };
       case 'completed':
         return { bg: '#EFF6FF', text: '#1E3A8A' };
-      case 'cancelled':
-        return { bg: '#F1F5F9', text: '#64748B' };
       default:
         return { bg: '#F1F5F9', text: '#64748B' };
     }
@@ -244,7 +242,7 @@ export default function AllPayoutsScreen() {
                   <View style={styles.footer}>
                     <Text style={styles.nextPayout}>
                       {plan.next_payout_date 
-                        ? `Next payout: ${new Date(plan.next_payout_date).toLocaleDateString()}`
+                        ? `Next payout: ${formatPayoutDateTime(plan.next_payout_date)}`
                         : plan.status === 'completed' 
                           ? 'Plan completed'
                           : 'Plan paused'
@@ -291,7 +289,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 40,
     height: 40,
     backgroundColor: colors.primary,
-    borderRadius: 20,
+    borderRadius: 100,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -386,7 +384,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 100,
     marginTop: 16,
   },
   createFirstButtonText: {
@@ -438,7 +436,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   actionButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 100,
     backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',

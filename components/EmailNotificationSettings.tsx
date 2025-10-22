@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Switch, Pressable, ActivityIndicator , Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { Bell, Calendar, Wallet, Mail } from 'lucide-react-native';
 import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
 import { useEmailNotifications } from '@/hooks/useEmailNotifications';
 
 export default function EmailNotificationSettings() {
@@ -253,7 +252,7 @@ export default function EmailNotificationSettings() {
           <Switch
             value={localSettings.login_alerts}
             onValueChange={() => handleToggle('login_alerts')}
-            trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+            trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
             thumbColor={localSettings.login_alerts ? '#1E3A8A' : colors.backgroundTertiary}
             disabled={isSaving}
           />
@@ -272,7 +271,7 @@ export default function EmailNotificationSettings() {
           <Switch
             value={localSettings.payout_alerts}
             onValueChange={() => handleToggle('payout_alerts')}
-            trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+            trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
             thumbColor={localSettings.payout_alerts ? '#1E3A8A' : colors.backgroundTertiary}
             disabled={isSaving}
           />
@@ -291,7 +290,7 @@ export default function EmailNotificationSettings() {
           <Switch
             value={localSettings.expiry_reminders}
             onValueChange={() => handleToggle('expiry_reminders')}
-            trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+            trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
             thumbColor={localSettings.expiry_reminders ? '#1E3A8A' : colors.backgroundTertiary}
             disabled={isSaving}
           />

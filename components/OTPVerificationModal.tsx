@@ -28,7 +28,7 @@ export default function OTPVerificationModal({
   
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState<string | null>(null);
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
   
   // Animation values
   const slideAnim = useRef(new Animated.Value(screenHeight)).current;
@@ -202,7 +202,7 @@ export default function OTPVerificationModal({
             {otp.map((digit, index) => (
               <TextInput
                 key={index}
-                ref={(el) => inputRefs.current[index] = el}
+                ref={(el) => { inputRefs.current[index] = el; return; }}
                 style={styles.otpInput}
                 value={digit}
                 onChangeText={(text) => handleOtpChange(text, index)}

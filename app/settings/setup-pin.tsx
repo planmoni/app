@@ -212,21 +212,6 @@ export default function SetupPin() {
           disabled={false}
         />
 
-        <View style={styles.securityTips}>
-          <Text style={styles.tipsTitle}>PIN Security Tips</Text>
-          <View style={styles.tipItem}>
-            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-            <Text style={styles.tipText}>Use a 4-digit number that's easy to remember</Text>
-          </View>
-          <View style={styles.tipItem}>
-            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-            <Text style={styles.tipText}>Avoid obvious patterns like 1234 or 0000</Text>
-          </View>
-          <View style={styles.tipItem}>
-            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-            <Text style={styles.tipText}>Don't use your birth year or phone number</Text>
-          </View>
-        </View>
       </View>
     </View>
   );

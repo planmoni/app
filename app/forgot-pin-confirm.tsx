@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert , Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Shield, CheckCircle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAppLock } from '@/contexts/AppLockContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
 import { usePin } from '@/contexts/PinContext';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
-import { Platform } from 'react-native';
 
 export default function ForgotPinConfirmScreen() {
   const { colors, isDark } = useTheme();
+  const { setPinResetMode } = useAppLock();
   const haptics = useHaptics();
   const { showToast } = useToast();
   const { updateAppLockPin } = usePin();
@@ -98,6 +99,9 @@ export default function ForgotPinConfirmScreen() {
           haptics.success();
         }
 
+        // Disable pin reset mode since PIN was successfully updated
+        setPinResetMode(false);
+
         // Navigate to success screen
         router.push('/forgot-pin-success');
       } else {
@@ -121,6 +125,8 @@ export default function ForgotPinConfirmScreen() {
     if (Platform.OS !== 'web') {
       haptics.lightImpact();
     }
+    // Disable pin reset mode when going back
+    setPinResetMode(false);
     router.back();
   };
 

@@ -14,6 +14,7 @@ import { X, Fingerprint } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePin } from '@/contexts/PinContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useToast } from '@/contexts/ToastContext';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 import { BiometricService } from '@/lib/biometrics';
@@ -27,6 +28,7 @@ interface PinVerificationModalProps {
   amount?: string;
   description?: string;
   customVerifyPin?: (pin: string) => Promise<boolean>;
+  biometricType?: 'app' | 'payout' | 'emergency';
 }
 
 export default function PinVerificationModal({
@@ -37,12 +39,14 @@ export default function PinVerificationModal({
   amount,
   description = "Enter your PIN to continue",
   customVerifyPin,
+  biometricType = 'app',
 }: PinVerificationModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
-  const { verifyBiometric, biometricEnabled, checkBiometricSupport, verifyAppLockPin } = usePin();
+  const { verifyBiometric, biometricEnabled, payoutBiometricEnabled, emergencyBiometricEnabled, checkBiometricSupport, verifyAppLockPin } = usePin();
   const haptics = useHaptics();
   const router = useRouter();
+  const { showError } = useToast();
   
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -53,9 +57,25 @@ export default function PinVerificationModal({
   // Animation values
   const slideAnim = useRef(new Animated.Value(height)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const shakeAnimation = useRef(new Animated.Value(0)).current;
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
+
+  // Get the correct biometric setting based on type
+  const getBiometricEnabled = () => {
+    switch (biometricType) {
+      case 'payout':
+        return payoutBiometricEnabled;
+      case 'emergency':
+        return emergencyBiometricEnabled;
+      case 'app':
+      default:
+        return biometricEnabled;
+    }
+  };
+
+  const isBiometricEnabled = getBiometricEnabled();
 
   useEffect(() => {
     if (isVisible) {
@@ -82,23 +102,55 @@ export default function PinVerificationModal({
         })
       ]).start();
       
-      // Auto-trigger biometric if enabled and available
-      if (biometricEnabled) {
+      // Auto-trigger biometric if enabled and available AND we have a custom verify function
+      // This ensures we only auto-trigger when we're actually verifying a PIN that exists
+      if (isBiometricEnabled && customVerifyPin) {
         setTimeout(() => {
           handleBiometricAuth();
         }, 500);
       }
     }
-  }, [isVisible, biometricEnabled]);
+  }, [isVisible, isBiometricEnabled, customVerifyPin]);
 
   const checkBiometrics = async () => {
     try {
       const support = await checkBiometricSupport();
       setBiometricSupport(support);
-      setShowBiometricOption(biometricEnabled && support.isAvailable && support.isEnrolled);
+      setShowBiometricOption(isBiometricEnabled && support.isAvailable && support.isEnrolled);
     } catch (error) {
       console.error('Error checking biometric support:', error);
     }
+  };
+
+  // Shake animation function
+  const triggerShake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnimation, {
+        toValue: 10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: -10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: 10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: -10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: 0,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   const handlePinChange = (digit: string) => {
@@ -147,6 +199,12 @@ export default function PinVerificationModal({
         haptics.error();
         setError('Incorrect PIN. Please try again.');
         setPin('');
+        
+        // Show toast notification
+        showError('Incorrect PIN. Please try again.');
+        
+        // Trigger shake animation
+        triggerShake();
       }
     } catch (error) {
       haptics.error();
@@ -158,7 +216,7 @@ export default function PinVerificationModal({
   };
 
   const handleBiometricAuth = async () => {
-    if (!biometricSupport?.isAvailable || Platform.OS === 'web') {
+    if (!isBiometricEnabled || !biometricSupport?.isAvailable || Platform.OS === 'web') {
       return;
     }
 
@@ -257,10 +315,12 @@ export default function PinVerificationModal({
             </View>
           )}
           
-          <PinDisplay 
-            length={4}
-            value={pin}
-          />
+          <Animated.View style={{ transform: [{ translateX: shakeAnimation }] }}>
+            <PinDisplay 
+              length={4}
+              value={pin}
+            />
+          </Animated.View>
           
           <PinKeypad 
             onKeyPress={isVerifying ? () => {} : handlePinChange}

@@ -206,6 +206,7 @@ export default function PayoutConfirmationModal({
         onSuccess={handlePinVerificationSuccess}
         title="Verify PIN"
         description="Enter your PIN to confirm the payout plan"
+        biometricType="app"
       />
     </>
   );

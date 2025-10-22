@@ -3,8 +3,9 @@ import { X, Search, CircleHelp as HelpCircle, MessageSquare, FileText, ExternalL
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { PanGestureHandler } from 'react-native-gesture-handler';
-import { useIntercom } from '@/hooks/useIntercom';
+import { useIntercomOptimized } from '@/hooks/useIntercomOptimized';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
+import { useIntercom } from '@/hooks/useIntercom';
 
 interface HelpCenterModalProps {
   isVisible: boolean;
@@ -303,8 +304,9 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   closeButton2: {
     backgroundColor: colors.primary,
     padding: isSmallScreen ? 12 : 16,
-    borderRadius: 8,
+    borderRadius: 100,
     alignItems: 'center',
+    height: 55,
   },
   closeButtonText: {
     color: '#FFFFFF',

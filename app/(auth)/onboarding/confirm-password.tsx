@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable , Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,6 @@ import { useHaptics } from '@/hooks/useHaptics';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
-import { Platform } from 'react-native';
 
 export default function ConfirmPasswordScreen() {
   const { colors } = useTheme();
@@ -108,7 +107,6 @@ export default function ConfirmPasswordScreen() {
             )}
             
             <View style={styles.inputContainer}>
-              <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 ref={confirmPasswordInputRef}
                 style={styles.input}
@@ -175,7 +173,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   signInText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.text,
   },
   contentContainer: {
     flexGrow: 1,

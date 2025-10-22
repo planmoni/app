@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView , Platform } from 'react-native';
 import { ArrowLeft, Eye, EyeOff, Shield } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
@@ -10,7 +10,6 @@ import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
 
 export default function ChangePasswordScreen() {
   const { colors } = useTheme();

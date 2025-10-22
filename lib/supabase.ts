@@ -63,6 +63,16 @@ if (supabaseUrl && supabaseAnonKey) {
 
 export { supabase };
 
+// Development helper (no-op in production) — some components reference this for debugging
+export const debugSessionStorage = () => {
+  try {
+    // Intentionally no-op; used by dev helpers to inspect session persistence
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e };
+  }
+};
+
 // Helper function to check if Supabase is properly configured
 export const isSupabaseConfigured = () => {
   return !!(supabaseUrl && supabaseAnonKey);

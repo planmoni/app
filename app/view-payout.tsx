@@ -1,12 +1,11 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Alert, Image } from 'react-native';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ChevronRight, Calendar, Clock, Wallet, Building2, TriangleAlert as AlertTriangle, PencilLine, Pause, Play } from 'lucide-react-native';
 import Button from '@/components/Button';
 import Card from '@/components/Card';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import SafeFooter from '@/components/SafeFooter';
-import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
@@ -14,7 +13,7 @@ import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
 import * as Haptics from 'expo-haptics';
-import { formatPayoutFrequency } from '@/lib/formatters';
+import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
 
 export default function ViewPayoutScreen() {
@@ -795,8 +794,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   withdrawButton: {
     backgroundColor: colors.primary,
     padding: 12,
-    borderRadius: 8,
+    height: 55,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   withdrawButtonText: {
     fontSize: 14,

@@ -644,6 +644,7 @@ const createStyles = (colors: any, screenWidth: number) => {
     signOutButton: {
       borderColor: '#EF4444',
       borderWidth: 1,
+      borderRadius: 100,
     },
   });
 };

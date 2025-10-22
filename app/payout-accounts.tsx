@@ -1,10 +1,10 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert , Image } from 'react-native';
 import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
 import HorizontalLoader from '@/components/HorizontalLoader';
 import SafeFooter from '@/components/SafeFooter';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
@@ -12,8 +12,6 @@ import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import EditPayoutAccountModal from '@/components/EditPayoutAccountModal';
 import { useHaptics } from '@/hooks/useHaptics';
 import { getBankIconLogo } from '@/lib/bankIcons';
-import React from 'react';
-import { Image } from 'react-native';
 
 export default function PayoutAccountsScreen() {
   const { colors, isDark } = useTheme();
@@ -216,16 +214,6 @@ export default function PayoutAccountsScreen() {
             ))
           )}
 
-          <Pressable
-            style={styles.addAccountButton}
-            onPress={() => {
-              haptics.mediumImpact();
-              setShowAddAccount(true);
-            }}
-          >
-            <Plus size={20} color={colors.primary} />
-            <Text style={styles.addAccountText}>Add New Payout Account</Text>
-          </Pressable>
         </View>
 
         
@@ -437,7 +425,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 100,
     backgroundColor: colors.backgroundTertiary,
     borderWidth: 1,
     borderColor: colors.border,
@@ -498,6 +486,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   addButton: {
     backgroundColor: colors.primary,
+    height: 55,
+    borderRadius: 100,
+    justifyContent: 'center',
   },
   addAccountButton: {
     flexDirection: 'row',
@@ -508,7 +499,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: colors.primary,
-    borderRadius: 12,
+    borderRadius: 100,
     backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : colors.backgroundTertiary,
   },
   addAccountText: {

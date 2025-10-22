@@ -5,6 +5,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   interpolate,
+  interpolateColor,
   Extrapolate,
   withSpring,
   withTiming,
@@ -15,23 +16,22 @@ import Button from '@/components/Button';
 import PaginationDot from '@/components/PaginationDot';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useState , useRef } from 'react';
 import { BlurView } from 'expo-blur';
-import { useRef } from 'react';
 
 const SLIDES = [
   {
     id: '1',
-    title: 'Say hello to financial control',
+    title: "Say hello! to financial control",
     // subtitle: 'Smart Financial Planning',
-    description: 'Take full control of your money by breaking your income into manageable payouts to ensure you never run out of money on time.',
+    description: "Planmoni helps you stay in complete financial control with automated payouts scheduling and intelligent cash flow management system - equipped with advanced tools, insights & A.I",
     image: require('@/assets/images/StayInControl.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
   },
   {
     id: '2',
-    title: 'Create Personalized\nSalary Plans',
+    title: 'Receive your Deposits in Instalments',
     // subtitle: 'Automated Scheduling',
     description: 'Split deposits into scheduled weekly, bi-weekly or monthly payouts that work for your lifestyle.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
@@ -40,7 +40,7 @@ const SLIDES = [
   },
   {
     id: '3',
-    title: 'Receive Stable\nIncome Flow',
+    title: 'Stabilize your Cash Flow',
     // subtitle: 'Financial Security',
     description: 'Secure your money, automate payouts & say goodbye to irregular income forever.',
     image: require('@/assets/images/SmartSavings.png'),
@@ -65,7 +65,7 @@ export default function WelcomeScreen() {
   const scrollX = useSharedValue(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<Animated.ScrollView>(null);
-  const autoSlideTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSlideTimerRef = useRef<number | NodeJS.Timeout | null>(null);
 
   // Redirect to tabs if user is already authenticated
   useEffect(() => {
@@ -181,23 +181,19 @@ export default function WelcomeScreen() {
     width,
     isAndroid,
   });
-
   // Animated background style
   const backgroundStyle = useAnimatedStyle(() => {
     const currentSlide = Math.floor(scrollX.value / width);
     const progress = (scrollX.value % width) / width;
-    
+
     // Use consistent blue gradient for all slides in dark mode
     const baseColor = isDark ? '#1E3A8A' : '#FFFFFF';
     const accentColor = isDark ? '#3B82F6' : '#FFFFFF';
     
+    // interpolateColor returns a color string usable as backgroundColor
+    const bg = interpolateColor(progress, [0, 1], [baseColor, accentColor]);
     return {
-      backgroundColor: interpolate(
-        progress,
-        [0, 1],
-        [baseColor, accentColor],
-        Extrapolate.CLAMP
-      ),
+      backgroundColor: bg as unknown as string,
     };
   });
 
@@ -289,7 +285,9 @@ export default function WelcomeScreen() {
                   
                   <View style={styles.textContainer}>
                     <View style={styles.titleSection}>
-                      <Text style={styles.slideSubtitle}>{slide.subtitle}</Text>
+                      {((slide as any).subtitle) && (
+                        <Text style={styles.slideSubtitle}>{(slide as any).subtitle}</Text>
+                      )}
                       <Text style={styles.slideTitle}>{slide.title}</Text>
                     </View>
                     
@@ -457,7 +455,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     fontSize: responsive.titleSize,
     lineHeight: responsive.titleSize * 1.1,
     letterSpacing: -0.5,
-    color: colors.text,
+    color: isDark ? colors.text : colors.primary,
     textAlign: 'center',
   },
   slideDescription: {
@@ -510,7 +508,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     justifyContent: 'center',
     gap: 12,
     height: 60,
-    borderRadius: 8,
+    borderRadius: 100,
     paddingHorizontal: 24,
     flex: 1,
     shadowColor: '#000',
@@ -529,10 +527,9 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     alignItems: 'center',
     justifyContent: 'center',
     height: 60,
-    borderRadius: 8,
+    borderRadius: 100,
     paddingHorizontal: 24,
     flex: 1,
-    backgroundColor: colors.surface,
     borderWidth: 2,
     borderColor: colors.buttonPrimary,
   },

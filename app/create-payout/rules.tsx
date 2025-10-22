@@ -1,14 +1,13 @@
-import { View, Text, StyleSheet, Pressable, Switch, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Switch, useWindowDimensions, ActivityIndicator, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, TriangleAlert as AlertTriangle, Clock, Info, Shield } from 'lucide-react-native';
+import { ArrowLeft, TriangleAlert as AlertTriangle, Clock, Info, Shield, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useEmergencyWithdrawalOptions } from '@/hooks/useEmergencyWithdrawalOptions';
-import { Platform } from 'react-native';
 
 export default function RulesScreen() {
   const { colors, isDark } = useTheme();
@@ -73,6 +72,17 @@ export default function RulesScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.push('/(tabs)');
+          }} 
+          style={styles.cancelButton}
+        >
+          <X size={24} color={colors.text} />
+        </Pressable>
       </View>
 
       <View style={styles.progressContainer}>
@@ -105,7 +115,7 @@ export default function RulesScreen() {
               <Switch
                 value={emergencyWithdrawal}
                 onValueChange={handleToggleEmergencyWithdrawal}
-                trackColor={{ false: colors.borderSecondary, true: '#93C5FD' }}
+                trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={emergencyWithdrawal ? '#1E3A8A' : colors.backgroundTertiary}
               />
             </View>
@@ -160,6 +170,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: colors.surface,
@@ -177,6 +188,15 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+    flex: 1,
+    textAlign: 'center',
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   progressContainer: {
     padding: 20,

@@ -74,7 +74,6 @@ export default function LoginEmailScreen() {
             )}
             
             <View style={styles.inputContainer}>
-              <Mail size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 ref={emailInputRef}
                 style={styles.input}
@@ -136,7 +135,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   signUpText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.text,
   },
   contentContainer: {
     flexGrow: 1,

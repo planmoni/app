@@ -12,9 +12,11 @@ export interface RouteHistoryEntry {
 
 export class RoutePersistence {
   private userStorage: ReturnType<typeof createUserScopedStorage>;
+  private userId: string;
 
   constructor(userId: string) {
     this.userStorage = createUserScopedStorage(userId);
+    this.userId = userId;
   }
 
   /**
@@ -22,13 +24,14 @@ export class RoutePersistence {
    */
   async saveLastRoute(route: string): Promise<void> {
     try {
+      // Save last route in secure storage (small data)
       await this.userStorage.setItem(LAST_ROUTE_KEY, route);
       
-      // Also save to route history for analytics
+      // Save route history in AsyncStorage (large data, not sensitive)
       const historyEntry: RouteHistoryEntry = {
         route,
         timestamp: Date.now(),
-        userId: this.userStorage.userId
+        userId: this.userId
       };
       
       const history = await this.getRouteHistory();
@@ -39,7 +42,9 @@ export class RoutePersistence {
         history.splice(0, history.length - 50);
       }
       
-      await this.userStorage.setItem(ROUTE_HISTORY_KEY, JSON.stringify(history));
+      // Use AsyncStorage for route history since it's large and not sensitive
+      const historyKey = `route_history_${this.userId}`;
+      await AsyncStorage.setItem(historyKey, JSON.stringify(history));
     } catch (error) {
       console.warn('[RoutePersistence] Failed to save last route:', error);
     }
@@ -62,7 +67,9 @@ export class RoutePersistence {
    */
   async getRouteHistory(): Promise<RouteHistoryEntry[]> {
     try {
-      const historyStr = await this.userStorage.getItem(ROUTE_HISTORY_KEY);
+      // Use AsyncStorage for route history since it's large and not sensitive
+      const historyKey = `route_history_${this.userId}`;
+      const historyStr = await AsyncStorage.getItem(historyKey);
       return historyStr ? JSON.parse(historyStr) : [];
     } catch (error) {
       console.warn('[RoutePersistence] Failed to get route history:', error);
@@ -75,8 +82,12 @@ export class RoutePersistence {
    */
   async clearRouteData(): Promise<void> {
     try {
-      await this.userStorage.removeItem(LAST_ROUTE_KEY);
-      await this.userStorage.removeItem(ROUTE_HISTORY_KEY);
+      // Clear last route from secure storage
+      await this.userStorage.deleteItem(LAST_ROUTE_KEY);
+      
+      // Clear route history from AsyncStorage
+      const historyKey = `route_history_${this.userId}`;
+      await AsyncStorage.removeItem(historyKey);
     } catch (error) {
       console.warn('[RoutePersistence] Failed to clear route data:', error);
     }

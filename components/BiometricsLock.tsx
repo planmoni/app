@@ -1,31 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useAutoLogout } from '@/contexts/AutoLogoutContext';
+import { useAppLock } from '@/contexts/AppLockContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePin } from '@/contexts/PinContext';
 import { useRouter } from 'expo-router';
 import { BiometricService } from '@/lib/biometrics';
-import { useHaptics } from '@/hooks/useHaptics';
 import SimplePinLock from './SimplePinLock';
 
 export default function BiometricsLock() {
   const { colors, isDark } = useTheme();
-  const { isAppLocked, unlockApp, getLastActivePage } = useAutoLogout();
+  const { isAppLocked, unlockApp, getLastActivePage } = useAppLock();
   const { session } = useAuth();
   const { biometricEnabled, verifyAppLockPinWithBiometrics } = usePin();
   const router = useRouter();
-  const haptics = useHaptics();
   
   const [isVerifying, setIsVerifying] = useState(false);
   const [biometricSupport, setBiometricSupport] = useState<any>(null);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showPinFallback, setShowPinFallback] = useState(false);
-  const [hasAttemptedAutoAuth, setHasAttemptedAutoAuth] = useState(false);
-  
-  // Add a ref to track if we've already attempted biometrics for this session
-  const biometricAttemptedRef = useRef(false);
 
   const loadBiometricSupport = async () => {
     try {
@@ -40,34 +34,6 @@ export default function BiometricsLock() {
   useEffect(() => {
     loadBiometricSupport();
   }, []);
-
-  // Auto-attempt biometric authentication when component mounts - BUT ONLY ONCE PER SESSION
-  useEffect(() => {
-    const attemptAutoBiometricAuth = async () => {
-      // Only attempt if biometrics are enabled, available, we haven't tried yet, AND we haven't attempted for this session
-      if (biometricEnabled && biometricSupport?.isAvailable && !hasAttemptedAutoAuth && !biometricAttemptedRef.current && Platform.OS !== 'web') {
-        biometricAttemptedRef.current = true; // Mark as attempted for this session
-        setHasAttemptedAutoAuth(true);
-        await handleBiometricUnlock();
-      } else if (!biometricEnabled || !biometricSupport?.isAvailable) {
-        // If biometrics are not available, immediately fall back to PIN
-        setShowPinFallback(true);
-      }
-    };
-
-    // Small delay to ensure component is fully mounted
-    const timer = setTimeout(attemptAutoBiometricAuth, 500);
-    return () => clearTimeout(timer);
-  }, [biometricEnabled, biometricSupport, hasAttemptedAutoAuth]);
-
-  // Reset biometric attempt flag when app is unlocked
-  useEffect(() => {
-    if (!isAppLocked) {
-      biometricAttemptedRef.current = false;
-      setHasAttemptedAutoAuth(false);
-      setShowPinFallback(false); // Reset fallback state
-    }
-  }, [isAppLocked]);
 
   // Don't render if not locked or if we've already unlocked
   if (!isAppLocked || isUnlocked) {
@@ -107,15 +73,12 @@ export default function BiometricsLock() {
     
     try {
       setIsVerifying(true);
-      haptics.mediumImpact();
       
       // Use the new biometric PIN verification function
       const isValid = await verifyAppLockPinWithBiometrics();
       
       if (isValid) {
         // Biometric PIN verification successful - unlock the app
-        haptics.success();
-        
         // Set local unlock state FIRST
         setIsUnlocked(true);
         
@@ -131,17 +94,11 @@ export default function BiometricsLock() {
           router.replace(targetPage);
         }, 100);
       } else {
-        // Biometric authentication failed - fall back to PIN
-        haptics.error();
-        console.log('BiometricsLock - Biometric authentication failed, falling back to PIN');
-        setShowPinFallback(true);
+        Alert.alert('Authentication Failed', 'Biometric authentication failed. Please try again or use your PIN.');
       }
     } catch (error) {
       console.error('BiometricsLock - Biometric unlock error:', error);
-      haptics.error();
-      
-      // On error, fall back to PIN
-      setShowPinFallback(true);
+      Alert.alert('Error', 'Biometric authentication failed. Please try again.');
     } finally {
       setIsVerifying(false);
     }
@@ -173,9 +130,7 @@ export default function BiometricsLock() {
         <View style={styles.welcomeSection}>
           <Text style={styles.welcomeTitle}>Welcome back,</Text>
           <Text style={styles.userName}>{getUserName()}</Text>
-          <Text style={styles.welcomeSubtitle}>
-            {isVerifying ? 'Verifying biometrics...' : 'Use biometrics to unlock'}
-          </Text>
+          <Text style={styles.welcomeSubtitle}>Use biometrics to unlock</Text>
         </View>
 
         {/* Status Messages */}
@@ -194,29 +149,27 @@ export default function BiometricsLock() {
           )}
         </View>
 
-        {/* Biometric Button - Only show if auto-auth hasn't been attempted or failed */}
-        {!hasAttemptedAutoAuth && (
-          <TouchableOpacity 
-            style={[
-              styles.biometricButton,
-              (!biometricEnabled || isVerifying) && styles.biometricButtonDisabled
-            ]}
-            onPress={handleBiometricUnlock}
-            disabled={!biometricEnabled || isVerifying}
-          >
-            <Ionicons 
-              name={getBiometricIcon()} 
-              size={32} 
-              color={(!biometricEnabled || isVerifying) ? colors.textTertiary : colors.primary} 
-            />
-            <Text style={[
-              styles.biometricButtonText,
-              (!biometricEnabled || isVerifying) && styles.biometricButtonTextDisabled
-            ]}>
-              {getBiometricText()}
-            </Text>
-          </TouchableOpacity>
-        )}
+        {/* Biometric Button */}
+        <TouchableOpacity 
+          style={[
+            styles.biometricButton,
+            (!biometricEnabled || isVerifying) && styles.biometricButtonDisabled
+          ]}
+          onPress={handleBiometricUnlock}
+          disabled={!biometricEnabled || isVerifying}
+        >
+          <Ionicons 
+            name={getBiometricIcon()} 
+            size={32} 
+            color={(!biometricEnabled || isVerifying) ? colors.textTertiary : colors.primary} 
+          />
+          <Text style={[
+            styles.biometricButtonText,
+            (!biometricEnabled || isVerifying) && styles.biometricButtonTextDisabled
+          ]}>
+            {getBiometricText()}
+          </Text>
+        </TouchableOpacity>
 
         {/* Fallback to PIN Button */}
         <TouchableOpacity 

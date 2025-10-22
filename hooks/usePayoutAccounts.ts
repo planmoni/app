@@ -41,7 +41,7 @@ export function usePayoutAccounts() {
 
       // Then, fetch active payout plans count for each account
       const accountsWithPlanCounts = await Promise.all(
-        (accounts || []).map(async (account) => {
+          (accounts || []).map(async (account: PayoutAccount) => {
           const { count, error: countError } = await supabase
             .from('payout_plans')
             .select('*', { count: 'exact', head: true })
@@ -115,7 +115,7 @@ export function usePayoutAccounts() {
       // Update local state
       setPayoutAccounts(prev => 
         prev.map(account => 
-          account.id === accountId 
+              account.id === accountId
             ? { ...account, ...accountData, updated_at: new Date().toISOString() }
             : account
         )

@@ -209,12 +209,15 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   generateButton: {
     backgroundColor: colors.primary,
     padding: isSmallScreen ? 12 : 16,
-    borderRadius: 8,
+    borderRadius: 100,
     alignItems: 'center',
+    justifyContent: 'center',
+    height: 55,
   },
   generateButtonText: {
     color: '#FFFFFF',
     fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '600',
+
   },
 });

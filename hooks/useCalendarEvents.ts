@@ -7,7 +7,7 @@ export type CalendarEvent = {
   title: string;
   amount: string;
   time: string;
-  type: 'completed' | 'pending' | 'scheduled' | 'failed' | 'expiring';
+  type: 'completed' | 'pending' | 'scheduled' | 'failed';
   description: string;
   vault?: string;
   date: string;
@@ -73,7 +73,7 @@ export function useCalendarEvents() {
       const calendarEvents: CalendarEvent[] = [];
 
       // Process completed payouts from transactions
-      transactions?.forEach(transaction => {
+      transactions?.forEach((transaction: any) => {
         const date = new Date(transaction.created_at);
         const formattedDate = date.toLocaleDateString('en-US', {
           month: 'long',
@@ -83,8 +83,8 @@ export function useCalendarEvents() {
 
         calendarEvents.push({
           id: transaction.id,
-          title: `₦${transaction.amount.toLocaleString()} disbursed`,
-          amount: `₦${transaction.amount.toLocaleString()}`,
+          title: `₦${Number(transaction.amount).toLocaleString()} disbursed`,
+          amount: `₦${Number(transaction.amount).toLocaleString()}`,
           time: date.toLocaleTimeString('en-US', {
             hour: 'numeric',
             minute: '2-digit',
@@ -100,7 +100,7 @@ export function useCalendarEvents() {
       });
 
       // Process payout plan creation dates
-      payoutPlans?.forEach(plan => {
+      payoutPlans?.forEach((plan: any) => {
         const createdDate = new Date(plan.created_at);
         const formattedCreatedDate = createdDate.toLocaleDateString('en-US', {
           month: 'long',
@@ -133,24 +133,42 @@ export function useCalendarEvents() {
             year: 'numeric'
           });
 
-          // Check if payout is expiring (within 3 days)
+          // Calculate days until payout
           const daysUntilPayout = Math.ceil((nextPayoutDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-          const isExpiring = daysUntilPayout <= 3 && daysUntilPayout > 0;
-
-          calendarEvents.push({
-            id: `plan-scheduled-${plan.id}`,
-            title: isExpiring ? 'Payout expiring soon' : 'Scheduled payout',
-            amount: `₦${plan.payout_amount.toLocaleString()}`,
-            time: '12:00 PM', // Default time for scheduled events
-            type: isExpiring ? 'expiring' : 'scheduled',
-            description: `Next payout from "${plan.name}"`,
-            vault: plan.name,
-            date: formattedNextDate,
-            payout_plan_id: plan.id,
-          });
+          
+          // Determine event type and title based on timing
+          let eventType: 'scheduled' | 'failed' = 'scheduled';
+          let eventTitle = 'Scheduled payout';
+          let eventDescription = `Next payout from "${plan.name}"`;
+          
+          // If payout is overdue (more than 1 day past due), mark as failed
+          if (daysUntilPayout < -1) {
+            eventType = 'failed';
+            eventTitle = 'Overdue payout';
+            eventDescription = `Overdue payout from "${plan.name}" (${Math.abs(daysUntilPayout)} days late)`;
+          }
+          
+          // Show all scheduled payouts (upcoming, today, or recently overdue)
+          if (daysUntilPayout >= -7) { // Show payouts up to 7 days overdue
+            calendarEvents.push({
+              id: `plan-scheduled-${plan.id}`,
+              title: eventTitle,
+              amount: `₦${plan.payout_amount.toLocaleString()}`,
+              time: nextPayoutDate.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              }),
+              type: eventType,
+              description: eventDescription,
+              vault: plan.name,
+              date: formattedNextDate,
+              payout_plan_id: plan.id,
+            });
+          }
         }
 
-        // Check for plans that might have failed payouts
+        // Check for plans that are paused
         if (plan.status === 'paused' && plan.next_payout_date) {
           const pausedDate = new Date(plan.next_payout_date);
           const formattedPausedDate = pausedDate.toLocaleDateString('en-US', {
@@ -160,10 +178,14 @@ export function useCalendarEvents() {
           });
 
           calendarEvents.push({
-            id: `plan-failed-${plan.id}`,
+            id: `plan-paused-${plan.id}`,
             title: 'Payout paused',
             amount: `₦${plan.payout_amount.toLocaleString()}`,
-            time: '12:00 PM',
+            time: pausedDate.toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            }),
             type: 'failed',
             description: `Payout from "${plan.name}" was paused`,
             vault: plan.name,

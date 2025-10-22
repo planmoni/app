@@ -36,13 +36,13 @@ export default function SummaryCard({
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Current Month's Summary</Text>
+        <Text style={styles.sectionTitle}>Payout Summary</Text>
         {/* <Calendar size={20} color={colors.textSecondary} /> */}
       </View>
       <Card style={styles.summaryCard}>
         <View style={styles.summaryItems}>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Total Paid Out</Text>
+            <Text style={styles.summaryLabel}>Total amount of plans created</Text>
             <Text style={styles.summaryValue}>{formatBalance(totalPaidOut)}</Text>
           </View>
           <View style={styles.summaryItem}>
@@ -56,16 +56,16 @@ export default function SummaryCard({
         </View>
         {isSummaryExpanded && (
           <View style={styles.expandedContent}>
-            <View style={styles.summaryItem}>
+            {/* <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Active Plans</Text>
               <Text style={styles.summaryValue}>{activePlans.length}</Text>
-            </View>
+            </View> */}
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Total Plans</Text>
               <Text style={styles.summaryValue}>{payoutPlans.length}</Text>
             </View>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Last payout date</Text>
+              <Text style={styles.summaryLabel}>Final payout date</Text>
               <Text style={styles.summaryValue}>
                 {getLastPayoutDate()}
               </Text>

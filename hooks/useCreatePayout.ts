@@ -24,13 +24,15 @@ export function useCreatePayout() {
     payoutAccountId,
     customDates,
     emergencyWithdrawalEnabled = false,
-    dayOfWeek
+    dayOfWeek,
+    payoutHour,
+    payoutMinute
   }: {
     name: string;
     description?: string;
     totalAmount: number;
     payoutAmount: number;
-    frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom' | 'weekly_specific' | 'end_of_month' | 'quarterly' | 'biannual' | 'annually';
+    frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom' | 'weekly_specific' | 'end_of_month' | 'quarterly' | 'biannual' | 'annually';
     duration: number;
     startDate: string;
     bankAccountId?: string | null;
@@ -38,6 +40,8 @@ export function useCreatePayout() {
     customDates?: string[];
     emergencyWithdrawalEnabled?: boolean;
     dayOfWeek?: number;
+    payoutHour?: number;
+    payoutMinute?: number;
   }) => {
     try {
       setIsLoading(true);
@@ -67,14 +71,14 @@ export function useCreatePayout() {
         throw new Error('Unable to fetch current wallet balance. Please try again.');
       }
 
-      const { balance: currentBalance, lockedBalance: currentLockedBalance, availableBalance: currentAvailableBalance } = walletData;
+      const { balance, lockedBalance, availableBalance } = walletData;
       
-      console.log('- Current Balance:', currentBalance);
-      console.log('- Locked Balance:', currentLockedBalance);
+      console.log('- Current Balance:', balance);
+      console.log('- Locked Balance:', lockedBalance);
 
       // Check if user has enough available balance using fresh data
-      if (totalAmount > currentBalance) {
-        throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${currentBalance.toLocaleString()} available.`);
+      if (totalAmount > balance) {
+        throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${balance.toLocaleString()} available.`);
       }
 
       // Map frequency values to database-compatible values
@@ -82,6 +86,7 @@ export function useCreatePayout() {
       let dbFrequency: 'weekly' | 'biweekly' | 'monthly' | 'custom';
       
       switch (frequency) {
+        case 'daily':
         case 'weekly_specific':
         case 'end_of_month':
         case 'quarterly':
@@ -99,27 +104,39 @@ export function useCreatePayout() {
       const startDateObj = new Date(startDate);
       let nextPayoutDate = new Date(startDateObj);
 
-      if (frequency === 'weekly') {
-        nextPayoutDate.setDate(startDateObj.getDate() + 7);
+      // The first payout should occur on the start_date
+      // The next_payout_date should be set to the start_date so the first payout happens immediately
+      // After the first payout is processed, the system will update next_payout_date to the next occurrence
+      if (frequency === 'daily') {
+        // First payout on start_date, next payout will be calculated as start_date + 1 day
+        nextPayoutDate = new Date(startDateObj);
+        if (payoutHour !== undefined && payoutMinute !== undefined) {
+          nextPayoutDate.setHours(payoutHour, payoutMinute, 0, 0);
+        }
+      } else if (frequency === 'weekly') {
+        // First payout on start_date, next payout will be calculated as start_date + 1 week
+        nextPayoutDate = new Date(startDateObj);
       } else if (frequency === 'weekly_specific' && dayOfWeek !== undefined) {
-        // Calculate the next occurrence of the specified day of week
-        const currentDayOfWeek = startDateObj.getDay();
-        const daysToAdd = (7 + dayOfWeek - currentDayOfWeek) % 7;
-        nextPayoutDate.setDate(startDateObj.getDate() + (daysToAdd === 0 ? 7 : daysToAdd));
+        // First payout on start_date, next payout will be calculated based on day of week
+        nextPayoutDate = new Date(startDateObj);
       } else if (frequency === 'biweekly') {
-        nextPayoutDate.setDate(startDateObj.getDate() + 14);
+        // First payout on start_date, next payout will be calculated as start_date + 2 weeks
+        nextPayoutDate = new Date(startDateObj);
       } else if (frequency === 'monthly') {
-        nextPayoutDate.setMonth(startDateObj.getMonth() + 1);
+        // First payout on start_date, next payout will be calculated as start_date + 1 month
+        nextPayoutDate = new Date(startDateObj);
       } else if (frequency === 'end_of_month') {
-        // Set to the last day of the next month
-        nextPayoutDate.setMonth(startDateObj.getMonth() + 1);
-        nextPayoutDate.setDate(0); // Setting to 0 gets the last day of the previous month
+        // First payout on start_date, next payout will be calculated as end of next month
+        nextPayoutDate = new Date(startDateObj);
       } else if (frequency === 'quarterly') {
-        nextPayoutDate.setMonth(startDateObj.getMonth() + 3);
+        // First payout on start_date, next payout will be calculated as start_date + 3 months
+        nextPayoutDate = new Date(startDateObj);
       } else if (frequency === 'biannual') {
-        nextPayoutDate.setMonth(startDateObj.getMonth() + 6);
+        // First payout on start_date, next payout will be calculated as start_date + 6 months
+        nextPayoutDate = new Date(startDateObj);
       } else if (frequency === 'annually') {
-        nextPayoutDate.setFullYear(startDateObj.getFullYear() + 1);
+        // First payout on start_date, next payout will be calculated as start_date + 1 year
+        nextPayoutDate = new Date(startDateObj);
       }
 
       const nextPayoutDateStr = nextPayoutDate.toISOString();
@@ -130,7 +147,9 @@ export function useCreatePayout() {
       // Store additional metadata for special frequency types
       const metadata = {
         originalFrequency: frequency,
-        dayOfWeek: dayOfWeek
+        dayOfWeek: dayOfWeek,
+        payoutHour: payoutHour,
+        payoutMinute: payoutMinute
       };
 
       // ➕ Insert payout plan into DB
@@ -159,18 +178,18 @@ export function useCreatePayout() {
         .select()
         .single();
 
-        if (payoutError) {
-          console.error('Error creating payout plan:', payoutError);
-          throw payoutError;
-        }
+      if (payoutError) {
+        console.error('Error creating payout plan:', payoutError);
+        throw payoutError;
+      }
 
-        console.log('Payout plan created:', payoutPlan.id);
+      console.log('Payout plan created:', payoutPlan.id);
 
-        // 🔒 Lock funds via RPC with unambiguous parameter names
-        const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
-          arg_user_id: session.user.id,
-          arg_amount: totalAmount
-        });
+      // 🔒 Lock funds via RPC with unambiguous parameter names
+      const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
+        arg_user_id: session.user.id,
+        arg_amount: totalAmount
+      });
 
       if (lockError) {
         console.error('Error locking funds:', lockError);

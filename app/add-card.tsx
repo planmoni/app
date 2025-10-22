@@ -88,13 +88,13 @@ export default function AddCardScreen() {
               haptics.success();
               showToast('Card added successfully!', 'success');
               
-              if (fromDepositFlow && amount) {
+              if (fromDepositFlow && amount && !errors.amount) {
                 router.replace({
                   pathname: '/deposit-flow/authorization',
                   params: {
-                    amount,
-                    methodTitle: `Card •••• ${data.data.authorization?.last4 || '****'}`
-                  }
+                    amount: String(amount),
+                    methodTitle: `Card •••• ${data.data.authorization?.last4 || '****'}`,
+                  },
                 });
               } else {
                 router.back();

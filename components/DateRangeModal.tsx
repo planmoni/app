@@ -1,8 +1,7 @@
-import { Modal, View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, ScrollView , useWindowDimensions } from 'react-native';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 import { useState } from 'react';
 import Button from '@/components/Button';
-import { useWindowDimensions } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 interface DateRangeModalProps {
