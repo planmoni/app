@@ -274,9 +274,11 @@ export default function RootLayout() {
             <PinProvider>
               <AppLockProvider>
                 <BalanceProvider>
-                  <AppBlur>
-                  <RootLayoutNav />
-                  </AppBlur>
+                  <BottomNavProvider>
+                    <AppBlur>
+                    <RootLayoutNav />
+                    </AppBlur>
+                  </BottomNavProvider>
                 </BalanceProvider>
               </AppLockProvider>
             </PinProvider>

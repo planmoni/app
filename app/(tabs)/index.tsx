@@ -6,7 +6,7 @@ import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
-import { IntercomButton } from '@/components/IntercomButton';
+// import { IntercomButton } from '@/components/IntercomButton';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -51,18 +51,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
-import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
+// import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { logAnalyticsEvent } from '@/lib/firebase';
-import { intercomInstant } from '@/lib/IntercomInstant';
+// import { intercomInstant } from '@/lib/IntercomInstant';
 import NotificationIcon from '@/components/NotificationIcon';
 import { supabase } from '@/lib/supabase';
 import NextPayoutCard from '@/components/NextPayoutCard';
 import PayoutPlansSection from '@/components/PayoutPlansSection';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
-import { intercomService } from '@/lib/intercom';
+// import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
 import LivenessTest from '@/components/LivenessTest';
 
@@ -207,7 +207,7 @@ export default function HomeScreen() {
   }
   const handleHelpPress = async () => {
     try {
-      setIsHelpLoading(true);
+      // setIsHelpLoading(true);
       console.log('🎯 Help button pressed - opening Intercom instantly');
       await openChat();
       
@@ -234,13 +234,13 @@ export default function HomeScreen() {
     }
   };
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentDate(new Date());
-    }, 60000);
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     setCurrentDate(new Date());
+  //   }, 60000);
 
-    return () => clearInterval(interval);
-  }, []);
+  //   return () => clearInterval(interval);
+  // }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {

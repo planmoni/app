@@ -9,6 +9,7 @@ type ThemeContextType = {
   isDark: boolean;
   setTheme: (theme: Theme) => void;
   colors: typeof lightColors;
+  debugTheme: () => void;
 };
 
 // Storage key for theme preference
@@ -149,12 +150,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           setThemeState(savedTheme as Theme);
         } else {
           console.log('🎨 No saved theme preference, using system default');
+          // Default to system theme if no preference is saved
+          setThemeState('system');
         }
         
         // Ensure system color scheme is up to date
         setSystemColorScheme(currentSystemScheme);
       } catch (error) {
         console.error('❌ Failed to load theme preference:', error);
+        // Fallback to system theme on error
+        setThemeState('system');
+        setSystemColorScheme(Appearance.getColorScheme() || 'light');
       } finally {
         setIsLoading(false);
       }
@@ -190,11 +196,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         currentTheme: theme,
         willBeDark: theme === 'dark' || (theme === 'system' && newScheme === 'dark')
       });
-      setSystemColorScheme(newScheme);
+      
+      // Only update if the scheme actually changed
+      if (newScheme !== systemColorScheme) {
+        setSystemColorScheme(newScheme);
+        console.log('🎨 System color scheme updated to:', newScheme);
+      }
     });
 
     return () => subscription?.remove();
-  }, [systemColorScheme, theme]);
+  }, [theme, systemColorScheme]); // Include systemColorScheme to properly track changes
 
   // Save theme preference to storage when it changes
   const setTheme = async (newTheme: Theme) => {
@@ -218,13 +229,42 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const isDark = theme === 'dark' || (theme === 'system' && systemColorScheme === 'dark');
   const colors = isDark ? darkColors : lightColors;
 
+  // Debug function to help troubleshoot theme issues
+  const debugTheme = () => {
+    const currentSystemScheme = Appearance.getColorScheme();
+    console.log('🔍 THEME DEBUG INFO:');
+    console.log('   - Current theme setting:', theme);
+    console.log('   - System color scheme (state):', systemColorScheme);
+    console.log('   - System color scheme (live):', currentSystemScheme);
+    console.log('   - Is dark mode:', isDark);
+    console.log('   - Theme calculation:', {
+      'theme === "dark"': theme === 'dark',
+      'theme === "system"': theme === 'system',
+      'systemColorScheme === "dark"': systemColorScheme === 'dark',
+      'currentSystemScheme === "dark"': currentSystemScheme === 'dark',
+      'final isDark': isDark
+    });
+    console.log('   - Auto mode should follow system:', theme === 'system' ? 'YES' : 'NO');
+    console.log('   - Expected behavior:', theme === 'system' ? `Follow ${currentSystemScheme || 'light'} mode` : `${theme} mode`);
+  };
+
+  // Log theme state changes for debugging
+  useEffect(() => {
+    console.log('🎨 Theme state changed:', {
+      theme,
+      systemColorScheme,
+      isDark,
+      currentSystemScheme: Appearance.getColorScheme()
+    });
+  }, [theme, systemColorScheme, isDark]);
+
   // Don't render until theme is loaded to prevent flash
   if (isLoading) {
     return null;
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, setTheme, colors }}>
+    <ThemeContext.Provider value={{ theme, isDark, setTheme, colors, debugTheme }}>
       {children}
     </ThemeContext.Provider>
   );

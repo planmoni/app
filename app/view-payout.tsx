@@ -1,9 +1,34 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Alert, Image } from 'react-native';
-import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  Pressable, 
+  ScrollView, 
+  TextInput, 
+  Alert, 
+  Image, 
+  Animated,
+  RefreshControl
+} from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, ChevronRight, Calendar, Clock, Wallet, Building2, TriangleAlert as AlertTriangle, PencilLine, Pause, Play } from 'lucide-react-native';
+import { 
+  ArrowLeft, 
+  Calendar, 
+  Building2, 
+  TriangleAlert as AlertTriangle, 
+  PencilLine, 
+  BarChart3,
+  Activity,
+  DollarSign,
+  Calendar as CalendarIcon,
+  Clock as ClockIcon,
+  MoreHorizontal,
+  Share2,
+  Eye,
+  EyeOff
+} from 'lucide-react-native';
 import Button from '@/components/Button';
-import Card from '@/components/Card';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import SafeFooter from '@/components/SafeFooter';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,30 +38,74 @@ import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
 import * as Haptics from 'expo-haptics';
-import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
+import { formatPayoutFrequency } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
 
+
 export default function ViewPayoutScreen() {
-  const { colors } = useTheme();
-  const styles = createStyles(colors);
+  const { colors, isDark } = useTheme();
   const { id } = useLocalSearchParams();
-  const { payoutPlans, isLoading, pausePlan, resumePlan, updatePlan } = useRealtimePayoutPlans();
-  const { showBalances } = useBalance();
+  const { payoutPlans, isLoading, updatePlan, fetchPayoutPlans } = useRealtimePayoutPlans();
+  const { showBalances, toggleBalances } = useBalance();
   const haptics = useHaptics();
   const { showToast } = useToast();
   
   const [isEditing, setIsEditing] = useState(false);
   const [payoutName, setPayoutName] = useState('');
   const [payoutDescription, setPayoutDescription] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'settings'>('overview');
+  
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   const plan = payoutPlans.find(p => p.id === id);
+  const styles = createStyles(colors, isDark);
 
   useEffect(() => {
     if (plan) {
       setPayoutName(plan.name);
       setPayoutDescription(plan.description || '');
+      
+      // Animate progress bar
+      const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
+      Animated.timing(progressAnim, {
+        toValue: progress,
+        duration: 1000,
+        useNativeDriver: false,
+      }).start();
     }
-  }, [plan]);
+  }, [plan, progressAnim]);
+
+  // Entry animations
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchPayoutPlans();
+      haptics.notification();
+    } catch (error) {
+      console.error('Error refreshing payout plan:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -145,38 +214,6 @@ export default function ViewPayoutScreen() {
     }
   };
 
-  const handlePauseResume = async () => {
-    try {
-      if (plan.status === 'active') {
-        haptics.notification(Haptics.NotificationFeedbackType.Warning);
-        Alert.alert(
-          'Pause Payout Plan',
-          `Are you sure you want to pause "${plan.name}"? You can resume it anytime.`,
-          [
-            { 
-              text: 'Cancel', 
-              style: 'cancel',
-              onPress: () => haptics.lightImpact()
-            },
-            {
-              text: 'Pause',
-              style: 'destructive',
-              onPress: async () => {
-                haptics.heavyImpact();
-                await pausePlan(plan.id);
-              }
-            }
-          ]
-        );
-      } else if (plan.status === 'paused') {
-        haptics.notification(Haptics.NotificationFeedbackType.Success);
-        await resumePlan(plan.id);
-      }
-    } catch (error) {
-      haptics.notification(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'Failed to update payout plan');
-    }
-  };
 
   const handleEmergencyWithdrawal = () => {
     haptics.notification(Haptics.NotificationFeedbackType.Warning);
@@ -233,117 +270,284 @@ export default function ViewPayoutScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable 
-          onPress={() => {
-            haptics.lightImpact();
-            router.back();
-          }} 
-          style={styles.backButton}
-        >
-          <ArrowLeft size={24} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Payout Details</Text>
-      </View>
-
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.payoutNameContainer}>
-          <View style={styles.payoutNameHeader}>
-            {isEditing ? (
-              <View style={styles.editContainer}>
-                <TextInput
-                  style={styles.nameInput}
-                  value={payoutName}
-                  onChangeText={setPayoutName}
-                  autoFocus
-                />
-                <TextInput
-                  style={styles.descriptionInput}
-                  value={payoutDescription}
-                  onChangeText={setPayoutDescription}
-                  placeholder="Add a description"
-                  placeholderTextColor={colors.textTertiary}
-                />
-                <View style={styles.editButtons}>
-                  <Pressable 
-                    style={styles.cancelButton} 
-                    onPress={() => {
-                      haptics.lightImpact();
-                      setPayoutName(plan.name);
-                      setPayoutDescription(plan.description || '');
-                      setIsEditing(false);
-                    }}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable style={styles.saveButton} onPress={handleSave}>
-                    <Text style={styles.saveButtonText}>Save</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : (
-              <>
-                <View style={styles.nameContainer}>
-                  <Text style={styles.payoutName}>{plan.name}</Text>
-                  {plan.status === 'active' && (
-                    <Pressable 
-                      style={styles.editButton} 
-                      onPress={() => {
-                        haptics.selection();
-                        setIsEditing(true);
-                      }}
-                    >
-                      <PencilLine size={20} color={colors.textSecondary} />
-                    </Pressable>
-                  )}
-                </View>
-                {plan.description && (
-                  <Text style={styles.payoutDescription}>{plan.description}</Text>
-                )}
-              </>
-            )}
+      {/* Enhanced Header */}
+      <Animated.View 
+        style={[
+          styles.header,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }]
+          }
+        ]}
+      >
+        <View style={styles.headerLeft}>
+          <Pressable 
+            onPress={() => {
+              haptics.lightImpact();
+              router.back();
+            }} 
+            style={styles.backButton}
+          >
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Payout Details</Text>
+            <Text style={styles.headerSubtitle}>
+              {plan?.status ? plan.status.charAt(0).toUpperCase() + plan.status.slice(1) : 'Loading...'}
+            </Text>
           </View>
         </View>
+        <View style={styles.headerActions}>
+          <Pressable 
+            style={styles.headerActionButton}
+            onPress={() => {
+              haptics.selection();
+              toggleBalances();
+            }}
+          >
+            {showBalances ? (
+              <EyeOff size={20} color={colors.textSecondary} />
+            ) : (
+              <Eye size={20} color={colors.textSecondary} />
+            )}
+          </Pressable>
+          {/* <Pressable style={styles.headerActionButton}>
+            <Share2 size={20} color={colors.textSecondary} />
+          </Pressable>
+          <Pressable style={styles.headerActionButton}>
+            <MoreHorizontal size={20} color={colors.textSecondary} />
+          </Pressable> */}
+        </View>
+      </Animated.View>
 
-        <Card style={styles.statusCard}>
-          <View style={styles.statusHeader}>
-            <Text style={styles.statusLabel}>Payout Amount</Text>
-            <View style={[styles.statusTag, { backgroundColor: statusColors.bg }]}>
+      {/* Tab Navigation */}
+      {/* <View style={styles.tabContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
+          {[
+            { key: 'overview', label: 'Overview', icon: BarChart3 },
+            { key: 'transactions', label: 'Transactions', icon: Activity },
+            { key: 'settings', label: 'Settings', icon: PencilLine }
+          ].map((tab) => {
+            const IconComponent = tab.icon;
+            return (
+              <Pressable
+                key={tab.key}
+                style={[
+                  styles.tab,
+                  { backgroundColor: colors.card },
+                  activeTab === tab.key && styles.activeTab
+                ]}
+                onPress={() => {
+                  haptics.selection();
+                  setActiveTab(tab.key as any);
+                }}
+              >
+                <IconComponent 
+                  size={16} 
+                  color={activeTab === tab.key ? '#FFFFFF' : colors.textSecondary} 
+                />
+                <Text style={[
+                  styles.tabText,
+                  activeTab === tab.key && styles.activeTabText
+                ]}>
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View> */}
+
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        {/* Hero Card */}
+        <Animated.View 
+          style={[
+            styles.heroCard,
+            { backgroundColor: colors.card },
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          <View style={styles.heroHeader}>
+            <View style={styles.heroTitleContainer}>
+              {isEditing ? (
+                <View style={styles.editContainer}>
+                  <TextInput
+                    style={styles.nameInput}
+                    value={payoutName}
+                    onChangeText={setPayoutName}
+                    autoFocus
+                    placeholder="Plan name"
+                    placeholderTextColor={colors.textTertiary}
+                  />
+                  <TextInput
+                    style={styles.descriptionInput}
+                    value={payoutDescription}
+                    onChangeText={setPayoutDescription}
+                    placeholder="Add a description"
+                    placeholderTextColor={colors.textTertiary}
+                    multiline
+                  />
+                  <View style={styles.editButtons}>
+                    <Pressable 
+                      style={styles.cancelButton} 
+                      onPress={() => {
+                        haptics.lightImpact();
+                        setPayoutName(plan.name);
+                        setPayoutDescription(plan.description || '');
+                        setIsEditing(false);
+                      }}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable style={styles.saveButton} onPress={handleSave}>
+                      <Text style={styles.saveButtonText}>Save</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <>
+                  <View style={styles.nameContainer}>
+                    <Text style={styles.heroTitle}>{plan.name}</Text>
+                    {plan.status === 'active' && (
+                      <Pressable 
+                        style={styles.editButton} 
+                        onPress={() => {
+                          haptics.selection();
+                          setIsEditing(true);
+                        }}
+                      >
+                        <PencilLine size={20} color={colors.textSecondary} />
+                      </Pressable>
+                    )}
+                  </View>
+                  {plan.description && (
+                    <Text style={styles.heroDescription}>{plan.description}</Text>
+                  )}
+                </>
+              )}
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
               <Text style={[styles.statusText, { color: statusColors.text }]}>
                 {plan.status.charAt(0).toUpperCase() + plan.status.slice(1)}
               </Text>
             </View>
           </View>
-          <Text style={styles.amount}>{formatCurrency(plan.payout_amount)}</Text>
-          <Text style={styles.nextPayout}>
-            {plan.status === 'cancelled' 
-              ? `Cancelled: ${new Date(plan.updated_at).toLocaleDateString()}`
-              : plan.next_payout_date 
-                ? `Next payout: ${new Date(plan.next_payout_date).toLocaleDateString()}`
-                : plan.status === 'completed' 
-                  ? 'Plan completed'
-                  : 'Plan paused'
-            }
-          </Text>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${progress}%` }]} />
+          
+          <View style={styles.heroStats}>
+            <View style={styles.heroStat}>
+              <Text style={styles.heroStatValue}>{formatCurrency(plan.total_amount)}</Text>
+              <Text style={styles.heroStatLabel}>Total Value</Text>
+            </View>
+            <View style={styles.heroStat}>
+              <Text style={styles.heroStatValue}>{formatCurrency(plan.payout_amount)}</Text>
+              <Text style={styles.heroStatLabel}>Per Payout</Text>
+            </View>
+            <View style={styles.heroStat}>
+              <Text style={styles.heroStatValue}>{plan.duration}</Text>
+              <Text style={styles.heroStatLabel}>Duration</Text>
+            </View>
           </View>
-          <View style={styles.progressStats}>
-            <Text style={styles.progressText}>
-              {formatCurrency(plan.completed_payouts * plan.payout_amount)} of {formatCurrency(plan.total_amount)}
-            </Text>
-            <Text style={styles.progressCount}>
-              {plan.completed_payouts}/{plan.duration} payouts
-            </Text>
-          </View>
-        </Card>
+        </Animated.View>
 
-        <View style={styles.section}>
+        {/* Progress Card */}
+        <Animated.View 
+          style={[
+            styles.progressCard,
+            { backgroundColor: colors.card },
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          <View style={styles.progressHeader}>
+            <Text style={styles.progressTitle}>Progress Overview</Text>
+            <Text style={styles.progressPercentage}>{progress}%</Text>
+          </View>
+          
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressBar}>
+              <Animated.View 
+                style={[
+                  styles.progressFill, 
+                  { 
+                    width: progressAnim.interpolate({
+                      inputRange: [0, 100],
+                      outputRange: ['0%', '100%'],
+                      extrapolate: 'clamp',
+                    })
+                  }
+                ]} 
+              />
+            </View>
+          </View>
+          
+          <View style={styles.progressStats}>
+            <View style={styles.progressStat}>
+              <Text style={styles.progressStatValue}>
+                {formatCurrency(plan.completed_payouts * plan.payout_amount)}
+              </Text>
+              <Text style={styles.progressStatLabel}>Completed</Text>
+            </View>
+            <View style={styles.progressStat}>
+              <Text style={styles.progressStatValue}>
+                {formatCurrency(plan.total_amount - (plan.completed_payouts * plan.payout_amount))}
+              </Text>
+              <Text style={styles.progressStatLabel}>Remaining</Text>
+            </View>
+            <View style={styles.progressStat}>
+              <Text style={styles.progressStatValue}>
+                {plan.completed_payouts}/{plan.duration}
+              </Text>
+              <Text style={styles.progressStatLabel}>Payouts</Text>
+            </View>
+          </View>
+          
+          <View style={styles.nextPayoutInfo}>
+            <Calendar size={16} color={colors.textSecondary} />
+            <Text style={styles.nextPayoutText}>
+              {plan.status === 'cancelled' 
+                ? `Cancelled: ${new Date(plan.updated_at).toLocaleDateString()}`
+                : plan.next_payout_date 
+                  ? `Next payout: ${new Date(plan.next_payout_date).toLocaleDateString()}`
+                  : plan.status === 'completed' 
+                    ? 'Plan completed'
+                    : 'Plan paused'
+              }
+            </Text>
+          </View>
+        </Animated.View>
+
+        {/* Schedule Information */}
+        <Animated.View 
+          style={[
+            styles.scheduleCard,
+            { backgroundColor: colors.card },
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
           <Text style={styles.sectionTitle}>Schedule Information</Text>
-          <Card style={styles.scheduleCard}>
+          
+          <View style={styles.scheduleGrid}>
             <View style={styles.scheduleItem}>
-              <View style={styles.scheduleIcon}>
-                <Calendar size={20} color="#1E3A8A" />
+              <View style={[styles.scheduleIcon, { backgroundColor: 'rgba(30, 58, 138, 0.1)' }]}>
+                <CalendarIcon size={20} color="#1E3A8A" />
               </View>
               <View style={styles.scheduleInfo}>
                 <Text style={styles.scheduleLabel}>Frequency</Text>
@@ -354,8 +558,8 @@ export default function ViewPayoutScreen() {
             </View>
 
             <View style={styles.scheduleItem}>
-              <View style={styles.scheduleIcon}>
-                <Clock size={20} color="#8B5CF6" />
+              <View style={[styles.scheduleIcon, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
+                <ClockIcon size={20} color="#8B5CF6" />
               </View>
               <View style={styles.scheduleInfo}>
                 <Text style={styles.scheduleLabel}>Duration</Text>
@@ -364,23 +568,22 @@ export default function ViewPayoutScreen() {
             </View>
 
             <View style={styles.scheduleItem}>
-              <View style={styles.scheduleIcon}>
-                <Wallet size={20} color="#22C55E" />
+              <View style={[styles.scheduleIcon, { backgroundColor: 'rgba(34, 197, 94, 0.1)' }]}>
+                <DollarSign size={20} color="#22C55E" />
               </View>
               <View style={styles.scheduleInfo}>
-                <Text style={styles.scheduleLabel}>Total Amount</Text>
-                <Text style={styles.scheduleValue}>{formatCurrency(plan.total_amount)}</Text>
+                <Text style={styles.scheduleLabel}>Per Payout</Text>
+                <Text style={styles.scheduleValue}>{formatCurrency(plan.payout_amount)}</Text>
               </View>
             </View>
 
             <View style={styles.scheduleItem}>
-              <View style={styles.scheduleIcon}>
+              <View style={[styles.scheduleIcon, { backgroundColor: 'rgba(14, 165, 233, 0.1)' }]}>
                 {(() => {
                   const bankName = plan.payout_accounts?.bank_name || plan.bank_accounts?.bank_name || '';
                   const bankIcon = getBankIconLogo(bankName);
                   
                   if (bankIcon.logoSvg) {
-                    // Handle SVG components
                     return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
                       width: 20,
                       height: 20,
@@ -399,7 +602,7 @@ export default function ViewPayoutScreen() {
                 })()}
               </View>
               <View style={styles.scheduleInfo}>
-                <Text style={styles.scheduleLabel}>Destination Account</Text>
+                <Text style={styles.scheduleLabel}>Bank Account</Text>
                 <Text style={styles.scheduleValue}>
                   {(plan.payout_accounts?.bank_name || plan.bank_accounts?.bank_name || 'Unknown Bank')} •••• {(plan.payout_accounts?.account_number || plan.bank_accounts?.account_number || '').slice(-4)}
                 </Text>
@@ -408,90 +611,76 @@ export default function ViewPayoutScreen() {
                 </Text>
               </View>
             </View>
-          </Card>
-        </View>
-
-        {/* <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payout Control</Text>
-          <Card style={styles.pauseCard}>
-            <View style={styles.pauseContent}>
-              <View style={styles.pauseInfo}>
-                <Text style={styles.pauseTitle}>
-                  {plan.status === 'paused' ? 'Resume Payouts' : 'Pause Payouts'}
-                </Text>
-                <Text style={styles.pauseDescription}>
-                  {plan.status === 'paused'
-                    ? 'Resume your automated payouts to continue receiving funds on schedule.'
-                    : 'Temporarily stop your automated payouts. You can resume anytime.'}
-                </Text>
-              </View>
-              <Button
-                title={plan.status === 'paused' ? "Resume" : "Pause"}
-                onPress={handlePauseResume}
-                style={[
-                  styles.pauseButton,
-                  plan.status === 'paused' && styles.resumeButton
-                ]}
-                icon={plan.status === 'paused' ? Play : Pause}
-                disabled={plan.status === 'completed' || plan.status === 'cancelled'}
-                hapticType={plan.status === 'paused' ? 'success' : 'warning'}
-              />
-            </View>
-          </Card>
-        </View> */}
-
-        {plan.status !== 'cancelled' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Emergency Access</Text>
-            <Card style={styles.emergencyCard}>
-              <View style={styles.warningHeader}>
-                <AlertTriangle size={20} color="#F97316" />
-                <Text style={styles.warningTitle}>
-                  {plan.emergency_withdrawal_enabled 
-                    ? "Emergency Withdrawal Available" 
-                    : "Emergency Withdrawal Not Enabled"}
-                </Text>
-              </View>
-              <Text style={styles.warningDescription}>
-                {plan.emergency_withdrawal_enabled 
-                  ? "You can withdraw your funds before the scheduled date, but this may attract a fee depending on how quickly you need the funds."
-                  : "This payout plan does not have emergency withdrawal enabled. You can enable this feature when creating new payout plans."}
-              </Text>
-              <Pressable 
-                style={[
-                  styles.withdrawButton,
-                  !plan.emergency_withdrawal_enabled && styles.disabledButton
-                ]}
-                onPress={handleEmergencyWithdrawal}
-                disabled={!plan.emergency_withdrawal_enabled}
-              >
-                <Text style={[
-                  styles.withdrawButtonText,
-                  !plan.emergency_withdrawal_enabled && styles.disabledButtonText
-                ]}>
-                  Request Emergency Withdrawal
-                </Text>
-              </Pressable>
-            </Card>
           </View>
+        </Animated.View>
+
+
+        {plan.status !== 'cancelled' && plan.status !== 'completed' && (
+          <Animated.View 
+            style={[
+              styles.emergencyCard,
+              { backgroundColor: colors.card },
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
+            <Text style={styles.sectionTitle}>Emergency Access</Text>
+            <View style={styles.warningHeader}>
+              <AlertTriangle size={20} color="#F97316" />
+              <Text style={styles.warningTitle}>
+                {plan.emergency_withdrawal_enabled 
+                  ? "Emergency Withdrawal Available" 
+                  : "Emergency Withdrawal Not Enabled"}
+              </Text>
+            </View>
+            <Text style={styles.warningDescription}>
+              {plan.emergency_withdrawal_enabled 
+                ? "You can withdraw your funds before the scheduled date, but this may attract a fee depending on how quickly you need the funds."
+                : "This payout plan does not have emergency withdrawal enabled. You can enable this feature when creating new payout plans."}
+            </Text>
+            <Pressable 
+              style={[
+                styles.withdrawButton,
+                !plan.emergency_withdrawal_enabled && styles.disabledButton
+              ]}
+              onPress={handleEmergencyWithdrawal}
+              disabled={!plan.emergency_withdrawal_enabled}
+            >
+              <Text style={[
+                styles.withdrawButtonText,
+                !plan.emergency_withdrawal_enabled && styles.disabledButtonText
+              ]}>
+                Request Emergency Withdrawal
+              </Text>
+            </Pressable>
+          </Animated.View>
         )}
 
         {plan.status === 'cancelled' && plan.emergency_withdrawal_enabled && (
-          <View style={styles.section}>
+          <Animated.View 
+            style={[
+              styles.emergencyCard,
+              { backgroundColor: colors.card },
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
             <Text style={styles.sectionTitle}>Cancellation Details</Text>
-            <Card style={styles.emergencyCard}>
-              <View style={styles.warningHeader}>
-                <AlertTriangle size={20} color="#F97316" />
-                <Text style={styles.warningTitle}>Emergency Withdrawal Completed</Text>
-              </View>
-              <Text style={styles.warningDescription}>
-                This payout plan was cancelled due to an emergency withdrawal. The remaining funds have been withdrawn and the plan is no longer active.
-              </Text>
-              <Text style={styles.cancellationDate}>
-                Withdrawn on: {new Date(plan.updated_at).toLocaleDateString()}
-              </Text>
-            </Card>
-          </View>
+            <View style={styles.warningHeader}>
+              <AlertTriangle size={20} color="#F97316" />
+              <Text style={styles.warningTitle}>Emergency Withdrawal Completed</Text>
+            </View>
+            <Text style={styles.warningDescription}>
+              This payout plan was cancelled due to an emergency withdrawal. The remaining funds have been withdrawn and the plan is no longer active.
+            </Text>
+            <Text style={styles.cancellationDate}>
+              Withdrawn on: {new Date(plan.updated_at).toLocaleDateString()}
+            </Text>
+          </Animated.View>
         )}
       </ScrollView>
       
@@ -500,7 +689,7 @@ export default function ViewPayoutScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -508,23 +697,80 @@ const createStyles = (colors: any) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   backButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 12,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundTertiary,
+  },
+  headerTitleContainer: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: colors.text,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerActionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tabContainer: {
+    backgroundColor: colors.surface,
+    paddingVertical: 8,
+  },
+  tabContent: {
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginRight: 8,
+    gap: 6,
+  },
+  activeTab: {
+    backgroundColor: colors.primary,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  activeTabText: {
+    color: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,
@@ -555,34 +801,194 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  payoutNameContainer: {
-    marginBottom: 24,
-  },
-  payoutNameHeader: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
     padding: 20,
+    paddingBottom: 32,
+    gap: 20,
+  },
+  heroCard: {
+    borderRadius: 24,
+    padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-    
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: .2,
+  },
+  heroHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  heroTitleContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  heroDescription: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    lineHeight: 24,
+  },
+  statusBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  statusText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  heroStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  heroStat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  heroStatValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  heroStatLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  progressCard: {
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: .4,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  progressTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  progressPercentage: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  progressBarContainer: {
+    marginBottom: 20,
+  },
+  progressBar: {
+    height: 12,
+    backgroundColor: colors.border,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 6,
+  },
+  progressStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  progressStat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  progressStatValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  progressStatLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  nextPayoutInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  nextPayoutText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  scheduleCard: {
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: .4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 20,
+  },
+  scheduleGrid: {
+    gap: 16,
+  },
+  scheduleItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  scheduleIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scheduleInfo: {
+    flex: 1,
+  },
+  scheduleLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  scheduleValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  scheduleSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   nameContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
-  },
-  payoutName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    maxWidth: '80%',
   },
   editButton: {
     width: 40,
@@ -592,17 +998,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  payoutDescription: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    maxWidth: '90%',
-  },
   editContainer: {
     gap: 12,
   },
   nameInput: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: colors.text,
     padding: 0,
   },
@@ -610,6 +1011,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     padding: 0,
+    minHeight: 40,
   },
   editButtons: {
     flexDirection: 'row',
@@ -618,161 +1020,34 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   saveButton: {
     backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   saveButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   cancelButton: {
     backgroundColor: colors.backgroundTertiary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   cancelButtonText: {
     color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  statusCard: {
-    marginBottom: 24,
-  },
-  statusHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  statusLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  statusTag: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  amount: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  nextPayout: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 16,
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#1E3A8A',
-    borderRadius: 2,
-  },
-  progressStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  progressText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  progressCount: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.text,
-    marginBottom: 16,
-  },
-  scheduleCard: {
-    gap: 16,
-  },
-  scheduleItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  scheduleIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.backgroundTertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scheduleInfo: {
-    flex: 1,
-    paddingVertical: 16,
-  },
-  scheduleLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  scheduleValue: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.text,
-  },
-  scheduleSubtext: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  pauseCard: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  pauseContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-    gap: 20,
-  },
-  pauseInfo: {
-    flex: 1,
-  },
-  pauseTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  pauseDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  pauseButton: {
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 24,
-  },
-  resumeButton: {
-    backgroundColor: '#22C55E',
   },
   emergencyCard: {
-    backgroundColor: colors.card,
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: .4,
   },
   warningHeader: {
     flexDirection: 'row',
