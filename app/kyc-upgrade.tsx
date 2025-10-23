@@ -19,6 +19,8 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useAccountResolution } from '@/hooks/useAccountResolution';
 import { supabase } from '@/lib/supabase';
 import LivenessTest from '@/components/LivenessTest';
+import * as Haptics from 'expo-haptics';
+
 type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
 
 export default function KYCUpgradeScreen() {
@@ -1449,7 +1451,7 @@ export default function KYCUpgradeScreen() {
     
     try {
       const accountDetails = await resolveAccount(accountNumber, bankCode);
-      
+
       if (accountDetails) {
         setAccountName(accountDetails.account_name);
         setAccountResolved(true);
