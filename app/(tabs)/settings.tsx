@@ -42,7 +42,7 @@ import TermsModal from '@/components/TermsModal';
 import { logAnalyticsEvent } from '@/lib/firebase';
 
 export default function SettingsScreen() {
-  const { colors, isDark, theme, setTheme, debugTheme } = useTheme();
+  const { colors, theme, setTheme } = useTheme();
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
   const haptics = useHaptics();
@@ -645,18 +645,6 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.accountActions}>
-          {/* Temporary Debug Button - Remove after fixing theme issue */}
-          <Pressable 
-            style={[styles.debugButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => {
-              console.log('🔍 Manual theme debug triggered');
-              debugTheme();
-            }}
-          >
-            <Text style={[styles.debugButtonText, { color: colors.text }]}>
-              Debug Theme (Check Console)
-            </Text>
-          </Pressable>
 
           <Pressable 
             style={styles.signOutButton}
@@ -895,18 +883,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginTop: 8,
     gap: 16,
     alignItems: 'center',
-  },
-  debugButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    borderWidth: 1,
-    width: '100%',
-    alignItems: 'center',
-  },
-  debugButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
   },
   signOutButton: {
     flexDirection: 'row',

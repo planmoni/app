@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { Appearance, ColorSchemeName } from 'react-native';
+import { Appearance, ColorSchemeName, Platform } from 'react-native';
 import { getItem, saveItem } from '@/lib/secure-storage';
 
 export type Theme = 'light' | 'dark' | 'system';
@@ -137,6 +137,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadThemePreference = async () => {
       try {
+        console.log('🎨 Starting theme initialization...');
         const savedTheme = await getItem(THEME_PREFERENCE_KEY);
         const currentSystemScheme = Appearance.getColorScheme() || 'light';
         
@@ -144,6 +145,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         console.log('   - Saved theme preference:', savedTheme);
         console.log('   - Current system scheme:', currentSystemScheme);
         console.log('   - Initial systemColorScheme state:', systemColorScheme);
+        console.log('   - Platform:', Platform.OS);
         
         if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
           console.log('🎨 Loading saved theme preference:', savedTheme);
@@ -156,6 +158,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         
         // Ensure system color scheme is up to date
         setSystemColorScheme(currentSystemScheme);
+        console.log('🎨 Theme initialization complete');
       } catch (error) {
         console.error('❌ Failed to load theme preference:', error);
         // Fallback to system theme on error
@@ -167,7 +170,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     };
 
     loadThemePreference();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ensure system color scheme is properly detected on startup
   useEffect(() => {
@@ -228,6 +231,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const isDark = theme === 'dark' || (theme === 'system' && systemColorScheme === 'dark');
   const colors = isDark ? darkColors : lightColors;
+
+  // Additional debugging for system theme detection
+  useEffect(() => {
+    console.log('🎨 Theme calculation debug:', {
+      theme,
+      systemColorScheme,
+      isDark,
+      calculation: {
+        'theme === "dark"': theme === 'dark',
+        'theme === "system"': theme === 'system',
+        'systemColorScheme === "dark"': systemColorScheme === 'dark',
+        'final isDark': isDark
+      },
+      currentSystemScheme: Appearance.getColorScheme()
+    });
+  }, [theme, systemColorScheme, isDark]);
 
   // Debug function to help troubleshoot theme issues
   const debugTheme = () => {
