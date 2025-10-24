@@ -2,10 +2,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { BalanceProvider } from '@/contexts/BalanceContext';
 import { BottomNavProvider } from '@/contexts/BottomNavContext';
-import { router } from 'expo-router';
+// import { router } from 'expo-router';
 // import SplashScreen from '@/components/SplashScreen';
-import BiometricsLock from '@/components/BiometricsLock';
-import SimplePinLock from '@/components/SimplePinLock'; // Changed from LockScreen
+// import BiometricsLock from '@/components/BiometricsLock';
+// import SimplePinLock from '@/components/SimplePinLock'; // Changed from LockScreen
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { PinProvider } from '@/contexts/PinContext';
@@ -30,7 +30,7 @@ import CustomSplashScreen from '@/components/SplashScreen';
 import AppLockScreen from '@/components/AppLockScreen';
 import AppBlur from '@/components/AppBlur';
 
-import { SessionDebugger } from '@/components/SessionDebugger';
+// import { SessionDebugger } from '@/components/SessionDebugger';
 import AppErrorProvider, { useAppError } from '@/contexts/AppErrorContext';
 
 // Prevent the splash screen from auto-hiding
