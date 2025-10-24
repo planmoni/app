@@ -45,31 +45,29 @@ export function useIntercom() {
       try {
         console.log('🔐 Authenticating user with Intercom...');
         
-        // Get JWT from your backend
-        const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/intercom-jwt`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+        // Try to get JWT from your backend, but don't fail if it's not available
+        try {
+          const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/intercom-jwt`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+              'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+            }
+          });
+
+          if (response.ok) {
+            const { jwt } = await response.json();
+            if (jwt) {
+              console.log('🔐 JWT received, setting for Intercom...');
+              await Intercom.setUserJwt(jwt);
+            }
+          } else {
+            console.warn('⚠️ JWT request failed, continuing without JWT');
           }
-        });
-
-        if (!response.ok) {
-          throw new Error(`JWT request failed: ${response.status}`);
+        } catch (jwtError) {
+          console.warn('⚠️ Failed to get JWT, continuing without JWT:', jwtError);
         }
-
-        const { jwt } = await response.json();
-        console.log('🔐 JWT received:', jwt);
-        
-        if (!jwt) {
-          throw new Error('No JWT received from server');
-        }
-
-        console.log('✅ JWT received, setting for Intercom...');
-
-        // Set the JWT token before logging in your user
-        await Intercom.setUserJwt(jwt);
 
         // Get user data
         const firstName = session.user.user_metadata?.first_name || '';
@@ -129,14 +127,22 @@ export function useIntercom() {
   // Authenticate when user session is available
   useEffect(() => {
     if (session?.user?.id) {
-      // Start authentication in background
-      authenticateUser().catch(error => {
-        console.warn('Background Intercom authentication failed:', error);
-      });
+      // Add a small delay to ensure Intercom is ready
+      const timer = setTimeout(() => {
+        authenticateUser().catch(error => {
+          console.warn('Background Intercom authentication failed:', error);
+        });
+      }, 500); // 500ms delay to ensure native module is ready
+      
+      return () => clearTimeout(timer);
     } else if (!session?.user?.id && globalAuthState.isAuthenticated) {
       // Logout when user session is lost
       console.log('🔄 User logged out, clearing Intercom authentication');
-      Intercom.logout();
+      try {
+        Intercom.logout();
+      } catch (error) {
+        console.warn('Failed to logout from Intercom:', error);
+      }
       globalAuthState.isAuthenticated = false;
       globalAuthState.currentUserId = null;
       isAuthenticatedRef.current = false;
@@ -156,6 +162,9 @@ export function useIntercom() {
 
       // Ensure user is authenticated (this will be instant if already authenticated)
       await authenticateUser();
+
+      // Add a small delay to ensure Intercom is ready
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Present the Intercom messenger
       await Intercom.present();

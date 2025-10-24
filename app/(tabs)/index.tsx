@@ -6,7 +6,7 @@ import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
-// import { IntercomButton } from '@/components/IntercomButton';
+import { IntercomButton } from '@/components/IntercomButton';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -641,7 +641,7 @@ export default function HomeScreen() {
       />
       
       {/* Floating Intercom Support Button */}
-      {/* <IntercomButton variant="floating" /> */}
+      <IntercomButton variant="floating" />
       
     </SafeAreaView>
   );
