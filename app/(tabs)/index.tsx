@@ -490,7 +490,7 @@ export default function HomeScreen() {
             {/* <Text style={styles.subGreeting}>It's time to plan some payouts</Text> */}
           </View>
         </View>
-        <Pressable 
+        {/* <Pressable 
           style={styles.livenessTestButton}
           onPress={() => {
             impact();
@@ -499,7 +499,7 @@ export default function HomeScreen() {
           }}
         >
           <Text style={styles.livenessTestButtonText}>Complete Liveness Test</Text>
-        </Pressable>
+        </Pressable> */}
 
 
         <ImageBackground 
@@ -559,6 +559,7 @@ export default function HomeScreen() {
             </View>
           </View>
         </ImageBackground>
+        
         {/* AI Suggestion Section */}
         <AISuggestionCard 
           availableBalance={availableBalance}

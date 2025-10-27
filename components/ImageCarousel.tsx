@@ -43,14 +43,14 @@ interface ImageCarouselProps {
 
 const { width: screenWidth } = Dimensions.get('window');
 const SLIDE_MARGIN = 5;
-const SLIDE_WIDTH = screenWidth - SLIDE_MARGIN * 9;
+const SLIDE_WIDTH = screenWidth - SLIDE_MARGIN * 4; // Reduced margin multiplier for wider banners
 const SNAP_INTERVAL = SLIDE_WIDTH + SLIDE_MARGIN;
 
 export default function ImageCarousel({
   autoPlay = true,
   autoPlayInterval = 7000,
   showPagination = true,
-  height = 180,
+  height = 160,
   images: propImages,
   showDimensions = false, // Default to false for production
 }: ImageCarouselProps) {

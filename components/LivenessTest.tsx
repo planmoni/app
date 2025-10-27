@@ -1,11 +1,11 @@
 import React, {useEffect, useState, useRef} from "react"
-import {StyleSheet, View, Text, useWindowDimensions, Modal, Pressable, StatusBar, Image, Alert } from "react-native"
+import {StyleSheet, View, Text, useWindowDimensions, Modal, Pressable, StatusBar, Image } from "react-native"
 import {Camera as VisionCamera, useCameraDevice, useCameraPermission } from "react-native-vision-camera"
 import {Camera, Face, FaceDetectionOptions} from 'react-native-vision-camera-face-detector';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useCameraPermissions } from 'expo-camera';
 import { X, RotateCcw } from 'lucide-react-native';
-import * as Speech from 'expo-speech';
-import * as Haptics from 'expo-haptics';
+// import * as Speech from 'expo-speech'; // Commented out
+// import * as Haptics from 'expo-haptics'; // Commented out
 import { useTheme } from '@/contexts/ThemeContext';
 // Removed @cutos/ai-face-detect - not compatible with React Native
 
@@ -41,13 +41,13 @@ export default function LivenessTest({ isVisible, onClose, onComplete }: Livenes
   const [currentState, setCurrentState] = useState<'no-face' | 'face-in-circle' | 'face-out-circle' | 'smiling'>('no-face');
   const [livenessStage, setLivenessStage] = useState<'setup' | 'look_straight' | 'look_left' | 'look_right' | 'smile' | 'photo_capture' | 'done'>('setup');
   const [isTestActive, setIsTestActive] = useState(false);
-  const [holdTimer, setHoldTimer] = useState<number | null>(null);
+  // const [holdTimer, setHoldTimer] = useState<number | null>(null); // Commented out - not used
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isHolding, setIsHolding] = useState(false);
   const [positionValid, setPositionValid] = useState(false);
   const [hasSpokenInstruction, setHasSpokenInstruction] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [lastSpeechTime, setLastSpeechTime] = useState<number>(0);
+  // const [isSpeaking, setIsSpeaking] = useState(false); // Commented out - not used
+  // const [lastSpeechTime, setLastSpeechTime] = useState<number>(0); // Commented out - not used
   const [currentInstruction, setCurrentInstruction] = useState<string>('');
   const [hasSpokenCurrentInstruction, setHasSpokenCurrentInstruction] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,16 +63,16 @@ export default function LivenessTest({ isVisible, onClose, onComplete }: Livenes
   const [differentPersonDetected, setDifferentPersonDetected] = useState(false);
   
   const device = useCameraDevice('front');
-  const isMountedRef = useRef(true);
+  // const isMountedRef = useRef(true); // Commented out - not used
   const cameraRef = useRef<VisionCamera>(null);
   const [expoPermission, requestExpoPermission] = useCameraPermissions();
-  const expoCameraRef = useRef<CameraView>(null);
+  // const expoCameraRef = useRef<CameraView>(null); // Commented out - not used
   const hasSpokenGoodRef = useRef(false);
   // Removed faceDetectRef - using ML Kit instead
 
   useEffect(() => {
     (async () => {
-      const status = await VisionCamera.requestCameraPermission();
+      await VisionCamera.requestCameraPermission();
       if (!expoPermission?.granted) {
         await requestExpoPermission();
       }
@@ -95,13 +95,13 @@ export default function LivenessTest({ isVisible, onClose, onComplete }: Livenes
       setCurrentState('no-face');
       setLivenessStage('setup');
       setIsTestActive(false);
-      setHoldTimer(null);
+      // setHoldTimer(null); // Commented out - not used
       setCapturedImage(null);
       setIsHolding(false);
       setPositionValid(false);
       setHasSpokenInstruction(false);
-      setIsSpeaking(false);
-      setLastSpeechTime(0);
+      // setIsSpeaking(false); // Commented out - not used
+      // setLastSpeechTime(0); // Commented out - not used
       setCurrentInstruction('');
       setHasSpokenCurrentInstruction(false);
       setIsSubmitting(false);
@@ -124,11 +124,11 @@ export default function LivenessTest({ isVisible, onClose, onComplete }: Livenes
       StatusBar.setBarStyle('default', true);
       
      
-      Speech.stop();
+      // Speech.stop(); // Commented out
       
      
-      setIsSpeaking(false);
-      setLastSpeechTime(0);
+      // setIsSpeaking(false); // Commented out - not used
+      // setLastSpeechTime(0); // Commented out - not used
       setCurrentInstruction('');
       setHasSpokenCurrentInstruction(false);
       setIsSubmitting(false);
@@ -151,25 +151,25 @@ export default function LivenessTest({ isVisible, onClose, onComplete }: Livenes
       setCurrentState('no-face');
       setLivenessStage('setup');
       setCapturedImage(null);
-      setHoldTimer(null);
+      // setHoldTimer(null); // Commented out - not used
       
       
-      setTimeout(() => {
-        Speech.stop();
-      }, 200);
+      // setTimeout(() => {
+      //   Speech.stop(); // Commented out
+      // }, 200);
     }
   }, [isVisible]);
 
   
   const handleClose = () => {
-    Speech.stop();
+    // Speech.stop(); // Commented out
     
     
-    setIsSpeaking(false);
-    setLastSpeechTime(0);
-    setCurrentInstruction('');
-    setHasSpokenCurrentInstruction(false);
-    hasSpokenGoodRef.current = false;
+      // setIsSpeaking(false); // Commented out - not used
+      // setLastSpeechTime(0); // Commented out - not used
+      setCurrentInstruction('');
+      setHasSpokenCurrentInstruction(false);
+      hasSpokenGoodRef.current = false;
     
     
     setIsTestActive(false);
@@ -179,7 +179,7 @@ export default function LivenessTest({ isVisible, onClose, onComplete }: Livenes
     setCurrentState('no-face');
     setLivenessStage('setup');
     setCapturedImage(null);
-    setHoldTimer(null);
+    // setHoldTimer(null); // Commented out - not used
     
     
     onClose();
@@ -188,65 +188,61 @@ export default function LivenessTest({ isVisible, onClose, onComplete }: Livenes
   
   useEffect(() => {
     return () => {
-     
-      Speech.stop();
+      // Speech cleanup commented out
+      // Speech.stop();
     };
   }, []);
 
-  const playPingSound = async () => {
-    try {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.log('Error playing ping sound:', error);
-    }
-  };
+  // const playPingSound = async () => {
+  //   // Haptic feedback commented out
+  //   console.log('Ping sound (haptic disabled)');
+  //   return;
+  // };
 
-  const provideStepFeedback = async () => {
-    try {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      setTimeout(async () => {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }, 100);
-    } catch (error) {
-      console.log('Error providing feedback:', error);
-    }
-  };
+  // const provideStepFeedback = async () => {
+  //   // Haptic feedback commented out
+  //   console.log('Step feedback (haptic disabled)');
+  //   return;
+  // };
 
   const speakInstruction = (text: string, force: boolean = false) => {
-    const now = Date.now();
+    // Speech functionality commented out
+    console.log('Instruction (speech disabled):', text);
+    return;
+    
+    // const now = Date.now();
     
     
-    if (text === currentInstruction && hasSpokenCurrentInstruction && !force) {
-      return;
-    }
+    // if (text === currentInstruction && hasSpokenCurrentInstruction && !force) {
+    //   return;
+    // }
     
-    if (isSpeaking && text === currentInstruction && !force) {
-      return;
-    }
+    // if (isSpeaking && text === currentInstruction && !force) {
+    //   return;
+    // }
     
    
-    if (force || now - lastSpeechTime >= 2500) {
-      setLastSpeechTime(now);
-      setCurrentInstruction(text);
-      setHasSpokenCurrentInstruction(true);
-      setIsSpeaking(true);
+    // if (force || now - lastSpeechTime >= 2500) {
+    //   setLastSpeechTime(now);
+    //   setCurrentInstruction(text);
+    //   setHasSpokenCurrentInstruction(true);
+    //   setIsSpeaking(true);
       
-      Speech.speak(text, {
-        language: 'en',
-        pitch: 1.0,
-        rate: 0.8,
-        onDone: () => {
-          setIsSpeaking(false);
-        },
-        onStopped: () => {
-          setIsSpeaking(false);
-        },
-        onError: () => {
-          setIsSpeaking(false);
-        }
-      });
-    }
+    //   Speech.speak(text, {
+    //     language: 'en',
+    //     pitch: 1.0,
+    //     rate: 0.8,
+    //     onDone: () => {
+    //       setIsSpeaking(false);
+    //     },
+    //     onStopped: () => {
+    //       setIsSpeaking(false);
+    //     },
+    //     onError: () => {
+    //       setIsSpeaking(false);
+    //     }
+    //   });
+    // }
   };
 
   const startLivenessTest = () => {
@@ -263,7 +259,7 @@ export default function LivenessTest({ isVisible, onClose, onComplete }: Livenes
     setPositionValid(false);
     hasSpokenGoodRef.current = true; 
     
-    provideStepFeedback();
+    // provideStepFeedback(); // Commented out - function not used
   
     setTimeout(() => {
       
@@ -324,27 +320,27 @@ export default function LivenessTest({ isVisible, onClose, onComplete }: Livenes
     };
   };
 
-  // Convert image to base64
-  const convertImageToBase64 = async (imagePath: string): Promise<string> => {
-    try {
-      const response = await fetch(`file://${imagePath}`);
-      const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64 = reader.result as string;
-          // Remove data:image/jpeg;base64, prefix
-          const base64Data = base64.split(',')[1];
-          resolve(base64Data);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.error('Failed to convert image to base64:', error);
-      throw error;
-    }
-  };
+  // Convert image to base64 - commented out as not used
+  // const convertImageToBase64 = async (imagePath: string): Promise<string> => {
+  //   try {
+  //     const response = await fetch(`file://${imagePath}`);
+  //     const blob = await response.blob();
+  //     return new Promise((resolve, reject) => {
+  //       const reader = new FileReader();
+  //       reader.onloadend = () => {
+  //         const base64 = reader.result as string;
+  //         // Remove data:image/jpeg;base64, prefix
+  //         const base64Data = base64.split(',')[1];
+  //         resolve(base64Data);
+  //       };
+  //       reader.onerror = reject;
+  //       reader.readAsDataURL(blob);
+  //     });
+  //   } catch (error) {
+  //     console.error('Failed to convert image to base64:', error);
+  //     throw error;
+  //   }
+  // };
 
   // Enhanced multiple face detection using ML Kit
   const detectMultipleFacesWithMLKit = (faces: Face[]): boolean => {
@@ -913,8 +909,8 @@ export default function LivenessTest({ isVisible, onClose, onComplete }: Livenes
           setCurrentState('no-face');
         }
       }
-    } catch (error) {
-     
+    } catch {
+      // Error handling commented out
     }
   }
 
@@ -1099,7 +1095,7 @@ export default function LivenessTest({ isVisible, onClose, onComplete }: Livenes
             
             <View style={styles.errorModalContent}>
               <Text style={[styles.errorModalMessage, { color: colors.textSecondary }]}>
-                Make sure you're alone and in a well lit environment and try again.
+                Make sure you&apos;re alone and in a well lit environment and try again.
               </Text>
               
               {comparisonResult && (
