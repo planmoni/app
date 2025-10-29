@@ -326,7 +326,7 @@ export default function LivenessTestEnhanced({
             if (pitchAngles.current.length >= 10) {
               const baselineAngle = pitchAngles.current[0];
               const currentAngle = face.pitchAngle || 0;
-              // Head going up = positive pitch change (looking up)
+              // Head going up = positive pitch change (looking upwards)
               const pitchChange = currentAngle - baselineAngle;
               currentPositionValid = pitchChange >= detections.NOD.minDiff;
             }
