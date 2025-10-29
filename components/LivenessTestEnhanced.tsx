@@ -405,11 +405,6 @@ export default function LivenessTestEnhanced({
                 animatedProps={animatedProps}
                 strokeLinecap="round"
               />
-              {isTestActive && (
-                <SvgText x="150" y="165" fill={colors.text} fontSize="28" fontWeight="bold" textAnchor="middle">
-                  {Math.round(progressValue.value)}%
-                </SvgText>
-              )}
             </Svg>
           </View>
         )}
@@ -444,7 +439,7 @@ export default function LivenessTestEnhanced({
             onPress={handleSubmit}
             disabled={isSubmitting}
           >
-            <Text style={styles.submitText}>{isSubmitting ? "Uploading..." : "Submit"}</Text>
+            <Text style={styles.submitText}>{isSubmitting ? "Uploading..." : "Continue"}</Text>
           </Pressable>
         )}
       </View>
