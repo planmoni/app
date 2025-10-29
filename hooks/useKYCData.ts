@@ -97,7 +97,7 @@ export const useKYCData = () => {
       console.log('Saving KYC form data:', updates);
 
       // Check if record exists
-      const { data: existingData, error: checkError } = await supabase
+      const { error: checkError } = await supabase
         .from('kyc_data')
         .select('id')
         .eq('user_id', session.user.id)
@@ -118,6 +118,23 @@ export const useKYCData = () => {
 
         if (insertError) throw insertError;
         result = data;
+
+        // Create audit log for KYC data creation
+        await supabase.rpc('create_kyc_audit_log', {
+          p_user_id: session.user.id,
+          p_operation_type: 'kyc_initiated',
+          p_verification_type: 'document',
+          p_verification_provider: 'internal',
+          p_request_data: updates,
+          p_response_data: { kyc_data_id: result.id },
+          p_status: 'success',
+          p_result_message: 'KYC data record created successfully',
+          p_metadata: {
+            component: 'useKYCData',
+            action: 'create_record',
+            fields_updated: Object.keys(updates)
+          }
+        });
       } else if (checkError) {
         throw checkError;
       } else {
@@ -131,6 +148,23 @@ export const useKYCData = () => {
 
         if (updateError) throw updateError;
         result = data;
+
+        // Create audit log for KYC data update
+        await supabase.rpc('create_kyc_audit_log', {
+          p_user_id: session.user.id,
+          p_operation_type: 'kyc_submitted',
+          p_verification_type: 'document',
+          p_verification_provider: 'internal',
+          p_request_data: updates,
+          p_response_data: { kyc_data_id: result.id },
+          p_status: 'success',
+          p_result_message: 'KYC data record updated successfully',
+          p_metadata: {
+            component: 'useKYCData',
+            action: 'update_record',
+            fields_updated: Object.keys(updates)
+          }
+        });
       }
 
       

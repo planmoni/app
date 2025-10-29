@@ -98,12 +98,13 @@ export async function GET(request: Request) {
     const stepProgress = {
       personal: kycProgress.personal_info_completed ? 1 : 0,
       bvn_verification: kycProgress.bvn_verified ? 1 : 0,
-      id_face_match: kycProgress.documents_verified ? 1 : 0,
+      id_face_match: kycProgress.id_face_verified ? 1 : 0,
+      documents_verification: kycProgress.documents_verified ? 1 : 0,
       address_details: kycProgress.address_completed ? 1 : 0,
       review: kycProgress.overall_completed ? 1 : 0
     };
 
-    const totalSteps = 4; // personal, bvn_verification, id_face_match, address_details
+    const totalSteps = 5; // personal, bvn_verification, id_face_match, documents_verification, address_details
     const completedSteps = Object.values(stepProgress).reduce((sum, step) => sum + step, 0);
     const progressPercentage = Math.round((completedSteps / totalSteps) * 100);
 
@@ -142,13 +143,14 @@ export async function POST(request: Request) {
       currentStep, 
       personalInfoCompleted, 
       bvnVerified, 
-      documentsVerified, 
+      documentsVerified,
+      idFaceVerified,
       addressCompleted, 
       overallCompleted 
     } = updateData;
 
     // Validate current step
-    const validSteps = ['personal', 'bvn_verification', 'id_face_match', 'address_details', 'review'];
+    const validSteps = ['personal', 'bvn_verification', 'id_face_match', 'documents_verification', 'address_details', 'review'];
     if (currentStep && !validSteps.includes(currentStep)) {
       return createJsonResponse({ error: 'Invalid current step' }, 400);
     }
@@ -159,6 +161,7 @@ export async function POST(request: Request) {
     if (personalInfoCompleted !== undefined) updateObject.personal_info_completed = personalInfoCompleted;
     if (bvnVerified !== undefined) updateObject.bvn_verified = bvnVerified;
     if (documentsVerified !== undefined) updateObject.documents_verified = documentsVerified;
+    if (idFaceVerified !== undefined) updateObject.id_face_verified = idFaceVerified;
     if (addressCompleted !== undefined) updateObject.address_completed = addressCompleted;
     if (overallCompleted !== undefined) updateObject.overall_completed = overallCompleted;
 

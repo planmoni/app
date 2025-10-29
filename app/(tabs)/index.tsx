@@ -10,26 +10,11 @@ import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
-  ArrowDownRight,
-  ArrowRightIcon,
-  BanknoteArrowDown,
-  BanknoteArrowUp,
   HelpCircleIcon,
-  ArrowUpRight,
-  Calendar,
-  ChevronDown,
-  ChevronUp,
   Eye,
   EyeOff,
-  CircleHelp as HelpCircle,
-  Lock,
-  Clock,
   Plus,
-  RefreshCw,
-  Star,
   CalendarCheck,
-  ArrowLeft,
-  History
 } from 'lucide-react-native';
 import {
   Alert,
@@ -42,7 +27,6 @@ import {
   RefreshControl,
   ImageBackground,
   Image,
-  Linking,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -64,7 +48,7 @@ import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
-import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
+// import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 
 interface Banner {
   id: string;
@@ -94,7 +78,6 @@ export default function HomeScreen() {
   const { transactions, isLoading: transactionsLoading } = useRealtimeTransactions();
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
-  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -104,9 +87,7 @@ export default function HomeScreen() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
   const route = useRoute();
-  const params = useLocalSearchParams();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
-  const [showLivenessTest, setShowLivenessTest] = useState(false);
 
   // Intercom
   const { openChat, isLoading, isSupported } = useIntercom();
@@ -234,14 +215,6 @@ export default function HomeScreen() {
     }
   };
 
-  // useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     setCurrentDate(new Date());
-  //   }, 60000);
-
-  //   return () => clearInterval(interval);
-  // }, []);
-
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentDate(new Date());
@@ -324,7 +297,53 @@ export default function HomeScreen() {
     logAnalyticsEvent('view_all_payouts');
   };
 
-  const handleStartVerification = () => {
+  const handleStartVerification = async () => {
+    try {
+      // Create audit log for KYC verification start
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session?.user?.id,
+        p_operation_type: 'kyc_initiated',
+        p_verification_type: 'document',
+        p_verification_provider: 'internal',
+        p_request_data: {
+          action: 'start_kyc_verification',
+          source: 'home_screen',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: {
+          user_action: 'clicked_start_verification_button',
+          navigation_target: '/kyc-upgrade'
+        },
+        p_status: 'success',
+        p_result_message: 'User initiated KYC verification process',
+        p_metadata: {
+          component: 'HomeScreen',
+          action: 'start_verification',
+          source: 'welcome_modal'
+        }
+      });
+
+      // Create audit event for KYC initiation
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session?.user?.id,
+            event_type: 'verification_started',
+            event_data: {
+              action: 'kyc_initiation',
+              source: 'home_screen',
+              component: 'HomeScreen'
+            },
+            severity: 'medium'
+          });
+      }
+    } catch (error) {
+      console.error('Error creating KYC audit log for verification start:', error);
+      // Continue with the action even if audit fails
+    }
+
     setShowWelcomeModal(false);
     setHasShownWelcomeModal(true);
     router.push('/kyc-upgrade');
@@ -490,17 +509,6 @@ export default function HomeScreen() {
             {/* <Text style={styles.subGreeting}>It's time to plan some payouts</Text> */}
           </View>
         </View>
-        <Pressable 
-          style={[styles.livenessTestButton, { backgroundColor: colors.primary }]}
-          onPress={() => {
-            impact();
-            setShowLivenessTest(true);
-            logAnalyticsEvent('liveness_test_button_clicked');
-          }}
-        >
-          <Text style={styles.livenessTestButtonText}>Try Enhanced Liveness Test</Text>
-        </Pressable>
-
 
         <ImageBackground 
           source={require('@/assets/images/background.png')} 
@@ -636,10 +644,10 @@ export default function HomeScreen() {
         onGoToDashboard={handleGoToDashboard}
       />
 
-      <LivenessTestEnhanced 
+      {/* <LivenessTestEnhanced 
         isVisible={showLivenessTest}
         onClose={() => setShowLivenessTest(false)}
-      />
+      /> */}
       
       {/* Floating Intercom Support Button */}
       {/* <IntercomButton variant="floating" /> */}

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
-export type KYCStep = 'personal' | 'bvn_verification' | 'id_face_match' | 'address_details' | 'review';
+export type KYCStep = 'personal' | 'bvn_verification' | 'id_face_match' | 'documents_verification' | 'address_details' | 'review';
 
 export interface KYCProgress {
   id?: string;
@@ -11,6 +11,7 @@ export interface KYCProgress {
   personal_info_completed: boolean;
   bvn_verified: boolean;
   documents_verified: boolean;
+  id_face_verified: boolean;
   address_completed: boolean;
   overall_completed: boolean;
   created_at?: string;
@@ -24,6 +25,7 @@ export const useKYCProgress = () => {
     personal_info_completed: false,
     bvn_verified: false,
     documents_verified: false,
+    id_face_verified: false,
     address_completed: false,
     overall_completed: false
   });
@@ -107,9 +109,10 @@ export const useKYCProgress = () => {
   // Get current step progress
   const getStepProgress = useCallback(() => {
     switch (progress.current_step) {
-      case 'personal': return 20;
-      case 'bvn_verification': return 40;
-      case 'id_face_match': return 60;
+      case 'personal': return 10;
+      case 'bvn_verification': return 20;
+      case 'id_face_match': return 40;
+      case 'documents_verification': return 60;
       case 'address_details': return 80;
       case 'review': return 100;
       default: return 0;

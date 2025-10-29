@@ -14,7 +14,7 @@ import { useKYCData } from '@/hooks/useKYCData';
 import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
-import LivenessTest from '@/components/LivenessTest';
+import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 
 type IdentityType = 'bvn' | 'nin' | 'passport';
 
@@ -56,9 +56,8 @@ export default function KYCUpgradeScreen() {
   const [bvnVerified, setBvnVerified] = useState(false);
   const [documentsVerified, setDocumentsVerified] = useState(false);
   
-  // LivenessTest integration
+  // LivenessTestEnhanced integration
   const [showLivenessTest, setShowLivenessTest] = useState(false);
-  const [capturedSelfie, setCapturedSelfie] = useState<string | null>(null);
   const [livenessInitiated, setLivenessInitiated] = useState(false);
   const [livenessManuallyClosed, setLivenessManuallyClosed] = useState(false);
   
@@ -127,59 +126,82 @@ export default function KYCUpgradeScreen() {
 
   // Load form data and progress when they change
   useEffect(() => {
-    if (formData) {
-      // Load personal information
-      if (formData.first_name) setFirstName(formData.first_name);
-      if (formData.last_name) setLastName(formData.last_name);
-      if (formData.middle_name) setMiddleName(formData.middle_name);
-      if (formData.date_of_birth) setDateOfBirth(formData.date_of_birth);
-      if (formData.phone_number) setPhoneNumber(formData.phone_number);
-      if (formData.address) setAddress(formData.address);
-      if (formData.house_url) setHouseUrl(formData.house_url);
-      if (formData.address_lat) setAddressLat(formData.address_lat);
-      if (formData.address_lon) setAddressLon(formData.address_lon);
-      if (formData.address_place_id) setAddressPlaceId(formData.address_place_id);
-      
-      // Load identity information
-      if (formData.bvn) setBvn(formData.bvn);
-      if (formData.nin) setNin(formData.nin);
-      
-      // Load document information based on document_type
-      if (formData.document_type) {
-        setSelectedIdentityType(formData.document_type as IdentityType);
-        if (formData.document_number) {
-          switch (formData.document_type) {
-            case 'nin':
-              setNin(formData.document_number);
-              break;
-            case 'passport':
-              setPassportNumber(formData.document_number);
-              break;
+    const loadFormDataAndCheckSelfie = async () => {
+      if (formData) {
+        // Load personal information
+        if (formData.first_name) setFirstName(formData.first_name);
+        if (formData.last_name) setLastName(formData.last_name);
+        if (formData.middle_name) setMiddleName(formData.middle_name);
+        if (formData.date_of_birth) setDateOfBirth(formData.date_of_birth);
+        if (formData.phone_number) setPhoneNumber(formData.phone_number);
+        if (formData.address) setAddress(formData.address);
+        if (formData.house_url) setHouseUrl(formData.house_url);
+        if (formData.address_lat) setAddressLat(formData.address_lat);
+        if (formData.address_lon) setAddressLon(formData.address_lon);
+        if (formData.address_place_id) setAddressPlaceId(formData.address_place_id);
+        
+        // Load identity information
+        if (formData.bvn) setBvn(formData.bvn);
+        if (formData.nin) setNin(formData.nin);
+        
+        // Load document information based on document_type
+        if (formData.document_type) {
+          setSelectedIdentityType(formData.document_type as IdentityType);
+          if (formData.document_number) {
+            switch (formData.document_type) {
+              case 'nin':
+                setNin(formData.document_number);
+                break;
+              case 'passport':
+                setPassportNumber(formData.document_number);
+                break;
+            }
+          }
+        }
+        
+        // Load document images
+        if (formData.document_front_url) setDocumentFrontImage(formData.document_front_url);
+        if (formData.document_back_url) setDocumentBackImage(formData.document_back_url);
+        if (formData.selfie_url) setSelfieImage(formData.selfie_url);
+        
+        // Load address details
+        if (formData.lga) setLga(formData.lga);
+        if (formData.state) setState(formData.state);
+        if (formData.utility_bill_url) setUtilityBill(formData.utility_bill_url);
+        
+        // Add back the house number state
+        if (formData.address_no) setAddressNo(formData.address_no);
+        
+        // Check if selfie is required and we're on the right step
+        // Check directly from kyc_data table if selfie_url is null or empty
+        if (progress?.current_step === 'bvn_verification' && !livenessInitiated && !showLivenessTest && !livenessManuallyClosed) {
+          try {
+            // Check if selfie_url exists in the database
+            const { data: kycData } = await supabase
+              .from('kyc_data')
+              .select('selfie_url')
+              .eq('user_id', session?.user?.id)
+              .single();
+            
+            const hasSelfie = kycData?.selfie_url && kycData.selfie_url.trim() !== '';
+            
+            if (!hasSelfie) {
+              console.log('No selfie found in kyc_data table, initiating liveness test...');
+              setShowLivenessTest(true);
+              setLivenessInitiated(true);
+            } else {
+              console.log('Selfie already exists in kyc_data table, proceeding with BVN verification:', kycData.selfie_url);
+            }
+          } catch (error) {
+            console.error('Error checking selfie in database:', error);
+            // If there's an error checking the database, don't initiate liveness test
           }
         }
       }
-      
-      // Load document images
-      if (formData.document_front_url) setDocumentFrontImage(formData.document_front_url);
-      if (formData.document_back_url) setDocumentBackImage(formData.document_back_url);
-      if (formData.selfie_url) setSelfieImage(formData.selfie_url);
-      
-      // Load address details
-      if (formData.lga) setLga(formData.lga);
-      if (formData.state) setState(formData.state);
-      if (formData.utility_bill_url) setUtilityBill(formData.utility_bill_url);
-      
-      // Add back the house number state
-      if (formData.address_no) setAddressNo(formData.address_no);
-      
-      // Check if selfie is required and we're on the right step
-      if (!formData.selfie_url && progress?.current_step === 'bvn_verification' && !livenessInitiated && !showLivenessTest && !livenessManuallyClosed) {
-        console.log('No selfie found and on BVN verification step, initiating liveness test...');
-        setShowLivenessTest(true);
-        setLivenessInitiated(true);
-      }
-    }
-  }, [formData, livenessInitiated, progress?.current_step, showLivenessTest, livenessManuallyClosed]);
+    };
+
+    loadFormDataAndCheckSelfie();
+  }, [formData, livenessInitiated, progress?.current_step, showLivenessTest, livenessManuallyClosed, session?.user?.id]);
 
   // Update current step when progress changes
   useEffect(() => {
@@ -267,6 +289,24 @@ export default function KYCUpgradeScreen() {
     return true;
   };
   
+  const validateDocumentVerification = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!documentFrontImage) {
+      newErrors.documentFront = 'Front of document is required';
+    }
+    
+    setErrors(newErrors);
+    
+    if (Object.keys(newErrors).length > 0) {
+      const firstError = Object.values(newErrors)[0];
+      showToast(firstError, 'error');
+      return false;
+    }
+    
+    return true;
+  };
+
   const validateIdFaceMatch = () => {
     const newErrors: Record<string, string> = {};
     
@@ -280,15 +320,7 @@ export default function KYCUpgradeScreen() {
         break;
     }
     
-    if (!documentFrontImage) {
-      newErrors.documentFront = 'Front of document is required';
-    }
-    
-    if (selectedIdentityType === 'passport' && !documentBackImage) {
-      newErrors.documentBack = 'Back of document is required';
-    }
-    
-    if (!selfieImage && !capturedSelfie) {
+    if (!selfieImage && !formData.selfie_url) {
       newErrors.selfie = 'Selfie is required';
     }
     
@@ -482,16 +514,25 @@ export default function KYCUpgradeScreen() {
               // Wait for toast to be visible before moving to next step
               await new Promise(resolve => setTimeout(resolve, 2000));
               
-              // Check if selfie is required and initialize LivenessTest
-              if (!formData.selfie_url) {
-                console.log('No selfie found in database, initiating liveness test...');
+              // Check if selfie is required and initialize LivenessTestEnhanced
+              // Check directly from kyc_data table if selfie_url is null or empty
+              const { data: kycData } = await supabase
+                .from('kyc_data')
+                .select('selfie_url')
+                .eq('user_id', session?.user?.id)
+                .single();
+              
+              const hasSelfie = kycData?.selfie_url && kycData.selfie_url.trim() !== '';
+              
+              if (!hasSelfie) {
+                console.log('No selfie found in kyc_data table, initiating liveness test...');
                 setShowLivenessTest(true);
                 setLivenessInitiated(true);
                 setLivenessManuallyClosed(false); // Reset the manually closed flag
                 // Don't proceed to next step yet, wait for liveness completion
                 return;
               } else {
-                console.log('Selfie already exists in database, proceeding to BVN verification');
+                console.log('Selfie already exists in kyc_data table, proceeding to BVN verification:', kycData.selfie_url);
                 // Proceed to BVN verification step
                 setCurrentStep('bvn_verification');
                 setTimeout(() => {
@@ -525,19 +566,15 @@ export default function KYCUpgradeScreen() {
             await verifyBvn();
           }
           break;
-        case 'id_face_match':
-          if (validateIdFaceMatch()) {
+        case 'documents_verification':
+          if (validateDocumentVerification()) {
             setIsLoading(true);
             
-            // Save identity and document data
+            // Save document data
             const saveResult = await saveFormData({
-              nin: nin,
               document_type: selectedIdentityType,
-              document_number: selectedIdentityType === 'nin' ? nin : 
-                             selectedIdentityType === 'passport' ? passportNumber : '',
               document_front_url: documentFrontImage || undefined,
-              document_back_url: documentBackImage || undefined,
-              selfie_url: selfieImage || capturedSelfie || undefined
+              document_back_url: documentBackImage || undefined
             });
             
             if (!saveResult) {
@@ -547,6 +584,25 @@ export default function KYCUpgradeScreen() {
             
             // Verify documents with Dojah
             await verifyDocuments();
+          }
+          break;
+        case 'id_face_match':
+          if (validateIdFaceMatch()) {
+            setIsLoading(true);
+            
+            // Save identity data (NIN verification only)
+            const saveResult = await saveFormData({
+              nin: nin,
+              selfie_url: formData.selfie_url || undefined
+            });
+            
+            if (!saveResult) {
+              showToast('Failed to save identity data. Please try again.', 'error');
+              return;
+            }
+            
+            // Verify NIN with Dojah (face matching)
+            await verifyNIN(process.env.EXPO_PUBLIC_DOJAH_APP_ID!, process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!);
           }
           break;
         case 'address_details':
@@ -604,211 +660,6 @@ export default function KYCUpgradeScreen() {
     }
   };
   
-  // Upload selfie image to Supabase storage with retry logic
-  const uploadSelfieImage = async (imagePath: string, retryCount = 0): Promise<string | null> => {
-    try {
-      if (!session?.user?.id) {
-        throw new Error('Authentication required');
-      }
-
-      console.log('Starting selfie upload, attempt:', retryCount + 1);
-
-      // Read the image file with timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-      
-      console.log('Reading image from path:', imagePath);
-      
-      // Handle different image path formats
-      let imageUrl = imagePath;
-      if (imagePath.startsWith('file://')) {
-        imageUrl = imagePath;
-      } else if (!imagePath.startsWith('http')) {
-        imageUrl = `file://${imagePath}`;
-      }
-      
-      const response = await fetch(imageUrl, {
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'image/jpeg',
-        }
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to read image: ${response.status} ${response.statusText}`);
-      }
-      
-      const blob = await response.blob();
-      console.log('Image blob size:', blob.size);
-      console.log('Image blob:', blob);
-      
-      // Check if blob is too small (might be corrupted)
-      if (blob.size < 10000) { // Less than 10KB is suspicious
-        console.warn('Image blob size is very small, might be corrupted:', blob.size);
-        throw new Error('Image file appears to be corrupted or too small');
-      }
-      
-      // Create a unique filename
-      const timestamp = Date.now();
-      const fileName = `liveness-selfie-${session.user.id}-${timestamp}.jpg`;
-      const filePath = `kyc-documents/${fileName}`; // Removed 'documents/' prefix
-
-      console.log('Uploading to path:', filePath);
-
-      // Upload to Supabase storage
-      console.log('Attempting to upload to Supabase storage...');
-      console.log('Upload details:', {
-        filePath,
-        blobSize: blob.size,
-        blobType: blob.type,
-        bucket: 'documents'
-      });
-      
-      // Test Supabase connection first
-      console.log('Testing Supabase connection...');
-      const { error: testError } = await supabase.storage
-        .from('documents')
-        .list('kyc-documents', { limit: 1 });
-      
-      if (testError) {
-        console.error('Supabase connection test failed:', testError);
-        console.log('Trying to create kyc-documents folder...');
-        
-        // Try to create a dummy file to create the folder
-        const dummyBlob = new Blob(['dummy'], { type: 'text/plain' });
-        const { error: createError } = await supabase.storage
-          .from('documents')
-          .upload('kyc-documents/.gitkeep', dummyBlob, {
-            contentType: 'text/plain',
-            upsert: true
-          });
-        
-        if (createError) {
-          console.error('Failed to create kyc-documents folder:', createError);
-          throw new Error(`Supabase connection failed: ${testError.message}`);
-        } else {
-          console.log('kyc-documents folder created successfully');
-        }
-      } else {
-        console.log('Supabase connection test successful');
-      }
-      
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .upload(filePath, blob, {
-          contentType: 'image/jpeg',
-          upsert: false
-        });
-
-      if (error) {
-        console.error('Supabase upload error details:', {
-          error,
-          message: error.message,
-          statusCode: error.statusCode,
-          filePath,
-          blobSize: blob.size,
-          errorName: error.name,
-          errorStack: error.stack
-        });
-        
-        // Try uploading to root of documents bucket if kyc-documents folder fails
-        if (error.message?.includes('not found') || error.message?.includes('does not exist')) {
-          console.log('Trying fallback upload to root of documents bucket...');
-          const fallbackPath = fileName;
-          const { data: fallbackData, error: fallbackError } = await supabase.storage
-            .from('documents')
-            .upload(fallbackPath, blob, {
-              contentType: 'image/jpeg',
-              upsert: false
-            });
-          
-          if (fallbackError) {
-            console.error('Fallback upload also failed:', fallbackError);
-            throw error; // Throw original error
-          } else {
-            console.log('Fallback upload successful:', fallbackData);
-            // Update filePath for URL generation
-            const { data: urlData } = supabase.storage
-              .from('documents')
-              .getPublicUrl(fallbackPath);
-            return urlData.publicUrl;
-          }
-        }
-        
-        // Try alternative upload method with different parameters
-        console.log('Trying alternative upload method...');
-        try {
-          const { data: altData, error: altError } = await supabase.storage
-            .from('documents')
-            .upload(filePath, blob, {
-              contentType: 'image/jpeg',
-              upsert: true // Try with upsert true
-            });
-          
-          if (altError) {
-            console.error('Alternative upload also failed:', altError);
-            throw error; // Throw original error
-          } else {
-            console.log('Alternative upload successful:', altData);
-            const { data: urlData } = supabase.storage
-              .from('documents')
-              .getPublicUrl(filePath);
-            return urlData.publicUrl;
-          }
-        } catch (altError) {
-          console.error('Alternative upload method failed:', altError);
-          throw error; // Throw original error
-        }
-      }
-
-      console.log('Upload successful, data:', data);
-
-      // Get the public URL
-      const { data: urlData, error: urlError } = supabase.storage
-        .from('documents')
-        .getPublicUrl(filePath);
-
-      if (urlError) {
-        console.error('Error getting public URL:', urlError);
-        throw urlError;
-      }
-
-      console.log('Generated public URL:', urlData.publicUrl);
-      
-      // Verify the file exists in the bucket
-      const { data: verifyData, error: verifyError } = await supabase.storage
-        .from('documents')
-        .list('kyc-documents', {
-          search: fileName
-        });
-      
-      if (verifyError) {
-        console.error('Error verifying file in bucket:', verifyError);
-      } else {
-        console.log('File verification in bucket:', verifyData);
-        if (verifyData && verifyData.length > 0) {
-          console.log('File confirmed to exist in bucket');
-        } else {
-          console.warn('File not found in bucket after upload');
-        }
-      }
-      
-      return urlData.publicUrl;
-    } catch (error) {
-      console.error('Error uploading selfie image (attempt', retryCount + 1, '):', error);
-      
-      // Retry logic for network errors
-      if (retryCount < 2 && (error instanceof TypeError || (error as any)?.name === 'AbortError')) {
-        console.log('Retrying upload in 2 seconds...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        return uploadSelfieImage(imagePath, retryCount + 1);
-      }
-      
-      return null;
-    }
-  };
 
   // Convert image URL to base64 for API calls
   const convertImageToBase64 = async (imageUrl: string): Promise<string | null> => {
@@ -833,87 +684,141 @@ export default function KYCUpgradeScreen() {
     }
   };
 
-  // Handle LivenessTest completion
-  const handleLivenessComplete = async (capturedImage: string) => {
+  // Handle LivenessTestEnhanced completion
+  const handleLivenessComplete = async (selfieUrl: string) => {
     try {
-      console.log('Liveness test completed, processing image:', capturedImage);
-      setCapturedSelfie(capturedImage);
+      console.log('Liveness test completed, selfie URL received:', selfieUrl);
       
-      // Show loading state
-      showToast('Processing selfie image...', 'info');
+      // Save the selfie URL to form data
+      await saveFormData({
+        selfie_url: selfieUrl
+      });
       
-      // Upload selfie to Supabase storage
-      const selfieUrl = await uploadSelfieImage(capturedImage);
-      
-      if (selfieUrl) {
-        console.log('Selfie uploaded successfully, URL:', selfieUrl);
-        console.log('Saving selfie URL to database...');
-        
-        // Save selfie URL to database
-        const saveResult = await saveFormData({
-          selfie_url: selfieUrl
-        });
-        
-        console.log('Database save result:', saveResult);
-        
-        if (saveResult) {
-          console.log('Selfie URL saved to database successfully');
-          
-          // Verify the save by checking formData
-          console.log('Current formData after save:', formData);
-          
-          // Additional verification: query the database directly
-          try {
-            if (session?.user?.id) {
-              const { data: verifyDbData, error: verifyDbError } = await supabase
-                .from('kyc_data')
-                .select('selfie_url')
-                .eq('user_id', session.user.id)
-                .single();
-            
-              if (verifyDbError) {
-                console.error('Error verifying database save:', verifyDbError);
-              } else {
-                console.log('Database verification - selfie_url:', verifyDbData?.selfie_url);
-              }
-            }
-          } catch (verifyError) {
-            console.error('Error during database verification:', verifyError);
-          }
-          
-          showToast('Selfie captured and saved successfully', 'success');
-          
-          // Liveness completed
-          setShowLivenessTest(false);
-          setLivenessInitiated(false);
-          setLivenessManuallyClosed(false); // Reset the manually closed flag
-          
-          // Proceed to BVN verification step
-          setCurrentStep('bvn_verification');
-          setTimeout(() => {
-            setIsManualVerification(false);
-          }, 1000);
-        } else {
-          console.error('Failed to save selfie URL to database');
-          showToast('Selfie captured but failed to save to database', 'error');
-          setShowLivenessTest(false);
-          setLivenessInitiated(false);
+      // Create audit log for liveness test completion
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session?.user?.id,
+        p_operation_type: 'liveness_check',
+        p_verification_type: 'liveness',
+        p_verification_provider: 'internal',
+        p_request_data: {
+          action: 'liveness_test_completed',
+          source: 'kyc_upgrade_screen',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: {
+          selfie_url: selfieUrl,
+          completion_status: 'success',
+          next_step: 'bvn_verification'
+        },
+        p_status: 'success',
+        p_result_message: 'Liveness test completed successfully',
+        p_metadata: {
+          component: 'KYCUpgradeScreen',
+          action: 'liveness_completion',
+          step: 'id_face_match'
         }
-      } else {
-        console.error('Failed to upload selfie image');
-        showToast('Failed to upload selfie image. Please try again.', 'error');
-        setShowLivenessTest(false);
-        setLivenessInitiated(false);
+      });
+
+      // Create audit event for liveness completion
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session?.user?.id,
+            event_type: 'verification_completed',
+            event_data: {
+              action: 'liveness_test_completed',
+              selfie_url: selfieUrl,
+              test_stages: ['blink', 'nod', 'look_left', 'look_right', 'smile']
+            },
+            severity: 'medium'
+          });
+
+        // Create audit attachment for selfie image
+        await supabase
+          .from('kyc_audit_attachments')
+          .insert({
+            audit_log_id: auditLogId,
+            file_name: `liveness-selfie-${Date.now()}.jpg`,
+            file_type: 'image/jpeg',
+            file_size: 0, // We don't have the actual file size here
+            file_hash: 'selfie-hash-placeholder', // Would need actual hash calculation
+            file_path: selfieUrl,
+            access_level: 'restricted',
+            description: 'Liveness test selfie image',
+            tags: ['liveness', 'selfie', 'kyc']
+          });
       }
+      
+      // Show success message
+      showToast('Selfie captured and saved successfully', 'success');
+      
+      // Liveness completed - LivenessTestEnhanced already saved the image
+      setShowLivenessTest(false);
+      setLivenessInitiated(false);
+      setLivenessManuallyClosed(false); // Reset the manually closed flag
+      
+      // Proceed to BVN verification step
+      setCurrentStep('bvn_verification');
+      setTimeout(() => {
+        setIsManualVerification(false);
+      }, 1000);
     } catch (error) {
       console.error('Error handling liveness completion:', error);
-      showToast('Failed to process selfie image. Please try again.', 'error');
+      showToast('Failed to process liveness completion. Please try again.', 'error');
       setShowLivenessTest(false);
       setLivenessInitiated(false);
     }
   };
   
-  const handleLivenessClose = () => {
+  const handleLivenessClose = async () => {
+    try {
+      // Create audit log for liveness test manual close
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session?.user?.id,
+        p_operation_type: 'liveness_check',
+        p_verification_type: 'liveness',
+        p_verification_provider: 'internal',
+        p_request_data: {
+          action: 'liveness_test_manually_closed',
+          source: 'kyc_upgrade_screen',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: {
+          user_action: 'manually_closed_liveness_test',
+          completion_status: 'cancelled'
+        },
+        p_status: 'failed',
+        p_result_message: 'User manually closed liveness test',
+        p_metadata: {
+          component: 'KYCUpgradeScreen',
+          action: 'liveness_manual_close',
+          step: 'id_face_match'
+        }
+      });
+
+      // Create audit event for liveness test manual close
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session?.user?.id,
+            event_type: 'verification_cancelled',
+            event_data: {
+              action: 'liveness_test_manually_closed',
+              reason: 'user_cancelled',
+              step: 'id_face_match'
+            },
+            severity: 'low'
+          });
+      }
+    } catch (error) {
+      console.error('Error creating audit log for liveness close:', error);
+      // Continue with the action even if audit fails
+    }
+
     setShowLivenessTest(false);
     setLivenessInitiated(false);
     setLivenessManuallyClosed(true);
@@ -923,6 +828,48 @@ export default function KYCUpgradeScreen() {
   
   const verifyBvn = async () => {
     try {
+      // Create audit log for BVN verification start
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session?.user?.id,
+        p_operation_type: 'bvn_verified',
+        p_verification_type: 'bvn',
+        p_verification_provider: 'dojah',
+        p_request_data: {
+          action: 'start_bvn_verification',
+          bvn: bvn,
+          source: 'kyc_upgrade_screen',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: {
+          user_action: 'initiated_bvn_verification',
+          verification_status: 'pending'
+        },
+        p_status: 'pending',
+        p_result_message: 'User initiated BVN verification process',
+        p_metadata: {
+          component: 'KYCUpgradeScreen',
+          action: 'bvn_verification_start',
+          step: 'bvn_verification'
+        }
+      });
+
+      // Create audit event for BVN verification start
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session?.user?.id,
+            event_type: 'verification_started',
+            event_data: {
+              action: 'bvn_verification_initiated',
+              bvn: bvn,
+              provider: 'dojah'
+            },
+            severity: 'medium'
+          });
+      }
+
       setIsManualVerification(true);
       setIsResolvingBvn(true);
       setErrors({});
@@ -941,11 +888,10 @@ export default function KYCUpgradeScreen() {
         return;
       }
       
-      // Get selfie image for verification
-      let selfieImage = capturedSelfie;
+      // Get selfie image for verification from saved form data
+      let selfieImage = null;
       
-      // If no captured selfie, try to get from saved form data
-      if (!selfieImage && formData.selfie_url) {
+      if (formData.selfie_url) {
         const base64Image = await convertImageToBase64(formData.selfie_url);
         if (base64Image) {
           selfieImage = `data:image/jpeg;base64,${base64Image}`;
@@ -1091,6 +1037,34 @@ export default function KYCUpgradeScreen() {
         
         setBvnMatchedName(displayName);
         
+        // Create audit log for BVN verification
+        await supabase.rpc('create_kyc_audit_log', {
+          p_user_id: session.user.id,
+          p_operation_type: 'bvn_verified',
+          p_verification_type: 'bvn',
+          p_verification_provider: 'dojah',
+          p_request_data: {
+            bvn: bvn,
+            selfie_verification: true,
+            name_matching: true
+          },
+          p_response_data: {
+            bvn_data: bvnData,
+            name_match_percentage: matchPercentage,
+            selfie_confidence: bvnData.selfie_verification?.confidence_value,
+            matched_name: displayName
+          },
+          p_status: 'success',
+          p_result_message: `BVN verified successfully. Name: ${displayName}`,
+          p_confidence_score: bvnData.selfie_verification?.confidence_value || 95.0,
+          p_metadata: {
+            component: 'kyc-upgrade',
+            verification_step: 'bvn_verification',
+            name_match_percentage: matchPercentage,
+            provider: 'dojah'
+          }
+        });
+        
         // BVN verification successful with Dojah
         showToast(`BVN verified! Name: ${displayName}`, 'success');
         
@@ -1205,6 +1179,49 @@ export default function KYCUpgradeScreen() {
 
   const verifyDocuments = async () => {
     try {
+      // Create audit log for document verification start
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session?.user?.id,
+        p_operation_type: 'document_uploaded',
+        p_verification_type: selectedIdentityType,
+        p_verification_provider: 'dojah',
+        p_request_data: {
+          action: 'start_document_verification',
+          document_type: selectedIdentityType,
+          source: 'kyc_upgrade_screen',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: {
+          user_action: 'initiated_document_verification',
+          verification_status: 'pending'
+        },
+        p_status: 'pending',
+        p_result_message: 'User initiated document verification process',
+        p_metadata: {
+          component: 'KYCUpgradeScreen',
+          action: 'document_verification_start',
+          step: 'documents_verification',
+          document_type: selectedIdentityType
+        }
+      });
+
+      // Create audit event for document verification start
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session?.user?.id,
+            event_type: 'document_uploaded',
+            event_data: {
+              action: 'document_verification_initiated',
+              document_type: selectedIdentityType,
+              provider: 'dojah'
+            },
+            severity: 'medium'
+          });
+      }
+
       setIsManualVerification(true);
       setIsVerifyingDocuments(true);
       setErrors({});
@@ -1250,15 +1267,60 @@ export default function KYCUpgradeScreen() {
       //   }
       // }
 
-      // Verify based on document type first (before saving anything )
-      // if (selectedIdentityType === 'drivers_license') {
-      //   await verifyDriversLicense(appId, privateKey);
-      // } else 
-      if (selectedIdentityType === 'nin') {
-        await verifyNIN(appId, privateKey);
-      } else {
-        throw new Error('Unsupported document type');
+      // Convert images to base64 for document analysis
+      const frontImageBase64 = await convertImageToBase64(documentFrontImage);
+      const backImageBase64 = documentBackImage ? await convertImageToBase64(documentBackImage) : null;
+      
+      if (!frontImageBase64) {
+        throw new Error('Failed to process front document image');
       }
+
+      // Call document analysis API
+      const analysisResponse = await fetch('/api/dojah-document-analysis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          inputType: 'base64',
+          imageFrontSide: frontImageBase64,
+          imageBackSide: backImageBase64
+        })
+      });
+
+      if (!analysisResponse.ok) {
+        const errorData = await analysisResponse.json();
+        throw new Error(errorData.details || 'Document analysis failed');
+      }
+
+      const analysisData = await analysisResponse.json();
+      
+      if (analysisData.data?.status?.overall_status !== 1) {
+        throw new Error(`Document validation failed: ${analysisData.data?.status?.reason || 'Invalid document'}`);
+      }
+
+      // Document analysis successful
+      showToast('Document verified successfully!', 'success');
+      
+      // Update progress
+      const progressResult = await updateProgress({
+        current_step: 'address_details',
+        documents_verified: true
+      });
+      
+      if (!progressResult) {
+        showToast('Failed to update progress. Please try again.', 'error');
+        return;
+      }
+      
+      // Wait for toast to be visible before moving to next step
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      setCurrentStep('address_details');
+      setTimeout(() => {
+        setIsManualVerification(false);
+      }, 1000);
       
     } catch (error) {
       console.error('Document verification error:', error);
@@ -1282,11 +1344,10 @@ export default function KYCUpgradeScreen() {
         throw new Error('NIN is required');
       }
 
-      // Get selfie image for verification
-      let selfieToUse = capturedSelfie || selfieImage;
+      // Get selfie image for verification from saved form data
+      let selfieToUse = null;
       
-      // If no captured selfie, try to get from saved form data
-      if (!selfieToUse && formData.selfie_url) {
+      if (formData.selfie_url) {
         const base64Image = await convertImageToBase64(formData.selfie_url);
         if (base64Image) {
           selfieToUse = `data:image/jpeg;base64,${base64Image}`;
@@ -1386,7 +1447,7 @@ export default function KYCUpgradeScreen() {
             document_type: 'nin',
             document_number: nin,
             document_front_url: documentFrontImage || undefined,
-            selfie_url: selfieImage || undefined
+            selfie_url: formData.selfie_url || undefined
           });
           
           console.log('NIN data saved successfully');
@@ -1403,13 +1464,76 @@ export default function KYCUpgradeScreen() {
           .filter(Boolean)
           .join(' ');
         
+        // Create audit log for NIN verification
+        const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+          p_user_id: session?.user?.id,
+          p_operation_type: 'nin_verified',
+          p_verification_type: 'nin',
+          p_verification_provider: 'dojah',
+          p_request_data: {
+            nin: nin,
+            selfie_verification: true,
+            name_matching: true
+          },
+          p_response_data: {
+            nin_data: ninData,
+            name_match_percentage: matchPercentage,
+            selfie_confidence: selfieVerification.confidence_value,
+            matched_name: displayName
+          },
+          p_status: 'success',
+          p_result_message: `NIN verified successfully. Name: ${displayName}`,
+          p_confidence_score: selfieVerification.confidence_value,
+          p_metadata: {
+            component: 'kyc-upgrade',
+            verification_step: 'id_face_match',
+            name_match_percentage: matchPercentage,
+            provider: 'dojah'
+          }
+        });
+
+        // Create audit event for NIN verification
+        if (auditLogId) {
+          await supabase
+            .from('kyc_audit_events')
+            .insert({
+              audit_log_id: auditLogId,
+              user_id: session?.user?.id,
+              event_type: 'verification_completed',
+              event_data: {
+                action: 'nin_verification_completed',
+                nin: nin,
+                name_match_percentage: matchPercentage,
+                selfie_confidence: selfieVerification.confidence_value
+              },
+              severity: 'high'
+            });
+
+          // Create audit attachment for NIN document
+          if (documentFrontImage) {
+            await supabase
+              .from('kyc_audit_attachments')
+              .insert({
+                audit_log_id: auditLogId,
+                file_name: `nin-document-${Date.now()}.jpg`,
+                file_type: 'image/jpeg',
+                file_size: 0, // We don't have the actual file size here
+                file_hash: 'document-hash-placeholder', // Would need actual hash calculation
+                file_path: documentFrontImage,
+                access_level: 'restricted',
+                description: 'NIN document front image',
+                tags: ['nin', 'document', 'kyc', 'id_verification']
+              });
+          }
+        }
+        
         // Show success toast after verification completes
         showToast(`NIN verified! Name: ${displayName} (${selfieVerification.confidence_value.toFixed(1)}% confidence)`, 'success');
         
         // Update progress
         const progressResult = await updateProgress({
-          current_step: 'address_details',
-          documents_verified: true
+          current_step: 'documents_verification',
+          id_face_verified: true
         });
         
         if (!progressResult) {
@@ -1450,9 +1574,13 @@ export default function KYCUpgradeScreen() {
           await updateProgress({ current_step: 'bvn_verification' });
           setCurrentStep('bvn_verification');
           break;
-        case 'address_details':
+        case 'documents_verification':
           await updateProgress({ current_step: 'id_face_match' });
           setCurrentStep('id_face_match');
+          break;
+        case 'address_details':
+          await updateProgress({ current_step: 'documents_verification' });
+          setCurrentStep('documents_verification');
           break;
         case 'review':
           await updateProgress({ current_step: 'address_details' });
@@ -1471,8 +1599,11 @@ export default function KYCUpgradeScreen() {
         case 'id_face_match':
           setCurrentStep('bvn_verification');
           break;
-        case 'address_details':
+        case 'documents_verification':
           setCurrentStep('id_face_match');
+          break;
+        case 'address_details':
+          setCurrentStep('documents_verification');
           break;
         case 'review':
           setCurrentStep('address_details');
@@ -1507,6 +1638,79 @@ export default function KYCUpgradeScreen() {
           console.error('Error updating profile:', profileError);
           // Don't fail the entire process if profile update fails
           console.log('Continuing with verification completion...');
+        }
+
+        // Create audit log for KYC completion
+        const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+          p_user_id: session.user.id,
+          p_operation_type: 'kyc_verified',
+          p_verification_type: 'document',
+          p_verification_provider: 'internal',
+          p_request_data: {
+            action: 'kyc_completion',
+            all_steps_completed: true
+          },
+          p_response_data: {
+            overall_completed: true,
+            account_verified: true,
+            completion_timestamp: new Date().toISOString()
+          },
+          p_status: 'success',
+          p_result_message: 'KYC verification completed successfully',
+          p_confidence_score: 100.0,
+          p_metadata: {
+            component: 'kyc-upgrade',
+            verification_step: 'review',
+            final_completion: true
+          }
+        });
+
+        // Create audit event for KYC completion
+        if (auditLogId) {
+          await supabase
+            .from('kyc_audit_events')
+            .insert({
+              audit_log_id: auditLogId,
+              user_id: session.user.id,
+              event_type: 'verification_completed',
+              event_data: {
+                action: 'kyc_verification_completed',
+                all_steps_completed: true,
+                account_verified: true
+              },
+              severity: 'high'
+            });
+
+          // Create audit summary for the KYC process
+          const now = new Date();
+          const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+          await supabase
+            .from('kyc_audit_summary')
+            .upsert({
+              user_id: session.user.id,
+              period_start: periodStart.toISOString(),
+              period_end: periodEnd.toISOString(),
+              period_type: 'monthly',
+              total_verifications: 1,
+              successful_verifications: 1,
+              failed_verifications: 0,
+              manual_reviews: 0,
+              documents_uploaded: 1,
+              documents_verified: 1,
+              documents_rejected: 0,
+              average_risk_score: 0.1,
+              compliance_violations: 0,
+              fraud_attempts: 0,
+              provider_usage: {
+                dojah: 1,
+                internal: 1
+              },
+              total_cost: 0
+            }, {
+              onConflict: 'user_id,period_start,period_end,period_type'
+            });
         }
         
         showToast('Verification completed successfully!', 'success');
@@ -1708,6 +1912,7 @@ export default function KYCUpgradeScreen() {
       case 'personal': return 'Personal Information';
       case 'bvn_verification': return 'BVN Verification';
       case 'id_face_match': return 'ID & Face Verification';
+      case 'documents_verification': return 'Document Verification';
       case 'address_details': return 'Address Details';
       case 'review': return 'Review & Submit';
     }
@@ -1744,7 +1949,7 @@ export default function KYCUpgradeScreen() {
     }
   };
   
-  const takePicture = async (setImageFunction: React.Dispatch<React.SetStateAction<string | null>>, type: string) => {
+  const takePicture = async (type: 'front' | 'back' | 'house' | 'utility') => {
     // Request permissions
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     
@@ -1764,8 +1969,25 @@ export default function KYCUpgradeScreen() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         if (asset.base64) {
-          setImageFunction(`data:image/jpeg;base64,${asset.base64}`);
-          setErrors(prev => ({ ...prev, [type]: '' }));
+          const imageData = `data:image/jpeg;base64,${asset.base64}`;
+          switch (type) {
+            case 'front':
+              setDocumentFrontImage(imageData);
+              setErrors(prev => ({ ...prev, documentFront: '' }));
+              break;
+            case 'back':
+              setDocumentBackImage(imageData);
+              setErrors(prev => ({ ...prev, documentBack: '' }));
+              break;
+            case 'house':
+              setHouseUrl(imageData);
+              setErrors(prev => ({ ...prev, houseUrl: '' }));
+              break;
+            case 'utility':
+              setUtilityBill(imageData);
+              setErrors(prev => ({ ...prev, utilityBill: '' }));
+              break;
+          }
         }
       }
     } catch (error) {
@@ -1965,6 +2187,94 @@ export default function KYCUpgradeScreen() {
     );
   };
   
+  const renderDocumentsVerificationStep = () => {
+    return (
+      <View style={styles.formContainer}>
+        <Text style={styles.sectionTitle}>Document Verification</Text>
+        <Text style={styles.sectionDescription}>
+          Please upload clear photos of your identity document for verification.
+        </Text>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Document Type</Text>
+          <View style={styles.identityTypeContainer}>
+            <Pressable
+              style={[
+                styles.identityTypeOption,
+                selectedIdentityType === 'nin' && styles.identityTypeSelected
+              ]}
+              onPress={() => setSelectedIdentityType('nin')}
+            >
+              <Text style={[
+                styles.identityTypeText,
+                selectedIdentityType === 'nin' && styles.identityTypeTextSelected
+              ]}>
+                NIN
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.identityTypeOption,
+                selectedIdentityType === 'passport' && styles.identityTypeSelected
+              ]}
+              onPress={() => setSelectedIdentityType('passport')}
+            >
+              <Text style={[
+                styles.identityTypeText,
+                selectedIdentityType === 'passport' && styles.identityTypeTextSelected
+              ]}>
+                Passport
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Front of Document *</Text>
+          <Pressable
+            style={[styles.imageUploadContainer, errors.documentFront && styles.inputError]}
+            onPress={() => takePicture('front')}
+          >
+            {documentFrontImage ? (
+              <Image source={{ uri: documentFrontImage }} style={styles.uploadedImage} />
+            ) : (
+              <View style={styles.uploadPlaceholder}>
+                <Camera size={24} color={colors.textSecondary} />
+                <Text style={styles.uploadText}>Tap to take photo</Text>
+              </View>
+            )}
+          </Pressable>
+          {errors.documentFront && <Text style={styles.errorText}>{errors.documentFront}</Text>}
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Back of Document (Optional)</Text>
+          <Pressable
+            style={[styles.imageUploadContainer, errors.documentBack && styles.inputError]}
+            onPress={() => takePicture('back')}
+          >
+            {documentBackImage ? (
+              <Image source={{ uri: documentBackImage }} style={styles.uploadedImage} />
+            ) : (
+              <View style={styles.uploadPlaceholder}>
+                <Camera size={24} color={colors.textSecondary} />
+                <Text style={styles.uploadText}>Tap to take photo</Text>
+              </View>
+            )}
+          </Pressable>
+          {errors.documentBack && <Text style={styles.errorText}>{errors.documentBack}</Text>}
+        </View>
+
+        <View style={styles.infoContainer}>
+          <Info size={20} color={colors.primary} />
+          <Text style={styles.infoText}>
+            Ensure the document is clearly visible, well-lit, and all text is readable. Avoid glare and shadows.
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   const renderBvnVerificationStep = () => {
     return (
       <View style={styles.formContainer}>
@@ -2044,7 +2354,7 @@ export default function KYCUpgradeScreen() {
   const renderIDFaceMatchStep = () => {
     return (
       <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>ID & Face Verification</Text>
+        <Text style={styles.sectionTitle}>NIN Verification</Text>
         <Text style={styles.sectionDescription}>
           Please provide a government-issued ID and take a selfie for verification.
         </Text>
@@ -2148,7 +2458,7 @@ export default function KYCUpgradeScreen() {
         )} */}
         
         
-        <View style={styles.documentSection}>
+        {/* <View style={styles.documentSection}>
           <Text style={styles.documentSectionTitle}>Document Upload</Text>
           
           <View style={styles.documentCard}>
@@ -2193,7 +2503,7 @@ export default function KYCUpgradeScreen() {
                 
                 <Pressable 
                   style={styles.documentButton}
-                  onPress={() => takePicture(setDocumentFrontImage, 'documentFront')}
+                  onPress={() => takePicture('front')}
                   disabled={isVerifyingDocuments || documentsVerified}
                 >
                   <Camera size={16} color={colors.primary} />
@@ -2246,7 +2556,7 @@ export default function KYCUpgradeScreen() {
                   
                   <Pressable 
                     style={styles.documentButton}
-                    onPress={() => takePicture(setDocumentBackImage, 'documentBack')}
+                    onPress={() => takePicture('back')}
                     disabled={isVerifyingDocuments || documentsVerified}
                   >
                     <Camera size={16} color={colors.primary} />
@@ -2269,17 +2579,16 @@ export default function KYCUpgradeScreen() {
               Complete the liveness test to capture a secure selfie for verification. This advanced security feature ensures your identity is verified through facial recognition and prevents fraud.
             </Text>
             
-            {selfieImage ? (
+            {formData.selfie_url ? (
               <View style={styles.imagePreviewContainer}>
                 <Image 
-                  source={{ uri: selfieImage }} 
+                  source={{ uri: formData.selfie_url }} 
                   style={styles.imagePreview} 
                   resizeMode="cover"
                 />
                 <Pressable 
                   style={styles.retakeButton}
                   onPress={() => {
-                    setSelfieImage(null);
                     setShowLivenessTest(true);
                     haptics.lightImpact();
                   }}
@@ -2305,7 +2614,7 @@ export default function KYCUpgradeScreen() {
             )}
             {errors.selfie && <Text style={styles.errorText}>{errors.selfie}</Text>}
           </View>
-        </View>
+        </View> */}
         
         {errors.documentVerification && (
           <View style={styles.errorContainer}>
@@ -2447,7 +2756,7 @@ export default function KYCUpgradeScreen() {
             <View style={styles.documentActions}>
               <Pressable 
                 style={styles.documentButton}
-                onPress={() => takePicture(setHouseUrl, 'housePhoto')}
+                onPress={() => takePicture('house')}
               >
                 <Camera size={16} color={colors.primary} />
                 <Text style={styles.documentButtonText}>Take Photo</Text>
@@ -2494,7 +2803,7 @@ export default function KYCUpgradeScreen() {
               
               <Pressable 
                 style={styles.documentButton}
-                onPress={() => takePicture(setUtilityBill, 'utilityBill')}
+                onPress={() => takePicture('utility')}
               >
                 <Camera size={16} color={colors.primary} />
                 <Text style={styles.documentButtonText}>Take Photo</Text>
@@ -2644,6 +2953,8 @@ export default function KYCUpgradeScreen() {
         return renderBvnVerificationStep();
       case 'id_face_match':
         return renderIDFaceMatchStep();
+      case 'documents_verification':
+        return renderDocumentsVerificationStep();
       case 'address_details':
         return renderAddressDetailsStep();
       case 'review':
@@ -3285,6 +3596,60 @@ export default function KYCUpgradeScreen() {
     requiredStatusText: {
       color: colors.warning,
     },
+    identityTypeContainer: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 8,
+    },
+    identityTypeOption: {
+      flex: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+    },
+    identityTypeSelected: {
+      borderColor: colors.primary,
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    },
+    identityTypeText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    identityTypeTextSelected: {
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    imageUploadContainer: {
+      height: 200,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: colors.border,
+      borderStyle: 'dashed',
+      backgroundColor: colors.surface,
+      marginTop: 8,
+      overflow: 'hidden',
+    },
+    uploadedImage: {
+      width: '100%',
+      height: '100%',
+      resizeMode: 'cover',
+    },
+    uploadPlaceholder: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 8,
+    },
+    uploadText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
   });
   
   if ((formDataLoading || progressLoading) && !currentStep) {
@@ -3307,9 +3672,9 @@ export default function KYCUpgradeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={handlePreviousStep} style={styles.backButton}>
+        {/* <Pressable onPress={handlePreviousStep} style={styles.backButton}>
           <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
-        </Pressable>
+        </Pressable> */}
         
         <Text style={styles.headerTitle}>Account Verification</Text>
         
@@ -3356,7 +3721,7 @@ export default function KYCUpgradeScreen() {
       />
       
       
-      <LivenessTest 
+      <LivenessTestEnhanced 
         isVisible={showLivenessTest}
         onClose={handleLivenessClose}
         onComplete={handleLivenessComplete}
