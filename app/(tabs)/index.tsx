@@ -64,7 +64,7 @@ import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
-import LivenessTest from '@/components/LivenessTest';
+import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 
 interface Banner {
   id: string;
@@ -490,16 +490,16 @@ export default function HomeScreen() {
             {/* <Text style={styles.subGreeting}>It's time to plan some payouts</Text> */}
           </View>
         </View>
-        {/* <Pressable 
-          style={styles.livenessTestButton}
+        <Pressable 
+          style={[styles.livenessTestButton, { backgroundColor: colors.primary }]}
           onPress={() => {
             impact();
             setShowLivenessTest(true);
             logAnalyticsEvent('liveness_test_button_clicked');
           }}
         >
-          <Text style={styles.livenessTestButtonText}>Complete Liveness Test</Text>
-        </Pressable> */}
+          <Text style={styles.livenessTestButtonText}>Try Enhanced Liveness Test</Text>
+        </Pressable>
 
 
         <ImageBackground 
@@ -636,7 +636,7 @@ export default function HomeScreen() {
         onGoToDashboard={handleGoToDashboard}
       />
 
-      <LivenessTest 
+      <LivenessTestEnhanced 
         isVisible={showLivenessTest}
         onClose={() => setShowLivenessTest(false)}
       />

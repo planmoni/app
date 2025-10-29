@@ -4,9 +4,12 @@ import {Camera as VisionCamera, useCameraDevice, useCameraPermission } from "rea
 import {Camera, Face, FaceDetectionOptions} from 'react-native-vision-camera-face-detector';
 import { useCameraPermissions } from 'expo-camera';
 import { X, RotateCcw } from 'lucide-react-native';
-// import * as Speech from 'expo-speech'; // Commented out
-// import * as Haptics from 'expo-haptics'; // Commented out
+import Animated, { useSharedValue, useAnimatedProps, withTiming } from 'react-native-reanimated';
+import Svg, { Circle } from 'react-native-svg';
 import { useTheme } from '@/contexts/ThemeContext';
+
+// Animated SVG Circle for Reanimated
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 // Removed @cutos/ai-face-detect - not compatible with React Native
 
 // Face data structure for comparison
