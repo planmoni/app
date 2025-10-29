@@ -642,6 +642,7 @@ export default function KYCUpgradeScreen() {
       
       const blob = await response.blob();
       console.log('Image blob size:', blob.size);
+      console.log('Image blob:', blob);
       
       // Check if blob is too small (might be corrupted)
       if (blob.size < 10000) { // Less than 10KB is suspicious
@@ -652,12 +653,48 @@ export default function KYCUpgradeScreen() {
       // Create a unique filename
       const timestamp = Date.now();
       const fileName = `liveness-selfie-${session.user.id}-${timestamp}.jpg`;
-      const filePath = `documents/kyc-documents/${fileName}`;
+      const filePath = `kyc-documents/${fileName}`; // Removed 'documents/' prefix
 
       console.log('Uploading to path:', filePath);
 
       // Upload to Supabase storage
       console.log('Attempting to upload to Supabase storage...');
+      console.log('Upload details:', {
+        filePath,
+        blobSize: blob.size,
+        blobType: blob.type,
+        bucket: 'documents'
+      });
+      
+      // Test Supabase connection first
+      console.log('Testing Supabase connection...');
+      const { error: testError } = await supabase.storage
+        .from('documents')
+        .list('kyc-documents', { limit: 1 });
+      
+      if (testError) {
+        console.error('Supabase connection test failed:', testError);
+        console.log('Trying to create kyc-documents folder...');
+        
+        // Try to create a dummy file to create the folder
+        const dummyBlob = new Blob(['dummy'], { type: 'text/plain' });
+        const { error: createError } = await supabase.storage
+          .from('documents')
+          .upload('kyc-documents/.gitkeep', dummyBlob, {
+            contentType: 'text/plain',
+            upsert: true
+          });
+        
+        if (createError) {
+          console.error('Failed to create kyc-documents folder:', createError);
+          throw new Error(`Supabase connection failed: ${testError.message}`);
+        } else {
+          console.log('kyc-documents folder created successfully');
+        }
+      } else {
+        console.log('Supabase connection test successful');
+      }
+      
       const { data, error } = await supabase.storage
         .from('documents')
         .upload(filePath, blob, {
@@ -671,9 +708,59 @@ export default function KYCUpgradeScreen() {
           message: error.message,
           statusCode: error.statusCode,
           filePath,
-          blobSize: blob.size
+          blobSize: blob.size,
+          errorName: error.name,
+          errorStack: error.stack
         });
-        throw error;
+        
+        // Try uploading to root of documents bucket if kyc-documents folder fails
+        if (error.message?.includes('not found') || error.message?.includes('does not exist')) {
+          console.log('Trying fallback upload to root of documents bucket...');
+          const fallbackPath = fileName;
+          const { data: fallbackData, error: fallbackError } = await supabase.storage
+            .from('documents')
+            .upload(fallbackPath, blob, {
+              contentType: 'image/jpeg',
+              upsert: false
+            });
+          
+          if (fallbackError) {
+            console.error('Fallback upload also failed:', fallbackError);
+            throw error; // Throw original error
+          } else {
+            console.log('Fallback upload successful:', fallbackData);
+            // Update filePath for URL generation
+            const { data: urlData } = supabase.storage
+              .from('documents')
+              .getPublicUrl(fallbackPath);
+            return urlData.publicUrl;
+          }
+        }
+        
+        // Try alternative upload method with different parameters
+        console.log('Trying alternative upload method...');
+        try {
+          const { data: altData, error: altError } = await supabase.storage
+            .from('documents')
+            .upload(filePath, blob, {
+              contentType: 'image/jpeg',
+              upsert: true // Try with upsert true
+            });
+          
+          if (altError) {
+            console.error('Alternative upload also failed:', altError);
+            throw error; // Throw original error
+          } else {
+            console.log('Alternative upload successful:', altData);
+            const { data: urlData } = supabase.storage
+              .from('documents')
+              .getPublicUrl(filePath);
+            return urlData.publicUrl;
+          }
+        } catch (altError) {
+          console.error('Alternative upload method failed:', altError);
+          throw error; // Throw original error
+        }
       }
 
       console.log('Upload successful, data:', data);
