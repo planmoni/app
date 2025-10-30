@@ -112,8 +112,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 6},
+    shadowOpacity: 0.04,
+    shadowRadius: 9,
+    elevation: 6,
   },
   summaryItems: {
     paddingHorizontal: 1,

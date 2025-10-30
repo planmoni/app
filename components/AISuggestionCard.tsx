@@ -398,7 +398,14 @@ const styles = StyleSheet.create({
     marginRight: CARD_SPACING,
     borderRadius: 12,
     padding: 10,
-    borderWidth: 1,
+    borderWidth: 0.5,
+    borderColor: '#000',
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 1},
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 6,
+  
     position: 'relative',
   },
   cardContent: {

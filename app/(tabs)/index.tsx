@@ -520,8 +520,8 @@ export default function HomeScreen() {
                 onPress={handleAddFunds}
               >
                 
-                <Plus size={20} color={colors.textSecondary}/>
-                <Text style={styles.addFundsText}>Add funds</Text>
+                <Plus size={20} color={isDark ? '#fff' : colors.primary}/>
+                <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
               </Pressable>
               <Pressable 
                 style={styles.createButton} 
@@ -574,8 +574,8 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
-          <Plus size={20} color={colors.textSecondary} />
-          <Text style={styles.addFundsText}>Add funds</Text>
+          <Plus size={20} color={isDark ? '#fff' : colors.primary} />
+          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
@@ -617,6 +617,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 6},
+    shadowOpacity: 0.09,
+    shadowRadius: 9,
+    elevation: 6,
   },
   scrollView: {
     flex: 1,
@@ -670,10 +675,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
 
   balanceCard: {
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
     marginBottom: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 6, height: 6},
+    shadowOpacity: 0.09,
+    shadowRadius: 9,
+    elevation: 6,
   },
   balanceCardContent: {
     paddingVertical: Platform.OS === 'ios' ? 16 : 10,
@@ -752,9 +760,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     backgroundColor: colors.backgroundBlack,
-    borderWidth: 1,
-    borderColor: colors.textSecondary,
     padding: Platform.OS === 'ios' ? 14 : 10,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 100,
     height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
@@ -762,17 +770,21 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   addFundsText: {
-    color: colors.textSecondary,
+    color: colors.primary,
     fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
+    textAlign: 'center',
   },
   summaryCard: {
     marginBottom: 20,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 6},
+    shadowOpacity: 0.04,
+    shadowRadius: 9,
+    elevation: 6,
   },
   summaryHeader: {
     flexDirection: 'row',

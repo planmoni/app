@@ -375,7 +375,6 @@ export default function WelcomeScreen() {
 const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: isDark ? colors.background : '#FFFFFF',
   },
   backgroundGradient: {
     position: 'absolute',

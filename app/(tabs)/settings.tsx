@@ -770,7 +770,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 16,
     padding: Platform.OS === 'ios' ? 16 : 10,
     marginBottom: Platform.OS === 'ios' ? 24 : 16,
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: colors.border,
   },
   profileContent: {
@@ -818,7 +818,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: 16,
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: colors.border,
     overflow: 'hidden',
   },
