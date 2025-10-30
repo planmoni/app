@@ -9,6 +9,7 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useAuth } from '@/contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
+import { Linking } from 'react-native';
 import LocationSearchModal from '@/components/LocationSearchModal';
 import { useKYCData } from '@/hooks/useKYCData';
 import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
@@ -209,20 +210,7 @@ export default function KYCUpgradeScreen() {
       setCurrentStep(progress.current_step);
       setBvnVerified(progress.bvn_verified);
       setDocumentsVerified(progress.documents_verified);
-      
-      // Verification status is handled by individual flags
-      // Set verification status without showing toasts on initial load
-      // if (progress.overall_completed) {
-      //   setVerificationStatus('fully_verified');
-      //   // Don't show toast on initial load - only show when user completes verification
-      // } else if (progress.bvn_verified && progress.documents_verified) {
-      //   setVerificationStatus('partially_verified');
-      //   // showToast('Your identity is verified. Please complete address details', 'info');
-      // } else if (progress.bvn_verified) {
-      //   setVerificationStatus('partially_verified');
-      // } else {
-      //   setVerificationStatus('unverified');
-      // }
+    
     }
   }, [progress, showToast, isManualVerification]);
 
@@ -309,29 +297,22 @@ export default function KYCUpgradeScreen() {
 
   const validateIdFaceMatch = () => {
     const newErrors: Record<string, string> = {};
-    
-    switch (selectedIdentityType) {
-      case 'nin':
-        if (!nin.trim()) newErrors.nin = 'NIN is required';
-        else if (nin.length !== 11 || !/^\d+$/.test(nin)) newErrors.nin = 'NIN must be 11 digits';
-        break;
-      case 'passport':
-        if (!passportNumber.trim()) newErrors.passportNumber = 'Passport number is required';
-        break;
-    }
-    
-    if (!selfieImage && !formData.selfie_url) {
-      newErrors.selfie = 'Selfie is required';
-    }
-    
+
+    if (!nin.trim()) newErrors.nin = 'NIN is required';
+    else if (nin.length !== 11 || !/^\d+$/.test(nin)) newErrors.nin = 'NIN must be 11 digits';
+
+    // if (!selfieImage && !formData.selfie_url) {
+    //   newErrors.selfie = 'Selfie is required';
+    // }
+
     setErrors(newErrors);
-    
+
     if (Object.keys(newErrors).length > 0) {
       const firstError = Object.values(newErrors)[0];
       showToast(firstError, 'error');
       return false;
     }
-    
+
     return true;
   };
   
@@ -451,18 +432,7 @@ export default function KYCUpgradeScreen() {
       // Validation passed, save to KYC data
       showToast('Validation passed! Saving utility bill...', 'success');
       
-      // const success = await saveFormData({
-      //   utility_bill_url: storageUrl,
-      //   utility_bill_validated: true,
-      //   utility_bill_validation_result: validation
-      // });
-
-      // if (success) {
-      //   setUploadDate(new Date());
-      //   showToast('Utility bill uploaded and validated successfully!', 'success');
-      // } else {
-      //   showToast('Failed to save utility bill. Please try again.', 'error');
-      // }
+      
     } catch (error) {
       console.error('Error uploading utility bill:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -569,20 +539,7 @@ export default function KYCUpgradeScreen() {
         case 'documents_verification':
           if (validateDocumentVerification()) {
             setIsLoading(true);
-            
-            // Save document data
-            const saveResult = await saveFormData({
-              document_type: selectedIdentityType,
-              document_front_url: documentFrontImage || undefined,
-              document_back_url: documentBackImage || undefined
-            });
-            
-            if (!saveResult) {
-              showToast('Failed to save document data. Please try again.', 'error');
-              return;
-            }
-            
-            // Verify documents with Dojah
+            // Do NOT save document data yet; first verify with Dojah, then persist
             await verifyDocuments();
           }
           break;
@@ -593,7 +550,7 @@ export default function KYCUpgradeScreen() {
             // Save identity data (NIN verification only)
             const saveResult = await saveFormData({
               nin: nin,
-              selfie_url: formData.selfie_url || undefined
+              // selfie_url: formData.selfie_url || undefined
             });
             
             if (!saveResult) {
@@ -664,6 +621,12 @@ export default function KYCUpgradeScreen() {
   // Convert image URL to base64 for API calls
   const convertImageToBase64 = async (imageUrl: string): Promise<string | null> => {
     try {
+      // If already a data URI, extract base64
+      if (imageUrl.startsWith('data:image/')) {
+        const parts = imageUrl.split(',');
+        return parts.length > 1 ? parts[1] : null;
+      }
+
       const response = await fetch(imageUrl);
       const blob = await response.blob();
       
@@ -671,7 +634,6 @@ export default function KYCUpgradeScreen() {
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64String = reader.result as string;
-          // Remove the data URL prefix to get just the base64 string
           const base64Data = base64String.split(',')[1];
           resolve(base64Data);
         };
@@ -1104,20 +1066,28 @@ export default function KYCUpgradeScreen() {
   
   // Image validation function
   const validateImage = (imageUri: string): { isValid: boolean; error?: string } => {
-    // Check if it's a valid image format
-    if (!imageUri.startsWith('data:image/')) {
+    // Accept data URIs, file/content URIs, and http(s) URLs
+    const isDataUri = imageUri.startsWith('data:image/');
+    const isFileUri = imageUri.startsWith('file:');
+    const isContentUri = imageUri.startsWith('content:');
+    const isHttpUri = imageUri.startsWith('http://') || imageUri.startsWith('https://');
+    if (!isDataUri && !isFileUri && !isContentUri && !isHttpUri) {
       return { isValid: false, error: 'Invalid image format. Please select a valid image.' };
     }
-    
-    // Check file size (5MB limit)
-    const base64Data = imageUri.split(',')[1];
-    const sizeInBytes = (base64Data.length * 3) / 4; // Approximate size calculation
-    const sizeInMB = sizeInBytes / (1024 * 1024);
-    
-    if (sizeInMB > 5) {
-      return { isValid: false, error: 'Image size must be less than 5MB. Please select a smaller image.' };
+
+    // Only enforce size check for data URIs where we can read base64 length
+    if (isDataUri) {
+      const parts = imageUri.split(',');
+      if (parts.length > 1) {
+        const base64Data = parts[1];
+        const sizeInBytes = (base64Data.length * 3) / 4; // Approximate
+        const sizeInMB = sizeInBytes / (1024 * 1024);
+        if (sizeInMB > 5) {
+          return { isValid: false, error: 'Image size must be less than 5MB. Please select a smaller image.' };
+        }
+      }
     }
-    
+
     return { isValid: true };
   };
 
@@ -1244,20 +1214,11 @@ export default function KYCUpgradeScreen() {
       if (!documentFrontImage) {
         throw new Error('Front of document is required');
       }
-      
-      if (!selfieImage) {
-        throw new Error('Selfie is required');
-      }
 
-      // Validate image formats and sizes
+      // Validate image format for front (URLs or data URIs now allowed)
       const frontImageValidation = validateImage(documentFrontImage);
       if (!frontImageValidation.isValid) {
         throw new Error(frontImageValidation.error);
-      }
-
-      const selfieValidation = validateImage(selfieImage);
-      if (!selfieValidation.isValid) {
-        throw new Error(selfieValidation.error);
       }
 
       // if (documentBackImage) {
@@ -1267,15 +1228,23 @@ export default function KYCUpgradeScreen() {
       //   }
       // }
 
-      // Convert images to base64 for document analysis
-      const frontImageBase64 = await convertImageToBase64(documentFrontImage);
-      const backImageBase64 = documentBackImage ? await convertImageToBase64(documentBackImage) : null;
-      
-      if (!frontImageBase64) {
-        throw new Error('Failed to process front document image');
+      // Ensure we have URLs (already uploaded to storage via pickImage). If still data URI, upload now.
+      let frontImageUrl = documentFrontImage;
+      let backImageUrl = documentBackImage;
+
+      if (frontImageUrl && frontImageUrl.startsWith('data:image/')) {
+        const uploaded = await uploadDocumentToStorage(frontImageUrl, 'front');
+        if (!uploaded) throw new Error('Failed to upload front document image');
+        frontImageUrl = uploaded;
       }
 
-      // Call document analysis API
+      if (backImageUrl && backImageUrl.startsWith('data:image/')) {
+        const uploadedBack = await uploadDocumentToStorage(backImageUrl, 'back');
+        if (!uploadedBack) throw new Error('Failed to upload back document image');
+        backImageUrl = uploadedBack;
+      }
+
+      // Call document analysis API using URL input type to avoid base64 conversion
       const analysisResponse = await fetch('/api/dojah-document-analysis', {
         method: 'POST',
         headers: {
@@ -1283,9 +1252,9 @@ export default function KYCUpgradeScreen() {
           'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          inputType: 'base64',
-          imageFrontSide: frontImageBase64,
-          imageBackSide: backImageBase64
+          inputType: 'url',
+          imageFrontSide: frontImageUrl,
+          imageBackSide: backImageUrl || null
         })
       });
 
@@ -1302,6 +1271,24 @@ export default function KYCUpgradeScreen() {
 
       // Document analysis successful
       showToast('Document verified successfully!', 'success');
+
+      // Persist document details AFTER successful verification
+      try {
+        const entity = analysisData.data;
+        const details: any = entity?.details || entity?.data || {};
+        const extractedDocumentNumber = details.document_number || details.id_number || details.passport_number || details.number || null;
+
+        await saveFormData({
+          // Store full document_type object as JSON (column should be jsonb)
+          document_type: entity?.document_type || null,
+          document_number: extractedDocumentNumber || undefined,
+          document_front_url: documentFrontImage || undefined,
+          document_back_url: documentBackImage || undefined
+        });
+      } catch (persistError) {
+        console.error('Error saving verified document data:', persistError);
+        // Continue flow even if saving has issues; user can retry saving later
+      }
       
       // Update progress
       const progressResult = await updateProgress({
@@ -1441,22 +1428,7 @@ export default function KYCUpgradeScreen() {
       
       // Consider it a match if at least 60% of names match
       if (matchPercentage >= 60) {
-        // Only save data after successful verification
-        try {
-          await saveFormData({
-            document_type: 'nin',
-            document_number: nin,
-            document_front_url: documentFrontImage || undefined,
-            selfie_url: formData.selfie_url || undefined
-          });
-          
-          console.log('NIN data saved successfully');
-        } catch (saveError) {
-          console.error('Error saving NIN data:', saveError);
-          // Don't throw error if data might have been saved despite network issues
-          console.log('Continuing with verification process...');
-        }
-        
+        // Do NOT save document fields here; NIN step only saves NIN elsewhere
         setDocumentsVerified(true);
         
         // Create a display name from NIN data
@@ -1919,33 +1891,69 @@ export default function KYCUpgradeScreen() {
   };
   
   const pickImage = async (setImageFunction: React.Dispatch<React.SetStateAction<string | null>>, type: string) => {
-    // Request permissions
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== 'granted') {
-      showToast('Permission to access media library is required', 'error');
-      return;
-    }
-    
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
-        base64: true,
+        base64: false,
       });
       
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        if (asset.base64) {
-          setImageFunction(`data:image/jpeg;base64,${asset.base64}`);
-          setErrors(prev => ({ ...prev, [type]: '' }));
+        if (asset.uri) {
+          const uploadedUrl = await uploadDocumentToStorage(asset.uri, type === 'documentFront' ? 'front' : type === 'documentBack' ? 'back' : type);
+          if (uploadedUrl) {
+            setImageFunction(uploadedUrl);
+            setErrors(prev => ({ ...prev, [type]: '' }));
+          } else {
+            showToast('Failed to upload image', 'error');
+          }
+        } else {
+          showToast('No image selected', 'error');
         }
       }
     } catch (error) {
       console.error('Error picking image:', error);
       showToast('Failed to select image', 'error');
+    }
+  };
+
+  // Upload a selected/captured image to Supabase storage and return public URL
+  const uploadDocumentToStorage = async (uri: string, part: 'front' | 'back' | 'house' | 'utility' | string): Promise<string | null> => {
+    try {
+      if (!session?.user?.id) {
+        showToast('Authentication required', 'error');
+        return null;
+      }
+
+      const fileExtensionGuess = uri.split('.').pop()?.toLowerCase();
+      const ext = fileExtensionGuess && fileExtensionGuess.length <= 5 ? fileExtensionGuess : 'jpg';
+      const fileName = `${part}-document-${Date.now()}.${ext}`;
+      const filePath = `kyc-documents/${session.user.id}/${fileName}`;
+
+      const file: any = {
+        uri,
+        name: fileName,
+        type: 'image/jpeg',
+      };
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file, { contentType: 'image/jpeg', upsert: true });
+
+      if (uploadError) {
+        console.error('Supabase upload error:', uploadError);
+        showToast('Upload failed. Please try again.', 'error');
+        return null;
+      }
+
+      const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
+      return urlData.publicUrl || null;
+    } catch (e) {
+      console.error('Upload exception:', e);
+      return null;
     }
   };
   
@@ -2231,6 +2239,14 @@ export default function KYCUpgradeScreen() {
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Front of Document *</Text>
+          <View style={styles.documentActions}>
+            {/* <Pressable style={styles.documentButton} onPress={() => takePicture('front')}>
+              <Text style={styles.documentButtonText}>Take Photo</Text>
+            </Pressable> */}
+            <Pressable style={styles.documentButton} onPress={() => pickImage(setDocumentFrontImage, 'documentFront')}>
+              <Text style={styles.documentButtonText}>Upload Photo</Text>
+            </Pressable>
+          </View>
           <Pressable
             style={[styles.imageUploadContainer, errors.documentFront && styles.inputError]}
             onPress={() => takePicture('front')}
@@ -2244,11 +2260,20 @@ export default function KYCUpgradeScreen() {
               </View>
             )}
           </Pressable>
+          
           {errors.documentFront && <Text style={styles.errorText}>{errors.documentFront}</Text>}
         </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Back of Document (Optional)</Text>
+          <View style={styles.documentActions}>
+            {/* <Pressable style={styles.documentButton} onPress={() => takePicture('back')}>
+              <Text style={styles.documentButtonText}>Take Photo</Text>
+            </Pressable> */}
+            <Pressable style={styles.documentButton} onPress={() => pickImage(setDocumentBackImage, 'documentBack')}>
+              <Text style={styles.documentButtonText}>Upload Photo</Text>
+            </Pressable>
+          </View>
           <Pressable
             style={[styles.imageUploadContainer, errors.documentBack && styles.inputError]}
             onPress={() => takePicture('back')}
@@ -2262,6 +2287,7 @@ export default function KYCUpgradeScreen() {
               </View>
             )}
           </Pressable>
+          
           {errors.documentBack && <Text style={styles.errorText}>{errors.documentBack}</Text>}
         </View>
 

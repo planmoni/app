@@ -14,7 +14,11 @@ export default {
     runtimeVersion: "1.0.0",
     android: {
       package: "com.planmoni", // ← choose your unique package name
-      "permissions": ["android.permission.CAMERA"]
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
     },
     ios: {
       "bundleIdentifier": "com.planmoni",
@@ -33,6 +37,13 @@ export default {
       }
     },
     "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Planmoni needs access to your photos to upload document images.",
+          "cameraPermission": "Planmoni needs access to your camera to take document photos."
+        }
+      ],
       [
         "onesignal-expo-plugin",
         {
