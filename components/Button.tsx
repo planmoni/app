@@ -164,9 +164,10 @@ export default function Button({
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 8,
+    borderRadius: 100,
     justifyContent: 'center',
     alignItems: 'center',
+    height: 55,
   },
   content: {
     flexDirection: 'row',
@@ -183,12 +184,18 @@ const styles = StyleSheet.create({
   // Variants
   primaryButton: {
     backgroundColor: '#1E3A8A',
+    height: 55,
+    borderRadius: 100,
+    width: '100%',
   },
   primaryText: {
     color: '#FFFFFF',
   },
   secondaryButton: {
     backgroundColor: '#CBD5E1',
+    height: 55,
+    borderRadius: 100,
+    width: '100%',
   },
   secondaryText: {
     color: '#1E293B',
@@ -197,6 +204,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: '#1E3A8A',
+    height: 55,
+    borderRadius: 100,
+    width: '100%',
   },
   outlineText: {
     color: '#1E3A8A',
@@ -205,14 +215,23 @@ const styles = StyleSheet.create({
   smallButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
+    height: 55,
+    borderRadius: 100,
+    width: '100%',
   },
   mediumButton: {
     paddingVertical: 12,
     paddingHorizontal: 16,
+    height: 55,
+    borderRadius: 100,
+    width: '100%',
   },
   largeButton: {
     paddingVertical: 16,
     paddingHorizontal: 24,
+    height: 55,
+    borderRadius: 100,
+    width: '100%',
   },
   smallText: {
     fontSize: 12,
@@ -227,6 +246,9 @@ const styles = StyleSheet.create({
   disabledButton: {
     backgroundColor: '#E2E8F0',
     borderColor: '#E2E8F0',
+    height: 55,
+    borderRadius: 100,
+    width: '100%',
   },
   disabledText: {
     color: '#94A3B8',

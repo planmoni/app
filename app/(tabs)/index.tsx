@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import TransactionModal from '@/components/TransactionModal';
 import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
+import ClaimAccountModal from '@/components/ClaimAccountModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
+import KYCCard from '@/components/KYCCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 // import { IntercomButton } from '@/components/IntercomButton';
@@ -35,6 +37,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
+import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
 // import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
@@ -67,6 +70,7 @@ export default function HomeScreen() {
   const { colors, isDark } = useTheme();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
+  const { account: paystackAccount, isLoading: paystackAccountLoading } = useRealtimePaystackAccount();
   
   // Debug: Track payoutPlans changes
   useEffect(() => {
@@ -86,6 +90,9 @@ export default function HomeScreen() {
   const [imagesReady, setImagesReady] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
+  const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
+  const [safehavenAccount, setSafehavenAccount] = useState<any>(null);
+  const [isCheckingAccount, setIsCheckingAccount] = useState(false);
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
 
@@ -107,6 +114,36 @@ export default function HomeScreen() {
       return () => clearTimeout(timer);
     }
   }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
+
+  // Check for SafeHaven account
+  useEffect(() => {
+    const checkSafeHavenAccount = async () => {
+      if (!session?.user?.id || isCheckingAccount) return;
+      
+      try {
+        setIsCheckingAccount(true);
+        const { data, error } = await supabase
+          .from('safehaven_accounts')
+          .select('account_number, account_name')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .limit(1)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          console.warn('Error checking SafeHaven account:', error);
+        } else if (data) {
+          setSafehavenAccount(data);
+        }
+      } catch (err) {
+        console.warn('Error checking SafeHaven account:', err);
+      } finally {
+        setIsCheckingAccount(false);
+      }
+    };
+
+    checkSafeHavenAccount();
+  }, [session?.user?.id]);
 
   
   // Log screen view for analytics
@@ -245,11 +282,23 @@ export default function HomeScreen() {
     return showBalances ? `₦${amount.toLocaleString()}` : '*********';
   };
 
-  const handleAddFunds = () => {
+  const handleAddFunds = async () => {
     // Trigger medium impact haptic feedback
     impact();
-    router.push('/add-funds');
-    logAnalyticsEvent('add_funds_click');
+    
+    // Check if user has a bank account (Paystack or SafeHaven)
+    const hasPaystackAccount = paystackAccount?.account_number;
+    const hasSafeHavenAccount = safehavenAccount?.account_number;
+    
+    if (!hasPaystackAccount && !hasSafeHavenAccount) {
+      // Show modal if user doesn't have an account
+      setShowClaimAccountModal(true);
+      logAnalyticsEvent('add_funds_click_no_account');
+    } else {
+      // Navigate directly to add funds page
+      router.push('/add-funds');
+      logAnalyticsEvent('add_funds_click');
+    }
   };
 
   const handleCreatePayout = () => {
@@ -574,8 +623,10 @@ export default function HomeScreen() {
           onSuggestionPress={handleAISuggestionPress}
         />
         {/* <IntercomButton /> */}
+        <KYCCard />
+
         <ImageCarousel images={carouselImages} />
-        <PendingActionsCard />
+        {/* <PendingActionsCard /> */}
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
 
@@ -642,6 +693,18 @@ export default function HomeScreen() {
         email={email}
         onStartVerification={handleStartVerification}
         onGoToDashboard={handleGoToDashboard}
+      />
+
+      <ClaimAccountModal
+        isVisible={showClaimAccountModal}
+        onClose={() => setShowClaimAccountModal(false)}
+        accountNumber={safehavenAccount?.account_number ? `${safehavenAccount.account_number.slice(0, 5)} XXXXX` : '01177 XXXXX'}
+        bankName="SAFEHAVEN MFB"
+        accountName={safehavenAccount?.account_name ? `PLANMONI/${safehavenAccount.account_name.toUpperCase()}` : `PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
+        onClaim={() => {
+          router.push('/add-funds');
+          logAnalyticsEvent('claim_account_click');
+        }}
       />
 
       {/* <LivenessTestEnhanced 
