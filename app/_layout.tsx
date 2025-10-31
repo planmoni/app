@@ -1,6 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { BalanceProvider } from '@/contexts/BalanceContext';
+import { BottomNavProvider } from '@/contexts/BottomNavContext';
+// import { router } from 'expo-router';
+// import SplashScreen from '@/components/SplashScreen';
+// import BiometricsLock from '@/components/BiometricsLock';
+// import SimplePinLock from '@/components/SimplePinLock'; // Changed from LockScreen
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { PinProvider } from '@/contexts/PinContext';
@@ -14,7 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications } from '@/lib/notifications';
-import { intercomInstant } from '@/lib/IntercomInstant';
+// import { intercomInstant } from '@/lib/IntercomInstant';
 import { 
   PlusJakartaSans_400Regular, 
   PlusJakartaSans_500Medium, 
@@ -25,7 +30,7 @@ import CustomSplashScreen from '@/components/SplashScreen';
 import AppLockScreen from '@/components/AppLockScreen';
 import AppBlur from '@/components/AppBlur';
 
-import { SessionDebugger } from '@/components/SessionDebugger';
+// import { SessionDebugger } from '@/components/SessionDebugger';
 import AppErrorProvider, { useAppError } from '@/contexts/AppErrorContext';
 
 // Prevent the splash screen from auto-hiding
@@ -150,11 +155,11 @@ function RootLayoutNav() {
   }, [session?.user?.id]);
 
   // Initialize IntercomInstant for instant access
-  useEffect(() => {
-    intercomInstant.initialize().catch(error => {
-      console.warn('Failed to initialize IntercomInstant:', error);
-    });
-  }, []);
+  // useEffect(() => {
+  //   intercomInstant.initialize().catch(error => {
+  //     console.warn('Failed to initialize IntercomInstant:', error);
+  //   });
+  // }, []);
 
   const [fontsLoaded, fontError] = useFonts({
     'PlusJakartaSans-Regular': PlusJakartaSans_400Regular,
@@ -270,9 +275,11 @@ export default function RootLayout() {
             <PinProvider>
               <AppLockProvider>
                 <BalanceProvider>
-                  <AppBlur>
-                  <RootLayoutNav />
-                  </AppBlur>
+                  <BottomNavProvider>
+                    <AppBlur>
+                    <RootLayoutNav />
+                    </AppBlur>
+                  </BottomNavProvider>
                 </BalanceProvider>
               </AppLockProvider>
             </PinProvider>

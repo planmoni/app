@@ -13,6 +13,9 @@ interface IntercomUserAttributes {
 }
 
 class IntercomService {
+  isReady() {
+    throw new Error('Method not implemented.');
+  }
   private static instance: IntercomService;
   private isInitialized: boolean = false;
 

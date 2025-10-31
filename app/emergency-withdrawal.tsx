@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Clock, Zap, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEmergencyWithdrawal } from '@/hooks/useEmergencyWithdrawal';
+import { useEmergencyWithdrawalOptions } from '@/hooks/useEmergencyWithdrawalOptions';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -23,8 +24,9 @@ export default function EmergencyWithdrawalScreen() {
   const { processEmergencyWithdrawal, isLoading, calculateFee, calculateNetAmount } = useEmergencyWithdrawal();
   const { payoutPlans } = useRealtimePayoutPlans();
   const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport, hasEmergencyPin, hasAppLockPin } = usePin();
+  const { options: withdrawalOptions, loading: optionsLoading, getDisplayName, getColorForType } = useEmergencyWithdrawalOptions();
   
-  const [selectedOption, setSelectedOption] = useState<'instant' | '24h' | '72h' | null>('instant');
+  const [selectedOption, setSelectedOption] = useState<'instant' | '24hrs' | '72hrs' | null>(null);
   const [plan, setPlan] = useState<any>(null);
   const [showPinVerification, setShowPinVerification] = useState(false);
   const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
@@ -38,6 +40,47 @@ export default function EmergencyWithdrawalScreen() {
     const foundPlan = payoutPlans.find(p => p.id === planId);
     setPlan(foundPlan);
   }, [planId, payoutPlans]);
+
+  // Calculate time elapsed and available options
+  const { timeElapsedHours, availableOptions, defaultOption } = useMemo(() => {
+    if (!plan || !withdrawalOptions.length) {
+      return { timeElapsedHours: 0, availableOptions: [], defaultOption: null };
+    }
+
+    const planCreatedAt = new Date(plan.created_at);
+    const now = new Date();
+    const timeElapsedMs = now.getTime() - planCreatedAt.getTime();
+    const timeElapsedHours = timeElapsedMs / (1000 * 60 * 60);
+
+    // Determine available options based on time elapsed
+    let availableOptions = [];
+    let defaultOption = null;
+
+    if (timeElapsedHours < 24) {
+      // Less than 24 hours - only instant withdrawal allowed
+      availableOptions = withdrawalOptions.filter(option => option.type === 'instant');
+      defaultOption = 'instant';
+    } else if (timeElapsedHours < 72) {
+      // Between 24-72 hours - instant and 24hrs allowed
+      availableOptions = withdrawalOptions.filter(option => 
+        option.type === 'instant' || option.type === '24hrs'
+      );
+      defaultOption = '24hrs'; // Default to 24hrs for better fee
+    } else {
+      // More than 72 hours - all options allowed
+      availableOptions = withdrawalOptions;
+      defaultOption = '72hrs'; // Default to 72hrs for best fee
+    }
+
+    return { timeElapsedHours, availableOptions, defaultOption };
+  }, [plan, withdrawalOptions]);
+
+  // Set default option when available options change
+  useEffect(() => {
+    if (defaultOption && !selectedOption) {
+      setSelectedOption(defaultOption as 'instant' | '24hrs' | '72hrs');
+    }
+  }, [defaultOption, selectedOption]);
 
   useEffect(() => {
     checkBiometrics();
@@ -86,7 +129,7 @@ export default function EmergencyWithdrawalScreen() {
     return plan.total_amount - (plan.completed_payouts * plan.payout_amount);
   }, [plan]);
   
-  const handleOptionSelect = useCallback((option: 'instant' | '24h' | '72h') => {
+  const handleOptionSelect = useCallback((option: 'instant' | '24hrs' | '72hrs') => {
     haptics.selection();
     setSelectedOption(option);
   }, [haptics]);
@@ -287,76 +330,80 @@ export default function EmergencyWithdrawalScreen() {
         
         <Text style={styles.sectionTitle}>Select Withdrawal Option</Text>
         
-        <View style={styles.optionsContainer}>
-          <Pressable 
-            style={[
-              styles.optionCard,
-              selectedOption === 'instant' && styles.selectedOption
-            ]}
-            onPress={() => handleOptionSelect('instant')}
-          >
-            <View style={styles.optionHeader}>
-              <View style={[styles.optionIcon, { backgroundColor: '#FEE2E2' }]}>
-                <Zap size={24} color="#EF4444" />
-              </View>
-              <View style={styles.optionInfo}>
-                <Text style={styles.optionTitle}>Instant Withdrawal</Text>
-                <Text style={styles.optionFee}>12% processing fee</Text>
-              </View>
-              {selectedOption === 'instant' && (
-                <View style={styles.checkIcon}>
-                  <Check size={20} color="#FFFFFF" />
-                </View>
-              )}
-            </View>
-          </Pressable>
-          
-          <Pressable 
-            style={[
-              styles.optionCard,
-              selectedOption === '24h' && styles.selectedOption
-            ]}
-            onPress={() => handleOptionSelect('24h')}
-          >
-            <View style={styles.optionHeader}>
-              <View style={[styles.optionIcon, { backgroundColor: '#FEF3C7' }]}>
-                <Clock size={24} color="#F59E0B" />
-              </View>
-              <View style={styles.optionInfo}>
-                <Text style={styles.optionTitle}>24-Hour Withdrawal</Text>
-                <Text style={styles.optionFee}>6% processing fee</Text>
-              </View>
-              {selectedOption === '24h' && (
-                <View style={styles.checkIcon}>
-                  <Check size={20} color="#FFFFFF" />
-                </View>
-              )}
-            </View>
-          </Pressable>
-          
-          <Pressable 
-            style={[
-              styles.optionCard,
-              selectedOption === '72h' && styles.selectedOption
-            ]}
-            onPress={() => handleOptionSelect('72h')}
-          >
-            <View style={styles.optionHeader}>
-              <View style={[styles.optionIcon, { backgroundColor: '#DCFCE7' }]}>
-                <Clock size={24} color="#22C55E" />
-              </View>
-              <View style={styles.optionInfo}>
-                <Text style={styles.optionTitle}>72-Hour Withdrawal</Text>
-                <Text style={styles.optionFee}>No processing fee</Text>
-              </View>
-              {selectedOption === '72h' && (
-                <View style={styles.checkIcon}>
-                  <Check size={20} color="#FFFFFF" />
-                </View>
-              )}
-            </View>
-          </Pressable>
-        </View>
+        {optionsLoading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading withdrawal options...</Text>
+          </View>
+        ) : (
+          <View style={styles.optionsContainer}>
+            {availableOptions.map((option) => {
+              const isSelected = selectedOption === option.type;
+              const isDisabled = !availableOptions.some(opt => opt.type === option.type);
+              
+              return (
+                <Pressable 
+                  key={option.id}
+                  style={[
+                    styles.optionCard,
+                    isSelected && styles.selectedOption,
+                    isDisabled && styles.disabledOption
+                  ]}
+                  onPress={() => !isDisabled && handleOptionSelect(option.type as 'instant' | '24hrs' | '72hrs')}
+                  disabled={isDisabled}
+                >
+                  <View style={styles.optionHeader}>
+                    <View style={[styles.optionIcon, { backgroundColor: getColorForType(option.type) + '20' }]}>
+                      {option.type === 'instant' ? (
+                        <Zap size={24} color={getColorForType(option.type)} />
+                      ) : (
+                        <Clock size={24} color={getColorForType(option.type)} />
+                      )}
+                    </View>
+                    <View style={styles.optionInfo}>
+                      <Text style={[styles.optionTitle, isDisabled && styles.disabledText]}>
+                        {getDisplayName(option.type)}
+                      </Text>
+                      <Text style={[styles.optionFee, isDisabled && styles.disabledText]}>
+                        {option.percentage}% processing fee
+                      </Text>
+                      <Text style={[styles.optionDescription, isDisabled && styles.disabledText]}>
+                        {option.type === 'instant' ? 'Money sent immediately' :
+                         option.type === '24hrs' ? 'Money sent within 24 hours' :
+                         'Money sent within 72 hours'}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <View style={styles.checkIcon}>
+                        <Check size={20} color="#FFFFFF" />
+                      </View>
+                    )}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+        
+        {timeElapsedHours > 0 && (
+          <View style={styles.timeInfoCard}>
+            <Text style={styles.timeInfoText}>
+              Plan created {timeElapsedHours < 24 
+                ? `${Math.round(timeElapsedHours)} hours ago` 
+                : timeElapsedHours < 72 
+                  ? `${Math.round(timeElapsedHours / 24)} days ago`
+                  : `${Math.round(timeElapsedHours / 24)} days ago`
+              }
+            </Text>
+            <Text style={styles.timeInfoSubtext}>
+              {timeElapsedHours < 24 
+                ? "Only instant withdrawal is available for plans less than 24 hours old"
+                : timeElapsedHours < 72 
+                  ? "Instant and 24-hour withdrawals are available"
+                  : "All withdrawal options are available"
+              }
+            </Text>
+          </View>
+        )}
         
         {selectedOption && (
           <View style={styles.summaryCard}>
@@ -648,5 +695,30 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 100,
+  },
+  disabledOption: {
+    opacity: 0.5,
+  },
+  disabledText: {
+    color: colors.textSecondary,
+  },
+  timeInfoCard: {
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : '#DBEAFE',
+  },
+  timeInfoText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  timeInfoSubtext: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
 });

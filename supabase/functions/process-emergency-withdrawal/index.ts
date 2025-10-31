@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "@supabase/supabase-js"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 // Deno types for Edge Functions
 declare global {
@@ -71,7 +71,8 @@ serve(async (req: Request) => {
           total_amount,
           payout_amount,
           completed_payouts,
-          emergency_withdrawal_enabled
+          emergency_withdrawal_enabled,
+          created_at
         ),
         payout_accounts (
           account_name,
@@ -116,20 +117,125 @@ serve(async (req: Request) => {
     const plan = withdrawal.payout_plans
     const remainingAmount = plan.total_amount - (plan.completed_payouts * plan.payout_amount)
 
-    // Validate withdrawal amount
-    if (withdrawal.withdrawal_amount > remainingAmount) {
+    // Calculate time elapsed since plan creation
+    const planCreatedAt = new Date(plan.created_at)
+    const now = new Date()
+    const timeElapsedMs = now.getTime() - planCreatedAt.getTime()
+    const timeElapsedHours = timeElapsedMs / (1000 * 60 * 60)
+    const timeElapsedDays = timeElapsedHours / 24
+
+    console.log(`Plan created: ${planCreatedAt.toISOString()}`)
+    console.log(`Current time: ${now.toISOString()}`)
+    console.log(`Time elapsed: ${timeElapsedHours.toFixed(2)} hours (${timeElapsedDays.toFixed(2)} days)`)
+
+    // Determine the correct withdrawal type based on time elapsed
+    let correctWithdrawalType = ""
+    let feePercentage = 0
+
+    if (timeElapsedHours < 24) {
+      // Less than 24 hours - only instant withdrawal allowed
+      correctWithdrawalType = "instant"
+      feePercentage = 12.00
+    } else if (timeElapsedHours < 72) {
+      // Between 24-72 hours - 24hrs or instant withdrawal allowed
+      if (withdrawal.withdrawal_type === "instant") {
+        correctWithdrawalType = "instant"
+        feePercentage = 12.00
+      } else if (withdrawal.withdrawal_type === "24hrs") {
+        correctWithdrawalType = "24hrs"
+        feePercentage = 10.00
+      } else {
+        return new Response(
+          JSON.stringify({ 
+            error: "Invalid withdrawal type for this time period. Only 'instant' or '24hrs' allowed for plans less than 72 hours old." 
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
+    } else {
+      // More than 72 hours - all withdrawal types allowed
+      if (withdrawal.withdrawal_type === "instant") {
+        correctWithdrawalType = "instant"
+        feePercentage = 12.00
+      } else if (withdrawal.withdrawal_type === "24hrs") {
+        correctWithdrawalType = "24hrs"
+        feePercentage = 10.00
+      } else if (withdrawal.withdrawal_type === "72hrs") {
+        correctWithdrawalType = "72hrs"
+        feePercentage = 6.00
+      } else {
+        return new Response(
+          JSON.stringify({ 
+            error: "Invalid withdrawal type. Must be 'instant', '24hrs', or '72hrs'." 
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
+    }
+
+    console.log(`Selected withdrawal type: ${correctWithdrawalType}, Fee percentage: ${feePercentage}%`)
+
+    // Calculate fee based on remaining amount (not total amount)
+    const feeAmount = (remainingAmount * feePercentage) / 100
+    const netAmount = remainingAmount - feeAmount
+
+    console.log(`Remaining amount: ₦${remainingAmount.toLocaleString()}`)
+    console.log(`Fee amount (${feePercentage}%): ₦${feeAmount.toLocaleString()}`)
+    console.log(`Net amount to user: ₦${netAmount.toLocaleString()}`)
+
+    // Validate withdrawal amount matches remaining amount
+    if (withdrawal.withdrawal_amount !== remainingAmount) {
       return new Response(
-        JSON.stringify({ error: "Withdrawal amount exceeds available funds in the plan" }),
+        JSON.stringify({ 
+          error: `Withdrawal amount must equal remaining amount (₦${remainingAmount.toLocaleString()}). Emergency withdrawal withdraws the entire remaining balance.` 
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 
-    // Update withdrawal status to processing
+    // Update the withdrawal record with correct fee and net amounts
+    const { error: feeUpdateError } = await supabase
+      .from("emergency_withdrawals")
+      .update({ 
+        fee_amount: feeAmount,
+        net_amount: netAmount,
+        withdrawal_type: correctWithdrawalType
+      })
+      .eq("id", emergencyWithdrawalId)
+
+    if (feeUpdateError) {
+      console.error("Error updating withdrawal fees:", feeUpdateError)
+      return new Response(
+        JSON.stringify({ error: "Failed to update withdrawal fees" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // Calculate scheduled processing time based on withdrawal type
+    let scheduledProcessingTime = new Date()
+    let status = "processing"
+    
+    if (correctWithdrawalType === "instant") {
+      // Process immediately
+      scheduledProcessingTime = new Date()
+      status = "processing"
+    } else if (correctWithdrawalType === "24hrs") {
+      // Schedule for processing within 24 hours
+      scheduledProcessingTime = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
+      status = "scheduled"
+    } else if (correctWithdrawalType === "72hrs") {
+      // Schedule for processing within 72 hours
+      scheduledProcessingTime = new Date(Date.now() + 72 * 60 * 60 * 1000) // 72 hours from now
+      status = "scheduled"
+    }
+
+    // Update withdrawal status and scheduled time
     const { error: updateError } = await supabase
       .from("emergency_withdrawals")
       .update({ 
-        status: "processing",
-        processed_at: new Date().toISOString()
+        status: status,
+        processed_at: status === "processing" ? new Date().toISOString() : null,
+        scheduled_processing_time: scheduledProcessingTime.toISOString()
       })
       .eq("id", emergencyWithdrawalId)
 
@@ -141,13 +247,15 @@ serve(async (req: Request) => {
       )
     }
 
-    try {
-      // Get Paystack secret key
-      const paystackSecretKey = Deno.env.get("PAYSTACK_SECRET_KEY")
-      
-      if (!paystackSecretKey) {
-        throw new Error("Paystack secret key not configured")
-      }
+    // Only process immediately for instant withdrawals
+    if (correctWithdrawalType === "instant") {
+      try {
+        // Get Paystack secret key
+        const paystackSecretKey = Deno.env.get("PAYSTACK_SECRET_KEY")
+        
+        if (!paystackSecretKey) {
+          throw new Error("Paystack secret key not configured")
+        }
 
       // Determine recipient code and account details based on account type
       let recipientCode = ""
@@ -257,7 +365,7 @@ serve(async (req: Request) => {
         },
         body: JSON.stringify({
           source: "balance",
-          amount: Math.round(withdrawal.net_amount * 100), // Convert to kobo and round to nearest whole number
+          amount: netAmount * 100, // Convert to kobo - use calculated net amount
           recipient: recipientCode,
           reason: `Emergency withdrawal: ${plan.name}`,
           reference: withdrawal.reference
@@ -294,31 +402,40 @@ serve(async (req: Request) => {
         console.error("Error updating withdrawal to completed:", completeError)
       }
 
-      // Deduct the withdrawal amount from locked balance
-      const { error: unlockError } = await supabase.rpc("unlock_funds", {
+      // Reduce both balance and locked_balance since money is being withdrawn from the system
+      const { error: reduceError } = await supabase.rpc("transfer_funds", {
         arg_user_id: userId,
         arg_amount: withdrawal.withdrawal_amount
       })
 
-      if (unlockError) {
-        console.error("Error unlocking funds:", unlockError)
-        throw new Error(`Failed to unlock funds: ${unlockError.message}`)
+      if (reduceError) {
+        console.error("Error reducing wallet balance:", reduceError)
+        throw new Error(`Failed to reduce wallet balance: ${reduceError.message}`)
       }
 
-      // Update the transaction status to completed
-      const { error: txUpdateError } = await supabase
-        .from("transactions")
-        .update({ 
-          status: "completed",
-          metadata: {
-            paystack_transfer_id: transferData.data.id,
-            transfer_code: transferData.data.transfer_code
-          }
-        })
-        .eq("reference", withdrawal.reference)
+      // Create transaction record for emergency withdrawal
+      const { error: txCreateError } = await supabase.rpc('create_transaction_record', {
+        p_user_id: userId,
+        p_type: 'withdrawal',
+        p_amount: netAmount,
+        p_status: 'completed',
+        p_source: 'Wallet',
+        p_destination: 'Bank Transfer',
+        p_reference: withdrawal.reference,
+        p_payout_plan_id: withdrawal.payout_plan_id,
+        p_description: 'Emergency withdrawal transfer',
+        p_metadata: {
+          paystack_transfer_id: transferData.data.id,
+          transfer_code: transferData.data.transfer_code,
+          emergency_withdrawal_id: withdrawal.id,
+          withdrawal_type: correctWithdrawalType,
+          fee_percentage: feePercentage,
+          fee_amount: feeAmount
+        }
+      })
 
-      if (txUpdateError) {
-        console.error("Error updating transaction status:", txUpdateError)
+      if (txCreateError) {
+        console.error("Error creating transaction record:", txCreateError)
       }
 
       // Update the payout plan status to cancelled after successful emergency withdrawal
@@ -344,7 +461,7 @@ serve(async (req: Request) => {
           user_id: userId,
           type: "payout_completed",
           title: "Emergency Withdrawal Completed",
-          description: `Your emergency withdrawal of ₦${withdrawal.net_amount.toLocaleString()} has been processed successfully.`,
+          description: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been processed successfully. Fee charged: ₦${feeAmount.toLocaleString()} (${feePercentage}%).`,
           status: "unread"
         })
 
@@ -355,7 +472,11 @@ serve(async (req: Request) => {
           data: {
             transfer_code: transferData.data.transfer_code,
             reference: withdrawal.reference,
-            net_amount: withdrawal.net_amount,
+            withdrawal_type: correctWithdrawalType,
+            fee_percentage: feePercentage,
+            fee_amount: feeAmount,
+            net_amount: netAmount,
+            remaining_amount: remainingAmount,
             status: "completed",
             account_details: accountDetails
           }
@@ -363,7 +484,7 @@ serve(async (req: Request) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
 
-    } catch (error) {
+      } catch (error) {
       console.error("Error processing transfer:", error)
       
       // Update withdrawal status to failed
@@ -376,11 +497,22 @@ serve(async (req: Request) => {
         })
         .eq("id", emergencyWithdrawalId)
 
-      // Update transaction status to failed
-      await supabase
-        .from("transactions")
-        .update({ status: "failed" })
-        .eq("reference", withdrawal.reference)
+      // Create transaction record for failed emergency withdrawal
+      await supabase.rpc('create_transaction_record', {
+        p_user_id: userId,
+        p_type: 'withdrawal',
+        p_amount: withdrawal.withdrawal_amount,
+        p_status: 'failed',
+        p_source: 'Wallet',
+        p_destination: 'Bank Transfer',
+        p_reference: withdrawal.reference,
+        p_payout_plan_id: withdrawal.payout_plan_id,
+        p_description: 'Emergency withdrawal transfer (failed)',
+        p_metadata: {
+          emergency_withdrawal_id: withdrawal.id,
+          error_message: error.message
+        }
+      })
 
       // Create failure notification
       await supabase
@@ -400,6 +532,39 @@ serve(async (req: Request) => {
           details: error.message
         }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+      }
+    } else {
+      // For scheduled withdrawals (24hrs, 72hrs), just return success without processing
+      const processingTimeText = correctWithdrawalType === "24hrs" ? "within 24 hours" : "within 72 hours"
+      
+      // Create notification for scheduled withdrawal
+      await supabase
+        .from("events")
+        .insert({
+          user_id: userId,
+          type: "withdrawal_scheduled",
+          title: "Emergency Withdrawal Scheduled",
+          description: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been scheduled for processing ${processingTimeText}.`,
+          status: "unread"
+        })
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Emergency withdrawal scheduled for processing ${processingTimeText}`,
+          data: {
+            withdrawal_type: correctWithdrawalType,
+            fee_percentage: feePercentage,
+            fee_amount: feeAmount,
+            net_amount: netAmount,
+            remaining_amount: remainingAmount,
+            status: "scheduled",
+            scheduled_processing_time: scheduledProcessingTime.toISOString(),
+            processing_time_text: processingTimeText
+          }
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 

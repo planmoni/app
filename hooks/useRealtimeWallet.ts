@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -96,9 +96,18 @@ export function useRealtimeWallet() {
     }
 
     let channel: RealtimeChannel | null = null;
+    let retryCount = 0;
+    const maxRetries = 3;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const setupRealtimeSubscription = () => {
       try {
+        // Check if Supabase is configured before attempting subscription
+        if (!isSupabaseConfigured()) {
+          console.log('Supabase not configured, skipping realtime subscription');
+          return;
+        }
+
         // Set up real-time subscription with improved error handling
         const channelName = `wallet-changes-${session.user.id}`;
         channel = supabase
@@ -131,14 +140,35 @@ export function useRealtimeWallet() {
               case 'SUBSCRIBED':
                 console.log('Wallet subscription successful');
                 setError(null);
+                retryCount = 0; // Reset retry count on successful connection
                 break;
               case 'CHANNEL_ERROR':
                 console.warn('Wallet subscription error - continuing without realtime updates');
-                // Don't set error state, just log warning
+                // Implement retry logic for channel errors
+                if (retryCount < maxRetries) {
+                  retryCount++;
+                  console.log(`Retrying wallet subscription (${retryCount}/${maxRetries})...`);
+                  retryTimeout = setTimeout(() => {
+                    if (channel) {
+                      supabase.removeChannel(channel);
+                    }
+                    setupRealtimeSubscription();
+                  }, 2000 * retryCount); // Exponential backoff
+                }
                 break;
               case 'TIMED_OUT':
                 console.warn('Wallet subscription timed out - continuing without realtime updates');
-                // Don't set error state, just log warning
+                // Implement retry logic for timeouts
+                if (retryCount < maxRetries) {
+                  retryCount++;
+                  console.log(`Retrying wallet subscription after timeout (${retryCount}/${maxRetries})...`);
+                  retryTimeout = setTimeout(() => {
+                    if (channel) {
+                      supabase.removeChannel(channel);
+                    }
+                    setupRealtimeSubscription();
+                  }, 2000 * retryCount); // Exponential backoff
+                }
                 break;
               case 'CLOSED':
                 console.log('Wallet subscription closed');
@@ -161,6 +191,9 @@ export function useRealtimeWallet() {
 
     return () => {
       clearTimeout(subscriptionTimer);
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
       if (channel) {
         supabase.removeChannel(channel);
       }

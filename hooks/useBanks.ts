@@ -60,6 +60,11 @@ export function useBanks() {
       if (!data.status) {
         throw new Error(data.message || 'Failed to fetch banks');
       }
+      
+      if (!data.data || !Array.isArray(data.data)) {
+        console.error('useBanks - No bank data received from API');
+        throw new Error('No bank data received from API');
+      }
 
       // Transform Paystack bank data to our format
       const transformedBanks: Bank[] = data.data.map((bank: any, index: number) => {
@@ -345,6 +350,7 @@ export function useBanks() {
     banks,
     isLoading,
     error,
-    fetchBanks
+    fetchBanks,
+    refetch: fetchBanks // Add a refetch function for manual triggering
   };
 }

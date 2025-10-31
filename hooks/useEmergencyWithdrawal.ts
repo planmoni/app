@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { router } from 'expo-router';
 
-export type EmergencyWithdrawalOption = 'instant' | '24h' | '72h';
+export type EmergencyWithdrawalOption = 'instant' | '24hrs' | '72hrs';
 
 export type EmergencyWithdrawalRequest = {
   planId: string;
@@ -24,11 +24,11 @@ export function useEmergencyWithdrawal() {
   const calculateFee = (amount: number, option: EmergencyWithdrawalOption): number => {
     switch (option) {
       case 'instant':
-        return Math.round(amount * 0.12 * 100) / 100; // 12% fee, rounded to 2 decimal places
-      case '24h':
-        return Math.round(amount * 0.06 * 100) / 100; // 6% fee, rounded to 2 decimal places
-      case '72h':
-        return 0; // No fee
+        return amount * 0.12; // 12% fee
+      case '24hrs':
+        return amount * 0.10; // 10% fee
+      case '72hrs':
+        return amount * 0.06; // 6% fee
       default:
         return 0;
     }
@@ -151,6 +151,15 @@ export function useEmergencyWithdrawal() {
       // Show success toast
       showToast('Emergency withdrawal processed successfully', 'success');
 
+      // Get account details from the response
+      const accountDetails = result.data?.account_details || 'Your bank account';
+
+      // Get processing time from response or calculate it
+      const processingTime = result.data?.processing_time_text || 
+                           (request.option === 'instant' ? 'Immediate' : 
+                            request.option === '24hrs' ? 'Within 24 hours' : 
+                            'Within 72 hours');
+
       // Navigate to confirmation screen with withdrawal details
       router.replace({
         pathname: '/emergency-withdrawal/confirmation',
@@ -162,10 +171,9 @@ export function useEmergencyWithdrawal() {
           feeAmount: feeAmount.toString(),
           netAmount: netAmount.toString(),
           reference: reference,
-          destination: result.data?.account_details || 'Your bank account',
-          processingTime: request.option === 'instant' ? 'Immediate' : 
-                         request.option === '24h' ? 'Within 24 hours' : 
-                         'Within 72 hours'
+          destination: accountDetails,
+          processingTime: processingTime,
+          status: result.data?.status || 'completed'
         }
       });
 

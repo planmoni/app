@@ -42,7 +42,7 @@ import TermsModal from '@/components/TermsModal';
 import { logAnalyticsEvent } from '@/lib/firebase';
 
 export default function SettingsScreen() {
-  const { colors, isDark, theme, setTheme } = useTheme();
+  const { colors, theme, setTheme } = useTheme();
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
   const haptics = useHaptics();
@@ -351,7 +351,7 @@ export default function SettingsScreen() {
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
-
+            
             <View style={styles.divider} />
 
             <Pressable 
@@ -645,6 +645,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.accountActions}>
+
           <Pressable 
             style={styles.signOutButton}
             onPress={handleSignOut}

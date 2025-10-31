@@ -1,25 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal, Animated, KeyboardAvoidingView , useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image, Modal, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Shield, User, Calendar, Info, Lock, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, FileText, ChevronLeft, X } from 'lucide-react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft, Shield, User, Calendar, Info, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, ChevronLeft, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
-import Button from '@/components/Button';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useAuth } from '@/contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
+import { Linking } from 'react-native';
 import LocationSearchModal from '@/components/LocationSearchModal';
 import { useKYCData } from '@/hooks/useKYCData';
 import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
-import { useBanks, Bank } from '@/hooks/useBanks';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useAccountResolution } from '@/hooks/useAccountResolution';
 import { supabase } from '@/lib/supabase';
-import * as Haptics from 'expo-haptics';
-type IdentityType = 'bvn' | 'nin' | 'passport' | 'drivers_license';
+import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
+
+type IdentityType = 'bvn' | 'nin' | 'passport';
 
 export default function KYCUpgradeScreen() {
   const { colors, isDark } = useTheme();
@@ -34,38 +32,10 @@ export default function KYCUpgradeScreen() {
   // Custom hooks for KYC data and progress
   const { formData, loading: formDataLoading, saveFormData } = useKYCData();
   const { progress, loading: progressLoading, updateProgress, getStepProgress } = useKYCProgress();
-  const { banks, isLoading: banksLoading, error: banksError } = useBanks();
-  const { resolveAccount, isResolving: isResolvingAccount, error: accountResolutionError, setError: setAccountResolutionError } = useAccountResolution();
   
-  // Animation values for bank selection modal
-  const bankListSlideAnim = useRef(new Animated.Value(height)).current;
-  
-  // Debug banks state
-  useEffect(() => {
-    console.log('KYC Upgrade - Banks state:', {
-      banksCount: banks.length,
-      banksLoading,
-      banksError,
-      banks: banks.slice(0, 3) // Log first 3 banks for debugging
-    });
-  }, [banks, banksLoading, banksError]);
   
 
   
-  // Load form data when component mounts
-  useEffect(() => {
-    if (formData.bank_code && formData.bank_name) {
-      setSelectedBank({
-        id: 0, // We'll use the code to find the actual bank
-        name: formData.bank_name,
-        code: formData.bank_code,
-        country: 'Nigeria',
-        currency: 'NGN',
-        type: 'nuban',
-        is_active: true
-      });
-    }
-  }, [formData.bank_code, formData.bank_name]);
   
   // Step management
   const [currentStep, setCurrentStep] = useState<KYCStep>('personal');
@@ -84,9 +54,13 @@ export default function KYCUpgradeScreen() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   
   // Verification status
-  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [bvnVerified, setBvnVerified] = useState(false);
   const [documentsVerified, setDocumentsVerified] = useState(false);
+  
+  // LivenessTestEnhanced integration
+  const [showLivenessTest, setShowLivenessTest] = useState(false);
+  const [livenessInitiated, setLivenessInitiated] = useState(false);
+  const [livenessManuallyClosed, setLivenessManuallyClosed] = useState(false);
   
   // Personal information
   const [firstName, setFirstName] = useState('');
@@ -103,10 +77,7 @@ export default function KYCUpgradeScreen() {
   const [utilityBill, setUtilityBill] = useState<string | null>(null);
 
   // Utility bill validation
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadDate, setUploadDate] = useState<Date | null>(null);
   const [validationResult, setValidationResult] = useState<any>(null);
-  const [isValidating, setIsValidating] = useState(false);
   
   // Location search
   const [showLocationSearch, setShowLocationSearch] = useState(false);
@@ -116,38 +87,10 @@ export default function KYCUpgradeScreen() {
   
   // Identity information
   const [bvn, setBvn] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [accountName, setAccountName] = useState('');
-  const [accountResolved, setAccountResolved] = useState(false);
   const [bvnMatchedName, setBvnMatchedName] = useState('');
   const [nin, setNin] = useState('');
   const [passportNumber, setPassportNumber] = useState('');
-  const [driversLicense, setDriversLicense] = useState('');
   
-  // Bank selection
-  const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
-  const [showBankSelection, setShowBankSelection] = useState(false);
-  const [bankSearchQuery, setBankSearchQuery] = useState(''); // Added for search functionality
-  
-  // Animation effects for bank selection modal
-  useEffect(() => {
-    if (showBankSelection) {
-      // Animate bank list in
-      Animated.spring(bankListSlideAnim, {
-        toValue: 0,
-        tension: 65,
-        friction: 11,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      // Animate bank list out
-      Animated.timing(bankListSlideAnim, {
-        toValue: height,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [showBankSelection]);
   
   // Document verification
   const [documentFrontImage, setDocumentFrontImage] = useState<string | null>(null);
@@ -160,12 +103,14 @@ export default function KYCUpgradeScreen() {
   // Flag to prevent automatic toasts during manual verification
   const [isManualVerification, setIsManualVerification] = useState(false);
   
+  
   // Refs for auto-focus
   const lastNameInputRef = useRef<TextInput>(null);
   const middleNameInputRef = useRef<TextInput>(null);
   const dobInputRef = useRef<TextInput>(null);
   const phoneInputRef = useRef<TextInput>(null);
   const addressInputRef = useRef<TextInput>(null);
+  const bvnInputRef = useRef<TextInput>(null);
   
   // Add back the house number state
   const [addressNo, setAddressNo] = useState('');
@@ -182,55 +127,82 @@ export default function KYCUpgradeScreen() {
 
   // Load form data and progress when they change
   useEffect(() => {
-    if (formData) {
-      // Load personal information
-      if (formData.first_name) setFirstName(formData.first_name);
-      if (formData.last_name) setLastName(formData.last_name);
-      if (formData.middle_name) setMiddleName(formData.middle_name);
-      if (formData.date_of_birth) setDateOfBirth(formData.date_of_birth);
-      if (formData.phone_number) setPhoneNumber(formData.phone_number);
-      if (formData.address) setAddress(formData.address);
-      if (formData.house_url) setHouseUrl(formData.house_url);
-      if (formData.address_lat) setAddressLat(formData.address_lat);
-      if (formData.address_lon) setAddressLon(formData.address_lon);
-      if (formData.address_place_id) setAddressPlaceId(formData.address_place_id);
-      
-      // Load identity information
-      if (formData.bvn) setBvn(formData.bvn);
-      if (formData.nin) setNin(formData.nin);
-      
-      // Load document information based on document_type
-      if (formData.document_type) {
-        setSelectedIdentityType(formData.document_type as IdentityType);
-        if (formData.document_number) {
-          switch (formData.document_type) {
-            case 'nin':
-              setNin(formData.document_number);
-              break;
-            case 'passport':
-              setPassportNumber(formData.document_number);
-              break;
-            case 'drivers_license':
-              setDriversLicense(formData.document_number);
-              break;
+    const loadFormDataAndCheckSelfie = async () => {
+      if (formData) {
+        // Load personal information
+        if (formData.first_name) setFirstName(formData.first_name);
+        if (formData.last_name) setLastName(formData.last_name);
+        if (formData.middle_name) setMiddleName(formData.middle_name);
+        if (formData.date_of_birth) setDateOfBirth(formData.date_of_birth);
+        if (formData.phone_number) setPhoneNumber(formData.phone_number);
+        if (formData.address) setAddress(formData.address);
+        if (formData.house_url) setHouseUrl(formData.house_url);
+        if (formData.address_lat) setAddressLat(formData.address_lat);
+        if (formData.address_lon) setAddressLon(formData.address_lon);
+        if (formData.address_place_id) setAddressPlaceId(formData.address_place_id);
+        
+        // Load identity information
+        if (formData.bvn) setBvn(formData.bvn);
+        if (formData.nin) setNin(formData.nin);
+        
+        // Load document information based on document_type
+        if (formData.document_type) {
+          setSelectedIdentityType(formData.document_type as IdentityType);
+          if (formData.document_number) {
+            switch (formData.document_type) {
+              case 'nin':
+                setNin(formData.document_number);
+                break;
+              case 'passport':
+                setPassportNumber(formData.document_number);
+                break;
+            }
+          }
+        }
+        
+        // Load document images
+        if (formData.document_front_url) setDocumentFrontImage(formData.document_front_url);
+        if (formData.document_back_url) setDocumentBackImage(formData.document_back_url);
+        if (formData.selfie_url) setSelfieImage(formData.selfie_url);
+        
+        // Load address details
+        if (formData.lga) setLga(formData.lga);
+        if (formData.state) setState(formData.state);
+        if (formData.utility_bill_url) setUtilityBill(formData.utility_bill_url);
+        
+        // Add back the house number state
+        if (formData.address_no) setAddressNo(formData.address_no);
+        
+        // Check if selfie is required and we're on the right step
+        // Check directly from kyc_data table if selfie_url is null or empty
+        if (progress?.current_step === 'bvn_verification' && !livenessInitiated && !showLivenessTest && !livenessManuallyClosed) {
+          try {
+            // Check if selfie_url exists in the database
+            const { data: kycData } = await supabase
+              .from('kyc_data')
+              .select('selfie_url')
+              .eq('user_id', session?.user?.id)
+              .single();
+            
+            const hasSelfie = kycData?.selfie_url && kycData.selfie_url.trim() !== '';
+            
+            if (!hasSelfie) {
+              console.log('No selfie found in kyc_data table, initiating liveness test...');
+              setShowLivenessTest(true);
+              setLivenessInitiated(true);
+            } else {
+              console.log('Selfie already exists in kyc_data table, proceeding with BVN verification:', kycData.selfie_url);
+            }
+          } catch (error) {
+            console.error('Error checking selfie in database:', error);
+            // If there's an error checking the database, don't initiate liveness test
           }
         }
       }
-      
-      // Load document images
-      if (formData.document_front_url) setDocumentFrontImage(formData.document_front_url);
-      if (formData.document_back_url) setDocumentBackImage(formData.document_back_url);
-      if (formData.selfie_url) setSelfieImage(formData.selfie_url);
-      
-      // Load address details
-      if (formData.lga) setLga(formData.lga);
-      if (formData.state) setState(formData.state);
-      if (formData.utility_bill_url) setUtilityBill(formData.utility_bill_url);
-      
-      // Add back the house number state
-      if (formData.address_no) setAddressNo(formData.address_no);
-    }
-  }, [formData]);
+    };
+
+    loadFormDataAndCheckSelfie();
+  }, [formData, livenessInitiated, progress?.current_step, showLivenessTest, livenessManuallyClosed, session?.user?.id]);
 
   // Update current step when progress changes
   useEffect(() => {
@@ -238,21 +210,20 @@ export default function KYCUpgradeScreen() {
       setCurrentStep(progress.current_step);
       setBvnVerified(progress.bvn_verified);
       setDocumentsVerified(progress.documents_verified);
-      
-      // Set verification status without showing toasts on initial load
-      if (progress.overall_completed) {
-        setVerificationStatus('fully_verified');
-        // Don't show toast on initial load - only show when user completes verification
-      } else if (progress.bvn_verified && progress.documents_verified) {
-        setVerificationStatus('partially_verified');
-        // showToast('Your identity is verified. Please complete address details', 'info');
-      } else if (progress.bvn_verified) {
-        setVerificationStatus('partially_verified');
-      } else {
-        setVerificationStatus('unverified');
-      }
+    
     }
   }, [progress, showToast, isManualVerification]);
+
+  // Auto-focus BVN input when step changes to bvn_verification
+  useEffect(() => {
+    if (currentStep === 'bvn_verification' && !bvnVerified && bvnInputRef.current) {
+      // Small delay to ensure the component is fully rendered
+      const timer = setTimeout(() => {
+        bvnInputRef.current?.focus();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, bvnVerified]);
   
 
   
@@ -295,19 +266,22 @@ export default function KYCUpgradeScreen() {
       newErrors.bvn = 'BVN must be 11 digits';
     }
     
-    if (!accountNumber.trim()) {
-      newErrors.accountNumber = 'Account number is required';
-    } else if (accountNumber.length !== 10 || !/^\d+$/.test(accountNumber)) {
-      newErrors.accountNumber = 'Account number must be 10 digits';
+    setErrors(newErrors);
+    
+    if (Object.keys(newErrors).length > 0) {
+      const firstError = Object.values(newErrors)[0];
+      showToast(firstError, 'error');
+      return false;
     }
     
-    if (!selectedBank) {
-      newErrors.selectedBank = 'Please select your bank';
-    }
+    return true;
+  };
+  
+  const validateDocumentVerification = () => {
+    const newErrors: Record<string, string> = {};
     
-    // Validate account resolution
-    if (accountNumber.length === 10 && selectedBank && !accountResolved) {
-      newErrors.accountResolution = 'Account verification failed. Please check your account number and bank selection.';
+    if (!documentFrontImage) {
+      newErrors.documentFront = 'Front of document is required';
     }
     
     setErrors(newErrors);
@@ -320,43 +294,25 @@ export default function KYCUpgradeScreen() {
     
     return true;
   };
-  
+
   const validateIdFaceMatch = () => {
     const newErrors: Record<string, string> = {};
-    
-    switch (selectedIdentityType) {
-      case 'nin':
-        if (!nin.trim()) newErrors.nin = 'NIN is required';
-        else if (nin.length !== 11 || !/^\d+$/.test(nin)) newErrors.nin = 'NIN must be 11 digits';
-        break;
-      case 'passport':
-        if (!passportNumber.trim()) newErrors.passportNumber = 'Passport number is required';
-        break;
-      case 'drivers_license':
-        if (!driversLicense.trim()) newErrors.driversLicense = 'Driver\'s license number is required';
-        break;
-    }
-    
-    if (!documentFrontImage) {
-      newErrors.documentFront = 'Front of document is required';
-    }
-    
-    if ((selectedIdentityType === 'passport' || selectedIdentityType === 'drivers_license') && !documentBackImage) {
-      newErrors.documentBack = 'Back of document is required';
-    }
-    
-    if (!selfieImage) {
-      newErrors.selfie = 'Selfie is required';
-    }
-    
+
+    if (!nin.trim()) newErrors.nin = 'NIN is required';
+    else if (nin.length !== 11 || !/^\d+$/.test(nin)) newErrors.nin = 'NIN must be 11 digits';
+
+    // if (!selfieImage && !formData.selfie_url) {
+    //   newErrors.selfie = 'Selfie is required';
+    // }
+
     setErrors(newErrors);
-    
+
     if (Object.keys(newErrors).length > 0) {
       const firstError = Object.values(newErrors)[0];
       showToast(firstError, 'error');
       return false;
     }
-    
+
     return true;
   };
   
@@ -416,8 +372,7 @@ export default function KYCUpgradeScreen() {
       return;
     }
 
-    setIsUploading(true);
-    setIsValidating(true);
+    // Upload and validation states removed
 
     try {
       // Upload image to Supabase storage
@@ -433,7 +388,7 @@ export default function KYCUpgradeScreen() {
       const blob = await response.blob();
 
       // Upload to Supabase storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('documents')
         .upload(filePath, blob, {
           contentType: blob.type,
@@ -470,32 +425,20 @@ export default function KYCUpgradeScreen() {
         }
 
         showToast(`Validation failed: ${errors.join(', ')}`, 'error');
-        setIsValidating(false);
+        // Validation state removed
         return;
       }
 
       // Validation passed, save to KYC data
       showToast('Validation passed! Saving utility bill...', 'success');
       
-      // const success = await saveFormData({
-      //   utility_bill_url: storageUrl,
-      //   utility_bill_validated: true,
-      //   utility_bill_validation_result: validation
-      // });
-
-      // if (success) {
-      //   setUploadDate(new Date());
-      //   showToast('Utility bill uploaded and validated successfully!', 'success');
-      // } else {
-      //   showToast('Failed to save utility bill. Please try again.', 'error');
-      // }
+      
     } catch (error) {
       console.error('Error uploading utility bill:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       showToast(`Failed to upload utility bill: ${errorMessage}`, 'error');
     } finally {
-      setIsUploading(false);
-      setIsValidating(false);
+      // Upload and validation states removed
     }
   };
 
@@ -526,35 +469,6 @@ export default function KYCUpgradeScreen() {
                 return;
               }
               
-              // Create Paystack customer
-              const customerPayload = {
-                email: session?.user?.email || '',
-                first_name: firstName,
-                last_name: lastName,
-                phone: phoneNumber,
-                metadata: {
-                  user_id: session?.user?.id,
-                  middle_name: middleName,
-                  date_of_birth: dateOfBirth,
-                  address: address
-                }
-              };
-              
-              const customerResponse = await fetch('https://api.paystack.co/customer', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
-                },
-                body: JSON.stringify(customerPayload),
-              });
-              
-              if (!customerResponse.ok) {
-                throw new Error('Failed to create Paystack customer');
-              }
-              
-              const customerData = await customerResponse.json();
-              console.log('Paystack customer created:', customerData);
               
               // Update progress when personal info is completed
               const progressResult = await updateProgress({
@@ -570,14 +484,35 @@ export default function KYCUpgradeScreen() {
               // Wait for toast to be visible before moving to next step
               await new Promise(resolve => setTimeout(resolve, 2000));
               
-              setCurrentStep('bvn_verification');
-              setTimeout(() => {
-                setIsManualVerification(false);
-              }, 1000);
+              // Check if selfie is required and initialize LivenessTestEnhanced
+              // Check directly from kyc_data table if selfie_url is null or empty
+              const { data: kycData } = await supabase
+                .from('kyc_data')
+                .select('selfie_url')
+                .eq('user_id', session?.user?.id)
+                .single();
+              
+              const hasSelfie = kycData?.selfie_url && kycData.selfie_url.trim() !== '';
+              
+              if (!hasSelfie) {
+                console.log('No selfie found in kyc_data table, initiating liveness test...');
+                setShowLivenessTest(true);
+                setLivenessInitiated(true);
+                setLivenessManuallyClosed(false); // Reset the manually closed flag
+                // Don't proceed to next step yet, wait for liveness completion
+                return;
+              } else {
+                console.log('Selfie already exists in kyc_data table, proceeding to BVN verification:', kycData.selfie_url);
+                // Proceed to BVN verification step
+                setCurrentStep('bvn_verification');
+                setTimeout(() => {
+                  setIsManualVerification(false);
+                }, 1000);
+              }
               
             } catch (error) {
-              console.error('Error creating Paystack customer:', error);
-              showToast('Failed to create customer profile. Please try again.', 'error');
+              console.error('Error proceeding after personal info:', error);
+              showToast('An error occurred. Please try again.', 'error');
             } finally {
               setIsLoading(false);
             }
@@ -589,8 +524,7 @@ export default function KYCUpgradeScreen() {
             
             // Save BVN data
             const saveResult = await saveFormData({
-              bvn: bvn,
-              account_number: accountNumber
+              bvn: bvn
             });
             
             if (!saveResult) {
@@ -602,29 +536,30 @@ export default function KYCUpgradeScreen() {
             await verifyBvn();
           }
           break;
+        case 'documents_verification':
+          if (validateDocumentVerification()) {
+            setIsLoading(true);
+            // Do NOT save document data yet; first verify with Dojah, then persist
+            await verifyDocuments();
+          }
+          break;
         case 'id_face_match':
           if (validateIdFaceMatch()) {
             setIsLoading(true);
             
-            // Save identity and document data
+            // Save identity data (NIN verification only)
             const saveResult = await saveFormData({
               nin: nin,
-              document_type: selectedIdentityType,
-              document_number: selectedIdentityType === 'nin' ? nin : 
-                             selectedIdentityType === 'passport' ? passportNumber : 
-                             selectedIdentityType === 'drivers_license' ? driversLicense : '',
-              document_front_url: documentFrontImage || undefined,
-              document_back_url: documentBackImage || undefined,
-              selfie_url: selfieImage || undefined
+              // selfie_url: formData.selfie_url || undefined
             });
             
             if (!saveResult) {
-              showToast('Failed to save document data. Please try again.', 'error');
+              showToast('Failed to save identity data. Please try again.', 'error');
               return;
             }
             
-            // Verify documents with Dojah
-            await verifyDocuments();
+            // Verify NIN with Dojah (face matching)
+            await verifyNIN(process.env.EXPO_PUBLIC_DOJAH_APP_ID!, process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!);
           }
           break;
         case 'address_details':
@@ -682,8 +617,221 @@ export default function KYCUpgradeScreen() {
     }
   };
   
+
+  // Convert image URL to base64 for API calls
+  const convertImageToBase64 = async (imageUrl: string): Promise<string | null> => {
+    try {
+      // If already a data URI, extract base64
+      if (imageUrl.startsWith('data:image/')) {
+        const parts = imageUrl.split(',');
+        return parts.length > 1 ? parts[1] : null;
+      }
+
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result as string;
+          const base64Data = base64String.split(',')[1];
+          resolve(base64Data);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Error converting image to base64:', error);
+      return null;
+    }
+  };
+
+  // Handle LivenessTestEnhanced completion
+  const handleLivenessComplete = async (selfieUrl: string) => {
+    try {
+      console.log('Liveness test completed, selfie URL received:', selfieUrl);
+      
+      // Save the selfie URL to form data
+      await saveFormData({
+        selfie_url: selfieUrl
+      });
+      
+      // Create audit log for liveness test completion
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session?.user?.id,
+        p_operation_type: 'liveness_check',
+        p_verification_type: 'liveness',
+        p_verification_provider: 'internal',
+        p_request_data: {
+          action: 'liveness_test_completed',
+          source: 'kyc_upgrade_screen',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: {
+          selfie_url: selfieUrl,
+          completion_status: 'success',
+          next_step: 'bvn_verification'
+        },
+        p_status: 'success',
+        p_result_message: 'Liveness test completed successfully',
+        p_metadata: {
+          component: 'KYCUpgradeScreen',
+          action: 'liveness_completion',
+          step: 'id_face_match'
+        }
+      });
+
+      // Create audit event for liveness completion
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session?.user?.id,
+            event_type: 'verification_completed',
+            event_data: {
+              action: 'liveness_test_completed',
+              selfie_url: selfieUrl,
+              test_stages: ['blink', 'nod', 'look_left', 'look_right', 'smile']
+            },
+            severity: 'medium'
+          });
+
+        // Create audit attachment for selfie image
+        await supabase
+          .from('kyc_audit_attachments')
+          .insert({
+            audit_log_id: auditLogId,
+            file_name: `liveness-selfie-${Date.now()}.jpg`,
+            file_type: 'image/jpeg',
+            file_size: 0, // We don't have the actual file size here
+            file_hash: 'selfie-hash-placeholder', // Would need actual hash calculation
+            file_path: selfieUrl,
+            access_level: 'restricted',
+            description: 'Liveness test selfie image',
+            tags: ['liveness', 'selfie', 'kyc']
+          });
+      }
+      
+      // Show success message
+      showToast('Selfie captured and saved successfully', 'success');
+      
+      // Liveness completed - LivenessTestEnhanced already saved the image
+      setShowLivenessTest(false);
+      setLivenessInitiated(false);
+      setLivenessManuallyClosed(false); // Reset the manually closed flag
+      
+      // Proceed to BVN verification step
+      setCurrentStep('bvn_verification');
+      setTimeout(() => {
+        setIsManualVerification(false);
+      }, 1000);
+    } catch (error) {
+      console.error('Error handling liveness completion:', error);
+      showToast('Failed to process liveness completion. Please try again.', 'error');
+      setShowLivenessTest(false);
+      setLivenessInitiated(false);
+    }
+  };
+  
+  const handleLivenessClose = async () => {
+    try {
+      // Create audit log for liveness test manual close
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session?.user?.id,
+        p_operation_type: 'liveness_check',
+        p_verification_type: 'liveness',
+        p_verification_provider: 'internal',
+        p_request_data: {
+          action: 'liveness_test_manually_closed',
+          source: 'kyc_upgrade_screen',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: {
+          user_action: 'manually_closed_liveness_test',
+          completion_status: 'cancelled'
+        },
+        p_status: 'failed',
+        p_result_message: 'User manually closed liveness test',
+        p_metadata: {
+          component: 'KYCUpgradeScreen',
+          action: 'liveness_manual_close',
+          step: 'id_face_match'
+        }
+      });
+
+      // Create audit event for liveness test manual close
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session?.user?.id,
+            event_type: 'verification_cancelled',
+            event_data: {
+              action: 'liveness_test_manually_closed',
+              reason: 'user_cancelled',
+              step: 'id_face_match'
+            },
+            severity: 'low'
+          });
+      }
+    } catch (error) {
+      console.error('Error creating audit log for liveness close:', error);
+      // Continue with the action even if audit fails
+    }
+
+    setShowLivenessTest(false);
+    setLivenessInitiated(false);
+    setLivenessManuallyClosed(true);
+    // Navigate to home when liveness test is closed
+    router.push('/(tabs)');
+  };
+  
   const verifyBvn = async () => {
     try {
+      // Create audit log for BVN verification start
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session?.user?.id,
+        p_operation_type: 'bvn_verified',
+        p_verification_type: 'bvn',
+        p_verification_provider: 'dojah',
+        p_request_data: {
+          action: 'start_bvn_verification',
+          bvn: bvn,
+          source: 'kyc_upgrade_screen',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: {
+          user_action: 'initiated_bvn_verification',
+          verification_status: 'pending'
+        },
+        p_status: 'pending',
+        p_result_message: 'User initiated BVN verification process',
+        p_metadata: {
+          component: 'KYCUpgradeScreen',
+          action: 'bvn_verification_start',
+          step: 'bvn_verification'
+        }
+      });
+
+      // Create audit event for BVN verification start
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session?.user?.id,
+            event_type: 'verification_started',
+            event_data: {
+              action: 'bvn_verification_initiated',
+              bvn: bvn,
+              provider: 'dojah'
+            },
+            severity: 'medium'
+          });
+      }
+
       setIsManualVerification(true);
       setIsResolvingBvn(true);
       setErrors({});
@@ -702,14 +850,32 @@ export default function KYCUpgradeScreen() {
         return;
       }
       
-      // Make actual Dojah API call
-      const response = await fetch(`https://api.dojah.io/api/v1/kyc/bvn/advance?bvn=${bvn}`, {
-        method: 'GET',
+      // Get selfie image for verification from saved form data
+      let selfieImage = null;
+      
+      if (formData.selfie_url) {
+        const base64Image = await convertImageToBase64(formData.selfie_url);
+        if (base64Image) {
+          selfieImage = `data:image/jpeg;base64,${base64Image}`;
+        }
+      }
+      
+      if (!selfieImage) {
+        throw new Error('Selfie image is required for BVN verification. Please complete the liveness test first.');
+      }
+      
+      // Make actual Dojah API call with selfie
+      const response = await fetch('https://api.dojah.io/api/v1/kyc/bvn/verify', {
+        method: 'POST',
         headers: {
           'AppId': appId,
           'Authorization': privateKey,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({
+          selfie_image: selfieImage,
+          bvn: parseInt(bvn)
+        })
       });
       
       if (!response.ok) {
@@ -724,6 +890,13 @@ export default function KYCUpgradeScreen() {
       }
       
       const bvnData = data.entity;
+      
+      // Check selfie verification result
+      if (!bvnData.selfie_verification || !bvnData.selfie_verification.match) {
+        throw new Error('Selfie verification failed. Please ensure your face is clearly visible and matches your BVN photo.');
+      }
+      
+      console.log('Selfie verification confidence:', bvnData.selfie_verification.confidence_value);
       
       // Smart name matching function
       const normalizeName = (name: string) => {
@@ -826,58 +999,36 @@ export default function KYCUpgradeScreen() {
         
         setBvnMatchedName(displayName);
         
-        // Verify customer identity in Paystack
-        try {
-          // Get the customer code from the created customer (you might need to store this)
-          // For now, we'll use the user's email to find the customer
-          const customerResponse = await fetch(` https://api.paystack.co/customer?email=${encodeURIComponent(session?.user?.email || '')}`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
-            }
-          });
-          
-          if (customerResponse.ok) {
-            const customerData = await customerResponse.json();
-            const customerCode = customerData.data?.[0]?.customer_code;
-            
-            if (customerCode) {
-              // Call Paystack identification endpoint
-              const identificationResponse = await fetch(`https://api.paystack.co/customer/${customerCode}/identification`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
-                },
-                body: JSON.stringify({
-                  country: "NG",
-                  type: "bank_account",
-                  account_number: accountNumber,
-                  bvn: bvn,
-                  bank_code: selectedBank?.code || "007", // Use selected bank or fallback to First Bank
-                  first_name: firstName,
-                  last_name: lastName
-                }),
-              });
-              
-              if (identificationResponse.ok) {
-                const identificationData = await identificationResponse.json();
-                console.log('Paystack identification successful:', identificationData);
-                showToast(`BVN verified and identity confirmed! Name: ${displayName}`, 'success');
-              } else {
-                console.error('Paystack identification failed:', await identificationResponse.text());
-                showToast(`BVN verified! Name: ${displayName}`, 'success');
-              }
-            } else {
-              showToast(`BVN verified! Name: ${displayName}`, 'success');
-            }
-          } else {
-            showToast(`BVN verified! Name: ${displayName}`, 'success');
+        // Create audit log for BVN verification
+        await supabase.rpc('create_kyc_audit_log', {
+          p_user_id: session.user.id,
+          p_operation_type: 'bvn_verified',
+          p_verification_type: 'bvn',
+          p_verification_provider: 'dojah',
+          p_request_data: {
+            bvn: bvn,
+            selfie_verification: true,
+            name_matching: true
+          },
+          p_response_data: {
+            bvn_data: bvnData,
+            name_match_percentage: matchPercentage,
+            selfie_confidence: bvnData.selfie_verification?.confidence_value,
+            matched_name: displayName
+          },
+          p_status: 'success',
+          p_result_message: `BVN verified successfully. Name: ${displayName}`,
+          p_confidence_score: bvnData.selfie_verification?.confidence_value || 95.0,
+          p_metadata: {
+            component: 'kyc-upgrade',
+            verification_step: 'bvn_verification',
+            name_match_percentage: matchPercentage,
+            provider: 'dojah'
           }
-        } catch (error) {
-          console.error('Error with Paystack identification:', error);
-          showToast(`BVN verified! Name: ${displayName}`, 'success');
-        }
+        });
+        
+        // BVN verification successful with Dojah
+        showToast(`BVN verified! Name: ${displayName}`, 'success');
         
         // Update progress
         const progressResult = await updateProgress({
@@ -915,20 +1066,28 @@ export default function KYCUpgradeScreen() {
   
   // Image validation function
   const validateImage = (imageUri: string): { isValid: boolean; error?: string } => {
-    // Check if it's a valid image format
-    if (!imageUri.startsWith('data:image/')) {
+    // Accept data URIs, file/content URIs, and http(s) URLs
+    const isDataUri = imageUri.startsWith('data:image/');
+    const isFileUri = imageUri.startsWith('file:');
+    const isContentUri = imageUri.startsWith('content:');
+    const isHttpUri = imageUri.startsWith('http://') || imageUri.startsWith('https://');
+    if (!isDataUri && !isFileUri && !isContentUri && !isHttpUri) {
       return { isValid: false, error: 'Invalid image format. Please select a valid image.' };
     }
-    
-    // Check file size (5MB limit)
-    const base64Data = imageUri.split(',')[1];
-    const sizeInBytes = (base64Data.length * 3) / 4; // Approximate size calculation
-    const sizeInMB = sizeInBytes / (1024 * 1024);
-    
-    if (sizeInMB > 5) {
-      return { isValid: false, error: 'Image size must be less than 5MB. Please select a smaller image.' };
+
+    // Only enforce size check for data URIs where we can read base64 length
+    if (isDataUri) {
+      const parts = imageUri.split(',');
+      if (parts.length > 1) {
+        const base64Data = parts[1];
+        const sizeInBytes = (base64Data.length * 3) / 4; // Approximate
+        const sizeInMB = sizeInBytes / (1024 * 1024);
+        if (sizeInMB > 5) {
+          return { isValid: false, error: 'Image size must be less than 5MB. Please select a smaller image.' };
+        }
+      }
     }
-    
+
     return { isValid: true };
   };
 
@@ -990,6 +1149,49 @@ export default function KYCUpgradeScreen() {
 
   const verifyDocuments = async () => {
     try {
+      // Create audit log for document verification start
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session?.user?.id,
+        p_operation_type: 'document_uploaded',
+        p_verification_type: selectedIdentityType,
+        p_verification_provider: 'dojah',
+        p_request_data: {
+          action: 'start_document_verification',
+          document_type: selectedIdentityType,
+          source: 'kyc_upgrade_screen',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: {
+          user_action: 'initiated_document_verification',
+          verification_status: 'pending'
+        },
+        p_status: 'pending',
+        p_result_message: 'User initiated document verification process',
+        p_metadata: {
+          component: 'KYCUpgradeScreen',
+          action: 'document_verification_start',
+          step: 'documents_verification',
+          document_type: selectedIdentityType
+        }
+      });
+
+      // Create audit event for document verification start
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session?.user?.id,
+            event_type: 'document_uploaded',
+            event_data: {
+              action: 'document_verification_initiated',
+              document_type: selectedIdentityType,
+              provider: 'dojah'
+            },
+            severity: 'medium'
+          });
+      }
+
       setIsManualVerification(true);
       setIsVerifyingDocuments(true);
       setErrors({});
@@ -1012,37 +1214,100 @@ export default function KYCUpgradeScreen() {
       if (!documentFrontImage) {
         throw new Error('Front of document is required');
       }
-      
-      if (!selfieImage) {
-        throw new Error('Selfie is required');
-      }
 
-      // Validate image formats and sizes
+      // Validate image format for front (URLs or data URIs now allowed)
       const frontImageValidation = validateImage(documentFrontImage);
       if (!frontImageValidation.isValid) {
         throw new Error(frontImageValidation.error);
       }
 
-      const selfieValidation = validateImage(selfieImage);
-      if (!selfieValidation.isValid) {
-        throw new Error(selfieValidation.error);
+      // if (documentBackImage) {
+      //   const backImageValidation = validateImage(documentBackImage);
+      //   if (!backImageValidation.isValid) {
+      //     throw new Error(backImageValidation.error);
+      //   }
+      // }
+
+      // Ensure we have URLs (already uploaded to storage via pickImage). If still data URI, upload now.
+      let frontImageUrl = documentFrontImage;
+      let backImageUrl = documentBackImage;
+
+      if (frontImageUrl && frontImageUrl.startsWith('data:image/')) {
+        const uploaded = await uploadDocumentToStorage(frontImageUrl, 'front');
+        if (!uploaded) throw new Error('Failed to upload front document image');
+        frontImageUrl = uploaded;
       }
 
-      if (documentBackImage) {
-        const backImageValidation = validateImage(documentBackImage);
-        if (!backImageValidation.isValid) {
-          throw new Error(backImageValidation.error);
-        }
+      if (backImageUrl && backImageUrl.startsWith('data:image/')) {
+        const uploadedBack = await uploadDocumentToStorage(backImageUrl, 'back');
+        if (!uploadedBack) throw new Error('Failed to upload back document image');
+        backImageUrl = uploadedBack;
       }
 
-      // Verify based on document type first (before saving anything )
-      if (selectedIdentityType === 'drivers_license') {
-        await verifyDriversLicense(appId, privateKey);
-      } else if (selectedIdentityType === 'nin') {
-        await verifyNIN(appId, privateKey);
-      } else {
-        throw new Error('Unsupported document type');
+      // Call document analysis API using URL input type to avoid base64 conversion
+      const analysisResponse = await fetch('/api/dojah-document-analysis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          inputType: 'url',
+          imageFrontSide: frontImageUrl,
+          imageBackSide: backImageUrl || null
+        })
+      });
+
+      if (!analysisResponse.ok) {
+        const errorData = await analysisResponse.json();
+        throw new Error(errorData.details || 'Document analysis failed');
       }
+
+      const analysisData = await analysisResponse.json();
+      
+      if (analysisData.data?.status?.overall_status !== 1) {
+        throw new Error(`Document validation failed: ${analysisData.data?.status?.reason || 'Invalid document'}`);
+      }
+
+      // Document analysis successful
+      showToast('Document verified successfully!', 'success');
+
+      // Persist document details AFTER successful verification
+      try {
+        const entity = analysisData.data;
+        const details: any = entity?.details || entity?.data || {};
+        const extractedDocumentNumber = details.document_number || details.id_number || details.passport_number || details.number || null;
+
+        await saveFormData({
+          // Store full document_type object as JSON (column should be jsonb)
+          document_type: entity?.document_type || null,
+          document_number: extractedDocumentNumber || undefined,
+          document_front_url: documentFrontImage || undefined,
+          document_back_url: documentBackImage || undefined
+        });
+      } catch (persistError) {
+        console.error('Error saving verified document data:', persistError);
+        // Continue flow even if saving has issues; user can retry saving later
+      }
+      
+      // Update progress
+      const progressResult = await updateProgress({
+        current_step: 'address_details',
+        documents_verified: true
+      });
+      
+      if (!progressResult) {
+        showToast('Failed to update progress. Please try again.', 'error');
+        return;
+      }
+      
+      // Wait for toast to be visible before moving to next step
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      setCurrentStep('address_details');
+      setTimeout(() => {
+        setIsManualVerification(false);
+      }, 1000);
       
     } catch (error) {
       console.error('Document verification error:', error);
@@ -1056,131 +1321,9 @@ export default function KYCUpgradeScreen() {
     }
   };
 
-  const verifyDriversLicense = async (appId: string, privateKey: string) => {
-    try {
-      if (!driversLicense.trim()) {
-        throw new Error('Driver\'s license number is required');
-      }
-
-      // Make Dojah API call for driver's license verification
-      const response = await fetch(`https://api.dojah.io/api/v1/kyc/dl?license_number=${driversLicense}`, {
-        method: 'GET',
-        headers: {
-          'AppId': appId,
-          'Authorization': privateKey,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Driver's license verification failed: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      console.log('Driver\'s license verification response:', data);
-      
-      if (!data.entity) {
-        throw new Error('Invalid driver\'s license or no data returned');
-      }
-      
-      const dlData = data.entity;
-      
-      // Get names from driver's license data
-      const dlFirstName = dlData.firstName || '';
-      const dlLastName = dlData.lastName || '';
-      const dlMiddleName = dlData.middleName || '';
-      
-      // Get names from user's saved data
-      const userFirstName = firstName || '';
-      const userLastName = lastName || '';
-      const userMiddleName = middleName || '';
-      
-      console.log('Driver\'s license name comparison:', {
-        dl: { firstName: dlFirstName, lastName: dlLastName, middleName: dlMiddleName },
-        user: { firstName: userFirstName, lastName: userLastName, middleName: userMiddleName }
-      });
-      
-      // Check if any name matches (considering possible swaps)
-      const allDlNames = [dlFirstName, dlLastName, dlMiddleName].filter(Boolean);
-      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
-      
-      let nameMatches = 0;
-      let totalNames = Math.max(allDlNames.length, allUserNames.length);
-      
-      // Check for matches (including swapped positions)
-      for (const dlName of allDlNames) {
-        for (const userName of allUserNames) {
-          if (isNameMatch(dlName, userName)) {
-            nameMatches++;
-            break;
-          }
-        }
-      }
-      
-      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
-      console.log(`Driver's license name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
-      
-      // Consider it a match if at least 60% of names match
-      if (matchPercentage >= 60) {
-        // Only save data after successful verification
-        try {
-          await saveFormData({
-            document_type: 'drivers_license',
-            document_number: driversLicense,
-            document_front_url: documentFrontImage || undefined,
-            document_back_url: documentBackImage || undefined,
-            selfie_url: selfieImage || undefined
-          });
-          
-          console.log('Driver\'s license data saved successfully');
-        } catch (saveError) {
-          console.error('Error saving driver\'s license data:', saveError);
-          // Don't throw error if data might have been saved despite network issues
-          console.log('Continuing with verification process...');
-        }
-        
-        setDocumentsVerified(true);
-        
-        // Create a display name from DL data
-        const displayName = [dlFirstName, dlMiddleName, dlLastName]
-          .filter(Boolean)
-          .join(' ');
-        
-        // Show success toast after verification completes
-        showToast(`Driver's license verified! Name: ${displayName}`, 'success');
-        
-        // Update progress
-        const progressResult = await updateProgress({
-          current_step: 'address_details',
-          documents_verified: true
-        });
-        
-        if (!progressResult) {
-          showToast('Failed to update progress. Please try again.', 'error');
-          return;
-        }
-        
-        // Wait for toast to be visible before moving to next step
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        setCurrentStep('address_details');
-        setTimeout(() => {
-          setIsManualVerification(false);
-        }, 1000);
-      } else {
-        throw new Error('Name mismatch detected. Please verify your personal information.');
-      }
-      
-    } catch (error) {
-      console.error('Driver\'s license verification error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Driver\'s license verification failed';
-      showToast(errorMessage, 'error');
-      setErrors({ documentVerification: errorMessage });
-      // Reset manual verification flag on error
-      setIsManualVerification(false);
-      throw error; // Re-throw to be handled by verifyDocuments
-    }
-  };
+  // const verifyDriversLicense = async (appId: string, privateKey: string) => {
+  //   // Disabled: Driver's license verification is not supported. Use NIN only.
+  // };
 
   const verifyNIN = async (appId: string, privateKey: string) => {
     try {
@@ -1188,8 +1331,22 @@ export default function KYCUpgradeScreen() {
         throw new Error('NIN is required');
       }
 
+      // Get selfie image for verification from saved form data
+      let selfieToUse = null;
+      
+      if (formData.selfie_url) {
+        const base64Image = await convertImageToBase64(formData.selfie_url);
+        if (base64Image) {
+          selfieToUse = `data:image/jpeg;base64,${base64Image}`;
+        }
+      }
+      
+      if (!selfieToUse) {
+        throw new Error('Selfie image is required for NIN verification. Please complete the liveness test first.');
+      }
+      
       // Convert selfie image to base64 (remove data:image/jpeg;base64, prefix)
-      const selfieBase64 = selfieImage!.split(',')[1];
+      const selfieBase64 = selfieToUse.split(',')[1];
 
       // Make Dojah API call for NIN verification
       const response = await fetch('https://api.dojah.io/api/v1/kyc/nin/verify', {
@@ -1200,10 +1357,8 @@ export default function KYCUpgradeScreen() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          nin: nin,
-          first_name: firstName,
-          last_name: lastName,
-          selfie_image: selfieBase64
+          selfie_image: `data:image/jpeg;base64,${selfieBase64}`,
+          nin: parseInt(nin)
         })
       });
       
@@ -1273,22 +1428,7 @@ export default function KYCUpgradeScreen() {
       
       // Consider it a match if at least 60% of names match
       if (matchPercentage >= 60) {
-        // Only save data after successful verification
-        try {
-          await saveFormData({
-            document_type: 'nin',
-            document_number: nin,
-            document_front_url: documentFrontImage || undefined,
-            selfie_url: selfieImage || undefined
-          });
-          
-          console.log('NIN data saved successfully');
-        } catch (saveError) {
-          console.error('Error saving NIN data:', saveError);
-          // Don't throw error if data might have been saved despite network issues
-          console.log('Continuing with verification process...');
-        }
-        
+        // Do NOT save document fields here; NIN step only saves NIN elsewhere
         setDocumentsVerified(true);
         
         // Create a display name from NIN data
@@ -1296,13 +1436,76 @@ export default function KYCUpgradeScreen() {
           .filter(Boolean)
           .join(' ');
         
+        // Create audit log for NIN verification
+        const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+          p_user_id: session?.user?.id,
+          p_operation_type: 'nin_verified',
+          p_verification_type: 'nin',
+          p_verification_provider: 'dojah',
+          p_request_data: {
+            nin: nin,
+            selfie_verification: true,
+            name_matching: true
+          },
+          p_response_data: {
+            nin_data: ninData,
+            name_match_percentage: matchPercentage,
+            selfie_confidence: selfieVerification.confidence_value,
+            matched_name: displayName
+          },
+          p_status: 'success',
+          p_result_message: `NIN verified successfully. Name: ${displayName}`,
+          p_confidence_score: selfieVerification.confidence_value,
+          p_metadata: {
+            component: 'kyc-upgrade',
+            verification_step: 'id_face_match',
+            name_match_percentage: matchPercentage,
+            provider: 'dojah'
+          }
+        });
+
+        // Create audit event for NIN verification
+        if (auditLogId) {
+          await supabase
+            .from('kyc_audit_events')
+            .insert({
+              audit_log_id: auditLogId,
+              user_id: session?.user?.id,
+              event_type: 'verification_completed',
+              event_data: {
+                action: 'nin_verification_completed',
+                nin: nin,
+                name_match_percentage: matchPercentage,
+                selfie_confidence: selfieVerification.confidence_value
+              },
+              severity: 'high'
+            });
+
+          // Create audit attachment for NIN document
+          if (documentFrontImage) {
+            await supabase
+              .from('kyc_audit_attachments')
+              .insert({
+                audit_log_id: auditLogId,
+                file_name: `nin-document-${Date.now()}.jpg`,
+                file_type: 'image/jpeg',
+                file_size: 0, // We don't have the actual file size here
+                file_hash: 'document-hash-placeholder', // Would need actual hash calculation
+                file_path: documentFrontImage,
+                access_level: 'restricted',
+                description: 'NIN document front image',
+                tags: ['nin', 'document', 'kyc', 'id_verification']
+              });
+          }
+        }
+        
         // Show success toast after verification completes
         showToast(`NIN verified! Name: ${displayName} (${selfieVerification.confidence_value.toFixed(1)}% confidence)`, 'success');
         
         // Update progress
         const progressResult = await updateProgress({
-          current_step: 'address_details',
-          documents_verified: true
+          current_step: 'documents_verification',
+          id_face_verified: true
         });
         
         if (!progressResult) {
@@ -1343,9 +1546,13 @@ export default function KYCUpgradeScreen() {
           await updateProgress({ current_step: 'bvn_verification' });
           setCurrentStep('bvn_verification');
           break;
-        case 'address_details':
+        case 'documents_verification':
           await updateProgress({ current_step: 'id_face_match' });
           setCurrentStep('id_face_match');
+          break;
+        case 'address_details':
+          await updateProgress({ current_step: 'documents_verification' });
+          setCurrentStep('documents_verification');
           break;
         case 'review':
           await updateProgress({ current_step: 'address_details' });
@@ -1364,8 +1571,11 @@ export default function KYCUpgradeScreen() {
         case 'id_face_match':
           setCurrentStep('bvn_verification');
           break;
-        case 'address_details':
+        case 'documents_verification':
           setCurrentStep('id_face_match');
+          break;
+        case 'address_details':
+          setCurrentStep('documents_verification');
           break;
         case 'review':
           setCurrentStep('address_details');
@@ -1400,6 +1610,79 @@ export default function KYCUpgradeScreen() {
           console.error('Error updating profile:', profileError);
           // Don't fail the entire process if profile update fails
           console.log('Continuing with verification completion...');
+        }
+
+        // Create audit log for KYC completion
+        const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+          p_user_id: session.user.id,
+          p_operation_type: 'kyc_verified',
+          p_verification_type: 'document',
+          p_verification_provider: 'internal',
+          p_request_data: {
+            action: 'kyc_completion',
+            all_steps_completed: true
+          },
+          p_response_data: {
+            overall_completed: true,
+            account_verified: true,
+            completion_timestamp: new Date().toISOString()
+          },
+          p_status: 'success',
+          p_result_message: 'KYC verification completed successfully',
+          p_confidence_score: 100.0,
+          p_metadata: {
+            component: 'kyc-upgrade',
+            verification_step: 'review',
+            final_completion: true
+          }
+        });
+
+        // Create audit event for KYC completion
+        if (auditLogId) {
+          await supabase
+            .from('kyc_audit_events')
+            .insert({
+              audit_log_id: auditLogId,
+              user_id: session.user.id,
+              event_type: 'verification_completed',
+              event_data: {
+                action: 'kyc_verification_completed',
+                all_steps_completed: true,
+                account_verified: true
+              },
+              severity: 'high'
+            });
+
+          // Create audit summary for the KYC process
+          const now = new Date();
+          const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+          await supabase
+            .from('kyc_audit_summary')
+            .upsert({
+              user_id: session.user.id,
+              period_start: periodStart.toISOString(),
+              period_end: periodEnd.toISOString(),
+              period_type: 'monthly',
+              total_verifications: 1,
+              successful_verifications: 1,
+              failed_verifications: 0,
+              manual_reviews: 0,
+              documents_uploaded: 1,
+              documents_verified: 1,
+              documents_rejected: 0,
+              average_risk_score: 0.1,
+              compliance_violations: 0,
+              fraud_attempts: 0,
+              provider_usage: {
+                dojah: 1,
+                internal: 1
+              },
+              total_cost: 0
+            }, {
+              onConflict: 'user_id,period_start,period_end,period_type'
+            });
         }
         
         showToast('Verification completed successfully!', 'success');
@@ -1485,14 +1768,12 @@ export default function KYCUpgradeScreen() {
   const handleLocationSelect = (location: any) => {
     // Build a more detailed address with house number if available
     let detailedAddress = location.display_name;
-    let houseNumber = '';
     
     if (location.address) {
       const addressParts = [];
       
       // Extract house number if available
       if (location.address.house_number) {
-        houseNumber = location.address.house_number;
         addressParts.push(location.address.house_number);
       }
       
@@ -1595,28 +1876,6 @@ export default function KYCUpgradeScreen() {
     setErrors(prev => ({ ...prev, dateOfBirth: '' }));
   };
 
-  const handleResolveAccount = async (accountNumber: string, bankCode: string) => {
-    if (accountNumber.length !== 10 || !bankCode) {
-      return;
-    }
-    
-    haptics.impact(Haptics.ImpactFeedbackStyle.Medium);
-    
-    try {
-      const accountDetails = await resolveAccount(accountNumber, bankCode);
-      
-      if (accountDetails) {
-        setAccountName(accountDetails.account_name);
-        setAccountResolved(true);
-        setAccountResolutionError(null);
-        haptics.notification(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error) {
-      setAccountResolved(false);
-      setAccountName('');
-      haptics.notification(Haptics.NotificationFeedbackType.Error);
-    }
-  };
   
 
   
@@ -1625,34 +1884,34 @@ export default function KYCUpgradeScreen() {
       case 'personal': return 'Personal Information';
       case 'bvn_verification': return 'BVN Verification';
       case 'id_face_match': return 'ID & Face Verification';
+      case 'documents_verification': return 'Document Verification';
       case 'address_details': return 'Address Details';
       case 'review': return 'Review & Submit';
     }
   };
   
   const pickImage = async (setImageFunction: React.Dispatch<React.SetStateAction<string | null>>, type: string) => {
-    // Request permissions
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== 'granted') {
-      showToast('Permission to access media library is required', 'error');
-      return;
-    }
-    
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
-        base64: true,
+        base64: false,
       });
       
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        if (asset.base64) {
-          setImageFunction(`data:image/jpeg;base64,${asset.base64}`);
-          setErrors(prev => ({ ...prev, [type]: '' }));
+        if (asset.uri) {
+          const uploadedUrl = await uploadDocumentToStorage(asset.uri, type === 'documentFront' ? 'front' : type === 'documentBack' ? 'back' : type);
+          if (uploadedUrl) {
+            setImageFunction(uploadedUrl);
+            setErrors(prev => ({ ...prev, [type]: '' }));
+          } else {
+            showToast('Failed to upload image', 'error');
+          }
+        } else {
+          showToast('No image selected', 'error');
         }
       }
     } catch (error) {
@@ -1660,8 +1919,45 @@ export default function KYCUpgradeScreen() {
       showToast('Failed to select image', 'error');
     }
   };
+
+  // Upload a selected/captured image to Supabase storage and return public URL
+  const uploadDocumentToStorage = async (uri: string, part: 'front' | 'back' | 'house' | 'utility' | string): Promise<string | null> => {
+    try {
+      if (!session?.user?.id) {
+        showToast('Authentication required', 'error');
+        return null;
+      }
+
+      const fileExtensionGuess = uri.split('.').pop()?.toLowerCase();
+      const ext = fileExtensionGuess && fileExtensionGuess.length <= 5 ? fileExtensionGuess : 'jpg';
+      const fileName = `${part}-document-${Date.now()}.${ext}`;
+      const filePath = `kyc-documents/${session.user.id}/${fileName}`;
+
+      const file: any = {
+        uri,
+        name: fileName,
+        type: 'image/jpeg',
+      };
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file, { contentType: 'image/jpeg', upsert: true });
+
+      if (uploadError) {
+        console.error('Supabase upload error:', uploadError);
+        showToast('Upload failed. Please try again.', 'error');
+        return null;
+      }
+
+      const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
+      return urlData.publicUrl || null;
+    } catch (e) {
+      console.error('Upload exception:', e);
+      return null;
+    }
+  };
   
-  const takePicture = async (setImageFunction: React.Dispatch<React.SetStateAction<string | null>>, type: string) => {
+  const takePicture = async (type: 'front' | 'back' | 'house' | 'utility') => {
     // Request permissions
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     
@@ -1681,8 +1977,25 @@ export default function KYCUpgradeScreen() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         if (asset.base64) {
-          setImageFunction(`data:image/jpeg;base64,${asset.base64}`);
-          setErrors(prev => ({ ...prev, [type]: '' }));
+          const imageData = `data:image/jpeg;base64,${asset.base64}`;
+          switch (type) {
+            case 'front':
+              setDocumentFrontImage(imageData);
+              setErrors(prev => ({ ...prev, documentFront: '' }));
+              break;
+            case 'back':
+              setDocumentBackImage(imageData);
+              setErrors(prev => ({ ...prev, documentBack: '' }));
+              break;
+            case 'house':
+              setHouseUrl(imageData);
+              setErrors(prev => ({ ...prev, houseUrl: '' }));
+              break;
+            case 'utility':
+              setUtilityBill(imageData);
+              setErrors(prev => ({ ...prev, utilityBill: '' }));
+              break;
+          }
         }
       }
     } catch (error) {
@@ -1690,6 +2003,25 @@ export default function KYCUpgradeScreen() {
       showToast('Failed to capture image', 'error');
     }
   };
+
+
+  // Helper function for numeric input handling
+  const handleNumericInput = (
+    text: string, 
+    setter: (value: string) => void, 
+    maxLength: number,
+    errorKey: string
+  ) => {
+    // Remove all non-numeric characters
+    const numericText = text.replace(/[^0-9]/g, '');
+    
+    // Only update if within length limit
+    if (numericText.length <= maxLength) {
+      setter(numericText);
+      setErrors(prev => ({ ...prev, [errorKey]: '' }));
+    }
+  };
+
   
   const renderPersonalInfoStep = () => {
     return (
@@ -1863,12 +2195,118 @@ export default function KYCUpgradeScreen() {
     );
   };
   
+  const renderDocumentsVerificationStep = () => {
+    return (
+      <View style={styles.formContainer}>
+        <Text style={styles.sectionTitle}>Document Verification</Text>
+        <Text style={styles.sectionDescription}>
+          Please upload clear photos of your identity document for verification.
+        </Text>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Document Type</Text>
+          <View style={styles.identityTypeContainer}>
+            <Pressable
+              style={[
+                styles.identityTypeOption,
+                selectedIdentityType === 'nin' && styles.identityTypeSelected
+              ]}
+              onPress={() => setSelectedIdentityType('nin')}
+            >
+              <Text style={[
+                styles.identityTypeText,
+                selectedIdentityType === 'nin' && styles.identityTypeTextSelected
+              ]}>
+                NIN
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.identityTypeOption,
+                selectedIdentityType === 'passport' && styles.identityTypeSelected
+              ]}
+              onPress={() => setSelectedIdentityType('passport')}
+            >
+              <Text style={[
+                styles.identityTypeText,
+                selectedIdentityType === 'passport' && styles.identityTypeTextSelected
+              ]}>
+                Passport
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Front of Document *</Text>
+          <View style={styles.documentActions}>
+            {/* <Pressable style={styles.documentButton} onPress={() => takePicture('front')}>
+              <Text style={styles.documentButtonText}>Take Photo</Text>
+            </Pressable> */}
+            <Pressable style={styles.documentButton} onPress={() => pickImage(setDocumentFrontImage, 'documentFront')}>
+              <Text style={styles.documentButtonText}>Upload Photo</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            style={[styles.imageUploadContainer, errors.documentFront && styles.inputError]}
+            onPress={() => takePicture('front')}
+          >
+            {documentFrontImage ? (
+              <Image source={{ uri: documentFrontImage }} style={styles.uploadedImage} />
+            ) : (
+              <View style={styles.uploadPlaceholder}>
+                <Camera size={24} color={colors.textSecondary} />
+                <Text style={styles.uploadText}>Tap to take photo</Text>
+              </View>
+            )}
+          </Pressable>
+          
+          {errors.documentFront && <Text style={styles.errorText}>{errors.documentFront}</Text>}
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Back of Document (Optional)</Text>
+          <View style={styles.documentActions}>
+            {/* <Pressable style={styles.documentButton} onPress={() => takePicture('back')}>
+              <Text style={styles.documentButtonText}>Take Photo</Text>
+            </Pressable> */}
+            <Pressable style={styles.documentButton} onPress={() => pickImage(setDocumentBackImage, 'documentBack')}>
+              <Text style={styles.documentButtonText}>Upload Photo</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            style={[styles.imageUploadContainer, errors.documentBack && styles.inputError]}
+            onPress={() => takePicture('back')}
+          >
+            {documentBackImage ? (
+              <Image source={{ uri: documentBackImage }} style={styles.uploadedImage} />
+            ) : (
+              <View style={styles.uploadPlaceholder}>
+                <Camera size={24} color={colors.textSecondary} />
+                <Text style={styles.uploadText}>Tap to take photo</Text>
+              </View>
+            )}
+          </Pressable>
+          
+          {errors.documentBack && <Text style={styles.errorText}>{errors.documentBack}</Text>}
+        </View>
+
+        <View style={styles.infoContainer}>
+          <Info size={20} color={colors.primary} />
+          <Text style={styles.infoText}>
+            Ensure the document is clearly visible, well-lit, and all text is readable. Avoid glare and shadows.
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   const renderBvnVerificationStep = () => {
     return (
       <View style={styles.formContainer}>
         <Text style={styles.sectionTitle}>BVN Verification</Text>
         <Text style={styles.sectionDescription}>
-          Please enter your Bank Verification Number (BVN) and the account number associated with it for identity verification.
+          Please enter your Bank Verification Number (BVN) for identity verification.
         </Text>
         
         <View style={styles.inputGroup}>
@@ -1876,22 +2314,33 @@ export default function KYCUpgradeScreen() {
           <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
             <CreditCard size={20} color={colors.textSecondary} />
             <TextInput
+              ref={bvnInputRef}
               style={styles.input}
               placeholder="Enter your 11-digit BVN"
               placeholderTextColor={colors.textTertiary}
               value={bvn}
-              onChangeText={(text) => {
-                // Only allow numbers and limit to 11 digits
-                const numericText = text.replace(/[^0-9]/g, '');
-                if (numericText.length <= 11) {
-                  setBvn(numericText);
-                  setErrors(prev => ({ ...prev, bvn: '' }));
-                }
-              }}
+              onChangeText={(text) => handleNumericInput(text, setBvn, 11, 'bvn')}
               keyboardType="numeric"
               maxLength={11}
               editable={!isResolvingBvn && !bvnVerified}
+              autoCorrect={false}
+              autoCapitalize="none"
+              selectTextOnFocus={true}
+              blurOnSubmit={false}
+              returnKeyType="done"
+              textContentType="none"
+              autoComplete="off"
+              importantForAutofill="no"
+              spellCheck={false}
             />
+            {/* {!bvn && !isResolvingBvn && !bvnVerified && (
+              <Pressable
+                style={styles.focusButton}
+                onPress={() => forceFocusInput(bvnInputRef)}
+              >
+                <Text style={styles.focusButtonText}>Tap to focus</Text>
+              </Pressable>
+            )} */}
             {isResolvingBvn && (
               <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
             )}
@@ -1902,84 +2351,12 @@ export default function KYCUpgradeScreen() {
             )}
           </View>
           {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Account Number</Text>
-          <View style={[styles.inputContainer, errors.accountNumber && styles.inputError]}>
-            <CreditCard size={20} color={colors.textSecondary} />
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your 10-digit account number"
-              placeholderTextColor={colors.textTertiary}
-              value={accountNumber}
-              onChangeText={(text) => {
-                // Only allow numbers and limit to 10 digits
-                const numericText = text.replace(/[^0-9]/g, '');
-                if (numericText.length <= 10) {
-                  setAccountNumber(numericText);
-                  setErrors(prev => ({ ...prev, accountNumber: '' }));
-                  
-                  // Reset account resolution if account number changes
-                  if (accountResolved) {
-                    setAccountResolved(false);
-                    setAccountName('');
-                    setAccountResolutionError(null);
-                  }
-                  
-                  // If account number is 10 digits and bank is selected, try to resolve
-                  if (numericText.length === 10 && selectedBank) {
-                    handleResolveAccount(numericText, selectedBank.code);
-                  }
-                }
-              }}
-              keyboardType="numeric"
-              maxLength={10}
-              editable={!isResolvingBvn}
-            />
-          </View>
-          {errors.accountNumber && <Text style={styles.errorText}>{errors.accountNumber}</Text>}
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Bank</Text>
-          <Pressable
-            style={[styles.inputContainer, errors.selectedBank && styles.inputError]}
-            onPress={() => setShowBankSelection(true)}
-          >
-            <CreditCard size={20} color={colors.textSecondary} />
-            <Text style={[styles.input, !selectedBank && { color: colors.textTertiary }]}>
-              {selectedBank ? selectedBank.name : 'Select your bank'}
+          {/* {!bvn && (
+            <Text style={styles.inputHelpText}>
+              💡 Having trouble typing? Tap the &quot;Tap to focus&quot; button above
             </Text>
-            <ChevronRight size={20} color={colors.textSecondary} />
-          </Pressable>
-          {errors.selectedBank && <Text style={styles.errorText}>{errors.selectedBank}</Text>}
+          )} */}
         </View>
-        
-        {/* Account Name Display - Only show when account is resolved */}
-        {accountResolved && accountName && (
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Account Name</Text>
-            <View style={[styles.inputContainer, styles.resolvedInput]}>
-              <Check size={20} color={colors.success} />
-              <Text style={[styles.input, { color: colors.text }]}>
-                {accountName}
-              </Text>
-              {isResolvingAccount && (
-                <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
-              )}
-            </View>
-          </View>
-        )}
-        
-        {/* Account Resolution Error Display */}
-        {(accountResolutionError || errors.accountResolution) && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>
-              {accountResolutionError || errors.accountResolution}
-            </Text>
-          </View>
-        )}
         
         {bvnVerified && bvnMatchedName && (
           <View style={styles.matchedNameContainer}>
@@ -1993,7 +2370,7 @@ export default function KYCUpgradeScreen() {
         <View style={styles.infoContainer}>
           <Info size={20} color={colors.primary} />
           <Text style={styles.infoText}>
-            Your BVN and account number are used for verification purposes only. This helps us confirm your identity and protect your account.
+            Your BVN is used for verification purposes only. This helps us confirm your identity and protect your account.
           </Text>
         </View>
       </View>
@@ -2003,7 +2380,7 @@ export default function KYCUpgradeScreen() {
   const renderIDFaceMatchStep = () => {
     return (
       <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>ID & Face Verification</Text>
+        <Text style={styles.sectionTitle}>NIN Verification</Text>
         <Text style={styles.sectionDescription}>
           Please provide a government-issued ID and take a selfie for verification.
         </Text>
@@ -2054,22 +2431,6 @@ export default function KYCUpgradeScreen() {
               ]}>Passport</Text>
             </Pressable> */}
             
-            <Pressable
-              style={[
-                styles.idOption,
-                selectedIdentityType === 'drivers_license' && styles.selectedIdOption
-              ]}
-              onPress={() => {
-                setSelectedIdentityType('drivers_license');
-                setErrors({});
-              }}
-              disabled={isVerifyingDocuments || documentsVerified}
-            >
-              <Text style={[
-                styles.idOptionText,
-                selectedIdentityType === 'drivers_license' && styles.selectedIdOptionText
-              ]}>Driver's License</Text>
-            </Pressable>
           </View>
         </View>
         
@@ -2122,29 +2483,8 @@ export default function KYCUpgradeScreen() {
           </View>
         )} */}
         
-        {selectedIdentityType === 'drivers_license' && (
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Driver's License Number</Text>
-            <View style={[styles.inputContainer, errors.driversLicense && styles.inputError]}>
-              <CreditCard size={20} color={colors.textSecondary} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your driver's license number"
-                placeholderTextColor={colors.textTertiary}
-                value={driversLicense}
-                onChangeText={(text) => {
-                  setDriversLicense(text);
-                  setErrors(prev => ({ ...prev, driversLicense: '' }));
-                }}
-                autoCapitalize="characters"
-                editable={!isVerifyingDocuments && !documentsVerified}
-              />
-            </View>
-            {errors.driversLicense && <Text style={styles.errorText}>{errors.driversLicense}</Text>}
-          </View>
-        )}
         
-        <View style={styles.documentSection}>
+        {/* <View style={styles.documentSection}>
           <Text style={styles.documentSectionTitle}>Document Upload</Text>
           
           <View style={styles.documentCard}>
@@ -2157,7 +2497,7 @@ export default function KYCUpgradeScreen() {
             <Text style={styles.documentDescription}>
               Upload a clear photo of the front of your {
                 selectedIdentityType === 'nin' ? 'NIN slip' :
-                selectedIdentityType === 'passport' ? 'passport' : 'driver\'s license'
+                selectedIdentityType === 'passport' ? 'passport' : 'document'
               }
             </Text>
             
@@ -2189,7 +2529,7 @@ export default function KYCUpgradeScreen() {
                 
                 <Pressable 
                   style={styles.documentButton}
-                  onPress={() => takePicture(setDocumentFrontImage, 'documentFront')}
+                  onPress={() => takePicture('front')}
                   disabled={isVerifyingDocuments || documentsVerified}
                 >
                   <Camera size={16} color={colors.primary} />
@@ -2200,7 +2540,7 @@ export default function KYCUpgradeScreen() {
             {errors.documentFront && <Text style={styles.errorText}>{errors.documentFront}</Text>}
           </View>
           
-          {(selectedIdentityType === 'passport' || selectedIdentityType === 'drivers_license') && (
+          {selectedIdentityType === 'passport' && (
             <View style={styles.documentCard}>
               <View style={styles.documentHeader}>
                 <Text style={styles.documentName}>Back of ID</Text>
@@ -2242,7 +2582,7 @@ export default function KYCUpgradeScreen() {
                   
                   <Pressable 
                     style={styles.documentButton}
-                    onPress={() => takePicture(setDocumentBackImage, 'documentBack')}
+                    onPress={() => takePicture('back')}
                     disabled={isVerifyingDocuments || documentsVerified}
                   >
                     <Camera size={16} color={colors.primary} />
@@ -2262,48 +2602,45 @@ export default function KYCUpgradeScreen() {
               </View>
             </View>
             <Text style={styles.documentDescription}>
-              Take a clear selfie showing your face. Look straight at the camera with neutral expression.
+              Complete the liveness test to capture a secure selfie for verification. This advanced security feature ensures your identity is verified through facial recognition and prevents fraud.
             </Text>
             
-            {selfieImage ? (
+            {formData.selfie_url ? (
               <View style={styles.imagePreviewContainer}>
                 <Image 
-                  source={{ uri: selfieImage }} 
+                  source={{ uri: formData.selfie_url }} 
                   style={styles.imagePreview} 
                   resizeMode="cover"
                 />
                 <Pressable 
                   style={styles.retakeButton}
-                  onPress={() => setSelfieImage(null)}
+                  onPress={() => {
+                    setShowLivenessTest(true);
+                    haptics.lightImpact();
+                  }}
                   disabled={isVerifyingDocuments || documentsVerified}
                 >
-                  <Text style={styles.retakeButtonText}>Retake</Text>
+                  <Text style={styles.retakeButtonText}>Retake with Liveness Test</Text>
                 </Pressable>
               </View>
             ) : (
               <View style={styles.documentActions}>
                 <Pressable 
-                  style={styles.documentButton}
-                  onPress={() => pickImage(setSelfieImage, 'selfie')}
+                  style={[styles.documentButton, styles.livenessButton, { flex: 1 }]}
+                  onPress={() => {
+                    setShowLivenessTest(true);
+                    haptics.lightImpact();
+                  }}
                   disabled={isVerifyingDocuments || documentsVerified}
                 >
-                  <Upload size={16} color={colors.primary} />
-                  <Text style={styles.documentButtonText}>Upload</Text>
-                </Pressable>
-                
-                <Pressable 
-                  style={styles.documentButton}
-                  onPress={() => takePicture(setSelfieImage, 'selfie')}
-                  disabled={isVerifyingDocuments || documentsVerified}
-                >
-                  <Camera size={16} color={colors.primary} />
-                  <Text style={styles.documentButtonText}>Take Selfie</Text>
+                  <Shield size={16} color={colors.primary} />
+                  <Text style={styles.documentButtonText}>Start Liveness Test</Text>
                 </Pressable>
               </View>
             )}
             {errors.selfie && <Text style={styles.errorText}>{errors.selfie}</Text>}
           </View>
-        </View>
+        </View> */}
         
         {errors.documentVerification && (
           <View style={styles.errorContainer}>
@@ -2445,7 +2782,7 @@ export default function KYCUpgradeScreen() {
             <View style={styles.documentActions}>
               <Pressable 
                 style={styles.documentButton}
-                onPress={() => takePicture(setHouseUrl, 'housePhoto')}
+                onPress={() => takePicture('house')}
               >
                 <Camera size={16} color={colors.primary} />
                 <Text style={styles.documentButtonText}>Take Photo</Text>
@@ -2492,7 +2829,7 @@ export default function KYCUpgradeScreen() {
               
               <Pressable 
                 style={styles.documentButton}
-                onPress={() => takePicture(setUtilityBill, 'utilityBill')}
+                onPress={() => takePicture('utility')}
               >
                 <Camera size={16} color={colors.primary} />
                 <Text style={styles.documentButtonText}>Take Photo</Text>
@@ -2552,20 +2889,6 @@ export default function KYCUpgradeScreen() {
             </View>
             
             <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Bank</Text>
-              <Text style={styles.reviewValue}>
-                {selectedBank ? selectedBank.name : 'Not selected'}
-              </Text>
-            </View>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Account Number</Text>
-              <Text style={styles.reviewValue}>
-                •••• •••• {accountNumber.slice(-4)}
-              </Text>
-            </View>
-            
-            <View style={styles.reviewItem}>
               <Text style={styles.reviewLabel}>ID Type</Text>
               <Text style={styles.reviewValue}>
                 {selectedIdentityType === 'nin' ? 'National ID (NIN)' :
@@ -2583,7 +2906,7 @@ export default function KYCUpgradeScreen() {
               <Text style={styles.reviewValue}>
                 {selectedIdentityType === 'nin' ? nin :
                  selectedIdentityType === 'passport' ? passportNumber :
-                 driversLicense || 'Not provided'}
+                 'Not provided'}
               </Text>
             </View>
             
@@ -2656,6 +2979,8 @@ export default function KYCUpgradeScreen() {
         return renderBvnVerificationStep();
       case 'id_face_match':
         return renderIDFaceMatchStep();
+      case 'documents_verification':
+        return renderDocumentsVerificationStep();
       case 'address_details':
         return renderAddressDetailsStep();
       case 'review':
@@ -2678,7 +3003,7 @@ export default function KYCUpgradeScreen() {
           <View style={styles.datePickerModal}>
             <View style={styles.datePickerHeader}>
               <Text style={styles.datePickerTitle}>Select Date of Birth</Text>
-              <Pressable onPress={handleDatePickerClose} style={styles.closeButton}>
+              <Pressable onPress={handleDatePickerClose} style={styles.datePickerCloseButton}>
                 <X size={20} color={colors.text} />
               </Pressable>
             </View>
@@ -3058,6 +3383,28 @@ export default function KYCUpgradeScreen() {
       color: colors.primary,
       fontWeight: '500',
     },
+    livenessButton: {
+      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
+      borderColor: colors.success,
+    },
+    focusButton: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      backgroundColor: colors.backgroundTertiary,
+      borderRadius: 6,
+      marginLeft: 8,
+    },
+    focusButtonText: {
+      fontSize: 12,
+      color: colors.primary,
+      fontWeight: '500',
+    },
+    inputHelpText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 4,
+      fontStyle: 'italic',
+    },
     imagePreviewContainer: {
       width: '100%',
       height: 200,
@@ -3169,14 +3516,14 @@ export default function KYCUpgradeScreen() {
       fontWeight: '600',
       color: colors.text,
     },
-    // closeButton: {
-    //   width: 32,
-    //   height: 32,
-    //   borderRadius: 16,
-    //   backgroundColor: colors.backgroundTertiary,
-    //   justifyContent: 'center',
-    //   alignItems: 'center',
-    // },
+    datePickerCloseButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
     calendarHeader: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -3275,269 +3622,59 @@ export default function KYCUpgradeScreen() {
     requiredStatusText: {
       color: colors.warning,
     },
-    // Bank selection modal styles
-    bankModalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 16,
-    },
-    bankModalContent: {
-      width: '100%',
-      maxWidth: 400,
-      maxHeight: '80%',
-      borderRadius: 16,
-      backgroundColor: colors.surface,
-      overflow: 'hidden',
-    },
-    bankModalHeader: {
+    identityTypeContainer: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: 20,
-      paddingBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      gap: 12,
+      marginTop: 8,
     },
-    bankModalTitle: {
-      fontSize: 20,
-      fontWeight: '600',
-      color: colors.text,
-    },
-    bankCloseButton: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: colors.backgroundTertiary,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    bankSearchContainer: {
-      padding: 20,
-      paddingTop: 0,
-      paddingBottom: 16,
-    },
-    bankSearchInput: {
-      backgroundColor: colors.backgroundTertiary,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 12,
-      paddingHorizontal: 16,
+    identityTypeOption: {
+      flex: 1,
       paddingVertical: 12,
-      fontSize: 16,
-      color: colors.text,
-    },
-    bankListContainer: {
-      flex: 1,
-      paddingHorizontal: 20,
-      paddingBottom: 20,
-    },
-    bankItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 16,
       paddingHorizontal: 16,
-      borderRadius: 12,
-      marginBottom: 8,
-      backgroundColor: colors.surface,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: colors.border,
-    },
-    bankItemSelected: {
-      backgroundColor: colors.primary + '15',
-      borderColor: colors.primary,
-    },
-    bankIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 8,
-      backgroundColor: colors.backgroundTertiary,
-      justifyContent: 'center',
+      backgroundColor: colors.surface,
       alignItems: 'center',
-      marginRight: 12,
     },
-    bankIconText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: colors.primary,
+    identityTypeSelected: {
+      borderColor: colors.primary,
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
     },
-    bankInfo: {
-      flex: 1,
-    },
-    bankName: {
-      fontSize: 16,
+    identityTypeText: {
+      fontSize: 14,
       fontWeight: '500',
       color: colors.text,
-      marginBottom: 2,
     },
-    bankCode: {
-      fontSize: 12,
-      color: colors.textSecondary,
-    },
-    bankCheckIcon: {
-      marginLeft: 12,
-    },
-    noBanksFound: {
-      padding: 40,
-      alignItems: 'center',
-    },
-          noBanksFoundText: {
-        fontSize: 16,
-        color: colors.textSecondary,
-        textAlign: 'center',
-      },
-      retryButton: {
-        backgroundColor: colors.primary,
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        borderRadius: 8,
-        marginTop: 16,
-      },
-      retryButtonText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '600',
-        textAlign: 'center',
-      },
-    // New bank selection modal styles
-    overlay: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'flex-end',
-      zIndex: 1000,
-    },
-    overlayPressable: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-    },
-    bankListModal: {
-      backgroundColor: colors.surface,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      width: '100%',
-      maxHeight: '85%',
-      borderWidth: isDark ? 1 : 0,
-      borderColor: isDark ? colors.border : 'transparent',
-      // Add shadow for iOS
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.1,
-          shadowRadius: 5,
-        },
-        android: {
-          elevation: 5,
-        },
-      }),
-    },
-    keyboardAvoidingContainer: {
-      flex: 1,
-      minHeight: 0, // Allow flex to work properly
-    },
-    dragIndicator: {
-      width: 40,
-      height: 5,
-      borderRadius: 2.5,
-      backgroundColor: colors.border,
-      alignSelf: 'center',
-      marginTop: 12,
-      marginBottom: 8,
-    },
-    bankListHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: isSmallScreen ? 16 : 20,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    bankListTitle: {
-      fontSize: isSmallScreen ? 18 : 20,
+    identityTypeTextSelected: {
+      color: colors.primary,
       fontWeight: '600',
-      color: colors.text,
     },
-    closeButton: {
-      width: isSmallScreen ? 36 : 40,
-      height: isSmallScreen ? 36 : 40,
-      borderRadius: isSmallScreen ? 18 : 20,
-      backgroundColor: colors.backgroundTertiary,
+    imageUploadContainer: {
+      height: 200,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: colors.border,
+      borderStyle: 'dashed',
+      backgroundColor: colors.surface,
+      marginTop: 8,
+      overflow: 'hidden',
+    },
+    uploadedImage: {
+      width: '100%',
+      height: '100%',
+      resizeMode: 'cover',
+    },
+    uploadPlaceholder: {
+      flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
+      gap: 8,
     },
-    searchContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: isSmallScreen ? 12 : 16,
-      marginHorizontal: 2,
-      marginTop: 5,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    searchInput: {
-      flex: 1,
-      fontSize: isSmallScreen ? 14 : 16,
-      color: colors.text,
-      borderRadius: 10,
-      padding: isSmallScreen ? 12 : 16,
-      marginHorizontal: 5,
-      height: 65,
-      borderBottomColor: colors.border,
-      backgroundColor: '#EBF1F9',
-    },
-    bankList: {
-      flex: 1,
-      minHeight: 200, // Ensure minimum height for scrolling
-    },
-    bankOption: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: isSmallScreen ? 10 : 12,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    bankOptionContent: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-    },
-    bankOptionLogo: {
-      width: 32,
-      height: 32,
-      borderRadius: 6,
-      marginRight: 12,
-    },
-    bankOptionIconContainer: {
-      width: 32,
-      height: 32,
-      borderRadius: 6,
-      marginRight: 12,
-      backgroundColor: colors.backgroundTertiary,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    bankOptionText: {
-      fontSize: isSmallScreen ? 16 : 18,
-      fontWeight: 500,
-      color: colors.text,
-    },
-    noResultsContainer: {
-      padding: isSmallScreen ? 32 : 40,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    noResultsText: {
-      fontSize: isSmallScreen ? 14 : 16,
+    uploadText: {
+      fontSize: 14,
       color: colors.textSecondary,
+      fontWeight: '500',
     },
   });
   
@@ -3561,9 +3698,9 @@ export default function KYCUpgradeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={handlePreviousStep} style={styles.backButton}>
+        {/* <Pressable onPress={handlePreviousStep} style={styles.backButton}>
           <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
-        </Pressable>
+        </Pressable> */}
         
         <Text style={styles.headerTitle}>Account Verification</Text>
         
@@ -3609,181 +3746,12 @@ export default function KYCUpgradeScreen() {
         placeholder="Search for your address..."
       />
       
-      {/* Bank Selection Modal */}
-      <Animated.View 
-        style={[
-          styles.overlay,
-          { 
-            opacity: showBankSelection ? 1 : 0,
-            zIndex: showBankSelection ? 1100 : -1,
-          }
-        ]}
-        pointerEvents={showBankSelection ? 'auto' : 'none'}
-      >
-        <Pressable 
-          style={styles.overlayPressable} 
-          onPress={() => {
-            setShowBankSelection(false);
-            haptics.lightImpact();
-          }} 
-        />
-        
-        <Animated.View 
-          style={[
-            styles.bankListModal,
-            { 
-              transform: [{ translateY: bankListSlideAnim }],
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-            }
-          ]}
-        >
-          <View style={styles.dragIndicator} />
-          
-          <View style={styles.bankListHeader}>
-            <Text style={styles.bankListTitle}>Select Bank</Text>
-            <Pressable 
-              style={styles.closeButton}
-              onPress={() => {
-                setShowBankSelection(false);
-                haptics.lightImpact();
-              }}
-            >
-              <X size={isSmallScreen ? 20 : 24} color={colors.text} />
-            </Pressable>
-          </View>
-          
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.keyboardAvoidingContainer}
-          >
-            <View style={styles.searchContainer}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search banks..."
-                placeholderTextColor={colors.textTertiary}
-                value={bankSearchQuery}
-                onChangeText={setBankSearchQuery}
-                autoFocus
-              />
-            </View>
-            
-            <ScrollView 
-              style={styles.bankList} 
-              nestedScrollEnabled 
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-            {banksLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={styles.loadingText}>Loading banks...</Text>
-              </View>
-            ) : banksError ? (
-              <View style={styles.noResultsContainer}>
-                <Text style={styles.noResultsText}>
-                  Error loading banks: {banksError}
-                </Text>
-                <Text style={styles.retryButtonText}>Please restart the app to retry</Text>
-              </View>
-            ) : (
-              (() => {
-                console.log('Bank Modal - Total banks:', banks.length);
-                console.log('Bank Modal - Search query:', bankSearchQuery);
-                
-                const filteredBanks = banks.filter(bank =>
-                  bank.name.toLowerCase().includes(bankSearchQuery.toLowerCase()) ||
-                  bank.code.toLowerCase().includes(bankSearchQuery.toLowerCase())
-                );
-                
-                console.log('Bank Modal - Filtered banks:', filteredBanks.length);
-                
-                if (filteredBanks.length === 0) {
-                  return (
-                    <View style={styles.noResultsContainer}>
-                      <Text style={styles.noResultsText}>
-                        {banks.length === 0 
-                          ? 'No banks available. Please check your connection.' 
-                          : `No banks match "${bankSearchQuery}"`
-                        }
-                      </Text>
-                      {banks.length === 0 && (
-                        <Text style={[styles.noResultsText, { fontSize: 12, marginTop: 8 }]}>
-                          Total banks loaded: {banks.length}
-                        </Text>
-                      )}
-                      {!bankSearchQuery && banks.length === 0 && (
-                        <Text style={styles.retryButtonText}>Please restart the app to refresh</Text>
-                      )}
-                    </View>
-                  );
-                }
-                
-                return filteredBanks.map((bank) => (
-                  <Pressable
-                    key={bank.id}
-                    style={styles.bankOption}
-                    onPress={() => {
-                      setSelectedBank(bank);
-                      setShowBankSelection(false);
-                      setBankSearchQuery(''); // Clear search on selection
-                      setErrors(prev => ({ ...prev, selectedBank: '' }));
-                      haptics.selection();
-                      
-                      // Reset account resolution if bank changes
-                      if (accountResolved) {
-                        setAccountResolved(false);
-                        setAccountName('');
-                        setAccountResolutionError(null);
-                      }
-                      
-                      // If account number is already 10 digits, try to resolve account
-                      if (accountNumber.length === 10) {
-                        handleResolveAccount(accountNumber, bank.code);
-                      }
-                      
-                      // Save bank selection to form data
-                      saveFormData({
-                        bank_code: bank.code,
-                        bank_name: bank.name
-                      });
-                    }}
-                  >
-                    <View style={styles.bankOptionContent}>
-                      {bank.logoSvg ? (
-                        <View style={styles.bankOptionLogo}>
-                          {React.createElement(bank.logoSvg.default || bank.logoSvg, {
-                            width: 32,
-                            height: 32,
-                            fill: colors.textSecondary
-                          })}
-                        </View>
-                      ) : bank.logo ? (
-                        <Image
-                          source={bank.logo as any}
-                          style={styles.bankOptionLogo}
-                          resizeMode="contain"
-                        />
-                      ) : (
-                        <View style={styles.bankOptionIconContainer}>
-                          <Ionicons name="business" size={20} color={colors.textSecondary} />
-                        </View>
-                      )}
-                      <Text style={styles.bankOptionText}>{bank.name}</Text>
-                    </View>
-                    {selectedBank?.id === bank.id && (
-                      <Check size={20} color={colors.primary} />
-                    )}
-                  </Pressable>
-                ));
-              })()
-            )}
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </Animated.View>
-      </Animated.View>
+      
+      <LivenessTestEnhanced 
+        isVisible={showLivenessTest}
+        onClose={handleLivenessClose}
+        onComplete={handleLivenessComplete}
+      />
     </SafeAreaView>
   );
 }

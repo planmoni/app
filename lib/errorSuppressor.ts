@@ -9,8 +9,12 @@ console.error = (...args: any[]) => {
   // Suppress specific errors that are not critical
   if (
     message.includes('Events subscription timed out') ||
+    message.includes('Events subscription error') ||
+    message.includes('Wallet subscription error') ||
+    message.includes('Wallet subscription timed out') ||
     message.includes('Channel subscription error') ||
     message.includes('Channel subscription timed out') ||
+    message.includes('CHANNEL_ERROR') ||
     message.includes('refreshWallet is not a function') ||
     message.includes('Paystack API error') ||
     message.includes('network request failed') ||
@@ -20,7 +24,9 @@ console.error = (...args: any[]) => {
     message.includes('timeout') ||
     message.includes('fetch failed') ||
     message.includes('subscription error') ||
-    message.includes('realtime subscription')
+    message.includes('realtime subscription') ||
+    message.includes('Failed to create signed URL: Object not found') ||
+    message.includes('Failed to process banner')
   ) {
     // Suppress these errors silently
     return;
@@ -48,11 +54,17 @@ console.warn = (...args: any[]) => {
   // Suppress specific warnings
   if (
     message.includes('Events subscription timed out') ||
+    message.includes('Events subscription error') ||
+    message.includes('Wallet subscription error') ||
+    message.includes('Wallet subscription timed out') ||
     message.includes('Channel subscription error') ||
     message.includes('Channel subscription timed out') ||
+    message.includes('CHANNEL_ERROR') ||
     message.includes('refreshWallet is not a function') ||
     message.includes('subscription error') ||
-    message.includes('realtime subscription')
+    message.includes('realtime subscription') ||
+    message.includes('Failed to create signed URL: Object not found') ||
+    message.includes('Failed to process banner')
   ) {
     return;
   }

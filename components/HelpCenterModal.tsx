@@ -5,6 +5,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useIntercomOptimized } from '@/hooks/useIntercomOptimized';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
+import { useIntercom } from '@/hooks/useIntercom';
 
 interface HelpCenterModalProps {
   isVisible: boolean;
@@ -16,7 +17,7 @@ const DRAG_DISMISS_THRESHOLD = 120;
 export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
-  const { openIntercom, isLoading } = useIntercomOptimized();
+  const { openChat, isLoading } = useIntercom();
   const translateY = useRef(new Animated.Value(0)).current;
   const [dragging, setDragging] = useState(false);
   
@@ -129,7 +130,7 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
                 
                 <Pressable
                   style={styles.supportOption}
-                  onPress={openIntercom}
+                  onPress={openChat}
                   disabled={isLoading}
                 >
                   <View style={styles.supportIconContainer}>

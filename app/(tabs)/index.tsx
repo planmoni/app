@@ -6,29 +6,15 @@ import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
+// import { IntercomButton } from '@/components/IntercomButton';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
-  ArrowDownRight,
-  ArrowRightIcon,
-  BanknoteArrowDown,
-  BanknoteArrowUp,
   HelpCircleIcon,
-  ArrowUpRight,
-  Calendar,
-  ChevronDown,
-  ChevronUp,
   Eye,
   EyeOff,
-  CircleHelp as HelpCircle,
-  Lock,
-  Clock,
   Plus,
-  RefreshCw,
-  Star,
   CalendarCheck,
-  ArrowLeft,
-  History
 } from 'lucide-react-native';
 import {
   Alert,
@@ -41,7 +27,6 @@ import {
   RefreshControl,
   ImageBackground,
   Image,
-  Linking,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -50,18 +35,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
-import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
+// import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { logAnalyticsEvent } from '@/lib/firebase';
-import { intercomInstant } from '@/lib/IntercomInstant';
+// import { intercomInstant } from '@/lib/IntercomInstant';
 import NotificationIcon from '@/components/NotificationIcon';
 import { supabase } from '@/lib/supabase';
-import intercomService from '@/lib/IntercomService';
 import NextPayoutCard from '@/components/NextPayoutCard';
 import PayoutPlansSection from '@/components/PayoutPlansSection';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
+// import { intercomService } from '@/lib/intercom';
+import { useIntercom } from '@/hooks/useIntercom';
+// import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 
 interface Banner {
   id: string;
@@ -89,9 +76,8 @@ export default function HomeScreen() {
     });
   }, [payoutPlans]);
   const { transactions, isLoading: transactionsLoading } = useRealtimeTransactions();
-  const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
+  // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
-  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -101,9 +87,10 @@ export default function HomeScreen() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
   const route = useRoute();
-  const params = useLocalSearchParams();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
 
+  // Intercom
+  const { openChat, isLoading, isSupported } = useIntercom();
   // Get user info from session
   const firstName = session?.user?.user_metadata?.first_name || 'User';
   const lastName = session?.user?.user_metadata?.last_name || '';
@@ -121,6 +108,7 @@ export default function HomeScreen() {
     }
   }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
 
+  
   // Log screen view for analytics
   useEffect(() => {
     logAnalyticsEvent('screen_view', {
@@ -186,7 +174,7 @@ export default function HomeScreen() {
       // Refresh wallet balance
       await refreshWallet();
       // Fetch latest Paystack transactions
-      await fetchPaystackTransactions();
+      // await fetchPaystackTransactions();
       // Add haptic feedback for successful refresh
       impact();
     } catch (error) {
@@ -194,13 +182,15 @@ export default function HomeScreen() {
       setIsRefreshing(false);
     }
   };
-  
+  // Intercom not supported on web
+  if (!isSupported) {
+    return null; // Don't render on web
+  }
   const handleHelpPress = async () => {
     try {
-      console.log('🎯 Help button pressed - opening Intercom instantly...');
-      
-      // Use the optimized Intercom service for instant opening
-      await intercomInstant.open();
+      // setIsHelpLoading(true);
+      console.log('🎯 Help button pressed - opening Intercom instantly');
+      await openChat();
       
       logAnalyticsEvent('help_click');
       
@@ -224,14 +214,6 @@ export default function HomeScreen() {
       );
     }
   };
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentDate(new Date());
-    }, 60000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -315,7 +297,53 @@ export default function HomeScreen() {
     logAnalyticsEvent('view_all_payouts');
   };
 
-  const handleStartVerification = () => {
+  const handleStartVerification = async () => {
+    try {
+      // Create audit log for KYC verification start
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session?.user?.id,
+        p_operation_type: 'kyc_initiated',
+        p_verification_type: 'document',
+        p_verification_provider: 'internal',
+        p_request_data: {
+          action: 'start_kyc_verification',
+          source: 'home_screen',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: {
+          user_action: 'clicked_start_verification_button',
+          navigation_target: '/kyc-upgrade'
+        },
+        p_status: 'success',
+        p_result_message: 'User initiated KYC verification process',
+        p_metadata: {
+          component: 'HomeScreen',
+          action: 'start_verification',
+          source: 'welcome_modal'
+        }
+      });
+
+      // Create audit event for KYC initiation
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session?.user?.id,
+            event_type: 'verification_started',
+            event_data: {
+              action: 'kyc_initiation',
+              source: 'home_screen',
+              component: 'HomeScreen'
+            },
+            severity: 'medium'
+          });
+      }
+    } catch (error) {
+      console.error('Error creating KYC audit log for verification start:', error);
+      // Continue with the action even if audit fails
+    }
+
     setShowWelcomeModal(false);
     setHasShownWelcomeModal(true);
     router.push('/kyc-upgrade');
@@ -466,8 +494,13 @@ export default function HomeScreen() {
               <Pressable 
                 onPress={handleHelpPress} 
                 style={styles.helpButton}
+                disabled={isLoading}
               >
-                <HelpCircleIcon size={24} color={colors.text} />
+                {isLoading ? (
+                  <PlanmoniLoader size="small" />
+                ) : (
+                  <HelpCircleIcon size={24} color={colors.text} />
+                )}
               </Pressable>
             </View>
           </View>
@@ -534,11 +567,13 @@ export default function HomeScreen() {
             </View>
           </View>
         </ImageBackground>
+        
         {/* AI Suggestion Section */}
         <AISuggestionCard 
           availableBalance={availableBalance}
           onSuggestionPress={handleAISuggestionPress}
         />
+        {/* <IntercomButton /> */}
         <ImageCarousel images={carouselImages} />
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
@@ -608,6 +643,14 @@ export default function HomeScreen() {
         onStartVerification={handleStartVerification}
         onGoToDashboard={handleGoToDashboard}
       />
+
+      {/* <LivenessTestEnhanced 
+        isVisible={showLivenessTest}
+        onClose={() => setShowLivenessTest(false)}
+      /> */}
+      
+      {/* Floating Intercom Support Button */}
+      {/* <IntercomButton variant="floating" /> */}
       
     </SafeAreaView>
   );
@@ -672,7 +715,26 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 18,
   },
-
+  livenessTestButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  livenessTestButtonText: {
+    color: '#FFFFFF',
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
   balanceCard: {
     borderRadius: 16,
     overflow: 'hidden',

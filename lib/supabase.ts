@@ -18,6 +18,11 @@ if (supabaseUrl && supabaseAnonKey) {
       detectSessionInUrl: false,
       storage: secureStoreAdapter,
     },
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
+      },
+    },
   });
   console.log('✅ Supabase client initialized successfully with SecureStore adapter');
 } else {
@@ -40,6 +45,19 @@ if (supabaseUrl && supabaseAnonKey) {
       update: () => ({ eq: () => ({ select: async () => ({ data: null, error: { message: 'Supabase not configured' } }) }) }),
       delete: () => ({ eq: async () => ({ data: null, error: { message: 'Supabase not configured' } }) }),
     }),
+    channel: () => ({
+      on: () => ({
+        subscribe: () => {},
+      }),
+    }),
+    removeChannel: () => {},
+    storage: {
+      from: () => ({
+        getPublicUrl: () => ({ data: { publicUrl: '' } }),
+        createSignedUrl: async () => ({ data: { signedUrl: '' }, error: { message: 'Supabase not configured' } }),
+        getBucket: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
+      }),
+    },
   };
 }
 

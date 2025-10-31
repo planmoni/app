@@ -31,7 +31,12 @@ export class SupabaseImageManager {
       let expiresAt: number;
 
       // Check if bucket is public
-      const { data: bucket } = await supabase.storage.getBucket(config.bucket);
+      const { data: bucket, error: bucketError } = await supabase.storage.getBucket(config.bucket);
+      
+      if (bucketError) {
+        console.warn(`Failed to get bucket info for ${config.bucket}:`, bucketError.message);
+        // If we can't determine if bucket is public, assume it's private and try signed URL
+      }
       
       if (bucket?.public) {
         // Public bucket - use public URL
@@ -49,11 +54,18 @@ export class SupabaseImageManager {
           .createSignedUrl(config.path, expiresIn);
 
         if (error) {
-          throw new Error(`Failed to create signed URL: ${error.message}`);
+          // If signed URL fails, try to use public URL as fallback
+          console.warn(`Failed to create signed URL for ${config.path}:`, error.message);
+          const { data: publicData } = supabase.storage
+            .from(config.bucket)
+            .getPublicUrl(config.path);
+          
+          url = publicData.publicUrl;
+          expiresAt = Date.now() + (365 * 24 * 60 * 60 * 1000); // 1 year
+        } else {
+          url = data.signedUrl;
+          expiresAt = Date.now() + (expiresIn * 1000);
         }
-
-        url = data.signedUrl;
-        expiresAt = Date.now() + (expiresIn * 1000);
       }
 
       // Cache the URL
@@ -62,7 +74,8 @@ export class SupabaseImageManager {
       return url;
     } catch (error) {
       console.error('Error getting image URL:', error);
-      throw error;
+      // Return a fallback URL or throw a more specific error
+      throw new Error(`Failed to get image URL for ${config.bucket}/${config.path}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -100,23 +113,42 @@ export class SupabaseImageManager {
   static async processBannerImages(banners: Array<{ id: string; image_url: string }>): Promise<Map<string, string>> {
     const urlMap = new Map<string, string>();
     
-    for (const banner of banners) {
+    // Process banners in parallel for better performance
+    const bannerPromises = banners.map(async (banner) => {
       try {
         const config = this.parseImageUrl(banner.image_url);
         
         if (config) {
           // Try to get optimized Supabase URL
           const url = await this.getImageUrl(config);
-          urlMap.set(banner.id, url);
+          return { id: banner.id, url };
         } else {
           // Not a Supabase URL, use as-is
-          urlMap.set(banner.id, banner.image_url);
+          return { id: banner.id, url: banner.image_url };
         }
       } catch (error) {
         console.warn(`Failed to process banner ${banner.id}, using original URL:`, error);
         // Fallback to original URL
-        urlMap.set(banner.id, banner.image_url);
+        return { id: banner.id, url: banner.image_url };
       }
+    });
+
+    try {
+      const results = await Promise.allSettled(bannerPromises);
+      
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          urlMap.set(result.value.id, result.value.url);
+        } else {
+          console.error('Banner processing failed:', result.reason);
+        }
+      });
+    } catch (error) {
+      console.error('Error processing banner images:', error);
+      // Fallback: use original URLs for all banners
+      banners.forEach(banner => {
+        urlMap.set(banner.id, banner.image_url);
+      });
     }
 
     return urlMap;

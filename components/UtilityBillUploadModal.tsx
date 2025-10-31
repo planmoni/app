@@ -36,8 +36,10 @@ export default function UtilityBillUploadModal({
 
   const [utilityBillImage, setUtilityBillImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [uploadDate, setUploadDate] = useState<Date | null>(null);
   const [isApproved, setIsApproved] = useState(false);
+  const [validationResult, setValidationResult] = useState<any>(null);
 
   // Check if utility bill was uploaded more than 3 days ago
   const [showSupportMessage, setShowSupportMessage] = useState(false);
@@ -105,6 +107,35 @@ export default function UtilityBillUploadModal({
     }
   };
 
+  const validateUtilityBill = async (base64Image: string) => {
+    if (!session?.user?.id) {
+      throw new Error('Authentication required');
+    }
+
+    // Get user's address from KYC data for validation
+    const userAddress = kycData?.address || '';
+
+    const response = await fetch('/api/utility-bill-validation', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        utilityBillImage: base64Image,
+        userAddress: userAddress
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Validation failed');
+    }
+
+    const result = await response.json();
+    return result;
+  };
+
   const uploadUtilityBill = async () => {
     if (!utilityBillImage || !session?.user?.id) {
       showToast('Please select a utility bill image first.', 'error');
@@ -112,46 +143,91 @@ export default function UtilityBillUploadModal({
     }
 
     setIsUploading(true);
+    setIsValidating(true);
 
     try {
-      // Convert image to base64
+      // Upload image to Supabase storage
+      showToast('Uploading utility bill...', 'info');
+      
+      // Get file extension from URI
+      const fileExtension = utilityBillImage.split('.').pop() || 'jpg';
+      const fileName = `utility-bill.${fileExtension}`;
+      const filePath = `${session.user.id}/${fileName}`;
+
+      // Convert image to blob for upload
       const response = await fetch(utilityBillImage);
       const blob = await response.blob();
-      const reader = new FileReader();
+
+      // Upload to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, blob, {
+          contentType: blob.type,
+          upsert: true // Replace if file already exists
+        });
+
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+
+      // Get the public URL for the uploaded file
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+      const storageUrl = urlData.publicUrl;
+
+      // Validate utility bill with Dojah using the storage URL
+      showToast('Validating utility bill...', 'info');
+      const validation = await validateUtilityBill(storageUrl);
+      setValidationResult(validation);
+
+      if (!validation.isValid) {
+        // Show validation errors
+        const errors = [];
+        if (!validation.validationChecks.isRecent) {
+          errors.push('Utility bill is not recent (must be within 3 months)');
+        }
+        if (!validation.validationChecks.hasAddressInfo) {
+          errors.push('Address information could not be extracted from the utility bill');
+        }
+        if (!validation.validationChecks.addressMatches) {
+          errors.push('Address on utility bill does not match your registered address');
+        }
+
+        showToast(`Validation failed: ${errors.join(', ')}`, 'error');
+        setIsValidating(false);
+        return;
+      }
+
+      // Validation passed, save to KYC data
+      showToast('Validation passed! Saving utility bill...', 'success');
       
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const base64 = reader.result as string;
-          resolve(base64);
-        };
-        reader.onerror = reject;
-      });
-
-      reader.readAsDataURL(blob);
-      const base64Image = await base64Promise;
-
-      // Save to KYC data
       const success = await saveFormData({
-        utility_bill_url: base64Image,
+        utility_bill_url: storageUrl,
+        utility_bill_validated: true,
+        utility_bill_validation_result: validation
       });
 
       if (success) {
         setUploadDate(new Date());
-        showToast('Utility bill uploaded successfully! Waiting for admin approval.', 'success');
+        showToast('Utility bill uploaded and validated successfully!', 'success');
         onSuccess?.();
       } else {
-        showToast('Failed to upload utility bill. Please try again.', 'error');
+        showToast('Failed to save utility bill. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Error uploading utility bill:', error);
-      showToast('Failed to upload utility bill. Please try again.', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      showToast(`Failed to upload utility bill: ${errorMessage}`, 'error');
     } finally {
       setIsUploading(false);
+      setIsValidating(false);
     }
   };
 
   const handleClose = () => {
-    if (isUploading) return; // Prevent closing while uploading
+    if (isUploading || isValidating) return; // Prevent closing while uploading or validating
     onClose();
   };
 
@@ -252,16 +328,63 @@ export default function UtilityBillUploadModal({
               {/* Upload Button */}
               {utilityBillImage && (
                 <Pressable
-                  style={[styles.uploadButton, isUploading && styles.uploadButtonDisabled]}
+                  style={[styles.uploadButton, (isUploading || isValidating) && styles.uploadButtonDisabled]}
                   onPress={uploadUtilityBill}
-                  disabled={isUploading}
+                  disabled={isUploading || isValidating}
                 >
-                  {isUploading ? (
+                  {isUploading || isValidating ? (
                     <ActivityIndicator color={colors.primary} />
                   ) : (
-                    <Text style={styles.uploadButtonText}>Upload Utility Bill</Text>
+                    <Text style={styles.uploadButtonText}>
+                      {isValidating ? 'Validating...' : 'Upload & Validate Utility Bill'}
+                    </Text>
                   )}
                 </Pressable>
+              )}
+
+              {/* Validation Result Display */}
+              {validationResult && (
+                <View style={styles.validationResult}>
+                  <Text style={styles.validationTitle}>Validation Result:</Text>
+                  <View style={styles.validationChecks}>
+                    <View style={styles.validationCheck}>
+                      <CheckCircle 
+                        size={16} 
+                        color={validationResult.validationChecks.isRecent ? '#10B981' : '#EF4444'} 
+                      />
+                      <Text style={[
+                        styles.validationCheckText,
+                        { color: validationResult.validationChecks.isRecent ? '#10B981' : '#EF4444' }
+                      ]}>
+                        Recent Document
+                      </Text>
+                    </View>
+                    <View style={styles.validationCheck}>
+                      <CheckCircle 
+                        size={16} 
+                        color={validationResult.validationChecks.hasAddressInfo ? '#10B981' : '#EF4444'} 
+                      />
+                      <Text style={[
+                        styles.validationCheckText,
+                        { color: validationResult.validationChecks.hasAddressInfo ? '#10B981' : '#EF4444' }
+                      ]}>
+                        Address Information
+                      </Text>
+                    </View>
+                    <View style={styles.validationCheck}>
+                      <CheckCircle 
+                        size={16} 
+                        color={validationResult.validationChecks.addressMatches ? '#10B981' : '#EF4444'} 
+                      />
+                      <Text style={[
+                        styles.validationCheckText,
+                        { color: validationResult.validationChecks.addressMatches ? '#10B981' : '#EF4444' }
+                      ]}>
+                        Address Match
+                      </Text>
+                    </View>
+                  </View>
+                </View>
               )}
             </>
           )}
@@ -449,5 +572,31 @@ const createStyles = (colors: any) => StyleSheet.create({
   emailLink: {
     fontWeight: '600',
     textDecorationLine: 'underline',
+  },
+  validationResult: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  validationTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  validationChecks: {
+    gap: 8,
+  },
+  validationCheck: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  validationCheckText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 }); 
