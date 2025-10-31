@@ -710,7 +710,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 4,
   },
   balanceAmount: {
-    fontSize: Platform.OS === 'ios' ? 30 : 24,
+    fontSize: Platform.OS === 'ios' ? 35 : 24,
     fontWeight: '700',
     color: colors.text,
     marginBottom: Platform.OS === 'ios' ? 5 : 0,
