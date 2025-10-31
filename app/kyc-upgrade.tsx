@@ -481,28 +481,45 @@ export default function KYCUpgradeScreen() {
                 return;
               }
               
-              // Wait for toast to be visible before moving to next step
-              await new Promise(resolve => setTimeout(resolve, 2000));
-              
               // Check if selfie is required and initialize LivenessTestEnhanced
               // Check directly from kyc_data table if selfie_url is null or empty
-              const { data: kycData } = await supabase
-                .from('kyc_data')
-                .select('selfie_url')
-                .eq('user_id', session?.user?.id)
-                .single();
-              
-              const hasSelfie = kycData?.selfie_url && kycData.selfie_url.trim() !== '';
+              let hasSelfie = false;
+              try {
+                const { data: kycData, error: kycError } = await supabase
+                  .from('kyc_data')
+                  .select('selfie_url')
+                  .eq('user_id', session?.user?.id)
+                  .maybeSingle();
+                
+                if (kycError && kycError.code !== 'PGRST116') {
+                  console.warn('Error checking selfie in database:', kycError);
+                }
+                
+                hasSelfie = kycData?.selfie_url && kycData.selfie_url.trim() !== '';
+                
+                if (hasSelfie) {
+                  console.log('Selfie already exists in kyc_data table, proceeding to BVN verification:', kycData.selfie_url);
+                }
+              } catch (checkError) {
+                console.warn('Error checking selfie, defaulting to showing liveness test:', checkError);
+                hasSelfie = false;
+              }
               
               if (!hasSelfie) {
-                console.log('No selfie found in kyc_data table, initiating liveness test...');
-                setShowLivenessTest(true);
-                setLivenessInitiated(true);
-                setLivenessManuallyClosed(false); // Reset the manually closed flag
+                console.log('No selfie found, initiating liveness test...');
+                // Stop loading and clear any blocking state
+                setIsLoading(false);
+                // Use setTimeout to ensure state updates happen after current render cycle
+                setTimeout(() => {
+                  setShowLivenessTest(true);
+                  setLivenessInitiated(true);
+                  setLivenessManuallyClosed(false);
+                  console.log('Liveness test visibility set to true');
+                }, 100);
                 // Don't proceed to next step yet, wait for liveness completion
                 return;
               } else {
-                console.log('Selfie already exists in kyc_data table, proceeding to BVN verification:', kycData.selfie_url);
+                console.log('Proceeding to BVN verification step');
                 // Proceed to BVN verification step
                 setCurrentStep('bvn_verification');
                 setTimeout(() => {
