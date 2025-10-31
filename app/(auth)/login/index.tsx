@@ -182,8 +182,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: colors.border,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
     borderRadius: 12,
     backgroundColor: colors.surface,
     paddingHorizontal: 16,
@@ -195,7 +200,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 18,
     color: colors.text,
     height: '100%',
   },

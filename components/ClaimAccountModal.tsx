@@ -97,7 +97,7 @@ export default function ClaimAccountModal({
 
             {/* Description */}
             <Text style={styles.description}>
-              Get a bank account that you can transfer money to and have your money appear in your available balance, very fast and easy.
+              Get a bank account that you can transfer money to and have your money appear in your available balance, it's very fast and easy.
             </Text>
 
             {/* Account Details Fields */}

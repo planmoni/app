@@ -109,9 +109,9 @@ export default function KYCCard() {
               <BadgeCheck size={25} color="#1E3A8A" />
             </View>
             <Text style={styles.cardText}>Let's verify your identity</Text>
-            <Pressable style={styles.actionButton} onPress={handlePress}>
+            <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>Verify</Text>
-            </Pressable>
+            </View>
           </>
         );
 
@@ -122,9 +122,9 @@ export default function KYCCard() {
               <BadgeAlert size={25} color="#1E3A8A" />
             </View>
             <Text style={styles.cardText}>Continue your KYC Verification</Text>
-            <Pressable style={styles.actionButton} onPress={handlePress}>
+            <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>Continue</Text>
-            </Pressable>
+            </View>
           </>
         );
 
@@ -146,9 +146,9 @@ export default function KYCCard() {
   return (
     <>
       {!isLoadingStatus && (
-        <View style={styles.card}>
+        <Pressable style={styles.card} onPress={handlePress}>
           {renderCardContent()}
-        </View>
+        </Pressable>
       )}
       <KYCVerificationModal
         isVisible={showVerificationModal}
