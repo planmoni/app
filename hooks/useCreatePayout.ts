@@ -81,62 +81,39 @@ export function useCreatePayout() {
         throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${balance.toLocaleString()} available.`);
       }
 
-      // Map frequency values to database-compatible values
-      // The database only accepts: 'weekly', 'biweekly', 'monthly', 'custom'
-      let dbFrequency: 'weekly' | 'biweekly' | 'monthly' | 'custom';
-      
-      switch (frequency) {
-        case 'daily':
-        case 'weekly_specific':
-        case 'end_of_month':
-        case 'quarterly':
-        case 'biannual':
-        case 'annually':
-          // These special frequencies should be stored as 'custom' in the database
-          dbFrequency = 'custom';
-          break;
-        default:
-          // weekly, biweekly, monthly, custom are already valid
-          dbFrequency = frequency as 'weekly' | 'biweekly' | 'monthly' | 'custom';
-      }
+      // All frequency values are now supported in the database
+      const dbFrequency = frequency;
 
       // 📅 Calculate next payout date
       const startDateObj = new Date(startDate);
       let nextPayoutDate = new Date(startDateObj);
 
-      // The first payout should occur on the start_date
-      // The next_payout_date should be set to the start_date so the first payout happens immediately
-      // After the first payout is processed, the system will update next_payout_date to the next occurrence
       if (frequency === 'daily') {
-        // First payout on start_date, next payout will be calculated as start_date + 1 day
-        nextPayoutDate = new Date(startDateObj);
+        // For daily payouts, the first payout should be on the start date at the selected time
         if (payoutHour !== undefined && payoutMinute !== undefined) {
           nextPayoutDate.setHours(payoutHour, payoutMinute, 0, 0);
         }
       } else if (frequency === 'weekly') {
-        // First payout on start_date, next payout will be calculated as start_date + 1 week
-        nextPayoutDate = new Date(startDateObj);
+        nextPayoutDate.setDate(startDateObj.getDate() + 7);
       } else if (frequency === 'weekly_specific' && dayOfWeek !== undefined) {
-        // First payout on start_date, next payout will be calculated based on day of week
-        nextPayoutDate = new Date(startDateObj);
+        // Calculate the next occurrence of the specified day of week
+        const currentDayOfWeek = startDateObj.getDay();
+        const daysToAdd = (7 + dayOfWeek - currentDayOfWeek) % 7;
+        nextPayoutDate.setDate(startDateObj.getDate() + (daysToAdd === 0 ? 7 : daysToAdd));
       } else if (frequency === 'biweekly') {
-        // First payout on start_date, next payout will be calculated as start_date + 2 weeks
-        nextPayoutDate = new Date(startDateObj);
+        nextPayoutDate.setDate(startDateObj.getDate() + 14);
       } else if (frequency === 'monthly') {
-        // First payout on start_date, next payout will be calculated as start_date + 1 month
-        nextPayoutDate = new Date(startDateObj);
+        nextPayoutDate.setMonth(startDateObj.getMonth() + 1);
       } else if (frequency === 'end_of_month') {
-        // First payout on start_date, next payout will be calculated as end of next month
-        nextPayoutDate = new Date(startDateObj);
+        // Set to the last day of the next month
+        nextPayoutDate.setMonth(startDateObj.getMonth() + 1);
+        nextPayoutDate.setDate(0); // Setting to 0 gets the last day of the previous month
       } else if (frequency === 'quarterly') {
-        // First payout on start_date, next payout will be calculated as start_date + 3 months
-        nextPayoutDate = new Date(startDateObj);
+        nextPayoutDate.setMonth(startDateObj.getMonth() + 3);
       } else if (frequency === 'biannual') {
-        // First payout on start_date, next payout will be calculated as start_date + 6 months
-        nextPayoutDate = new Date(startDateObj);
+        nextPayoutDate.setMonth(startDateObj.getMonth() + 6);
       } else if (frequency === 'annually') {
-        // First payout on start_date, next payout will be calculated as start_date + 1 year
-        nextPayoutDate = new Date(startDateObj);
+        nextPayoutDate.setFullYear(startDateObj.getFullYear() + 1);
       }
 
       const nextPayoutDateStr = nextPayoutDate.toISOString();

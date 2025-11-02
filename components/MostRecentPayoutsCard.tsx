@@ -358,8 +358,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 15,
     paddingVertical:15,
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: colors.border,
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 6},
+    shadowOpacity: 0.07,
+    shadowRadius: 9,
+    elevation: 6,
+  
     overflow: 'hidden', // Hide content that slides outside the card
   },
   cardContent: {

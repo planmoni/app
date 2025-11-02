@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import TransactionModal from '@/components/TransactionModal';
 import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
+import ClaimAccountModal from '@/components/ClaimAccountModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
+import KYCCard from '@/components/KYCCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 // import { IntercomButton } from '@/components/IntercomButton';
@@ -35,6 +37,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
+import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
 // import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
@@ -67,6 +70,7 @@ export default function HomeScreen() {
   const { colors, isDark } = useTheme();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
+  const { account: paystackAccount, isLoading: paystackAccountLoading } = useRealtimePaystackAccount();
   
   // Debug: Track payoutPlans changes
   useEffect(() => {
@@ -86,6 +90,9 @@ export default function HomeScreen() {
   const [imagesReady, setImagesReady] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
+  const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
+  const [safehavenAccount, setSafehavenAccount] = useState<any>(null);
+  const [isCheckingAccount, setIsCheckingAccount] = useState(false);
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
 
@@ -107,6 +114,36 @@ export default function HomeScreen() {
       return () => clearTimeout(timer);
     }
   }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
+
+  // Check for SafeHaven account
+  useEffect(() => {
+    const checkSafeHavenAccount = async () => {
+      if (!session?.user?.id || isCheckingAccount) return;
+      
+      try {
+        setIsCheckingAccount(true);
+        const { data, error } = await supabase
+          .from('safehaven_accounts')
+          .select('account_number, account_name')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .limit(1)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          console.warn('Error checking SafeHaven account:', error);
+        } else if (data) {
+          setSafehavenAccount(data);
+        }
+      } catch (err) {
+        console.warn('Error checking SafeHaven account:', err);
+      } finally {
+        setIsCheckingAccount(false);
+      }
+    };
+
+    checkSafeHavenAccount();
+  }, [session?.user?.id]);
 
   
   // Log screen view for analytics
@@ -245,11 +282,23 @@ export default function HomeScreen() {
     return showBalances ? `₦${amount.toLocaleString()}` : '*********';
   };
 
-  const handleAddFunds = () => {
+  const handleAddFunds = async () => {
     // Trigger medium impact haptic feedback
     impact();
-    router.push('/add-funds');
-    logAnalyticsEvent('add_funds_click');
+    
+    // Check if user has a bank account (Paystack or SafeHaven)
+    const hasPaystackAccount = paystackAccount?.account_number;
+    const hasSafeHavenAccount = safehavenAccount?.account_number;
+    
+    if (!hasPaystackAccount && !hasSafeHavenAccount) {
+      // Show modal if user doesn't have an account
+      setShowClaimAccountModal(true);
+      logAnalyticsEvent('add_funds_click_no_account');
+    } else {
+      // Navigate directly to add funds page
+      router.push('/add-funds');
+      logAnalyticsEvent('add_funds_click');
+    }
   };
 
   const handleCreatePayout = () => {
@@ -553,8 +602,8 @@ export default function HomeScreen() {
                 onPress={handleAddFunds}
               >
                 
-                <Plus size={20} color={colors.textSecondary}/>
-                <Text style={styles.addFundsText}>Add funds</Text>
+                <Plus size={20} color={isDark ? '#fff' : colors.primary}/>
+                <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
               </Pressable>
               <Pressable 
                 style={styles.createButton} 
@@ -574,8 +623,35 @@ export default function HomeScreen() {
           onSuggestionPress={handleAISuggestionPress}
         />
         {/* <IntercomButton /> */}
+        <KYCCard />
+
+        {/* KYC Tiers Test Buttons */}
+        <View style={styles.kycTiersContainer}>
+          <Text style={[styles.kycTiersTitle, { color: colors.text }]}>KYC Tiers Test</Text>
+          <View style={styles.kycTiersButtons}>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-one')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 1</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-two')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 2</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-three')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 3</Text>
+            </Pressable>
+          </View>
+        </View>
+
         <ImageCarousel images={carouselImages} />
-        <PendingActionsCard />
+        {/* <PendingActionsCard /> */}
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
 
@@ -609,8 +685,8 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
-          <Plus size={20} color={colors.textSecondary} />
-          <Text style={styles.addFundsText}>Add funds</Text>
+          <Plus size={20} color={isDark ? '#fff' : colors.primary} />
+          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
@@ -644,6 +720,18 @@ export default function HomeScreen() {
         onGoToDashboard={handleGoToDashboard}
       />
 
+      <ClaimAccountModal
+        isVisible={showClaimAccountModal}
+        onClose={() => setShowClaimAccountModal(false)}
+        accountNumber={safehavenAccount?.account_number ? `${safehavenAccount.account_number.slice(0, 5)} XXXXX` : '01177 XXXXX'}
+        bankName="SAFEHAVEN MFB"
+        accountName={safehavenAccount?.account_name ? `PLANMONI/${safehavenAccount.account_name.toUpperCase()}` : `PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
+        onClaim={() => {
+          router.push('/add-funds');
+          logAnalyticsEvent('claim_account_click');
+        }}
+      />
+
       {/* <LivenessTestEnhanced 
         isVisible={showLivenessTest}
         onClose={() => setShowLivenessTest(false)}
@@ -660,6 +748,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 6},
+    shadowOpacity: 0.09,
+    shadowRadius: 9,
+    elevation: 6,
   },
   scrollView: {
     flex: 1,
@@ -732,10 +825,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   balanceCard: {
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
     marginBottom: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 6, height: 6},
+    shadowOpacity: 0.09,
+    shadowRadius: 9,
+    elevation: 6,
   },
   balanceCardContent: {
     paddingVertical: Platform.OS === 'ios' ? 16 : 10,
@@ -764,7 +860,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 4,
   },
   balanceAmount: {
-    fontSize: Platform.OS === 'ios' ? 30 : 24,
+    fontSize: Platform.OS === 'ios' ? 35 : 24,
     fontWeight: '700',
     color: colors.text,
     marginBottom: Platform.OS === 'ios' ? 5 : 0,
@@ -814,9 +910,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     backgroundColor: colors.backgroundBlack,
-    borderWidth: 1,
-    borderColor: colors.textSecondary,
     padding: Platform.OS === 'ios' ? 14 : 10,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 100,
     height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
@@ -824,17 +920,21 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   addFundsText: {
-    color: colors.textSecondary,
+    color: colors.primary,
     fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
+    textAlign: 'center',
   },
   summaryCard: {
     marginBottom: 20,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 6},
+    shadowOpacity: 0.04,
+    shadowRadius: 9,
+    elevation: 6,
   },
   summaryHeader: {
     flexDirection: 'row',
@@ -1250,6 +1350,36 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   transactionAmount: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  kycTiersContainer: {
+    marginVertical: 16,
+    padding: 16,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  kycTiersTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  kycTiersButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  kycTierButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kycTierButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   viewAllTransactionsButton: {
     flexDirection: 'row',

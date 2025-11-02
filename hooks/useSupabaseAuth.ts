@@ -44,25 +44,29 @@ export function useSupabaseAuth() {
             isExpired: isSessionExpired(storedSession)
           });
           
-          // Restore session in Supabase auth state
-          const restored = await restoreSessionInSupabase(storedSession);
-          
-          if (restored && mounted) {
-            setSession(storedSession);
-            console.log('✅ Session fully restored and set in state');
-            console.log('🎉 User should now be logged in after device restart');
+          // Validate stored session has valid user
+          if (!storedSession.user?.id) {
+            console.log('⚠️ Stored session has no valid user, clearing it');
+            await clearSession();
+          } else {
+            // Restore session in Supabase auth state
+            const restored = await restoreSessionInSupabase(storedSession);
             
-            // Load profile snapshot immediately for instant UI
-            if (storedSession.user?.id) {
+            if (restored && mounted) {
+              setSession(storedSession);
+              console.log('✅ Session fully restored and set in state');
+              console.log('🎉 User should now be logged in after device restart');
+              
+              // Load profile snapshot immediately for instant UI
               const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(storedSession.user.id);
               if (profileSnapshot) {
                 console.log('📸 Profile snapshot loaded for instant UI');
               }
+            } else {
+              console.log('❌ Failed to restore session in Supabase, falling back to Supabase check');
+              console.log('🔄 This might happen if the session is invalid or corrupted');
+              // Fall through to Supabase check
             }
-          } else {
-            console.log('❌ Failed to restore session in Supabase, falling back to Supabase check');
-            console.log('🔄 This might happen if the session is invalid or corrupted');
-            // Fall through to Supabase check
           }
         } else if (storedSession && isSessionExpired(storedSession)) {
           console.log('⏰ Stored session found but expired');
@@ -107,20 +111,33 @@ export function useSupabaseAuth() {
             setError(sessionError.message);
           } else {
             console.log('✅ Initial session loaded:', session ? 'User logged in' : 'No session');
-            if (mounted) {
-              setSession(session);
-            }
             
-            // Save session to secure storage
-            if (session) {
+            // Validate session has valid user before setting it
+            if (session?.user?.id && !isSessionExpired(session)) {
+              if (mounted) {
+                setSession(session);
+              }
+              
+              // Save session to secure storage
               await saveSession(session);
               
               // Load profile snapshot for new session
-              if (session.user?.id) {
-                const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(session.user.id);
-                if (profileSnapshot) {
-                  console.log('📸 Profile snapshot loaded for new session');
-                }
+              const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(session.user.id);
+              if (profileSnapshot) {
+                console.log('📸 Profile snapshot loaded for new session');
+              }
+            } else if (session && (!session.user?.id || isSessionExpired(session))) {
+              // Session exists but is invalid or expired - clear it
+              console.log('⚠️ Initial session is invalid or expired, clearing');
+              if (mounted) {
+                setSession(null);
+                setError('Session expired or invalid');
+              }
+              await clearSession();
+            } else {
+              // No session at all
+              if (mounted) {
+                setSession(null);
               }
             }
           }
@@ -155,19 +172,24 @@ export function useSupabaseAuth() {
       // Handle different auth events
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         console.log('✅ User signed in or token refreshed');
-        setSession(session);
-        setError(null);
         
-        if (session) {
+        // Validate session has valid user before setting it
+        if (session?.user?.id) {
+          setSession(session);
+          setError(null);
           await saveSession(session);
           
           // Load profile snapshot for new/refreshed session
-          if (session.user?.id) {
-            const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(session.user.id);
-            if (profileSnapshot) {
-              console.log('📸 Profile snapshot loaded for auth state change');
-            }
+          const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(session.user.id);
+          if (profileSnapshot) {
+            console.log('📸 Profile snapshot loaded for auth state change');
           }
+        } else {
+          // Session exists but no valid user - treat as logged out
+          console.log('⚠️ Session exists but user is invalid, clearing session');
+          setSession(null);
+          setError('Session expired or invalid');
+          await clearSession();
         }
       } else if (event === 'SIGNED_OUT') {
         console.log('🚪 User signed out');
@@ -181,21 +203,73 @@ export function useSupabaseAuth() {
         }
       } else if (event === 'USER_UPDATED') {
         console.log('👤 User updated');
-        if (session) {
+        if (session?.user?.id) {
           setSession(session);
           await saveSession(session);
           
           // Update metadata snapshot
-          if (session.user?.id && session.user.user_metadata) {
+          if (session.user.user_metadata) {
             await ProfileSnapshotManager.saveMetadataSnapshot(session.user.id, session.user.user_metadata);
           }
+        } else {
+          // Updated session has no valid user - treat as logged out
+          console.log('⚠️ Updated session has no valid user, clearing session');
+          setSession(null);
+          setError('Session expired or invalid');
+          await clearSession();
         }
       }
     });
 
+    // Set up periodic session validation to catch expired sessions
+    const validateSessionPeriodically = () => {
+      const interval = setInterval(async () => {
+        if (!mounted) {
+          clearInterval(interval);
+          return;
+        }
+        
+        // Check current session validity
+        const currentSession = await supabase.auth.getSession();
+        const { data: { session: currentAuthSession }, error: sessionError } = currentSession;
+        
+        if (sessionError) {
+          console.log('⚠️ Session validation error:', sessionError.message);
+          // Session is invalid, clear it
+          if (mounted) {
+            setSession(null);
+            setError(sessionError.message);
+            await clearSession();
+          }
+          return;
+        }
+        
+        // If session exists but user is invalid or expired, clear it
+        if (currentAuthSession && (!currentAuthSession.user?.id || isSessionExpired(currentAuthSession))) {
+          console.log('⚠️ Periodic check: Session expired or invalid, clearing');
+          if (mounted) {
+            setSession(null);
+            setError('Session expired');
+            await clearSession();
+          }
+        } else if (!currentAuthSession && mounted) {
+          // No session at all, ensure state is cleared
+          if (mounted) {
+            setSession(null);
+            await clearSession();
+          }
+        }
+      }, 60000); // Check every minute
+      
+      return () => clearInterval(interval);
+    };
+    
+    const validationCleanup = validateSessionPeriodically();
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      validationCleanup();
     };
   }, []);
 

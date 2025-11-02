@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image, Modal, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image, Modal, useWindowDimensions, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Shield, User, Calendar, Info, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, ChevronLeft, X } from 'lucide-react-native';
@@ -52,6 +52,7 @@ export default function KYCUpgradeScreen() {
   const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [showYearPicker, setShowYearPicker] = useState(false);
   
   // Verification status
   const [bvnVerified, setBvnVerified] = useState(false);
@@ -107,7 +108,6 @@ export default function KYCUpgradeScreen() {
   // Refs for auto-focus
   const lastNameInputRef = useRef<TextInput>(null);
   const middleNameInputRef = useRef<TextInput>(null);
-  const dobInputRef = useRef<TextInput>(null);
   const phoneInputRef = useRef<TextInput>(null);
   const addressInputRef = useRef<TextInput>(null);
   const bvnInputRef = useRef<TextInput>(null);
@@ -481,28 +481,45 @@ export default function KYCUpgradeScreen() {
                 return;
               }
               
-              // Wait for toast to be visible before moving to next step
-              await new Promise(resolve => setTimeout(resolve, 2000));
-              
               // Check if selfie is required and initialize LivenessTestEnhanced
               // Check directly from kyc_data table if selfie_url is null or empty
-              const { data: kycData } = await supabase
-                .from('kyc_data')
-                .select('selfie_url')
-                .eq('user_id', session?.user?.id)
-                .single();
-              
-              const hasSelfie = kycData?.selfie_url && kycData.selfie_url.trim() !== '';
+              let hasSelfie = false;
+              try {
+                const { data: kycData, error: kycError } = await supabase
+                  .from('kyc_data')
+                  .select('selfie_url')
+                  .eq('user_id', session?.user?.id)
+                  .maybeSingle();
+                
+                if (kycError && kycError.code !== 'PGRST116') {
+                  console.warn('Error checking selfie in database:', kycError);
+                }
+                
+                hasSelfie = kycData?.selfie_url && kycData.selfie_url.trim() !== '';
+                
+                if (hasSelfie) {
+                  console.log('Selfie already exists in kyc_data table, proceeding to BVN verification:', kycData.selfie_url);
+                }
+              } catch (checkError) {
+                console.warn('Error checking selfie, defaulting to showing liveness test:', checkError);
+                hasSelfie = false;
+              }
               
               if (!hasSelfie) {
-                console.log('No selfie found in kyc_data table, initiating liveness test...');
-                setShowLivenessTest(true);
-                setLivenessInitiated(true);
-                setLivenessManuallyClosed(false); // Reset the manually closed flag
+                console.log('No selfie found, initiating liveness test...');
+                // Stop loading and clear any blocking state
+                setIsLoading(false);
+                // Use setTimeout to ensure state updates happen after current render cycle
+                setTimeout(() => {
+                  setShowLivenessTest(true);
+                  setLivenessInitiated(true);
+                  setLivenessManuallyClosed(false);
+                  console.log('Liveness test visibility set to true');
+                }, 100);
                 // Don't proceed to next step yet, wait for liveness completion
                 return;
               } else {
-                console.log('Selfie already exists in kyc_data table, proceeding to BVN verification:', kycData.selfie_url);
+                console.log('Proceeding to BVN verification step');
                 // Proceed to BVN verification step
                 setCurrentStep('bvn_verification');
                 setTimeout(() => {
@@ -1750,6 +1767,7 @@ export default function KYCUpgradeScreen() {
 
   const handleDatePickerClose = () => {
     setIsDatePickerVisible(false);
+    setShowYearPicker(false);
   };
 
   const handleDateSelect = (date: Date) => {
@@ -1838,6 +1856,31 @@ export default function KYCUpgradeScreen() {
 
   const handleNextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  };
+
+  const handlePrevYear = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear() - 1, currentMonth.getMonth()));
+  };
+
+  const handleNextYear = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth()));
+  };
+
+  const handleYearSelect = (year: number) => {
+    const newDate = new Date(year, currentMonth.getMonth(), 1);
+    setCurrentMonth(newDate);
+    setShowYearPicker(false);
+  };
+
+  const getAvailableYears = () => {
+    const today = new Date();
+    const minYear = today.getFullYear() - 100; // 100 years ago
+    const maxYear = today.getFullYear() - 18; // 18 years ago
+    const years = [];
+    for (let year = maxYear; year >= minYear; year--) {
+      years.push(year);
+    }
+    return years;
   };
 
   const isDateSelectable = (date: Date) => {
@@ -2034,7 +2077,6 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>First Name</Text>
           <View style={[styles.inputContainer, errors.firstName && styles.inputError]}>
-            <User size={20} color={colors.textSecondary} />
             <TextInput
               style={styles.input}
               placeholder="Enter your first name"
@@ -2055,7 +2097,6 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Last Name</Text>
           <View style={[styles.inputContainer, errors.lastName && styles.inputError]}>
-            <User size={20} color={colors.textSecondary} />
             <TextInput
               ref={lastNameInputRef}
               style={styles.input}
@@ -2077,7 +2118,6 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Middle Name (Optional)</Text>
           <View style={styles.inputContainer}>
-            <User size={20} color={colors.textSecondary} />
             <TextInput
               ref={middleNameInputRef}
               style={styles.input}
@@ -2087,40 +2127,38 @@ export default function KYCUpgradeScreen() {
               onChangeText={setMiddleName}
               autoCapitalize="words"
               returnKeyType="next"
-              onSubmitEditing={() => dobInputRef.current?.focus()}
+              onSubmitEditing={() => phoneInputRef.current?.focus()}
             />
           </View>
         </View>
         
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Date of Birth</Text>
-          <View style={[styles.inputContainer, errors.dateOfBirth && styles.inputError]}>
-            <Pressable onPress={handleDatePickerOpen} style={styles.calendarIconButton}>
-              <Calendar size={20} color={colors.primary} />
-            </Pressable>
-            <TextInput
-              ref={dobInputRef}
-              style={styles.input}
-              placeholder="DD/MM/YYYY"
-              placeholderTextColor={colors.textTertiary}
-              value={dateOfBirth}
-              onChangeText={handleDateChange}
-              keyboardType="numeric"
-              returnKeyType="next"
-              onSubmitEditing={() => phoneInputRef.current?.focus()}
-            />
-          </View>
+          <Pressable 
+            style={[styles.inputContainer, errors.dateOfBirth && styles.inputError]}
+            onPress={handleDatePickerOpen}
+          >
+            <View style={styles.dateInputContent}>
+              <Calendar size={20} color={colors.textSecondary} />
+              <Text style={[
+                styles.dateInputText,
+                !dateOfBirth && styles.dateInputPlaceholder
+              ]}>
+                {dateOfBirth || 'DD/MM/YYYY'}
+              </Text>
+            </View>
+            <ChevronRight size={20} color={colors.textTertiary} />
+          </Pressable>
           {errors.dateOfBirth && <Text style={styles.errorText}>{errors.dateOfBirth}</Text>}
         </View>
         
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Phone Number</Text>
           <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
-            <User size={20} color={colors.textSecondary} />
             <TextInput
               ref={phoneInputRef}
               style={styles.input}
-              placeholder="Enter your phone number"
+              placeholder="090XXXXXXXX"
               placeholderTextColor={colors.textTertiary}
               value={phoneNumber}
               onChangeText={(text) => {
@@ -2138,7 +2176,6 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>House/Street Number</Text>
           <View style={styles.inputContainer}>
-            <MapPin size={20} color={colors.textSecondary} />
             <TextInput
               style={styles.input}
               placeholder="Enter house/street number"
@@ -2159,7 +2196,6 @@ export default function KYCUpgradeScreen() {
             style={[styles.inputContainer, errors.address && styles.inputError]}
             onPress={() => setShowLocationSearch(true)}
           >
-            <MapPin size={20} color={colors.textSecondary} />
             <TextInput
               ref={addressInputRef}
               style={[styles.input, styles.multilineInput]}
@@ -2312,7 +2348,6 @@ export default function KYCUpgradeScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Bank Verification Number (BVN)</Text>
           <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
-            <CreditCard size={20} color={colors.textSecondary} />
             <TextInput
               ref={bvnInputRef}
               style={styles.input}
@@ -2438,7 +2473,6 @@ export default function KYCUpgradeScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>National Identification Number (NIN)</Text>
             <View style={[styles.inputContainer, errors.nin && styles.inputError]}>
-              <CreditCard size={20} color={colors.textSecondary} />
               <TextInput
                 style={styles.input}
                 placeholder="Enter your 11-digit NIN"
@@ -3009,60 +3043,152 @@ export default function KYCUpgradeScreen() {
             </View>
 
             <View style={styles.calendarHeader}>
-              <Pressable onPress={handlePrevMonth} style={styles.navigationButton}>
-                <ChevronLeft size={20} color={colors.textSecondary} />
-              </Pressable>
-              <Text style={styles.monthYearText}>
-                {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-              </Text>
-              <Pressable onPress={handleNextMonth} style={styles.navigationButton}>
-                <ChevronRight size={20} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-
-            <View style={styles.weekDays}>
-              {DAYS.map(day => (
-                <View key={day} style={styles.weekDay}>
-                  <Text style={styles.weekDayText}>{day}</Text>
-                </View>
-              ))}
-            </View>
-
-            <View style={styles.daysGrid}>
-              {Array.from({ length: firstDayOffset }).map((_, index) => (
-                <View key={`empty-${index}`} style={styles.dayCell} />
-              ))}
-              
-              {Array.from({ length: daysInMonth }).map((_, index) => {
-                const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), index + 1);
-                const isSelectable = isDateSelectable(date);
-                const isSelected = selectedDate && 
-                  date.getDate() === selectedDate.getDate() &&
-                  date.getMonth() === selectedDate.getMonth() &&
-                  date.getFullYear() === selectedDate.getFullYear();
-
-                return (
-                  <Pressable
-                    key={index}
-                    style={[
-                      styles.dayCell,
-                      isSelected && styles.selectedDay,
-                      !isSelectable && styles.disabledDay,
-                    ]}
-                    onPress={() => isSelectable && handleDateSelect(date)}
-                    disabled={!isSelectable}
-                  >
-                    <Text style={[
-                      styles.dayText,
-                      isSelected && styles.selectedDayText,
-                      !isSelectable && styles.disabledDayText,
-                    ]}>
-                      {index + 1}
-                    </Text>
+              {!showYearPicker ? (
+                <>
+                  <Pressable onPress={handlePrevMonth} style={styles.navigationButton}>
+                    <ChevronLeft size={20} color={colors.textSecondary} />
                   </Pressable>
-                );
-              })}
+                  <View style={styles.monthYearContainer}>
+                    <Pressable 
+                      onPress={() => setShowYearPicker(true)}
+                      style={styles.monthYearPressable}
+                    >
+                      <Text style={styles.monthYearText}>
+                        {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Pressable onPress={handleNextMonth} style={styles.navigationButton}>
+                    <ChevronRight size={20} color={colors.textSecondary} />
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Pressable onPress={handlePrevYear} style={styles.navigationButton}>
+                    <ChevronLeft size={20} color={colors.textSecondary} />
+                  </Pressable>
+                  <View style={styles.monthYearContainer}>
+                    <Pressable 
+                      onPress={() => setShowYearPicker(false)}
+                      style={styles.monthYearPressable}
+                    >
+                      <Text style={styles.monthYearText}>
+                        {currentMonth.getFullYear()}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Pressable onPress={handleNextYear} style={styles.navigationButton}>
+                    <ChevronRight size={20} color={colors.textSecondary} />
+                  </Pressable>
+                </>
+              )}
             </View>
+
+            {showYearPicker ? (
+              <ScrollView style={styles.yearPickerContainer} contentContainerStyle={styles.yearPickerContent}>
+                <View style={styles.yearPickerGrid}>
+                  {getAvailableYears().map((year) => {
+                    const isSelected = year === currentMonth.getFullYear();
+                    const isCurrentYear = year === new Date().getFullYear();
+                    return (
+                      <Pressable
+                        key={year}
+                        style={[
+                          styles.yearItem,
+                          isSelected && styles.yearItemSelected,
+                        ]}
+                        onPress={() => handleYearSelect(year)}
+                      >
+                        <Text style={[
+                          styles.yearItemText,
+                          isSelected && styles.yearItemTextSelected,
+                          isCurrentYear && !isSelected && styles.yearItemTextCurrent,
+                        ]}>
+                          {year}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            ) : (
+              <>
+                <View style={styles.calendarContainer}>
+                  <View style={styles.weekDays}>
+                    {DAYS.map(day => (
+                      <View key={day} style={styles.weekDay}>
+                        <Text style={styles.weekDayText}>{day}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <View style={styles.daysGridContainer}>
+                    {(() => {
+                      const totalCells = firstDayOffset + daysInMonth;
+                      const totalRows = Math.ceil(totalCells / 7);
+                      const weeks = [];
+                      
+                      // Build array of all cells (null for empty, number for day)
+                      const allCells = [];
+                      for (let i = 0; i < firstDayOffset; i++) {
+                        allCells.push(null);
+                      }
+                      for (let day = 1; day <= daysInMonth; day++) {
+                        allCells.push(day);
+                      }
+                      const remainingCells = totalRows * 7 - allCells.length;
+                      for (let i = 0; i < remainingCells; i++) {
+                        allCells.push(null);
+                      }
+                      
+                      // Split into weeks (rows of 7)
+                      for (let row = 0; row < totalRows; row++) {
+                        const week = allCells.slice(row * 7, (row + 1) * 7);
+                        weeks.push(week);
+                      }
+                      
+                      return weeks.map((week, weekIndex) => (
+                        <View key={`week-${weekIndex}`} style={styles.weekRow}>
+                          {week.map((day, dayIndex) => {
+                            if (day === null) {
+                              return <View key={`empty-${weekIndex}-${dayIndex}`} style={styles.dayCell} />;
+                            }
+                            
+                            const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+                            const isSelectable = isDateSelectable(date);
+                            const isSelected = selectedDate && 
+                              date.getDate() === selectedDate.getDate() &&
+                              date.getMonth() === selectedDate.getMonth() &&
+                              date.getFullYear() === selectedDate.getFullYear();
+
+                            return (
+                              <Pressable
+                                key={`day-${weekIndex}-${dayIndex}-${day}`}
+                                style={[
+                                  styles.dayCell,
+                                  isSelected && styles.selectedDay,
+                                  !isSelectable && styles.disabledDay,
+                                ]}
+                                onPress={() => isSelectable && handleDateSelect(date)}
+                                disabled={!isSelectable}
+                              >
+                                <Text style={[
+                                  styles.dayText,
+                                  isSelected && styles.selectedDayText,
+                                  !isSelectable && styles.disabledDayText,
+                                ]}>
+                                  {day}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      ));
+                    })()}
+                  </View>
+                </View>
+              </>
+            )}
 
             <View style={styles.datePickerActions}>
               <Pressable 
@@ -3096,16 +3222,18 @@ export default function KYCUpgradeScreen() {
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.backgroundSecondary,
+      backgroundColor: colors.background,
     },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'space-between',
       paddingHorizontal: headerPadding,
       paddingVertical: headerPadding,
       backgroundColor: colors.surface,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
+      position: 'relative',
     },
     backButton: {
       width: 40,
@@ -3114,21 +3242,29 @@ export default function KYCUpgradeScreen() {
       alignItems: 'center',
       backgroundColor: colors.surface,
       borderRadius: 20,
-      marginRight: 8,
+      zIndex: 1,
     },
-    skipButton: {
-      padding: 8,
-      marginLeft: 'auto',
-      marginRight: 12,
-    },
-    skipButtonText: {
-      fontSize: 16,
-      fontWeight: '600',
+    headerTitleContainer: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 0,
     },
     headerTitle: {
       fontSize: isSmallScreen ? 16 : 18,
       fontWeight: '600',
       color: colors.text,
+    },
+    closeButton: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      zIndex: 1,
     },
     progressContainer: {
       padding: contentPadding,
@@ -3136,7 +3272,7 @@ export default function KYCUpgradeScreen() {
       backgroundColor: colors.surface,
     },
     progressBar: {
-      height: 4,
+      height: 6,
       backgroundColor: colors.border,
       borderRadius: 2,
       marginBottom: 8,
@@ -3181,8 +3317,13 @@ export default function KYCUpgradeScreen() {
     inputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      borderWidth: 1,
+      borderWidth: 0.5,
       borderColor: colors.border,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 1,
       borderRadius: 12,
       backgroundColor: colors.surface,
       paddingHorizontal: 14,
@@ -3197,13 +3338,26 @@ export default function KYCUpgradeScreen() {
     },
     input: {
       flex: 1,
-      fontSize: 16,
+      fontSize: 18,
       color: colors.text,
       marginLeft: 12,
     },
     calendarIconButton: {
       padding: 4,
       borderRadius: 6,
+    },
+    dateInputContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    dateInputText: {
+      fontSize: 18,
+      color: colors.text,
+      marginLeft: 12,
+    },
+    dateInputPlaceholder: {
+      color: colors.textTertiary,
     },
     multilineInput: {
       height: inputHeight * 0.9,
@@ -3504,6 +3658,7 @@ export default function KYCUpgradeScreen() {
       width: '100%',
       maxWidth: 400,
       maxHeight: '90%',
+      alignSelf: 'center',
     },
     datePickerHeader: {
       flexDirection: 'row',
@@ -3529,10 +3684,30 @@ export default function KYCUpgradeScreen() {
       alignItems: 'center',
       justifyContent: 'space-between',
       marginBottom: 16,
+      position: 'relative',
     },
     navigationButton: {
+      width: 40,
+      height: 40,
       padding: 8,
       backgroundColor: colors.backgroundTertiary,
+      borderRadius: 8,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1,
+    },
+    monthYearContainer: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 0,
+      pointerEvents: 'box-none',
+    },
+    monthYearPressable: {
+      paddingVertical: 8,
+      paddingHorizontal: 16,
       borderRadius: 8,
     },
     monthYearText: {
@@ -3540,29 +3715,79 @@ export default function KYCUpgradeScreen() {
       fontWeight: '500',
       color: colors.text,
     },
+    yearPickerContainer: {
+      maxHeight: 400,
+      marginBottom: 24,
+    },
+    yearPickerContent: {
+      paddingBottom: 8,
+    },
+    yearPickerGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-start',
+    },
+    yearItem: {
+      width: `${100/4}%`,
+      aspectRatio: 1.5,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 8,
+      borderRadius: 8,
+      backgroundColor: colors.backgroundTertiary,
+    },
+    yearItemSelected: {
+      backgroundColor: colors.primary,
+    },
+    yearItemText: {
+      fontSize: isSmallScreen ? 13 : 14,
+      color: colors.text,
+      fontWeight: '500',
+    },
+    yearItemTextSelected: {
+      color: '#FFFFFF',
+      fontWeight: '600',
+    },
+    yearItemTextCurrent: {
+      color: colors.primary,
+    },
+    calendarContainer: {
+      width: '100%',
+      alignSelf: 'center',
+    },
     weekDays: {
       flexDirection: 'row',
       marginBottom: 8,
+      width: '100%',
     },
     weekDay: {
       flex: 1,
       alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 8,
+      minHeight: 32,
     },
     weekDayText: {
-      fontSize: isSmallScreen ? 12 : 14,
+      fontSize: isSmallScreen ? 11 : 13,
       color: colors.textSecondary,
       fontWeight: '500',
     },
-    daysGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
+    daysGridContainer: {
+      width: '100%',
       marginBottom: 24,
     },
+    weekRow: {
+      flexDirection: 'row',
+      width: '100%',
+      marginBottom: 4,
+    },
     dayCell: {
-      width: `${100/7}%`,
+      flex: 1,
       aspectRatio: 1,
       justifyContent: 'center',
       alignItems: 'center',
+      padding: 2,
+      minHeight: 40,
     },
     dayText: {
       fontSize: isSmallScreen ? 12 : 14,
@@ -3596,9 +3821,17 @@ export default function KYCUpgradeScreen() {
       backgroundColor: colors.backgroundTertiary,
       borderWidth: 1,
       borderColor: colors.border,
+      height: 55,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderRadius: 100,
     },
     confirmButton: {
       backgroundColor: colors.primary,
+      height: 55,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderRadius: 100,
     },
     cancelButtonText: {
       fontSize: 14,
@@ -3698,14 +3931,16 @@ export default function KYCUpgradeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        {/* <Pressable onPress={handlePreviousStep} style={styles.backButton}>
+        <Pressable onPress={handlePreviousStep} style={styles.backButton}>
           <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
-        </Pressable> */}
+        </Pressable>
         
-        <Text style={styles.headerTitle}>Account Verification</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Account Verification</Text>
+        </View>
         
-        <Pressable onPress={() => router.back()} style={styles.skipButton}>
-          <Text style={[styles.skipButtonText, { color: colors.primary }]}>Done</Text>
+        <Pressable onPress={() => router.back()} style={styles.closeButton}>
+          <X size={isSmallScreen ? 20 : 24} color={colors.text} />
         </Pressable>
       </View>
       

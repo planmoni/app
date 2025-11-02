@@ -125,8 +125,12 @@ export default function AISuggestionCard({
 
   // Generate AI suggestions based on available balance and user patterns
   const generateSuggestions = (): Suggestion[] => {
-    // Only show suggestions if balance is more than 10,000
-    if (availableBalance < 10000) {
+    // Debug: Log available balance
+    console.log('🔍 AISuggestionCard - availableBalance:', availableBalance);
+    
+    // Only show suggestions if balance is more than 1,000 (lowered threshold)
+    if (availableBalance < 1000) {
+      console.log('⚠️ AISuggestionCard - Balance too low, hiding suggestions');
       return [];
     }
 
@@ -298,8 +302,11 @@ export default function AISuggestionCard({
   };
 
   if (suggestions.length === 0) {
+    console.log('⚠️ AISuggestionCard - No suggestions generated, returning null');
     return null;
   }
+
+  console.log('✅ AISuggestionCard - Rendering', suggestions.length, 'suggestions');
 
   return (
     <View style={styles.container}>
@@ -398,7 +405,14 @@ const styles = StyleSheet.create({
     marginRight: CARD_SPACING,
     borderRadius: 12,
     padding: 10,
-    borderWidth: 1,
+    borderWidth: 0.5,
+    borderColor: '#000',
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 1},
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 6,
+  
     position: 'relative',
   },
   cardContent: {

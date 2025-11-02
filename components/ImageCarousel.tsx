@@ -42,8 +42,9 @@ interface ImageCarouselProps {
 }
 
 const { width: screenWidth } = Dimensions.get('window');
-const SLIDE_MARGIN = 5;
-const SLIDE_WIDTH = screenWidth - SLIDE_MARGIN * 4; // Reduced margin multiplier for wider banners
+const SLIDE_MARGIN = 15;
+// Account for: right padding (SLIDE_MARGIN) + right margin between slides (SLIDE_MARGIN)
+const SLIDE_WIDTH = screenWidth - SLIDE_MARGIN * 2;
 const SNAP_INTERVAL = SLIDE_WIDTH + SLIDE_MARGIN;
 
 export default function ImageCarousel({
@@ -284,7 +285,8 @@ export default function ImageCarousel({
         snapToInterval={SNAP_INTERVAL}
         snapToAlignment="start"
         decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: SLIDE_MARGIN }}
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingLeft: 0, paddingRight: SLIDE_MARGIN }}
         onScroll={Platform.OS !== 'web' ? scrollHandler : undefined}
         onMomentumScrollEnd={(event) => {
           const x = event.nativeEvent.contentOffset.x;
@@ -387,12 +389,16 @@ export default function ImageCarousel({
 
 const styles = StyleSheet.create({
   container: {
+    width: screenWidth,
     justifyContent: 'center',
     alignItems: 'center',
     // marginTop: 10,
   },
+  scrollView: {
+    width: screenWidth,
+  },
   slide: {
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
     marginRight: SLIDE_MARGIN,
     position: 'relative',

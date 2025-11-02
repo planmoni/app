@@ -33,7 +33,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingBottom: 16,
   },
   progressBar: {
-    height: 4,
+    height: 6,
     backgroundColor: colors.border,
     borderRadius: 2,
   },

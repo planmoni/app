@@ -95,8 +95,9 @@ function RootLayoutNav() {
     });
     
     // Detect authentication state changes (login/logout)
-    const wasLoggedIn = !!previousSession;
-    const isLoggedIn = !!currentSession;
+    // Check for valid user, not just session existence
+    const wasLoggedIn = !!(previousSession?.user?.id);
+    const isLoggedIn = !!(currentSession?.user?.id);
     
     // More robust transition detection
     if (previousSession !== null && wasLoggedIn !== isLoggedIn) {
@@ -208,7 +209,7 @@ function RootLayoutNav() {
   }
 
   // Show our custom splash screen during initial load or auth transitions
-  if (showSplash && !session) {
+  if (showSplash && !session?.user?.id) {
     return <CustomSplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
@@ -222,7 +223,7 @@ function RootLayoutNav() {
         </View>
       )}
       <Stack screenOptions={{ headerShown: false }}>
-        {session ? (
+        {session?.user?.id ? (
           <React.Fragment key="authenticated-screens">
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="login-success" options={{ headerShown: false }} />
@@ -256,7 +257,7 @@ function RootLayoutNav() {
       </Stack>
       
       {/* Lock Screen Overlay - Renders at root level */}
-      {isAppLocked && session && !isPinResetMode && (
+      {isAppLocked && session?.user?.id && !isPinResetMode && (
         <AppLockScreen />
       )}
       
