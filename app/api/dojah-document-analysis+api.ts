@@ -250,11 +250,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Remove portrait image data for privacy/security before returning
+    const cleanedEntity = data.entity ? {
+      ...data.entity,
+      document_images: data.entity.document_images ? {
+        ...data.entity.document_images,
+        portrait: '[REDACTED]' // Remove base64 portrait data
+      } : data.entity.document_images
+    } : data.entity;
+
     // Return the analysis result
     return createJsonResponse({
       status: 'success',
       message: 'Document analysis completed successfully',
-      data: data.entity,
+      data: cleanedEntity,
       auditLogId: auditLogId // Include audit log ID for tracking
     });
 

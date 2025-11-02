@@ -52,6 +52,8 @@ export default function LivenessTestEnhanced({
   const { hasPermission } = useCameraPermission();
   const { colors } = useTheme();
   const { session } = useAuth();
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
 
   const [livenessStage, setLivenessStage] = useState<
     "setup" | "blink" | "nod" | "look_left" | "look_right" | "smile" | "photo_capture"
@@ -87,11 +89,30 @@ export default function LivenessTestEnhanced({
       setCapturedImage(null);
       setCurrentStepIndex(0);
       setFaceTooClose(false);
+      setPermissionError(null);
       progressValue.value = 0;
+      
+      // Request camera permission when modal becomes visible
+      (async () => {
+        if (!hasPermission) {
+          setIsRequestingPermission(true);
+          try {
+            const permission = await VisionCamera.requestCameraPermission();
+            if (permission !== 'granted') {
+              setPermissionError('Camera permission is required to use this feature. Please enable it in Settings.');
+            }
+          } catch (error) {
+            console.error('Error requesting camera permission:', error);
+            setPermissionError('Failed to request camera permission. Please enable it in Settings.');
+          } finally {
+            setIsRequestingPermission(false);
+          }
+        }
+      })();
     } else {
       progressValue.value = 0;
     }
-  }, [isVisible, progressValue]);
+  }, [isVisible, hasPermission, progressValue]);
 
   const startLivenessTest = () => {
     setIsTestActive(true);
@@ -389,7 +410,51 @@ export default function LivenessTestEnhanced({
     trackingEnabled: true,
   }).current;
 
-  if (!isVisible || !hasPermission || !device) return null;
+  if (!isVisible) return null;
+
+  // Show permission error or device unavailable message
+  if (!hasPermission || !device) {
+    return (
+      <Modal visible={isVisible} animationType="slide" presentationStyle="fullScreen">
+        <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: colors.text }]}>Liveness Test</Text>
+            <Pressable onPress={onClose} style={styles.closeButton}>
+              <X size={24} color={colors.text} />
+            </Pressable>
+          </View>
+          <View style={styles.errorContainer}>
+            <Text style={[styles.errorTitle, { color: colors.text }]}>
+              {isRequestingPermission ? 'Requesting Camera Permission...' : 'Camera Unavailable'}
+            </Text>
+            <Text style={[styles.errorText, { color: colors.textSecondary }]}>
+              {permissionError || (!device ? 'No camera device found. Please ensure you\'re using a device with a front-facing camera.' : 'Camera permission is required to use this feature.')}
+            </Text>
+            {!hasPermission && !isRequestingPermission && (
+              <Pressable
+                style={[styles.retryButton, { backgroundColor: colors.primary }]}
+                onPress={async () => {
+                  setIsRequestingPermission(true);
+                  try {
+                    const permission = await VisionCamera.requestCameraPermission();
+                    if (permission !== 'granted') {
+                      setPermissionError('Camera permission is required. Please enable it in Settings.');
+                    }
+                  } catch (error) {
+                    setPermissionError('Failed to request camera permission. Please enable it in Settings.');
+                  } finally {
+                    setIsRequestingPermission(false);
+                  }
+                }}
+              >
+                <Text style={styles.retryButtonText}>Grant Permission</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </Modal>
+    );
+  }
 
   return (
     <Modal visible={isVisible} animationType="slide" presentationStyle="fullScreen">
@@ -564,6 +629,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   submitText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  errorTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  retryButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  retryButtonText: {
     color: "#FFF",
     fontSize: 16,
     fontWeight: "600",
