@@ -625,6 +625,31 @@ export default function HomeScreen() {
         {/* <IntercomButton /> */}
         <KYCCard />
 
+        {/* KYC Tiers Test Buttons */}
+        <View style={styles.kycTiersContainer}>
+          <Text style={[styles.kycTiersTitle, { color: colors.text }]}>KYC Tiers Test</Text>
+          <View style={styles.kycTiersButtons}>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-one')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 1</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-two')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 2</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-three')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 3</Text>
+            </Pressable>
+          </View>
+        </View>
+
         <ImageCarousel images={carouselImages} />
         {/* <PendingActionsCard /> */}
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
@@ -1325,6 +1350,36 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   transactionAmount: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  kycTiersContainer: {
+    marginVertical: 16,
+    padding: 16,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  kycTiersTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  kycTiersButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  kycTierButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kycTierButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   viewAllTransactionsButton: {
     flexDirection: 'row',
