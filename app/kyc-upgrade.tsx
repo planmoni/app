@@ -1290,29 +1290,44 @@ export default function KYCUpgradeScreen() {
         backImageUrl = uploadedBack;
       }
 
-      // Call document analysis API using URL input type to avoid base64 conversion
-      const analysisResponse = await fetch('/api/dojah-document-analysis', {
+      // Call Dojah document analysis API directly
+      const payload: any = {
+        input_type: 'url',
+        imagefrontside: frontImageUrl
+      };
+
+      if (backImageUrl) {
+        payload.imagebackside = backImageUrl;
+      }
+
+      const analysisResponse = await fetch('https://api.dojah.io/api/v1/document/analysis', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          'AppId': appId,
+          'Authorization': privateKey,
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          inputType: 'url',
-          imageFrontSide: frontImageUrl,
-          imageBackSide: backImageUrl || null
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!analysisResponse.ok) {
-        const errorData = await analysisResponse.json();
-        throw new Error(errorData.details || 'Document analysis failed');
+        const errorData = await analysisResponse.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || `Document analysis failed: ${analysisResponse.status} ${analysisResponse.statusText}`);
       }
 
       const analysisData = await analysisResponse.json();
+      console.log('Document analysis response:', {
+        overall_status: analysisData.entity?.status?.overall_status,
+        reason: analysisData.entity?.status?.reason,
+        document_type: analysisData.entity?.document_type?.document_name
+      });
       
-      if (analysisData.data?.status?.overall_status !== 1) {
-        throw new Error(`Document validation failed: ${analysisData.data?.status?.reason || 'Invalid document'}`);
+      if (!analysisData.entity) {
+        throw new Error('Invalid response from document analysis service');
+      }
+
+      if (analysisData.entity?.status?.overall_status !== 1) {
+        throw new Error(`Document validation failed: ${analysisData.entity?.status?.reason || 'Invalid document'}`);
       }
 
       // Document analysis successful
@@ -1320,7 +1335,7 @@ export default function KYCUpgradeScreen() {
 
       // Persist document details AFTER successful verification
       try {
-        const entity = analysisData.data;
+        const entity = analysisData.entity;
         const details: any = entity?.details || entity?.data || {};
         const extractedDocumentNumber = details.document_number || details.id_number || details.passport_number || details.number || null;
 
