@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert, Platform } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
-import Intercom from '@intercom/intercom-react-native';
+import Intercom, { Visibility } from '@intercom/intercom-react-native';
 
 // Global state to track authentication across app
 let globalAuthState = {
@@ -113,6 +113,14 @@ export function useIntercom() {
           }
         });
 
+        // Hide the Intercom floating button
+        try {
+          await Intercom.setLauncherVisibility(Visibility.GONE);
+          console.log('✅ Intercom floating button hidden');
+        } catch (visibilityError) {
+          console.warn('⚠️ Failed to hide Intercom launcher:', visibilityError);
+        }
+
         // Update global state
         globalAuthState.isAuthenticated = true;
         globalAuthState.currentUserId = session.user.id;
@@ -137,6 +145,14 @@ export function useIntercom() {
           }
           
           await Intercom.loginUnidentifiedUser();
+          
+          // Hide the Intercom floating button
+          try {
+            await Intercom.setLauncherVisibility(Visibility.GONE);
+            console.log('✅ Intercom floating button hidden');
+          } catch (visibilityError) {
+            console.warn('⚠️ Failed to hide Intercom launcher:', visibilityError);
+          }
           
           // Update global state for fallback
           globalAuthState.isAuthenticated = true;
