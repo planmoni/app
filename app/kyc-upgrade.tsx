@@ -31,7 +31,7 @@ export default function KYCUpgradeScreen() {
   
   // Custom hooks for KYC data and progress
   const { formData, loading: formDataLoading, saveFormData } = useKYCData();
-  const { progress, loading: progressLoading, updateProgress, getStepProgress } = useKYCProgress();
+  const { progress, loading: progressLoading, updateProgress, getStepProgress, updateTier, currentTier, checkTierCompletion } = useKYCProgress();
   
   
 
@@ -698,10 +698,25 @@ export default function KYCUpgradeScreen() {
               return;
             }
             
-            // Update progress when address is completed (don't update current_step, let useEffect handle skipping)
+            // Update progress when address is completed
+            // Also check if utility bill is validated and mark it as verified
+            const utilityBillVerified = utilityBill && validationResult?.isValid;
+            
             const progressResult = await updateProgress({
-              address_completed: true
+              current_step: 'review',
+              address_completed: true,
+              utility_bill_verified: utilityBillVerified || false
             });
+            
+            // Check if Tier 3 is complete (Tier 2 + Address + Utility)
+            if (progressResult) {
+              await updateTier(); // Update tier after address/utility completion
+              const tierStatus = checkTierCompletion();
+              if (tierStatus.tier3) {
+                console.log('Tier 3 completed! User has full verification.');
+                showToast('Tier 3 completed! You can now deposit up to ₦1,000,000 monthly.', 'success');
+              }
+            }
             
             if (!progressResult) {
               showToast('Failed to update progress. Please try again.', 'error');
@@ -768,6 +783,11 @@ export default function KYCUpgradeScreen() {
       // Save the selfie URL to form data
       await saveFormData({
         selfie_url: selfieUrl
+      });
+      
+      // Mark liveness test as completed in KYC progress
+      await updateProgress({
+        liveness_test_completed: true
       });
       
       // Create audit log for liveness test completion
@@ -1145,10 +1165,20 @@ export default function KYCUpgradeScreen() {
         // BVN verification successful with Dojah
         showToast(`BVN verified! Name: ${displayName}`, 'success');
         
-        // Update progress (don't update current_step, let useEffect handle skipping)
+        // Update progress with BVN verified and check for Tier 1 completion
         const progressResult = await updateProgress({
           bvn_verified: true
         });
+        
+        // Check if Tier 1 is complete (Liveness + BVN + NIN)
+        if (progressResult) {
+          await updateTier(); // Update tier after BVN verification
+          const tierStatus = checkTierCompletion();
+          if (tierStatus.tier1) {
+            console.log('Tier 1 completed! User can now proceed to Tier 2.');
+            showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+          }
+        }
         
         if (!progressResult) {
           showToast('Failed to update progress. Please try again.', 'error');
@@ -1360,29 +1390,44 @@ export default function KYCUpgradeScreen() {
         backImageUrl = uploadedBack;
       }
 
-      // Call document analysis API using URL input type to avoid base64 conversion
-      const analysisResponse = await fetch('/api/dojah-document-analysis', {
+      // Call Dojah document analysis API directly
+      const payload: any = {
+        input_type: 'url',
+        imagefrontside: frontImageUrl
+      };
+
+      if (backImageUrl) {
+        payload.imagebackside = backImageUrl;
+      }
+
+      const analysisResponse = await fetch('https://api.dojah.io/api/v1/document/analysis', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          'AppId': appId,
+          'Authorization': privateKey,
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          inputType: 'url',
-          imageFrontSide: frontImageUrl,
-          imageBackSide: backImageUrl || null
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!analysisResponse.ok) {
-        const errorData = await analysisResponse.json();
-        throw new Error(errorData.details || 'Document analysis failed');
+        const errorData = await analysisResponse.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || `Document analysis failed: ${analysisResponse.status} ${analysisResponse.statusText}`);
       }
 
       const analysisData = await analysisResponse.json();
+      console.log('Document analysis response:', {
+        overall_status: analysisData.entity?.status?.overall_status,
+        reason: analysisData.entity?.status?.reason,
+        document_type: analysisData.entity?.document_type?.document_name
+      });
       
-      if (analysisData.data?.status?.overall_status !== 1) {
-        throw new Error(`Document validation failed: ${analysisData.data?.status?.reason || 'Invalid document'}`);
+      if (!analysisData.entity) {
+        throw new Error('Invalid response from document analysis service');
+      }
+
+      if (analysisData.entity?.status?.overall_status !== 1) {
+        throw new Error(`Document validation failed: ${analysisData.entity?.status?.reason || 'Invalid document'}`);
       }
 
       // Document analysis successful
@@ -1390,7 +1435,7 @@ export default function KYCUpgradeScreen() {
 
       // Persist document details AFTER successful verification
       try {
-        const entity = analysisData.data;
+        const entity = analysisData.entity;
         const details: any = entity?.details || entity?.data || {};
         const extractedDocumentNumber = details.document_number || details.id_number || details.passport_number || details.number || null;
 
@@ -1406,10 +1451,20 @@ export default function KYCUpgradeScreen() {
         // Continue flow even if saving has issues; user can retry saving later
       }
       
-      // Update progress (don't update current_step, let useEffect handle skipping)
+      // Update progress with documents verified
       const progressResult = await updateProgress({
         documents_verified: true
       });
+      
+      // Check if Tier 2 is complete (Tier 1 + Personal Info + Documents)
+      if (progressResult) {
+        await updateTier(); // Update tier after document verification
+        const tierStatus = checkTierCompletion();
+        if (tierStatus.tier2) {
+          console.log('Tier 2 completed! User can now proceed to Tier 3.');
+          showToast('Tier 2 completed! You can now deposit up to ₦100,000 monthly.', 'success');
+        }
+      }
       
       if (!progressResult) {
         showToast('Failed to update progress. Please try again.', 'error');
@@ -1619,10 +1674,22 @@ export default function KYCUpgradeScreen() {
         // Show success toast after verification completes
         showToast(`NIN verified! Name: ${displayName} (${selfieVerification.confidence_value.toFixed(1)}% confidence)`, 'success');
         
-          // Update progress
-          const progressResult = await updateProgress({
-            id_face_verified: true
-          });
+        // Update progress with NIN verified
+        const progressResult = await updateProgress({
+          current_step: 'documents_verification',
+          id_face_verified: true,
+          nin_verified: true
+        });
+        
+        // Check if Tier 1 is complete (Liveness + BVN + NIN)
+        if (progressResult) {
+          await updateTier(); // Update tier after NIN verification
+          const tierStatus = checkTierCompletion();
+          if (tierStatus.tier1) {
+            console.log('Tier 1 completed! User can now proceed to Tier 2.');
+            showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+          }
+        }
         
         if (!progressResult) {
           showToast('Failed to update progress. Please try again.', 'error');
