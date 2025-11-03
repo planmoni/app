@@ -18,9 +18,9 @@ public class AppDelegate: ExpoAppDelegate {
     
     // Initialize Intercom
     Intercom.setApiKey("ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4", forAppId: "tf4dp3qt")
-    Intercom.setLauncherVisible(true)
-    // Login unidentified user initially - will be updated when user authenticates
-    Intercom.loginUnidentifiedUser()
+    Intercom.setLauncherVisible(false) // Hide the floating button
+    // Don't login here - let React Native handle authentication to avoid conflicts
+    // Authentication will be handled by useIntercom hook when user session is available
 
     let delegate = ReactNativeDelegate()
     let factory = ExpoReactNativeFactory(delegate: delegate)

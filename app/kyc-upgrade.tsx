@@ -204,13 +204,109 @@ export default function KYCUpgradeScreen() {
     loadFormDataAndCheckSelfie();
   }, [formData, livenessInitiated, progress?.current_step, showLivenessTest, livenessManuallyClosed, session?.user?.id]);
 
-  // Update current step when progress changes
+  // Helper function to get the next incomplete step
+  const getNextIncompleteStep = (current: KYCStep): KYCStep => {
+    // Define step order
+    const stepOrder: KYCStep[] = ['personal', 'bvn_verification', 'id_face_match', 'documents_verification', 'address_details', 'review'];
+    const currentIndex = stepOrder.indexOf(current);
+    
+    // Find the next incomplete step
+    for (let i = currentIndex + 1; i < stepOrder.length; i++) {
+      const step = stepOrder[i];
+      switch (step) {
+        case 'personal':
+          if (!progress.personal_info_completed) return step;
+          break;
+        case 'bvn_verification':
+          if (!progress.bvn_verified) return step;
+          break;
+        case 'id_face_match':
+          if (!progress.id_face_verified) return step;
+          break;
+        case 'documents_verification':
+          if (!progress.documents_verified) return step;
+          break;
+        case 'address_details':
+          if (!progress.address_completed) return step;
+          break;
+        case 'review':
+          return step; // Review is always accessible if all steps are complete
+      }
+    }
+    
+    return 'review'; // Default to review if all steps are complete
+  };
+
+  // Helper function to get the previous incomplete step (or first incomplete if going back from a completed step)
+  const getPreviousIncompleteStep = (current: KYCStep): KYCStep | null => {
+    const stepOrder: KYCStep[] = ['personal', 'bvn_verification', 'id_face_match', 'documents_verification', 'address_details', 'review'];
+    const currentIndex = stepOrder.indexOf(current);
+    
+    // Find the last incomplete step before current
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      const step = stepOrder[i];
+      switch (step) {
+        case 'personal':
+          if (!progress.personal_info_completed) return step;
+          break;
+        case 'bvn_verification':
+          if (!progress.bvn_verified) return step;
+          break;
+        case 'id_face_match':
+          if (!progress.id_face_verified) return step;
+          break;
+        case 'documents_verification':
+          if (!progress.documents_verified) return step;
+          break;
+        case 'address_details':
+          if (!progress.address_completed) return step;
+          break;
+      }
+    }
+    
+    return null; // No previous incomplete step
+  };
+
+  // Update current step when progress changes, but skip to first incomplete step
   useEffect(() => {
     if (progress) {
-      setCurrentStep(progress.current_step);
       setBvnVerified(progress.bvn_verified);
       setDocumentsVerified(progress.documents_verified);
-    
+      
+      // Get the first incomplete step or current step if it's incomplete
+      const current = progress.current_step;
+      let targetStep = current;
+      
+      // Check if current step is completed, if so, skip to next incomplete
+      switch (current) {
+        case 'personal':
+          if (progress.personal_info_completed) {
+            targetStep = getNextIncompleteStep(current);
+          }
+          break;
+        case 'bvn_verification':
+          if (progress.bvn_verified) {
+            targetStep = getNextIncompleteStep(current);
+          }
+          break;
+        case 'id_face_match':
+          if (progress.id_face_verified) {
+            targetStep = getNextIncompleteStep(current);
+          }
+          break;
+        case 'documents_verification':
+          if (progress.documents_verified) {
+            targetStep = getNextIncompleteStep(current);
+          }
+          break;
+        case 'address_details':
+          if (progress.address_completed) {
+            targetStep = getNextIncompleteStep(current);
+          }
+          break;
+      }
+      
+      setCurrentStep(targetStep);
     }
   }, [progress, showToast, isManualVerification]);
 
@@ -470,9 +566,8 @@ export default function KYCUpgradeScreen() {
               }
               
               
-              // Update progress when personal info is completed
+              // Update progress when personal info is completed (don't update current_step, let useEffect handle skipping)
               const progressResult = await updateProgress({
-                current_step: 'bvn_verification',
                 personal_info_completed: true
               });
               
@@ -520,8 +615,9 @@ export default function KYCUpgradeScreen() {
                 return;
               } else {
                 console.log('Proceeding to BVN verification step');
-                // Proceed to BVN verification step
-                setCurrentStep('bvn_verification');
+                // Proceed to next incomplete step (skip if BVN is already verified)
+                const nextStep = getNextIncompleteStep('personal');
+                setCurrentStep(nextStep);
                 setTimeout(() => {
                   setIsManualVerification(false);
                 }, 1000);
@@ -630,7 +726,9 @@ export default function KYCUpgradeScreen() {
             // Wait for toast to be visible before moving to next step
             await new Promise(resolve => setTimeout(resolve, 2000));
             
-            setCurrentStep('review');
+            // Move to next incomplete step (should be review if address is completed)
+            const nextStep = getNextIncompleteStep('address_details');
+            setCurrentStep(nextStep);
             setTimeout(() => {
               setIsManualVerification(false);
             }, 1000);
@@ -757,8 +855,9 @@ export default function KYCUpgradeScreen() {
       setLivenessInitiated(false);
       setLivenessManuallyClosed(false); // Reset the manually closed flag
       
-      // Proceed to BVN verification step
-      setCurrentStep('bvn_verification');
+      // Proceed to next incomplete step (skip BVN if already verified)
+      const nextStep = getNextIncompleteStep('personal');
+      setCurrentStep(nextStep);
       setTimeout(() => {
         setIsManualVerification(false);
       }, 1000);
@@ -1068,7 +1167,6 @@ export default function KYCUpgradeScreen() {
         
         // Update progress with BVN verified and check for Tier 1 completion
         const progressResult = await updateProgress({
-          current_step: 'id_face_match',
           bvn_verified: true
         });
         
@@ -1090,7 +1188,9 @@ export default function KYCUpgradeScreen() {
         // Wait for toast to be visible before moving to next step
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        setCurrentStep('id_face_match');
+        // Move to next incomplete step (skip if already verified)
+        const nextStep = getNextIncompleteStep('bvn_verification');
+        setCurrentStep(nextStep);
         setTimeout(() => {
           setIsManualVerification(false);
         }, 1000);
@@ -1353,7 +1453,6 @@ export default function KYCUpgradeScreen() {
       
       // Update progress with documents verified
       const progressResult = await updateProgress({
-        current_step: 'address_details',
         documents_verified: true
       });
       
@@ -1375,7 +1474,9 @@ export default function KYCUpgradeScreen() {
       // Wait for toast to be visible before moving to next step
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      setCurrentStep('address_details');
+      // Move to next incomplete step (skip if already verified)
+      const nextStep = getNextIncompleteStep('documents_verification');
+      setCurrentStep(nextStep);
       setTimeout(() => {
         setIsManualVerification(false);
       }, 1000);
@@ -1598,7 +1699,9 @@ export default function KYCUpgradeScreen() {
         // Wait for toast to be visible before moving to next step
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        setCurrentStep('address_details');
+        // Move to next incomplete step (skip if already verified)
+        const nextStep = getNextIncompleteStep('id_face_match');
+        setCurrentStep(nextStep);
         setTimeout(() => {
           setIsManualVerification(false);
         }, 1000);
@@ -1619,51 +1722,26 @@ export default function KYCUpgradeScreen() {
   
   const handlePreviousStep = async () => {
     try {
-      switch (currentStep) {
-        case 'bvn_verification':
-          await updateProgress({ current_step: 'personal' });
-          setCurrentStep('personal');
-          break;
-        case 'id_face_match':
-          await updateProgress({ current_step: 'bvn_verification' });
-          setCurrentStep('bvn_verification');
-          break;
-        case 'documents_verification':
-          await updateProgress({ current_step: 'id_face_match' });
-          setCurrentStep('id_face_match');
-          break;
-        case 'address_details':
-          await updateProgress({ current_step: 'documents_verification' });
-          setCurrentStep('documents_verification');
-          break;
-        case 'review':
-          await updateProgress({ current_step: 'address_details' });
-          setCurrentStep('address_details');
-          break;
-        default:
-          router.back();
+      // Get the previous incomplete step
+      const previousStep = getPreviousIncompleteStep(currentStep);
+      
+      if (previousStep === null) {
+        // No previous incomplete step, exit the flow
+        router.back();
+        return;
       }
+      
+      // Update progress to the previous incomplete step
+      await updateProgress({ current_step: previousStep });
+      setCurrentStep(previousStep);
     } catch (error) {
       console.error('Error in handlePreviousStep:', error);
       // Still allow navigation even if progress update fails
-      switch (currentStep) {
-        case 'bvn_verification':
-          setCurrentStep('personal');
-          break;
-        case 'id_face_match':
-          setCurrentStep('bvn_verification');
-          break;
-        case 'documents_verification':
-          setCurrentStep('id_face_match');
-          break;
-        case 'address_details':
-          setCurrentStep('documents_verification');
-          break;
-        case 'review':
-          setCurrentStep('address_details');
-          break;
-        default:
-          router.back();
+      const previousStep = getPreviousIncompleteStep(currentStep);
+      if (previousStep) {
+        setCurrentStep(previousStep);
+      } else {
+        router.back();
       }
     }
   };

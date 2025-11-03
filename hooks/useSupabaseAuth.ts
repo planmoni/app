@@ -221,50 +221,95 @@ export function useSupabaseAuth() {
       }
     });
 
-    // Set up periodic session validation to catch expired sessions
-    const validateSessionPeriodically = () => {
+    // Set up proactive session refresh to keep sessions alive
+    const maintainSessionAlive = () => {
       const interval = setInterval(async () => {
         if (!mounted) {
           clearInterval(interval);
           return;
         }
-        
+
         // Check current session validity
         const currentSession = await supabase.auth.getSession();
         const { data: { session: currentAuthSession }, error: sessionError } = currentSession;
-        
+
         if (sessionError) {
           console.log('⚠️ Session validation error:', sessionError.message);
-          // Session is invalid, clear it
+          // Session is invalid, trigger session expired modal
           if (mounted) {
             setSession(null);
-            setError(sessionError.message);
+            setError('JWT expired');
             await clearSession();
           }
           return;
         }
-        
-        // If session exists but user is invalid or expired, clear it
-        if (currentAuthSession && (!currentAuthSession.user?.id || isSessionExpired(currentAuthSession))) {
+
+        // If session exists and is valid
+        if (currentAuthSession && currentAuthSession.user?.id) {
+          // Check if session is about to expire (within 5 minutes)
+          const now = Math.floor(Date.now() / 1000);
+          const expiresAt = currentAuthSession.expires_at || 0;
+          const timeUntilExpiry = expiresAt - now;
+
+          // If session expires in less than 5 minutes, proactively refresh it
+          if (timeUntilExpiry < 300 && timeUntilExpiry > 0) {
+            console.log('🔄 Session expiring soon, proactively refreshing...', {
+              timeUntilExpiry: `${timeUntilExpiry}s`,
+              expiresAt: new Date(expiresAt * 1000).toISOString()
+            });
+
+            try {
+              const { data, error: refreshError } = await supabase.auth.refreshSession();
+
+              if (refreshError) {
+                console.error('❌ Failed to refresh session:', refreshError);
+                // Trigger session expired modal
+                if (mounted) {
+                  setSession(null);
+                  setError('JWT expired');
+                  await clearSession();
+                }
+              } else if (data.session) {
+                console.log('✅ Session refreshed proactively');
+                if (mounted) {
+                  setSession(data.session);
+                  await saveSession(data.session);
+                }
+              }
+            } catch (error) {
+              console.error('❌ Error refreshing session:', error);
+            }
+          } else if (timeUntilExpiry <= 0) {
+            // Session has expired
+            console.log('⏰ Session has expired');
+            if (mounted) {
+              setSession(null);
+              setError('JWT expired');
+              await clearSession();
+            }
+          }
+        } else if (currentAuthSession && (!currentAuthSession.user?.id || isSessionExpired(currentAuthSession))) {
           console.log('⚠️ Periodic check: Session expired or invalid, clearing');
           if (mounted) {
             setSession(null);
-            setError('Session expired');
+            setError('JWT expired');
             await clearSession();
           }
-        } else if (!currentAuthSession && mounted) {
-          // No session at all, ensure state is cleared
+        } else if (!currentAuthSession && mounted && session) {
+          // No session exists but we had one before - session expired
+          console.log('⚠️ Session lost unexpectedly');
           if (mounted) {
             setSession(null);
+            setError('JWT expired');
             await clearSession();
           }
         }
       }, 60000); // Check every minute
-      
+
       return () => clearInterval(interval);
     };
     
-    const validationCleanup = validateSessionPeriodically();
+    const validationCleanup = maintainSessionAlive();
 
     return () => {
       mounted = false;
