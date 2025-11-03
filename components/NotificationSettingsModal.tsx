@@ -160,24 +160,6 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 />
               </View>
               
-              <View style={styles.settingItem}>
-                <View style={styles.settingInfo}>
-                  <View style={styles.settingIconContainer}>
-                    <Shield size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-                  </View>
-                  <View>
-                    <Text style={styles.settingTitle}>Security Alerts</Text>
-                    <Text style={styles.settingDescription}>Login attempts and security updates</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={securityAlerts}
-                  onValueChange={() => handleTogglePush(setSecurityAlerts)}
-                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
-                  thumbColor={securityAlerts ? '#1E3A8A' : colors.backgroundTertiary}
-                  disabled={!pushEnabled}
-                />
-              </View>
               
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
@@ -199,63 +181,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
               </View>
             </View>
             
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Email Notifications</Text>
-              
-              <View style={styles.settingItem}>
-                <View style={styles.settingInfo}>
-                  <View style={styles.settingIconContainer}>
-                    <Key size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-                  </View>
-                  <View>
-                    <Text style={styles.settingTitle}>Login Attempt</Text>
-                    <Text style={styles.settingDescription}>Get notified about new logins to your account</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={localSettings.login_alerts}
-                  onValueChange={() => handleToggleEmail('login_alerts')}
-                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
-                  thumbColor={localSettings.login_alerts ? '#1E3A8A' : colors.backgroundTertiary}
-                />
-              </View>
-              
-              <View style={styles.settingItem}>
-                <View style={styles.settingInfo}>
-                  <View style={styles.settingIconContainer}>
-                    <BanknoteArrowUp size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-                  </View>
-                  <View>
-                    <Text style={styles.settingTitle}>Payout Alerts</Text>
-                    <Text style={styles.settingDescription}>Get notified when payouts are processed</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={localSettings.payout_alerts}
-                  onValueChange={() => handleToggleEmail('payout_alerts')}
-                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
-                  thumbColor={localSettings.payout_alerts ? '#1E3A8A' : colors.backgroundTertiary}
-                />
-              </View>
-              
-              <View style={styles.settingItem}>
-                <View style={styles.settingInfo}>
-                  <View style={styles.settingIconContainer}>
-                    <Clock size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-                  </View>
-                  <View>
-                    <Text style={styles.settingTitle}>Plan Expiry Reminders</Text>
-                    <Text style={styles.settingDescription}>Get notified when your payout plans are about to expire</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={localSettings.expiry_reminders}
-                  onValueChange={() => handleToggleEmail('expiry_reminders')}
-                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
-                  thumbColor={localSettings.expiry_reminders ? '#1E3A8A' : colors.backgroundTertiary}
-                />
-              </View>
-            </View>
+            
             
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Wallet Summary Emails</Text>

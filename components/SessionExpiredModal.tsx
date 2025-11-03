@@ -68,7 +68,6 @@ export default function SessionExpiredModal({ isVisible, onClose }: SessionExpir
           </Text>
           
           <Pressable style={styles.signInButton} onPress={handleSignInAgain}>
-            <LogIn size={20} color="#FFFFFF" style={styles.buttonIcon} />
             <Text style={styles.signInButtonText}>Sign in again</Text>
           </Pressable>
         </View>
@@ -138,7 +137,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     justifyContent: 'center',
     paddingVertical: isSmallScreen ? 12 : 16,
     paddingHorizontal: isSmallScreen ? 20 : 24,
-    borderRadius: 12,
+    borderRadius: 100,
     minWidth: '100%',
     shadowColor: colors.primary || '#1E3A8A',
     shadowOffset: {

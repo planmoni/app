@@ -337,30 +337,6 @@ export default function LoginSessionDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Hero Section with Device Info */}
-        <View style={styles.heroSection}>
-          <View style={styles.heroIconContainer}>
-            {getDeviceIcon(sessionDetail.device_type)}
-          </View>
-          <View style={styles.heroContent}>
-            <Text style={styles.heroTitle} numberOfLines={1}>
-              {sessionDetail.device_manufacturer && sessionDetail.device_manufacturer !== 'Unknown'
-                ? `${sessionDetail.device_manufacturer} ${sessionDetail.device_model || ''}`.trim()
-                : sessionDetail.device_type || 'Unknown Device'}
-            </Text>
-            <Text style={styles.heroSubtitle} numberOfLines={1}>
-              {sessionDetail.os_name}
-              {sessionDetail.browser_name && sessionDetail.browser_name !== 'Native App'
-                ? ` · ${sessionDetail.browser_name}`
-                : ''}
-            </Text>
-          </View>
-          {sessionDetail.is_suspicious && (
-            <View style={styles.suspiciousBadgeHero}>
-              <AlertTriangle size={14} color="#DC2626" />
-              <Text style={styles.suspiciousBadgeTextHero}>Suspicious</Text>
-            </View>
-          )}
-        </View>
 
         {/* Status Banner */}
         {sessionDetail.is_suspicious && (
@@ -378,8 +354,8 @@ export default function LoginSessionDetailScreen() {
         {/* Device Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <View style={[styles.iconContainer, { backgroundColor: '#EFF6FF' }]}>
-              <Smartphone size={20} color="#3B82F6" />
+            <View style={[styles.iconContainer, { backgroundColor: colors.backgroundTertiary }]}>
+              <Smartphone size={20} color={colors.iconColor} />
             </View>
             <View style={styles.sectionHeaderText}>
               <Text style={styles.sectionTitle}>Device Information</Text>
@@ -439,8 +415,8 @@ export default function LoginSessionDetailScreen() {
         {/* Location Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <View style={[styles.iconContainer, { backgroundColor: '#F0FDF4' }]}>
-              <MapPin size={20} color="#22C55E" />
+            <View style={[styles.iconContainer, { backgroundColor: colors.backgroundTertiary }]}>
+              <MapPin size={20} color={colors.iconColor} />
             </View>
             <View style={styles.sectionHeaderText}>
               <Text style={styles.sectionTitle}>Location</Text>
@@ -499,8 +475,8 @@ export default function LoginSessionDetailScreen() {
         {/* Network Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <View style={[styles.iconContainer, { backgroundColor: '#FEF3C7' }]}>
-              <Wifi size={20} color="#D97706" />
+            <View style={[styles.iconContainer, { backgroundColor: colors.backgroundTertiary }]}>
+              <Wifi size={20} color={colors.iconColor} />
             </View>
             <View style={styles.sectionHeaderText}>
               <Text style={styles.sectionTitle}>Network</Text>
@@ -529,8 +505,8 @@ export default function LoginSessionDetailScreen() {
         {/* Session Details Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <View style={[styles.iconContainer, { backgroundColor: '#F5F3FF' }]}>
-              <Calendar size={20} color="#8B5CF6" />
+            <View style={[styles.iconContainer, { backgroundColor: colors.backgroundTertiary }]}>
+              <Calendar size={20} color={colors.iconColor} />
             </View>
             <View style={styles.sectionHeaderText}>
               <Text style={styles.sectionTitle}>Session Details</Text>
@@ -572,7 +548,7 @@ export default function LoginSessionDetailScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={[styles.iconContainer, { backgroundColor: colors.backgroundTertiary }]}>
-                <Info size={20} color={colors.textSecondary} />
+                <Info size={20} color={colors.iconColor} />
               </View>
               <View style={styles.sectionHeaderText}>
                 <Text style={styles.sectionTitle}>Technical Details</Text>
@@ -598,11 +574,11 @@ export default function LoginSessionDetailScreen() {
           >
             <Shield
               size={20}
-              color={sessionDetail.is_suspicious ? '#22C55E' : '#DC2626'}
+              color={sessionDetail.is_suspicious ? colors.success : colors.error}
             />
             <Text style={[
               styles.actionButtonText,
-              sessionDetail.is_suspicious ? styles.actionButtonTextSuccess : styles.actionButtonTextWarning
+              sessionDetail.is_suspicious ? styles.actionButtonTextSuccess : styles.actionButtonTextError
             ]}>
               {sessionDetail.is_suspicious ? 'Mark as Safe' : 'Flag as Suspicious'}
             </Text>
@@ -612,7 +588,7 @@ export default function LoginSessionDetailScreen() {
             style={[styles.actionButton, styles.actionButtonDanger]}
             onPress={handleDeleteSession}
           >
-            <Trash2 size={20} color="#DC2626" />
+            <Trash2 size={20} color={colors.error} />
             <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
               Delete Session
             </Text>
@@ -620,7 +596,7 @@ export default function LoginSessionDetailScreen() {
         </View>
 
         <View style={styles.infoBox}>
-          <Info size={16} color="#6B7280" />
+          <Info size={16} color={colors.textSecondary} />
           <Text style={styles.infoBoxText}>
             Login sessions are automatically deleted after 90 days. IP addresses are anonymized after 30 days for privacy.
           </Text>
@@ -872,34 +848,37 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 14,
     paddingHorizontal: 20,
-    borderRadius: 12,
+    borderRadius: 100,
     gap: 8,
     borderWidth: 1.5
   },
   actionButtonWarning: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FCA5A5'
+    backgroundColor: colors.errorLight,
+    borderColor: colors.error
   },
   actionButtonSuccess: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#86EFAC'
+    backgroundColor: colors.successLight,
+    borderColor: colors.success
   },
   actionButtonDanger: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FCA5A5'
+    backgroundColor: colors.errorLight,
+    borderColor: colors.error
   },
   actionButtonText: {
     fontSize: 15,
     fontWeight: '600'
   },
   actionButtonTextWarning: {
-    color: '#DC2626'
+    color: colors.error
   },
   actionButtonTextSuccess: {
-    color: '#22C55E'
+    color: colors.success
+  },
+  actionButtonTextError: {
+    color: colors.error
   },
   actionButtonTextDanger: {
-    color: '#DC2626'
+    color: colors.error
   },
   infoBox: {
     flexDirection: 'row',

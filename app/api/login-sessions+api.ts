@@ -3,15 +3,27 @@ import { supabase } from '@/lib/supabase';
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get('Authorization');
-    if (!authHeader) {
-      return Response.json({ success: false, error: 'Missing authorization' }, { status: 401 });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return Response.json({ success: false, error: 'Missing authorization header' }, { status: 401 });
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace('Bearer ', '').trim();
+    if (!token) {
+      return Response.json({ success: false, error: 'Invalid token format' }, { status: 401 });
+    }
+
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
-    if (authError || !user) {
-      return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    if (authError) {
+      console.error('Auth error:', authError.message);
+      return Response.json({ 
+        success: false, 
+        error: authError.message || 'Authentication failed' 
+      }, { status: 401 });
+    }
+
+    if (!user) {
+      return Response.json({ success: false, error: 'User not found' }, { status: 401 });
     }
 
     const { data: sessions, error } = await supabase
@@ -25,11 +37,14 @@ export async function GET(request: Request) {
       return Response.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    return Response.json({ success: true, sessions });
+    return Response.json({ success: true, sessions: sessions || [] });
   } catch (error) {
     console.error('Error in GET /api/login-sessions:', error);
     return Response.json(
-      { success: false, error: 'Internal server error' },
+      { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Internal server error' 
+      },
       { status: 500 }
     );
   }

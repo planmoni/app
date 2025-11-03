@@ -31,10 +31,7 @@ export function generateLoginNotificationHtml(data: {
         <p>Hello ${data.firstName},</p>
         <p>We detected a new login to your Planmoni account.</p>
         
-        <div class="alert">
-          <p><strong>If this was you, no action is needed.</strong></p>
-          <p>If you didn't log in recently, please secure your account immediately by changing your password.</p>
-        </div>
+        
         
         <table>
           <tr>
@@ -54,6 +51,11 @@ export function generateLoginNotificationHtml(data: {
             <td>${data.ip}</td>
           </tr>
         </table>
+
+        <div class="content">
+          <p><strong>If this was you, no action is needed.</strong></p>
+          <p>If you didn't log in recently, please secure your account immediately by changing your password.</p>
+        </div>
         
         <a href="https://planmoni.com/change-password" class="button">Secure Your Account</a>
         

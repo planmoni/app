@@ -7,20 +7,21 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert
+  Alert,
+  Pressable
 } from 'react-native';
 import { router } from 'expo-router';
-import {
-  ArrowLeft,
-  Smartphone,
-  Monitor,
-  Tablet,
-  MapPin,
-  AlertTriangle,
-  Calendar,
-  Filter,
-  Trash2,
-  ChevronRight
+import { 
+  ArrowLeft, 
+  Smartphone, 
+  Monitor, 
+  Tablet, 
+  MapPin, 
+  TriangleAlert as AlertTriangle, 
+  Calendar, 
+  Trash2, 
+  ChevronRight,
+  Clock
 } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -66,47 +67,39 @@ export default function LoginHistoryScreen() {
         setLoading(true);
       }
 
-      const accessToken = session?.access_token;
-      if (!accessToken) return;
+      const userId = session?.user?.id;
+      console.log('[LoginHistory] Fetching sessions for user:', userId);
 
-      // Construct API URL - on web, use full URL or relative path depending on environment
-      const apiUrl = Platform.OS === 'web' 
-        ? (typeof window !== 'undefined' ? `${window.location.origin}/api/login-sessions` : '/api/login-sessions')
-        : '/api/login-sessions';
-
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      // Check content type before reading body
-      const contentType = response.headers.get('content-type');
-      const isJson = contentType && contentType.includes('application/json');
-      
-      // Read response body once
-      const responseText = await response.text();
-      
-      if (!response.ok) {
-        console.error('Error response:', responseText);
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!userId) {
+        console.log('[LoginHistory] No user ID, returning');
+        return;
       }
 
-      if (!isJson) {
-        console.error('Expected JSON, got:', responseText);
-        throw new Error('Invalid response format');
+      // Fetch directly from Supabase
+      const { supabase } = await import('@/lib/supabase');
+      console.log('[LoginHistory] Querying login_sessions table...');
+
+      const { data, error } = await supabase
+        .from('login_sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('login_timestamp', { ascending: false });
+
+      console.log('[LoginHistory] Result - Error:', error);
+      console.log('[LoginHistory] Result - Data count:', data?.length || 0);
+
+      if (error) {
+        console.error('[LoginHistory] Supabase error:', error);
+        Alert.alert('Error', `Failed to load sessions: ${error.message}`);
+        return;
       }
 
-      // Parse JSON from the text we already read
-      const data = JSON.parse(responseText);
-
-      if (data.success && data.sessions) {
-        setSessions(data.sessions);
+      if (data) {
+        console.log('[LoginHistory] Setting', data.length, 'sessions');
+        setSessions(data);
       }
     } catch (error) {
-      console.error('Error fetching login sessions:', error);
+      console.error('[LoginHistory] Exception:', error);
       Alert.alert('Error', 'Failed to load login sessions');
     } finally {
       setLoading(false);
@@ -145,48 +138,24 @@ export default function LoginHistoryScreen() {
                 haptics.heavyImpact();
               }
 
-              const accessToken = session?.access_token;
-              if (!accessToken) return;
+              const userId = session?.user?.id;
+              if (!userId) return;
 
-              // Construct API URL - on web, use full URL or relative path depending on environment
-              const apiUrl = Platform.OS === 'web'
-                ? (typeof window !== 'undefined' ? `${window.location.origin}/api/login-sessions?deleteAll=true` : '/api/login-sessions?deleteAll=true')
-                : '/api/login-sessions?deleteAll=true';
+              // Delete directly from Supabase
+              const { supabase } = await import('@/lib/supabase');
+              const { error } = await supabase
+                .from('login_sessions')
+                .delete()
+                .eq('user_id', userId);
 
-              const response = await fetch(apiUrl, {
-                method: 'DELETE',
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json'
-                }
-              });
-
-              // Check content type before reading body
-              const contentType = response.headers.get('content-type');
-              const isJson = contentType && contentType.includes('application/json');
-              
-              // Read response body once
-              const responseText = await response.text();
-              
-              if (!response.ok) {
-                console.error('Error response:', responseText);
-                throw new Error(`HTTP error! status: ${response.status}`);
-              }
-
-              if (!isJson) {
-                console.error('Expected JSON, got:', responseText);
-                throw new Error('Invalid response format');
-              }
-
-              // Parse JSON from the text we already read
-              const data = JSON.parse(responseText);
-
-              if (data.success) {
-                setSessions([]);
-                Alert.alert('Success', 'All login sessions deleted');
-              } else {
+              if (error) {
+                console.error('Error deleting sessions:', error);
                 Alert.alert('Error', 'Failed to delete sessions');
+                return;
               }
+
+              setSessions([]);
+              Alert.alert('Success', 'All login sessions deleted');
             } catch (error) {
               console.error('Error deleting sessions:', error);
               Alert.alert('Error', 'Failed to delete sessions');
@@ -207,11 +176,11 @@ export default function LoginHistoryScreen() {
   const getDeviceIcon = (deviceType: string) => {
     const type = deviceType?.toLowerCase() || '';
     if (type.includes('mobile') || type.includes('phone')) {
-      return <Smartphone size={24} color="#3B82F6" />;
+      return <Smartphone size={20} color={colors.iconColor} />;
     } else if (type.includes('tablet')) {
-      return <Tablet size={24} color="#3B82F6" />;
+      return <Tablet size={20} color={colors.iconColor} />;
     } else {
-      return <Monitor size={24} color="#3B82F6" />;
+      return <Monitor size={20} color={colors.iconColor} />;
     }
   };
 
@@ -261,7 +230,12 @@ export default function LoginHistoryScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.back();
+          }}
         >
           <ArrowLeft size={24} color={colors.text} />
         </TouchableOpacity>
@@ -271,19 +245,30 @@ export default function LoginHistoryScreen() {
           onPress={handleDeleteAll}
           disabled={sessions.length === 0}
         >
-          <Trash2 size={20} color={sessions.length === 0 ? colors.textTertiary : '#EF4444'} />
+          <Trash2 size={20} color={sessions.length === 0 ? colors.textTertiary : colors.error} />
         </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
-        <>
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
+        >
           {/* Filter Tabs */}
           <View style={styles.filterContainer}>
-            <TouchableOpacity
+            <Pressable
               style={[
                 styles.filterTab,
                 filterType === 'all' && styles.filterTabActive
@@ -312,9 +297,9 @@ export default function LoginHistoryScreen() {
                   {sessions.length}
                 </Text>
               </View>
-            </TouchableOpacity>
+            </Pressable>
 
-            <TouchableOpacity
+            <Pressable
               style={[
                 styles.filterTab,
                 filterType === 'suspicious' && styles.filterTabActive
@@ -347,110 +332,102 @@ export default function LoginHistoryScreen() {
                   </Text>
                 </View>
               )}
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
-          <ScrollView
-            style={styles.content}
-            contentContainerStyle={styles.contentContainer}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                tintColor="#3B82F6"
-                colors={['#3B82F6']}
-              />
-            }
-            showsVerticalScrollIndicator={false}
-          >
-            {filteredSessions.length === 0 ? (
-              <View style={styles.emptyContainer}>
+          {filteredSessions.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconContainer}>
                 <Calendar size={48} color={colors.textTertiary} />
-                <Text style={styles.emptyTitle}>
-                  {filterType === 'suspicious' ? 'No Suspicious Sessions' : 'No Login Sessions'}
-                </Text>
-                <Text style={styles.emptyText}>
-                  {filterType === 'suspicious'
-                    ? 'All your login sessions appear normal'
-                    : 'Your login history will appear here'}
-                </Text>
               </View>
-            ) : (
-              <>
-                {suspiciousCount > 0 && filterType === 'all' && (
-                  <View style={styles.warningBanner}>
-                    <AlertTriangle size={20} color="#DC2626" />
-                    <Text style={styles.warningText}>
-                      {suspiciousCount} suspicious {suspiciousCount === 1 ? 'session' : 'sessions'} detected
-                    </Text>
-                  </View>
-                )}
-
-                {filteredSessions.map((sessionItem, index) => (
-                  <TouchableOpacity
-                    key={sessionItem.id}
-                    style={[
-                      styles.sessionCard,
-                      sessionItem.is_suspicious && styles.sessionCardSuspicious
-                    ]}
-                    onPress={() => handleSessionPress(sessionItem.id)}
-                    activeOpacity={0.7}
-                  >
-                    {sessionItem.is_suspicious && (
-                      <View style={styles.suspiciousBadge}>
-                        <AlertTriangle size={12} color="#DC2626" />
-                        <Text style={styles.suspiciousBadgeText}>Suspicious</Text>
-                      </View>
-                    )}
-
-                    <View style={styles.sessionHeader}>
-                      <View style={styles.deviceIconContainer}>
-                        {getDeviceIcon(sessionItem.device_type)}
-                      </View>
-                      <View style={styles.sessionInfo}>
-                        <Text style={styles.deviceName} numberOfLines={1}>
-                          {sessionItem.device_manufacturer && sessionItem.device_manufacturer !== 'Unknown'
-                            ? `${sessionItem.device_manufacturer} ${sessionItem.device_model || ''}`.trim()
-                            : sessionItem.device_type || 'Unknown Device'}
-                        </Text>
-                        <Text style={styles.osInfo} numberOfLines={1}>
-                          {sessionItem.os_name}
-                          {sessionItem.browser_name && sessionItem.browser_name !== 'Native App'
-                            ? ` · ${sessionItem.browser_name}`
-                            : ''}
-                        </Text>
-                      </View>
-                      <View style={styles.timeContainer}>
-                        <Text style={styles.timeAgo}>{formatTimestamp(sessionItem.login_timestamp)}</Text>
-                        <ChevronRight size={16} color={colors.textTertiary} style={styles.chevron} />
-                      </View>
-                    </View>
-
-                    <View style={styles.sessionDetails}>
-                      <View style={styles.locationRow}>
-                        <MapPin size={14} color={colors.textSecondary} />
-                        <Text style={styles.locationText} numberOfLines={1}>
-                          {sessionItem.city && sessionItem.city !== 'Unknown'
-                            ? `${sessionItem.city}, ${sessionItem.country || 'Unknown'}`
-                            : sessionItem.country || 'Unknown Location'}
-                        </Text>
-                      </View>
-                      <Text style={styles.fullDate}>{formatFullDate(sessionItem.login_timestamp)}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </>
-            )}
-
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>
-                Login sessions are automatically deleted after 90 days. IP addresses are anonymized after 30 days for privacy protection.
+              <Text style={styles.emptyTitle}>
+                {filterType === 'suspicious' ? 'No Suspicious Sessions' : 'No Login Sessions'}
+              </Text>
+              <Text style={styles.emptyText}>
+                {filterType === 'suspicious'
+                  ? 'All your login sessions appear normal'
+                  : 'Your login history will appear here'}
               </Text>
             </View>
-          </ScrollView>
-        </>
+          ) : (
+            <View style={styles.section}>
+              {suspiciousCount > 0 && filterType === 'all' && (
+                <View style={styles.warningBanner}>
+                  <View style={styles.warningIconContainer}>
+                    <AlertTriangle size={18} color={colors.error} />
+                  </View>
+                  <Text style={styles.warningText}>
+                    {suspiciousCount} suspicious {suspiciousCount === 1 ? 'session' : 'sessions'} detected
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.card}>
+                {filteredSessions.map((sessionItem, index) => (
+                  <React.Fragment key={sessionItem.id}>
+                    {index > 0 && <View style={styles.divider} />}
+                    <Pressable
+                      style={styles.sessionItem}
+                      onPress={() => handleSessionPress(sessionItem.id)}
+                    >
+                      <View style={styles.sessionContent}>
+                        <View style={[
+                          styles.deviceIconContainer,
+                          { backgroundColor: colors.backgroundTertiary }
+                        ]}>
+                          {getDeviceIcon(sessionItem.device_type)}
+                        </View>
+                        <View style={styles.sessionInfo}>
+                          <View style={styles.sessionHeader}>
+                            <Text style={styles.deviceName} numberOfLines={1}>
+                              {sessionItem.device_manufacturer && sessionItem.device_manufacturer !== 'Unknown'
+                                ? `${sessionItem.device_manufacturer} ${sessionItem.device_model || ''}`.trim()
+                                : sessionItem.device_type || 'Unknown Device'}
+                            </Text>
+                            {sessionItem.is_suspicious && (
+                              <View style={styles.suspiciousBadge}>
+                                <AlertTriangle size={10} color={colors.error} />
+                                <Text style={styles.suspiciousBadgeText}>Suspicious</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.osInfo} numberOfLines={1}>
+                            {sessionItem.os_name}
+                            {sessionItem.browser_name && sessionItem.browser_name !== 'Native App'
+                              ? ` · ${sessionItem.browser_name}`
+                              : ''}
+                          </Text>
+                          <View style={styles.sessionMeta}>
+                            <View style={styles.locationRow}>
+                              <MapPin size={12} color={colors.textSecondary} />
+                              <Text style={styles.locationText} numberOfLines={1}>
+                                {sessionItem.city && sessionItem.city !== 'Unknown'
+                                  ? `${sessionItem.city}, ${sessionItem.country || 'Unknown'}`
+                                  : sessionItem.country || 'Unknown Location'}
+                              </Text>
+                            </View>
+                            <View style={styles.timeRow}>
+                              <Clock size={12} color={colors.textTertiary} />
+                              <Text style={styles.timeAgo}>{formatTimestamp(sessionItem.login_timestamp)}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                      <ChevronRight size={20} color={colors.textTertiary} />
+                    </Pressable>
+                  </React.Fragment>
+                ))}
+              </View>
+            </View>
+          )}
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              Login sessions are automatically deleted after 90 days. IP addresses are anonymized after 30 days for privacy protection.
+            </Text>
+          </View>
+        </ScrollView>
       )}
-      
       <SafeFooter />
     </SafeAreaView>
   );
@@ -459,7 +436,7 @@ export default function LoginHistoryScreen() {
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundSecondary,
   },
   header: {
     flexDirection: 'row',
@@ -469,235 +446,250 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border
+    borderBottomColor: colors.border,
   },
   backButton: {
     width: 40,
     height: 40,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: Platform.OS === 'ios' ? 24 : 20,
+    fontWeight: '700',
     color: colors.text,
     flex: 1,
-    textAlign: 'center'
+    textAlign: 'center',
   },
   deleteButton: {
     width: 40,
     height: 40,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSecondary,
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: Platform.OS === 'ios' ? 24 : 16,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
   },
   filterContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: 8
+    gap: 8,
+    marginBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   filterTab: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: colors.backgroundTertiary,
-    gap: 6
+    gap: 6,
   },
   filterTabActive: {
-    backgroundColor: colors.primary
+    backgroundColor: colors.primary,
   },
   filterTabText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 13,
     fontWeight: '600',
-    color: colors.textSecondary
+    color: colors.textSecondary,
   },
   filterTabTextActive: {
-    color: '#FFFFFF'
+    color: '#FFFFFF',
   },
   filterBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 10,
-    backgroundColor: colors.background
+    borderRadius: 12,
+    backgroundColor: colors.surface,
   },
   filterBadgeActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)'
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   filterBadgeDanger: {
-    backgroundColor: '#FEE2E2'
+    backgroundColor: colors.errorLight,
   },
   filterBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text
-  },
-  filterBadgeTextActive: {
-    color: '#FFFFFF'
-  },
-  filterBadgeTextDanger: {
-    color: '#DC2626'
-  },
-  content: {
-    flex: 1
-  },
-  contentContainer: {
-    padding: 20,
-    paddingBottom: 100
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40
-  },
-  emptyTitle: {
-    fontSize: 18,
+    fontSize: Platform.OS === 'ios' ? 12 : 11,
     fontWeight: '600',
     color: colors.text,
-    marginTop: 16,
-    marginBottom: 8
+  },
+  filterBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+  filterBadgeTextDanger: {
+    color: colors.error,
+  },
+  section: {
+    marginBottom: Platform.OS === 'ios' ? 24 : 16,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.backgroundTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: Platform.OS === 'ios' ? 18 : 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 13,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 20
+    lineHeight: 20,
   },
   warningBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colors.errorLight,
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 20,
+    padding: Platform.OS === 'ios' ? 14 : 12,
+    marginBottom: Platform.OS === 'ios' ? 20 : 16,
     gap: 10,
-    borderWidth: 1,
-    borderColor: '#FCA5A5'
+  },
+  warningIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.error,
+    opacity: 0.1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   warningText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 13,
     fontWeight: '600',
-    color: '#DC2626',
-    flex: 1
+    color: colors.error,
+    flex: 1,
   },
-  sessionCard: {
+  card: {
     backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
+    borderRadius: 16,
+    borderWidth: 0.5,
     borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1
+    overflow: 'hidden',
   },
-  sessionCardSuspicious: {
-    borderColor: '#FCA5A5',
-    borderWidth: 1.5,
-    backgroundColor: '#FEF2F2',
-    shadowOpacity: 0.08
-  },
-  suspiciousBadge: {
+  sessionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 12,
-    gap: 4
+    padding: Platform.OS === 'ios' ? 16 : 14,
+    justifyContent: 'space-between',
   },
-  suspiciousBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#DC2626'
+  sessionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  deviceIconContainer: {
+    width: Platform.OS === 'ios' ? 40 : 36,
+    height: Platform.OS === 'ios' ? 40 : 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Platform.OS === 'ios' ? 16 : 12,
+  },
+  sessionInfo: {
+    flex: 1,
+    minWidth: 0,
   },
   sessionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12
-  },
-  deviceIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12
-  },
-  sessionInfo: {
-    flex: 1,
-    marginRight: 8,
-    minWidth: 0
+    marginBottom: 4,
+    gap: 8,
   },
   deviceName: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: Platform.OS === 'ios' ? 16 : 15,
+    fontWeight: '500',
     color: colors.text,
-    marginBottom: 2
+    flex: 1,
   },
-  osInfo: {
-    fontSize: 13,
-    color: colors.textSecondary
-  },
-  timeContainer: {
+  suspiciousBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4
+    backgroundColor: colors.errorLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    gap: 4,
   },
-  timeAgo: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.textTertiary
+  suspiciousBadgeText: {
+    fontSize: Platform.OS === 'ios' ? 11 : 10,
+    fontWeight: '600',
+    color: colors.error,
   },
-  chevron: {
-    marginLeft: 2
+  osInfo: {
+    fontSize: Platform.OS === 'ios' ? 13 : 12,
+    color: colors.textSecondary,
+    marginBottom: 8,
   },
-  sessionDetails: {
-    gap: 6
+  sessionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6
+    gap: 4,
+    flex: 1,
+    minWidth: 0,
   },
   locationText: {
-    fontSize: 13,
+    fontSize: Platform.OS === 'ios' ? 12 : 11,
     color: colors.textSecondary,
-    flex: 1
+    flex: 1,
   },
-  fullDate: {
-    fontSize: 12,
-    color: colors.textTertiary
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  timeAgo: {
+    fontSize: Platform.OS === 'ios' ? 12 : 11,
+    fontWeight: '500',
+    color: colors.textTertiary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginHorizontal: Platform.OS === 'ios' ? 16 : 14,
   },
   footer: {
-    marginTop: 24,
-    paddingTop: 20,
-    paddingBottom: 8,
+    marginTop: Platform.OS === 'ios' ? 32 : 24,
+    paddingTop: Platform.OS === 'ios' ? 24 : 20,
     borderTopWidth: 1,
-    borderTopColor: colors.border
+    borderTopColor: colors.border,
   },
   footerText: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 11,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 18
-  }
+    lineHeight: 18,
+  },
 });
