@@ -45,6 +45,17 @@ export function useIntercom() {
       try {
         console.log('🔐 Authenticating user with Intercom...');
         
+        // Logout any existing user first (in case AppDelegate logged in as unidentified)
+        try {
+          await Intercom.logout();
+          console.log('✅ Logged out from Intercom before authenticating');
+          // Small delay after logout to ensure it's processed
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (logoutError) {
+          // Ignore logout errors - user might not be logged in
+          console.log('ℹ️ No existing Intercom session to logout');
+        }
+        
         // Try to get JWT from your backend, but don't fail if it's not available
         try {
           const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/intercom-jwt`, {
@@ -61,9 +72,13 @@ export function useIntercom() {
             if (jwt) {
               console.log('🔐 JWT received, setting for Intercom...');
               await Intercom.setUserJwt(jwt);
+              console.log('✅ JWT set successfully');
+            } else {
+              console.warn('⚠️ JWT response empty');
             }
           } else {
-            console.warn('⚠️ JWT request failed, continuing without JWT');
+            const errorText = await response.text();
+            console.warn('⚠️ JWT request failed:', response.status, errorText);
           }
         } catch (jwtError) {
           console.warn('⚠️ Failed to get JWT, continuing without JWT:', jwtError);
@@ -73,12 +88,22 @@ export function useIntercom() {
         const firstName = session.user.user_metadata?.first_name || '';
         const lastName = session.user.user_metadata?.last_name || '';
         const fullName = `${firstName} ${lastName}`.trim();
+        const userEmail = session.user.email;
+
+        // Validate required fields
+        if (!userEmail) {
+          throw new Error('User email is required for Intercom authentication');
+        }
+
+        if (!session.user.id) {
+          throw new Error('User ID is required for Intercom authentication');
+        }
 
         // Login user with the same user_id used in the JWT
         await Intercom.loginUserWithUserAttributes({
           userId: session.user.id,
-          email: session.user.email,
-          name: fullName || session.user.email?.split('@')[0] || 'User',
+          email: userEmail,
+          name: fullName || userEmail.split('@')[0] || 'User',
           phone: session.user.phone || undefined,
           customAttributes: {
             first_name: firstName,
@@ -101,6 +126,16 @@ export function useIntercom() {
         // Fallback to unidentified user
         try {
           console.log('🔄 Falling back to unidentified user...');
+          
+          // Logout first before trying to login as unidentified
+          try {
+            await Intercom.logout();
+            console.log('✅ Logged out before unidentified login');
+          } catch (logoutError) {
+            // Ignore logout errors
+            console.log('ℹ️ No existing session to logout');
+          }
+          
           await Intercom.loginUnidentifiedUser();
           
           // Update global state for fallback
@@ -114,6 +149,7 @@ export function useIntercom() {
           globalAuthState.isAuthenticated = false;
           globalAuthState.currentUserId = null;
           isAuthenticatedRef.current = false;
+          // Don't throw - allow the app to continue without Intercom
         }
       } finally {
         globalAuthState.isAuthenticating = false;
