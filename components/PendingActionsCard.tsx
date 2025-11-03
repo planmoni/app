@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePin } from '@/contexts/PinContext';
 import { useOnlineStatus } from './OnlineStatusProvider';
 import OfflineNotice from './OfflineNotice';
+import React from 'react';
 
 type PendingAction = {
   id: string;
