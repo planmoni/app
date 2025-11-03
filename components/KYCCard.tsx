@@ -6,7 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { useKYCProgress, KYCProgress } from '@/hooks/useKYCProgress';
+import { useKYCProgress, KYCProgress, KYCStep } from '@/hooks/useKYCProgress';
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 
 type KYCStatus = 'starting' | 'continuing' | 'pending';
@@ -100,13 +100,45 @@ export default function KYCCard() {
     router.push('/kyc-upgrade');
   };
 
+  // Helper function to get the next incomplete step (matching kyc-upgrade.tsx logic)
+  const getNextIncompleteStep = (): KYCStep => {
+    const stepOrder: KYCStep[] = ['personal', 'bvn_verification', 'id_face_match', 'documents_verification', 'address_details', 'review'];
+    const current = progress.current_step || 'personal';
+    const currentIndex = stepOrder.indexOf(current);
+    
+    // Find the next incomplete step starting from current
+    for (let i = currentIndex; i < stepOrder.length; i++) {
+      const step = stepOrder[i];
+      switch (step) {
+        case 'personal':
+          if (!progress.personal_info_completed) return step;
+          break;
+        case 'bvn_verification':
+          if (!progress.bvn_verified) return step;
+          break;
+        case 'id_face_match':
+          if (!progress.id_face_verified) return step;
+          break;
+        case 'documents_verification':
+          if (!progress.documents_verified) return step;
+          break;
+        case 'address_details':
+          if (!progress.address_completed) return step;
+          break;
+        case 'review':
+          return step; // Review is accessible if all steps are complete or if we're at review
+      }
+    }
+    
+    return 'review'; // Default to review if all steps are complete
+  };
+
   // Get step-specific message for continuing KYC
   const getCurrentStepMessage = (): string => {
-    if (!progress?.current_step) {
-      return 'Continue your KYC Verification';
-    }
+    // Get the next incomplete step that user needs to complete
+    const nextStep = getNextIncompleteStep();
 
-    switch (progress.current_step) {
+    switch (nextStep) {
       case 'personal':
         return 'Complete your Personal Information';
       case 'bvn_verification':
