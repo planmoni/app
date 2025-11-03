@@ -17,6 +17,8 @@ if (supabaseUrl && supabaseAnonKey) {
       persistSession: true,
       detectSessionInUrl: false,
       storage: secureStoreAdapter,
+      // Extend session lifetime and improve refresh behavior
+      flowType: 'pkce',
     },
     realtime: {
       params: {

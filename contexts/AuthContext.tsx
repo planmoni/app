@@ -85,10 +85,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Monitor for session expiration
   useEffect(() => {
-    if (error && (error.includes('JWT expired') || error.includes('refresh_token_not_found') || error.includes('Invalid Refresh Token'))) {
+    if (error && (
+      error.includes('JWT expired') ||
+      error.includes('refresh_token_not_found') ||
+      error.includes('Invalid Refresh Token') ||
+      error.includes('Session expired') ||
+      error.includes('Session expired or invalid')
+    )) {
+      console.log('🔴 Session expired detected, showing modal');
       setShowSessionExpiredModal(true);
     }
   }, [error]);
+
+  // Also monitor session state directly
+  useEffect(() => {
+    // If we had a session but now we don't, and there's an error, show the modal
+    if (!session && error && (
+      error.includes('JWT expired') ||
+      error.includes('refresh_token_not_found') ||
+      error.includes('Invalid Refresh Token') ||
+      error.includes('Session expired')
+    )) {
+      console.log('🔴 Session lost with error, showing modal');
+      setShowSessionExpiredModal(true);
+    }
+  }, [session, error]);
 
   const refreshBiometricSettings = async () => {
     try {

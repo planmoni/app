@@ -21,12 +21,26 @@ export default function SessionExpiredModal({ isVisible, onClose }: SessionExpir
 
   const handleSignInAgain = async () => {
     try {
-      // Sign out to clear any existing session data
+      console.log('🚪 Session expired - forcing complete sign out');
+      // Force complete sign out to clear all session data
       await signOut();
+
+      // Also clear any stored session data from secure storage
+      const { clearSession } = await import('@/lib/session-persistence');
+      await clearSession();
+
+      console.log('✅ Session cleared, redirecting to login');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('❌ Error during forced sign out:', error);
+      // Even if sign out fails, clear session and redirect
+      try {
+        const { clearSession } = await import('@/lib/session-persistence');
+        await clearSession();
+      } catch (clearError) {
+        console.error('❌ Error clearing session:', clearError);
+      }
     } finally {
-      // Navigate to login email page
+      // Always navigate to login, regardless of errors
       router.replace('/(auth)/login');
       onClose?.();
     }
@@ -37,7 +51,7 @@ export default function SessionExpiredModal({ isVisible, onClose }: SessionExpir
       visible={isVisible}
       animationType="fade"
       transparent
-      onRequestClose={onClose}
+      onRequestClose={() => {}} // Prevent dismissing by back button
       statusBarTranslucent
     >
       <View style={styles.centeredView}>

@@ -100,6 +100,30 @@ export default function KYCCard() {
     router.push('/kyc-upgrade');
   };
 
+  // Get step-specific message for continuing KYC
+  const getCurrentStepMessage = (): string => {
+    if (!progress?.current_step) {
+      return 'Continue your KYC Verification';
+    }
+
+    switch (progress.current_step) {
+      case 'personal':
+        return 'Complete your Personal Information';
+      case 'bvn_verification':
+        return 'Complete your BVN Verification';
+      case 'id_face_match':
+        return 'Complete your ID Face Match';
+      case 'documents_verification':
+        return 'Complete your Document Verification';
+      case 'address_details':
+        return 'Complete your Address Details';
+      case 'review':
+        return 'Complete your KYC Review';
+      default:
+        return 'Continue your KYC Verification';
+    }
+  };
+
   const renderCardContent = () => {
     switch (kycStatus) {
       case 'starting':
@@ -121,7 +145,7 @@ export default function KYCCard() {
             <View style={styles.iconContainer}>
               <BadgeAlert size={25} color="#1E3A8A" />
             </View>
-            <Text style={styles.cardText}>Continue your KYC Verification</Text>
+            <Text style={styles.cardText}>{getCurrentStepMessage()}</Text>
             <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>Continue</Text>
             </View>
