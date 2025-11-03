@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { ArrowLeft, Shield, Mail, QrCode, Lock, AlertCircle } from 'lucide-react-native';
+import { ArrowLeft, Shield, Mail, QrCode, Lock, AlertCircle, ShieldUser } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
@@ -107,7 +107,7 @@ export default function TwoFactorAuthScreen() {
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <View style={styles.heroSection}>
           <View style={styles.shieldIcon}>
-            <Shield size={32} color="#22C55E" />
+            <ShieldUser size={32} color={colors.primary} />
           </View>
           <Text style={styles.heroTitle}>Secure Your Account</Text>
           <Text style={styles.heroDescription}>
@@ -283,7 +283,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,

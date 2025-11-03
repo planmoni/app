@@ -146,24 +146,66 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Enhanced signIn function that sends login notification and migrates app lock settings
+  // Enhanced signIn function that sends login notification and tracks login sessions
   const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const result = await supabaseSignIn(email, password);
-      
-      if (result.success && session?.user?.id) {
-        // Send login notification
-        try {
-          const { supabase } = await import('@/lib/supabase');
-          await supabase.functions.invoke('login-notification', {
-            body: { userId: session.user.id }
-          });
-        } catch (error) {
-          console.error('Failed to send login notification:', error);
-          // Don't fail the sign-in if notification fails
+
+      if (result.success) {
+        // Get the session directly from Supabase since state might not be updated yet
+        const { supabase } = await import('@/lib/supabase');
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+        if (currentSession?.user?.id) {
+          // Track login session with device and location info
+          try {
+            const { DeviceInfoService } = await import('@/lib/device-info');
+            await DeviceInfoService.createLoginSession(currentSession.user.id, currentSession.access_token);
+          } catch (error) {
+            console.error('Failed to track login session:', error);
+          }
+
+          // Send login notification
+          try {
+            const { DeviceInfoService } = await import('@/lib/device-info');
+
+            const deviceInfo = await DeviceInfoService.getDeviceInfo();
+            const locationInfo = await DeviceInfoService.getLocationInfo();
+
+            // Use direct fetch like OTP emails
+            const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+            const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+            const response = await fetch(`${supabaseUrl}/functions/v1/login-notification`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseAnonKey}`,
+                'apikey': supabaseAnonKey || ''
+              },
+              body: JSON.stringify({
+                userId: currentSession.user.id,
+                loginInfo: {
+                  device: `${deviceInfo.device_manufacturer} ${deviceInfo.device_model}`,
+                  location: `${locationInfo.city}, ${locationInfo.country}`,
+                  time: new Date().toLocaleString(),
+                  ip: locationInfo.ip_address
+                }
+              })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+              console.log('Login notification sent successfully');
+            } else {
+              console.log('Login notification attempted:', data.message);
+            }
+          } catch (error) {
+            console.error('Failed to send login notification:', error);
+          }
         }
       }
-      
+
       return result;
     } catch (error) {
       console.error('Sign-in error:', error);
