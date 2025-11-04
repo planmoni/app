@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { BadgeCheck, BadgeAlert, Clock } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { useKYCProgress, KYCProgress, KYCStep } from '@/hooks/useKYCProgress';
+import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
 import KYCVerificationModal from '@/components/KYCVerificationModal';
+import Tier0Icon from '@/assets/kyc/tier-0.svg';
+import Tier1Icon from '@/assets/kyc/tier-1.svg';
+import Tier2Icon from '@/assets/kyc/tier-2.svg';
+import Tier3Icon from '@/assets/kyc/tier-3.svg';
 
 type KYCStatus = 'starting' | 'continuing' | 'pending';
 
@@ -15,7 +18,7 @@ export default function KYCCard() {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
   const { session } = useAuth();
-  const { progress, loading: progressLoading } = useKYCProgress();
+  const { progress, loading: progressLoading, currentTier = 0 } = useKYCProgress();
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -63,7 +66,9 @@ export default function KYCCard() {
     }
 
     // Check if user has started KYC (has progress beyond initial state)
-    const hasStarted = progress.current_step !== 'personal' || 
+    // Include liveness test as it's the first step in Tier 1
+    const hasStarted = progress.current_step !== 'liveness_verification' || 
+                      progress.liveness_test_completed ||
                       progress.personal_info_completed || 
                       progress.bvn_verified || 
                       progress.documents_verified ||
@@ -102,22 +107,29 @@ export default function KYCCard() {
 
   // Helper function to get the next incomplete step (matching kyc-upgrade.tsx logic)
   const getNextIncompleteStep = (): KYCStep => {
-    const stepOrder: KYCStep[] = ['personal', 'bvn_verification', 'id_face_match', 'documents_verification', 'address_details', 'review'];
-    const current = progress.current_step || 'personal';
+    // Define step order based on tiers:
+    // Tier 1: liveness_verification, bvn_verification, id_face_match
+    // Tier 2: personal, documents_verification
+    // Tier 3: address_details
+    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
+    const current = progress.current_step || 'liveness_verification';
     const currentIndex = stepOrder.indexOf(current);
     
     // Find the next incomplete step starting from current
     for (let i = currentIndex; i < stepOrder.length; i++) {
       const step = stepOrder[i];
       switch (step) {
-        case 'personal':
-          if (!progress.personal_info_completed) return step;
+        case 'liveness_verification':
+          if (!progress.liveness_test_completed) return step;
           break;
         case 'bvn_verification':
           if (!progress.bvn_verified) return step;
           break;
         case 'id_face_match':
           if (!progress.id_face_verified) return step;
+          break;
+        case 'personal':
+          if (!progress.personal_info_completed) return step;
           break;
         case 'documents_verification':
           if (!progress.documents_verified) return step;
@@ -139,6 +151,8 @@ export default function KYCCard() {
     const nextStep = getNextIncompleteStep();
 
     switch (nextStep) {
+      case 'liveness_verification':
+        return 'Complete your Liveness Verification';
       case 'personal':
         return 'Complete your Personal Information';
       case 'bvn_verification':
@@ -156,15 +170,65 @@ export default function KYCCard() {
     }
   };
 
+  // Get tier-specific icon and color
+  const getTierIcon = () => {
+    switch (currentTier) {
+      case 0:
+        // No tier - unverified
+        return { Icon: Tier0Icon, bgColor: isDark ? '#374151' : '#E5E7EB' };
+      case 1:
+        // Tier 1 - Basic verification
+        return { Icon: Tier1Icon, bgColor: '#FEF3C7' };
+      case 2:
+        // Tier 2 - Enhanced verification
+        return { Icon: Tier2Icon, bgColor: '#DBEAFE' };
+      case 3:
+        // Tier 3 - Full verification
+        return { Icon: Tier3Icon, bgColor: '#D1FAE5' };
+      default:
+        return { Icon: Tier0Icon, bgColor: isDark ? '#374151' : '#E5E7EB' };
+    }
+  };
+
+  // Get tier-specific message
+  const getTierMessage = (): string => {
+    const nextStep = getNextIncompleteStep();
+    
+    if (currentTier === 0) {
+      return 'Start your verification to unlock features';
+    } else if (currentTier === 1) {
+      if (nextStep === 'documents_verification' || nextStep === 'address_details' || nextStep === 'review') {
+        return getCurrentStepMessage();
+      }
+      return 'Upgrade to Tier 2 for higher limits';
+    } else if (currentTier === 2) {
+      if (nextStep === 'address_details' || nextStep === 'review') {
+        return getCurrentStepMessage();
+      }
+      return 'Upgrade to Tier 3 for maximum limits';
+    } else if (currentTier === 3) {
+      if (progress.overall_completed) {
+        return 'Verification complete!';
+      }
+      return getCurrentStepMessage();
+    }
+    
+    return getCurrentStepMessage();
+  };
+
   const renderCardContent = () => {
+    const { Icon, bgColor } = getTierIcon();
+    
     switch (kycStatus) {
       case 'starting':
         return (
           <>
-            <View style={styles.iconContainer}>
-              <BadgeCheck size={25} color="#1E3A8A" />
+            <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
+              <Icon width={25} height={25} />
             </View>
-            <Text style={styles.cardText}>Let's verify your identity</Text>
+            <Text style={styles.cardText}>
+              {currentTier === 0 ? "Let's verify your identity" : getTierMessage()}
+            </Text>
             <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>Verify</Text>
             </View>
@@ -174,10 +238,10 @@ export default function KYCCard() {
       case 'continuing':
         return (
           <>
-            <View style={styles.iconContainer}>
-              <BadgeAlert size={25} color="#1E3A8A" />
+            <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
+              <Icon width={25} height={25} />
             </View>
-            <Text style={styles.cardText}>{getCurrentStepMessage()}</Text>
+            <Text style={styles.cardText}>{getTierMessage()}</Text>
             <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>Continue</Text>
             </View>
@@ -187,8 +251,8 @@ export default function KYCCard() {
       case 'pending':
         return (
           <>
-            <View style={styles.iconContainer}>
-              <Clock size={20} color="#1E3A8A" />
+            <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
+              <Icon width={25} height={25} />
             </View>
             <Text style={styles.cardText}>Your KYC Verification Status is pending</Text>
             <View style={styles.statusIndicator}>
@@ -230,7 +294,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 1, height: 6},
     shadowOpacity: 0.05,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
     width: '100%',
     borderWidth: 0.5,
     borderColor: colors.border,
@@ -241,7 +305,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 10,
-    backgroundColor: isDark ? colors.backgroundTertiary : '#E5E7EB',
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,

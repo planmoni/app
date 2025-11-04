@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
-export type KYCStep = 'personal' | 'bvn_verification' | 'id_face_match' | 'documents_verification' | 'address_details' | 'review';
+export type KYCStep = 'liveness_verification' | 'personal' | 'bvn_verification' | 'id_face_match' | 'documents_verification' | 'address_details' | 'review';
 
 export interface KYCProgress {
   id?: string;
@@ -47,7 +47,7 @@ export interface KYCTierInfo {
 export const useKYCProgress = () => {
   const { session } = useAuth();
   const [progress, setProgress] = useState<KYCProgress>({
-    current_step: 'personal',
+    current_step: 'liveness_verification',
     personal_info_completed: false,
     bvn_verified: false,
     documents_verified: false,
@@ -73,17 +73,50 @@ export const useKYCProgress = () => {
       setLoading(true);
       setError(null);
 
-      // Use the function to get or create progress
+      // Query kyc_progress table directly
       const { data, error: fetchError } = await supabase
-        .rpc('get_or_create_kyc_progress', {
-          user_uuid: session.user.id
-        });
+        .from('kyc_progress')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .single();
 
       if (fetchError) {
-        throw fetchError;
-      }
+        // If no record exists, create a default one
+        if (fetchError.code === 'PGRST116') {
+          const defaultProgress: KYCProgress = {
+            user_id: session.user.id,
+            current_step: 'liveness_verification',
+            personal_info_completed: false,
+            bvn_verified: false,
+            documents_verified: false,
+            id_face_verified: false,
+            address_completed: false,
+            overall_completed: false,
+            tier_1_completed: false,
+            tier_2_completed: false,
+            tier_3_completed: false,
+            liveness_test_completed: false,
+            nin_verified: false,
+            utility_bill_verified: false
+          };
 
-      if (data) {
+          const { data: newData, error: createError } = await supabase
+            .from('kyc_progress')
+            .insert(defaultProgress)
+            .select()
+            .single();
+
+          if (createError) {
+            throw createError;
+          }
+
+          if (newData) {
+            setProgress(newData);
+          }
+        } else {
+          throw fetchError;
+        }
+      } else if (data) {
         setProgress(data);
       }
     } catch (err) {
@@ -142,10 +175,11 @@ export const useKYCProgress = () => {
   // Get current step progress
   const getStepProgress = useCallback(() => {
     switch (progress.current_step) {
-      case 'personal': return 10;
+      case 'liveness_verification': return 5;
       case 'bvn_verification': return 20;
-      case 'id_face_match': return 40;
-      case 'documents_verification': return 60;
+      case 'id_face_match': return 35;
+      case 'personal': return 50;
+      case 'documents_verification': return 65;
       case 'address_details': return 80;
       case 'review': return 100;
       default: return 0;
@@ -240,11 +274,11 @@ export const useKYCProgress = () => {
 
   // Check tier completion based on progress
   const checkTierCompletion = useCallback(() => {
-    // Tier 1: Liveness + BVN + NIN
+    // Tier 1: Liveness + BVN + NIN (id_face_verified)
     const tier1Complete = 
       progress.liveness_test_completed && 
       progress.bvn_verified && 
-      progress.nin_verified;
+      progress.id_face_verified;
 
     // Tier 2: Tier 1 + Personal Info + Documents
     const tier2Complete = 

@@ -72,7 +72,7 @@ export default function PendingActionsCard() {
       if (!progress.bvn_verified) {
         missingSteps.push('BVN');
       }
-      if (!progress.nin_verified) {
+      if (!progress.id_face_verified) {
         missingSteps.push('NIN');
       }
 
@@ -113,7 +113,7 @@ export default function PendingActionsCard() {
 
       // Check if Tier 1 is complete (prerequisite for Tier 2)
       const tier1Complete = tier >= 1 || 
-        (progress.liveness_test_completed && progress.bvn_verified && progress.nin_verified);
+        (progress.liveness_test_completed && progress.bvn_verified && progress.id_face_verified);
 
       // Show Tier 2 action even if all steps are missing (user can see what's needed)
       let description = '';
@@ -157,7 +157,7 @@ export default function PendingActionsCard() {
       // Check if Tier 2 is complete (prerequisite for Tier 3)
       const tier2Complete = tier >= 2 || 
         (progress.personal_info_completed && progress.documents_verified && 
-         progress.liveness_test_completed && progress.bvn_verified && progress.nin_verified);
+         progress.liveness_test_completed && progress.bvn_verified && progress.id_face_verified);
 
       // Show Tier 3 action even if all steps are missing (user can see what's needed)
       let description = '';

@@ -626,7 +626,7 @@ export default function HomeScreen() {
         <KYCCard />
 
         {/* KYC Tiers Test Buttons */}
-        <View style={styles.kycTiersContainer}>
+        {/* <View style={styles.kycTiersContainer}>
           <Text style={[styles.kycTiersTitle, { color: colors.text }]}>KYC Tiers Test</Text>
           <View style={styles.kycTiersButtons}>
             <Pressable
@@ -648,7 +648,7 @@ export default function HomeScreen() {
               <Text style={styles.kycTierButtonText}>Tier 3</Text>
             </Pressable>
           </View>
-        </View>
+        </View> */}
 
         <ImageCarousel images={carouselImages} />
         <PendingActionsCard />
