@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import { Appearance, ColorSchemeName, Platform } from 'react-native';
-import { getItem, saveItem } from '@/lib/secure-storage';
+import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { Appearance, ColorSchemeName } from 'react-native';
+import { getItem, saveItem, deleteItem } from '@/lib/secure-storage';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -39,7 +39,6 @@ const lightColors = {
   text: '#1E293B',
   textSecondary: '#64748B',
   textTertiary: '#94A3B8',
-
   
   // Primary colors
   primary: '#1E3A8A',
@@ -129,151 +128,203 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('system');
   const [isLoading, setIsLoading] = useState(true);
-  const [systemColorScheme, setSystemColorScheme] = useState<ColorSchemeName>(
-    Appearance.getColorScheme() || 'light' // Fallback to light if null
-  );
+  const [systemColorScheme, setSystemColorScheme] = useState<ColorSchemeName>(() => {
+    // Initialize immediately from Appearance API
+    const scheme = Appearance.getColorScheme();
+    console.log('🎨 Initial system color scheme:', scheme);
+    return scheme || 'light';
+  });
 
   // Load theme preference from storage on mount
   useEffect(() => {
     const loadThemePreference = async () => {
       try {
-        console.log('🎨 Starting theme initialization...');
+        console.log('🎨 Loading theme preference...');
+        
+        // Get current system scheme and update state immediately
+        const currentSystemScheme = Appearance.getColorScheme();
+        const normalizedSystemScheme = currentSystemScheme || 'light';
+        console.log('🎨 Current system scheme:', currentSystemScheme, '→ normalized:', normalizedSystemScheme);
+        
+        // Update system color scheme state immediately
+        setSystemColorScheme(normalizedSystemScheme);
+        
+        // Load saved theme preference - only 'light' or 'dark' should be saved
         const savedTheme = await getItem(THEME_PREFERENCE_KEY);
-        const currentSystemScheme = Appearance.getColorScheme() || 'light';
+        console.log('🎨 Saved theme preference:', savedTheme);
         
-        console.log('🎨 Theme initialization:');
-        console.log('   - Saved theme preference:', savedTheme);
-        console.log('   - Current system scheme:', currentSystemScheme);
-        console.log('   - Initial systemColorScheme state:', systemColorScheme);
-        console.log('   - Platform:', Platform.OS);
-        
-        if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
-          console.log('🎨 Loading saved theme preference:', savedTheme);
+        // Only load 'light' or 'dark' from storage - 'system' is never saved
+        if (savedTheme === 'light' || savedTheme === 'dark') {
+          console.log('🎨 Setting theme from storage:', savedTheme);
           setThemeState(savedTheme as Theme);
         } else {
-          console.log('🎨 No saved theme preference, using system default');
-          // Default to system theme if no preference is saved
+          // No saved preference or invalid value - default to system (Auto)
+          console.log('🎨 No saved theme preference, defaulting to system (Auto)');
           setThemeState('system');
+          
+          // Clean up if 'system' was accidentally saved (shouldn't happen, but just in case)
+          if (savedTheme === 'system') {
+            console.log('🎨 Cleaning up: removing system from storage');
+            try {
+              await deleteItem(THEME_PREFERENCE_KEY);
+            } catch (deleteError) {
+              console.error('❌ Error removing system from storage:', deleteError);
+            }
+          }
         }
         
-        // Ensure system color scheme is up to date
-        setSystemColorScheme(currentSystemScheme);
         console.log('🎨 Theme initialization complete');
       } catch (error) {
-        console.error('❌ Failed to load theme preference:', error);
-        // Fallback to system theme on error
+        console.error('❌ Error loading theme preference:', error);
+        const currentSystemScheme = Appearance.getColorScheme() || 'light';
+        setSystemColorScheme(currentSystemScheme);
         setThemeState('system');
-        setSystemColorScheme(Appearance.getColorScheme() || 'light');
       } finally {
         setIsLoading(false);
       }
     };
 
     loadThemePreference();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Ensure system color scheme is properly detected on startup
-  useEffect(() => {
-    const detectSystemScheme = () => {
-      const currentScheme = Appearance.getColorScheme() || 'light';
-      console.log('🎨 Detecting system color scheme:', currentScheme);
-      setSystemColorScheme(currentScheme);
-    };
-    
-    // Detect immediately
-    detectSystemScheme();
-    
-    // Also detect after a short delay to ensure system is ready
-    const timeoutId = setTimeout(detectSystemScheme, 100);
-    
-    return () => clearTimeout(timeoutId);
   }, []);
 
-  // Listen to system appearance changes
+  // Listen to system appearance changes - CRITICAL for Auto theme
   useEffect(() => {
+    console.log('🎨 Setting up appearance change listener');
+    
     const subscription = Appearance.addChangeListener(({ colorScheme }) => {
-      const newScheme = colorScheme || 'light'; // Fallback to light if null
+      const newScheme = colorScheme || 'light';
       console.log('🎨 System appearance changed:', {
         from: systemColorScheme,
         to: newScheme,
         currentTheme: theme,
-        willBeDark: theme === 'dark' || (theme === 'system' && newScheme === 'dark')
+        willApplyDark: theme === 'dark' || (theme === 'system' && newScheme === 'dark')
       });
       
-      // Only update if the scheme actually changed
-      if (newScheme !== systemColorScheme) {
-        setSystemColorScheme(newScheme);
-        console.log('🎨 System color scheme updated to:', newScheme);
-      }
+      // Always update system color scheme when device theme changes
+      setSystemColorScheme(newScheme);
     });
 
-    return () => subscription?.remove();
-  }, [theme, systemColorScheme]); // Include systemColorScheme to properly track changes
+    return () => {
+      console.log('🎨 Removing appearance change listener');
+      subscription.remove();
+    };
+  }, [theme, systemColorScheme]);
+
+  // Ensure system color scheme is always up to date
+  useEffect(() => {
+    const updateSystemScheme = () => {
+      const currentScheme = Appearance.getColorScheme();
+      const normalizedScheme = currentScheme || 'light';
+      
+      if (normalizedScheme !== systemColorScheme) {
+        console.log('🎨 Updating system color scheme:', {
+          from: systemColorScheme,
+          to: normalizedScheme
+        });
+        setSystemColorScheme(normalizedScheme);
+      }
+    };
+
+    // Update immediately
+    updateSystemScheme();
+    
+    // Also update after a short delay to catch any timing issues
+    const timeoutId = setTimeout(updateSystemScheme, 50);
+    
+    return () => clearTimeout(timeoutId);
+  }, []); // Run once on mount
 
   // Save theme preference to storage when it changes
+  // Only save 'light' or 'dark' - never save 'system' (Auto mode)
   const setTheme = async (newTheme: Theme) => {
     try {
-      console.log('🎨 Setting theme preference:', {
+      console.log('🎨 Setting theme:', {
         from: theme,
         to: newTheme,
         currentSystemScheme: systemColorScheme,
-        willBeDark: newTheme === 'dark' || (newTheme === 'system' && systemColorScheme === 'dark')
+        liveSystemScheme: Appearance.getColorScheme()
       });
+      
       setThemeState(newTheme);
-      await saveItem(THEME_PREFERENCE_KEY, newTheme);
-      console.log('✅ Theme preference saved successfully');
+      
+      // Only save 'light' or 'dark' to storage - never save 'system'
+      if (newTheme === 'light' || newTheme === 'dark') {
+        await saveItem(THEME_PREFERENCE_KEY, newTheme);
+        console.log('✅ Theme saved to storage:', newTheme);
+      } else if (newTheme === 'system') {
+        // Auto mode selected - remove any saved preference to always follow system
+        try {
+          await deleteItem(THEME_PREFERENCE_KEY);
+          console.log('✅ Auto mode selected - removed saved theme preference');
+        } catch (deleteError) {
+          console.error('❌ Error removing saved theme:', deleteError);
+          // Not critical - continue anyway
+        }
+      }
     } catch (error) {
-      console.error('❌ Failed to save theme preference:', error);
-      // Still update the state even if saving fails
+      console.error('❌ Error saving theme:', error);
+      // Still update state even if save fails
       setThemeState(newTheme);
     }
   };
 
-  const isDark = theme === 'dark' || (theme === 'system' && systemColorScheme === 'dark');
-  const colors = isDark ? darkColors : lightColors;
+  // Calculate isDark - when theme is 'system', always check live system color scheme
+  // This ensures Auto theme always follows the device's current setting
+  const isDark = useMemo(() => {
+    if (theme === 'dark') {
+      return true;
+    }
+    
+    if (theme === 'system') {
+      // Always check live system color scheme for Auto theme
+      const liveSystemScheme = Appearance.getColorScheme();
+      const effectiveScheme = liveSystemScheme || systemColorScheme || 'light';
+      const shouldBeDark = effectiveScheme === 'dark';
+      
+      console.log('🎨 Auto theme calculation:', {
+        liveSystemScheme,
+        systemColorSchemeState: systemColorScheme,
+        effectiveScheme,
+        shouldBeDark
+      });
+      
+      return shouldBeDark;
+    }
+    
+    // theme === 'light'
+    return false;
+  }, [theme, systemColorScheme]);
 
-  // Additional debugging for system theme detection
-  useEffect(() => {
-    console.log('🎨 Theme calculation debug:', {
-      theme,
-      systemColorScheme,
-      isDark,
-      calculation: {
-        'theme === "dark"': theme === 'dark',
-        'theme === "system"': theme === 'system',
-        'systemColorScheme === "dark"': systemColorScheme === 'dark',
-        'final isDark': isDark
-      },
-      currentSystemScheme: Appearance.getColorScheme()
-    });
-  }, [theme, systemColorScheme, isDark]);
+  const colors = useMemo(() => {
+    return isDark ? darkColors : lightColors;
+  }, [isDark]);
 
-  // Debug function to help troubleshoot theme issues
+  // Debug function
   const debugTheme = () => {
-    const currentSystemScheme = Appearance.getColorScheme();
+    const liveSystemScheme = Appearance.getColorScheme();
     console.log('🔍 THEME DEBUG INFO:');
-    console.log('   - Current theme setting:', theme);
+    console.log('   - Theme setting:', theme);
     console.log('   - System color scheme (state):', systemColorScheme);
-    console.log('   - System color scheme (live):', currentSystemScheme);
+    console.log('   - System color scheme (live):', liveSystemScheme);
     console.log('   - Is dark mode:', isDark);
-    console.log('   - Theme calculation:', {
+    console.log('   - Calculation:', {
       'theme === "dark"': theme === 'dark',
       'theme === "system"': theme === 'system',
+      'theme === "light"': theme === 'light',
+      'liveSystemScheme === "dark"': liveSystemScheme === 'dark',
       'systemColorScheme === "dark"': systemColorScheme === 'dark',
-      'currentSystemScheme === "dark"': currentSystemScheme === 'dark',
       'final isDark': isDark
     });
-    console.log('   - Auto mode should follow system:', theme === 'system' ? 'YES' : 'NO');
-    console.log('   - Expected behavior:', theme === 'system' ? `Follow ${currentSystemScheme || 'light'} mode` : `${theme} mode`);
   };
 
-  // Log theme state changes for debugging
+  // Log theme changes for debugging
   useEffect(() => {
-    console.log('🎨 Theme state changed:', {
+    console.log('🎨 Theme state:', {
       theme,
       systemColorScheme,
+      liveSystemScheme: Appearance.getColorScheme(),
       isDark,
-      currentSystemScheme: Appearance.getColorScheme()
+      colors: isDark ? 'dark' : 'light'
     });
   }, [theme, systemColorScheme, isDark]);
 

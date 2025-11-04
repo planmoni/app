@@ -199,7 +199,7 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      {isDark && <Animated.View style={[styles.backgroundGradient, backgroundStyle]} />}
+      {isDark && <Animated.View style={[styles.backgroundGradient, { backgroundColor: colors.background }]} />}
       
       <View style={styles.logoContainer}>
         <Image 
