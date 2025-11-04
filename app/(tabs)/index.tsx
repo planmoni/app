@@ -624,8 +624,34 @@ export default function HomeScreen() {
         />
         {/* <IntercomButton /> */}
         <KYCCard />
+
+        {/* KYC Tiers Test Buttons */}
+        {/* <View style={styles.kycTiersContainer}>
+          <Text style={[styles.kycTiersTitle, { color: colors.text }]}>KYC Tiers Test</Text>
+          <View style={styles.kycTiersButtons}>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-one')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 1</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-two')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 2</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-three')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 3</Text>
+            </Pressable>
+          </View>
+        </View> */}
+
         <ImageCarousel images={carouselImages} />
-        {/* <PendingActionsCard /> */}
+        <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
 
