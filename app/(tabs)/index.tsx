@@ -651,7 +651,7 @@ export default function HomeScreen() {
         </View>
 
         <ImageCarousel images={carouselImages} />
-        {/* <PendingActionsCard /> */}
+        <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
 
