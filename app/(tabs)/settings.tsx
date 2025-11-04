@@ -38,7 +38,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View , Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
 import LanguageModal from '@/components/LanguageModal';
 import NotificationSettingsModal from '@/components/NotificationSettingsModal';
@@ -71,7 +70,6 @@ export default function SettingsScreen() {
   const [isLoading2FA, setIsLoading2FA] = useState(true);
 
   // Modal visibility states
-  const [showAccountStatement, setShowAccountStatement] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [showSecurity, setShowSecurity] = useState(false);
   const [showHelpCenter, setShowHelpCenter] = useState(false);
@@ -420,7 +418,7 @@ export default function SettingsScreen() {
                 if (Platform.OS !== 'web') {
                   haptics.lightImpact();
                 }
-                setShowAccountStatement(true);
+                router.push('/account-statement');
                 logAnalyticsEvent('view_account_statement');
               }}
             >
@@ -787,15 +785,7 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
 
-      <AccountStatementModal
-        isVisible={showAccountStatement}
-        onClose={() => {
-          if (Platform.OS !== 'web') {
-            haptics.lightImpact();
-          }
-          setShowAccountStatement(false);
-        }}
-      />
+     
 
       <NotificationSettingsModal
         isVisible={showNotificationSettings}

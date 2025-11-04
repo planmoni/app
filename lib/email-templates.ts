@@ -31,7 +31,10 @@ export function generateLoginNotificationHtml(data: {
         <p>Hello ${data.firstName},</p>
         <p>We detected a new login to your Planmoni account.</p>
         
-        
+        <div class="alert">
+          <p><strong>If this was you, no action is needed.</strong></p>
+          <p>If you didn't log in recently, please secure your account immediately by changing your password.</p>
+        </div>
         
         <table>
           <tr>
@@ -51,11 +54,6 @@ export function generateLoginNotificationHtml(data: {
             <td>${data.ip}</td>
           </tr>
         </table>
-
-        <div class="content">
-          <p><strong>If this was you, no action is needed.</strong></p>
-          <p>If you didn't log in recently, please secure your account immediately by changing your password.</p>
-        </div>
         
         <a href="https://planmoni.com/change-password" class="button">Secure Your Account</a>
         
@@ -334,6 +332,79 @@ export function generateWalletSummaryHtml(data: {
       <div class="footer">
         <p>This is an automated message, please do not reply directly to this email.</p>
         <p>You can manage your email preferences in your <a href="https://planmoni.com/settings">account settings</a>.</p>
+        <p>&copy; ${new Date().getFullYear()} Planmoni. All rights reserved.</p>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+// Email template for account statement
+export function generateAccountStatementHtml(data: {
+  firstName: string;
+  startDate: string;
+  endDate: string;
+  transactionCount: number;
+  totalDeposits: string;
+  totalPayouts: string;
+  netMovement: string;
+}) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #1E3A8A; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+        .content { padding: 20px; border: 1px solid #ddd; border-top: none; border-radius: 0 0 5px 5px; }
+        .footer { margin-top: 20px; font-size: 12px; color: #666; text-align: center; }
+        .info-box { background-color: #EFF6FF; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .button { display: inline-block; background-color: #1E3A8A; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        table, th, td { border: 1px solid #ddd; }
+        th, td { padding: 10px; text-align: left; }
+        th { background-color: #f2f2f2; width: 50%; }
+        .highlight { font-size: 18px; font-weight: bold; color: #1E3A8A; margin: 10px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h2>Your Account Statement is Ready</h2>
+      </div>
+      <div class="content">
+        <p>Hello ${data.firstName},</p>
+        <p>Your requested account statement has been generated and is attached to this email.</p>
+
+        <div class="info-box">
+          <p><strong>Statement Period:</strong></p>
+          <p class="highlight">${data.startDate} to ${data.endDate}</p>
+        </div>
+
+        <table>
+          <tr>
+            <th>Total Transactions</th>
+            <td>${data.transactionCount}</td>
+          </tr>
+          <tr>
+            <th>Total Deposits</th>
+            <td style="color: #22C55E; font-weight: 600;">${data.totalDeposits}</td>
+          </tr>
+          <tr>
+            <th>Total Payouts & Withdrawals</th>
+            <td style="color: #EF4444; font-weight: 600;">${data.totalPayouts}</td>
+          </tr>
+          <tr>
+            <th>Net Movement</th>
+            <td style="font-weight: 600;">${data.netMovement}</td>
+          </tr>
+        </table>
+
+        <p>The detailed statement is attached to this email as a PDF document. You can download and save it for your records.</p>
+
+        <p>If you need any assistance or have questions about your statement, please don't hesitate to contact our support team.</p>
+      </div>
+      <div class="footer">
+        <p>This is an automated message, please do not reply directly to this email.</p>
         <p>&copy; ${new Date().getFullYear()} Planmoni. All rights reserved.</p>
       </div>
     </body>

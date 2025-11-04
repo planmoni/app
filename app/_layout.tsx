@@ -238,6 +238,7 @@ function RootLayoutNav() {
             <Stack.Screen name="referral" options={{ headerShown: false }} />
             <Stack.Screen name="transaction-limits" options={{ headerShown: false }} />
             <Stack.Screen name="transactions" options={{ headerShown: false }} />
+            <Stack.Screen name="account-statement" options={{ headerShown: false }} />
             <Stack.Screen name="two-factor-auth" options={{ headerShown: false }} />
             <Stack.Screen name="two-factor-setup" options={{ headerShown: false }} />
             <Stack.Screen name="two-factor-settings" options={{ headerShown: false }} />
