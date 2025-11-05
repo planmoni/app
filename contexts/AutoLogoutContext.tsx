@@ -3,7 +3,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePin } from './PinContext';
 
-type AutoLogoutDuration = '5' | '60' | 'never';
+type AutoLogoutDuration = 'instant' | '5' | '60' | 'never';
 
 interface AutoLogoutContextType {
   autoLogoutDuration: AutoLogoutDuration;
@@ -70,7 +70,7 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const loadAutoLogoutDuration = async () => {
     try {
       const saved = await AsyncStorage.getItem(AUTO_LOGOUT_KEY);
-      if (saved && ['5', '60', 'never'].includes(saved)) {
+      if (saved && ['instant', '5', '60', 'never'].includes(saved)) {
         setAutoLogoutDurationState(saved as AutoLogoutDuration);
       }
     } catch (error) {
@@ -116,6 +116,12 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // App is becoming inactive (going to background)
       console.log('📱 AutoLogoutContext - App becoming inactive');
       updateLastActive();
+      
+      // If instant lock is enabled, lock immediately when app goes to background
+      if (autoLogoutDuration === 'instant' && hasAppLockPin && !isAppLocked) {
+        console.log('🔒 AutoLogoutContext - Instant lock triggered (app going to background)');
+        lockApp();
+      }
     }
     
     appState.current = nextAppState;
@@ -181,6 +187,10 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       let shouldLock = false;
 
       switch (autoLogoutDuration) {
+        case 'instant': // Instant lock - handled when app goes to background
+          // This case is handled in handleAppStateChange, so we don't need to check here
+          shouldLock = false;
+          break;
         case '5': // After 5 minutes
           shouldLock = timeDiff > 5 * 60 * 1000;
           break;

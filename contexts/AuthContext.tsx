@@ -5,6 +5,7 @@ import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { BiometricService } from '@/lib/biometrics';
 import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
 import SessionExpiredModal from '@/components/SessionExpiredModal';
+import { createUserScopedStorage } from '@/lib/user-scoped-storage';
 
 interface BiometricSettings {
   isAvailable: boolean;
@@ -56,6 +57,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [biometricSettings, setBiometricSettings] = useState<BiometricSettings | null>(null);
   const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
+  
+  // Helper function to clear all PIN data for a user
+  const clearAllPinsForUser = async (userId: string): Promise<void> => {
+    try {
+      const userStorage = createUserScopedStorage(userId);
+      console.log('🗑️ AuthContext - Clearing all PIN data for user:', userId);
+      
+      // Clear all PINs
+      await userStorage.deleteItem('app_lock_pin');
+      await userStorage.deleteItem('payout_pin');
+      await userStorage.deleteItem('emergency_pin');
+      
+      // Clear all biometric settings
+      await userStorage.deleteItem('biometric_enabled');
+      await userStorage.deleteItem('payout_biometric_enabled');
+      await userStorage.deleteItem('emergency_biometric_enabled');
+      
+      console.log('✅ AuthContext - All PIN data cleared successfully');
+    } catch (error) {
+      console.error('❌ AuthContext - Error clearing PIN data:', error);
+      throw error;
+    }
+  };
 
   // Get user from session
   const user = session?.user || null;
@@ -213,12 +237,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Enhanced signOut function that clears profile snapshots
+  // Enhanced signOut function that clears profile snapshots and PIN data
   const signOut = async (): Promise<void> => {
     try {
+      const userId = session?.user?.id;
+      
       // Clear profile snapshots for current user
-      if (session?.user?.id) {
-        await ProfileSnapshotManager.clearProfileSnapshot(session.user.id);
+      if (userId) {
+        await ProfileSnapshotManager.clearProfileSnapshot(userId);
+      }
+      
+      // Clear all PIN data for the current user
+      if (userId) {
+        try {
+          await clearAllPinsForUser(userId);
+        } catch (pinError) {
+          console.error('Error clearing PIN data on logout:', pinError);
+          // Don't throw - continue with logout even if PIN clearing fails
+        }
       }
       
       // Sign out from Supabase

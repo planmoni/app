@@ -47,6 +47,9 @@ import TermsModal from '@/components/TermsModal';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import React from 'react';
 import { useEmailNotifications } from '@/hooks/useEmailNotifications';
+import { useAppVersion } from '@/contexts/AppVersionContext';
+import Constants from 'expo-constants';
+import { Download, Info } from 'lucide-react-native';
 
 export default function SettingsScreen() {
   const { colors, theme, setTheme } = useTheme();
@@ -54,6 +57,7 @@ export default function SettingsScreen() {
   const { showBalances, toggleBalances } = useBalance();
   const haptics = useHaptics();
   const { settings: emailSettings, updateSettings: updateEmailSettings } = useEmailNotifications();
+  const { needsUpdate, checkForUpdates, currentVersion, currentBuild, isChecking } = useAppVersion();
   
   const firstName = session?.user?.user_metadata?.first_name || '';
   const lastName = session?.user?.user_metadata?.last_name || '';
@@ -762,6 +766,62 @@ export default function SettingsScreen() {
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
+          </View>
+        </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>App Information</Text>
+
+          <View style={styles.card}>
+            <Pressable
+              style={styles.settingItem}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                }
+                checkForUpdates();
+                logAnalyticsEvent('check_for_updates_manual');
+              }}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Info size={20} color={colors.textSecondary} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>App Version</Text>
+                <Text style={styles.settingDescription}>
+                  Version {currentVersion} (Build {currentBuild})
+                </Text>
+              </View>
+              {needsUpdate && (
+                <View style={styles.updateBadge}>
+                  <Download size={14} color="#FFFFFF" />
+                </View>
+              )}
+            </Pressable>
+
+            {needsUpdate && (
+              <>
+                <View style={styles.divider} />
+                <Pressable
+                  style={styles.settingItem}
+                  onPress={() => {
+                    if (Platform.OS !== 'web') {
+                      haptics.selection();
+                    }
+                    checkForUpdates();
+                    logAnalyticsEvent('trigger_update_modal');
+                  }}
+                >
+                  <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
+                    <Download size={20} color="#1E3A8A" />
+                  </View>
+                  <View style={styles.settingContent}>
+                    <Text style={[styles.settingLabel, { color: colors.primary }]}>Update Available</Text>
+                    <Text style={styles.settingDescription}>Tap to update to the latest version</Text>
+                  </View>
+                  <ChevronRight size={20} color={colors.primary} />
+                </Pressable>
+              </>
+            )}
           </View>
         </View>
 

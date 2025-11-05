@@ -15,6 +15,7 @@
     },
     "android": {
       "package": "com.planmoni",
+      "versionCode": 1,
       "softwareKeyboardLayoutMode": "resize",
      "permissions": [
         "android.permission.CAMERA",
@@ -25,6 +26,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.planmoni",
+      "buildNumber": "1",
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"],
         "ITSAppUsesNonExemptEncryption": false,
