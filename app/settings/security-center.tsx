@@ -222,10 +222,12 @@ export default function SecurityCenter() {
               {renderSettingItem(
                 'time-outline',
                 'Auto Logout',
-                `Current: ${autoLockDuration === '5' ? 'After 5 mins' : 
+                `Current: ${autoLockDuration === 'instant' ? 'Instant' :
+                           autoLockDuration === '5' ? 'After 5 mins' : 
                            autoLockDuration === '60' ? 'After 60 mins' : 
                            autoLockDuration === 'never' ? 'OFF' : 'Not set'}`,
                 () => Alert.alert('Auto Logout', 'Select auto logout duration', [
+                  { text: 'Instant', onPress: () => setAutoLockDuration('instant') },
                   { text: 'After 5 mins', onPress: () => setAutoLockDuration('5') },
                   { text: 'After 60 mins', onPress: () => setAutoLockDuration('60') },
                   { text: 'OFF', onPress: () => setAutoLockDuration('never') },
