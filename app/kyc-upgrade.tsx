@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image, Modal, useWindowDimensions, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,7 +37,42 @@ export default function KYCUpgradeScreen() {
 
   
   
-  // Step management
+  // Helper function to get the first incomplete step from scratch
+  const getFirstIncompleteStep = useCallback((): KYCStep => {
+    if (!progress) return 'liveness_verification';
+    
+    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
+    
+    // Find the first incomplete step
+    for (const step of stepOrder) {
+      switch (step) {
+        case 'liveness_verification':
+          if (!progress.liveness_test_completed) return step;
+          break;
+        case 'bvn_verification':
+          if (!progress.bvn_verified) return step;
+          break;
+        case 'id_face_match':
+          if (!progress.id_face_verified) return step;
+          break;
+        case 'personal':
+          if (!progress.personal_info_completed) return step;
+          break;
+        case 'documents_verification':
+          if (!progress.documents_verified) return step;
+          break;
+        case 'address_details':
+          if (!progress.address_completed) return step;
+          break;
+        case 'review':
+          return step; // Review is accessible if all steps are complete
+      }
+    }
+    
+    return 'review'; // Default to review if all steps are complete
+  }, [progress]);
+
+  // Step management - will be initialized to first incomplete step by useEffect
   const [currentStep, setCurrentStep] = useState<KYCStep>('liveness_verification');
   
   // Identity verification
@@ -62,6 +97,7 @@ export default function KYCUpgradeScreen() {
   const [showLivenessTest, setShowLivenessTest] = useState(false);
   const [livenessInitiated, setLivenessInitiated] = useState(false);
   const [livenessManuallyClosed, setLivenessManuallyClosed] = useState(false);
+  const [livenessCompleted, setLivenessCompleted] = useState(false);
   
   // Personal information
   const [firstName, setFirstName] = useState('');
@@ -300,51 +336,15 @@ export default function KYCUpgradeScreen() {
 
   // Update current step when progress changes, but skip to first incomplete step
   useEffect(() => {
-    if (progress) {
+    if (progress && !progressLoading) {
       setBvnVerified(progress.bvn_verified);
       setDocumentsVerified(progress.documents_verified);
       
-      // Get the first incomplete step or current step if it's incomplete
-      const current = progress.current_step;
-      let targetStep = current;
-      
-      // Check if current step is completed, if so, skip to next incomplete
-      switch (current) {
-        case 'liveness_verification':
-          if (progress.liveness_test_completed) {
-            targetStep = getNextIncompleteStep(current);
-          }
-          break;
-        case 'personal':
-          if (progress.personal_info_completed) {
-            targetStep = getNextIncompleteStep(current);
-          }
-          break;
-        case 'bvn_verification':
-          if (progress.bvn_verified) {
-            targetStep = getNextIncompleteStep(current);
-          }
-          break;
-        case 'id_face_match':
-          if (progress.id_face_verified) {
-            targetStep = getNextIncompleteStep(current);
-          }
-          break;
-        case 'documents_verification':
-          if (progress.documents_verified) {
-            targetStep = getNextIncompleteStep(current);
-          }
-          break;
-        case 'address_details':
-          if (progress.address_completed) {
-            targetStep = getNextIncompleteStep(current);
-          }
-          break;
-      }
-      
+      // Get the first incomplete step directly using the helper function
+      const targetStep = getFirstIncompleteStep();
       setCurrentStep(targetStep);
     }
-  }, [progress, showToast, isManualVerification]);
+  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep]);
 
   // Auto-focus BVN input when step changes to bvn_verification
   useEffect(() => {
@@ -790,6 +790,9 @@ export default function KYCUpgradeScreen() {
     try {
       console.log('Liveness test completed, selfie URL received:', selfieUrl);
       
+      // Mark liveness as completed immediately to prevent handleLivenessClose from navigating away
+      setLivenessCompleted(true);
+      
       // Save the selfie URL to form data
       await saveFormData({
         selfie_url: selfieUrl
@@ -857,11 +860,6 @@ export default function KYCUpgradeScreen() {
       // Show success message
       showToast('Selfie captured and saved successfully', 'success');
       
-      // Liveness completed - LivenessTestEnhanced already saved the image
-      setShowLivenessTest(false);
-      setLivenessInitiated(false);
-      setLivenessManuallyClosed(false); // Reset the manually closed flag
-      
       // Update current_step to next step after liveness completion
       // Tier 1: After liveness, move to BVN verification
       const progressResult = await updateProgress({
@@ -873,19 +871,42 @@ export default function KYCUpgradeScreen() {
         // Proceed to next incomplete step (should be bvn_verification if not completed)
         const nextStep = getNextIncompleteStep('liveness_verification');
         setCurrentStep(nextStep);
+        
+        // Close the liveness test modal after processing is complete
+        setShowLivenessTest(false);
+        setLivenessInitiated(false);
+        setLivenessManuallyClosed(false); // Reset the manually closed flag
+        
         setTimeout(() => {
           setIsManualVerification(false);
-        }, 1000);
+          // Reset completion flag after a delay
+          setTimeout(() => {
+            setLivenessCompleted(false);
+          }, 500);
+        }, 500);
+      } else {
+        // If progress update failed, still close the modal
+        setShowLivenessTest(false);
+        setLivenessInitiated(false);
       }
     } catch (error) {
       console.error('Error handling liveness completion:', error);
       showToast('Failed to process liveness completion. Please try again.', 'error');
       setShowLivenessTest(false);
       setLivenessInitiated(false);
+      setLivenessCompleted(false);
     }
   };
   
   const handleLivenessClose = async () => {
+    // Check if liveness test was completed successfully
+    // If it was completed, don't navigate away - let handleLivenessComplete handle the flow
+    if (livenessCompleted || progress?.liveness_test_completed) {
+      setShowLivenessTest(false);
+      setLivenessInitiated(false);
+      return; // Don't navigate away if completed
+    }
+
     try {
       // Create audit log for liveness test manual close
       const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
@@ -935,7 +956,7 @@ export default function KYCUpgradeScreen() {
     setShowLivenessTest(false);
     setLivenessInitiated(false);
     setLivenessManuallyClosed(true);
-    // Navigate to home when liveness test is closed
+    // Only navigate to home when liveness test is manually closed (not completed)
     router.push('/(tabs)');
   };
   

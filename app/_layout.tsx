@@ -19,9 +19,10 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack , usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
+import { Text, View, StyleSheet, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications } from '@/lib/notifications';
+import * as SystemUI from 'expo-system-ui';
 // import { intercomInstant } from '@/lib/IntercomInstant';
 import { 
   PlusJakartaSans_400Regular, 
@@ -274,6 +275,15 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   useFrameworkReady();
+
+  // Initialize expo-system-ui to allow system to control appearance
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      SystemUI.setBackgroundColorAsync('system').catch((error) => {
+        console.warn('Failed to set system background color:', error);
+      });
+    }
+  }, []);
 
   return (
     <AppErrorProvider>

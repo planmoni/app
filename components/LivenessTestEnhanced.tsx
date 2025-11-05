@@ -138,6 +138,29 @@ export default function LivenessTestEnhanced({
     progressValue.value = withTiming(20, { duration: 300 });
   }, [progressValue]);
 
+  const capturePhoto = useCallback(async () => {
+    try {
+      // Check if camera is still active and visible before capturing
+      if (!isVisible || !cameraRef.current) {
+        return;
+      }
+      
+      if (cameraRef.current) {
+        const photo = await cameraRef.current.takePhoto({ 
+          flash: "off", 
+          enableShutterSound: false 
+        });
+        const imageUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+        setCapturedImage(imageUri);
+      }
+    } catch (error) {
+      // Only log error if it's not a camera closed error (which is expected when modal closes)
+      if (!error || !String(error).includes('Camera is closed')) {
+        console.error('Error capturing photo:', error);
+      }
+    }
+  }, [isVisible]);
+
   const nextStep = useCallback(() => {
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
@@ -176,25 +199,15 @@ export default function LivenessTestEnhanced({
       case "smile":
         setLivenessStage("photo_capture");
         progressValue.value = withTiming(100, { duration: 300 });
-        setTimeout(() => capturePhoto(), 1000);
+        // Capture photo after a delay
+        setTimeout(() => {
+          if (isVisible && cameraRef.current) {
+            capturePhoto();
+          }
+        }, 1000);
         break;
     }
-  }, [livenessStage, currentStepIndex, detectionSteps.length, progressValue]);
-
-  const capturePhoto = async () => {
-    try {
-      if (cameraRef.current) {
-        const photo = await cameraRef.current.takePhoto({ 
-          flash: "off", 
-          enableShutterSound: false 
-        });
-        const imageUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
-        setCapturedImage(imageUri);
-      }
-    } catch (error) {
-      console.error('Error capturing photo:', error);
-    }
-  };
+  }, [livenessStage, currentStepIndex, detectionSteps.length, progressValue, isVisible, capturePhoto]);
 
   const handleSubmit = async () => {
     if (!capturedImage || !session?.user?.id) {
@@ -280,12 +293,20 @@ export default function LivenessTestEnhanced({
       }
 
       // Call the onComplete callback with the storage URL
-      if (onComplete && storageUrl) onComplete(storageUrl);
-
-      setTimeout(() => {
+      // Don't call onClose automatically when onComplete is provided
+      // Let the parent component handle closing after processing completion
+      if (onComplete && storageUrl) {
         setIsSubmitting(false);
-        onClose();
-      }, 1000);
+        // Call onComplete and let parent handle closing
+        onComplete(storageUrl);
+        // Don't call onClose here - parent will handle it
+      } else {
+        // If no onComplete callback, close normally
+        setIsSubmitting(false);
+        setTimeout(() => {
+          onClose();
+        }, 1000);
+      }
     } catch (error) {
       console.error('Error uploading liveness photo:', error);
       setIsSubmitting(false);

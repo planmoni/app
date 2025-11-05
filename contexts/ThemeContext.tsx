@@ -136,6 +136,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   });
 
   // Load theme preference from storage on mount
+  // Wait for system color scheme to be available before initializing
   useEffect(() => {
     const loadThemePreference = async () => {
       try {
@@ -195,7 +196,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const newScheme = colorScheme || 'light';
       console.log('🎨 System appearance changed:', {
         from: systemColorScheme,
-        to: newScheme,
+        to: effectiveScheme,
+        hookValue: systemColorSchemeFromHook,
+        listenerValue: newScheme,
         currentTheme: theme,
         willApplyDark: theme === 'dark' || (theme === 'system' && newScheme === 'dark')
       });
@@ -326,7 +329,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       isDark,
       colors: isDark ? 'dark' : 'light'
     });
-  }, [theme, systemColorScheme, isDark]);
+  }, [theme, systemColorScheme, systemColorSchemeFromHook, effectiveSystemScheme, isDark]);
 
   // Don't render until theme is loaded to prevent flash
   if (isLoading) {
