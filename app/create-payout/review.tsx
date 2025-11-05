@@ -25,7 +25,7 @@ export default function ReviewScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPinVerification, setShowPinVerification] = useState(false);
   const { banks } = useBanks();
-  const { verifyPayoutPin, hasPayoutPin } = usePin();
+  const { verifyPayoutPin, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin } = usePin();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -127,18 +127,24 @@ export default function ReviewScreen() {
       haptics.mediumImpact();
     }
     
-    // Check if payout PIN is set up
-    if (!hasPayoutPin) {
-      console.log('Create Payout - No payout PIN set up, proceeding without verification');
+    // Check if payout biometric is enabled OR if payout PIN exists OR if app lock PIN exists (as fallback)
+    const requiresVerification = payoutBiometricEnabled || hasPayoutPin || hasAppLockPin;
+    
+    if (!requiresVerification) {
+      console.log('Create Payout - No verification required, proceeding without PIN/biometric');
       await handleConfirmPayout();
       return;
     }
     
-    console.log('Create Payout - PIN verification required', { hasPayoutPin });
+    console.log('Create Payout - Verification required', { 
+      payoutBiometricEnabled, 
+      hasPayoutPin, 
+      hasAppLockPin 
+    });
     
-    // Show PIN verification
+    // Show PIN verification modal (will auto-trigger biometric if enabled)
     setShowPinVerification(true);
-  }, [hasInsufficientBalance, numericTotalAmount, availableBalance, haptics, hasPayoutPin, handleConfirmPayout]);
+  }, [hasInsufficientBalance, numericTotalAmount, availableBalance, haptics, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin, handleConfirmPayout]);
 
   const handlePinVerificationSuccess = useCallback(async () => {
     setShowPinVerification(false);
@@ -480,7 +486,7 @@ export default function ReviewScreen() {
         onSuccess={handlePinVerificationSuccess}
         title="Enter Pin to confirm"
         description="Enter your PIN to confirm payout plan"
-        customVerifyPin={verifyPayoutPin}
+        customVerifyPin={hasPayoutPin || hasAppLockPin ? verifyPayoutPin : undefined}
         biometricType="payout"
       />
     </SafeAreaView>
