@@ -153,8 +153,8 @@ export default function TwoFactorAuthScreen() {
                   onPress={() => isOnline && handleMethodSelect('authenticator')}
                   disabled={!isOnline}
                 >
-                  <View style={[styles.methodIcon, { backgroundColor: '#F0FDF4' }]}>
-                    <QrCode size={24} color="#22C55E" />
+                  <View style={[styles.methodIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                    <QrCode size={24} color={colors.primary} />
                   </View>
                   <View style={styles.methodInfo}>
                     <Text style={styles.methodTitle}>Authenticator App</Text>
@@ -163,7 +163,7 @@ export default function TwoFactorAuthScreen() {
                     </Text>
                   </View>
                   <View style={styles.recommendedTag}>
-                    <Text style={styles.recommendedText}>Recommended</Text>
+                    <Text style={[styles.recommendedText, { color: colors.primary }]}>Recommended</Text>
                   </View>
                 </Pressable>
 
@@ -177,8 +177,8 @@ export default function TwoFactorAuthScreen() {
                   onPress={() => isOnline && handleMethodSelect('email')}
                   disabled={!isOnline}
                 >
-                  <View style={[styles.methodIcon, { backgroundColor: '#F0F9FF' }]}>
-                    <Mail size={24} color="#0EA5E9" />
+                  <View style={[styles.methodIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                    <Mail size={24} color={colors.primary} />
                   </View>
                   <View style={styles.methodInfo}>
                     <Text style={styles.methodTitle}>Email Authentication</Text>
@@ -190,40 +190,6 @@ export default function TwoFactorAuthScreen() {
               </View>
             )}
 
-            {showResetOption && (
-              <View style={styles.resetSection}>
-                <View style={styles.resetCard}>
-                  <View style={styles.resetHeader}>
-                    <View style={styles.resetIconContainer}>
-                      <AlertCircle size={20} color="#F59E0B" />
-                    </View>
-                    <Text style={styles.resetTitle}>2FA Setup Issue Detected</Text>
-                  </View>
-                  <Text style={styles.resetDescription}>
-                    Your 2FA status appears to be inconsistent. You can reset it to start fresh.
-                  </Text>
-                  <Button
-                    title="Reset 2FA Status"
-                    onPress={handleReset2FA}
-                    style={styles.resetButton}
-                  />
-                </View>
-              </View>
-            )}
-
-            <View style={styles.infoSection}>
-              <View style={styles.infoCard}>
-                <View style={styles.infoHeader}>
-                  <View style={styles.infoIconContainer}>
-                    <Lock size={20} color="#1E3A8A" />
-                  </View>
-                  <Text style={styles.infoTitle}>Why use 2FA?</Text>
-                </View>
-                <Text style={styles.infoDescription}>
-                  Two-factor authentication adds an extra security layer to your account. Even if someone knows your password, they won't be able to access your account without the second factor.
-                </Text>
-              </View>
-            </View>
           </>
         )}
       </ScrollView>
@@ -393,7 +359,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     lineHeight: 20,
   },
   recommendedTag: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: colors.backgroundTertiary,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,

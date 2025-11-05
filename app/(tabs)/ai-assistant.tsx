@@ -2372,7 +2372,7 @@ export default function AIAssistantScreen() {
             <TextInput
               ref={inputRef}
               style={styles.input}
-              placeholder="Tell me your plans..."
+              placeholder="Ask me anything about Planmoni..."
               placeholderTextColor={colors.textTertiary}
               value={inputText}
               onChangeText={setInputText}
