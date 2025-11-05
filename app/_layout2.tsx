@@ -13,7 +13,6 @@ import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
 import { AppVersionProvider } from '@/contexts/AppVersionContext';
 import UpdateAppModal from '@/components/UpdateAppModal';
 
-
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
@@ -241,11 +240,7 @@ function RootLayoutNav() {
             <Stack.Screen name="referral" options={{ headerShown: false }} />
             <Stack.Screen name="transaction-limits" options={{ headerShown: false }} />
             <Stack.Screen name="transactions" options={{ headerShown: false }} />
-            <Stack.Screen name="account-statement" options={{ headerShown: false }} />
             <Stack.Screen name="two-factor-auth" options={{ headerShown: false }} />
-            <Stack.Screen name="two-factor-setup" options={{ headerShown: false }} />
-            <Stack.Screen name="two-factor-settings" options={{ headerShown: false }} />
-            <Stack.Screen name="view-backup-codes" options={{ headerShown: false }} />
             <Stack.Screen name="view-payout" options={{ headerShown: false }} />
             <Stack.Screen name="app-lock-setup" options={{ headerShown: false }} />
             <Stack.Screen name="logging-out" options={{ headerShown: false }} />
@@ -264,8 +259,10 @@ function RootLayoutNav() {
       {isAppLocked && session?.user?.id && !isPinResetMode && (
         <AppLockScreen />
       )}
+
+      {/* Update App Modal - Renders at root level */}
       <UpdateAppModal />
-      
+
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* <SessionDebugger /> */}
     </GestureHandlerRootView>
