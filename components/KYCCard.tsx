@@ -105,6 +105,67 @@ export default function KYCCard() {
     router.push('/kyc-upgrade');
   };
 
+  // Helper function to get step display name
+  const getStepDisplayName = (step: KYCStep): string => {
+    switch (step) {
+      case 'liveness_verification':
+        return 'Liveness Verification';
+      case 'bvn_verification':
+        return 'BVN Verification';
+      case 'id_face_match':
+        return 'ID Face Match';
+      case 'personal':
+        return 'Personal Information';
+      case 'documents_verification':
+        return 'Document Verification';
+      case 'address_details':
+        return 'Address Details';
+      case 'review':
+        return 'KYC Review';
+      default:
+        return 'Verification';
+    }
+  };
+
+  // Helper function to get the last completed step
+  const getLastCompletedStep = (): KYCStep | null => {
+    // Define step order based on tiers:
+    // Tier 1: liveness_verification, bvn_verification, id_face_match
+    // Tier 2: personal, documents_verification
+    // Tier 3: address_details
+    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
+    
+    // Find the last completed step by checking in reverse order
+    for (let i = stepOrder.length - 1; i >= 0; i--) {
+      const step = stepOrder[i];
+      switch (step) {
+        case 'liveness_verification':
+          if (progress.liveness_test_completed) return step;
+          break;
+        case 'bvn_verification':
+          if (progress.bvn_verified) return step;
+          break;
+        case 'id_face_match':
+          if (progress.id_face_verified) return step;
+          break;
+        case 'personal':
+          if (progress.personal_info_completed) return step;
+          break;
+        case 'documents_verification':
+          if (progress.documents_verified) return step;
+          break;
+        case 'address_details':
+          if (progress.address_completed) return step;
+          break;
+        case 'review':
+          if (progress.overall_completed) return step;
+          break;
+      }
+    }
+    
+    return null; // No steps completed yet
+  };
+
   // Helper function to get the next incomplete step (matching kyc-upgrade.tsx logic)
   const getNextIncompleteStep = (): KYCStep => {
     // Define step order based on tiers:
@@ -170,6 +231,24 @@ export default function KYCCard() {
     }
   };
 
+  // Get status message with last completed and current step
+  const getStatusMessage = (): string => {
+    const lastCompleted = getLastCompletedStep();
+    const currentStep = getNextIncompleteStep();
+    
+    if (!lastCompleted) {
+      // No steps completed yet
+      return `Start with ${getStepDisplayName(currentStep)}`;
+    }
+    
+    if (progress.overall_completed) {
+      return 'Verification complete!';
+    }
+    
+    // Show both last completed and current step
+    return `Last: ${getStepDisplayName(lastCompleted)} • Next: ${getStepDisplayName(currentStep)}`;
+  };
+
   // Get tier-specific icon and color
   const getTierIcon = () => {
     switch (currentTier) {
@@ -226,9 +305,14 @@ export default function KYCCard() {
             <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
               <Icon width={25} height={25} />
             </View>
-            <Text style={styles.cardText}>
-              {currentTier === 0 ? "Let's verify your identity" : getTierMessage()}
-            </Text>
+            <View style={styles.textContainer}>
+              <Text style={styles.cardText}>
+                {currentTier === 0 ? "Let's verify your identity" : getStatusMessage()}
+              </Text>
+              {currentTier > 0 && (
+                <Text style={styles.cardSubtext}>{getTierMessage()}</Text>
+              )}
+            </View>
             <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>Verify</Text>
             </View>
@@ -241,7 +325,10 @@ export default function KYCCard() {
             <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
               <Icon width={25} height={25} />
             </View>
-            <Text style={styles.cardText}>{getTierMessage()}</Text>
+            <View style={styles.textContainer}>
+              <Text style={styles.cardText}>{getStatusMessage()}</Text>
+              <Text style={styles.cardSubtext}>{getTierMessage()}</Text>
+            </View>
             <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>Continue</Text>
             </View>
@@ -309,13 +396,22 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     flexShrink: 0,
   },
-  cardText: {
+  textContainer: {
     flex: 1,
+    flexShrink: 1,
+    marginRight: 10,
+  },
+  cardText: {
     fontSize: 17,
     fontWeight: '500',
     color: isDark ? colors.text : '#374151',
-    flexShrink: 1,
-    marginRight: 10,
+    marginBottom: 2,
+  },
+  cardSubtext: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: isDark ? colors.textSecondary : '#6B7280',
+    marginTop: 2,
   },
   actionButton: {
     backgroundColor: colors.accent,

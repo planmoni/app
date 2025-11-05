@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { Appearance, ColorSchemeName, Platform } from 'react-native';
+import { Appearance, ColorSchemeName, Platform, useColorScheme as useRNColorScheme, AppState, AppStateStatus } from 'react-native';
 import { getItem, saveItem } from '@/lib/secure-storage';
 
 export type Theme = 'light' | 'dark' | 'system';
@@ -129,23 +129,44 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('system');
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Use useColorScheme hook for better mobile support (recommended by React Native)
+  // This hook automatically updates when system theme changes on mobile
+  const systemColorSchemeFromHook = useRNColorScheme();
+  
+  // Fallback state for when hook doesn't work (web fallback)
   const [systemColorScheme, setSystemColorScheme] = useState<ColorSchemeName>(
-    Appearance.getColorScheme() || 'light' // Fallback to light if null
+    systemColorSchemeFromHook || Appearance.getColorScheme() 
   );
 
   // Load theme preference from storage on mount
+  // Wait for system color scheme to be available before initializing
   useEffect(() => {
     const loadThemePreference = async () => {
       try {
         console.log('🎨 Starting theme initialization...');
         const savedTheme = await getItem(THEME_PREFERENCE_KEY);
-        const currentSystemScheme = Appearance.getColorScheme() || 'light';
+        
+        // Prioritize hook value, then Appearance API, with proper fallback
+        // Use hook value if available (mobile), otherwise use Appearance API
+        const currentSystemScheme = systemColorSchemeFromHook || Appearance.getColorScheme();
         
         console.log('🎨 Theme initialization:');
         console.log('   - Saved theme preference:', savedTheme);
-        console.log('   - Current system scheme:', currentSystemScheme);
+        console.log('   - Hook value:', systemColorSchemeFromHook);
+        console.log('   - Appearance API value:', Appearance.getColorScheme());
+        console.log('   - Current system scheme (resolved):', currentSystemScheme);
         console.log('   - Initial systemColorScheme state:', systemColorScheme);
         console.log('   - Platform:', Platform.OS);
+        
+        // Update system color scheme with the most reliable value
+        if (currentSystemScheme) {
+          setSystemColorScheme(currentSystemScheme);
+        } else {
+          // If both are null, default to light but log a warning
+          console.warn('⚠️ Could not detect system color scheme, defaulting to light');
+          setSystemColorScheme('light');
+        }
         
         if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
           console.log('🎨 Loading saved theme preference:', savedTheme);
@@ -156,69 +177,212 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           setThemeState('system');
         }
         
-        // Ensure system color scheme is up to date
-        setSystemColorScheme(currentSystemScheme);
-        console.log('🎨 Theme initialization complete');
+        // Log final state for debugging
+        const finalTheme = savedTheme && ['light', 'dark', 'system'].includes(savedTheme) 
+          ? (savedTheme as Theme) 
+          : 'system';
+        const finalSystemScheme = currentSystemScheme || systemColorScheme;
+        const finalIsDark = finalTheme === 'dark' || (finalTheme === 'system' && finalSystemScheme === 'dark');
+        
+        console.log('🎨 Theme initialization complete:', {
+          theme: finalTheme,
+          systemColorScheme: finalSystemScheme,
+          isDark: finalIsDark,
+          effectiveSystemScheme: systemColorSchemeFromHook || Appearance.getColorScheme()
+        });
       } catch (error) {
         console.error('❌ Failed to load theme preference:', error);
         // Fallback to system theme on error
         setThemeState('system');
-        setSystemColorScheme(Appearance.getColorScheme() || 'light');
+        const fallbackScheme = systemColorSchemeFromHook || Appearance.getColorScheme() || 'light';
+        setSystemColorScheme(fallbackScheme);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadThemePreference();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Wait a bit for the hook to initialize, especially on mobile
+    // But don't wait too long as it should be available immediately
+    const initTimer = setTimeout(() => {
+      loadThemePreference();
+    }, 50); // Small delay to ensure hook is ready
+
+    return () => clearTimeout(initTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [systemColorSchemeFromHook]); // systemColorScheme is intentionally excluded to avoid infinite loop
+
+  // Sync system color scheme from hook (mobile) or Appearance API (web fallback)
+  // This ensures we always have the latest system theme value
+  // Force update whenever hook value changes OR when state doesn't match hook
+  useEffect(() => {
+    // Prioritize hook value (more reliable on mobile), fallback to Appearance API
+    const hookValue = systemColorSchemeFromHook;
+    const appearanceValue = Appearance.getColorScheme();
+    const currentScheme = hookValue || appearanceValue;
+    
+    // Force update if hook value exists and differs from state
+    // OR if appearance value exists and differs from state
+    if (hookValue && hookValue !== systemColorScheme) {
+      console.log('🎨 System color scheme synced from hook:', {
+        from: systemColorScheme,
+        to: hookValue,
+        source: 'hook',
+        platform: Platform.OS
+      });
+      setSystemColorScheme(hookValue);
+    } else if (!hookValue && appearanceValue && appearanceValue !== systemColorScheme) {
+      console.log('🎨 System color scheme synced from Appearance API:', {
+        from: systemColorScheme,
+        to: appearanceValue,
+        source: 'Appearance API',
+        platform: Platform.OS
+      });
+      setSystemColorScheme(appearanceValue);
+    } else if (!currentScheme && systemColorScheme !== 'light') {
+      // If we can't detect but state isn't light, reset to detected value
+      console.log('🎨 No system scheme detected, checking Appearance API');
+      const detected = Appearance.getColorScheme();
+      if (detected) {
+        setSystemColorScheme(detected);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [systemColorSchemeFromHook]); // systemColorScheme is intentionally excluded to avoid infinite loop
 
   // Ensure system color scheme is properly detected on startup
+  // This is a backup detection that runs after initial load
+  // Also runs periodically to catch any missed updates
   useEffect(() => {
+    if (isLoading) return; // Don't run during initial load
+    
     const detectSystemScheme = () => {
-      const currentScheme = Appearance.getColorScheme() || 'light';
-      console.log('🎨 Detecting system color scheme:', currentScheme);
-      setSystemColorScheme(currentScheme);
+      // Check all sources
+      const hookValue = systemColorSchemeFromHook;
+      const appearanceValue = Appearance.getColorScheme();
+      const currentScheme = hookValue || appearanceValue;
+      
+      // Always update if we detect a different value
+      if (currentScheme && currentScheme !== systemColorScheme) {
+        console.log('🎨 Detecting system color scheme:', {
+          detected: currentScheme,
+          current: systemColorScheme,
+          hookValue,
+          appearanceValue,
+          source: hookValue ? 'hook' : 'Appearance API',
+          platform: Platform.OS
+        });
+        setSystemColorScheme(currentScheme);
+      } else if (!currentScheme) {
+        // If nothing detected, log for debugging
+        console.warn('⚠️ System color scheme not detected:', {
+          hookValue,
+          appearanceValue,
+          currentState: systemColorScheme,
+          platform: Platform.OS
+        });
+      }
     };
     
-    // Detect immediately
+    // Detect immediately if not loading
     detectSystemScheme();
     
-    // Also detect after a short delay to ensure system is ready
-    const timeoutId = setTimeout(detectSystemScheme, 100);
+    // Periodic check to catch any missed updates (especially on mobile)
+    const intervalId = setInterval(detectSystemScheme, 1000);
     
-    return () => clearTimeout(timeoutId);
-  }, []);
+    // Also detect after delays to ensure system is ready
+    const timeout1 = setTimeout(detectSystemScheme, 100);
+    const timeout2 = setTimeout(detectSystemScheme, 500);
+    
+    return () => {
+      clearInterval(intervalId);
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+    };
+  }, [systemColorSchemeFromHook, isLoading, systemColorScheme]);
 
-  // Listen to system appearance changes
+  // Listen to system appearance changes (fallback for web or when hook doesn't update)
+  // On mobile, useColorScheme hook automatically handles updates, but we keep this as fallback
   useEffect(() => {
+    // On mobile, the hook should handle updates, but we keep the listener as backup
+    // On web, we need the listener since the hook might not work as well
     const subscription = Appearance.addChangeListener(({ colorScheme }) => {
       const newScheme = colorScheme || 'light'; // Fallback to light if null
+      
+      // Use hook value if available, otherwise use listener value
+      const effectiveScheme = systemColorSchemeFromHook || newScheme;
+      
       console.log('🎨 System appearance changed:', {
         from: systemColorScheme,
-        to: newScheme,
+        to: effectiveScheme,
+        hookValue: systemColorSchemeFromHook,
+        listenerValue: newScheme,
         currentTheme: theme,
-        willBeDark: theme === 'dark' || (theme === 'system' && newScheme === 'dark')
+        willBeDark: theme === 'dark' || (theme === 'system' && effectiveScheme === 'dark'),
+        platform: Platform.OS
       });
       
-      // Only update if the scheme actually changed
-      if (newScheme !== systemColorScheme) {
-        setSystemColorScheme(newScheme);
-        console.log('🎨 System color scheme updated to:', newScheme);
+      // Force update to the detected value
+      if (effectiveScheme !== systemColorScheme) {
+        setSystemColorScheme(effectiveScheme);
+        console.log('🎨 System color scheme updated to:', effectiveScheme);
       }
     });
 
     return () => subscription?.remove();
-  }, [theme, systemColorScheme]); // Include systemColorScheme to properly track changes
+  }, [theme, systemColorScheme, systemColorSchemeFromHook]); // Include hook value to track changes
+
+  // Listen to app state changes to re-check theme when app comes to foreground
+  // System theme might have changed while app was in background
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        // App came to foreground - force re-check system theme
+        console.log('🎨 App came to foreground, re-checking system theme');
+        
+        // Force check all sources
+        const hookValue = systemColorSchemeFromHook;
+        const appearanceValue = Appearance.getColorScheme();
+        const detected = hookValue || appearanceValue;
+        
+        if (detected && detected !== systemColorScheme) {
+          console.log('🎨 System theme detected after foreground:', {
+            detected,
+            current: systemColorScheme,
+            hookValue,
+            appearanceValue,
+            platform: Platform.OS
+          });
+          setSystemColorScheme(detected);
+        } else if (detected) {
+          console.log('🎨 System theme unchanged after foreground:', {
+            detected,
+            hookValue,
+            appearanceValue
+          });
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    
+    return () => subscription?.remove();
+  }, [systemColorScheme, systemColorSchemeFromHook]);
 
   // Save theme preference to storage when it changes
   const setTheme = async (newTheme: Theme) => {
     try {
+      // Get current system scheme for logging
+      const currentSystemScheme = systemColorSchemeFromHook || Appearance.getColorScheme() || systemColorScheme;
+      const willBeDark = newTheme === 'dark' || (newTheme === 'system' && currentSystemScheme === 'dark');
+      
       console.log('🎨 Setting theme preference:', {
         from: theme,
         to: newTheme,
-        currentSystemScheme: systemColorScheme,
-        willBeDark: newTheme === 'dark' || (newTheme === 'system' && systemColorScheme === 'dark')
+        currentSystemScheme: currentSystemScheme,
+        systemColorSchemeState: systemColorScheme,
+        willBeDark
       });
+      
       setThemeState(newTheme);
       await saveItem(THEME_PREFERENCE_KEY, newTheme);
       console.log('✅ Theme preference saved successfully');
@@ -229,53 +393,70 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const isDark = theme === 'dark' || (theme === 'system' && systemColorScheme === 'dark');
+  // Calculate isDark using the most up-to-date values
+  // Always use hook value first, then state, then Appearance API as fallback
+  const effectiveSystemScheme = systemColorSchemeFromHook || systemColorScheme || Appearance.getColorScheme();
+  const isDark = theme === 'dark' || (theme === 'system' && effectiveSystemScheme === 'dark');
   const colors = isDark ? darkColors : lightColors;
 
   // Additional debugging for system theme detection
   useEffect(() => {
+    const hookValue = systemColorSchemeFromHook;
+    const stateValue = systemColorScheme;
+    const appearanceValue = Appearance.getColorScheme();
+    const effective = effectiveSystemScheme;
+    
     console.log('🎨 Theme calculation debug:', {
       theme,
-      systemColorScheme,
+      systemColorSchemeState: stateValue,
+      systemColorSchemeHook: hookValue,
+      systemColorSchemeAppearance: appearanceValue,
+      effectiveSystemScheme: effective,
       isDark,
       calculation: {
         'theme === "dark"': theme === 'dark',
         'theme === "system"': theme === 'system',
-        'systemColorScheme === "dark"': systemColorScheme === 'dark',
+        'effectiveSystemScheme === "dark"': effective === 'dark',
         'final isDark': isDark
-      },
-      currentSystemScheme: Appearance.getColorScheme()
+      }
     });
-  }, [theme, systemColorScheme, isDark]);
+  }, [theme, systemColorScheme, systemColorSchemeFromHook, effectiveSystemScheme, isDark]);
 
   // Debug function to help troubleshoot theme issues
   const debugTheme = () => {
-    const currentSystemScheme = Appearance.getColorScheme();
+    const hookValue = systemColorSchemeFromHook;
+    const stateValue = systemColorScheme;
+    const appearanceValue = Appearance.getColorScheme();
+    const effective = effectiveSystemScheme;
+    
     console.log('🔍 THEME DEBUG INFO:');
     console.log('   - Current theme setting:', theme);
-    console.log('   - System color scheme (state):', systemColorScheme);
-    console.log('   - System color scheme (live):', currentSystemScheme);
+    console.log('   - System color scheme (hook):', hookValue);
+    console.log('   - System color scheme (state):', stateValue);
+    console.log('   - System color scheme (Appearance API):', appearanceValue);
+    console.log('   - Effective system scheme (used for calculation):', effective);
     console.log('   - Is dark mode:', isDark);
     console.log('   - Theme calculation:', {
       'theme === "dark"': theme === 'dark',
       'theme === "system"': theme === 'system',
-      'systemColorScheme === "dark"': systemColorScheme === 'dark',
-      'currentSystemScheme === "dark"': currentSystemScheme === 'dark',
+      'effectiveSystemScheme === "dark"': effective === 'dark',
       'final isDark': isDark
     });
     console.log('   - Auto mode should follow system:', theme === 'system' ? 'YES' : 'NO');
-    console.log('   - Expected behavior:', theme === 'system' ? `Follow ${currentSystemScheme || 'light'} mode` : `${theme} mode`);
+    console.log('   - Expected behavior:', theme === 'system' ? `Follow ${effective || 'light'} mode` : `${theme} mode`);
   };
 
   // Log theme state changes for debugging
   useEffect(() => {
     console.log('🎨 Theme state changed:', {
       theme,
-      systemColorScheme,
+      systemColorSchemeState: systemColorScheme,
+      systemColorSchemeHook: systemColorSchemeFromHook,
+      effectiveSystemScheme: effectiveSystemScheme,
       isDark,
-      currentSystemScheme: Appearance.getColorScheme()
+      appearanceApiValue: Appearance.getColorScheme()
     });
-  }, [theme, systemColorScheme, isDark]);
+  }, [theme, systemColorScheme, systemColorSchemeFromHook, effectiveSystemScheme, isDark]);
 
   // Don't render until theme is loaded to prevent flash
   if (isLoading) {
