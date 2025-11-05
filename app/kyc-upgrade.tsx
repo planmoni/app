@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image, Modal, useWindowDimensions, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Shield, User, Calendar, Info, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, ChevronLeft, X } from 'lucide-react-native';
+import { ArrowLeft, ShieldUser, User, Calendar, Info, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, ChevronLeft, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
@@ -2869,7 +2869,7 @@ export default function KYCUpgradeScreen() {
         )}
         
         <View style={styles.infoContainer}>
-          <Shield size={20} color={colors.primary} />
+          <ShieldUser size={20} color={colors.primary} />
           <Text style={styles.infoText}>
             Your documents are securely encrypted and will only be used for verification purposes. They will be deleted after verification is complete.
           </Text>

@@ -260,8 +260,8 @@ function getKYCStatus(level: KYCLevel, progress?: KYCProgress) {
       return {
         label: 'Unverified',
         description: 'Complete your BVN verification to unlock basic transaction limits and get a virtual account.',
-        color: colors.error,
-        backgroundColor: colors.backgroundError,
+        color: '#C8A2FF',
+        backgroundColor: '#2D005B',
         icon: AlertCircle,
         limits: {
           daily: '₦50,000',

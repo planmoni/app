@@ -1,5 +1,5 @@
 import React, {useEffect, useState, useRef} from "react"
-import {StyleSheet, View, Text, useWindowDimensions, Modal, Pressable, StatusBar, Image } from "react-native"
+import {StyleSheet, View, Text, useWindowDimensions, Modal, Pressable, StatusBar, Image, Platform } from "react-native"
 import {Camera as VisionCamera, useCameraDevice, useCameraPermission } from "react-native-vision-camera"
 import {Camera, Face, FaceDetectionOptions} from 'react-native-vision-camera-face-detector';
 import { useCameraPermissions } from 'expo-camera';
@@ -123,10 +123,12 @@ export default function LivenessTest({ isVisible, onClose, onComplete }: Livenes
         speakInstruction("Position your face in the circle area to start your liveness test", true);
       }, 1500); 
     } else {
-     
+      // Reset StatusBar when modal closes
       StatusBar.setBarStyle('default', true);
+      if (Platform.OS === 'android') {
+        StatusBar.setBackgroundColor('transparent', true);
+      }
       
-     
       // Speech.stop(); // Commented out
       
      

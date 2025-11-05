@@ -267,7 +267,7 @@ function RootLayoutNav() {
       )}
       <UpdateAppModal />
       
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <StatusBar style={isDark ? 'light' : 'dark'} hidden={false} />
       {/* <SessionDebugger /> */}
     </GestureHandlerRootView>
   );

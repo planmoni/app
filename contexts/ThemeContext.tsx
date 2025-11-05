@@ -196,8 +196,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const newScheme = colorScheme || 'light';
       console.log('🎨 System appearance changed:', {
         from: systemColorScheme,
-        to: effectiveScheme,
-        hookValue: systemColorSchemeFromHook,
+        to: newScheme,
         listenerValue: newScheme,
         currentTheme: theme,
         willApplyDark: theme === 'dark' || (theme === 'system' && newScheme === 'dark')
@@ -329,7 +328,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       isDark,
       colors: isDark ? 'dark' : 'light'
     });
-  }, [theme, systemColorScheme, systemColorSchemeFromHook, effectiveSystemScheme, isDark]);
+  }, [theme, systemColorScheme, isDark]);
 
   // Don't render until theme is loaded to prevent flash
   if (isLoading) {

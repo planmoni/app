@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
-import { ChevronRight, X, Mail, Lock, Shield, Fingerprint, CircleAlert as AlertCircle, CheckCircle, Clock } from 'lucide-react-native';
+import { ChevronRight, X, Mail, Lock, ShieldUser, Fingerprint, CircleAlert as AlertCircle, CheckCircle, Clock } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useState, useEffect } from 'react';
@@ -67,7 +67,7 @@ export default function PendingActionsCard() {
       const missingSteps: string[] = [];
       
       if (!progress.liveness_test_completed) {
-        missingSteps.push('Liveness Test');
+        missingSteps.push('Liveness');
       }
       if (!progress.bvn_verified) {
         missingSteps.push('BVN');
@@ -88,11 +88,11 @@ export default function PendingActionsCard() {
 
         actions.push({
           id: 'tier-1-verification',
-          title: 'Tier 1: Basic Verification',
-          description: `${description}. Unlock up to ₦20,000 monthly deposits.`,
-          icon: Shield,
-          iconBg: '#FEF3C7',
-          iconColor: '#F59E0B',
+          title: 'Basic Verification',
+          description: `${description}.`,
+          icon: ShieldUser,
+          iconBg: colors.backgroundTertiary,
+          iconColor: colors.primary,
           route: '/kyc-upgrade',
           priority: 'high',
         });
@@ -128,17 +128,17 @@ export default function PendingActionsCard() {
 
       actions.push({
         id: 'tier-2-verification',
-        title: 'Tier 2: Enhanced Verification',
+        title: 'Enhanced Verification',
         description: tier1Complete 
           ? `${description}. Unlock up to ₦100,000 monthly deposits.`
-          : 'Complete Tier 1 first to unlock Tier 2 verification',
+          : 'Complete Basic Verification first to unlock this tier',
         icon: Fingerprint,
         iconBg: tier1Complete ? '#EFF6FF' : '#F3F4F6',
         iconColor: tier1Complete ? '#1E3A8A' : '#9CA3AF',
         route: '/kyc-upgrade',
         priority: tier1Complete ? 'high' : 'medium',
         disabled: !tier1Complete,
-        disabledReason: 'Complete Tier 1 first',
+        disabledReason: 'Complete Basic Verification first',
       });
     }
 
@@ -172,17 +172,17 @@ export default function PendingActionsCard() {
 
       actions.push({
         id: 'tier-3-verification',
-        title: 'Tier 3: Full Verification',
+        title: 'Full Verification',
         description: tier2Complete
-          ? `${description}. Unlock up to ₦1,000,000 monthly deposits.`
-          : 'Complete Tier 2 first to unlock Tier 3 verification',
+          ? `${description}. Unlock full verification.`
+          : 'Complete Enhanced Verification first to unlock this tier',
         icon: CheckCircle,
         iconBg: tier2Complete ? '#F0FDF4' : '#F3F4F6',
         iconColor: tier2Complete ? '#22C55E' : '#9CA3AF',
         route: '/kyc-upgrade',
         priority: tier2Complete ? 'high' : 'medium',
         disabled: !tier2Complete,
-        disabledReason: 'Complete Tier 2 first',
+        disabledReason: 'Complete Enhanced Verification first',
       });
     }
 
@@ -335,7 +335,7 @@ export default function PendingActionsCard() {
     <View>
       <View style={styles.titleContainer}>
         <Text style={styles.sectionTitle}>Pending Actions</Text>
-        <View style={styles.progressContainer}>
+        {/* <View style={styles.progressContainer}>
           <View style={styles.progressBar}>
             <View 
               style={[
@@ -347,7 +347,7 @@ export default function PendingActionsCard() {
           <Text style={styles.progressText}>
             {Math.round(((pendingActions.length - filteredActions.length) / pendingActions.length) * 100)}%
           </Text>
-        </View>
+        </View> */}
       </View>
       <View style={styles.container}>
         <ScrollView 
