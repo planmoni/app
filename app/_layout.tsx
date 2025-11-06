@@ -228,8 +228,8 @@ function RootLayoutNav() {
       <Stack screenOptions={{ headerShown: false }}>
         {session?.user?.id ? (
           <React.Fragment key="authenticated-screens">
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="login-success" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="profile" options={{ headerShown: false }} />
             <Stack.Screen name="add-funds" options={{ headerShown: false }} />
             <Stack.Screen name="all-payouts" options={{ headerShown: false }} />

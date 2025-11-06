@@ -190,14 +190,14 @@ export default function TwoFactorAuthScreen() {
         )}
       </ScrollView>
 
-      <View style={styles.footer}>
+      {/* <View style={styles.footer}>
         <Button
           title="Continue Setup"
           onPress={() => handleMethodSelect(selectedMethod || 'authenticator')}
           style={styles.continueButton}
           disabled={!selectedMethod || !isOnline || isLoading || twoFactorEnabled}
         />
-      </View>
+      </View> */}
       
       <SafeFooter />
     </SafeAreaView>

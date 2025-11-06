@@ -18,6 +18,7 @@ export default function PayoutAccountsScreen() {
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [showEditAccount, setShowEditAccount] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
+  const [settingDefaultId, setSettingDefaultId] = useState<string | null>(null);
   const haptics = useHaptics();
   
   const { 
@@ -36,12 +37,20 @@ export default function PayoutAccountsScreen() {
   };
 
   const handleMakeDefault = async (accountId: string) => {
+    // Prevent multiple simultaneous operations
+    if (settingDefaultId) {
+      return;
+    }
+
     try {
+      setSettingDefaultId(accountId);
       haptics.success();
       await setDefaultAccount(accountId);
     } catch (error) {
       haptics.error();
       console.error('Error setting default account:', error);
+    } finally {
+      setSettingDefaultId(null);
     }
   };
 
@@ -190,10 +199,19 @@ export default function PayoutAccountsScreen() {
                   
                   {!account.is_default && (
                     <Pressable
-                      style={styles.actionButton}
+                      style={[
+                        styles.actionButton,
+                        settingDefaultId === account.id && styles.actionButtonDisabled
+                      ]}
                       onPress={() => handleMakeDefault(account.id)}
+                      disabled={settingDefaultId !== null}
                     >
-                      <Text style={styles.actionButtonText}>Make Default</Text>
+                      <Text style={[
+                        styles.actionButtonText,
+                        settingDefaultId !== null && styles.actionButtonTextDisabled
+                      ]}>
+                        {settingDefaultId === account.id ? 'Setting...' : 'Make Default'}
+                      </Text>
                     </Pressable>
                   )}
                   
@@ -434,6 +452,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: colors.text,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
+  actionButtonTextDisabled: {
+    opacity: 0.7,
   },
   removeButton: {
     backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2',
