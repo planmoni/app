@@ -16,6 +16,7 @@ import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
 import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
+import { safeHavenService } from '@/lib/safehaven-service';
 
 type IdentityType = 'bvn' | 'nin' | 'passport';
 
@@ -1544,70 +1545,62 @@ export default function KYCUpgradeScreen() {
         throw new Error('NIN is required');
       }
 
+      if (!session?.user?.id) {
+        throw new Error('User session not found');
+      }
+
       // Get selfie image for verification from saved form data
       let selfieToUse = null;
       
       if (formData.selfie_url) {
-        const base64Image = await convertImageToBase64(formData.selfie_url);
-        if (base64Image) {
-          selfieToUse = `data:image/jpeg;base64,${base64Image}`;
-        }
+        // Use the selfie URL directly (SafeHaven service will handle conversion)
+        selfieToUse = formData.selfie_url;
       }
       
       if (!selfieToUse) {
         throw new Error('Selfie image is required for NIN verification. Please complete the liveness test first.');
       }
-      
-      // Convert selfie image to base64 (remove data:image/jpeg;base64, prefix)
-      const selfieBase64 = selfieToUse.split(',')[1];
 
-      // Make Dojah API call for NIN verification
-      const response = await fetch('https://api.dojah.io/api/v1/kyc/nin/verify', {
-        method: 'POST',
-        headers: {
-          'AppId': appId,
-          'Authorization': privateKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          selfie_image: `data:image/jpeg;base64,${selfieBase64}`,
-          nin: parseInt(nin)
-        })
-      });
+      // Get phone number and email for account creation
+      const userPhoneNumber = phoneNumber?.trim() || '';
+      const userEmail = session?.user?.email || '';
       
-      if (!response.ok) {
-        throw new Error(`NIN verification failed: ${response.status} ${response.statusText}`);
+      if (!userPhoneNumber) {
+        throw new Error('Phone number is required for NIN verification. Please enter your phone number in the personal information section.');
       }
       
-      const data = await response.json();
-      console.log('NIN verification response:', data);
-      
-      if (!data.entity) {
-        throw new Error('Invalid NIN or no data returned');
+      if (!userEmail) {
+        throw new Error('Email address is required for NIN verification. Please ensure your email is verified.');
       }
-      
-      const ninData = data.entity;
-      
-      // Check selfie verification with confidence threshold
-      const selfieVerification = ninData.selfie_verification;
-      if (!selfieVerification) {
-        throw new Error('Selfie verification data not available. Please try again.');
+
+      setIsLoading(true);
+      setIsManualVerification(true);
+
+      // Use SafeHaven service for NIN verification
+      // Note: OTP is optional - if account creation fails with OTP error, we can handle it later
+      const result = await safeHavenService.verifyNINAndCreateAccount(
+        session.user.id,
+        nin.trim(),
+        userPhoneNumber,
+        userEmail,
+        selfieToUse
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'NIN verification failed');
       }
+
+      const verificationData = result.data;
       
-      if (!selfieVerification.match) {
-        throw new Error('Selfie verification failed. Please ensure the selfie matches your NIN photo.');
+      // Check if verification was successful
+      if (!verificationData || !verificationData.verified) {
+        throw new Error('NIN verification failed. Please check your NIN and try again.');
       }
-      
-      if (selfieVerification.confidence_value < 90) {
-        throw new Error(`Selfie confidence too low (${selfieVerification.confidence_value.toFixed(1)}%). Please take a clearer selfie.`);
-      }
-      
-      console.log(`Selfie verification passed: ${selfieVerification.confidence_value.toFixed(1)}% confidence`);
-      
-      // Get names from NIN data
-      const ninFirstName = ninData.first_name || '';
-      const ninLastName = ninData.last_name || '';
-      const ninMiddleName = ninData.middle_name || '';
+
+      // Get names from SafeHaven verification data
+      const ninFirstName = verificationData.first_name || verificationData.firstName || '';
+      const ninLastName = verificationData.last_name || verificationData.lastName || '';
+      const ninMiddleName = verificationData.middle_name || verificationData.middleName || '';
       
       // Get names from user's saved data
       const userFirstName = firstName || '';
@@ -1641,7 +1634,6 @@ export default function KYCUpgradeScreen() {
       
       // Consider it a match if at least 60% of names match
       if (matchPercentage >= 60) {
-        // Do NOT save document fields here; NIN step only saves NIN elsewhere
         setDocumentsVerified(true);
         
         // Create a display name from NIN data
@@ -1649,71 +1641,48 @@ export default function KYCUpgradeScreen() {
           .filter(Boolean)
           .join(' ');
         
-        // Create audit log for NIN verification
-        const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
-          p_user_id: session?.user?.id,
-          p_operation_type: 'nin_verified',
-          p_verification_type: 'nin',
-          p_verification_provider: 'dojah',
-          p_request_data: {
-            nin: nin,
-            selfie_verification: true,
-            name_matching: true
-          },
-          p_response_data: {
-            nin_data: ninData,
-            name_match_percentage: matchPercentage,
-            selfie_confidence: selfieVerification.confidence_value,
-            matched_name: displayName
-          },
-          p_status: 'success',
-          p_result_message: `NIN verified successfully. Name: ${displayName}`,
-          p_confidence_score: selfieVerification.confidence_value,
-          p_metadata: {
-            component: 'kyc-upgrade',
-            verification_step: 'id_face_match',
-            name_match_percentage: matchPercentage,
-            provider: 'dojah'
-          }
-        });
-
-        // Create audit event for NIN verification
-        if (auditLogId) {
+        // Create audit event for NIN verification (additional to what SafeHaven service already logged)
+        if (result.auditLogId) {
           await supabase
             .from('kyc_audit_events')
             .insert({
-              audit_log_id: auditLogId,
-              user_id: session?.user?.id,
+              audit_log_id: result.auditLogId,
+              user_id: session.user.id,
               event_type: 'verification_completed',
               event_data: {
                 action: 'nin_verification_completed',
-                nin: nin,
+                nin: nin.substring(0, 4) + '****', // Partial NIN for security
                 name_match_percentage: matchPercentage,
-                selfie_confidence: selfieVerification.confidence_value
+                matched_name: displayName,
+                hasAccount: !!verificationData.account_number
               },
               severity: 'high'
             });
 
-          // Create audit attachment for NIN document
+          // Create audit attachment for NIN document if available
           if (documentFrontImage) {
             await supabase
               .from('kyc_audit_attachments')
               .insert({
-                audit_log_id: auditLogId,
+                audit_log_id: result.auditLogId,
                 file_name: `nin-document-${Date.now()}.jpg`,
                 file_type: 'image/jpeg',
-                file_size: 0, // We don't have the actual file size here
-                file_hash: 'document-hash-placeholder', // Would need actual hash calculation
+                file_size: 0,
+                file_hash: 'document-hash-placeholder',
                 file_path: documentFrontImage,
                 access_level: 'restricted',
                 description: 'NIN document front image',
-                tags: ['nin', 'document', 'kyc', 'id_verification']
+                tags: ['nin', 'document', 'kyc', 'id_verification', 'safehaven']
               });
           }
         }
         
-        // Show success toast after verification completes
-        showToast(`NIN verified! Name: ${displayName} (${selfieVerification.confidence_value.toFixed(1)}% confidence)`, 'success');
+        // Show success message
+        let successMessage = `NIN verified! Name: ${displayName}`;
+        if (verificationData.account_number) {
+          successMessage += ` • Account created: ${verificationData.account_number.substring(0, 5)}****`;
+        }
+        showToast(successMessage, 'success');
         
         // Update progress with NIN verified
         // After NIN (Tier 1 complete), move to personal (first step in Tier 2)
@@ -1746,6 +1715,7 @@ export default function KYCUpgradeScreen() {
         setCurrentStep(nextStep);
         setTimeout(() => {
           setIsManualVerification(false);
+          setIsLoading(false);
         }, 1000);
       } else {
         throw new Error('Name mismatch detected. Please verify your personal information.');
@@ -1758,6 +1728,7 @@ export default function KYCUpgradeScreen() {
       setErrors({ documentVerification: errorMessage });
       // Reset manual verification flag on error
       setIsManualVerification(false);
+      setIsLoading(false);
       throw error; // Re-throw to be handled by verifyDocuments
     }
   };

@@ -234,11 +234,12 @@ export default function KYCCard() {
   // Get status message with last completed and current step
   const getStatusMessage = (): string => {
     const lastCompleted = getLastCompletedStep();
-    const currentStep = getNextIncompleteStep();
+    // Use the actual current step from progress instead of calculating next incomplete
+    const currentStepToShow = progress.current_step || getNextIncompleteStep();
     
     if (!lastCompleted) {
       // No steps completed yet
-      return `Start with ${getStepDisplayName(currentStep)}`;
+      return `Start with ${getStepDisplayName(currentStepToShow)}`;
     }
     
     if (progress.overall_completed) {
@@ -246,7 +247,7 @@ export default function KYCCard() {
     }
     
     // Show both last completed and current step
-    return `Last: ${getStepDisplayName(lastCompleted)} • Next: ${getStepDisplayName(currentStep)}`;
+    return `Last: ${getStepDisplayName(lastCompleted)} • Next: ${getStepDisplayName(currentStepToShow)}`;
   };
 
   // Get tier-specific icon and color
