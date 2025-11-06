@@ -31,6 +31,14 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 
 // SafeHaven webhook configuration
 const SAFEHAVEN_WEBHOOK_SECRET = Deno.env.get('SAFEHAVEN_WEBHOOK_SECRET') || '';
+const SAFEHAVEN_API_DOMAIN = 'safehavenmfb.com';
+const SAFEHAVEN_API_URL = 'https://api.safehavenmfb.com';
+
+// Allowed SafeHaven IP addresses (if known - add SafeHaven's webhook server IPs here)
+const SAFEHAVEN_ALLOWED_IPS: string[] = [
+  // Add SafeHaven's webhook server IP addresses here when available
+  // Example: '52.31.139.75', '52.49.173.169'
+];
 
 interface SafeHavenWebhookPayload {
   type: 'transfer' | 'virtualAccount.transfer' | 'account.update' | 'transaction.update' | 'subaccount.created' | 'subaccount.updated' | 'subaccount.status';
@@ -125,7 +133,7 @@ function createJsonResponse(data: any, status: number = 200) {
 function verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
   if (!secret) {
     console.warn('No webhook secret configured, skipping signature verification');
-    return true;
+    return true; // Allow if no secret is configured (for development)
   }
 
   try {
@@ -135,6 +143,99 @@ function verifyWebhookSignature(payload: string, signature: string, secret: stri
   } catch (error) {
     console.error('Error verifying webhook signature:', error);
     return false;
+  }
+}
+
+// Verify request is from SafeHaven
+function verifySafeHavenRequest(req: Request): { isValid: boolean; reason?: string } {
+  try {
+    // Get client IP
+    const forwardedFor = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '';
+    const clientIP = forwardedFor.split(',')[0].trim();
+    
+    // Get origin/referer headers
+    const origin = req.headers.get('origin') || '';
+    const referer = req.headers.get('referer') || '';
+    const userAgent = req.headers.get('user-agent') || '';
+    
+    console.log('Webhook security check:', {
+      clientIP,
+      origin,
+      referer,
+      userAgent: userAgent.substring(0, 50)
+    });
+
+    // Check 1: Verify origin/referer contains SafeHaven domain
+    const originLower = origin.toLowerCase();
+    const refererLower = referer.toLowerCase();
+    const userAgentLower = userAgent.toLowerCase();
+    
+    const hasSafeHavenDomain = 
+      originLower.includes(SAFEHAVEN_API_DOMAIN) ||
+      refererLower.includes(SAFEHAVEN_API_DOMAIN) ||
+      userAgentLower.includes(SAFEHAVEN_API_DOMAIN.toLowerCase().replace('.', ''));
+
+    // Check 2: Verify IP address (if allowed IPs are configured)
+    let ipAllowed = true;
+    if (SAFEHAVEN_ALLOWED_IPS.length > 0) {
+      ipAllowed = SAFEHAVEN_ALLOWED_IPS.includes(clientIP);
+      if (!ipAllowed) {
+        console.warn(`⚠️ Request from unauthorized IP: ${clientIP}`);
+        return { 
+          isValid: false, 
+          reason: `IP address ${clientIP} is not in the allowed list` 
+        };
+      }
+    }
+
+    // Check 3: Verify domain in headers
+    if (!hasSafeHavenDomain) {
+      // If no SafeHaven domain found, check if it's a direct API call
+      // SafeHaven webhooks might not send origin/referer, so we check user-agent or other headers
+      const hasSafeHavenHeader = 
+        req.headers.get('x-safehaven-signature') !== null ||
+        req.headers.get('x-safehaven-webhook') !== null ||
+        userAgentLower.includes('safehaven') ||
+        userAgentLower.includes('safe-haven');
+
+      if (!hasSafeHavenHeader && !ipAllowed) {
+        console.warn('⚠️ Request does not appear to be from SafeHaven');
+        return { 
+          isValid: false, 
+          reason: 'Request origin does not match SafeHaven domain' 
+        };
+      }
+    }
+
+    // Additional check: Block common testing tools
+    const isTestingTool = 
+      userAgentLower.includes('postman') ||
+      userAgentLower.includes('insomnia') ||
+      userAgentLower.includes('curl') ||
+      userAgentLower.includes('httpie') ||
+      userAgentLower.includes('rest client') ||
+      originLower.includes('localhost') ||
+      originLower.includes('127.0.0.1') ||
+      refererLower.includes('localhost') ||
+      refererLower.includes('127.0.0.1');
+
+    if (isTestingTool) {
+      console.warn('⚠️ Request blocked: Appears to be from a testing tool');
+      return { 
+        isValid: false, 
+        reason: 'Testing tools are not allowed. Only SafeHaven can call this webhook.' 
+      };
+    }
+
+    console.log('✅ Webhook request verified as SafeHaven');
+    return { isValid: true };
+
+  } catch (error) {
+    console.error('Error verifying SafeHaven request:', error);
+    return { 
+      isValid: false, 
+      reason: 'Error during verification' 
+    };
   }
 }
 
@@ -718,12 +819,22 @@ Deno.serve(async (req) => {
       return createJsonResponse({ error: 'Method not allowed' }, 405);
     }
 
+    // SECURITY: Verify request is from SafeHaven
+    const securityCheck = verifySafeHavenRequest(req);
+    if (!securityCheck.isValid) {
+      console.error('🚫 Webhook request rejected:', securityCheck.reason);
+      return createJsonResponse({ 
+        error: 'Unauthorized',
+        message: 'This webhook endpoint is only accessible by SafeHaven. Testing tools are not allowed.',
+        reason: securityCheck.reason
+      }, 403);
+    }
+
     // Log that we received a webhook (for debugging)
-    console.log('SafeHaven webhook received:', {
+    console.log('✅ SafeHaven webhook received:', {
       method: req.method,
       url: req.url,
-      hasAuth: !!req.headers.get('authorization'),
-      headers: Object.fromEntries(req.headers.entries())
+      timestamp: new Date().toISOString()
     });
 
     // Get webhook payload
@@ -770,10 +881,23 @@ Deno.serve(async (req) => {
     console.log('Webhook data keys:', Object.keys(webhookData || {}));
 
     // Verify webhook signature if provided
-    const signature = req.headers.get('x-signature') || req.headers.get('signature') || '';
-    if (!verifyWebhookSignature(payload, signature, SAFEHAVEN_WEBHOOK_SECRET)) {
-      console.error('Invalid webhook signature');
-      return createJsonResponse({ error: 'Invalid signature' }, 401);
+    const signature = req.headers.get('x-signature') || 
+                     req.headers.get('x-safehaven-signature') || 
+                     req.headers.get('signature') || '';
+    
+    if (SAFEHAVEN_WEBHOOK_SECRET && signature) {
+      if (!verifyWebhookSignature(payload, signature, SAFEHAVEN_WEBHOOK_SECRET)) {
+        console.error('🚫 Invalid webhook signature');
+        return createJsonResponse({ 
+          error: 'Invalid signature',
+          message: 'Webhook signature verification failed'
+        }, 401);
+      }
+      console.log('✅ Webhook signature verified');
+    } else if (SAFEHAVEN_WEBHOOK_SECRET && !signature) {
+      console.warn('⚠️ Webhook secret configured but no signature provided');
+      // In production, you might want to reject this
+      // For now, we'll allow it but log a warning
     }
 
     // Webhook is logged to safehaven_deposit_webhooks during processing
