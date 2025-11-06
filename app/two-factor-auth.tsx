@@ -142,7 +142,6 @@ export default function TwoFactorAuthScreen() {
               </View>
             ) : (
               <View style={styles.methodsSection}>
-                <Text style={styles.sectionTitle}>Choose Authentication Method</Text>
                 
                 <Pressable
                   style={[
@@ -162,13 +161,10 @@ export default function TwoFactorAuthScreen() {
                       Use an authenticator app like Google Authenticator or Authy
                     </Text>
                   </View>
-                  <View style={styles.recommendedTag}>
-                    <Text style={[styles.recommendedText, { color: colors.primary }]}>Recommended</Text>
-                  </View>
                 </Pressable>
 
 
-                <Pressable
+                {/* <Pressable
                   style={[
                     styles.methodCard,
                     selectedMethod === 'email' && styles.selectedMethod,
@@ -186,7 +182,7 @@ export default function TwoFactorAuthScreen() {
                       Receive verification codes via email
                     </Text>
                   </View>
-                </Pressable>
+                </Pressable> */}
               </View>
             )}
 

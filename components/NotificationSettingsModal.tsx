@@ -1,5 +1,6 @@
 import { Modal, View, Text, StyleSheet, Pressable, Switch, ScrollView, useWindowDimensions , Platform } from 'react-native';
-import { X, Bell, Shield, Clock, Mail, BanknoteArrowUp, Key, Wallet, Megaphone, Calendar } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { X, Bell, Shield, Clock, Mail, BanknoteArrowUp, Key, Wallet, Megaphone, Calendar, ChevronRight } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEmailNotifications, EmailNotificationSettings } from '@/hooks/useEmailNotifications';
@@ -34,7 +35,6 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
   const [pushEnabled, setPushEnabled] = useState(true);
   const [payoutAlerts, setPayoutAlerts] = useState(true);
   const [securityAlerts, setSecurityAlerts] = useState(true);
-  const [marketingAlerts, setMarketingAlerts] = useState(false);
   
   // Update local settings when remote settings change
   useEffect(() => {
@@ -77,24 +77,32 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
     if (Platform.OS !== 'web') {
       haptics.mediumImpact();
     }
-    
+
     const success = await updateSettings(localSettings);
-    
+
     if (success) {
       showToast('Notification settings saved successfully', 'success');
-      
+
       if (Platform.OS !== 'web') {
         haptics.success();
       }
-      
+
       onClose();
     } else {
       showToast('Failed to save notification settings', 'error');
-      
+
       if (Platform.OS !== 'web') {
         haptics.error();
       }
     }
+  };
+
+  const handleMarketingPress = () => {
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
+    onClose();
+    router.push('/marketing-preferences');
   };
   
   const styles = createStyles(colors, isDark, isSmallScreen);
@@ -160,28 +168,97 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 />
               </View>
               
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Shield size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Security Alerts</Text>
+                    <Text style={styles.settingDescription}>Login attempts and security updates</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={securityAlerts}
+                  onValueChange={() => handleTogglePush(setSecurityAlerts)}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
+                  thumbColor={securityAlerts ? '#1E3A8A' : colors.backgroundTertiary}
+                  disabled={!pushEnabled}
+                />
+              </View>
+              
+              
+            
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Email Notifications</Text>
               
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
-                    <Megaphone size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                    <Key size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
                   </View>
                   <View>
-                    <Text style={styles.settingTitle}>Marketing & Updates</Text>
-                    <Text style={styles.settingDescription}>News, tips, and product updates</Text>
+                    <Text style={styles.settingTitle}>Login Attempt</Text>
+                    <Text style={styles.settingDescription}>Get notified about new logins to your account</Text>
                   </View>
                 </View>
                 <Switch
-                  value={marketingAlerts}
-                  onValueChange={() => handleTogglePush(setMarketingAlerts)}
+                  value={localSettings.login_alerts}
+                  onValueChange={() => handleToggleEmail('login_alerts')}
                   trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
-                  thumbColor={marketingAlerts ? '#1E3A8A' : colors.backgroundTertiary}
-                  disabled={!pushEnabled}
+                  thumbColor={localSettings.login_alerts ? '#1E3A8A' : colors.backgroundTertiary}
                 />
               </View>
+              
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <BanknoteArrowUp size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Payout Alerts</Text>
+                    <Text style={styles.settingDescription}>Get notified when payouts are processed</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={localSettings.payout_alerts}
+                  onValueChange={() => handleToggleEmail('payout_alerts')}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
+                  thumbColor={localSettings.payout_alerts ? '#1E3A8A' : colors.backgroundTertiary}
+                />
+              </View>
+              
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Clock size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Plan Expiry Reminders</Text>
+                    <Text style={styles.settingDescription}>Get notified when your payout plans are about to expire</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={localSettings.expiry_reminders}
+                  onValueChange={() => handleToggleEmail('expiry_reminders')}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
+                  thumbColor={localSettings.expiry_reminders ? '#1E3A8A' : colors.backgroundTertiary}
+                />
+              </View>
+              <Pressable style={styles.navigationItem} onPress={handleMarketingPress}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Mail size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingTitle}>Marketing & Updates</Text>
+                    <Text style={styles.settingDescription}>Manage email preferences for promotional content</Text>
+                  </View>
+                </View>
+                <ChevronRight size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
+              </Pressable>
             </View>
-            
-            
+            </View>
             
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Wallet Summary Emails</Text>
@@ -337,6 +414,14 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  navigationItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 1,
+    marginBottom: 8,
   },
   settingInfo: {
     flexDirection: 'row',
