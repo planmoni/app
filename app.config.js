@@ -8,12 +8,14 @@ export default {
     slug: "planmoni",
     version: "1.0.0",
     scheme: "myapp",
+    userInterfaceStyle: "automatic", // Allow system to control theme
     updates: {
       url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83"
     },
     runtimeVersion: "1.0.0",
     android: {
       package: "com.planmoni", // ← choose your unique package name
+      "userInterfaceStyle": "automatic",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
@@ -22,6 +24,7 @@ export default {
     },
     ios: {
       "bundleIdentifier": "com.planmoni",
+      "userInterfaceStyle": "automatic",
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"], // ✅ Required for push notifications
         "NSCameraUsageDescription": "This app needs access to camera for liveness verification",

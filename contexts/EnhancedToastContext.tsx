@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Dimensions, Pressable } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { X, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react-native';
 
@@ -12,6 +12,8 @@ export interface ToastMessage {
   message?: string;
   duration?: number;
   persistent?: boolean;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 interface ToastContextType {
@@ -89,15 +91,16 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const getToastIcon = (type: ToastType) => {
+    // All icons are white for the dark purple design
     switch (type) {
       case 'success':
-        return <CheckCircle size={20} color="#22C55E" />;
+        return <CheckCircle size={20} color="#FFFFFF" />;
       case 'error':
-        return <AlertCircle size={20} color="#EF4444" />;
+        return <AlertCircle size={20} color="#FFFFFF" />;
       case 'warning':
-        return <AlertTriangle size={20} color="#F59E0B" />;
+        return <AlertTriangle size={20} color="#FFFFFF" />;
       case 'info':
-        return <Info size={20} color="#3B82F6" />;
+        return <Info size={20} color="#FFFFFF" />;
     }
   };
 
@@ -105,25 +108,32 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     switch (type) {
       case 'success':
         return {
-          background: '#DCFCE7',
+          // background: '#DCFCE7',
+          background: '#2D005B', // Dark purple
+          actionText: '#C8A2FF',
           border: '#22C55E',
           text: '#166534'
         };
       case 'error':
         return {
-          background: '#FEE2E2',
+          // background: '#FEE2E2',
+          background: '#2D005B', // Dark purple
+          actionText: '#C8A2FF',
           border: '#EF4444',
           text: '#991B1B'
         };
       case 'warning':
         return {
-          background: '#FEF3C7',
+          // background: '#FEF3C7',
+          background: '#2D005B', // Dark purple
+          actionText: '#C8A2FF',
           border: '#F59E0B',
           text: '#92400E'
         };
       case 'info':
         return {
-          background: '#DBEAFE',
+          background: '#2D005B', // Dark purple
+          actionText: '#C8A2FF',
           border: '#3B82F6',
           text: '#1E40AF'
         };
@@ -171,13 +181,30 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     </Text>
                   )}
                 </View>
-                <View style={styles.toastClose}>
-                  <X 
-                    size={16} 
-                    color={toastColors.text}
-                    onPress={() => hideToast(toast.id)}
-                  />
-                </View>
+                {toast.actionLabel && toast.onAction && (
+                  <Pressable 
+                    style={styles.actionButton}
+                    onPress={() => {
+                      toast.onAction?.();
+                      hideToast(toast.id);
+                    }}
+                  >
+                    <Text style={[styles.actionText, { color: toastColors.actionText }]}>
+                      {toast.actionLabel}
+                    </Text>
+                  </Pressable>
+                )}
+                <Pressable 
+                  style={styles.toastClose}
+                  onPress={() => hideToast(toast.id)}
+                >
+                  <View style={styles.closeButtonContainer}>
+                    <X 
+                      size={16} 
+                      color={toastColors.text}
+                    />
+                  </View>
+                </Pressable>
               </View>
             </View>
           );
@@ -196,8 +223,8 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   toast: {
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 24, // Pill shape - larger border radius
+    borderWidth: 0, // No border for cleaner look
     marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: {
@@ -211,7 +238,8 @@ const styles = StyleSheet.create({
   toastContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   toastIcon: {
     marginRight: 12,
@@ -228,7 +256,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.8,
   },
+  actionButton: {
+    marginRight: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: 'rgba(200, 162, 255, 0.2)', // Light purple background for action button
+  },
+  actionText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   toastClose: {
-    marginLeft: 12,
+    marginLeft: 8,
+  },
+  closeButtonContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)', // Subtle background for close button
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

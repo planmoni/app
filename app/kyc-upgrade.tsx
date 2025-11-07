@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image, Modal, useWindowDimensions, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
 import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
+import { safeHavenService } from '@/lib/safehaven-service';
 
 type IdentityType = 'bvn' | 'nin' | 'passport';
 
@@ -37,7 +38,42 @@ export default function KYCUpgradeScreen() {
 
   
   
-  // Step management
+  // Helper function to get the first incomplete step from scratch
+  const getFirstIncompleteStep = useCallback((): KYCStep => {
+    if (!progress) return 'liveness_verification';
+    
+    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
+    
+    // Find the first incomplete step
+    for (const step of stepOrder) {
+      switch (step) {
+        case 'liveness_verification':
+          if (!progress.liveness_test_completed) return step;
+          break;
+        case 'bvn_verification':
+          if (!progress.bvn_verified) return step;
+          break;
+        case 'id_face_match':
+          if (!progress.id_face_verified) return step;
+          break;
+        case 'personal':
+          if (!progress.personal_info_completed) return step;
+          break;
+        case 'documents_verification':
+          if (!progress.documents_verified) return step;
+          break;
+        case 'address_details':
+          if (!progress.address_completed) return step;
+          break;
+        case 'review':
+          return step; // Review is accessible if all steps are complete
+      }
+    }
+    
+    return 'review'; // Default to review if all steps are complete
+  }, [progress]);
+
+  // Step management - will be initialized to first incomplete step by useEffect
   const [currentStep, setCurrentStep] = useState<KYCStep>('liveness_verification');
   
   // Identity verification
@@ -62,6 +98,7 @@ export default function KYCUpgradeScreen() {
   const [showLivenessTest, setShowLivenessTest] = useState(false);
   const [livenessInitiated, setLivenessInitiated] = useState(false);
   const [livenessManuallyClosed, setLivenessManuallyClosed] = useState(false);
+  const [livenessCompleted, setLivenessCompleted] = useState(false);
   
   // Personal information
   const [firstName, setFirstName] = useState('');
@@ -300,51 +337,15 @@ export default function KYCUpgradeScreen() {
 
   // Update current step when progress changes, but skip to first incomplete step
   useEffect(() => {
-    if (progress) {
+    if (progress && !progressLoading) {
       setBvnVerified(progress.bvn_verified);
       setDocumentsVerified(progress.documents_verified);
       
-      // Get the first incomplete step or current step if it's incomplete
-      const current = progress.current_step;
-      let targetStep = current;
-      
-      // Check if current step is completed, if so, skip to next incomplete
-      switch (current) {
-        case 'liveness_verification':
-          if (progress.liveness_test_completed) {
-            targetStep = getNextIncompleteStep(current);
-          }
-          break;
-        case 'personal':
-          if (progress.personal_info_completed) {
-            targetStep = getNextIncompleteStep(current);
-          }
-          break;
-        case 'bvn_verification':
-          if (progress.bvn_verified) {
-            targetStep = getNextIncompleteStep(current);
-          }
-          break;
-        case 'id_face_match':
-          if (progress.id_face_verified) {
-            targetStep = getNextIncompleteStep(current);
-          }
-          break;
-        case 'documents_verification':
-          if (progress.documents_verified) {
-            targetStep = getNextIncompleteStep(current);
-          }
-          break;
-        case 'address_details':
-          if (progress.address_completed) {
-            targetStep = getNextIncompleteStep(current);
-          }
-          break;
-      }
-      
+      // Get the first incomplete step directly using the helper function
+      const targetStep = getFirstIncompleteStep();
       setCurrentStep(targetStep);
     }
-  }, [progress, showToast, isManualVerification]);
+  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep]);
 
   // Auto-focus BVN input when step changes to bvn_verification
   useEffect(() => {
@@ -790,6 +791,9 @@ export default function KYCUpgradeScreen() {
     try {
       console.log('Liveness test completed, selfie URL received:', selfieUrl);
       
+      // Mark liveness as completed immediately to prevent handleLivenessClose from navigating away
+      setLivenessCompleted(true);
+      
       // Save the selfie URL to form data
       await saveFormData({
         selfie_url: selfieUrl
@@ -857,11 +861,6 @@ export default function KYCUpgradeScreen() {
       // Show success message
       showToast('Selfie captured and saved successfully', 'success');
       
-      // Liveness completed - LivenessTestEnhanced already saved the image
-      setShowLivenessTest(false);
-      setLivenessInitiated(false);
-      setLivenessManuallyClosed(false); // Reset the manually closed flag
-      
       // Update current_step to next step after liveness completion
       // Tier 1: After liveness, move to BVN verification
       const progressResult = await updateProgress({
@@ -873,19 +872,42 @@ export default function KYCUpgradeScreen() {
         // Proceed to next incomplete step (should be bvn_verification if not completed)
         const nextStep = getNextIncompleteStep('liveness_verification');
         setCurrentStep(nextStep);
+        
+        // Close the liveness test modal after processing is complete
+        setShowLivenessTest(false);
+        setLivenessInitiated(false);
+        setLivenessManuallyClosed(false); // Reset the manually closed flag
+        
         setTimeout(() => {
           setIsManualVerification(false);
-        }, 1000);
+          // Reset completion flag after a delay
+          setTimeout(() => {
+            setLivenessCompleted(false);
+          }, 500);
+        }, 500);
+      } else {
+        // If progress update failed, still close the modal
+        setShowLivenessTest(false);
+        setLivenessInitiated(false);
       }
     } catch (error) {
       console.error('Error handling liveness completion:', error);
       showToast('Failed to process liveness completion. Please try again.', 'error');
       setShowLivenessTest(false);
       setLivenessInitiated(false);
+      setLivenessCompleted(false);
     }
   };
   
   const handleLivenessClose = async () => {
+    // Check if liveness test was completed successfully
+    // If it was completed, don't navigate away - let handleLivenessComplete handle the flow
+    if (livenessCompleted || progress?.liveness_test_completed) {
+      setShowLivenessTest(false);
+      setLivenessInitiated(false);
+      return; // Don't navigate away if completed
+    }
+
     try {
       // Create audit log for liveness test manual close
       const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
@@ -935,7 +957,7 @@ export default function KYCUpgradeScreen() {
     setShowLivenessTest(false);
     setLivenessInitiated(false);
     setLivenessManuallyClosed(true);
-    // Navigate to home when liveness test is closed
+    // Only navigate to home when liveness test is manually closed (not completed)
     router.push('/(tabs)');
   };
   
@@ -1523,70 +1545,62 @@ export default function KYCUpgradeScreen() {
         throw new Error('NIN is required');
       }
 
+      if (!session?.user?.id) {
+        throw new Error('User session not found');
+      }
+
       // Get selfie image for verification from saved form data
       let selfieToUse = null;
       
       if (formData.selfie_url) {
-        const base64Image = await convertImageToBase64(formData.selfie_url);
-        if (base64Image) {
-          selfieToUse = `data:image/jpeg;base64,${base64Image}`;
-        }
+        // Use the selfie URL directly (SafeHaven service will handle conversion)
+        selfieToUse = formData.selfie_url;
       }
       
       if (!selfieToUse) {
         throw new Error('Selfie image is required for NIN verification. Please complete the liveness test first.');
       }
-      
-      // Convert selfie image to base64 (remove data:image/jpeg;base64, prefix)
-      const selfieBase64 = selfieToUse.split(',')[1];
 
-      // Make Dojah API call for NIN verification
-      const response = await fetch('https://api.dojah.io/api/v1/kyc/nin/verify', {
-        method: 'POST',
-        headers: {
-          'AppId': appId,
-          'Authorization': privateKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          selfie_image: `data:image/jpeg;base64,${selfieBase64}`,
-          nin: parseInt(nin)
-        })
-      });
+      // Get phone number and email for account creation
+      const userPhoneNumber = phoneNumber?.trim() || '';
+      const userEmail = session?.user?.email || '';
       
-      if (!response.ok) {
-        throw new Error(`NIN verification failed: ${response.status} ${response.statusText}`);
+      if (!userPhoneNumber) {
+        throw new Error('Phone number is required for NIN verification. Please enter your phone number in the personal information section.');
       }
       
-      const data = await response.json();
-      console.log('NIN verification response:', data);
-      
-      if (!data.entity) {
-        throw new Error('Invalid NIN or no data returned');
+      if (!userEmail) {
+        throw new Error('Email address is required for NIN verification. Please ensure your email is verified.');
       }
-      
-      const ninData = data.entity;
-      
-      // Check selfie verification with confidence threshold
-      const selfieVerification = ninData.selfie_verification;
-      if (!selfieVerification) {
-        throw new Error('Selfie verification data not available. Please try again.');
+
+      setIsLoading(true);
+      setIsManualVerification(true);
+
+      // Use SafeHaven service for NIN verification
+      // Note: OTP is optional - if account creation fails with OTP error, we can handle it later
+      const result = await safeHavenService.verifyNINAndCreateAccount(
+        session.user.id,
+        nin.trim(),
+        userPhoneNumber,
+        userEmail,
+        selfieToUse
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'NIN verification failed');
       }
+
+      const verificationData = result.data;
       
-      if (!selfieVerification.match) {
-        throw new Error('Selfie verification failed. Please ensure the selfie matches your NIN photo.');
+      // Check if verification was successful
+      if (!verificationData || !verificationData.verified) {
+        throw new Error('NIN verification failed. Please check your NIN and try again.');
       }
-      
-      if (selfieVerification.confidence_value < 90) {
-        throw new Error(`Selfie confidence too low (${selfieVerification.confidence_value.toFixed(1)}%). Please take a clearer selfie.`);
-      }
-      
-      console.log(`Selfie verification passed: ${selfieVerification.confidence_value.toFixed(1)}% confidence`);
-      
-      // Get names from NIN data
-      const ninFirstName = ninData.first_name || '';
-      const ninLastName = ninData.last_name || '';
-      const ninMiddleName = ninData.middle_name || '';
+
+      // Get names from SafeHaven verification data
+      const ninFirstName = verificationData.first_name || verificationData.firstName || '';
+      const ninLastName = verificationData.last_name || verificationData.lastName || '';
+      const ninMiddleName = verificationData.middle_name || verificationData.middleName || '';
       
       // Get names from user's saved data
       const userFirstName = firstName || '';
@@ -1620,7 +1634,6 @@ export default function KYCUpgradeScreen() {
       
       // Consider it a match if at least 60% of names match
       if (matchPercentage >= 60) {
-        // Do NOT save document fields here; NIN step only saves NIN elsewhere
         setDocumentsVerified(true);
         
         // Create a display name from NIN data
@@ -1628,71 +1641,48 @@ export default function KYCUpgradeScreen() {
           .filter(Boolean)
           .join(' ');
         
-        // Create audit log for NIN verification
-        const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
-          p_user_id: session?.user?.id,
-          p_operation_type: 'nin_verified',
-          p_verification_type: 'nin',
-          p_verification_provider: 'dojah',
-          p_request_data: {
-            nin: nin,
-            selfie_verification: true,
-            name_matching: true
-          },
-          p_response_data: {
-            nin_data: ninData,
-            name_match_percentage: matchPercentage,
-            selfie_confidence: selfieVerification.confidence_value,
-            matched_name: displayName
-          },
-          p_status: 'success',
-          p_result_message: `NIN verified successfully. Name: ${displayName}`,
-          p_confidence_score: selfieVerification.confidence_value,
-          p_metadata: {
-            component: 'kyc-upgrade',
-            verification_step: 'id_face_match',
-            name_match_percentage: matchPercentage,
-            provider: 'dojah'
-          }
-        });
-
-        // Create audit event for NIN verification
-        if (auditLogId) {
+        // Create audit event for NIN verification (additional to what SafeHaven service already logged)
+        if (result.auditLogId) {
           await supabase
             .from('kyc_audit_events')
             .insert({
-              audit_log_id: auditLogId,
-              user_id: session?.user?.id,
+              audit_log_id: result.auditLogId,
+              user_id: session.user.id,
               event_type: 'verification_completed',
               event_data: {
                 action: 'nin_verification_completed',
-                nin: nin,
+                nin: nin.substring(0, 4) + '****', // Partial NIN for security
                 name_match_percentage: matchPercentage,
-                selfie_confidence: selfieVerification.confidence_value
+                matched_name: displayName,
+                hasAccount: !!verificationData.account_number
               },
               severity: 'high'
             });
 
-          // Create audit attachment for NIN document
+          // Create audit attachment for NIN document if available
           if (documentFrontImage) {
             await supabase
               .from('kyc_audit_attachments')
               .insert({
-                audit_log_id: auditLogId,
+                audit_log_id: result.auditLogId,
                 file_name: `nin-document-${Date.now()}.jpg`,
                 file_type: 'image/jpeg',
-                file_size: 0, // We don't have the actual file size here
-                file_hash: 'document-hash-placeholder', // Would need actual hash calculation
+                file_size: 0,
+                file_hash: 'document-hash-placeholder',
                 file_path: documentFrontImage,
                 access_level: 'restricted',
                 description: 'NIN document front image',
-                tags: ['nin', 'document', 'kyc', 'id_verification']
+                tags: ['nin', 'document', 'kyc', 'id_verification', 'safehaven']
               });
           }
         }
         
-        // Show success toast after verification completes
-        showToast(`NIN verified! Name: ${displayName} (${selfieVerification.confidence_value.toFixed(1)}% confidence)`, 'success');
+        // Show success message
+        let successMessage = `NIN verified! Name: ${displayName}`;
+        if (verificationData.account_number) {
+          successMessage += ` • Account created: ${verificationData.account_number.substring(0, 5)}****`;
+        }
+        showToast(successMessage, 'success');
         
         // Update progress with NIN verified
         // After NIN (Tier 1 complete), move to personal (first step in Tier 2)
@@ -1725,6 +1715,7 @@ export default function KYCUpgradeScreen() {
         setCurrentStep(nextStep);
         setTimeout(() => {
           setIsManualVerification(false);
+          setIsLoading(false);
         }, 1000);
       } else {
         throw new Error('Name mismatch detected. Please verify your personal information.');
@@ -1737,6 +1728,7 @@ export default function KYCUpgradeScreen() {
       setErrors({ documentVerification: errorMessage });
       // Reset manual verification flag on error
       setIsManualVerification(false);
+      setIsLoading(false);
       throw error; // Re-throw to be handled by verifyDocuments
     }
   };
