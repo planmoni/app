@@ -10,6 +10,9 @@ import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { PinProvider } from '@/contexts/PinContext';
 import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
+import { AppVersionProvider } from '@/contexts/AppVersionContext';
+import UpdateAppModal from '@/components/UpdateAppModal';
+
 
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
@@ -226,8 +229,8 @@ function RootLayoutNav() {
       <Stack screenOptions={{ headerShown: false }}>
         {session?.user?.id ? (
           <React.Fragment key="authenticated-screens">
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="login-success" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="profile" options={{ headerShown: false }} />
             <Stack.Screen name="add-funds" options={{ headerShown: false }} />
             <Stack.Screen name="all-payouts" options={{ headerShown: false }} />
@@ -239,6 +242,7 @@ function RootLayoutNav() {
             <Stack.Screen name="referral" options={{ headerShown: false }} />
             <Stack.Screen name="transaction-limits" options={{ headerShown: false }} />
             <Stack.Screen name="transactions" options={{ headerShown: false }} />
+            <Stack.Screen name="account-statement" options={{ headerShown: false }} />
             <Stack.Screen name="two-factor-auth" options={{ headerShown: false }} />
             <Stack.Screen name="two-factor-setup" options={{ headerShown: false }} />
             <Stack.Screen name="two-factor-settings" options={{ headerShown: false }} />
@@ -261,6 +265,7 @@ function RootLayoutNav() {
       {isAppLocked && session?.user?.id && !isPinResetMode && (
         <AppLockScreen />
       )}
+      <UpdateAppModal />
       
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* <SessionDebugger /> */}
@@ -285,21 +290,23 @@ export default function RootLayout() {
       <ThemeProvider>
         <ToastProvider>
           <AuthProvider>
-            <PinProvider>
-              <AppLockProvider>
-                <BalanceProvider>
-                  <BottomNavProvider>
-                    <AppBlur>
-                    <RootLayoutNav />
-                    </AppBlur>
-                  </BottomNavProvider>
-                </BalanceProvider>
+            <AppVersionProvider>
+              <PinProvider>
+                <AppLockProvider>
+                  <BalanceProvider>
+                    <BottomNavProvider>
+                      <AppBlur>
+                      <RootLayoutNav />
+                      </AppBlur>
+                    </BottomNavProvider>
+                  </BalanceProvider>
               </AppLockProvider>
             </PinProvider>
-          </AuthProvider>
-        </ToastProvider>
-      </ThemeProvider>
-    </AppErrorProvider>
+          </AppVersionProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </ThemeProvider>
+  </AppErrorProvider>
   );
 }
 

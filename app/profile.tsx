@@ -87,9 +87,7 @@ export default function ProfileScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Profile</Text>
-        <Pressable onPress={handleEditProfile} style={styles.editButton}>
-          <Edit3 size={20} color={colors.primary} />
-        </Pressable>
+        
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -228,45 +226,7 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Actions</Text>
-          
-          <View style={styles.actionsCard}>
-            <Pressable style={styles.actionItem} onPress={handleEditProfile}>
-              <View style={styles.actionLeft}>
-                <View style={[styles.actionIcon, { backgroundColor: '#EFF6FF' }]}>
-                  <Edit3 size={20} color="#1E3A8A" />
-                </View>
-                <Text style={styles.actionText}>Edit Profile</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
-
-            <View style={styles.divider} />
-
-            <Pressable style={styles.actionItem} onPress={() => router.push('/change-password')}>
-              <View style={styles.actionLeft}>
-                <View style={[styles.actionIcon, { backgroundColor: '#FEF3C7' }]}>
-                  <Shield size={20} color="#D97706" />
-                </View>
-                <Text style={styles.actionText}>Change Password</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
-
-            <View style={styles.divider} />
-
-            <Pressable style={styles.actionItem} onPress={() => router.push('/privacy-settings')}>
-              <View style={styles.actionLeft}>
-                <View style={[styles.actionIcon, { backgroundColor: '#F0FDF4' }]}>
-                  <Shield size={20} color="#22C55E" />
-                </View>
-                <Text style={styles.actionText}>Privacy Settings</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
-          </View>
-        </View>
+        
       </ScrollView>
 
       <View style={styles.footer}>
@@ -300,8 +260,8 @@ function getKYCStatus(level: KYCLevel, progress?: KYCProgress) {
       return {
         label: 'Unverified',
         description: 'Complete your BVN verification to unlock basic transaction limits and get a virtual account.',
-        color: '#EF4444',
-        backgroundColor: '#FEE2E2',
+        color: '#C8A2FF',
+        backgroundColor: '#2D005B',
         icon: AlertCircle,
         limits: {
           daily: '₦50,000',
@@ -380,6 +340,8 @@ const createStyles = (colors: any, screenWidth: number) => {
     headerTitle: {
       fontSize: Math.max(16, Math.min(screenWidth * 0.045, 20)),
       fontWeight: '600',
+      textAlign: 'center',
+      flex: 1,
       color: colors.text,
     },
     editButton: {
@@ -503,7 +465,7 @@ const createStyles = (colors: any, screenWidth: number) => {
       borderColor: colors.primary,
       paddingVertical: 12,
       paddingHorizontal: 16,
-      borderRadius: 8,
+      borderRadius: 100,
     },
     upgradeButtonText: {
       fontSize: 14,

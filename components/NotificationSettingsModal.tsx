@@ -1,5 +1,6 @@
 import { Modal, View, Text, StyleSheet, Pressable, Switch, ScrollView, useWindowDimensions , Platform } from 'react-native';
-import { X, Bell, Shield, Clock, Mail, BanknoteArrowUp, Key, Wallet, Megaphone, Calendar } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { X, Bell, Shield, Clock, Mail, BanknoteArrowUp, Key, Wallet, Megaphone, Calendar, ChevronRight } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEmailNotifications, EmailNotificationSettings } from '@/hooks/useEmailNotifications';
@@ -34,7 +35,6 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
   const [pushEnabled, setPushEnabled] = useState(true);
   const [payoutAlerts, setPayoutAlerts] = useState(true);
   const [securityAlerts, setSecurityAlerts] = useState(true);
-  const [marketingAlerts, setMarketingAlerts] = useState(false);
   
   // Update local settings when remote settings change
   useEffect(() => {
@@ -77,24 +77,32 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
     if (Platform.OS !== 'web') {
       haptics.mediumImpact();
     }
-    
+
     const success = await updateSettings(localSettings);
-    
+
     if (success) {
       showToast('Notification settings saved successfully', 'success');
-      
+
       if (Platform.OS !== 'web') {
         haptics.success();
       }
-      
+
       onClose();
     } else {
       showToast('Failed to save notification settings', 'error');
-      
+
       if (Platform.OS !== 'web') {
         haptics.error();
       }
     }
+  };
+
+  const handleMarketingPress = () => {
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
+    onClose();
+    router.push('/marketing-preferences');
   };
   
   const styles = createStyles(colors, isDark, isSmallScreen);
@@ -179,25 +187,7 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                 />
               </View>
               
-              <View style={styles.settingItem}>
-                <View style={styles.settingInfo}>
-                  <View style={styles.settingIconContainer}>
-                    <Megaphone size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
-                  </View>
-                  <View>
-                    <Text style={styles.settingTitle}>Marketing & Updates</Text>
-                    <Text style={styles.settingDescription}>News, tips, and product updates</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={marketingAlerts}
-                  onValueChange={() => handleTogglePush(setMarketingAlerts)}
-                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
-                  thumbColor={marketingAlerts ? '#1E3A8A' : colors.backgroundTertiary}
-                  disabled={!pushEnabled}
-                />
-              </View>
-            </View>
+              
             
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Email Notifications</Text>
@@ -255,6 +245,19 @@ export default function NotificationSettingsModal({ isVisible, onClose }: Notifi
                   thumbColor={localSettings.expiry_reminders ? '#1E3A8A' : colors.backgroundTertiary}
                 />
               </View>
+              <Pressable style={styles.navigationItem} onPress={handleMarketingPress}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Mail size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingTitle}>Marketing & Updates</Text>
+                    <Text style={styles.settingDescription}>Manage email preferences for promotional content</Text>
+                  </View>
+                </View>
+                <ChevronRight size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
             </View>
             
             <View style={styles.section}>
@@ -411,6 +414,14 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  navigationItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 1,
+    marginBottom: 8,
   },
   settingInfo: {
     flexDirection: 'row',
