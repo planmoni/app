@@ -128,6 +128,8 @@ export default function KYCUpgradeScreen() {
   const [bvnMatchedName, setBvnMatchedName] = useState('');
   const [nin, setNin] = useState('');
   const [passportNumber, setPassportNumber] = useState('');
+  const [ninIdentityId, setNinIdentityId] = useState<string | null>(null);
+  const [otp, setOtp] = useState('');
   
   
   // Document verification
@@ -434,6 +436,12 @@ export default function KYCUpgradeScreen() {
     if (!nin.trim()) newErrors.nin = 'NIN is required';
     else if (nin.length !== 11 || !/^\d+$/.test(nin)) newErrors.nin = 'NIN must be 11 digits';
 
+    // If identityId exists, OTP is required
+    if (ninIdentityId) {
+      if (!otp.trim()) newErrors.otp = 'OTP is required';
+      else if (otp.length !== 6 || !/^\d+$/.test(otp)) newErrors.otp = 'OTP must be 6 digits';
+    }
+
     // if (!selfieImage && !formData.selfie_url) {
     //   newErrors.selfie = 'Selfie is required';
     // }
@@ -671,6 +679,13 @@ export default function KYCUpgradeScreen() {
           if (validateIdFaceMatch()) {
             setIsLoading(true);
             
+            // If identityId exists, user has already initialized - proceed with verification
+            if (ninIdentityId && otp) {
+              // Verify NIN with OTP
+              await verifyNIN();
+              return;
+            }
+            
             // Save identity data (NIN verification only)
             const saveResult = await saveFormData({
               nin: nin,
@@ -682,8 +697,9 @@ export default function KYCUpgradeScreen() {
               return;
             }
             
-            // Verify NIN with Dojah (face matching)
-            await verifyNIN(process.env.EXPO_PUBLIC_DOJAH_APP_ID!, process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!);
+            // Initialize NIN verification (sends OTP to phone number linked to NIN)
+            await initializeNINVerification();
+            // Note: After OTP is sent, user should enter OTP and click Continue again to call verifyNIN
           }
           break;
         case 'address_details':
@@ -1539,7 +1555,8 @@ export default function KYCUpgradeScreen() {
   //   // Disabled: Driver's license verification is not supported. Use NIN only.
   // };
 
-  const verifyNIN = async (appId: string, privateKey: string) => {
+  // Initialize NIN verification - sends OTP to phone number linked to NIN
+  const initializeNINVerification = async () => {
     try {
       if (!nin.trim()) {
         throw new Error('NIN is required');
@@ -1549,16 +1566,76 @@ export default function KYCUpgradeScreen() {
         throw new Error('User session not found');
       }
 
-      // Get selfie image for verification from saved form data
-      let selfieToUse = null;
-      
-      if (formData.selfie_url) {
-        // Use the selfie URL directly (SafeHaven service will handle conversion)
-        selfieToUse = formData.selfie_url;
+      setIsLoading(true);
+      setIsManualVerification(true);
+
+      // Use SafeHaven service to initialize NIN verification
+      // Call without OTP to initialize and get identityId
+      const result = await safeHavenService.verifyNINAndCreateAccount(
+        session.user.id,
+        nin.trim(),
+        phoneNumber?.trim() || '',
+        session?.user?.email || '',
+        undefined  // otp - not provided for initialization
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to initialize NIN verification');
       }
+
+      const identityId = result.data?.identityId;
       
-      if (!selfieToUse) {
-        throw new Error('Selfie image is required for NIN verification. Please complete the liveness test first.');
+      if (!identityId) {
+        throw new Error('Identity ID not found in response');
+      }
+
+      // Store identityId for use in verifyNIN
+      setNinIdentityId(identityId);
+
+      // OTP is sent to the phone number linked to the NIN
+      showToast('OTP sent to phone number linked to your NIN', 'success');
+      
+      setIsLoading(false);
+      
+      return {
+        success: true,
+        auditLogId: result.auditLogId,
+        requiresOtp: true,
+        identityId: identityId
+      };
+      
+    } catch (error) {
+      console.error('NIN verification initialization error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to initialize NIN verification';
+      showToast(errorMessage, 'error');
+      setErrors({ documentVerification: errorMessage });
+      setIsManualVerification(false);
+      setIsLoading(false);
+      throw error;
+    }
+  };
+
+  // Verify NIN with OTP and create SafeHaven account
+  const verifyNIN = async (otpValue?: string, identityIdParam?: string) => {
+    try {
+      if (!nin.trim()) {
+        throw new Error('NIN is required');
+      }
+
+      if (!session?.user?.id) {
+        throw new Error('User session not found');
+      }
+
+      // Use provided OTP or state OTP
+      const otpToUse = otpValue || otp;
+      if (!otpToUse || otpToUse.length !== 6) {
+        throw new Error('Valid 6-digit OTP is required');
+      }
+
+      // Use provided identityId or stored identityId
+      const identityIdToUse = identityIdParam || ninIdentityId;
+      if (!identityIdToUse) {
+        throw new Error('Identity ID is required. Please initialize NIN verification first.');
       }
 
       // Get phone number and email for account creation
@@ -1566,41 +1643,72 @@ export default function KYCUpgradeScreen() {
       const userEmail = session?.user?.email || '';
       
       if (!userPhoneNumber) {
-        throw new Error('Phone number is required for NIN verification. Please enter your phone number in the personal information section.');
+        throw new Error('Phone number is required for NIN verification.');
       }
       
       if (!userEmail) {
-        throw new Error('Email address is required for NIN verification. Please ensure your email is verified.');
+        throw new Error('Email address is required for NIN verification.');
       }
 
       setIsLoading(true);
       setIsManualVerification(true);
 
-      // Use SafeHaven service for NIN verification
-      // Note: OTP is optional - if account creation fails with OTP error, we can handle it later
+      // Create audit log for NIN verification
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session.user.id,
+        p_operation_type: 'nin_verification',
+        p_verification_type: 'nin',
+        p_verification_provider: 'safehaven',
+        p_request_data: {
+          action: 'verify_nin_with_otp',
+          nin: nin.substring(0, 4) + '****',
+          has_otp: true,
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: null,
+        p_status: 'pending',
+        p_result_message: 'NIN verification with OTP initiated',
+        p_metadata: {
+          component: 'KYCUpgradeScreen',
+          action: 'nin_verification_verify',
+          step: 'id_face_match',
+          provider: 'safehaven'
+        }
+      });
+
+      // Use SafeHaven service to create account with OTP
       const result = await safeHavenService.verifyNINAndCreateAccount(
         session.user.id,
         nin.trim(),
         userPhoneNumber,
         userEmail,
-        selfieToUse
+        otpToUse,  // OTP provided
+        identityIdToUse // identityId from initialization step
       );
 
       if (!result.success) {
-        throw new Error(result.error || 'NIN verification failed');
+        throw new Error(result.error || 'Account creation failed');
       }
 
       const verificationData = result.data;
       
-      // Check if verification was successful
       if (!verificationData || !verificationData.verified) {
         throw new Error('NIN verification failed. Please check your NIN and try again.');
       }
 
-      // Get names from SafeHaven verification data
-      const ninFirstName = verificationData.first_name || verificationData.firstName || '';
-      const ninLastName = verificationData.last_name || verificationData.lastName || '';
-      const ninMiddleName = verificationData.middle_name || verificationData.middleName || '';
+      // Extract account information
+      const accountNumber = verificationData.account_number;
+      const accountName = verificationData.account_name || `${verificationData.first_name} ${verificationData.last_name}`.trim();
+      
+      if (!accountNumber) {
+        throw new Error('Account number not found in response');
+      }
+
+      // Extract names from account name
+      const names = accountName ? accountName.split(' ') : [];
+      const ninFirstName = names[0] || '';
+      const ninLastName = names[names.length - 1] || '';
+      const ninMiddleName = names.length > 2 ? names.slice(1, -1).join(' ') : '';
       
       // Get names from user's saved data
       const userFirstName = firstName || '';
@@ -1640,52 +1748,49 @@ export default function KYCUpgradeScreen() {
         const displayName = [ninFirstName, ninMiddleName, ninLastName]
           .filter(Boolean)
           .join(' ');
-        
-        // Create audit event for NIN verification (additional to what SafeHaven service already logged)
-        if (result.auditLogId) {
+
+        // Account is already stored by the service, no need to store again
+
+        // Update audit log with success
+        if (auditLogId) {
+          await supabase
+            .from('kyc_audit_logs')
+            .update({
+              status: 'success',
+              response_data: {
+                verified: true,
+                nin: nin.substring(0, 4) + '****',
+                name_match_percentage: matchPercentage,
+                matched_name: displayName,
+                hasAccount: true,
+                account_number: accountNumber.substring(0, 5) + '****'
+              },
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', auditLogId);
+
           await supabase
             .from('kyc_audit_events')
             .insert({
-              audit_log_id: result.auditLogId,
+              audit_log_id: auditLogId,
               user_id: session.user.id,
               event_type: 'verification_completed',
               event_data: {
                 action: 'nin_verification_completed',
-                nin: nin.substring(0, 4) + '****', // Partial NIN for security
+                nin: nin.substring(0, 4) + '****',
                 name_match_percentage: matchPercentage,
                 matched_name: displayName,
-                hasAccount: !!verificationData.account_number
+                hasAccount: true,
+                provider: 'safehaven'
               },
               severity: 'high'
             });
-
-          // Create audit attachment for NIN document if available
-          if (documentFrontImage) {
-            await supabase
-              .from('kyc_audit_attachments')
-              .insert({
-                audit_log_id: result.auditLogId,
-                file_name: `nin-document-${Date.now()}.jpg`,
-                file_type: 'image/jpeg',
-                file_size: 0,
-                file_hash: 'document-hash-placeholder',
-                file_path: documentFrontImage,
-                access_level: 'restricted',
-                description: 'NIN document front image',
-                tags: ['nin', 'document', 'kyc', 'id_verification', 'safehaven']
-              });
-          }
         }
         
         // Show success message
-        let successMessage = `NIN verified! Name: ${displayName}`;
-        if (verificationData.account_number) {
-          successMessage += ` • Account created: ${verificationData.account_number.substring(0, 5)}****`;
-        }
-        showToast(successMessage, 'success');
+        showToast(`NIN verified! Name: ${displayName} • Account created: ${accountNumber.substring(0, 5)}****`, 'success');
         
         // Update progress with NIN verified
-        // After NIN (Tier 1 complete), move to personal (first step in Tier 2)
         const progressResult = await updateProgress({
           current_step: 'personal', // Move to personal info (Tier 2) after NIN verification
           id_face_verified: true,
@@ -1710,7 +1815,7 @@ export default function KYCUpgradeScreen() {
         // Wait for toast to be visible before moving to next step
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Move to next incomplete step (skip if already verified)
+        // Move to next incomplete step
         const nextStep = getNextIncompleteStep('id_face_match');
         setCurrentStep(nextStep);
         setTimeout(() => {
@@ -1726,10 +1831,9 @@ export default function KYCUpgradeScreen() {
       const errorMessage = error instanceof Error ? error.message : 'NIN verification failed';
       showToast(errorMessage, 'error');
       setErrors({ documentVerification: errorMessage });
-      // Reset manual verification flag on error
       setIsManualVerification(false);
       setIsLoading(false);
-      throw error; // Re-throw to be handled by verifyDocuments
+      throw error;
     }
   };
   
@@ -2627,29 +2731,61 @@ export default function KYCUpgradeScreen() {
         </View>
         
         {selectedIdentityType === 'nin' && (
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>National Identification Number (NIN)</Text>
-            <View style={[styles.inputContainer, errors.nin && styles.inputError]}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your 11-digit NIN"
-                placeholderTextColor={colors.textTertiary}
-                value={nin}
-                onChangeText={(text) => {
-                  // Only allow numbers and limit to 11 digits
-                  const numericText = text.replace(/[^0-9]/g, '');
-                  if (numericText.length <= 11) {
-                    setNin(numericText);
-                    setErrors(prev => ({ ...prev, nin: '' }));
-                  }
-                }}
-                keyboardType="numeric"
-                maxLength={11}
-                editable={!isVerifyingDocuments && !documentsVerified}
-              />
+          <>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>National Identification Number (NIN)</Text>
+              <View style={[styles.inputContainer, errors.nin && styles.inputError]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your 11-digit NIN"
+                  placeholderTextColor={colors.textTertiary}
+                  value={nin}
+                  onChangeText={(text) => {
+                    // Only allow numbers and limit to 11 digits
+                    const numericText = text.replace(/[^0-9]/g, '');
+                    if (numericText.length <= 11) {
+                      setNin(numericText);
+                      setErrors(prev => ({ ...prev, nin: '' }));
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={11}
+                  editable={!isVerifyingDocuments && !documentsVerified && !ninIdentityId}
+                />
+              </View>
+              {errors.nin && <Text style={styles.errorText}>{errors.nin}</Text>}
             </View>
-            {errors.nin && <Text style={styles.errorText}>{errors.nin}</Text>}
-          </View>
+            
+            {ninIdentityId && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Enter OTP</Text>
+                <Text style={styles.sectionDescription}>
+                  An OTP has been sent to the phone number linked to your NIN. Please enter the 6-digit code.
+                </Text>
+                <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter 6-digit OTP"
+                    placeholderTextColor={colors.textTertiary}
+                    value={otp}
+                    onChangeText={(text) => {
+                      // Only allow numbers and limit to 6 digits
+                      const numericText = text.replace(/[^0-9]/g, '');
+                      if (numericText.length <= 6) {
+                        setOtp(numericText);
+                        setErrors(prev => ({ ...prev, otp: '' }));
+                      }
+                    }}
+                    keyboardType="numeric"
+                    maxLength={6}
+                    editable={!isLoading && !documentsVerified}
+                    autoFocus={true}
+                  />
+                </View>
+                {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
+              </View>
+            )}
+          </>
         )}
         
         {/* {selectedIdentityType === 'passport' && (
@@ -4116,7 +4252,8 @@ export default function KYCUpgradeScreen() {
             isResolvingBvn || 
             isVerifyingDocuments || 
             (currentStep === 'bvn_verification' && bvnVerified) ||
-            (currentStep === 'id_face_match' && documentsVerified)
+            (currentStep === 'id_face_match' && documentsVerified) ||
+            (currentStep === 'id_face_match' && !!ninIdentityId && !otp.trim())
           }
           loading={isLoading || formDataLoading || progressLoading || isResolvingBvn || isVerifyingDocuments}
         />

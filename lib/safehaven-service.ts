@@ -766,18 +766,21 @@ class SafeHavenService {
   /**
    * Verifies NIN using SafeHaven API and creates account
    * Uses two-step workflow: identity verification first, then account creation
+   * 
+   * If OTP is not provided, only initializes verification (step 1) and returns identityId
+   * If OTP is provided, creates account (step 2) using identityId
    */
   async verifyNINAndCreateAccount(
     userId: string,
     nin: string,
     phoneNumber: string,
     emailAddress: string,
-    selfieImageUrl?: string,
-    otp?: string
+    otp?: string,
+    identityId?: string
   ): Promise<SafeHavenOperationResult> {
     const startTime = Date.now();
     let auditLogId: string | undefined = undefined;
-    let identityId: string | undefined = undefined;
+    let currentIdentityId: string | undefined = identityId;
 
     try {
       // Get valid token
@@ -797,7 +800,6 @@ class SafeHavenService {
         p_verification_provider: 'safehaven',
         p_request_data: {
           nin: nin.substring(0, 4) + '****', // Partial NIN for security
-          hasSelfie: !!selfieImageUrl,
           timestamp: new Date().toISOString()
         },
         p_response_data: null,
@@ -815,89 +817,129 @@ class SafeHavenService {
         'nin_verification',
         {
           nin: nin.substring(0, 4) + '****', // Partial NIN for security
-          hasSelfie: !!selfieImageUrl,
           step: 'identity_verification'
         },
         null,
         'pending'
       );
 
-      // STEP 1: Create identity verification
-      const defaultDebitAccountNumber = '0117753301';
-      const identityRequestPayload = {
-        type: 'NIN',
-        async: true,
-        debitAccountNumber: defaultDebitAccountNumber,
-        number: nin
-      };
-
-      const identityResponse = await fetch(`${this.API_URL}/identity/v2`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ClientID': this.CLIENT_ID,
-          'Authorization': `Bearer ${token.access_token}`
-        },
-        body: JSON.stringify(identityRequestPayload)
-      });
-
-      if (!identityResponse.ok) {
-        const errorText = await identityResponse.text();
-        const errorData = { 
-          status: identityResponse.status, 
-          statusText: identityResponse.statusText, 
-          error: errorText,
-          step: 'identity_verification'
+      // STEP 1: Create identity verification (only if identityId not provided)
+      if (!currentIdentityId) {
+        const defaultDebitAccountNumber = '0117753301';
+        const identityRequestPayload = {
+          type: 'NIN',
+          async: true,
+          debitAccountNumber: defaultDebitAccountNumber,
+          number: nin
         };
-        
-        const responseTime = Date.now() - startTime;
-        
-        // Update both audit logs with error
-        if (kycAuditLogId?.data) {
-          await supabase
-            .from('kyc_audit_logs')
-            .update({
-              status: 'failed',
-              response_data: errorData,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', kycAuditLogId.data);
+
+        const identityResponse = await fetch(`${this.API_URL}/identity/v2`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'ClientID': this.CLIENT_ID,
+            'Authorization': `Bearer ${token.access_token}`
+          },
+          body: JSON.stringify(identityRequestPayload)
+        });
+
+        if (!identityResponse.ok) {
+          const errorText = await identityResponse.text();
+          const errorData = { 
+            status: identityResponse.status, 
+            statusText: identityResponse.statusText, 
+            error: errorText,
+            step: 'identity_verification'
+          };
+          
+          const responseTime = Date.now() - startTime;
+          
+          // Update both audit logs with error
+          if (kycAuditLogId?.data) {
+            await supabase
+              .from('kyc_audit_logs')
+              .update({
+                status: 'failed',
+                response_data: errorData,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', kycAuditLogId.data);
+          }
+          await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
+
+          return {
+            success: false,
+            error: `Identity verification failed: ${identityResponse.status} ${identityResponse.statusText}`,
+            auditLogId,
+            responseTime
+          };
         }
-        await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
 
-        return {
-          success: false,
-          error: `Identity verification failed: ${identityResponse.status} ${identityResponse.statusText}`,
+        const identityData = await identityResponse.json();
+        
+        // Extract identityId from response
+        if (identityData?.data?._id) {
+          currentIdentityId = identityData.data._id;
+        } else if (identityData?._id) {
+          currentIdentityId = identityData._id;
+        } else {
+          throw new Error('Identity ID not found in response');
+        }
+
+        // Update audit log with identity verification success
+        await this.updateAuditLog(
           auditLogId,
-          responseTime
-        };
+          'pending', // Still pending as we need to create account
+          {
+            identityId: currentIdentityId,
+            status: identityData?.data?.status || identityData?.status || 'PENDING',
+            step: 'identity_verification_complete'
+          },
+          null,
+          Date.now() - startTime
+        );
+
+        // If no OTP provided, return identityId for next step
+        if (!otp) {
+          // Update KYC audit log
+          if (kycAuditLogId?.data) {
+            await supabase
+              .from('kyc_audit_logs')
+              .update({
+                status: 'success',
+                response_data: {
+                  identityId: currentIdentityId,
+                  otp_sent: true,
+                  status: identityData?.data?.status || identityData?.status || 'PENDING'
+                },
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', kycAuditLogId.data);
+          }
+
+          return {
+            success: true,
+            data: {
+              identityId: currentIdentityId,
+              requiresOtp: true,
+              status: identityData?.data?.status || identityData?.status || 'PENDING'
+            },
+            auditLogId,
+            responseTime: Date.now() - startTime
+          };
+        }
       }
 
-      const identityData = await identityResponse.json();
+      // STEP 2: Create account using identityId (requires OTP)
+      if (!otp) {
+        throw new Error('OTP is required to create account');
+      }
       
-      // Extract identityId from response
-      if (identityData?.data?._id) {
-        identityId = identityData.data._id;
-      } else if (identityData?._id) {
-        identityId = identityData._id;
-      } else {
-        throw new Error('Identity ID not found in response');
+      // When OTP is provided, identityId is required
+      if (!currentIdentityId) {
+        throw new Error('Identity ID is required when OTP is provided. Please initialize NIN verification first.');
       }
-
-      // Update audit log with identity verification success
-      await this.updateAuditLog(
-        auditLogId,
-        'pending', // Still pending as we need to create account
-        {
-          identityId: identityId,
-          status: identityData?.data?.status || identityData?.status || 'PENDING',
-          step: 'identity_verification_complete'
-        },
-        null,
-        Date.now() - startTime
-      );
-
-      // STEP 2: Create account using identityId
+      
       const accountRequestPayload: any = {
         phoneNumber: phoneNumber,
         emailAddress: emailAddress,
@@ -908,7 +950,7 @@ class SafeHavenService {
         },
         externalReference: `AC_${userId.substring(0, 8)}`,
         identityNumber: nin,
-        identityId: identityId
+        identityId: currentIdentityId
       };
 
       // Add OTP if provided
@@ -935,7 +977,7 @@ class SafeHavenService {
           statusText: accountResponse.statusText, 
           error: errorText,
           step: 'account_creation',
-          identityId: identityId
+          identityId: currentIdentityId
         };
         
         // Update both audit logs with error
@@ -956,7 +998,7 @@ class SafeHavenService {
           error: `Account creation failed: ${accountResponse.status} ${accountResponse.statusText}`,
           auditLogId,
           responseTime,
-          data: { identityId, requiresOtp: accountResponse.status === 400 || accountResponse.status === 422 }
+          data: { identityId: currentIdentityId, requiresOtp: accountResponse.status === 400 || accountResponse.status === 422 }
         };
       }
 
@@ -965,7 +1007,7 @@ class SafeHavenService {
       // Extract account information from response
       const verificationData: any = {
         verified: true,
-        identityId: identityId,
+        identityId: currentIdentityId,
         identityNumber: nin,
         status: accountData?.data?.status || accountData?.status || 'PENDING'
       };
@@ -995,7 +1037,7 @@ class SafeHavenService {
               verified: true,
               nin: nin.substring(0, 4) + '****',
               hasAccount: !!verificationData.account_number,
-              identityId: identityId
+              identityId: currentIdentityId
             },
             updated_at: new Date().toISOString()
           })
@@ -1010,7 +1052,7 @@ class SafeHavenService {
           verified: true,
           hasAccount: !!verificationData.account_number,
           accountNumber: verificationData.account_number ? verificationData.account_number.substring(0, 5) + '****' : null,
-          identityId: identityId,
+          identityId: currentIdentityId,
           step: 'account_creation_complete'
         },
         null,
