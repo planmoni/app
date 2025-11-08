@@ -944,7 +944,7 @@ class SafeHavenService {
         phoneNumber: phoneNumber,
         emailAddress: emailAddress,
         identityType: 'NIN',
-        autoSweep: false,
+        autoSweep: true,
         autoSweepDetails: {
           schedule: 'Instant'
         },

@@ -138,13 +138,8 @@ export default function LivenessTestEnhanced({
     progressValue.value = withTiming(20, { duration: 300 });
   }, [progressValue]);
 
-  const capturePhoto = useCallback(async () => {
+  const capturePhoto = async () => {
     try {
-      // Check if camera is still active and visible before capturing
-      if (!isVisible || !cameraRef.current) {
-        return;
-      }
-      
       if (cameraRef.current) {
         const photo = await cameraRef.current.takePhoto({ 
           flash: "off", 
@@ -154,12 +149,9 @@ export default function LivenessTestEnhanced({
         setCapturedImage(imageUri);
       }
     } catch (error) {
-      // Only log error if it's not a camera closed error (which is expected when modal closes)
-      if (!error || !String(error).includes('Camera is closed')) {
-        console.error('Error capturing photo:', error);
-      }
+      console.error('Error capturing photo:', error);
     }
-  }, [isVisible]);
+  };
 
   const nextStep = useCallback(() => {
     if (holdTimerRef.current) {
@@ -199,15 +191,10 @@ export default function LivenessTestEnhanced({
       case "smile":
         setLivenessStage("photo_capture");
         progressValue.value = withTiming(100, { duration: 300 });
-        // Capture photo after a delay
-        setTimeout(() => {
-          if (isVisible && cameraRef.current) {
-            capturePhoto();
-          }
-        }, 1000);
+        setTimeout(() => capturePhoto(), 1000);
         break;
     }
-  }, [livenessStage, currentStepIndex, detectionSteps.length, progressValue, isVisible, capturePhoto]);
+  }, [livenessStage, currentStepIndex, detectionSteps.length, progressValue]);
 
   const handleSubmit = async () => {
     if (!capturedImage || !session?.user?.id) {
@@ -293,20 +280,12 @@ export default function LivenessTestEnhanced({
       }
 
       // Call the onComplete callback with the storage URL
-      // Don't call onClose automatically when onComplete is provided
-      // Let the parent component handle closing after processing completion
-      if (onComplete && storageUrl) {
+      if (onComplete && storageUrl) onComplete(storageUrl);
+
+      setTimeout(() => {
         setIsSubmitting(false);
-        // Call onComplete and let parent handle closing
-        onComplete(storageUrl);
-        // Don't call onClose here - parent will handle it
-      } else {
-        // If no onComplete callback, close normally
-        setIsSubmitting(false);
-        setTimeout(() => {
-          onClose();
-        }, 1000);
-      }
+        onClose();
+      }, 1000);
     } catch (error) {
       console.error('Error uploading liveness photo:', error);
       setIsSubmitting(false);
