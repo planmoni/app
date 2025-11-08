@@ -51,10 +51,13 @@ export default function LivenessTestEnhanced({
   onClose,
   onComplete,
 }: LivenessTestEnhancedProps) {
+  console.log('[LivenessTest] Component rendered, isVisible:', isVisible);
   const { hasPermission } = useCameraPermission();
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
+  
+  console.log('[LivenessTest] Permissions check:', { hasPermission, hasSession: !!session });
 
   const [livenessStage, setLivenessStage] = useState<
     "setup" | "blink" | "nod" | "look_left" | "look_right" | "smile" | "photo_capture"
@@ -74,6 +77,8 @@ export default function LivenessTestEnhanced({
   const cameraRef = useRef<VisionCamera>(null);
   const setupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  console.log('[LivenessTest] Camera device:', { hasDevice: !!device, deviceId: device?.id });
 
   const detectionSteps = ["BLINK", "NOD", "TURN_HEAD_LEFT", "TURN_HEAD_RIGHT", "SMILE"];
 
@@ -111,9 +116,12 @@ export default function LivenessTestEnhanced({
   });
 
   useEffect(() => {
+    console.log('[LivenessTest] Visibility changed:', isVisible);
     if (isVisible) {
+      console.log('[LivenessTest] Modal opened, resetting state');
       resetState();
     } else {
+      console.log('[LivenessTest] Modal closed, resetting state');
       resetState();
     }
   }, [isVisible, resetState]);
@@ -127,6 +135,7 @@ export default function LivenessTestEnhanced({
   }, []);
 
   const startLivenessTest = useCallback(() => {
+    console.log('[LivenessTest] Starting liveness test');
     if (setupTimerRef.current) {
       clearTimeout(setupTimerRef.current);
       setupTimerRef.current = null;
@@ -136,24 +145,32 @@ export default function LivenessTestEnhanced({
     setCurrentStepIndex(0);
     setPositionValid(false);
     progressValue.value = withTiming(20, { duration: 300 });
+    console.log('[LivenessTest] Test started, stage: blink');
   }, [progressValue]);
 
   const capturePhoto = async () => {
+    console.log('[LivenessTest] capturePhoto called');
     try {
-      if (cameraRef.current) {
-        const photo = await cameraRef.current.takePhoto({ 
-          flash: "off", 
-          enableShutterSound: false 
-        });
-        const imageUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
-        setCapturedImage(imageUri);
+      if (!cameraRef.current) {
+        console.error('[LivenessTest] Camera ref is null, cannot capture photo');
+        return;
       }
+      console.log('[LivenessTest] Taking photo...');
+      const photo = await cameraRef.current.takePhoto({ 
+        flash: "off", 
+        enableShutterSound: false 
+      });
+      console.log('[LivenessTest] Photo captured:', photo.path);
+      const imageUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+      setCapturedImage(imageUri);
+      console.log('[LivenessTest] Image URI set:', imageUri);
     } catch (error) {
-      console.error('Error capturing photo:', error);
+      console.error('[LivenessTest] Error capturing photo:', error);
     }
   };
 
   const nextStep = useCallback(() => {
+    console.log('[LivenessTest] nextStep called, current stage:', livenessStage, 'current index:', currentStepIndex);
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
@@ -169,39 +186,53 @@ export default function LivenessTestEnhanced({
 
     switch (livenessStage) {
       case "blink":
+        console.log('[LivenessTest] Moving from blink to nod');
         setLivenessStage("nod");
         setCurrentStepIndex(nextIndex);
         progressValue.value = withTiming(newProgress, { duration: 300 });
         break;
       case "nod":
+        console.log('[LivenessTest] Moving from nod to look_left');
         setLivenessStage("look_left");
         setCurrentStepIndex(nextIndex);
         progressValue.value = withTiming(newProgress, { duration: 300 });
         break;
       case "look_left":
+        console.log('[LivenessTest] Moving from look_left to look_right');
         setLivenessStage("look_right");
         setCurrentStepIndex(nextIndex);
         progressValue.value = withTiming(newProgress, { duration: 300 });
         break;
       case "look_right":
+        console.log('[LivenessTest] Moving from look_right to smile');
         setLivenessStage("smile");
         setCurrentStepIndex(nextIndex);
         progressValue.value = withTiming(newProgress, { duration: 300 });
         break;
       case "smile":
+        console.log('[LivenessTest] Moving from smile to photo_capture');
         setLivenessStage("photo_capture");
         progressValue.value = withTiming(100, { duration: 300 });
-        setTimeout(() => capturePhoto(), 1000);
+        console.log('[LivenessTest] Scheduling photo capture in 1000ms');
+        setTimeout(() => {
+          console.log('[LivenessTest] Executing scheduled photo capture');
+          capturePhoto();
+        }, 1000);
         break;
     }
   }, [livenessStage, currentStepIndex, detectionSteps.length, progressValue]);
 
   const handleSubmit = async () => {
+    console.log('[LivenessTest] handleSubmit called');
     if (!capturedImage || !session?.user?.id) {
-      console.error('Missing image or user session');
+      console.error('[LivenessTest] Missing image or user session:', { 
+        hasImage: !!capturedImage, 
+        hasSession: !!session?.user?.id 
+      });
       return;
     }
 
+    console.log('[LivenessTest] Starting submission, image:', capturedImage);
     setIsSubmitting(true);
 
     try {
@@ -234,7 +265,7 @@ export default function LivenessTestEnhanced({
         .getPublicUrl(filePath);
 
       const storageUrl = urlData.publicUrl;
-      console.log('Image uploaded successfully:', storageUrl);
+      console.log('[LivenessTest] Image uploaded successfully:', storageUrl);
 
       // Fetch user profile data
       const { data: profileData } = await supabase
@@ -280,14 +311,20 @@ export default function LivenessTestEnhanced({
       }
 
       // Call the onComplete callback with the storage URL
-      if (onComplete && storageUrl) onComplete(storageUrl);
+      if (onComplete && storageUrl) {
+        console.log('[LivenessTest] Calling onComplete callback with URL:', storageUrl);
+        onComplete(storageUrl);
+      } else {
+        console.log('[LivenessTest] No onComplete callback or storageUrl');
+      }
 
       setTimeout(() => {
+        console.log('[LivenessTest] Closing modal after submission');
         setIsSubmitting(false);
         onClose();
       }, 1000);
     } catch (error) {
-      console.error('Error uploading liveness photo:', error);
+      console.error('[LivenessTest] Error uploading liveness photo:', error);
       setIsSubmitting(false);
       setTimeout(() => {
         onClose();
@@ -320,6 +357,18 @@ export default function LivenessTestEnhanced({
       }
 
       const face = faces[0];
+      // Log face detection periodically (every 30 frames to avoid spam)
+      if (Math.random() < 0.033) {
+        console.log('[LivenessTest] Face detected:', {
+          stage: livenessStage,
+          isTestActive,
+          isHolding,
+          faceArea: face.bounds.width * face.bounds.height,
+          yaw: face.yawAngle,
+          pitch: face.pitchAngle,
+          smiling: face.smilingProbability
+        });
+      }
       
       // Check if face is too close (face area is too large)
       const faceArea = face.bounds.width * face.bounds.height;
@@ -335,7 +384,13 @@ export default function LivenessTestEnhanced({
       // Setup stage: Start test when face is detected with good quality
       if (livenessStage === "setup" && !isTestActive) {
         const hasGoodQuality = faceArea > 10000;
+        console.log('[LivenessTest] Setup stage - face quality check:', { 
+          faceArea, 
+          hasGoodQuality, 
+          hasTimer: !!setupTimerRef.current 
+        });
         if (hasGoodQuality && !setupTimerRef.current) {
+          console.log('[LivenessTest] Starting setup timer (500ms)');
           setupTimerRef.current = setTimeout(() => {
             startLivenessTest();
           }, 500); // Faster start (500ms instead of 800ms)
@@ -409,11 +464,18 @@ export default function LivenessTestEnhanced({
 
       // Update position validity and trigger next step if valid
       if (currentPositionValid !== positionValid) {
+        console.log('[LivenessTest] Position validity changed:', {
+          stage: livenessStage,
+          wasValid: positionValid,
+          nowValid: currentPositionValid
+        });
         setPositionValid(currentPositionValid);
         
         if (currentPositionValid) {
+          console.log('[LivenessTest] Position valid, starting hold timer (1200ms)');
           setIsHolding(true);
           holdTimerRef.current = setTimeout(() => {
+            console.log('[LivenessTest] Hold timer expired, calling nextStep');
             nextStep();
             setIsHolding(false);
             holdTimerRef.current = null;
@@ -432,7 +494,16 @@ export default function LivenessTestEnhanced({
     trackingEnabled: true,
   }).current;
 
-  if (!isVisible || !hasPermission || !device) return null;
+  if (!isVisible || !hasPermission || !device) {
+    console.log('[LivenessTest] Component not rendering:', {
+      isVisible,
+      hasPermission,
+      hasDevice: !!device
+    });
+    return null;
+  }
+  
+  console.log('[LivenessTest] Rendering component, stage:', livenessStage);
 
   return (
     <Modal visible={isVisible} animationType="slide" presentationStyle="fullScreen">

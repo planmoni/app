@@ -584,17 +584,28 @@ export default function KYCUpgradeScreen() {
   };
 
   const handleNextStep = async () => {
+    console.log('[KYC] handleNextStep called, currentStep:', currentStep);
     try {
       switch (currentStep) {
         case 'liveness_verification':
+          console.log('[KYC] Liveness verification step - Continue button clicked');
+          console.log('[KYC] Liveness test status:', {
+            completed: progress.liveness_test_completed,
+            showLivenessTest,
+            livenessInitiated
+          });
           // Liveness test is handled via LivenessTestEnhanced component
           // When user clicks Continue, show the liveness test modal
           if (!progress.liveness_test_completed) {
+            console.log('[KYC] Opening liveness test modal');
             setShowLivenessTest(true);
             setLivenessInitiated(true);
+            console.log('[KYC] Liveness test modal state updated');
           } else {
+            console.log('[KYC] Liveness test already completed, moving to next step');
             // If already completed, move to next step
             const nextStep = getNextIncompleteStep('liveness_verification');
+            console.log('[KYC] Next step:', nextStep);
             setCurrentStep(nextStep);
           }
           break;
@@ -804,8 +815,9 @@ export default function KYCUpgradeScreen() {
 
   // Handle LivenessTestEnhanced completion
   const handleLivenessComplete = async (selfieUrl: string) => {
+    console.log('[KYC] handleLivenessComplete called with selfieUrl:', selfieUrl);
     try {
-      console.log('Liveness test completed, selfie URL received:', selfieUrl);
+      console.log('[KYC] Liveness test completed, selfie URL received:', selfieUrl);
       
       // Mark liveness as completed immediately to prevent handleLivenessClose from navigating away
       setLivenessCompleted(true);
@@ -916,13 +928,23 @@ export default function KYCUpgradeScreen() {
   };
   
   const handleLivenessClose = async () => {
+    console.log('[KYC] handleLivenessClose called');
+    console.log('[KYC] Liveness close check:', {
+      livenessCompleted,
+      progressLivenessCompleted: progress?.liveness_test_completed,
+      showLivenessTest,
+      livenessInitiated
+    });
     // Check if liveness test was completed successfully
     // If it was completed, don't navigate away - let handleLivenessComplete handle the flow
     if (livenessCompleted || progress?.liveness_test_completed) {
+      console.log('[KYC] Liveness test was completed, closing modal without navigation');
       setShowLivenessTest(false);
       setLivenessInitiated(false);
       return; // Don't navigate away if completed
     }
+    
+    console.log('[KYC] Liveness test was not completed, user manually closed');
 
     try {
       // Create audit log for liveness test manual close
