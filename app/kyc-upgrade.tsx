@@ -1813,11 +1813,10 @@ export default function KYCUpgradeScreen() {
         // Show success message
         showToast(`NIN verified! Name: ${displayName} • Account created: ${accountNumber.substring(0, 5)}****`, 'success');
         
-        // Update progress with NIN verified
+        // Update progress with NIN verified (using id_face_verified)
         const progressResult = await updateProgress({
           current_step: 'personal', // Move to personal info (Tier 2) after NIN verification
-          id_face_verified: true,
-          nin_verified: true
+          id_face_verified: true
         });
         
         // Check if Tier 1 is complete (Liveness + BVN + NIN)

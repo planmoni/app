@@ -19,7 +19,6 @@ export interface KYCProgress {
   tier_2_completed?: boolean;
   tier_3_completed?: boolean;
   liveness_test_completed?: boolean;
-  nin_verified?: boolean;
   utility_bill_verified?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -58,7 +57,6 @@ export const useKYCProgress = () => {
     tier_2_completed: false,
     tier_3_completed: false,
     liveness_test_completed: false,
-    nin_verified: false,
     utility_bill_verified: false
   });
   const [loading, setLoading] = useState(false);
@@ -96,7 +94,6 @@ export const useKYCProgress = () => {
             tier_2_completed: false,
             tier_3_completed: false,
             liveness_test_completed: false,
-            nin_verified: false,
             utility_bill_verified: false
           };
 

@@ -1070,11 +1070,11 @@ class SafeHavenService {
         });
       }
 
-      // Update KYC progress with NIN verification
+      // Update KYC progress with NIN verification (using id_face_verified)
       await supabase
         .from('kyc_progress')
         .update({
-          nin_verified: true,
+          id_face_verified: true,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', userId);
