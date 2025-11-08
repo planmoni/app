@@ -52,7 +52,7 @@ export default function LivenessTestEnhanced({
   onComplete,
 }: LivenessTestEnhancedProps) {
   console.log('[LivenessTest] Component rendered, isVisible:', isVisible);
-  const { hasPermission } = useCameraPermission();
+  const { hasPermission, requestPermission } = useCameraPermission();
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
@@ -69,6 +69,7 @@ export default function LivenessTestEnhanced({
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [faceTooClose, setFaceTooClose] = useState(false);
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
 
   const progressValue = useSharedValue(0);
   const pitchAngles = useRef<number[]>([]);
@@ -114,6 +115,25 @@ export default function LivenessTestEnhanced({
     const offset = circumference - (progress / 100) * circumference;
     return { strokeDashoffset: offset };
   });
+
+  // Request camera permission when modal becomes visible
+  useEffect(() => {
+    if (isVisible && !hasPermission && !isRequestingPermission) {
+      console.log('[LivenessTest] Requesting camera permission...');
+      setIsRequestingPermission(true);
+      requestPermission().then((granted) => {
+        console.log('[LivenessTest] Camera permission result:', granted);
+        setIsRequestingPermission(false);
+        if (!granted) {
+          console.warn('[LivenessTest] Camera permission denied');
+          // Optionally close modal or show error
+        }
+      }).catch((error) => {
+        console.error('[LivenessTest] Error requesting camera permission:', error);
+        setIsRequestingPermission(false);
+      });
+    }
+  }, [isVisible, hasPermission, isRequestingPermission, requestPermission]);
 
   useEffect(() => {
     console.log('[LivenessTest] Visibility changed:', isVisible);
@@ -332,7 +352,14 @@ export default function LivenessTestEnhanced({
     }
   };
 
-  const getInstructionText = () => {
+  const getInstructionText = useCallback(() => {
+    const canUseCamera = hasPermission && !isRequestingPermission;
+    if (!canUseCamera) {
+      if (isRequestingPermission) {
+        return "Requesting camera permission...";
+      }
+      return "Camera permission required to start liveness test";
+    }
     switch (livenessStage) {
       case "setup": return "Position your face in the circle to start";
       case "blink": return "Blink your eyes a few times";
@@ -343,7 +370,7 @@ export default function LivenessTestEnhanced({
       case "photo_capture": return "Photo captured! Submit to complete";
       default: return "Position your face in the circle";
     }
-  };
+  }, [hasPermission, isRequestingPermission, livenessStage]);
 
   const getWarningText = () => {
     if (faceTooClose) return "Please move the phone away from your face";
@@ -494,16 +521,20 @@ export default function LivenessTestEnhanced({
     trackingEnabled: true,
   }).current;
 
-  if (!isVisible || !hasPermission || !device) {
+  // Don't render if modal is not visible or device is not available
+  if (!isVisible || !device) {
     console.log('[LivenessTest] Component not rendering:', {
       isVisible,
-      hasPermission,
       hasDevice: !!device
     });
     return null;
   }
+
+  // Show modal even if permission is not granted yet (to show permission request UI)
+  // But only render camera if permission is granted
+  const canUseCamera = hasPermission && !isRequestingPermission;
   
-  console.log('[LivenessTest] Rendering component, stage:', livenessStage);
+  console.log('[LivenessTest] Rendering component, stage:', livenessStage, 'canUseCamera:', canUseCamera);
 
   return (
     <Modal visible={isVisible} animationType="slide" presentationStyle="fullScreen">
@@ -511,14 +542,39 @@ export default function LivenessTestEnhanced({
         {/* Camera */}
         <View style={styles.cameraWrapper}>
           <View style={styles.cameraContainer}>
-            {livenessStage === "photo_capture" && capturedImage ? (
+            {!canUseCamera ? (
+              <View style={[styles.camera, styles.permissionPlaceholder, { backgroundColor: colors.backgroundTertiary }]}>
+                <Text style={[styles.permissionText, { color: colors.text }]}>
+                  {isRequestingPermission ? 'Requesting camera permission...' : 'Camera permission required'}
+                </Text>
+                {!isRequestingPermission && !hasPermission && (
+                  <Pressable
+                    style={[styles.permissionButton, { backgroundColor: colors.primary }]}
+                    onPress={() => {
+                      setIsRequestingPermission(true);
+                      requestPermission().then((granted) => {
+                        setIsRequestingPermission(false);
+                        if (!granted) {
+                          console.warn('[LivenessTest] Camera permission denied');
+                        }
+                      }).catch((error) => {
+                        console.error('[LivenessTest] Error requesting camera permission:', error);
+                        setIsRequestingPermission(false);
+                      });
+                    }}
+                  >
+                    <Text style={styles.permissionButtonText}>Grant Permission</Text>
+                  </Pressable>
+                )}
+              </View>
+            ) : livenessStage === "photo_capture" && capturedImage ? (
               <Image source={{ uri: capturedImage }} style={styles.camera} resizeMode="cover" />
             ) : (
               <Camera
                 ref={cameraRef}
                 style={styles.camera}
                 device={device}
-                isActive={isVisible}
+                isActive={isVisible && canUseCamera}
                 photo={true}
                 faceDetectionCallback={handleFacesDetection}
                 faceDetectionOptions={faceDetectionOptions}
@@ -528,7 +584,7 @@ export default function LivenessTestEnhanced({
         </View>
 
         {/* Circular Progress Ring */}
-        {livenessStage !== "photo_capture" && (
+        {livenessStage !== "photo_capture" && canUseCamera && (
           <View style={styles.progressRingWrapper}>
             <Svg width={300} height={300}>
               <Circle 
@@ -684,6 +740,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   submitText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  permissionPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  permissionText: {
+    fontSize: 16,
+    fontWeight: "500",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  permissionButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  permissionButtonText: {
     color: "#FFF",
     fontSize: 16,
     fontWeight: "600",
