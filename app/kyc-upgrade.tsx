@@ -1584,6 +1584,7 @@ export default function KYCUpgradeScreen() {
       }
 
       const identityId = result.data?.identityId;
+      console.log("identityId", identityId)
       
       if (!identityId) {
         throw new Error('Identity ID not found in response');
