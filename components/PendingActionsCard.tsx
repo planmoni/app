@@ -10,6 +10,8 @@ import { usePin } from '@/contexts/PinContext';
 import { useOnlineStatus } from './OnlineStatusProvider';
 import OfflineNotice from './OfflineNotice';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
+import CameraPermissionModal from './CameraPermissionModal';
+import KYCVerificationModal from './KYCVerificationModal';
 import React from 'react';
 
 type PendingAction = {
@@ -35,6 +37,9 @@ export default function PendingActionsCard() {
   const { isOnline } = useOnlineStatus();
   const { progress, currentTier = 0, getTierInfo } = useKYCProgress();
   const [tierInfo, setTierInfo] = useState<any>(null);
+  const [showKYCVerificationModal, setShowKYCVerificationModal] = useState(false);
+  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
+  const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
 
   // Load profile data and tier info from database on mount
   useEffect(() => {
@@ -292,7 +297,45 @@ export default function PendingActionsCard() {
   // Handle navigation to action route
   const handleActionPress = (action: PendingAction) => {
     haptics.mediumImpact();
+    
+    // Check if this is a Tier 1 action and liveness test is not completed
+    if (action.id === 'tier-1-verification' && progress && !progress.liveness_test_completed) {
+      setSelectedActionId(action.id);
+      // Show KYCVerificationModal first
+      setShowKYCVerificationModal(true);
+      return;
+    }
+    
     router.push(action.route);
+  };
+
+  const handleStartVerification = () => {
+    // Close KYCVerificationModal first
+    setShowKYCVerificationModal(false);
+    
+    // Wait for the slide-out animation to complete (350ms) before showing CameraPermissionModal
+    // This ensures the KYCVerificationModal doesn't block the CameraPermissionModal
+    setTimeout(() => {
+      // Check if liveness test is not completed (first step of Tier 1)
+      if (progress && !progress.liveness_test_completed) {
+        // Show camera permission modal after KYCVerificationModal has closed
+        setShowCameraPermissionModal(true);
+      } else {
+        // Navigate directly to kyc-upgrade if liveness test is already completed
+        setSelectedActionId(null);
+        router.push('/kyc-upgrade');
+      }
+    }, 400); // Slightly longer than the slide-out animation (350ms)
+  };
+
+  const handleLivenessComplete = (selfieUrl: string) => {
+    // After liveness test is completed, navigate to kyc-upgrade with selfie URL
+    setShowCameraPermissionModal(false);
+    setSelectedActionId(null);
+    router.push({
+      pathname: '/kyc-upgrade',
+      params: { selfieUrl }
+    });
   };
 
   // Filter out completed actions
@@ -410,6 +453,23 @@ export default function PendingActionsCard() {
           ))}
         </ScrollView>
       </View>
+      <KYCVerificationModal
+        isVisible={showKYCVerificationModal}
+        onClose={() => {
+          setShowKYCVerificationModal(false);
+          setSelectedActionId(null);
+        }}
+        onStartVerification={handleStartVerification}
+      />
+      <CameraPermissionModal
+        isVisible={showCameraPermissionModal}
+        onClose={() => {
+          console.log('[PendingActionsCard] Camera permission modal closed');
+          setShowCameraPermissionModal(false);
+          setSelectedActionId(null);
+        }}
+        onComplete={handleLivenessComplete}
+      />
     </View>
   );
 }
