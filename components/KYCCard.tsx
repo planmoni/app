@@ -247,7 +247,7 @@ export default function KYCCard() {
     }
     
     // Show both last completed and current step
-    return `Last: ${getStepDisplayName(lastCompleted)} • Next: ${getStepDisplayName(currentStepToShow)}`;
+    // return `Last: ${getStepDisplayName(lastCompleted)} • Next: ${getStepDisplayName(currentStepToShow)}`;
   };
 
   // Get tier-specific icon and color
@@ -274,7 +274,7 @@ export default function KYCCard() {
   const getTierMessage = (): string => {
     const nextStep = getNextIncompleteStep();
     
-    if (currentTier === 0) {
+    if (currentTier === null) {
       return 'Start your verification to unlock features';
     } else if (currentTier === 1) {
       if (nextStep === 'documents_verification' || nextStep === 'address_details' || nextStep === 'review') {

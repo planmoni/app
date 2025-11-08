@@ -48,12 +48,6 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     loadLastActivePage();
   }, []);
 
-  // Handle app state changes
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription?.remove();
-  }, [handleAppStateChange]);
-
   const loadAutoLockDuration = async () => {
     try {
       const saved = await AsyncStorage.getItem(AUTO_LOCK_KEY);
@@ -253,7 +247,9 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
     
     if (currentState.match(/inactive|background/) && nextAppState === 'active') {
-      // App is becoming active - check if we should lock
+      // App is becoming active - update last active time and check if we should lock
+      updateLastActive();
+      
       // Add a slightly larger delay to prevent race conditions during navigation
       // (gives navigation flags/AsyncStorage a bit more time to settle)
       setTimeout(() => {
@@ -290,6 +286,35 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     
     appState.current = nextAppState;
   }, []);
+
+  // Handle app state changes
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [handleAppStateChange]);
+
+  // Periodic check for 5 mins and 60 mins auto-lock while app is active
+  useEffect(() => {
+    // Only set up periodic check if auto-lock is set to 5 or 60 minutes
+    if (autoLockDuration !== '5' && autoLockDuration !== '60') {
+      return;
+    }
+
+    // Only check if app is active and has PIN set
+    if (!hasAppLockPin || isAppLocked || appState.current !== 'active') {
+      return;
+    }
+
+    // Check every 30 seconds if we should lock
+    const interval = setInterval(() => {
+      // Only check if app is still active
+      if (appState.current === 'active' && !isAppLockedRef.current) {
+        checkIfShouldLock();
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [autoLockDuration, hasAppLockPin, isAppLocked]);
 
   const unlockApp = () => {
     console.log('🔓 AppLock - Unlocking app');

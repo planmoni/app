@@ -581,9 +581,11 @@ export default function KYCUpgradeScreen() {
         case 'liveness_verification':
           // Liveness test is handled via LivenessTestEnhanced component
           // When user clicks Continue, show the liveness test modal
-          if (!progress.liveness_test_completed) {
+          if (!progress || !progress.liveness_test_completed) {
+            // Show liveness test if not completed or progress not loaded yet
             setShowLivenessTest(true);
             setLivenessInitiated(true);
+            setLivenessManuallyClosed(false); // Reset manually closed flag
           } else {
             // If already completed, move to next step
             const nextStep = getNextIncompleteStep('liveness_verification');
@@ -4112,13 +4114,13 @@ export default function KYCUpgradeScreen() {
           disabled={
             isLoading || 
             formDataLoading ||
-            progressLoading ||
+            (progressLoading && currentStep !== 'liveness_verification') || // Allow liveness step even if progress is loading
             isResolvingBvn || 
             isVerifyingDocuments || 
             (currentStep === 'bvn_verification' && bvnVerified) ||
             (currentStep === 'id_face_match' && documentsVerified)
           }
-          loading={isLoading || formDataLoading || progressLoading || isResolvingBvn || isVerifyingDocuments}
+          loading={isLoading || formDataLoading || (progressLoading && currentStep !== 'liveness_verification') || isResolvingBvn || isVerifyingDocuments}
         />
       )}
       
