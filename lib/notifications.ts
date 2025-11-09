@@ -59,6 +59,14 @@ export async function getPushTokenAsync(): Promise<string | null> {
     if (!hasPermission) {
       return null;
     }
+  } catch (error) {
+    console.error("❌ Error getting FCM token:", error);
+    await logAnalyticsEvent("fcm_token_error", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+    return null;
+  }
+}
 
     // Try to get push token (requires FCM to be configured)
     const token = (await Notifications.getDevicePushTokenAsync()).data;
@@ -84,57 +92,187 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   if (!hasPermission) {
     return null;
   }
+}
+
+/**
+ * Handle incoming FCM messages
+ */
+export async function handleFCMMessage(message: any): Promise<void> {
+  try {
+    console.log("📱 FCM Message received:", message);
+
+    // Log analytics event
+    await logAnalyticsEvent("fcm_message_received", {
+      messageId: message.messageId,
+      from: message.from,
+    });
 
   // Try to get push token (optional - only for remote push)
   return await getPushTokenAsync();
 }
 
-// Store FCM token in Supabase
-export async function storeFCMToken(userId: string, token: string) {
+/**
+ * Setup notification listeners
+ */
+export function setupNotificationListeners(): void {
   try {
-    const { error } = await supabase
-      .from('user_fcm_tokens')
-      .upsert({
-        user_id: userId,
-        fcm_token: token,
-        platform: Platform.OS,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id,platform'
+    // Listen for FCM messages when app is in foreground
+    messaging().onMessage(handleFCMMessage);
+
+    // Handle FCM messages when app is in background/killed state
+    messaging().setBackgroundMessageHandler(handleFCMMessage);
+
+    // Handle notification when app is opened from a notification
+    messaging().onNotificationOpenedApp(async (remoteMessage: any) => {
+      try {
+        console.log("🔔 App opened from notification:", remoteMessage);
+        await logAnalyticsEvent("notification_opened_app", {
+          messageId: remoteMessage.messageId,
+          notificationType: remoteMessage.data?.type,
+        });
+        router.push("/notifications");
+        console.log("✅ Navigated to notifications screen from opened app");
+      } catch (error) {
+        console.error("❌ Error handling notification open app:", error);
+      }
+    });
+
+    // Check if app was opened from a notification when it was completely closed
+    messaging()
+      .getInitialNotification()
+      .then(async (remoteMessage: any) => {
+        if (remoteMessage) {
+          try {
+            console.log(
+              "🔔 App opened from notification (cold start):",
+              remoteMessage
+            );
+            await logAnalyticsEvent("notification_opened_cold_start", {
+              messageId: remoteMessage.messageId,
+              notificationType: remoteMessage.data?.type,
+            });
+            router.push("/notifications");
+            console.log("✅ Navigated to notifications screen from cold start");
+          } catch (error) {
+            console.error("❌ Error handling notification cold start:", error);
+          }
+        }
       });
 
-    if (error) {
-      console.error('Error storing FCM token:', error);
+    // Listen for notification actions and main notification press
+    notifee.onForegroundEvent(async ({ type, detail }: { type: any; detail: any }) => {
+      if (type === EventType.ACTION_PRESS) {
+        await handleNotificationAction(detail);
+      } else if (type === EventType.PRESS) {
+        // Handle main notification tap - route to notifications screen
+        try {
+          console.log("🔔 Main notification pressed");
+          await logAnalyticsEvent("notification_pressed", {
+            notificationType: detail.notification?.data?.type,
+          });
+          router.push("/notifications");
+          console.log(
+            "✅ Navigated to notifications screen from main notification press"
+          );
+        } catch (error) {
+          console.error("❌ Error handling main notification press:", error);
+        }
+      }
+    });
+
+    // Handle notification actions and main notification press when app is killed
+    notifee.onBackgroundEvent(async ({ type, detail }: { type: any; detail: any }) => {
+      if (type === EventType.ACTION_PRESS) {
+        await handleNotificationAction(detail);
+      } else if (type === EventType.PRESS) {
+        // Handle main notification tap - route to notifications screen
+        try {
+          console.log("🔔 Main notification pressed (background)");
+          await logAnalyticsEvent("notification_pressed_background", {
+            notificationType: detail.notification?.data?.type,
+          });
+          router.push("/notifications");
+          console.log(
+            "✅ Navigated to notifications screen from background notification press"
+          );
+        } catch (error) {
+          console.error(
+            "❌ Error handling background notification press:",
+            error
+          );
+        }
+      }
+    });
+
+    // Listen for token refresh
+    messaging().onTokenRefresh(async (token: string) => {
+      console.log("🔄 FCM Token refreshed:", token.substring(0, 20) + "...");
+      await AsyncStorage.setItem(STORAGE_KEYS.FCM_TOKEN, token);
+      await storeFCMTokenInSupabase(token);
+      await logAnalyticsEvent("fcm_token_refreshed");
+    });
+
+    console.log("✅ Notification listeners setup successfully");
+  } catch (error) {
+    console.error("❌ Error setting up notification listeners:", error);
+  }
+}
+
+/**
+ * Initialize the complete notification system
+ */
+export async function initializeNotifications(): Promise<boolean> {
+  try {
+    console.log("🚀 Initializing notification system...");
+
+    // Create notification channels (Android)
+    await createNotificationChannels();
+
+    // Request permissions
+    const permissionGranted = await requestNotificationPermissions();
+
+    if (!permissionGranted) {
+      console.log(
+        "⚠️ Notification permissions not granted, skipping FCM setup"
+      );
       return false;
     }
 
-    console.log('FCM token stored successfully');
+    // Get FCM token
+    const token = await getFCMToken();
+
+    if (!token) {
+      console.log("⚠️ FCM token not obtained, notification setup incomplete");
+      return false;
+    }
+
+    // Setup listeners
+    setupNotificationListeners();
+
+    console.log("✅ Notification system initialized successfully");
+    await logAnalyticsEvent("notification_system_initialized");
+
     return true;
   } catch (error) {
-    console.error('Error in storeFCMToken:', error);
+    console.error("❌ Error initializing notification system:", error);
+    await logAnalyticsEvent("notification_system_error", {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return false;
   }
 }
 
-// Setup notification listeners
-export function setupNotificationListeners() {
-  const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
-    console.log('Notification received in foreground:', notification);
-  });
-
-  const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-    console.log('Notification tapped:', response);
-    const { data } = response.notification.request.content;
-    
-    if (data?.type === 'deposit_successful') {
-      console.log('Navigate to wallet screen');
-    }
-  });
-
-  return () => {
-    foregroundSubscription.remove();
-    responseSubscription.remove();
-  };
+/**
+ * Check if notifications are enabled
+ */
+export async function areNotificationsEnabled(): Promise<boolean> {
+  try {
+    const settings = await notifee.getNotificationSettings();
+    return settings.authorizationStatus >= 1; // 1 = AUTHORIZED, 2 = PROVISIONAL
+  } catch (error) {
+    console.error("❌ Error checking notification permissions:", error);
+    return false;
+  }
 }
 
 // Initialize notifications

@@ -92,6 +92,7 @@ export default function FirstNameScreen() {
         title="Continue"
         onPress={handleContinue}
         disabled={!isButtonEnabled}
+        
       />
     </SafeAreaView>
   );

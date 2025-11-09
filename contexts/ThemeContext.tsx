@@ -89,6 +89,7 @@ const darkColors = {
   surface: '#0E141F',
   surfaceSecondary: '#0C2241',
   
+  
   // Text colors
   text: '#F8FAFC',
   textSecondary: '#CBD5E1',

@@ -460,13 +460,14 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleViewLinkedAccounts}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}>
+              <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}> 
                 <Building2 size={20} color="#0EA5E9" />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Linked Bank Accounts</Text>
                 <Text style={styles.settingDescription}>Manage accounts for deposits</Text>
               </View>
+             <View style={styles.comingSoonTag}><Text style={styles.comingSoonText}>Coming Soon</Text></View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
             
@@ -1118,5 +1119,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textTertiary,
     marginLeft: 8,
+  },
+  disabledSettingItem: {
+    opacity: 0.5,
+  },
+  comingSoonTag: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginRight: 8,
+    alignSelf: 'center',
+  },
+  comingSoonText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
 });
