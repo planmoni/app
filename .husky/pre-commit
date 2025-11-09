@@ -1,16 +1,22 @@
 #!/usr/bin/env sh
 # Verify version consistency before committing version changes
 if git diff --cached --name-only | grep -q "package.json\|app.json"; then
-  echo "📦 Detected version file changes, running verification..."
-  npm run version:verify
+  # Check if version:verify script exists in package.json
+  if grep -q '"version:verify"' package.json 2>/dev/null; then
+    echo "📦 Detected version file changes, running verification..."
+    npm run version:verify
 
-  if [ $? -ne 0 ]; then
-    echo ""
-    echo "❌ Version verification failed!"
-    echo "💡 Run: npm run version:bump:patch"
-    echo ""
-    exit 1
+    if [ $? -ne 0 ]; then
+      echo ""
+      echo "❌ Version verification failed!"
+      echo "💡 Run: npm run version:bump:patch"
+      echo ""
+      exit 1
+    fi
+
+    echo "✅ Version verification passed"
+  else
+    # Script doesn't exist, skip verification
+    echo "⚠️  Version files changed, but version:verify script not found. Skipping verification."
   fi
-
-  echo "✅ Version verification passed"
 fi
