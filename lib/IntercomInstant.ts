@@ -67,6 +67,25 @@ class IntercomInstant {
   }
 
   /**
+   * Register push token with Intercom for push notifications
+   */
+  async registerPushToken(expoPushToken: string): Promise<void> {
+    try {
+      if (Platform.OS === 'web') {
+        console.log('⚠️ Push notifications not supported on web');
+        return;
+      }
+
+      console.log('📱 Registering push token with Intercom...');
+      await Intercom.sendTokenToIntercom(expoPushToken);
+      console.log('✅ Push token registered with Intercom successfully');
+    } catch (error) {
+      console.error('❌ Failed to register push token with Intercom:', error);
+      // Don't throw - push notifications are optional
+    }
+  }
+
+  /**
    * Authenticate user with Intercom (background process)
    */
   async authenticateUser(userId: string, email: string, name: string, phone?: string): Promise<void> {
@@ -91,6 +110,17 @@ class IntercomInstant {
       
       isIntercomAuthenticated = true;
       console.log('✅ User authenticated with Intercom successfully');
+      
+      // Register push token with Intercom after authentication
+      try {
+        const { registerForPushNotificationsAsync } = await import('@/lib/notifications');
+        const token = await registerForPushNotificationsAsync();
+        if (token) {
+          await this.registerPushToken(token);
+        }
+      } catch (tokenError) {
+        console.warn('⚠️ Failed to register push token with Intercom:', tokenError);
+      }
       
     } catch (error) {
       console.error('❌ Failed to authenticate user with Intercom:', error);

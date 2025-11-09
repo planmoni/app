@@ -1,6 +1,4 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
-
+#!/usr/bin/env sh
 # Verify version consistency before committing version changes
 if git diff --cached --name-only | grep -q "package.json\|app.json"; then
   echo "📦 Detected version file changes, running verification..."
