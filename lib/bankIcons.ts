@@ -128,6 +128,13 @@ const bankNameToAsset: { [key: string]: string } = {
   'MTN': 'mtn_mono_bank.png',
   'Airtel': 'airtel_smartcash_bank.svg',
   '9mobile Bank': '9mobile_bank.png',
+  
+  // Microfinance Banks
+  'SafeHaven MFB': 'safe_haven_bank.svg',
+  'SAFEHAVEN MFB': 'safe_haven_bank.svg',
+  'SafeHaven Microfinance Bank': 'safe_haven_bank.svg',
+  'SafeHaven': 'safe_haven_bank.svg',
+  'Safe Haven MFB': 'safe_haven_bank.svg',
 };
 
 // SVG files mapping

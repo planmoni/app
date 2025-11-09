@@ -1,21 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState , ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useAppLock } from '@/contexts/AppLockContext';
+
 import { useFonts } from 'expo-font';
 import { SplashScreen } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, StyleSheet } from 'react-native';
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
+import { 
+  PlusJakartaSans_400Regular, 
+  PlusJakartaSans_500Medium, 
+  PlusJakartaSans_600SemiBold, 
+  PlusJakartaSans_700Bold 
+} from '@expo-google-fonts/plus-jakarta-sans';
 import CustomSplashScreen from '@/components/SplashScreen';
-import LockScreen from '@/components/LockScreen';
+
 import OfflineBanner from '@/components/OfflineBanner';
-import { ReactNode } from 'react';
 import { initializeAnalytics, logAnalyticsEvent } from '@/lib/firebase';
 
 interface CustomAppLayoutProps {
@@ -26,13 +25,12 @@ export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
   const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
-  const { isAppLocked, isAppLockEnabled, resetInactivityTimer } = useAppLock();
 
   const [fontsLoaded, fontError] = useFonts({
-    'Inter-Regular': Inter_400Regular,
-    'Inter-Medium': Inter_500Medium,
-    'Inter-SemiBold': Inter_600SemiBold,
-    'Inter-Bold': Inter_700Bold,
+    'PlusJakartaSans-Regular': PlusJakartaSans_400Regular,
+    'PlusJakartaSans-Medium': PlusJakartaSans_500Medium,
+    'PlusJakartaSans-SemiBold': PlusJakartaSans_600SemiBold,
+    'PlusJakartaSans-Bold': PlusJakartaSans_700Bold,
   });
 
   useEffect(() => {
@@ -62,7 +60,7 @@ export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorTitle}>Configuration Error</Text>
+        
         <Text style={styles.errorMessage}>{error}</Text>
         <Text style={styles.errorInstructions}>
           Please check your environment configuration and database setup as described in the README.md file.
@@ -80,11 +78,10 @@ export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
   }
 
   return (
-    <View style={{ flex: 1 }} onTouchStart={() => resetInactivityTimer()}>
+    <View style={{ flex: 1 }}>
       <OfflineBanner />
       {children}
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      {isAppLocked && isAppLockEnabled && <LockScreen />}
     </View>
   );
 }

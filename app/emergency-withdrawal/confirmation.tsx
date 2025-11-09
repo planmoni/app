@@ -1,12 +1,13 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Clock, CircleCheck as CheckCircle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useEffect } from 'react';
+import { useEmergencyWithdrawal } from '@/hooks/useEmergencyWithdrawal';
 import * as Haptics from 'expo-haptics';
 
 export default function EmergencyWithdrawalConfirmationScreen() {
@@ -309,8 +310,16 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   transactionsButton: {
     backgroundColor: colors.primary,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   dashboardButton: {
     borderColor: colors.border,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
 });

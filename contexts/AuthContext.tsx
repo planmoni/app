@@ -1,73 +1,85 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
-import { Session, User } from '@supabase/supabase-js';
-import { BiometricService } from '@/lib/biometrics';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Session } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
-import { intercomService } from '@/lib/intercom';
-import { supabase } from '@/lib/supabase';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { BiometricService } from '@/lib/biometrics';
+import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
+import SessionExpiredModal from '@/components/SessionExpiredModal';
+import { createUserScopedStorage } from '@/lib/user-scoped-storage';
 
 interface BiometricSettings {
-  isEnabled: boolean;
-  supportedTypes: any[];
-  isEnrolled: boolean;
   isAvailable: boolean;
+  isEnabled: boolean;
+  supportedTypes: string[];
 }
 
 interface AuthContextType {
   session: Session | null;
-  user: User | null;
+  user: any;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string; data?: any }>;
-  signUp: (email: string, password: string, firstName: string, lastName: string, referralCode?: string) => Promise<{ success: boolean; error?: string; data?: any }>;
-  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
-  signOut: () => Promise<{ success: boolean; error?: string }>;
   error: string | null;
+  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signUp: (email: string, password: string, metadata?: any) => Promise<{ success: boolean; error?: string }>;
+  signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   biometricSettings: BiometricSettings | null;
   setBiometricEnabled: (enabled: boolean) => Promise<boolean>;
   refreshBiometricSettings: () => Promise<void>;
 }
 
-const defaultBiometricSettings: BiometricSettings = {
-  isEnabled: false,
-  supportedTypes: [],
-  isEnrolled: false,
-  isAvailable: false
-};
-
-const AuthContext = createContext<AuthContextType>({
-  session: null,
-  user: null,
-  isLoading: true,
-  signIn: async () => ({ success: false }),
-  signUp: async () => ({ success: false }),
-  resetPassword: async () => ({ success: false }),
-  signOut: async () => ({ success: false }),
-  error: null,
-  biometricSettings: defaultBiometricSettings,
-  setBiometricEnabled: async () => false,
-  refreshBiometricSettings: async () => {},
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const defaultBiometricSettings: BiometricSettings = {
+  isAvailable: false,
+  isEnabled: false,
+  supportedTypes: [],
+};
+
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Note: Sessions are automatically persisted to secure storage via useSupabaseAuth
   const {
     session,
     isLoading,
     signIn: supabaseSignIn,
     signUp,
     resetPassword,
-    signOut,
+    signOut: supabaseSignOut,
     error
   } = useSupabaseAuth();
 
   const [biometricSettings, setBiometricSettings] = useState<BiometricSettings | null>(null);
+  const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
+  
+  // Helper function to clear all PIN data for a user
+  const clearAllPinsForUser = async (userId: string): Promise<void> => {
+    try {
+      const userStorage = createUserScopedStorage(userId);
+      console.log('🗑️ AuthContext - Clearing all PIN data for user:', userId);
+      
+      // Clear all PINs
+      await userStorage.deleteItem('app_lock_pin');
+      await userStorage.deleteItem('payout_pin');
+      await userStorage.deleteItem('emergency_pin');
+      
+      // Clear all biometric settings
+      await userStorage.deleteItem('biometric_enabled');
+      await userStorage.deleteItem('payout_biometric_enabled');
+      await userStorage.deleteItem('emergency_biometric_enabled');
+      
+      console.log('✅ AuthContext - All PIN data cleared successfully');
+    } catch (error) {
+      console.error('❌ AuthContext - Error clearing PIN data:', error);
+      throw error;
+    }
+  };
 
   // Get user from session
   const user = session?.user || null;
@@ -76,22 +88,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshBiometricSettings();
   }, []);
 
+
+  // Save profile snapshots when session changes
   useEffect(() => {
-    if (Platform.OS === 'web') return;
-    (async () => {
-      try {
-        if (session?.user?.id) {
-          const { default: Intercom } = await import('@intercom/intercom-react-native');
-          await Intercom.loginUserWithUserAttributes({
-            userId: session.user.id,
-            email: session.user.email || '',
-          });
-        }
-      } catch (e) {
-        // ignore
+    if (session?.user?.id) {
+      // Save metadata snapshot immediately
+      if (session.user.user_metadata) {
+        ProfileSnapshotManager.saveMetadataSnapshot(session.user.id, session.user.user_metadata);
       }
-    })();
+      
+      // Refresh profile snapshot in background
+      ProfileSnapshotManager.refreshProfileSnapshot(session.user.id).catch(error => {
+        console.error('Failed to refresh profile snapshot:', error);
+      });
+    } else {
+      // Clear profile snapshots when no session
+      // Note: We don't clear here as we want to keep snapshots for potential re-login
+    }
   }, [session?.user?.id]);
+
+  // Monitor for session expiration
+  useEffect(() => {
+    if (error && (
+      error.includes('JWT expired') ||
+      error.includes('refresh_token_not_found') ||
+      error.includes('Invalid Refresh Token') ||
+      error.includes('Session expired') ||
+      error.includes('Session expired or invalid')
+    )) {
+      console.log('🔴 Session expired detected, showing modal');
+      setShowSessionExpiredModal(true);
+    }
+  }, [error]);
+
+  // Also monitor session state directly
+  useEffect(() => {
+    // If we had a session but now we don't, and there's an error, show the modal
+    if (!session && error && (
+      error.includes('JWT expired') ||
+      error.includes('refresh_token_not_found') ||
+      error.includes('Invalid Refresh Token') ||
+      error.includes('Session expired')
+    )) {
+      console.log('🔴 Session lost with error, showing modal');
+      setShowSessionExpiredModal(true);
+    }
+  }, [session, error]);
 
   const refreshBiometricSettings = async () => {
     try {
@@ -99,14 +141,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setBiometricSettings(defaultBiometricSettings);
         return;
       }
-      
       const settings = await BiometricService.checkBiometricSupport();
-      setBiometricSettings(settings);
+      setBiometricSettings({
+        ...settings,
+        supportedTypes: settings.supportedTypes.map(type => type.toString())
+      });
     } catch (error) {
       console.error('Failed to check biometric support:', error);
       setBiometricSettings(defaultBiometricSettings);
     }
   };
+
 
   const setBiometricEnabled = async (enabled: boolean): Promise<boolean> => {
     try {
@@ -125,96 +170,126 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Enhanced signIn function that sends login notification
-  const signIn = async (email: string, password: string) => {
-    const result = await supabaseSignIn(email, password);
-    
-    if (result.success && (result as any)?.data?.session?.access_token) {
-      try {
-        // Initialize and login user to Intercom (native only)
-        if (Platform.OS !== 'web') {
-          const { default: Intercom } = await import('@intercom/intercom-react-native');
-          await Intercom.loginUserWithUserAttributes({
-            userId: session?.user?.id || '',
-            email: session?.user?.email || '',
-          });
-        }
-      } catch (e) {
-        console.warn('Intercom login failed:', e);
-      }
-      try {
-        // Get device and location info
-        const deviceInfo = {
-          device: Platform.OS === 'web' ? 'Web Browser' : Platform.OS === 'ios' ? 'iOS Device' : 'Android Device',
-          location: 'Unknown Location',
-          time: new Date().toLocaleString(),
-          ip: '0.0.0.0'
-        };
-        
-        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-        if (supabaseUrl) {
-          const session: any = (result as any).data.session;
-          const response = await fetch(`${supabaseUrl}/functions/v1/login-notification`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({
-              userId: session.user.id,
-              loginInfo: deviceInfo
-            })
-          });
-          
-          if (!response.ok) {
-            console.error('Failed to send login notification:', await response.text());
+  // Enhanced signIn function that sends login notification and tracks login sessions
+  const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const result = await supabaseSignIn(email, password);
+
+      if (result.success) {
+        // Get the session directly from Supabase since state might not be updated yet
+        const { supabase } = await import('@/lib/supabase');
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+        if (currentSession?.user?.id) {
+          // Track login session with device and location info
+          try {
+            const { DeviceInfoService } = await import('@/lib/device-info');
+            await DeviceInfoService.createLoginSession(currentSession.user.id, currentSession.access_token);
+          } catch (error) {
+            console.error('Failed to track login session:', error);
+          }
+
+          // Send login notification
+          try {
+            const { DeviceInfoService } = await import('@/lib/device-info');
+
+            const deviceInfo = await DeviceInfoService.getDeviceInfo();
+            const locationInfo = await DeviceInfoService.getLocationInfo();
+
+            // Use direct fetch like OTP emails
+            const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+            const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+            const response = await fetch(`${supabaseUrl}/functions/v1/login-notification`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseAnonKey}`,
+                'apikey': supabaseAnonKey || ''
+              },
+              body: JSON.stringify({
+                userId: currentSession.user.id,
+                loginInfo: {
+                  device: `${deviceInfo.device_manufacturer} ${deviceInfo.device_model}`,
+                  location: `${locationInfo.city}, ${locationInfo.country}`,
+                  time: new Date().toLocaleString(),
+                  ip: locationInfo.ip_address
+                }
+              })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+              console.log('Login notification sent successfully');
+            } else {
+              console.log('Login notification attempted:', data.message);
+            }
+          } catch (error) {
+            console.error('Failed to send login notification:', error);
           }
         }
-        
-        await supabase
-          .from('events')
-          .insert({
-            user_id: (result as any).data.session.user.id,
-            type: 'security_alert',
-            title: 'New Login Detected',
-            description: `New login from ${deviceInfo.device} at ${deviceInfo.time}`,
-            status: 'unread'
-          });
-      } catch (error) {
-        console.error('Failed to send login notification:', error);
       }
+
+      return result;
+    } catch (error) {
+      console.error('Sign-in error:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Sign-in failed' };
     }
-    
-    return result;
   };
 
-  useEffect(() => {
-    // Logout Intercom when user logs out (native only)
-    if (!user && Platform.OS !== 'web') {
-      (async () => {
+  // Enhanced signOut function that clears profile snapshots and PIN data
+  const signOut = async (): Promise<void> => {
+    try {
+      const userId = session?.user?.id;
+      
+      // Clear profile snapshots for current user
+      if (userId) {
+        await ProfileSnapshotManager.clearProfileSnapshot(userId);
+      }
+      
+      // Clear all PIN data for the current user
+      if (userId) {
         try {
-          const { default: Intercom } = await import('@intercom/intercom-react-native');
-          await Intercom.logout();
-        } catch {}
-      })();
+          await clearAllPinsForUser(userId);
+        } catch (pinError) {
+          console.error('Error clearing PIN data on logout:', pinError);
+          // Don't throw - continue with logout even if PIN clearing fails
+        }
+      }
+      
+      // Sign out from Supabase
+      await supabaseSignOut();
+    } catch (error) {
+      console.error('Sign-out error:', error);
+      throw error;
     }
-  }, [user]);
+  };
+
+
+  const handleSessionExpiredModalClose = () => {
+    setShowSessionExpiredModal(false);
+  };
+  const value: AuthContextType = {
+    session,
+    user,
+    isLoading,
+    error,
+    signIn,
+    signUp,
+    resetPassword,
+    signOut,
+    biometricSettings,
+    setBiometricEnabled,
+    refreshBiometricSettings,
+  };
 
   return (
-    <AuthContext.Provider value={{
-      session,
-      user,
-      isLoading,
-      signIn,
-      signUp,
-      resetPassword,
-      signOut,
-      error,
-      biometricSettings,
-      setBiometricEnabled,
-      refreshBiometricSettings
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
+      <SessionExpiredModal 
+        isVisible={showSessionExpiredModal}
+        onClose={handleSessionExpiredModalClose}
+      />
     </AuthContext.Provider>
   );
 };

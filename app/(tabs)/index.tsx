@@ -1,32 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import Card from '@/components/Card';
 import TransactionModal from '@/components/TransactionModal';
+import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
+import ClaimAccountModal from '@/components/ClaimAccountModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
-import CountdownTimer from '@/components/CountdownTimer';
 import PendingActionsCard from '@/components/PendingActionsCard';
+import KYCCard from '@/components/KYCCard';
 import ImageCarousel from '@/components/ImageCarousel';
+import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
+// import { IntercomButton } from '@/components/IntercomButton';
 import { useRoute } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
-  ArrowDownRight,
-  ArrowRightIcon,
-  BanknoteArrowDown,
-  BanknoteArrowUp,
   HelpCircleIcon,
-  ArrowUpRight,
-  Calendar,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
   Eye,
   EyeOff,
-  CircleHelp as HelpCircle,
-  Lock,
   Plus,
-  RefreshCw,
-  Star,
-  CalendarCheck
+  CalendarCheck,
+  Clock,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -39,22 +30,31 @@ import {
   RefreshControl,
   ImageBackground,
   Image,
-  Linking,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAppLock } from '@/contexts/AppLockContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
-import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
+import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
+// import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { logAnalyticsEvent } from '@/lib/firebase';
-import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
+// import { intercomInstant } from '@/lib/IntercomInstant';
 import NotificationIcon from '@/components/NotificationIcon';
-import { getBankIconLogo } from '@/lib/bankIcons';
 import { supabase } from '@/lib/supabase';
+import NextPayoutCard from '@/components/NextPayoutCard';
+import PayoutPlansSection from '@/components/PayoutPlansSection';
+import RatingCard from '@/components/RatingCard';
+import AISuggestionCard from '@/components/AISuggestionCard';
+import OnTrackCard from '@/components/OnTrackCard';
+// import { intercomService } from '@/lib/intercom';
+import { useIntercom } from '@/hooks/useIntercom';
+// import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 
 interface Banner {
   id: string;
@@ -71,26 +71,85 @@ export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
+  const { updateLastActiveOnInteraction } = useAppLock();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
+  const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
+  const { account: paystackAccount, isLoading: paystackAccountLoading } = useRealtimePaystackAccount();
+  
+  // Debug: Track payoutPlans changes
+  useEffect(() => {
+    console.log('📊 Dashboard: payoutPlans updated', {
+      count: payoutPlans.length,
+      plans: payoutPlans.map(p => ({ id: p.id, name: p.name, status: p.status }))
+    });
+  }, [payoutPlans]);
   const { transactions, isLoading: transactionsLoading } = useRealtimeTransactions();
-  const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
+  // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
-  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isHelpLoading, setIsHelpLoading] = useState(false);
   const [carouselImages, setCarouselImages] = useState<any[]>([]);
   const [imagesReady, setImagesReady] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
+  const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
+  const [safehavenAccount, setSafehavenAccount] = useState<any>(null);
+  const [isCheckingAccount, setIsCheckingAccount] = useState(false);
   const route = useRoute();
-  const params = useLocalSearchParams();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
 
+  // Intercom
+  const { openChat, isLoading, isSupported } = useIntercom();
   // Get user info from session
   const firstName = session?.user?.user_metadata?.first_name || 'User';
   const lastName = session?.user?.user_metadata?.last_name || '';
+  const email = session?.user?.email || '';
 
+  // Show welcome modal if account was created recently
+  useEffect(() => {
+    if (!recentAccountLoading && isRecentAccount && !showWelcomeModal && !hasShownWelcomeModal) {
+      // Add a small delay to ensure the dashboard is fully loaded
+      const timer = setTimeout(() => {
+        setShowWelcomeModal(true);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
+
+  // Check for SafeHaven account
+  useEffect(() => {
+    const checkSafeHavenAccount = async () => {
+      if (!session?.user?.id || isCheckingAccount) return;
+      
+      try {
+        setIsCheckingAccount(true);
+        const { data, error } = await supabase
+          .from('safehaven_accounts')
+          .select('account_number, account_name')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .limit(1)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          console.warn('Error checking SafeHaven account:', error);
+        } else if (data) {
+          setSafehavenAccount(data);
+        }
+      } catch (err) {
+        console.warn('Error checking SafeHaven account:', err);
+      } finally {
+        setIsCheckingAccount(false);
+      }
+    };
+
+    checkSafeHavenAccount();
+  }, [session?.user?.id]);
+
+  
   // Log screen view for analytics
   useEffect(() => {
     logAnalyticsEvent('screen_view', {
@@ -109,7 +168,6 @@ export default function HomeScreen() {
         .order('order_index', { ascending: true });
 
       if (error) {
-        console.error('Error fetching carousel images:', error);
         return;
       }
 
@@ -128,7 +186,6 @@ export default function HomeScreen() {
               });
               return banner;
             } catch (error) {
-              console.error('Failed to preload image:', banner.image_url, error);
               return banner; // Return banner even if image fails to load
             }
           })
@@ -138,7 +195,6 @@ export default function HomeScreen() {
         setImagesReady(true);
       }
     } catch (error) {
-      console.error('Error in fetchCarouselImages:', error);
     }
   };
 
@@ -159,123 +215,23 @@ export default function HomeScreen() {
       // Refresh wallet balance
       await refreshWallet();
       // Fetch latest Paystack transactions
-      await fetchPaystackTransactions();
+      // await fetchPaystackTransactions();
       // Add haptic feedback for successful refresh
       impact();
     } catch (error) {
-      console.error('Error refreshing:', error);
     } finally {
       setIsRefreshing(false);
     }
   };
-  
+  // Intercom not supported on web
+  if (!isSupported) {
+    return null; // Don't render on web
+  }
   const handleHelpPress = async () => {
     try {
-      setIsHelpLoading(true);
-      console.log('🎯 Help button pressed');
-      
-      // Follow the official Intercom guide
-      const { default: Intercom } = await import('@intercom/intercom-react-native');
-      
-      if (!session?.user?.id) {
-        console.log('👤 No user session, logging in as unidentified user...');
-        await Intercom.loginUnidentifiedUser();
-        console.log('✅ Unidentified user logged in');
-      } else {
-        console.log('👤 User session found, updating user data...');
-        
-        // Get user name from metadata
-        const firstName = session.user.user_metadata?.first_name || '';
-        const lastName = session.user.user_metadata?.last_name || '';
-        const fullName = `${firstName} ${lastName}`.trim();
-        
-        console.log('👤 User data for Intercom:', {
-          userId: session.user.id,
-          email: session.user.email,
-          firstName,
-          lastName,
-          fullName
-        });
-
-        // try {
-        //   // First, try to update the existing user with new attributes
-        //   await Intercom.updateUser({
-        //     userId: session.user.id,
-        //     email: session.user.email,
-        //     name: fullName || session.user.email?.split('@')[0] || 'User',
-        //     phone: session.user.phone || undefined,
-        //     customAttributes: {
-        //       first_name: firstName,
-        //       last_name: lastName,
-        //       user_type: 'customer',
-        //       app_version: '1.0.0'
-        //     }
-        //   });
-        //   console.log('✅ User updated successfully');
-        // } catch (updateError) {
-        //   console.log('⚠️ Update failed, trying to login with user attributes...');
-          
-        //   // If update fails, try to login with user attributes
-        //   await Intercom.loginUserWithUserAttributes({
-        //     userId: session.user.id,
-        //     email: session.user.email,
-        //     name: fullName || session.user.email?.split('@')[0] || 'User',
-        //     phone: session.user.phone || undefined,
-        //     customAttributes: {
-        //       first_name: firstName,
-        //       last_name: lastName,
-        //       user_type: 'customer',
-        //       app_version: '1.0.0'
-        //     }
-        //   });
-        //   console.log('✅ User logged in to Intercom');
-        // }
-        
-        // Get JWT from Supabase Edge Function for secure authentication
-        console.log('🔐 Getting JWT from server...');
-        const jwtResponse = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/intercom-jwt`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
-          }
-        });
-        
-        if (!jwtResponse.ok) {
-          throw new Error('Failed to get JWT from server');
-        }
-        
-        const { jwt } = await jwtResponse.json();
-        
-        // Set the JWT before making any user registration calls
-        console.log('🔐 Setting JWT for Intercom...');
-        await Intercom.setUserJwt(jwt);
-        console.log('✅ JWT set successfully');
-        
-        // Now login with user attributes
-        await Intercom.loginUserWithUserAttributes({
-          userId: session.user.id,
-          email: session.user.email,
-          name: fullName || session.user.email?.split('@')[0] || 'User',
-          phone: session.user.phone || undefined,
-          customAttributes: {
-            first_name: firstName,
-            last_name: lastName,
-            user_type: 'customer',
-            app_version: '1.0.0'
-          }
-        });
-        console.log('✅ User logged in to Intercom with JWT');
-      }
-      
-      // Wait for authentication to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Now present Intercom
-      console.log('🎯 Presenting Intercom...');
-      await Intercom.present();
-      console.log('✅ Intercom presented successfully');
+      // setIsHelpLoading(true);
+      console.log('🎯 Help button pressed - opening Intercom instantly');
+      await openChat();
       
       logAnalyticsEvent('help_click');
       
@@ -284,12 +240,19 @@ export default function HomeScreen() {
       
       // Show user-friendly error
       Alert.alert(
-        'Intercom Error',
-        'Unable to open support chat. Please try again.',
-        [{ text: 'OK' }]
+        'Support Chat Unavailable',
+        'Unable to open support chat at the moment. This might be due to network connectivity issues. Would you like to try again?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Retry', 
+            onPress: () => {
+              console.log('🔄 Retrying Intercom...');
+              handleHelpPress();
+            }
+          }
+        ]
       );
-    } finally {
-      setIsHelpLoading(false);
     }
   };
 
@@ -323,11 +286,23 @@ export default function HomeScreen() {
     return showBalances ? `₦${amount.toLocaleString()}` : '*********';
   };
 
-  const handleAddFunds = () => {
+  const handleAddFunds = async () => {
     // Trigger medium impact haptic feedback
     impact();
-    router.push('/add-funds');
-    logAnalyticsEvent('add_funds_click');
+    
+    // Check if user has a bank account (Paystack or SafeHaven)
+    const hasPaystackAccount = paystackAccount?.account_number;
+    const hasSafeHavenAccount = safehavenAccount?.account_number;
+    
+    if (!hasPaystackAccount && !hasSafeHavenAccount) {
+      // Show modal if user doesn't have an account
+      setShowClaimAccountModal(true);
+      logAnalyticsEvent('add_funds_click_no_account');
+    } else {
+      // Navigate directly to add funds page
+      router.push('/add-funds');
+      logAnalyticsEvent('add_funds_click');
+    }
   };
 
   const handleCreatePayout = () => {
@@ -337,7 +312,25 @@ export default function HomeScreen() {
     logAnalyticsEvent('create_payout_click');
   };
 
-  const handleViewPayout = (id?: string) => {
+  const handleAISuggestionPress = (suggestion: any) => {
+    // Trigger haptic feedback
+    impact();
+    // Navigate directly to schedule page with full balance and suggested frequency
+    router.push({
+      pathname: '/create-payout/schedule',
+      params: {
+        totalAmount: availableBalance.toString(),
+        suggestedFrequency: suggestion.frequency,
+        suggestedDuration: suggestion.duration.toString()
+      }
+    });
+    logAnalyticsEvent('ai_suggestion_used', {
+      suggestion_id: suggestion.id,
+      suggestion_title: suggestion.title,
+      suggested_amount: suggestion.amount,
+      total_amount: availableBalance
+    });
+  };  const handleViewPayout = (id?: string) => {
     // Trigger selection haptic feedback
     notification();
     if (id) {
@@ -357,16 +350,91 @@ export default function HomeScreen() {
     logAnalyticsEvent('view_all_payouts');
   };
 
+  const handleStartVerification = async () => {
+    try {
+      // Create audit log for KYC verification start
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session?.user?.id,
+        p_operation_type: 'kyc_initiated',
+        p_verification_type: 'document',
+        p_verification_provider: 'internal',
+        p_request_data: {
+          action: 'start_kyc_verification',
+          source: 'home_screen',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: {
+          user_action: 'clicked_start_verification_button',
+          navigation_target: '/kyc-upgrade'
+        },
+        p_status: 'success',
+        p_result_message: 'User initiated KYC verification process',
+        p_metadata: {
+          component: 'HomeScreen',
+          action: 'start_verification',
+          source: 'welcome_modal'
+        }
+      });
+
+      // Create audit event for KYC initiation
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session?.user?.id,
+            event_type: 'verification_started',
+            event_data: {
+              action: 'kyc_initiation',
+              source: 'home_screen',
+              component: 'HomeScreen'
+            },
+            severity: 'medium'
+          });
+      }
+    } catch (error) {
+      console.error('Error creating KYC audit log for verification start:', error);
+      // Continue with the action even if audit fails
+    }
+
+    setShowWelcomeModal(false);
+    setHasShownWelcomeModal(true);
+    router.push('/kyc-upgrade');
+  };
+
+  const handleGoToDashboard = () => {
+    setShowWelcomeModal(false);
+    setHasShownWelcomeModal(true);
+    // Modal is already on dashboard, just close it
+  };
+
+  // Handle transaction press from MostRecentPayoutsCard
   const handleTransactionPress = (transaction: any) => {
+    // Find the payout plan to get bank information
+    const plan = payoutPlans.find(p => p.id === transaction.payout_plan_id);
+    
+    // Get bank info from the payout plan's linked account
+    let bankName = 'Unknown Bank';
+    let accountNumber = '****';
+    
+    if (plan?.payout_accounts) {
+      bankName = plan.payout_accounts.bank_name;
+      accountNumber = plan.payout_accounts.account_number;
+    } else if (plan?.bank_accounts) {
+      bankName = plan.bank_accounts.bank_name;
+      accountNumber = plan.bank_accounts.account_number;
+    }
+
     // Format transaction data for the modal
     const formattedTransaction = {
+      ...transaction,
       amount: `₦${transaction.amount.toLocaleString()}`,
       status: transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1),
       date: new Date(transaction.created_at).toLocaleDateString(),
       time: new Date(transaction.created_at).toLocaleTimeString(),
       type: transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1),
-      source: transaction.source,
-      destination: transaction.destination,
+      source: plan?.name || transaction.source,
+      destination: `${bankName} •••• ${accountNumber.slice(-4)}`, // Use actual bank name
       transactionId: transaction.id,
       planRef: transaction.payout_plan_id || '',
       paymentMethod: transaction.type === 'deposit' ? 'Bank Transfer' : 
@@ -385,6 +453,14 @@ export default function HomeScreen() {
   // Get active payout plans for display
   const activePlans = payoutPlans.filter(plan => plan.status === 'active').slice(0, 3);
   
+  // Debug: Track activePlans changes
+  useEffect(() => {
+    console.log('🎯 Dashboard: activePlans updated', {
+      count: activePlans.length,
+      plans: activePlans.map(p => ({ id: p.id, name: p.name }))
+    });
+  }, [activePlans]);
+  
   // Find the next payout - the one with the earliest next_payout_date that hasn't expired
   const nextPayout = payoutPlans
     .filter(plan => {
@@ -401,80 +477,12 @@ export default function HomeScreen() {
       return dateA.getTime() - dateB.getTime();
     })[0]; // Get the first one (earliest date)
 
-  // Calculate summary stats from actual data
-  const totalPaidOut = payoutPlans.reduce((sum, plan) => 
-    sum + (plan.completed_payouts * plan.payout_amount), 0
-  );
-  
-  const pendingPayouts = payoutPlans
-    .filter(plan => plan.status === 'active')
-    .reduce((sum, plan) => 
-      sum + ((plan.duration - plan.completed_payouts) * plan.payout_amount), 0
-    );
-
-  const completionRate = payoutPlans.length > 0 
-    ? Math.round((payoutPlans.filter(plan => plan.status === 'completed').length / payoutPlans.length) * 100)
-    : 0;
-
-  // Find the last payout date - the most recent completed payout
-  const getLastPayoutDate = () => {
-    // Sort all plans by their completed_payouts and find the most recent one
-    const completedPayouts = payoutPlans.filter(plan => plan.completed_payouts > 0);
-    
-    if (completedPayouts.length === 0) {
-      return 'No payouts yet';
-    }
-    
-    // For simplicity, we'll use the start_date and completed_payouts to estimate the last payout date
-    // In a real app, you would track actual payout dates in transactions
-    const mostRecentPlan = completedPayouts.reduce((latest, current) => {
-      const latestDate = new Date(latest.start_date);
-      const currentDate = new Date(current.start_date);
-      
-      // Add time based on frequency and completed payouts
-      let latestPayoutDate = new Date(latestDate);
-      let currentPayoutDate = new Date(currentDate);
-      
-      if (latest.frequency === 'weekly') {
-        latestPayoutDate.setDate(latestDate.getDate() + (7 * (latest.completed_payouts - 1)));
-      } else if (latest.frequency === 'biweekly') {
-        latestPayoutDate.setDate(latestDate.getDate() + (14 * (latest.completed_payouts - 1)));
-      } else if (latest.frequency === 'monthly') {
-        latestPayoutDate.setMonth(latestDate.getMonth() + (latest.completed_payouts - 1));
-      }
-      
-      if (current.frequency === 'weekly') {
-        currentPayoutDate.setDate(currentDate.getDate() + (7 * (current.completed_payouts - 1)));
-      } else if (current.frequency === 'biweekly') {
-        currentPayoutDate.setDate(currentDate.getDate() + (14 * (current.completed_payouts - 1)));
-      } else if (current.frequency === 'monthly') {
-        currentPayoutDate.setMonth(currentDate.getMonth() + (current.completed_payouts - 1));
-      }
-      
-      return currentPayoutDate > latestPayoutDate ? current : latest;
-    });
-    
-    // Calculate the estimated last payout date
-    const startDate = new Date(mostRecentPlan.start_date);
-    let lastPayoutDate = new Date(startDate);
-    
-    if (mostRecentPlan.frequency === 'weekly') {
-      lastPayoutDate.setDate(startDate.getDate() + (7 * (mostRecentPlan.completed_payouts - 1)));
-    } else if (mostRecentPlan.frequency === 'biweekly') {
-      lastPayoutDate.setDate(startDate.getDate() + (14 * (mostRecentPlan.completed_payouts - 1)));
-    } else if (mostRecentPlan.frequency === 'monthly') {
-      lastPayoutDate.setMonth(startDate.getMonth() + (mostRecentPlan.completed_payouts - 1));
-    }
-    
-    return lastPayoutDate.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  // Get recent transactions for display
   const recentTransactions = transactions.slice(0, 5);
+
+  const handleViewHistory = () => {
+    router.push('/transactions');
+    logAnalyticsEvent('view_transaction_history', { source: 'balance_card' });
+  };
 
   const styles = createStyles(colors, isDark);
 
@@ -491,6 +499,22 @@ export default function HomeScreen() {
     );
   }
 
+  // Calculate the next payout date across all active plans
+  const getNextPayoutDate = () => {
+    const activePlans = payoutPlans.filter(plan => plan.status === 'active');
+    if (activePlans.length === 0) return null;
+    
+    const nextPayoutDates = activePlans
+      .map(plan => plan.next_payout_date)
+      .filter((date): date is string => date !== null && date !== undefined)
+      .map(date => new Date(date))
+      .sort((a, b) => a.getTime() - b.getTime());
+    
+    return nextPayoutDates.length > 0 ? nextPayoutDates[0] : null;
+  };
+
+  const nextPayoutDate = getNextPayoutDate();
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView 
@@ -500,6 +524,8 @@ export default function HomeScreen() {
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: false }
         )}
+        onScrollBeginDrag={() => updateLastActiveOnInteraction()}
+        onTouchStart={() => updateLastActiveOnInteraction()}
         scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
@@ -523,9 +549,9 @@ export default function HomeScreen() {
               <Pressable 
                 onPress={handleHelpPress} 
                 style={styles.helpButton}
-                disabled={isHelpLoading}
+                disabled={isLoading}
               >
-                {isHelpLoading ? (
+                {isLoading ? (
                   <PlanmoniLoader size="small" />
                 ) : (
                   <HelpCircleIcon size={24} color={colors.text} />
@@ -535,7 +561,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.greetingContainer}>
             <Text style={styles.greeting}>{getGreeting()}, {firstName}.</Text>
-            <Text style={styles.subGreeting}>It's time to plan some payouts</Text>
+            {/* <Text style={styles.subGreeting}>It's time to plan some payouts</Text> */}
           </View>
         </View>
 
@@ -546,53 +572,35 @@ export default function HomeScreen() {
         >
           <View style={styles.balanceCardContent}>
             <View style={styles.balanceLabelContainer}>
-              {/* <Text style={styles.balanceLabel}>Available Wallet Balance</Text>
-              <View style={styles.balanceActions}>
-                <Pressable 
-                  onPress={handleRefresh}
-                  style={styles.refreshButton}
-                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                >
-                  <RefreshCw 
-                    size={20} 
-                    color={colors.textSecondary} 
-                    style={[
-                      (balanceLoading || paystackLoading || isRefreshing) && { transform: [{ rotate: '360deg' }] }
-                    ]}
-                  />
-                </Pressable>
+              <View style={styles.balanceLabelGroup}>
+                <Text style={styles.balanceLabel}>Your balance</Text>
                 <Pressable 
                   onPress={toggleBalances}
                   style={styles.eyeIconButton}
                   hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                 >
                   {showBalances ? (
-                    <EyeOff size={20} color={colors.textSecondary} />
+                    <EyeOff size={16} color={colors.textSecondary} />
                   ) : (
-                    <Eye size={20} color={colors.textSecondary} />
+                    <Eye size={16} color={colors.textSecondary} />
                   )}
                 </Pressable>
-              </View> */}
-              <Text style={styles.balanceLabel}>Available Balance</Text>
-              <Pressable 
-                onPress={toggleBalances}
-                style={styles.eyeIconButton}
+              </View>
+              {/* <Pressable 
+                onPress={handleViewHistory}
+                style={styles.historyButton}
                 hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
               >
-                {showBalances ? (
-                  <EyeOff size={16} color={colors.textSecondary} />
-                ) : (
-                  <Eye size={16} color={colors.textSecondary} />
-                )}
-              </Pressable>
+                <History size={20} color={colors.textSecondary} />
+              </Pressable> */}
             </View>
             <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
             <View style={styles.lockedSection}>
               <View style={styles.lockedLabelContainer}>
-                <Lock size={16} color={colors.textSecondary} />
-                <Text style={styles.lockedLabel}>Locked for payouts</Text>
+                <Clock size={16} color={colors.textSecondary} />
+                <Text style={styles.lockedLabel}>{formatBalance(lockedBalance)} in active payout plans</Text>
               </View>
-              <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text>
+              {/* <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text> */}
             </View>
             <View style={styles.buttonGroup}>
               <Pressable 
@@ -600,416 +608,74 @@ export default function HomeScreen() {
                 onPress={handleAddFunds}
               >
                 
-                <BanknoteArrowDown size={24} color={colors.textSecondary}/>
-                <Text style={styles.addFundsText}>Deposit</Text>
+                <Plus size={20} color={isDark ? '#fff' : colors.primary}/>
+                <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
               </Pressable>
               <Pressable 
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
                 <CalendarCheck size={22} color='#fff' />
-                <Text style={styles.createButtonText}>Create Plan</Text>
+                <Text style={styles.createButtonText}>New plan</Text>
               </Pressable>
               
             </View>
           </View>
         </ImageBackground>
-
-        {/* Banner Carousel - Only show when images are ready */}
-        {imagesReady && carouselImages.length > 0 && (
-          <ImageCarousel images={carouselImages} />
-        )}
         
+        {/* On Track Card */}
+        <OnTrackCard payoutPlans={payoutPlans} />
+        
+        {/* AI Suggestion Section */}
+        <AISuggestionCard 
+          availableBalance={availableBalance}
+          onSuggestionPress={handleAISuggestionPress}
+        />
+        {/* <IntercomButton /> */}
+        <KYCCard />
+
+        {/* KYC Tiers Test Buttons */}
+        {/* <View style={styles.kycTiersContainer}>
+          <Text style={[styles.kycTiersTitle, { color: colors.text }]}>KYC Tiers Test</Text>
+          <View style={styles.kycTiersButtons}>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-one')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 1</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-two')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 2</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-three')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 3</Text>
+            </Pressable>
+          </View>
+        </View> */}
+
+        <ImageCarousel images={carouselImages} />
         <PendingActionsCard />
+        <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
+
+
+        {/* Most Recent Payouts Section */}
 
         {/* Next Payout Section */}
-        {nextPayout && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Your Next Payout</Text>
-            </View>
-            <Pressable 
-              style={styles.payoutCard}
-              onPress={() => handleViewPayout(nextPayout.id)}
-            >
-              <View style={styles.payoutCardContent}>
-                <View style={styles.payoutHeader}>
-                  <Text style={styles.payoutName}>{nextPayout.name}</Text>
-                  <View style={styles.activeTag}>
-                    <Text style={styles.activeTagText}>
-                      {nextPayout.status === 'active' ? 'Scheduled' : 'Paused'}
-                    </Text>
-                  </View>
-                </View>
-                
-                <View style={styles.payoutDetails}>
-                  <View style={styles.payoutInfo}>
-                    <Text style={styles.payoutAmount}>{formatBalance(nextPayout.payout_amount)}</Text>
-                    
-                    {/* Payout Account Information */}
-                    {(nextPayout.payout_accounts || nextPayout.bank_accounts) && (
-                      <View style={styles.payoutAccountInfo}>
-                        <Text style={styles.payoutAccountLabel}>To</Text>
-                        <View style={styles.bankIconContainer}>
-                          {(() => {
-                            const bankName = nextPayout.payout_accounts?.bank_name || nextPayout.bank_accounts?.bank_name || '';
-                            const bankIcon = getBankIconLogo(bankName);
-                            
-                            if (bankIcon.logoSvg) {
-                              // Handle SVG components
-                              return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
-                                width: 12,
-                                height: 12,
-                                fill: colors.textSecondary
-                              });
-                            } else if (bankIcon.logo) {
-                              return (
-                                <Image
-                                  source={bankIcon.logo}
-                                  style={styles.bankIcon}
-                                  resizeMode="contain"
-                                />
-                              );
-                            } else {
-                              // Fallback to a generic bank icon
-                              return <View style={styles.bankIconFallback} />;
-                            }
-                          })()}
-                        </View>
-                        <Text style={styles.payoutAccountText}>
-                          {(nextPayout.payout_accounts?.bank_name || nextPayout.bank_accounts?.bank_name || 'Unknown Bank')} 
-                          **** {(nextPayout.payout_accounts?.account_number || nextPayout.bank_accounts?.account_number || '').slice(-4)} - 
-                          {(nextPayout.payout_accounts?.account_name || nextPayout.bank_accounts?.account_name || 'Unknown Account')}
-                        </Text>
-                      </View>
-                    )}
-                    
-                    {nextPayout.next_payout_date && (
-                      <CountdownTimer 
-                        targetDate={nextPayout.next_payout_date} 
-                        style={styles.dateContainer}
-                      />
-                    )}
-                  </View>
-                  
-                  {/* <View style={styles.progressContainer}>
-                    <View style={styles.progressBar}>
-                      <View 
-                        style={[
-                          styles.progressFill, 
-                          { width: `${Math.round((nextPayout.completed_payouts / nextPayout.duration) * 100)}%` }
-                        ]} 
-                      />
-                    </View>
-                    <View style={styles.progressStats}>
-                      <Text style={styles.progressText}>
-                        {formatBalance(nextPayout.completed_payouts * nextPayout.payout_amount)}/{formatBalance(nextPayout.total_amount)}
-                      </Text>
-                      <Text style={styles.progressCount}>
-                        {nextPayout.completed_payouts}/{nextPayout.duration}
-                      </Text>
-                    </View>
-                  </View> */}
-                </View>
-              </View>
-            </Pressable>
-          </View>
-        )}
+        <NextPayoutCard nextPayout={nextPayout} />
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Payout plans</Text>
-            <Pressable style={styles.viewAllButton} onPress={handleViewAllPayouts}>
-              <Text style={styles.viewAllText}>View All</Text>
-            </Pressable>
-          </View>
-          
-          {activePlans.length > 0 ? (
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.payoutPlansContainer}
-            >
-              {activePlans.map((plan) => {
-                const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
-                const completedAmount = plan.completed_payouts * plan.payout_amount;
-                
-                // Get the day of week from metadata if available
-                const dayOfWeek = (plan as any).metadata?.dayOfWeek;
-                const originalFrequency = (plan as any).metadata?.originalFrequency || plan.frequency;
-                
-                return (
-                  <Pressable
-                    key={plan.id}
-                    style={styles.payoutPlanCard}
-                    onPress={() => handleViewPayout(plan.id)}
-                  >
-                    <View style={styles.planHeader}>
-                      <Text style={styles.planType}>{plan.name}</Text>
-                      <View style={styles.activeTag}>
-                        <Text style={styles.activeTagText}>
-                          {plan.status.charAt(0).toUpperCase() + plan.status.slice(1)}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={styles.planAmount}>{formatBalance(plan.total_amount)}</Text>
-                    <View style={styles.planDetails}>
-                      <Text style={styles.planFrequency}>
-                        {formatPayoutFrequency(originalFrequency, dayOfWeek)}
-                      </Text>
-                      <Text style={styles.planDot}>•</Text>
-                      <Text style={styles.planValue}>{formatBalance(plan.payout_amount)}</Text>
-                    </View>
-                    <View style={styles.progressBar}>
-                      <View style={[styles.progressFill, { width: `${progress}%` }]} />
-                    </View>
-                    <View style={styles.planProgress}>
-                      <Text style={styles.progressText}>
-                        {formatBalance(completedAmount)}/{formatBalance(plan.total_amount)}
-                      </Text>
-                      <Text style={styles.progressCount}>
-                        {plan.completed_payouts}/{plan.duration}
-                      </Text>
-                    </View>
-                    
-                    {plan.next_payout_date && (
-                      <Text style={styles.nextPayoutDate}>
-                        Payday: {new Date(plan.next_payout_date).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </Text>
-                    )}
-                  </Pressable>
-                );
-              })}
-              <Pressable 
-                style={styles.addPayoutCard}
-                onPress={handleCreatePayout}
-              >
-                <Plus size={24} color={colors.primary} />
-                <Text style={styles.addPayoutText}>Create New Payout</Text>
-                <Text style={styles.addPayoutDescription}>
-                  Set up a new automated payout plan
-                </Text>
-              </Pressable>
-            </ScrollView>
-          ) : (
-            <View style={styles.emptyPayoutsContainer}>
-              <Text style={styles.emptyPayoutsText}>No scheduled payout plans</Text>
-              <Pressable style={styles.createFirstPayoutButton} onPress={handleCreatePayout}>
-                <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.createFirstPayoutText}>Create Your First Plan</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Transactions</Text>
-            <Pressable 
-              style={styles.viewAllButton} 
-              onPress={() => {
-                router.push('/transactions');
-                logAnalyticsEvent('view_all_transactions');
-              }}
-            >
-              <Text style={styles.viewAllText}>View All</Text>
-            </Pressable>
-          </View>
-          
-          {recentTransactions.length > 0 ? (
-            recentTransactions.map((transaction) => {
-              const isPositive = transaction.type === 'deposit';
-              const Icon = isPositive ? BanknoteArrowDown : 
-                          transaction.type === 'payout' ? BanknoteArrowDown : BanknoteArrowUp;
-              
-              // Format date and time
-              const txDate = new Date(transaction.created_at);
-              const formattedDate = txDate.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-              });
-              const formattedTime = txDate.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-              });
-              
-              // Determine transaction method
-              const transactionMethod = isPositive ? 'Bank Transfer' : 
-                                       transaction.bank_account_id ? 
-                                       `Bank Account •••• ${transaction.bank_account_id.slice(-4)}` : 
-                                       'Bank Account';
-              
-              return (
-                <Pressable 
-                  key={transaction.id} 
-                  onPress={() => handleTransactionPress(transaction)}
-                >
-                  <Card style={styles.transactionCard}>
-                    <View style={styles.transaction}>
-                      <View style={[
-                        styles.transactionIcon,
-                        { backgroundColor: isPositive ? colors.transactionLight : colors.transactionLight }
-                      ]}>
-                        <Icon
-                          size={24}
-                          color={isPositive ? colors.primary : colors.primary}
-                        />
-                      </View>
-                      <View style={styles.transactionInfo}>
-                        <Text style={styles.transactionTitle}>
-                          {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
-                        </Text>
-                        {/* <Text style={styles.transactionMethod}>
-                          {transactionMethod}
-                        </Text> */}
-                        <Text style={styles.transactionDateTime}>
-                          {formattedDate} • {formattedTime}
-                        </Text>
-                      </View>
-                      <Text style={[
-                        styles.transactionAmount,
-                        { color: isPositive ? colors.text : colors.text }
-                      ]}>
-                        {`${isPositive ? '' : '-'}${formatBalance(transaction.amount)}`}
-                      </Text>
-                    </View>
-                  </Card>
-                </Pressable>
-              );
-            })
-          ) : (
-            <View style={styles.emptyTransactionsContainer}>
-              <Text style={styles.emptyTransactionsText}>No transactions yet</Text>
-            </View>
-          )}
-          
-          {recentTransactions.length > 0 && (
-            <Pressable 
-              style={styles.viewAllTransactionsButton}
-              onPress={() => {
-                router.push('/transactions');
-                logAnalyticsEvent('view_all_transactions_button');
-              }}
-            >
-              <Text style={styles.viewAllTransactionsText}>View All Transactions</Text>
-              <ChevronRight size={20} color={colors.textSecondary} />
-            </Pressable>
-          )}
-        </View>
+        {/* Payout Plans Section */}
+        <PayoutPlansSection activePlans={activePlans} />
 
         <View style={styles.bottomPadding} />
 
-        
+        <RatingCard />
 
-
-        
-
-        <Card style={styles.summaryCard}>
-          <View style={styles.summaryHeader}>
-            <Text style={styles.summaryTitle}>Current Month's Summary</Text>
-            <Calendar size={20} color={colors.textSecondary} />
-          </View>
-          <View style={styles.summaryItems}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Total Paid Out</Text>
-              <Text style={styles.summaryValue}>{formatBalance(totalPaidOut)}</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Pending payouts</Text>
-              <Text style={styles.summaryValue}>{formatBalance(pendingPayouts)}</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Completion Rate</Text>
-              <Text style={styles.summaryValue}>{completionRate}%</Text>
-            </View>
-          </View>
-          {isSummaryExpanded && (
-            <View style={styles.expandedContent}>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Active Plans</Text>
-                <Text style={styles.summaryValue}>{activePlans.length}</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Total Plans</Text>
-                <Text style={styles.summaryValue}>{payoutPlans.length}</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Last payout date</Text>
-                <Text style={styles.summaryValue}>
-                  {getLastPayoutDate()}
-                </Text>
-              </View>
-            </View>
-          )}
-          <Pressable 
-            style={styles.seeMoreButton} 
-            onPress={() => {
-              setIsSummaryExpanded(!isSummaryExpanded);
-              logAnalyticsEvent('toggle_summary', { expanded: !isSummaryExpanded });
-            }}
-          >
-            <Text style={styles.seeMoreText}>
-              {isSummaryExpanded ? 'Show less' : 'See more'}
-            </Text>
-            {isSummaryExpanded ? (
-              <ChevronUp size={16} color={colors.textSecondary} />
-            ) : (
-              <ChevronDown size={16} color={colors.textSecondary} />
-            )}
-          </Pressable>
-        </Card>
-        {/* Feedback Section */}
-        <Card style={styles.feedbackCard}>
-          <View style={styles.feedbackContent}>
-            <Text style={styles.feedbackTitle}>What do you think of Planmoni?</Text>
-            <Text style={styles.feedbackSubtitle}>Rate it and help us improve</Text>
-            <View style={styles.starsRow}>
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} size={28} color={colors.primary} fill={colors.primary} style={styles.starIcon} />
-              ))}
-            </View>
-            <Pressable
-              style={styles.feedbackButton}
-              onPress={() => {
-                // Replace with your app's store URL
-                Linking.openURL('https://get.planmoni.com');
-              }}
-            >
-              <Text style={styles.feedbackButtonText}>
-                {Platform.OS === 'ios' ? 'Rate it on App Store' : 'Rate it on Play Store'}
-              </Text>
-            </Pressable>
-          </View>
-        </Card>
-        {/* Feedback Section */}
-        <Card style={styles.feedbackCard}>
-          <View style={styles.feedbackContent}>
-            <Text style={styles.feedbackTitle}>What do you think of Planmoni?</Text>
-            <Text style={styles.feedbackSubtitle}>Rate it and help us improve</Text>
-            <View style={styles.starsRow}>
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} size={28} color={colors.primary} fill={colors.primary} style={styles.starIcon} />
-              ))}
-            </View>
-            <Pressable
-              style={styles.feedbackButton}
-              onPress={() => {
-                // Replace with your app's store URL
-                Linking.openURL('https://get.planmoni.com');
-              }}
-            >
-              <Text style={styles.feedbackButtonText}>
-                {Platform.OS === 'ios' ? 'Rate it on App Store' : 'Rate it on Play Store'}
-              </Text>
-            </Pressable>
-          </View>
-        </Card>
       </ScrollView>
 
       <Animated.View style={[
@@ -1028,28 +694,60 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
-          <BanknoteArrowDown size={24} color={colors.textSecondary} />
-          <Text style={styles.addFundsText}>Deposit</Text>
+          <Plus size={20} color={isDark ? '#fff' : colors.primary} />
+          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
           <CalendarCheck size={22} color='#fff' />
-          <Text style={styles.createButtonText}>Create Plan</Text>
+          <Text style={styles.createButtonText}>New plan</Text>
         </Pressable>
         
       </Animated.View>
 
+      {/* Transaction Modal - Rendered at the top level */}
       {selectedTransaction && (
         <TransactionModal
           isVisible={isTransactionModalVisible}
           onClose={() => setIsTransactionModalVisible(false)}
           transaction={selectedTransaction}
         />
-      
       )}
       
+      <AccountCreationSuccessModal
+        isVisible={showWelcomeModal}
+        onClose={() => {
+          setShowWelcomeModal(false);
+          setHasShownWelcomeModal(true);
+        }}
+        firstName={firstName}
+        lastName={lastName}
+        email={email}
+        onStartVerification={handleStartVerification}
+        onGoToDashboard={handleGoToDashboard}
+      />
+
+      <ClaimAccountModal
+        isVisible={showClaimAccountModal}
+        onClose={() => setShowClaimAccountModal(false)}
+        accountNumber={safehavenAccount?.account_number ? `${safehavenAccount.account_number.slice(0, 5)} XXXXX` : '01177 XXXXX'}
+        bankName="SAFEHAVEN MFB"
+        accountName={safehavenAccount?.account_name ? `PLANMONI/${safehavenAccount.account_name.toUpperCase()}` : `PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
+        onClaim={() => {
+          router.push('/add-funds');
+          logAnalyticsEvent('claim_account_click');
+        }}
+      />
+
+      {/* <LivenessTestEnhanced 
+        isVisible={showLivenessTest}
+        onClose={() => setShowLivenessTest(false)}
+      /> */}
+      
+      {/* Floating Intercom Support Button */}
+      {/* <IntercomButton variant="floating" /> */}
       
     </SafeAreaView>
   );
@@ -1059,22 +757,27 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 6},
+    shadowOpacity: 0.09,
+    shadowRadius: 9,
+    elevation: 6,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 150,
+    paddingBottom: 80,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: Platform.OS === 'ios' ? 20 : 10,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   headerActions: {
     flexDirection: 'row',
@@ -1097,67 +800,83 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginLeft: 0,
   },
   greeting: {
-    fontSize: 20,
+    fontSize: Platform.OS === 'ios' ? 20 : 18,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 10,
+    marginTop: Platform.OS === 'ios' ? 5 : 5,
+    marginBottom: Platform.OS === 'ios' ? 5 : 5,
   },
   subGreeting: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '400',
     color: colors.textSecondary,
     lineHeight: 18,
   },
-
+  livenessTestButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  livenessTestButtonText: {
+    color: '#FFFFFF',
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
   balanceCard: {
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: 15,
+    borderWidth: 0.5,
     borderColor: colors.border,
     overflow: 'hidden',
-    marginBottom: -10,
+    marginBottom: 10,
   },
   balanceCardContent: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 10,
+    paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
   },
   balanceLabelContainer: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 8 : 0,
   },
-  balanceLabel: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  balanceActions: {
+  balanceLabelGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  refreshButton: {
-    padding: 8,
-    margin: -8,
+  balanceLabel: {
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  historyButton: {
+    padding: 4,
   },
   eyeIconButton: {
-    padding: 8,
-    paddingLeft: 10,
-    margin: -8,
+    padding: 4,
   },
   balanceAmount: {
-    fontSize: 30,
+    fontSize: Platform.OS === 'ios' ? 35 : 24,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 5 : 0,
   },
   lockedSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    marginBottom: 10,
+    paddingVertical: 5,
+    marginBottom: Platform.OS === 'ios' ? 10 : 10,
   },
   lockedLabelContainer: {
     flexDirection: 'row',
@@ -1165,11 +884,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   lockedLabel: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     color: colors.textSecondary,
   },
   lockedAmount: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
     color: colors.text,
   },
@@ -1181,41 +900,47 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     backgroundColor: colors.primary,
-    padding: 14,
-    borderRadius: 10,
+    padding: Platform.OS === 'ios' ? 14 : 10,
+    borderRadius: 100,
+    height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 5,
   },
   createButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    color: '#fff',
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
   },
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
     backgroundColor: colors.backgroundBlack,
+    padding: Platform.OS === 'ios' ? 14 : 10,
     borderWidth: 1,
-    borderColor: colors.textSecondary,
-    padding: 14,
-    borderRadius: 10,
+    borderColor: colors.border,
+    borderRadius: 100,
+    height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   addFundsText: {
-    color: colors.textSecondary,
-    fontSize: 16,
+    color: colors.primary,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
+    textAlign: 'center',
   },
   summaryCard: {
     marginBottom: 20,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 6},
+    shadowOpacity: 0.04,
+    shadowRadius: 9,
+    elevation: 6,
   },
   summaryHeader: {
     flexDirection: 'row',
@@ -1487,7 +1212,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 100,
   },
   createFirstPayoutText: {
     color: '#FFFFFF',
@@ -1632,6 +1357,36 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  kycTiersContainer: {
+    marginVertical: 16,
+    padding: 16,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  kycTiersTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  kycTiersButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  kycTierButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kycTierButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
   viewAllTransactionsButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1659,51 +1414,5 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   bottomPadding: {
     height: 1,
   },
-  feedbackCard: {
-    marginBottom: 20,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    padding: 24,
-  },
-  feedbackContent: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  feedbackTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  feedbackSubtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    color: colors.textSecondary,
-    marginBottom: 10,
-  },
-  feedbackButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  feedbackButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  starsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-    gap: 2,
-  },
-  starIcon: {
-    marginHorizontal: 2,
-  },
+
 });

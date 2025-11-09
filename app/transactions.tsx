@@ -9,13 +9,13 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeTransactions, Transaction } from '@/hooks/useRealtimeTransactions';
-
+import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 type TransactionType = 'all' | 'deposits' | 'payouts' | 'withdrawals';
 
 export default function TransactionsScreen() {
   const { colors } = useTheme();
   const { transactions, isLoading } = useRealtimeTransactions();
-  const [activeType, setActiveType] = useState<TransactionType>('all');
+  const { payoutPlans } = useRealtimePayoutPlans();  const [activeType, setActiveType] = useState<TransactionType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -275,9 +275,9 @@ export default function TransactionsScreen() {
               </Text>
               {transactions.map((transaction) => {
                 const isPositive = transaction.type === 'deposit';
-                const Icon = isPositive ? BanknoteArrowDown : transaction.type === 'payout' ? BanknoteArrowUp : BanknoteArrowDown;
-                const iconBg = isPositive ? colors.transactionLight : transaction.type === 'payout' ? colors.textTertiary : colors.textSecondary;
-                const iconColor = isPositive ? colors.primary : transaction.type === 'payout' ? colors.primary : colors.textTertiary;
+                const Icon = isPositive ? BanknoteArrowDown : transaction.type === 'payout' ? BanknoteArrowDown : BanknoteArrowUp;
+                const iconBg = isPositive ? colors.iconBackground : transaction.type === 'payout' ? colors.iconBackground : colors.iconBackground;
+                const iconColor = isPositive ? colors.iconColor : transaction.type === 'payout' ? colors.iconColor : colors.iconColor;
                 
                 // Format date and time
                 const txDate = new Date(transaction.created_at);

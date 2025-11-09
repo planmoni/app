@@ -1,4 +1,5 @@
 package com.planmoni
+import com.intercom.reactnative.IntercomModule
 
 import android.app.Application
 import android.content.res.Configuration
@@ -12,7 +13,6 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
-import com.intercom.reactnative.IntercomModule
 
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
@@ -44,14 +44,13 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     SoLoader.init(this, OpenSourceMergedSoMapping)
-    // Initialize Intercom as per official guide
-    IntercomModule.initialize(this, "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf", "tf4dp3qt")
     if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
       // If you opted-in for the New Architecture, we load the native entry point for this app.
       load()
     }
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
-  }
+  IntercomModule.initialize(this, "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf", "tf4dp3qt")
+}
 
   override fun onConfigurationChanged(newConfig: Configuration) {
     super.onConfigurationChanged(newConfig)

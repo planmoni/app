@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions, Pressable } from 'react-native';
-import { X } from 'lucide-react-native';
+import { View, Text, StyleSheet, Animated, Dimensions, Pressable, Platform } from 'react-native';
+import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { BlurView } from 'expo-blur';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -21,41 +22,55 @@ export default function Toast({
   onDismiss
 }: ToastProps) {
   const { colors, isDark } = useTheme();
+  const translateY = useRef(new Animated.Value(100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(-20)).current;
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scale = useRef(new Animated.Value(0.8)).current;
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const getToastColors = () => {
+  const getToastConfig = () => {
     switch (type) {
       case 'success':
         return {
-          background: isDark ? colors.successLight : '#F0FDF4',
-          border: colors.success,
-          text: isDark ? '#DCFCE7' : '#166534'
+          icon: CheckCircle,
+          iconColor: '#10B981',
+          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+          borderColor: '#10B981',
+          textColor: isDark ? '#D1FAE5' : '#065F46',
+          accentColor: '#10B981'
         };
       case 'error':
         return {
-          background: isDark ? colors.errorLight : '#FEF2F2',
-          border: colors.error,
-          text: isDark ? '#FEE2E2' : '#991B1B'
+          icon: AlertCircle,
+          iconColor: '#EF4444',
+          backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
+          borderColor: '#EF4444',
+          textColor: isDark ? '#FEE2E2' : '#991B1B',
+          accentColor: '#EF4444'
         };
       case 'warning':
         return {
-          background: isDark ? colors.warningLight : '#FFFBEB',
-          border: colors.warning,
-          text: isDark ? '#FEF3C7' : '#92400E'
+          icon: AlertTriangle,
+          iconColor: '#F59E0B',
+          backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
+          borderColor: '#F59E0B',
+          textColor: isDark ? '#FEF3C7' : '#92400E',
+          accentColor: '#F59E0B'
         };
       case 'info':
       default:
         return {
-          background: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EFF6FF',
-          border: colors.primary,
-          text: isDark ? '#DBEAFE' : '#1E40AF'
+          icon: Info,
+          iconColor: colors.primary,
+          backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)',
+          borderColor: colors.primary,
+          textColor: isDark ? '#DBEAFE' : '#1E40AF',
+          accentColor: colors.primary
         };
     }
   };
 
-  const toastColors = getToastColors();
+  const toastConfig = getToastConfig();
+  const IconComponent = toastConfig.icon;
 
   useEffect(() => {
     if (visible) {
@@ -64,24 +79,32 @@ export default function Toast({
         clearTimeout(timeoutRef.current);
       }
 
-      // Show toast
+      // Show toast with beautiful animation
       Animated.parallel([
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 8,
+        }),
         Animated.timing(opacity, {
           toValue: 1,
           duration: 300,
-          useNativeDriver: true
+          useNativeDriver: true,
         }),
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true
+        Animated.spring(scale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 8,
         })
       ]).start();
 
       // Auto hide after duration
-      timeoutRef.current = setTimeout(() => {
+      // Return type may vary between environments; cast to ReturnType<typeof setTimeout>
+      timeoutRef.current = (setTimeout(() => {
         hideToast();
-      }, duration);
+      }, duration) as unknown) as ReturnType<typeof setTimeout>;
     }
 
     return () => {
@@ -93,15 +116,20 @@ export default function Toast({
 
   const hideToast = () => {
     Animated.parallel([
+      Animated.timing(translateY, {
+        toValue: 100,
+        duration: 300,
+        useNativeDriver: true,
+      }),
       Animated.timing(opacity, {
         toValue: 0,
         duration: 300,
-        useNativeDriver: true
+        useNativeDriver: true,
       }),
-      Animated.timing(translateY, {
-        toValue: -20,
+      Animated.timing(scale, {
+        toValue: 0.8,
         duration: 300,
-        useNativeDriver: true
+        useNativeDriver: true,
       })
     ]).start(() => {
       onDismiss();
@@ -111,49 +139,108 @@ export default function Toast({
   if (!visible) return null;
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          opacity,
-          transform: [{ translateY }],
-          backgroundColor: toastColors.background,
-          borderColor: toastColors.border,
-        }
-      ]}
-    >
-      <Text 
+    <View style={styles.overlay}>
+      <Animated.View
         style={[
-          styles.message,
-          { color: toastColors.text }
+          styles.container,
+          {
+            opacity,
+            transform: [
+              { translateY },
+              { scale }
+            ],
+          }
         ]}
-        numberOfLines={2}
       >
-        {message}
-      </Text>
-      <Pressable onPress={hideToast} style={styles.closeButton}>
-        <X size={16} color={toastColors.text} />
-      </Pressable>
-    </Animated.View>
+        <BlurView
+          intensity={isDark ? 20 : 30}
+          tint={isDark ? 'dark' : 'light'}
+          style={[
+            styles.blurContainer,
+            {
+              backgroundColor: toastConfig.backgroundColor,
+              borderColor: toastConfig.borderColor,
+            }
+          ]}
+        >
+          <View style={styles.content}>
+            <View style={[styles.iconContainer, { backgroundColor: toastConfig.accentColor }]}>
+              <IconComponent size={20} color="#FFFFFF" />
+            </View>
+            
+            <View style={styles.textContainer}>
+              <Text 
+                style={[
+                  styles.message,
+                  { color: toastConfig.textColor }
+                ]}
+                numberOfLines={3}
+              >
+                {message}
+              </Text>
+            </View>
+            
+            <Pressable 
+              onPress={hideToast} 
+              style={styles.closeButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X size={18} color={toastConfig.textColor} />
+            </Pressable>
+          </View>
+        </BlurView>
+      </Animated.View>
+    </View>
   );
 }
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: height,
+    width: width,
+    pointerEvents: 'box-none',
+    zIndex: 9999,
+  },
   container: {
     position: 'absolute',
-    top: 60,
+    bottom: Platform.OS === 'ios' ? 100 : 80,
     left: 16,
     right: 16,
     maxWidth: width - 32,
-    minHeight: 50,
-    padding: 16,
-    borderRadius: 8,
-    borderLeftWidth: 4,
+    zIndex: 10000,
+  },
+  blurContainer: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  content: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    padding: 16,
+    minHeight: 60,
+  },
+  iconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -161,16 +248,23 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
-    zIndex: 9999,
+    elevation: 2,
   },
-  message: {
+  textContainer: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
     marginRight: 8,
   },
+  message: {
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
   closeButton: {
-    padding: 4,
-  }
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+  },
 });

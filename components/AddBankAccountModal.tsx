@@ -1,5 +1,5 @@
 import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, Platform } from 'react-native';
-import { ChevronDown, ChevronRight, Search } from 'lucide-react-native';
+import { ChevronDown, ChevronRight, Search, X } from 'lucide-react-native';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import Button from '@/components/Button';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
@@ -213,7 +213,7 @@ export default function AddBankAccountModal({ isVisible, onClose, onAdd, loading
           </Pressable>
         </View>
 
-        <KeyboardAvoidingWrapper style={styles.content} disableScrollView={false}>
+  <KeyboardAvoidingWrapper contentContainerStyle={styles.content} disableScrollView={false}>
           <View style={styles.contentInner}>
             <Text style={styles.subtitle}>Enter your bank account details</Text>
             

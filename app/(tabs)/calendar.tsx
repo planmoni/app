@@ -3,7 +3,7 @@ import PlanmoniLoader from '@/components/PlanmoniLoader';
 import { router } from 'expo-router';
 import { TriangleAlert as AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, Plus } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions , Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCalendarEvents, CalendarEvent } from '@/hooks/useCalendarEvents';
@@ -27,7 +27,7 @@ export default function CalendarScreen() {
     const numCells = 7;
     const availableWidth = width - padding;
     const cellWidth = (availableWidth - (gap * (numCells - 1))) / numCells;
-    return Math.max(42, Math.min(cellWidth, 56));
+    return Math.max(Platform.OS === 'ios' ? 42 : 32, Math.min(cellWidth, Platform.OS === 'ios' ? 56 : 46));
   }, [width]);
 
   const weekCellSize = useMemo(() => {
@@ -36,8 +36,8 @@ export default function CalendarScreen() {
     const numCells = 7;
     const availableWidth = width - padding;
     const cellWidth = (availableWidth - (gap * (numCells - 1))) / numCells;
-    return Math.max(50, Math.min(cellWidth, 70));
-  }, [width]);
+    return Math.max(Platform.OS === 'ios' ? 50 : 40, Math.min(cellWidth, Platform.OS === 'ios' ? 70 : 60));
+  }, [width]); 
 
   const handleCreatePayout = () => {
     router.push('/create-payout/amount');
@@ -51,7 +51,6 @@ export default function CalendarScreen() {
       case 'scheduled':
         return <Clock size={16} color="#FFFFFF" />;
       case 'failed':
-      case 'expiring':
         return <AlertTriangle size={16} color="#FFFFFF" />;
     }
   };
@@ -85,13 +84,6 @@ export default function CalendarScreen() {
         border: isDark ? '#EF4444' : '#FECACA',
         text: isDark ? '#FEE2E2' : '#991B1B',
         icon: '#FFFFFF'
-      },
-      expiring: {
-        primary: '#F97316',
-        light: isDark ? '#9A3412' : '#FFF7ED',
-        border: isDark ? '#F97316' : '#FED7AA',
-        text: isDark ? '#FFEDD5' : '#9A3412',
-        icon: '#FFFFFF'
       }
     };
 
@@ -109,8 +101,6 @@ export default function CalendarScreen() {
         return '#EAB308'; // Yellow for scheduled payouts
       case 'failed':
         return '#EF4444'; // Red for failed payouts
-      case 'expiring':
-        return '#F97316'; // Orange for expiring payouts (different from failed)
       default:
         return '#6B7280'; // Gray fallback
     }
@@ -175,8 +165,8 @@ export default function CalendarScreen() {
     const dateEvents = getEventsForDate(date);
     if (dateEvents.length === 0) return null;
     
-    // Priority order: expiring > failed > scheduled > completed > pending
-    const priorityOrder: CalendarEvent['type'][] = ['expiring', 'failed', 'scheduled', 'completed', 'pending'];
+    // Priority order: failed > scheduled > completed > pending
+    const priorityOrder: CalendarEvent['type'][] = ['failed', 'scheduled', 'completed', 'pending'];
     
     for (const priority of priorityOrder) {
       const event = dateEvents.find(e => e.type === priority);
@@ -343,40 +333,37 @@ export default function CalendarScreen() {
           {getEventsForDate(selectedDate).map(event => {
             const eventColors = getEventColors(event.type);
             return (
-              <Card key={event.id} style={[styles.eventCard, { 
-                backgroundColor: eventColors.light,
-                borderColor: eventColors.border,
-                borderWidth: 1,
-              }]}>
-                <View style={styles.eventContent}>
-                  <View style={[styles.eventIcon, { backgroundColor: eventColors.primary }]}>
-                    {getEventIcon(event.type)}
+              <Pressable
+                key={event.id}
+                onPress={() => {
+                  if (event.payout_plan_id) {
+                    router.push({
+                      pathname: '/view-payout',
+                      params: { id: event.payout_plan_id }
+                    });
+                  }
+                }}
+              >
+                <Card style={[styles.eventCard, { 
+                  backgroundColor: eventColors.light,
+                  borderColor: eventColors.border,
+                  borderWidth: 1,
+                }]}>
+                  <View style={styles.eventContent}>
+                    <View style={[styles.eventIcon, { backgroundColor: eventColors.primary }]}>
+                      {getEventIcon(event.type)}
+                    </View>
+                    <View style={styles.eventDetails}>
+                      <Text style={[styles.eventTitle, { color: eventColors.text }]} numberOfLines={1}>
+                        {event.title}
+                      </Text>
+                      <Text style={[styles.eventDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+                        {event.description} • {event.time}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.eventDetails}>
-                    <Text style={[styles.eventTitle, { color: eventColors.text }]} numberOfLines={1}>
-                      {event.title}
-                    </Text>
-                    <Text style={[styles.eventDescription, { color: colors.textSecondary }]} numberOfLines={2}>
-                      {event.description} • {event.time}
-                    </Text>
-                  </View>
-                  <Pressable 
-                    style={[styles.eventAction, { backgroundColor: eventColors.primary }]}
-                    onPress={() => {
-                      if (event.payout_plan_id) {
-                        router.push({
-                          pathname: '/view-payout',
-                          params: { id: event.payout_plan_id }
-                        });
-                      }
-                    }}
-                  >
-                    <Text style={styles.eventActionText}>
-                      View
-                    </Text>
-                  </Pressable>
-                </View>
-              </Card>
+                </Card>
+              </Pressable>
             );
           })}
         </View>
@@ -395,10 +382,6 @@ export default function CalendarScreen() {
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EAB308' }]} />
               <Text style={styles.legendText} numberOfLines={1}>Scheduled payout</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#F97316' }]} />
-              <Text style={styles.legendText} numberOfLines={1}>Payout expiring</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
@@ -480,40 +463,37 @@ export default function CalendarScreen() {
           {getEventsForDate(selectedDate).map(event => {
             const eventColors = getEventColors(event.type);
             return (
-              <Card key={event.id} style={[styles.eventCard, { 
-                backgroundColor: eventColors.light,
-                borderColor: eventColors.border,
-                borderWidth: 1,
-              }]}>
-                <View style={styles.eventContent}>
-                  <View style={[styles.eventIcon, { backgroundColor: eventColors.primary }]}>
-                    {getEventIcon(event.type)}
+              <Pressable
+                key={event.id}
+                onPress={() => {
+                  if (event.payout_plan_id) {
+                    router.push({
+                      pathname: '/view-payout',
+                      params: { id: event.payout_plan_id }
+                    });
+                  }
+                }}
+              >
+                <Card style={[styles.eventCard, { 
+                  backgroundColor: eventColors.light,
+                  borderColor: eventColors.border,
+                  borderWidth: 1,
+                }]}>
+                  <View style={styles.eventContent}>
+                    <View style={[styles.eventIcon, { backgroundColor: eventColors.primary }]}>
+                      {getEventIcon(event.type)}
+                    </View>
+                    <View style={styles.eventDetails}>
+                      <Text style={[styles.eventTitle, { color: eventColors.text }]} numberOfLines={1}>
+                        {event.title}
+                      </Text>
+                      <Text style={[styles.eventDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+                        {event.description} • {event.time}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.eventDetails}>
-                    <Text style={[styles.eventTitle, { color: eventColors.text }]} numberOfLines={1}>
-                      {event.title}
-                    </Text>
-                    <Text style={[styles.eventDescription, { color: colors.textSecondary }]} numberOfLines={2}>
-                      {event.description} • {event.time}
-                    </Text>
-                  </View>
-                  <Pressable 
-                    style={[styles.eventAction, { backgroundColor: eventColors.primary }]}
-                    onPress={() => {
-                      if (event.payout_plan_id) {
-                        router.push({
-                          pathname: '/view-payout',
-                          params: { id: event.payout_plan_id }
-                        });
-                      }
-                    }}
-                  >
-                    <Text style={styles.eventActionText}>
-                      View
-                    </Text>
-                  </Pressable>
-                </View>
-              </Card>
+                </Card>
+              </Pressable>
             );
           })}
         </View>
@@ -532,10 +512,6 @@ export default function CalendarScreen() {
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EAB308' }]} />
               <Text style={styles.legendText} numberOfLines={1}>Scheduled payout</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#F97316' }]} />
-              <Text style={styles.legendText} numberOfLines={1}>Payout expiring</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
@@ -665,10 +641,6 @@ export default function CalendarScreen() {
               <Text style={styles.legendText} numberOfLines={1}>Scheduled payout</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#F97316' }]} />
-              <Text style={styles.legendText} numberOfLines={1}>Payout expiring</Text>
-            </View>
-            <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
               <Text style={styles.legendText} numberOfLines={1}>Payout failed</Text>
             </View>
@@ -746,7 +718,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: Platform.OS === 'ios' ? 24 : 20,
     fontWeight: '700',
     color: colors.text,
   },
@@ -762,13 +734,13 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     backgroundColor: colors.backgroundTertiary,
   },
   todayButtonText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '500',
     color: colors.text,
   },
   createButton: {
-    width: 32,
-    height: 32,
+    width: Platform.OS === 'ios' ? 32 : 24,
+    height: Platform.OS === 'ios' ? 32 : 24,
     borderRadius: 16,
     backgroundColor: colors.primary,
     justifyContent: 'center',
@@ -781,7 +753,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     gap: 16,
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     color: colors.textSecondary,
   },
   errorContainer: {
@@ -792,28 +764,28 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     padding: 24,
   },
   errorText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     color: colors.error,
     textAlign: 'center',
   },
   retryButton: {
     backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: Platform.OS === 'ios' ? 20 : 16,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
     borderRadius: 8,
   },
   retryButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '600',
   },
   viewSelector: {
     flexDirection: 'row',
     backgroundColor: colors.backgroundTertiary,
     borderRadius: 8,
-    padding: 4,
-    marginHorizontal: 16,
-    marginVertical: 12,
+    padding: Platform.OS === 'ios' ? 4 : 2,
+    marginHorizontal: Platform.OS === 'ios' ? 16 : 10,
+    marginVertical: Platform.OS === 'ios' ? 12 : 10,
   },
   viewOption: {
     flex: 1,
@@ -825,7 +797,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     backgroundColor: colors.primary,
   },
   viewOptionText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '500',
     color: colors.textSecondary,
   },
@@ -837,10 +809,10 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     backgroundColor: colors.backgroundSecondary,
   },
   contentContainer: {
-    paddingBottom: 24,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   calendar: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
   },
   weekDays: {
     flexDirection: 'row',
@@ -849,7 +821,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     paddingHorizontal: 2,
   },
   weekDay: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     fontWeight: '500',
     color: colors.textSecondary,
   },
@@ -874,7 +846,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     backgroundColor: colors.backgroundTertiary,
   },
   dayNumber: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.text,
     fontWeight: '500',
   },
@@ -898,7 +870,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     padding: 16,
   },
   monthTitle: {
-    fontSize: 18,
+    fontSize: Platform.OS === 'ios' ? 18 : 16,
     fontWeight: '600',
     color: colors.text,
     flex: 1,
@@ -919,7 +891,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     padding: 16,
   },
   weekTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
     color: colors.text,
     flex: 1,
@@ -941,12 +913,12 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     position: 'relative',
   },
   weekDayName: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     color: colors.textSecondary,
     marginBottom: 4,
   },
   weekDayNumber: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '500',
     color: colors.text,
   },
@@ -967,7 +939,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     gap: 8,
   },
   selectedDateTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
     color: colors.text,
     flex: 1,
@@ -975,38 +947,38 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
   },
   eventCount: {
     backgroundColor: isDark ? colors.backgroundTertiary : '#E0F2FE',
-    paddingHorizontal: 8,
+    paddingHorizontal: Platform.OS === 'ios' ? 8 : 6,
     paddingVertical: 4,
     borderRadius: 12,
   },
   eventCountText: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     color: isDark ? colors.textSecondary : '#0284C7',
     fontWeight: '500',
   },
   dateGroup: {
-    marginBottom: 24,
+    marginBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   dateHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
     flexWrap: 'wrap',
     gap: 8,
   },
   dateTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
     color: colors.text,
     flex: 1,
     minWidth: 150,
   },
   eventsContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
   },
   eventCard: {
-    marginBottom: 12,
+    marginBottom: Platform.OS === 'ios' ? 12 : 10,
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -1015,45 +987,35 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     alignItems: 'center',
   },
   eventIcon: {
-    width: 32,
-    height: 32,
+    width: Platform.OS === 'ios' ? 32 : 24,
+    height: Platform.OS === 'ios' ? 32 : 24,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: Platform.OS === 'ios' ? 12 : 10,
   },
   eventDetails: {
     flex: 1,
     marginRight: 12,
   },
   eventTitle: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '600',
     marginBottom: 4,
   },
   eventDescription: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     lineHeight: 16,
   },
-  eventAction: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  eventActionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
   legend: {
-    padding: 16,
+    padding: Platform.OS === 'ios' ? 16 : 10,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     marginTop: 16,
   },
   legendTitle: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '500',
     color: colors.textSecondary,
     marginBottom: 12,
@@ -1061,21 +1023,21 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
   legendItems: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    gap: Platform.OS === 'ios' ? 16 : 10,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    minWidth: 120,
+    minWidth: Platform.OS === 'ios' ? 120 : 100,
   },
   legendDot: {
-    width: 8,
-    height: 8,
+    width: Platform.OS === 'ios' ? 8 : 6,
+    height: Platform.OS === 'ios' ? 8 : 6,
     borderRadius: 4,
   },
   legendText: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     color: colors.textSecondary,
     flex: 1,
   },

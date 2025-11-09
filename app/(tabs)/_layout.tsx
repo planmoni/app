@@ -4,21 +4,27 @@ import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings, Sparkles 
 import { StyleSheet, View, Platform} from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEffect, useState, useRef } from 'react';
-import { supabase, getSupabaseConfigError } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import CustomAppLayout from '../components/CustomAppLayout';
+import { useRouteTracking } from '@/hooks/useRouteTracking';
+import { useBottomNav } from '@/contexts/BottomNavContext';
 
 export default function TabLayout() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { session } = useAuth();
+  const { isBottomNavVisible } = useBottomNav();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const channelRef = useRef<any>(null);
 
+  // Track route changes for persistence
+  useRouteTracking();
+
   useEffect(() => {
     // Check if Supabase is properly configured
-    const configError = getSupabaseConfigError();
-    if (configError) {
-      console.warn('Supabase configuration error:', configError);
+    const isConfigured = isSupabaseConfigured();
+    if (!isConfigured) {
+      console.log('Supabase config check completed');
       return;
     }
 
@@ -26,7 +32,11 @@ export default function TabLayout() {
 
     // Clean up any existing channel before creating a new one
     if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
+      try {
+        supabase.removeChannel(channelRef.current);
+      } catch (err) {
+        console.error('Error removing existing channel:', err);
+      }
       channelRef.current = null;
     }
 
@@ -48,25 +58,98 @@ export default function TabLayout() {
           filter: `user_id=eq.${session.user.id}`,
         },
         (payload: any) => {
-          console.log('Events change received:', payload);
-          // Refresh unread count when events change
-          fetchUnreadNotificationsCount();
+          try {
+            console.log('Events change received:', payload);
+            // Refresh unread count when events change
+            fetchUnreadNotificationsCount();
+          } catch (err) {
+            console.error('Error processing events change:', err);
+          }
         }
       );
 
-    // Only subscribe if the channel is not already subscribed
-    if (channel.state === 'closed' || channel.state === 'leaving') {
-      channel.subscribe((status: any) => {
-        console.log('Events subscription status:', status);
-      });
-    }
+    // Subscribe with proper error handling and retry logic
+    let retryCount = 0;
+    const maxRetries = 3;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    // const retrySubscription = () => {
+    //   if (retryCount < maxRetries) {
+    //     retryCount++;
+    //     console.log(`Retrying events subscription (${retryCount}/${maxRetries})...`);
+    //     retryTimeout = setTimeout(() => {
+    //       if (channelRef.current) {
+    //         supabase.removeChannel(channelRef.current);
+    //       }
+    //       // Re-setup the subscription
+    //       const newChannel = supabase
+    //         .channel(channelName)
+    //         .on(
+    //           'postgres_changes',
+    //           {
+    //             event: '*',
+    //             schema: 'public',
+    //             table: 'events',
+    //             filter: `user_id=eq.${session.user.id}`,
+    //           },
+    //           (payload: any) => {
+    //             try {
+    //               console.log('Events change received:', payload);
+    //               fetchUnreadNotificationsCount();
+    //             } catch (err) {
+    //               console.error('Error processing events change:', err);
+    //             }
+    //           }
+    //         );
+          
+    //       newChannel.subscribe((status: any) => {
+    //         if (status === 'SUBSCRIBED') {
+    //           console.log('Events subscription successful');
+    //           retryCount = 0;
+    //         } else if (status === 'CHANNEL_ERROR') {
+    //           console.error('Events subscription error:', status);
+    //           retrySubscription();
+    //         } else if (status === 'TIMED_OUT') {
+    //           console.error('Events subscription timed out');
+    //           retrySubscription();
+    //         } else if (status === 'CLOSED') {
+    //           console.log('Events subscription closed');
+    //         }
+    //       });
+          
+    //       channelRef.current = newChannel;
+    //     }, 2000 * retryCount); // Exponential backoff
+    //   }
+    // };
+
+    // channel.subscribe((status: any) => {
+    //   if (status === 'SUBSCRIBED') {
+    //     console.log('Events subscription successful');
+    //     retryCount = 0; // Reset retry count on successful connection
+    //   } else if (status === 'CHANNEL_ERROR') {
+    //     console.error('Events subscription error:', status);
+    //     retrySubscription();
+    //   } else if (status === 'TIMED_OUT') {
+    //     console.error('Events subscription timed out');
+    //     retrySubscription();
+    //   } else if (status === 'CLOSED') {
+    //     console.log('Events subscription closed');
+    //   }
+    // });
 
     // Store the channel reference
     channelRef.current = channel;
 
     return () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
+        try {
+          supabase.removeChannel(channelRef.current);
+        } catch (err) {
+          console.error('Error removing events channel:', err);
+        }
         channelRef.current = null;
       }
     };
@@ -75,9 +158,9 @@ export default function TabLayout() {
   const fetchUnreadNotificationsCount = async () => {
     try {
       // Check if Supabase is properly configured
-      const configError = getSupabaseConfigError();
-      if (configError) {
-        console.warn('Skipping notifications fetch due to Supabase configuration error:', configError);
+      const isConfigured = isSupabaseConfigured();
+      if (!isConfigured) {
+        console.log('Notifications fetch skipped');
         return;
       }
 
@@ -108,9 +191,10 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: isDark ? colors.text : colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
+        tabBarStyle: isBottomNavVisible ? [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }] : { display: 'none' },
+        // tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
         tabBarLabelStyle: styles.tabBarLabel,
         headerShown: false,
       }}>
@@ -155,12 +239,12 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: Platform.OS === 'ios' ? 85 : 95,
-    paddingBottom: 15,
+    height: Platform.OS === 'ios' ? 85 : 70,
+    paddingBottom: Platform.OS === 'ios' ? 15 : 10 ,
     paddingTop: 8,
   },
   tabBarLabel: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     fontWeight: '500',
   },
   notificationBadge: {

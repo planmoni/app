@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 // Helper function to ensure JSON response
 function createJsonResponse(data: any, status: number = 200) {

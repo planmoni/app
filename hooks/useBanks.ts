@@ -38,14 +38,11 @@ export function useBanks() {
 
       const PAYSTACK_SECRET_KEY = process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!;
       
-      console.log('useBanks - Starting fetchBanks');
-      console.log('useBanks - PAYSTACK_SECRET_KEY exists:', !!PAYSTACK_SECRET_KEY);
       
       if (!PAYSTACK_SECRET_KEY) {
         throw new Error('Paystack secret key not configured');
       }
       
-      console.log('PAYSTACK_SECRET_KEY', PAYSTACK_SECRET_KEY);
       const response = await fetch('https://api.paystack.co/bank', {
         method: 'GET',
         headers: {
@@ -63,10 +60,14 @@ export function useBanks() {
       if (!data.status) {
         throw new Error(data.message || 'Failed to fetch banks');
       }
+      
+      if (!data.data || !Array.isArray(data.data)) {
+        console.error('useBanks - No bank data received from API');
+        throw new Error('No bank data received from API');
+      }
 
       // Transform Paystack bank data to our format
       const transformedBanks: Bank[] = data.data.map((bank: any, index: number) => {
-        console.log(`Processing bank: ${bank.name} with code: ${bank.code}`);
         const bankIcon = getBankIcon(bank.name, bank.code);
         return {
           id: bank.id || index + 1,
@@ -349,6 +350,7 @@ export function useBanks() {
     banks,
     isLoading,
     error,
-    fetchBanks
+    fetchBanks,
+    refetch: fetchBanks // Add a refetch function for manual triggering
   };
 }

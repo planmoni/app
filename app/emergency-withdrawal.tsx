@@ -1,13 +1,18 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Clock, Zap, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useBalance } from '@/contexts/BalanceContext';
+import { useEmergencyWithdrawal } from '@/hooks/useEmergencyWithdrawal';
+import { useEmergencyWithdrawalOptions } from '@/hooks/useEmergencyWithdrawalOptions';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { usePin } from '@/contexts/PinContext';
+import { BiometricService } from '@/lib/biometrics';
+import PinVerificationModal from '@/components/PinVerificationModal';
 
 export default function EmergencyWithdrawalScreen() {
   const { colors, isDark } = useTheme();
@@ -16,60 +21,293 @@ export default function EmergencyWithdrawalScreen() {
   const planName = params.name as string;
   const planAmount = params.amount as string;
   const haptics = useHaptics();
+  const { processEmergencyWithdrawal, isLoading, calculateFee, calculateNetAmount } = useEmergencyWithdrawal();
+  const { payoutPlans } = useRealtimePayoutPlans();
+  const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport, hasEmergencyPin, hasAppLockPin } = usePin();
+  const { options: withdrawalOptions, loading: optionsLoading, getDisplayName, getColorForType } = useEmergencyWithdrawalOptions();
   
-  const [selectedOption, setSelectedOption] = useState<'instant' | '24h' | '72h' | null>(null);
+  const [selectedOption, setSelectedOption] = useState<'instant' | '24hrs' | '72hrs' | null>(null);
+  const [plan, setPlan] = useState<any>(null);
+  const [showPinVerification, setShowPinVerification] = useState(false);
+  const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
+  const [biometricSupport, setBiometricSupport] = useState<any>(null);
+  
+  // Memoize styles to prevent recreation on every render
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  
+  // Find the plan details
+  useEffect(() => {
+    const foundPlan = payoutPlans.find(p => p.id === planId);
+    setPlan(foundPlan);
+  }, [planId, payoutPlans]);
+
+  // Calculate time elapsed and available options
+  const { timeElapsedHours, availableOptions, defaultOption } = useMemo(() => {
+    if (!plan || !withdrawalOptions.length) {
+      return { timeElapsedHours: 0, availableOptions: [], defaultOption: null };
+    }
+
+    const planCreatedAt = new Date(plan.created_at);
+    const now = new Date();
+    const timeElapsedMs = now.getTime() - planCreatedAt.getTime();
+    const timeElapsedHours = timeElapsedMs / (1000 * 60 * 60);
+
+    // Determine available options based on time elapsed
+    let availableOptions = [];
+    let defaultOption = null;
+
+    if (timeElapsedHours < 24) {
+      // Less than 24 hours - only instant withdrawal allowed
+      availableOptions = withdrawalOptions.filter(option => option.type === 'instant');
+      defaultOption = 'instant';
+    } else if (timeElapsedHours < 72) {
+      // Between 24-72 hours - instant and 24hrs allowed
+      availableOptions = withdrawalOptions.filter(option => 
+        option.type === 'instant' || option.type === '24hrs'
+      );
+      defaultOption = '24hrs'; // Default to 24hrs for better fee
+    } else {
+      // More than 72 hours - all options allowed
+      availableOptions = withdrawalOptions;
+      defaultOption = '72hrs'; // Default to 72hrs for best fee
+    }
+
+    return { timeElapsedHours, availableOptions, defaultOption };
+  }, [plan, withdrawalOptions]);
+
+  // Set default option when available options change
+  useEffect(() => {
+    if (defaultOption && !selectedOption) {
+      setSelectedOption(defaultOption as 'instant' | '24hrs' | '72hrs');
+    }
+  }, [defaultOption, selectedOption]);
+
+  useEffect(() => {
+    checkBiometrics();
+  }, []);
+
+  const checkBiometrics = useCallback(async () => {
+    try {
+      const support = await checkBiometricSupport();
+      setBiometricSupport(support);
+      
+      // Log biometric support status for debugging
+      console.log('Emergency Withdrawal - Biometric support:', {
+        isAvailable: support?.isAvailable,
+        isEnrolled: support?.isEnrolled,
+        supportedTypes: support?.supportedTypes
+      });
+    } catch (error) {
+      console.error('Error checking biometric support:', error);
+      setBiometricSupport(null);
+    }
+  }, [checkBiometricSupport]);
   
   // Calculate fees based on the selected option
-  const getFeeAmount = () => {
-    if (!planAmount || !selectedOption) return 0;
+  const getFeeAmount = useCallback(() => {
+    if (!plan || !selectedOption) return 0;
     
-    const amount = parseFloat(planAmount.replace(/[^0-9.]/g, ''));
+    // Calculate remaining amount in the plan
+    const remainingAmount = plan.total_amount - (plan.completed_payouts * plan.payout_amount);
     
-    switch (selectedOption) {
-      case 'instant':
-        return amount * 0.12; // 12% fee
-      case '24h':
-        return amount * 0.06; // 6% fee
-      case '72h':
-        return 0; // 0% fee
-      default:
-        return 0;
-    }
-  };
+    return calculateFee(remainingAmount, selectedOption);
+  }, [plan, selectedOption, calculateFee]);
   
   // Calculate the net amount after fees
-  const getNetAmount = () => {
-    if (!planAmount || !selectedOption) return 0;
+  const getNetAmount = useCallback(() => {
+    if (!plan || !selectedOption) return 0;
     
-    const amount = parseFloat(planAmount.replace(/[^0-9.]/g, ''));
-    return amount - getFeeAmount();
-  };
+    // Calculate remaining amount in the plan
+    const remainingAmount = plan.total_amount - (plan.completed_payouts * plan.payout_amount);
+    
+    return calculateNetAmount(remainingAmount, selectedOption);
+  }, [plan, selectedOption, calculateNetAmount]);
   
-  const handleOptionSelect = (option: 'instant' | '24h' | '72h') => {
+  // Get the actual withdrawal amount (remaining amount in plan)
+  const getWithdrawalAmount = useCallback(() => {
+    if (!plan) return 0;
+    return plan.total_amount - (plan.completed_payouts * plan.payout_amount);
+  }, [plan]);
+  
+  const handleOptionSelect = useCallback((option: 'instant' | '24hrs' | '72hrs') => {
     haptics.selection();
     setSelectedOption(option);
-  };
-  
-  const handleConfirm = () => {
-    if (!selectedOption) return;
+  }, [haptics]);
+
+  const handleConfirmWithdrawal = useCallback(async () => {
+    if (!selectedOption || !plan) return;
+    
+    const withdrawalAmount = getWithdrawalAmount();
+    
+    // Process the emergency withdrawal
+    const result = await processEmergencyWithdrawal({
+      planId: plan.id,
+      planName: plan.name,
+      withdrawalAmount,
+      option: selectedOption,
+      // Use the plan's configured account (payout_account_id or bank_account_id)
+      payoutAccountId: plan.payout_account_id || undefined,
+      bankAccountId: plan.bank_account_id || undefined
+    });
+    
+    // Navigation is handled by the hook if successful
+    if (!result.success) {
+      console.error('Emergency withdrawal failed:', result.error);
+    }
+  }, [selectedOption, plan, getWithdrawalAmount, processEmergencyWithdrawal]);
+
+  const attemptBiometricAuthentication = useCallback(async () => {
+    try {
+      setIsBiometricAuthenticating(true);
+      haptics.mediumImpact();
+
+      const result = await BiometricService.authenticateWithBiometrics(
+        "Authenticate to confirm emergency withdrawal"
+      );
+
+      if (result.success) {
+        // Biometric authentication successful
+        haptics.success();
+        await handleConfirmWithdrawal();
+      } else {
+        // Biometric failed or cancelled - fall back to PIN
+        haptics.error();
+        
+        if (result.error === "Authentication cancelled" || result.error === "User chose fallback authentication") {
+          // User cancelled or chose fallback - show PIN modal
+          setShowPinVerification(true);
+        } else {
+          // Other error - show alert and then PIN modal
+          Alert.alert(
+            'Biometric Authentication Failed',
+            'Please use your PIN to confirm the withdrawal.',
+            [
+              {
+                text: 'Use PIN',
+                onPress: () => setShowPinVerification(true)
+              },
+              {
+                text: 'Cancel',
+                style: 'cancel'
+              }
+            ]
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Biometric authentication error:', error);
+      haptics.error();
+      
+      // Fall back to PIN on error
+      Alert.alert(
+        'Authentication Error',
+        'Biometric authentication failed. Please use your PIN.',
+        [
+          {
+            text: 'Use PIN',
+            onPress: () => setShowPinVerification(true)
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
+    } finally {
+      setIsBiometricAuthenticating(false);
+    }
+  }, [haptics, handleConfirmWithdrawal]);
+
+  const handleConfirm = useCallback(async () => {
+    if (!selectedOption || !plan) return;
     
     haptics.mediumImpact();
     
-    // In a real app, this would call an API to process the emergency withdrawal
-    router.replace({
-      pathname: '/emergency-withdrawal/confirmation',
-      params: {
-        planId,
-        planName,
-        planAmount,
-        option: selectedOption,
-        feeAmount: getFeeAmount().toString(),
-        netAmount: getNetAmount().toString()
-      }
+    // Check if ANY PIN is set up (emergency PIN or app lock PIN)
+    if (!hasEmergencyPin && !hasAppLockPin) {
+      // No PIN set up at all, proceed directly without verification
+      console.log('Emergency Withdrawal - No PIN set up, proceeding without verification');
+      await handleConfirmWithdrawal();
+      return;
+    }
+    
+    console.log('Emergency Withdrawal - PIN verification required', {
+      hasEmergencyPin,
+      hasAppLockPin,
+      emergencyBiometricEnabled,
+      biometricAvailable: biometricSupport?.isAvailable
     });
-  };
+    
+    // If biometric authentication is enabled and available, try biometric first
+    if (emergencyBiometricEnabled && biometricSupport?.isAvailable && Platform.OS !== 'web') {
+      await attemptBiometricAuthentication();
+    } else {
+      // Fall back to PIN verification
+      setShowPinVerification(true);
+    }
+  }, [selectedOption, plan, haptics, emergencyBiometricEnabled, biometricSupport, attemptBiometricAuthentication, hasEmergencyPin, hasAppLockPin, handleConfirmWithdrawal]);
+
+  const handlePinVerificationSuccess = useCallback(async () => {
+    setShowPinVerification(false);
+    await handleConfirmWithdrawal();
+  }, [handleConfirmWithdrawal]);
+
+  const handlePinVerificationClose = useCallback(() => {
+    setShowPinVerification(false);
+  }, []);
   
-  const styles = createStyles(colors, isDark);
+  // Show loading state if plan data is not loaded yet
+  if (!plan) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable 
+            onPress={() => {
+              haptics.lightImpact();
+              router.back();
+            }} 
+            style={styles.backButton}
+          >
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Emergency Withdrawal</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading plan details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  
+  const withdrawalAmount = getWithdrawalAmount();
+  
+  // If there's no remaining amount, show error
+  if (withdrawalAmount <= 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable 
+            onPress={() => {
+              haptics.lightImpact();
+              router.back();
+            }} 
+            style={styles.backButton}
+          >
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Emergency Withdrawal</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>No funds available for withdrawal in this plan.</Text>
+          <Button 
+            title="Go Back" 
+            onPress={() => router.back()} 
+            style={styles.backButtonStyle}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
   
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -87,94 +325,85 @@ export default function EmergencyWithdrawalScreen() {
       </View>
       
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.warningCard}>
-          <AlertTriangle size={24} color={isDark ? '#FCD34D' : '#F97316'} />
-          <Text style={styles.warningText}>
-            Emergency withdrawals allow you to access your funds before the scheduled payout date, but may incur fees depending on the option you choose.
-          </Text>
-        </View>
+        
+        
         
         <Text style={styles.sectionTitle}>Select Withdrawal Option</Text>
         
-        <View style={styles.optionsContainer}>
-          <Pressable 
-            style={[
-              styles.optionCard,
-              selectedOption === 'instant' && styles.selectedOption
-            ]}
-            onPress={() => handleOptionSelect('instant')}
-          >
-            <View style={styles.optionHeader}>
-              <View style={[styles.optionIcon, { backgroundColor: '#FEE2E2' }]}>
-                <Zap size={24} color="#EF4444" />
-              </View>
-              <View style={styles.optionInfo}>
-                <Text style={styles.optionTitle}>Instant Withdrawal</Text>
-                <Text style={styles.optionFee}>12% processing fee</Text>
-              </View>
-              {selectedOption === 'instant' && (
-                <View style={styles.checkIcon}>
-                  <Check size={20} color="#FFFFFF" />
-                </View>
-              )}
-            </View>
-            <Text style={styles.optionDescription}>
-              Get your funds immediately with the highest processing fee.
+        {optionsLoading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading withdrawal options...</Text>
+          </View>
+        ) : (
+          <View style={styles.optionsContainer}>
+            {availableOptions.map((option) => {
+              const isSelected = selectedOption === option.type;
+              const isDisabled = !availableOptions.some(opt => opt.type === option.type);
+              
+              return (
+                <Pressable 
+                  key={option.id}
+                  style={[
+                    styles.optionCard,
+                    isSelected && styles.selectedOption,
+                    isDisabled && styles.disabledOption
+                  ]}
+                  onPress={() => !isDisabled && handleOptionSelect(option.type as 'instant' | '24hrs' | '72hrs')}
+                  disabled={isDisabled}
+                >
+                  <View style={styles.optionHeader}>
+                    <View style={[styles.optionIcon, { backgroundColor: getColorForType(option.type) + '20' }]}>
+                      {option.type === 'instant' ? (
+                        <Zap size={24} color={getColorForType(option.type)} />
+                      ) : (
+                        <Clock size={24} color={getColorForType(option.type)} />
+                      )}
+                    </View>
+                    <View style={styles.optionInfo}>
+                      <Text style={[styles.optionTitle, isDisabled && styles.disabledText]}>
+                        {getDisplayName(option.type)}
+                      </Text>
+                      <Text style={[styles.optionFee, isDisabled && styles.disabledText]}>
+                        {option.percentage}% processing fee
+                      </Text>
+                      <Text style={[styles.optionDescription, isDisabled && styles.disabledText]}>
+                        {option.type === 'instant' ? 'Money sent immediately' :
+                         option.type === '24hrs' ? 'Money sent within 24 hours' :
+                         'Money sent within 72 hours'}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <View style={styles.checkIcon}>
+                        <Check size={20} color="#FFFFFF" />
+                      </View>
+                    )}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+        
+        {timeElapsedHours > 0 && (
+          <View style={styles.timeInfoCard}>
+            <Text style={styles.timeInfoText}>
+              Plan created {timeElapsedHours < 24 
+                ? `${Math.round(timeElapsedHours)} hours ago` 
+                : timeElapsedHours < 72 
+                  ? `${Math.round(timeElapsedHours / 24)} days ago`
+                  : `${Math.round(timeElapsedHours / 24)} days ago`
+              }
             </Text>
-          </Pressable>
-          
-          <Pressable 
-            style={[
-              styles.optionCard,
-              selectedOption === '24h' && styles.selectedOption
-            ]}
-            onPress={() => handleOptionSelect('24h')}
-          >
-            <View style={styles.optionHeader}>
-              <View style={[styles.optionIcon, { backgroundColor: '#FEF3C7' }]}>
-                <Clock size={24} color="#F59E0B" />
-              </View>
-              <View style={styles.optionInfo}>
-                <Text style={styles.optionTitle}>24-Hour Withdrawal</Text>
-                <Text style={styles.optionFee}>6% processing fee</Text>
-              </View>
-              {selectedOption === '24h' && (
-                <View style={styles.checkIcon}>
-                  <Check size={20} color="#FFFFFF" />
-                </View>
-              )}
-            </View>
-            <Text style={styles.optionDescription}>
-              Receive your funds within 24 hours with a reduced processing fee.
+            <Text style={styles.timeInfoSubtext}>
+              {timeElapsedHours < 24 
+                ? "Only instant withdrawal is available for plans less than 24 hours old"
+                : timeElapsedHours < 72 
+                  ? "Instant and 24-hour withdrawals are available"
+                  : "All withdrawal options are available"
+              }
             </Text>
-          </Pressable>
-          
-          <Pressable 
-            style={[
-              styles.optionCard,
-              selectedOption === '72h' && styles.selectedOption
-            ]}
-            onPress={() => handleOptionSelect('72h')}
-          >
-            <View style={styles.optionHeader}>
-              <View style={[styles.optionIcon, { backgroundColor: '#DCFCE7' }]}>
-                <Clock size={24} color="#22C55E" />
-              </View>
-              <View style={styles.optionInfo}>
-                <Text style={styles.optionTitle}>72-Hour Withdrawal</Text>
-                <Text style={styles.optionFee}>No processing fee</Text>
-              </View>
-              {selectedOption === '72h' && (
-                <View style={styles.checkIcon}>
-                  <Check size={20} color="#FFFFFF" />
-                </View>
-              )}
-            </View>
-            <Text style={styles.optionDescription}>
-              Wait 72 hours for your funds with no processing fee.
-            </Text>
-          </Pressable>
-        </View>
+          </View>
+        )}
         
         {selectedOption && (
           <View style={styles.summaryCard}>
@@ -182,7 +411,7 @@ export default function EmergencyWithdrawalScreen() {
             
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Withdrawal Amount</Text>
-              <Text style={styles.summaryValue}>{planAmount}</Text>
+              <Text style={styles.summaryValue}>₦{withdrawalAmount.toLocaleString()}</Text>
             </View>
             
             <View style={styles.summaryRow}>
@@ -200,10 +429,11 @@ export default function EmergencyWithdrawalScreen() {
       
       <View style={styles.footer}>
         <Button
-          title="Confirm Withdrawal"
+          title={isLoading ? "Processing..." : isBiometricAuthenticating ? "Authenticating..." : "Confirm Withdrawal"}
           onPress={handleConfirm}
           style={styles.confirmButton}
-          disabled={!selectedOption}
+          disabled={!selectedOption || isLoading || isBiometricAuthenticating}
+          isLoading={isLoading || isBiometricAuthenticating}
           hapticType="medium"
         />
         <Button
@@ -215,10 +445,21 @@ export default function EmergencyWithdrawalScreen() {
           variant="outline"
           style={styles.cancelButton}
           hapticType="light"
+          disabled={isLoading}
         />
       </View>
       
       <SafeFooter />
+      
+      <PinVerificationModal
+        isVisible={showPinVerification}
+        onClose={handlePinVerificationClose}
+        onSuccess={handlePinVerificationSuccess}
+        title="Enter PIN to confirm"
+        description="Enter your PIN to confirm emergency withdrawal"
+        customVerifyPin={verifyEmergencyPin}
+        biometricType="emergency"
+      />
     </SafeAreaView>
   );
 }
@@ -249,6 +490,31 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.error,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  backButtonStyle: {
+    backgroundColor: colors.primary,
+  },
   content: {
     flex: 1,
   },
@@ -274,6 +540,36 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: isDark ? '#FCD34D' : '#9A3412',
     lineHeight: 20,
+  },
+  planInfoCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  planInfoTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  planInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    maxWidth: '70%',
+  },
+  planInfoLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  planInfoValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
   },
   sectionTitle: {
     fontSize: 18,
@@ -388,8 +684,41 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   confirmButton: {
     backgroundColor: colors.primary,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   cancelButton: {
     borderColor: colors.border,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
+  },
+  disabledOption: {
+    opacity: 0.5,
+  },
+  disabledText: {
+    color: colors.textSecondary,
+  },
+  timeInfoCard: {
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : '#DBEAFE',
+  },
+  timeInfoText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  timeInfoSubtext: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
 });

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable , Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,6 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import OnboardingProgress from '@/components/OnboardingProgress';
 import { useHaptics } from '@/hooks/useHaptics';
-import { Platform } from 'react-native';
 
 export default function EmailScreen() {
   const { colors } = useTheme();
@@ -22,6 +21,7 @@ export default function EmailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // Add processing state
   const emailInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -36,6 +36,11 @@ export default function EmailScreen() {
   }, [email]);
 
   const handleContinue = async () => {
+    // Prevent multiple calls
+    if (isProcessing) {
+      return;
+    }
+
     if (!email.trim()) {
       setError('Please enter your email address');
       showToast('Please enter your email address', 'error');
@@ -55,6 +60,7 @@ export default function EmailScreen() {
     }
     
     setIsLoading(true);
+    setIsProcessing(true); // Set processing flag
     
     try {
       // Call the Edge Function to send OTP
@@ -89,7 +95,7 @@ export default function EmailScreen() {
       
       // Navigate to OTP verification screen
       router.push({
-        pathname: '/onboarding/otp',
+        pathname: '/onboarding/verify-email',
         params: { 
           firstName,
           lastName,
@@ -104,6 +110,7 @@ export default function EmailScreen() {
       }
     } finally {
       setIsLoading(false);
+      setIsProcessing(false); // Clear processing flag
     }
   };
 
@@ -136,7 +143,7 @@ export default function EmailScreen() {
         </Pressable>
       </View>
 
-      <OnboardingProgress currentStep={3} totalSteps={10} />
+      <OnboardingProgress currentStep={3} totalSteps={6} />
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
@@ -153,7 +160,6 @@ export default function EmailScreen() {
             )}
             
             <View style={styles.inputContainer}>
-              <Mail size={20} color={colors.textSecondary} style={styles.inputIcon} />
               <TextInput
                 ref={emailInputRef}
                 style={styles.input}
@@ -181,7 +187,7 @@ export default function EmailScreen() {
       <FloatingButton 
         title={isLoading ? "Processing..." : "Continue"}
         onPress={handleContinue}
-        disabled={!isButtonEnabled || isLoading}
+        disabled={!isButtonEnabled || isLoading || isProcessing}
       />
     </SafeAreaView>
   );
@@ -216,7 +222,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   signInText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.text,
   },
   contentContainer: {
     flexGrow: 1,
@@ -263,7 +269,12 @@ const createStyles = (colors: any) => StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 0.5,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
     borderColor: colors.border,
     borderRadius: 12,
     backgroundColor: colors.surface,
@@ -275,7 +286,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 18,
     color: colors.text,
     height: '100%',
   },

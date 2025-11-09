@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { ArrowLeft, Shield, Smartphone, Mail, QrCode, Lock } from 'lucide-react-native';
+import { ArrowLeft, Shield, Mail, QrCode, Lock, AlertCircle, ShieldUser } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
@@ -10,8 +10,10 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOnlineStatus } from '@/components/OnlineStatusProvider';
 import OfflineNotice from '@/components/OfflineNotice';
+import { reset2FAStatus } from '@/lib/totp';
+import React from 'react';
 
-type AuthMethod = 'authenticator' | 'sms' | 'email';
+type AuthMethod = 'authenticator' | 'email';
 
 export default function TwoFactorAuthScreen() {
   const { colors } = useTheme();
@@ -20,6 +22,7 @@ export default function TwoFactorAuthScreen() {
   const { isOnline } = useOnlineStatus();
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showResetOption, setShowResetOption] = useState(false);
 
   // Load two-factor status from database
   useEffect(() => {
@@ -38,12 +41,24 @@ export default function TwoFactorAuthScreen() {
       setIsLoading(true);
       const { data, error } = await supabase
         .from('profiles')
-        .select('two_factor_enabled')
+        .select('two_factor_enabled, totp_enabled, totp_secret')
         .eq('id', session?.user?.id)
         .single();
 
       if (error) throw error;
-      setTwoFactorEnabled(!!data?.two_factor_enabled);
+      
+      // Only consider 2FA enabled if both flags are true AND there's a TOTP secret
+      const isActuallyEnabled = !!(
+        data?.two_factor_enabled && 
+        data?.totp_enabled && 
+        data?.totp_secret
+      );
+      
+      setTwoFactorEnabled(isActuallyEnabled);
+      
+      // Show reset option if 2FA is marked as enabled but not actually set up
+      const isInconsistent = data?.two_factor_enabled && !isActuallyEnabled;
+      setShowResetOption(isInconsistent);
     } catch (error) {
       console.error('Error fetching two-factor status:', error);
     } finally {
@@ -54,26 +69,28 @@ export default function TwoFactorAuthScreen() {
   const handleMethodSelect = async (method: AuthMethod) => {
     setSelectedMethod(method);
     
-    // Update two-factor status in database
-    if (isOnline && session?.user?.id) {
-      try {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ two_factor_enabled: true })
-          .eq('id', session?.user?.id);
-          
-        if (error) throw error;
-        setTwoFactorEnabled(true);
-      } catch (error) {
-        console.error('Error updating two-factor status:', error);
-      }
-    }
-    
     // Navigate to setup flow for selected method
     router.push({
       pathname: '/two-factor-setup',
       params: { method }
     });
+  };
+
+  const handleReset2FA = async () => {
+    if (!session?.user?.id) return;
+    
+    try {
+      const success = await reset2FAStatus(session.user.id);
+      if (success) {
+        setTwoFactorEnabled(false);
+        setShowResetOption(false);
+        // Refresh the status
+        await fetchTwoFactorStatus();
+      }
+    } catch (error) {
+      console.error('Error resetting 2FA:', error);
+      // You could add a toast notification here if you have one
+    }
   };
 
   const styles = createStyles(colors);
@@ -90,7 +107,7 @@ export default function TwoFactorAuthScreen() {
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <View style={styles.heroSection}>
           <View style={styles.shieldIcon}>
-            <Shield size={32} color="#22C55E" />
+            <ShieldUser size={32} color={colors.primary} />
           </View>
           <Text style={styles.heroTitle}>Secure Your Account</Text>
           <Text style={styles.heroDescription}>
@@ -125,7 +142,6 @@ export default function TwoFactorAuthScreen() {
               </View>
             ) : (
               <View style={styles.methodsSection}>
-                <Text style={styles.sectionTitle}>Choose Authentication Method</Text>
                 
                 <Pressable
                   style={[
@@ -136,8 +152,8 @@ export default function TwoFactorAuthScreen() {
                   onPress={() => isOnline && handleMethodSelect('authenticator')}
                   disabled={!isOnline}
                 >
-                  <View style={[styles.methodIcon, { backgroundColor: '#F0FDF4' }]}>
-                    <QrCode size={24} color="#22C55E" />
+                  <View style={[styles.methodIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                    <QrCode size={24} color={colors.primary} />
                   </View>
                   <View style={styles.methodInfo}>
                     <Text style={styles.methodTitle}>Authenticator App</Text>
@@ -145,32 +161,10 @@ export default function TwoFactorAuthScreen() {
                       Use an authenticator app like Google Authenticator or Authy
                     </Text>
                   </View>
-                  <View style={styles.recommendedTag}>
-                    <Text style={styles.recommendedText}>Recommended</Text>
-                  </View>
                 </Pressable>
 
-                <Pressable
-                  style={[
-                    styles.methodCard,
-                    selectedMethod === 'sms' && styles.selectedMethod,
-                    !isOnline && styles.disabledMethod
-                  ]}
-                  onPress={() => isOnline && handleMethodSelect('sms')}
-                  disabled={!isOnline}
-                >
-                  <View style={[styles.methodIcon, { backgroundColor: '#EFF6FF' }]}>
-                    <Smartphone size={24} color="#1E3A8A" />
-                  </View>
-                  <View style={styles.methodInfo}>
-                    <Text style={styles.methodTitle}>SMS Authentication</Text>
-                    <Text style={styles.methodDescription}>
-                      Receive verification codes via text message
-                    </Text>
-                  </View>
-                </Pressable>
 
-                <Pressable
+                {/* <Pressable
                   style={[
                     styles.methodCard,
                     selectedMethod === 'email' && styles.selectedMethod,
@@ -179,8 +173,8 @@ export default function TwoFactorAuthScreen() {
                   onPress={() => isOnline && handleMethodSelect('email')}
                   disabled={!isOnline}
                 >
-                  <View style={[styles.methodIcon, { backgroundColor: '#F0F9FF' }]}>
-                    <Mail size={24} color="#0EA5E9" />
+                  <View style={[styles.methodIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                    <Mail size={24} color={colors.primary} />
                   </View>
                   <View style={styles.methodInfo}>
                     <Text style={styles.methodTitle}>Email Authentication</Text>
@@ -188,35 +182,22 @@ export default function TwoFactorAuthScreen() {
                       Receive verification codes via email
                     </Text>
                   </View>
-                </Pressable>
+                </Pressable> */}
               </View>
             )}
 
-            <View style={styles.infoSection}>
-              <View style={styles.infoCard}>
-                <View style={styles.infoHeader}>
-                  <View style={styles.infoIconContainer}>
-                    <Lock size={20} color="#1E3A8A" />
-                  </View>
-                  <Text style={styles.infoTitle}>Why use 2FA?</Text>
-                </View>
-                <Text style={styles.infoDescription}>
-                  Two-factor authentication adds an extra security layer to your account. Even if someone knows your password, they won't be able to access your account without the second factor.
-                </Text>
-              </View>
-            </View>
           </>
         )}
       </ScrollView>
 
-      <View style={styles.footer}>
+      {/* <View style={styles.footer}>
         <Button
           title="Continue Setup"
           onPress={() => handleMethodSelect(selectedMethod || 'authenticator')}
           style={styles.continueButton}
           disabled={!selectedMethod || !isOnline || isLoading || twoFactorEnabled}
         />
-      </View>
+      </View> */}
       
       <SafeFooter />
     </SafeAreaView>
@@ -264,7 +245,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -374,7 +355,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     lineHeight: 20,
   },
   recommendedTag: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: colors.backgroundTertiary,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
@@ -384,6 +365,46 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: '#22C55E',
+  },
+  resetSection: {
+    marginBottom: 24,
+  },
+  resetCard: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  resetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  resetIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  resetTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#92400E',
+  },
+  resetDescription: {
+    fontSize: 14,
+    color: '#92400E',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  resetButton: {
+    backgroundColor: '#F59E0B',
   },
   infoSection: {
     marginBottom: 32,

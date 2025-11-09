@@ -1,266 +1,373 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { AppState, AppStateStatus, Platform } from 'react-native';
-import { saveItem, getItem, deleteItem, APP_LOCK_PIN_KEY, APP_LOCK_ENABLED_KEY } from '@/lib/secure-storage';
-import { BiometricService } from '@/lib/biometrics';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from './AuthContext';
-import { useOnlineStatus } from '@/components/OnlineStatusProvider';
-import { useToast } from './ToastContext';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePin } from './PinContext';
+import { isNavigationInProgress } from '@/hooks/useSafeNavigation';
 
-// Inactivity timeout in milliseconds (5 minutes)
-const INACTIVITY_TIMEOUT = 5 * 60 * 1000;
+type AutoLockDuration = 'instant' | '5' | '60' | 'never';
 
 interface AppLockContextType {
+  autoLockDuration: AutoLockDuration;
+  setAutoLockDuration: (duration: AutoLockDuration) => Promise<void>;
   isAppLocked: boolean;
-  isAppLockEnabled: boolean;
-  appLockPin: string | null;
-  setAppLockPin: (pin: string) => Promise<void>;
   unlockApp: () => void;
   lockApp: () => void;
-  checkPin: (pin: string) => boolean;
-  disableAppLock: () => Promise<void>;
-  resetInactivityTimer: () => void;
+  setLastActivePage: (page: string) => void;
+  getLastActivePage: () => string;
+  isPinResetMode: boolean;
+  setPinResetMode: (enabled: boolean) => void;
+  updateLastActiveOnInteraction: () => void;
 }
 
 const AppLockContext = createContext<AppLockContextType | undefined>(undefined);
 
-export function useAppLock() {
+const AUTO_LOCK_KEY = 'auto_lock_duration';
+const LAST_ACTIVE_KEY = 'last_active_timestamp';
+const LAST_ACTIVE_PAGE_KEY = 'last_active_page';
+
+export const useAppLock = () => {
   const context = useContext(AppLockContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAppLock must be used within an AppLockProvider');
   }
   return context;
-}
+};
 
-export function AppLockProvider({ children }: { children: React.ReactNode }) {
+export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [autoLockDuration, setAutoLockDurationState] = useState<AutoLockDuration>('5');
   const [isAppLocked, setIsAppLocked] = useState(false);
-  const [isAppLockEnabled, setIsAppLockEnabled] = useState(false);
-  const [appLockPin, setAppLockPinState] = useState<string | null>(null);
-  const { session } = useAuth();
-  const { isOnline } = useOnlineStatus();
-  const { showToast } = useToast();
-  
-  // Ref for tracking inactivity
-  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-  const backgroundTimeRef = useRef<number | null>(null);
-  
-  // Load app lock state on mount
+  const [lastActivePage, setLastActivePageState] = useState<string>('(tabs)');
+  const [isPinResetMode, setIsPinResetMode] = useState(false);
+  const { hasAppLockPin } = usePin();
+  const appState = useRef(AppState.currentState);
+  const lastActiveRef = useRef<number>(Date.now());
+  const unlockTimestampRef = useRef<number | null>(null);
+
+  // Load saved settings on mount
   useEffect(() => {
-    const loadAppLockState = async () => {
-      try {
-        // First try to load from secure storage (for offline support)
-        const pin = await getItem(APP_LOCK_PIN_KEY);
-        const enabled = await getItem(APP_LOCK_ENABLED_KEY);
-        
-        // If we're online and have a session, try to get from database
-        if (isOnline && session?.user?.id) {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('app_lock_enabled')
-            .eq('id', session.user.id)
-            .single();
-            
-          if (!error && data) {
-            setIsAppLockEnabled(data.app_lock_enabled);
-            
-            // If app lock is enabled in the database but we don't have a PIN,
-            // keep the app locked until PIN is set
-            if (data.app_lock_enabled && !pin) {
-              setIsAppLocked(true);
-            } else if (data.app_lock_enabled && pin) {
-              setAppLockPinState(pin);
-              setIsAppLocked(true);
-            }
-            
-            return;
-          }
-        }
-        
-        // Fallback to local storage if offline or database fetch failed
-        setAppLockPinState(pin);
-        setIsAppLockEnabled(enabled === 'true' && !!pin);
-        
-        // If app lock is enabled, lock the app on initial load
-        if (enabled === 'true' && !!pin) {
-          setIsAppLocked(true);
-        }
-      } catch (error) {
-        console.error('Error loading app lock state:', error);
+    loadAutoLockDuration();
+    loadLastActivePage();
+  }, []);
+
+  const loadAutoLockDuration = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(AUTO_LOCK_KEY);
+      if (saved && ['instant', '5', '60', 'never'].includes(saved)) {
+        setAutoLockDurationState(saved as AutoLockDuration);
       }
-    };
-    
-    loadAppLockState();
-  }, [session?.user?.id, isOnline]);
+    } catch (error) {
+      console.error('Error loading auto-lock duration:', error);
+    }
+  };
+
+  const loadLastActivePage = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(LAST_ACTIVE_PAGE_KEY);
+      if (saved) {
+        setLastActivePageState(saved);
+      }
+    } catch (error) {
+      console.error('Error loading last active page:', error);
+    }
+  };
+
+  const setAutoLockDuration = async (duration: AutoLockDuration) => {
+    try {
+      await AsyncStorage.setItem(AUTO_LOCK_KEY, duration);
+      setAutoLockDurationState(duration);
+    } catch (error) {
+      console.error('Error saving auto-lock duration:', error);
+    }
+  };
+
+  // Use refs to store latest values for use in event listener
+  const autoLockDurationRef = useRef(autoLockDuration);
+  const hasAppLockPinRef = useRef(hasAppLockPin);
+  const isAppLockedRef = useRef(isAppLocked);
   
-  // Set up app state change listener
+  // Keep refs in sync with state
   useEffect(() => {
-    // Skip for web platform
-    if (Platform.OS === 'web') return;
+    autoLockDurationRef.current = autoLockDuration;
+  }, [autoLockDuration]);
+  
+  useEffect(() => {
+    hasAppLockPinRef.current = hasAppLockPin;
+  }, [hasAppLockPin]);
+  
+  useEffect(() => {
+    isAppLockedRef.current = isAppLocked;
+  }, [isAppLocked]);
+
+  const updateLastActive = async () => {
+    try {
+      const timestamp = Date.now();
+      lastActiveRef.current = timestamp;
+      await AsyncStorage.setItem(LAST_ACTIVE_KEY, timestamp.toString());
+    } catch (error) {
+      console.error('Error updating last active timestamp:', error);
+    }
+  };
+
+  // Method to update last active timestamp on user interaction
+  // This should be called when user interacts with the app (touch, scroll, etc.)
+  const updateLastActiveOnInteraction = useCallback(() => {
+    // Only update if app is active and not locked
+    if (appState.current === 'active' && !isAppLockedRef.current) {
+      updateLastActive();
+    }
+  }, []);
+
+  const lockApp = () => {
+    const currentHasAppLockPin = hasAppLockPinRef.current;
+    const currentIsAppLocked = isAppLockedRef.current;
     
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      // App is going to background
-      if (
-        appStateRef.current.match(/active/) &&
-        nextAppState.match(/inactive|background/)
-      ) {
-        backgroundTimeRef.current = Date.now();
-      }
-      
-      // App is coming to foreground
-      if (
-        appStateRef.current.match(/inactive|background/) &&
-        nextAppState === 'active'
-      ) {
-        // Check if app was in background for more than 5 minutes
-        if (
-          backgroundTimeRef.current &&
-          Date.now() - backgroundTimeRef.current >= INACTIVITY_TIMEOUT &&
-          isAppLockEnabled
-        ) {
-          setIsAppLocked(true);
-        }
-        
-        // Reset background time
-        backgroundTimeRef.current = null;
-        
-        // Reset inactivity timer
-        resetInactivityTimer();
-      }
-      
-      appStateRef.current = nextAppState;
+    console.log('🔒 AppLock - lockApp() called', {
+      hasAppLockPin: currentHasAppLockPin,
+      isAppLocked: currentIsAppLocked,
+      autoLockDuration: autoLockDurationRef.current,
+      timestamp: new Date().toISOString()
     });
     
-    return () => {
-      subscription.remove();
-    };
-  }, [isAppLockEnabled]);
-  
-  // Function to reset inactivity timer
-  const resetInactivityTimer = () => {
-    // Skip for web platform
-    if (Platform.OS === 'web') return;
-    
-    // Clear existing timer
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current);
-    }
-    
-    // Set new timer if app lock is enabled
-    if (isAppLockEnabled) {
-      inactivityTimerRef.current = setTimeout(() => {
-        // Only lock if app is in foreground
-        if (appStateRef.current === 'active') {
-          setIsAppLocked(true);
-        }
-      }, INACTIVITY_TIMEOUT);
-    }
-  };
-  
-  // Set up inactivity timer
-  useEffect(() => {
-    resetInactivityTimer();
-    
-    return () => {
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
-      }
-    };
-  }, [isAppLockEnabled]);
-  
-  // Set app lock PIN
-  const setAppLockPin = async (pin: string) => {
-    try {
-      // Save PIN to secure storage (for offline support)
-      await saveItem(APP_LOCK_PIN_KEY, pin);
-      await saveItem(APP_LOCK_ENABLED_KEY, 'true');
-      
-      // Update database if online
-      if (isOnline && session?.user?.id) {
-        await supabase
-          .from('profiles')
-          .update({ app_lock_enabled: true })
-          .eq('id', session.user.id);
-      }
-      
-      setAppLockPinState(pin);
-      setIsAppLockEnabled(true);
-      
-      // Reset inactivity timer
-      resetInactivityTimer();
-      
-      showToast?.('App lock PIN set successfully', 'success');
-    } catch (error) {
-      console.error('Error setting app lock PIN:', error);
-      showToast?.('Failed to set app lock PIN', 'error');
-      throw error;
-    }
-  };
-  
-  // Unlock app
-  const unlockApp = () => {
-    setIsAppLocked(false);
-    resetInactivityTimer();
-  };
-  
-  // Lock app
-  const lockApp = () => {
-    if (isAppLockEnabled) {
+    if (currentHasAppLockPin && !currentIsAppLocked) {
+      console.log('🔒 AppLock - Locking app');
       setIsAppLocked(true);
+    } else {
+      console.log('🔒 AppLock - Cannot lock app', {
+        hasAppLockPin: currentHasAppLockPin,
+        isAppLocked: currentIsAppLocked,
+        reason: !currentHasAppLockPin ? 'no_pin' : 'already_locked'
+      });
     }
   };
-  
-  // Check PIN
-  const checkPin = (pin: string) => {
-    return pin === appLockPin;
-  };
-  
-  // Disable app lock
-  const disableAppLock = async () => {
+
+  const checkIfShouldLock = async () => {
+    // Don't lock if no PIN is set or auto-lock is disabled
+    if (!hasAppLockPin || autoLockDuration === 'never') {
+      console.log('⏭️ AppLock - Skipping lock check (no PIN or never setting)');
+      return;
+    }
+
+    // Don't lock if we just unlocked recently
+    if (unlockTimestampRef.current && (Date.now() - unlockTimestampRef.current) < 30000) {
+      console.log('🛡️ AppLock - Recently unlocked, skipping lock check');
+      return;
+    }
+
+    // Don't lock if already locked
+    if (isAppLocked) {
+      console.log('🛡️ AppLock - Already locked, skipping lock check');
+      return;
+    }
+
+    // Don't lock if navigation is in progress (check global flag first for immediate protection)
+    const globalNavFlag = isNavigationInProgress();
+    console.log('🛡️ AppLock - Checking global navigation flag:', globalNavFlag);
+    if (globalNavFlag) {
+      console.log('🛡️ AppLock - Global navigation flag active, skipping lock check');
+      return;
+    }
+
+    // Also check AsyncStorage flag for additional protection (supports token-based JSON and legacy numeric)
     try {
-      // Update local storage
-      await saveItem(APP_LOCK_ENABLED_KEY, 'false');
-      
-      // Update database if online
-      if (isOnline && session?.user?.id) {
-        await supabase
-          .from('profiles')
-          .update({ app_lock_enabled: false })
-          .eq('id', session.user.id);
+      const navigationInProgress = await AsyncStorage.getItem('navigation_in_progress');
+      if (navigationInProgress) {
+        let navigationTime: number | null = null;
+        let navigationToken: string | null = null;
+
+        // Try parsing JSON { token, ts }
+        try {
+          const parsed = JSON.parse(navigationInProgress);
+          if (parsed && (parsed.ts || parsed.token)) {
+            navigationTime = parsed.ts ? parseInt(parsed.ts, 10) : null;
+            navigationToken = parsed.token ? String(parsed.token) : null;
+          }
+        } catch (err) {
+          // Not JSON: fall back to legacy numeric timestamp string
+          const legacy = parseInt(navigationInProgress, 10);
+          if (!Number.isNaN(legacy)) navigationTime = legacy;
+        }
+
+        const timeSinceNavigation = navigationTime ? Date.now() - navigationTime : null;
+        console.log('🛡️ AppLock - navigation flag found', { navigationToken, navigationTime, timeSinceNavigation });
+
+        if (timeSinceNavigation !== null && timeSinceNavigation < 3500) { // 3.5 seconds protection window
+          console.log('🛡️ AppLock - Navigation in progress, skipping lock check', {
+            timeSinceNavigation: `${timeSinceNavigation}ms`,
+            protectionWindow: '3.5s',
+            navigationToken,
+          });
+          return;
+        } else {
+          // Clean up expired or malformed navigation flag
+          await AsyncStorage.removeItem('navigation_in_progress');
+          console.log('🧹 AppLock - Cleaned up expired/malformed navigation flag');
+        }
       }
-      
-      setIsAppLockEnabled(false);
-      setIsAppLocked(false);
-      
-      // Clear inactivity timer
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
-        inactivityTimerRef.current = null;
-      }
-      
-      showToast?.('App lock disabled successfully', 'success');
     } catch (error) {
-      console.error('Error disabling app lock:', error);
-      showToast?.('Failed to disable app lock', 'error');
-      throw error;
+      console.warn('AppLock - Error checking navigation status:', error);
+    }
+
+    try {
+      const lastActiveStr = await AsyncStorage.getItem(LAST_ACTIVE_KEY);
+      const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : Date.now();
+      const timeDiff = Date.now() - lastActive;
+
+      let shouldLock = false;
+
+      switch (autoLockDuration) {
+        case 'instant': // Instant lock - handled when app goes to background
+          // This case is handled in handleAppStateChange, so we don't need to check here
+          shouldLock = false;
+          break;
+        case '5': // After 5 minutes
+          shouldLock = timeDiff > 5 * 60 * 1000;
+          break;
+        case '60': // After 60 minutes
+          shouldLock = timeDiff > 60 * 60 * 1000;
+          break;
+        default:
+          shouldLock = false;
+      }
+
+      console.log('⏰ AppLock - Time check:', {
+        timeDiff,
+        autoLockDuration,
+        shouldLock
+      });
+
+      if (shouldLock) {
+        console.log('🔒 AppLock - Locking app due to inactivity');
+        lockApp();
+      }
+    } catch (error) {
+      console.error('Error in checkIfShouldLock:', error);
     }
   };
-  
+
+  const handleAppStateChange = useCallback((nextAppState: AppStateStatus) => {
+    const currentState = appState.current;
+    const currentAutoLockDuration = autoLockDurationRef.current;
+    const currentHasAppLockPin = hasAppLockPinRef.current;
+    const currentIsAppLocked = isAppLockedRef.current;
+    
+    console.log('📱 AppLock - State change:', currentState, '->', nextAppState, {
+      autoLockDuration: currentAutoLockDuration,
+      hasAppLockPin: currentHasAppLockPin,
+      isAppLocked: currentIsAppLocked
+    });
+    
+    if (currentState.match(/inactive|background/) && nextAppState === 'active') {
+      // App is becoming active - update last active time and check if we should lock
+      updateLastActive();
+      
+      // Add a slightly larger delay to prevent race conditions during navigation
+      // (gives navigation flags/AsyncStorage a bit more time to settle)
+      setTimeout(() => {
+        checkIfShouldLock();
+      }, 300);
+    } else if (currentState === 'active' && nextAppState.match(/inactive|background/)) {
+      // App moved from active -> inactive/background
+      // Update last active time when app goes to background/inactive
+      updateLastActive();
+      
+      // If instant lock is enabled, lock immediately when app goes to background/inactive
+      if (currentAutoLockDuration === 'instant' && currentHasAppLockPin && !currentIsAppLocked) {
+        console.log('🔒 AppLock - Instant lock triggered (app going to background/inactive)', {
+          from: currentState,
+          to: nextAppState,
+          autoLockDuration: currentAutoLockDuration,
+          hasAppLockPin: currentHasAppLockPin,
+          isAppLocked: currentIsAppLocked
+        });
+        lockApp();
+      } else {
+        console.log('🔒 AppLock - Instant lock NOT triggered', {
+          from: currentState,
+          to: nextAppState,
+          autoLockDuration: currentAutoLockDuration,
+          hasAppLockPin: currentHasAppLockPin,
+          isAppLocked: currentIsAppLocked,
+          reason: currentAutoLockDuration !== 'instant' ? 'not_instant' :
+                 !currentHasAppLockPin ? 'no_pin' :
+                 currentIsAppLocked ? 'already_locked' : 'unknown'
+        });
+      }
+    }
+    
+    appState.current = nextAppState;
+  }, []);
+
+  // Handle app state changes
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [handleAppStateChange]);
+
+  // Periodic check for 5 mins and 60 mins auto-lock while app is active
+  useEffect(() => {
+    // Only set up periodic check if auto-lock is set to 5 or 60 minutes
+    if (autoLockDuration !== '5' && autoLockDuration !== '60') {
+      return;
+    }
+
+    // Only check if app is active and has PIN set
+    if (!hasAppLockPin || isAppLocked || appState.current !== 'active') {
+      return;
+    }
+
+    // Check every 30 seconds if we should lock
+    const interval = setInterval(() => {
+      // Only check if app is still active
+      if (appState.current === 'active' && !isAppLockedRef.current) {
+        checkIfShouldLock();
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [autoLockDuration, hasAppLockPin, isAppLocked]);
+
+  const unlockApp = () => {
+    console.log('🔓 AppLock - Unlocking app');
+    setIsAppLocked(false);
+    unlockTimestampRef.current = Date.now();
+    
+    // Clear the unlock timestamp after 30 seconds
+    setTimeout(() => {
+      unlockTimestampRef.current = null;
+    }, 30000);
+  };
+
+  const setLastActivePage = (page: string) => {
+    setLastActivePageState(page);
+    AsyncStorage.setItem(LAST_ACTIVE_PAGE_KEY, page).catch(error => {
+      console.error('Error saving last active page:', error);
+    });
+  };
+
+  const getLastActivePage = () => {
+    return lastActivePage;
+  };
+
+  const setPinResetMode = (enabled: boolean) => {
+    setIsPinResetMode(enabled);
+  };
+
+  const value: AppLockContextType = {
+    autoLockDuration,
+    setAutoLockDuration,
+    isAppLocked,
+    unlockApp,
+    lockApp,
+    setLastActivePage,
+    getLastActivePage,
+    isPinResetMode,
+    setPinResetMode,
+    updateLastActiveOnInteraction,
+  };
+
   return (
-    <AppLockContext.Provider
-      value={{
-        isAppLocked,
-        isAppLockEnabled,
-        appLockPin,
-        setAppLockPin,
-        unlockApp,
-        lockApp,
-        checkPin,
-        disableAppLock,
-        resetInactivityTimer,
-      }}
-    >
+    <AppLockContext.Provider value={value}>
       {children}
     </AppLockContext.Provider>
   );
-}
+};

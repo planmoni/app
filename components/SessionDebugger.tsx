@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
-import { debugSessionStorage } from '@/lib/supabase';
-import { supabase } from '@/lib/supabase';
+import { debugSessionStorage , supabase } from '@/lib/supabase';
 
 export const SessionDebugger: React.FC = () => {
   const { session, user, isLoading } = useAuth();

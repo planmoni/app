@@ -1,21 +1,21 @@
-// Follow Deno's ES modules convention
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.38.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-serve(async (req) => {
-  // Handle CORS preflight requests
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
   }
 
   try {
-    // Get request data
     const { userId, loginInfo } = await req.json();
 
     if (!userId) {
@@ -25,7 +25,6 @@ serve(async (req) => {
       });
     }
 
-    // Initialize Supabase client with service role key for admin access
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
@@ -41,7 +40,6 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get user profile information
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("first_name, email, email_notifications")
@@ -58,7 +56,6 @@ serve(async (req) => {
       );
     }
 
-    // Check if login notifications are enabled
     const emailNotifications = profile.email_notifications || {
       login_alerts: true,
       payout_alerts: true,
@@ -77,10 +74,8 @@ serve(async (req) => {
       );
     }
 
-    // Get user email
-    const { data: userData, error: userError } =
-      await supabase.auth.admin.getUserById(userId);
-
+    const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
+    
     if (userError || !userData?.user) {
       return new Response(
         JSON.stringify({ error: "Failed to retrieve user data" }),
@@ -94,16 +89,13 @@ serve(async (req) => {
     const email = profile.email || userData.user.email;
     const firstName = profile.first_name || "User";
 
-    // Default login info if not provided
     const device = loginInfo?.device || "Unknown device";
     const location = loginInfo?.location || "Unknown location";
     const time = loginInfo?.time || new Date().toLocaleString();
     const ip = loginInfo?.ip || "Unknown IP";
 
-    // Get Resend API key from environment variables
-    const RESEND_API_KEY =
-      Deno.env.get("RESEND_API_KEY") || "re_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu";
-
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "re_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu";
+    
     if (!RESEND_API_KEY) {
       console.error("Resend API key not configured");
       return new Response(
@@ -115,7 +107,6 @@ serve(async (req) => {
       );
     }
 
-    // Send email using Resend API
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -151,64 +142,7 @@ serve(async (req) => {
         }
       );
     }
-
-    // Create a notification record in the events table
-    const { error: eventError } = await supabase.from("events").insert({
-      user_id: userId,
-      type: "security_alert",
-      title: "New Login Detected",
-      description: `New login from ${device} at ${time}`,
-      status: "unread",
-    });
-
-    if (eventError) {
-      console.error("Error creating notification event:", eventError);
-      // Continue anyway since the email was sent successfully
-    }
-
-    // Send push notification for login alert
-    try {
-      const pushNotificationPayload = {
-        user_ids: [userId],
-        notification_type: "security_alert" as const,
-        title: "New Login Detected 🔐",
-        body: `New login from ${device} in ${location}${time ? ` at ${time}` : ""}. If this wasn't you, please secure your account immediately.`,
-        data: {
-          type: "login_security_alert",
-          device_info: { device, location, time, ip },
-          timestamp: new Date().toISOString(),
-        },
-      };
-
-      const pushResponse = await fetch(
-        `${supabaseUrl}/functions/v1/send-push-notification`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${supabaseServiceKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(pushNotificationPayload),
-        }
-      );
-
-      if (pushResponse.ok) {
-        console.log(
-          `✅ Login security push notification sent for user ${userId}`
-        );
-      } else {
-        console.error(
-          `❌ Failed to send login security push notification:`,
-          await pushResponse.text()
-        );
-      }
-    } catch (pushError) {
-      console.error(
-        `❌ Error sending login security push notification:`,
-        pushError
-      );
-    }
-
+    
     return new Response(
       JSON.stringify({
         success: true,
@@ -220,16 +154,12 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error processing request:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ error: error instanceof Error ? error.message : "Internal server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
 
-// Email template for login notification
 function generateLoginNotificationHtml(data: {
   firstName: string;
   device: string;
@@ -262,10 +192,7 @@ function generateLoginNotificationHtml(data: {
         <p>Hello ${data.firstName},</p>
         <p>We detected a new login to your Planmoni account.</p>
         
-        <div class="alert">
-          <p><strong>If this was you, no action is needed.</strong></p>
-          <p>If you didn't log in recently, please secure your account immediately by changing your password.</p>
-        </div>
+        
         
         <table>
           <tr>
@@ -285,6 +212,11 @@ function generateLoginNotificationHtml(data: {
             <td>${data.ip}</td>
           </tr>
         </table>
+
+        <div class="content">
+          <p><strong>If this was you, no action is needed.</strong></p>
+          <p>If you didn't log in recently, please secure your account immediately by changing your password.</p>
+        </div>
         
         <a href="https://planmoni.com/change-password" class="button">Secure Your Account</a>
         

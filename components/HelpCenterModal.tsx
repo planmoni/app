@@ -3,7 +3,9 @@ import { X, Search, CircleHelp as HelpCircle, MessageSquare, FileText, ExternalL
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { PanGestureHandler } from 'react-native-gesture-handler';
-import { useAuth } from '@/contexts/AuthContext';
+import { useIntercomOptimized } from '@/hooks/useIntercomOptimized';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
+import { useIntercom } from '@/hooks/useIntercom';
 
 interface HelpCenterModalProps {
   isVisible: boolean;
@@ -15,7 +17,7 @@ const DRAG_DISMISS_THRESHOLD = 120;
 export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
-  const { user } = useAuth(); // placeholder to avoid circular import in type system
+  const { openChat, isLoading } = useIntercom();
   const translateY = useRef(new Animated.Value(0)).current;
   const [dragging, setDragging] = useState(false);
   
@@ -128,56 +130,23 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
                 
                 <Pressable
                   style={styles.supportOption}
-                  onPress={async () => {
-                    try {
-                      console.log('🎯 HelpCenterModal: Chat with Support pressed');
-                      
-                      const { default: Intercom } = await import('@intercom/intercom-react-native');
-                      
-                      if (!user) {
-                        console.log('👤 No user, logging in as unidentified user...');
-                        await Intercom.loginUnidentifiedUser();
-                        console.log('✅ Unidentified user logged in');
-                      } else {
-                        console.log('👤 User found, logging in with user data...');
-                        
-                        // Login with user attributes
-                        await Intercom.loginUserWithUserAttributes({
-                          userId: user.id,
-                          email: user.email,
-                        });
-                        
-                        console.log('✅ User logged in to Intercom');
-                      }
-                      
-                      // Wait for authentication to complete
-                      await new Promise(resolve => setTimeout(resolve, 1000));
-                      
-                      // Now present Intercom
-                      console.log('🎯 Presenting Intercom...');
-                      await Intercom.present();
-                      console.log('✅ Intercom presented successfully');
-                      
-                    } catch (error) {
-                      console.error('❌ Failed to open Intercom:', error);
-                      
-                      // Show user-friendly error
-                      Alert.alert(
-                        'Intercom Error',
-                        'Unable to open support chat. Please try again.',
-                        [{ text: 'OK' }]
-                      );
-                    }
-                  }}
+                  onPress={openChat}
+                  disabled={isLoading}
                 >
                   <View style={styles.supportIconContainer}>
+                    {isLoading ? (
+                      <PlanmoniLoader size="small" />
+                    ) : (
                     <MessageSquare size={isSmallScreen ? 16 : 20} color="#1E3A8A" />
+                    )}
                   </View>
                   <View style={styles.supportInfo}>
                     <Text style={styles.supportTitle}>Chat with Support</Text>
-                    <Text style={styles.supportDescription}>Available 24/7</Text>
+                    <Text style={styles.supportDescription}>
+                      {isLoading ? 'Opening chat...' : 'Available 24/7'}
+                    </Text>
                   </View>
-                  <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  {!isLoading && <ExternalLink size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />}
                 </Pressable>
                 
               </View>
@@ -335,8 +304,9 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   closeButton2: {
     backgroundColor: colors.primary,
     padding: isSmallScreen ? 12 : 16,
-    borderRadius: 8,
+    borderRadius: 100,
     alignItems: 'center',
+    height: 55,
   },
   closeButtonText: {
     color: '#FFFFFF',

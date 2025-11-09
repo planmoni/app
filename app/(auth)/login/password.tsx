@@ -15,7 +15,7 @@ import OnboardingProgress from '@/components/OnboardingProgress';
 
 export default function LoginPasswordScreen() {
   const { colors } = useTheme();
-  const { signIn, isLoading } = useAuth();
+  const { signIn } = useAuth();
   const { showToast } = useToast();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
@@ -25,6 +25,7 @@ export default function LoginPasswordScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const passwordInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -46,17 +47,31 @@ export default function LoginPasswordScreen() {
       return;
     }
     
+    if (submitting) return;
+    
     setError(null);
+    setSubmitting(true);
     
-    const result = await signIn(email, password);
-    
-    if (result.success) {
-      haptics.notification(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
-    } else {
+    try {
+      const result = await signIn(email, password);
+      
+      if (result.success) {
+        haptics.notification(Haptics.NotificationFeedbackType.Success);
+        // Keep loader visible for 4 seconds before navigating
+        // await new Promise(resolve => setTimeout(resolve, 4000));
+        router.replace('/(tabs)');
+      } else {
+        haptics.notification(Haptics.NotificationFeedbackType.Error);
+        setError(result.error || 'Failed to sign in');
+        showToast(result.error || 'Failed to sign in', 'error');
+        setSubmitting(false);
+      }
+    } catch (error) {
       haptics.notification(Haptics.NotificationFeedbackType.Error);
-      setError(result.error || 'Failed to sign in');
-      showToast(result.error || 'Failed to sign in', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
+      setSubmitting(false);
     }
   };
 
@@ -73,18 +88,20 @@ export default function LoginPasswordScreen() {
         <Pressable 
           onPress={() => {
             haptics.lightImpact();
-            router.back();
+            if (!submitting) router.back();
           }} 
           style={styles.backButton}
+          disabled={submitting}
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Pressable 
           onPress={() => {
             haptics.lightImpact();
-            router.push('/(auth)/onboarding/first-name');
+            if (!submitting) router.push('/(auth)/signup');
           }} 
           style={styles.signUpButton}
+          disabled={submitting}
         >
           <Text style={styles.signUpText}>Sign up instead</Text>
         </Pressable>
@@ -95,10 +112,9 @@ export default function LoginPasswordScreen() {
       <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
           <Text style={styles.title}>Enter your password</Text>
-          <Text style={styles.subtitle}>Please enter your password to continue</Text>
+          <Text style={styles.subtitle}>Please enter the password for {email}</Text>
 
           <View style={styles.formContainer}>
-            {/* <Text style={styles.emailDisplay}>{email}</Text> */}
             
             {error && (
               <View style={styles.errorContainer}>
@@ -107,7 +123,7 @@ export default function LoginPasswordScreen() {
             )}
             
             <View style={[styles.inputContainer, error && { borderColor: colors.error }]}>
-              <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
+              {/* <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} /> */}
               <TextInput
                 ref={passwordInputRef}
                 style={styles.input}
@@ -123,10 +139,12 @@ export default function LoginPasswordScreen() {
                 textContentType="password"
                 returnKeyType="go"
                 onSubmitEditing={handleLogin}
+                editable={!submitting}
               />
               <Pressable
                 style={styles.eyeButton}
                 onPress={handleTogglePasswordVisibility}
+                disabled={submitting}
               >
                 {showPassword ? (
                   <EyeOff size={20} color={colors.textSecondary} />
@@ -138,7 +156,7 @@ export default function LoginPasswordScreen() {
             
             <View style={styles.forgotPasswordContainer}>
               <Link href="/(auth)/forgot-password" asChild>
-                <Pressable onPress={() => haptics.lightImpact()}>
+                <Pressable onPress={() => haptics.lightImpact()} disabled={submitting}>
                   <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
                 </Pressable>
               </Link>
@@ -150,8 +168,8 @@ export default function LoginPasswordScreen() {
       <FloatingButton 
         title="Sign In"
         onPress={handleLogin}
-        disabled={!isButtonEnabled}
-        loading={isLoading}
+        disabled={!isButtonEnabled || submitting}
+        loading={submitting}
         icon={ArrowRight}
         hapticType="success"
       />
@@ -223,10 +241,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.primary,
     marginBottom: 24,
     padding: 12,
-    backgroundColor: colors.backgroundTertiary,
     borderRadius: 8,
     overflow: 'hidden',
-    textAlign: 'center',
   },
   errorContainer: {
     backgroundColor: colors.errorLight,

@@ -1,0 +1,484 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { router } from 'expo-router';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useHaptics } from '@/hooks/useHaptics';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
+import KYCVerificationModal from '@/components/KYCVerificationModal';
+import CameraPermissionModal from '@/components/CameraPermissionModal';
+import Tier0Icon from '@/assets/kyc/tier-0.svg';
+import Tier1Icon from '@/assets/kyc/tier-1.svg';
+import Tier2Icon from '@/assets/kyc/tier-2.svg';
+import Tier3Icon from '@/assets/kyc/tier-3.svg';
+
+type KYCStatus = 'starting' | 'continuing' | 'pending';
+
+export default function KYCCard() {
+  const { colors, isDark } = useTheme();
+  const haptics = useHaptics();
+  const { session } = useAuth();
+  const { progress, loading: progressLoading, currentTier = 0 } = useKYCProgress();
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
+  const styles = createStyles(colors, isDark);
+
+  // Check verification status from kyc_verifications table
+  useEffect(() => {
+    const checkVerificationStatus = async () => {
+      if (!session?.user?.id) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('kyc_verifications')
+          .select('status')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          console.warn('Error checking verification status:', error);
+        } else if (data) {
+          setVerificationStatus(data.status);
+        }
+      } catch (err) {
+        console.warn('Error checking verification status:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (!progressLoading) {
+      checkVerificationStatus();
+    }
+  }, [session?.user?.id, progressLoading]);
+
+  // Determine KYC status
+  const getKYCStatus = (): KYCStatus => {
+    // Check if overall completed and verification is pending
+    if (progress.overall_completed && (verificationStatus === 'pending' || verificationStatus === 'reviewing')) {
+      return 'pending';
+    }
+
+    // Check if user has started KYC (has progress beyond initial state)
+    // Include liveness test as it's the first step in Tier 1
+    const hasStarted = progress.current_step !== 'liveness_verification' || 
+                      progress.liveness_test_completed ||
+                      progress.personal_info_completed || 
+                      progress.bvn_verified || 
+                      progress.documents_verified ||
+                      progress.id_face_verified ||
+                      progress.address_completed;
+
+    if (hasStarted && !progress.overall_completed) {
+      return 'continuing';
+    }
+
+    return 'starting';
+  };
+
+  const kycStatus = getKYCStatus();
+  const isLoadingStatus = isLoading || progressLoading;
+
+  // Don't show card if KYC is fully completed and verified
+  if (progress.overall_completed && verificationStatus === 'verified') {
+    return null;
+  }
+
+  const handlePress = () => {
+    haptics.mediumImpact();
+    console.log('KYCCard handlePress called, kycStatus:', kycStatus);
+    
+    if (kycStatus === 'starting') {
+      // Always show KYCVerificationModal first when starting
+      console.log('Setting showVerificationModal to true');
+      setShowVerificationModal(true);
+    } else {
+      router.push('/kyc-upgrade');
+    }
+  };
+
+  const handleStartVerification = () => {
+    // Close KYCVerificationModal first
+    setShowVerificationModal(false);
+    
+    // Wait for the slide-out animation to complete (350ms) before showing CameraPermissionModal
+    // This ensures the KYCVerificationModal doesn't block the CameraPermissionModal
+    setTimeout(() => {
+      // Check if liveness test is not completed (first step of Tier 1)
+      if (progress && !progress.liveness_test_completed) {
+        // Show camera permission modal after KYCVerificationModal has closed
+        setShowCameraPermissionModal(true);
+      } else {
+        // Navigate directly to kyc-upgrade if liveness test is already completed
+        router.push('/kyc-upgrade');
+      }
+    }, 400); // Slightly longer than the slide-out animation (350ms)
+  };
+
+  const handleLivenessComplete = (selfieUrl: string) => {
+    // After liveness test is completed, navigate to kyc-upgrade with selfie URL
+    setShowCameraPermissionModal(false);
+    router.push({
+      pathname: '/kyc-upgrade',
+      params: { selfieUrl }
+    });
+  };
+
+  // Helper function to get step display name
+  const getStepDisplayName = (step: KYCStep): string => {
+    switch (step) {
+      case 'liveness_verification':
+        return 'Liveness Verification';
+      case 'bvn_verification':
+        return 'BVN Verification';
+      case 'id_face_match':
+        return 'NIN Verification';
+      case 'personal':
+        return 'Personal Information';
+      case 'documents_verification':
+        return 'Document Verification';
+      case 'address_details':
+        return 'Address Details';
+      case 'review':
+        return 'KYC Review';
+      default:
+        return 'Verification';
+    }
+  };
+
+  // Helper function to get the last completed step
+  const getLastCompletedStep = (): KYCStep | null => {
+    // Define step order based on tiers:
+    // Tier 1: liveness_verification, bvn_verification, id_face_match
+    // Tier 2: personal, documents_verification
+    // Tier 3: address_details
+    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
+    
+    // Find the last completed step by checking in reverse order
+    for (let i = stepOrder.length - 1; i >= 0; i--) {
+      const step = stepOrder[i];
+      switch (step) {
+        case 'liveness_verification':
+          if (progress.liveness_test_completed) return step;
+          break;
+        case 'bvn_verification':
+          if (progress.bvn_verified) return step;
+          break;
+        case 'id_face_match':
+          if (progress.id_face_verified) return step;
+          break;
+        case 'personal':
+          if (progress.personal_info_completed) return step;
+          break;
+        case 'documents_verification':
+          if (progress.documents_verified) return step;
+          break;
+        case 'address_details':
+          if (progress.address_completed) return step;
+          break;
+        case 'review':
+          if (progress.overall_completed) return step;
+          break;
+      }
+    }
+    
+    return null; // No steps completed yet
+  };
+
+  // Helper function to get the next incomplete step (matching kyc-upgrade.tsx logic)
+  const getNextIncompleteStep = (): KYCStep => {
+    // Define step order based on tiers:
+    // Tier 1: liveness_verification, bvn_verification, id_face_match
+    // Tier 2: personal, documents_verification
+    // Tier 3: address_details
+    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
+    const current = progress.current_step || 'liveness_verification';
+    const currentIndex = stepOrder.indexOf(current);
+    
+    // Find the next incomplete step starting from current
+    for (let i = currentIndex; i < stepOrder.length; i++) {
+      const step = stepOrder[i];
+      switch (step) {
+        case 'liveness_verification':
+          if (!progress.liveness_test_completed) return step;
+          break;
+        case 'bvn_verification':
+          if (!progress.bvn_verified) return step;
+          break;
+        case 'id_face_match':
+          if (!progress.id_face_verified) return step;
+          break;
+        case 'personal':
+          if (!progress.personal_info_completed) return step;
+          break;
+        case 'documents_verification':
+          if (!progress.documents_verified) return step;
+          break;
+        case 'address_details':
+          if (!progress.address_completed) return step;
+          break;
+        case 'review':
+          return step; // Review is accessible if all steps are complete or if we're at review
+      }
+    }
+    
+    return 'review'; // Default to review if all steps are complete
+  };
+
+  // Get step-specific message for continuing KYC
+  const getCurrentStepMessage = (): string => {
+    // Get the next incomplete step that user needs to complete
+    const nextStep = getNextIncompleteStep();
+
+    switch (nextStep) {
+      case 'liveness_verification':
+        return 'Complete your Liveness Verification';
+      case 'personal':
+        return 'Complete your Personal Information';
+      case 'bvn_verification':
+        return 'Complete your BVN Verification';
+      case 'id_face_match':
+        return 'Complete your NIN Verification';
+      case 'documents_verification':
+        return 'Complete your Document Verification';
+      case 'address_details':
+        return 'Complete your Address Details';
+      case 'review':
+        return 'Complete your KYC Review';
+      default:
+        return 'Continue your KYC Verification';
+    }
+  };
+
+  // Get status message with last completed and current step
+  const getStatusMessage = (): string => {
+    if (!progress) return 'Start verification';
+    const lastCompleted = getLastCompletedStep();
+    // Use the actual current step from progress instead of calculating next incomplete
+    const currentStepToShow = progress.current_step || getNextIncompleteStep();
+    
+    if (!lastCompleted) {
+      // No steps completed yet
+      return `Start with ${getStepDisplayName(currentStepToShow)}`;
+    }
+    
+    if (progress.overall_completed) {
+      return 'Verification complete!';
+    }
+    
+    // Show both last completed and current step
+    return `Continue with ${getStepDisplayName(currentStepToShow)}`;
+  };
+
+  // Get tier-specific icon and color
+  const getTierIcon = () => {
+    switch (currentTier) {
+      case 0:
+        // No tier - unverified
+        return { Icon: Tier0Icon, bgColor: isDark ? '#374151' : '#E5E7EB' };
+      case 1:
+        // Tier 1 - Basic verification
+        return { Icon: Tier1Icon, bgColor: '#FEF3C7' };
+      case 2:
+        // Tier 2 - Enhanced verification
+        return { Icon: Tier2Icon, bgColor: '#DBEAFE' };
+      case 3:
+        // Tier 3 - Full verification
+        return { Icon: Tier3Icon, bgColor: '#D1FAE5' };
+      default:
+        return { Icon: Tier0Icon, bgColor: isDark ? '#374151' : '#E5E7EB' };
+    }
+  };
+
+  // Get tier-specific message
+  const getTierMessage = (): string => {
+    const nextStep = getNextIncompleteStep();
+    
+    if (currentTier === null) {
+      return 'Start your verification to unlock features';
+    } else if (currentTier === 1) {
+      if (nextStep === 'documents_verification' || nextStep === 'address_details' || nextStep === 'review') {
+        return getCurrentStepMessage();
+      }
+      return 'Upgrade to Tier 2 for higher limits';
+    } else if (currentTier === 2) {
+      if (nextStep === 'address_details' || nextStep === 'review') {
+        return getCurrentStepMessage();
+      }
+      return 'Upgrade to Tier 3 for maximum limits';
+    } else if (currentTier === 3) {
+      if (progress.overall_completed) {
+        return 'Verification complete!';
+      }
+      return getCurrentStepMessage();
+    }
+    
+    return getCurrentStepMessage();
+  };
+
+  const renderCardContent = () => {
+    const { Icon, bgColor } = getTierIcon();
+    
+    switch (kycStatus) {
+      case 'starting':
+        return (
+          <>
+            <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
+              <Icon width={25} height={25} />
+            </View>
+            {/* <View style={styles.textContainer}>
+              <Text style={styles.cardText}>
+                {currentTier === 0 ? "Let's verify your identity" : getStatusMessage()}
+              </Text>
+              {currentTier > 0 && (
+                <Text style={styles.cardSubtext}>{getTierMessage()}</Text>
+              )}
+            </View> */}
+            <View style={styles.actionButton}>
+              <Text style={styles.actionButtonText}>Verify</Text>
+            </View>
+          </>
+        );
+
+      case 'continuing':
+        return (
+          <>
+            <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
+              <Icon width={25} height={25} />
+            </View>
+            <View style={styles.textContainer}>
+              <Text style={styles.cardText}>{getStatusMessage()}</Text>
+              {/* <Text style={styles.cardSubtext}>{getTierMessage()}</Text> */}
+            </View>
+            <View style={styles.actionButton}>
+              <Text style={styles.actionButtonText}>Continue</Text>
+            </View>
+          </>
+        );
+
+      case 'pending':
+        return (
+          <>
+            <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
+              <Icon width={25} height={25} />
+            </View>
+            <Text style={styles.cardText}>Your KYC Verification Status is pending</Text>
+            <View style={styles.statusIndicator}>
+              <Text style={styles.statusIndicatorText}>Pending</Text>
+            </View>
+          </>
+        );
+    }
+  };
+
+  return (
+    <>
+      {!isLoadingStatus && (
+        <Pressable style={styles.card} onPress={handlePress}>
+          {renderCardContent()}
+        </Pressable>
+      )}
+      <KYCVerificationModal
+        isVisible={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
+        onStartVerification={handleStartVerification}
+      />
+      <CameraPermissionModal
+        isVisible={showCameraPermissionModal}
+        onClose={() => {
+          console.log('[KYCCard] Camera permission modal closed');
+          setShowCameraPermissionModal(false);
+        }}
+        onComplete={handleLivenessComplete}
+      />
+    </>
+  );
+}
+
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+  card: {
+    backgroundColor: colors.accentBackground,
+    borderRadius: 12,
+    marginTop: 10,
+    padding: 16,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 64,
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 6},
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    width: '100%',
+    borderWidth: 0.5,
+    borderColor: colors.border,
+    flexWrap: 'wrap',
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  textContainer: {
+    flex: 1,
+    flexShrink: 1,
+    marginRight: 10,
+  },
+  cardText: {
+    fontSize: 17,
+    fontWeight: '500',
+    color: isDark ? colors.text : '#374151',
+    marginBottom: 2,
+  },
+  cardSubtext: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: isDark ? colors.textSecondary : '#6B7280',
+    marginTop: 2,
+  },
+  actionButton: {
+    backgroundColor: colors.accent,
+    borderRadius: 100,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    minWidth: 90,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#065F46',
+  },
+  statusIndicator: {
+    backgroundColor: isDark ? colors.backgroundTertiary : '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    minWidth: 90,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  statusIndicatorText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: isDark ? colors.textSecondary : '#6B7280',
+  },
+});
+

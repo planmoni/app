@@ -65,7 +65,7 @@ export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: Pi
   // Calculate responsive sizes
   const keySize = isSmallScreen ? 60 : 70;
   const keyTextSize = isSmallScreen ? 20 : 24;
-  const keypadWidth = keySize * 3 + 16 * 2; // 3 keys + 2 gaps
+  const keypadWidth = keySize * 3 + 16 * 6; // 3 keys + 2 gaps
   
   const styles = StyleSheet.create({
     container: {

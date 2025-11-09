@@ -1,9 +1,9 @@
-import { Modal, View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions, Platform } from 'react-native';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Button from '@/components/Button';
-import { useWindowDimensions } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useHaptics } from '@/hooks/useHaptics';
 
 interface DateRangeModalProps {
   isVisible: boolean;
@@ -20,6 +20,14 @@ const MONTHS = [
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// Quick select presets
+const QUICK_SELECTS = [
+  { label: 'Last 7 days', days: 7 },
+  { label: 'Last 30 days', days: 30 },
+  { label: 'Last 3 months', days: 90 },
+  { label: 'Last 6 months', days: 180 },
+];
+
 export default function DateRangeModal({ 
   isVisible, 
   onClose, 
@@ -28,12 +36,55 @@ export default function DateRangeModal({
   initialEndDate,
 }: DateRangeModalProps) {
   const { colors, isDark } = useTheme();
+  const haptics = useHaptics();
   const { width, height } = useWindowDimensions();
   const isSmallScreen = width < 380 || height < 700;
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(initialStartDate || null);
   const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(initialEndDate || null);
+
+  // Sync state with props when modal opens
+  useEffect(() => {
+    if (isVisible) {
+      if (initialStartDate) {
+        setSelectedStartDate(initialStartDate);
+        setCurrentMonth(new Date(initialStartDate.getFullYear(), initialStartDate.getMonth(), 1));
+      } else {
+        setSelectedStartDate(null);
+        setCurrentMonth(new Date());
+      }
+      if (initialEndDate) {
+        setSelectedEndDate(initialEndDate);
+      } else {
+        setSelectedEndDate(null);
+      }
+    }
+  }, [isVisible, initialStartDate, initialEndDate]);
+
+  // Get today's date (normalized to start of day)
+  const getToday = (): Date => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  };
+
+  // Normalize date to start of day for comparison
+  const normalizeDate = (date: Date): Date => {
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+  };
+
+  // Check if date is in the future
+  const isFutureDate = (date: Date): boolean => {
+    return normalizeDate(date) > getToday();
+  };
+
+  // Check if date is disabled (future date)
+  const isDateDisabled = (date: Date): boolean => {
+    return isFutureDate(date);
+  };
 
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -44,40 +95,87 @@ export default function DateRangeModal({
   };
 
   const handlePrevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+    const prevMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
+    setCurrentMonth(prevMonth);
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
   };
 
   const handleNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
-  };
-
-  const handleDateSelect = (date: Date) => {
-    if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
-      setSelectedStartDate(date);
-      setSelectedEndDate(null);
-    } else {
-      if (date < selectedStartDate) {
-        setSelectedStartDate(date);
-        setSelectedEndDate(null);
-      } else {
-        setSelectedEndDate(date);
+    const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+    // Don't allow navigating to future months
+    const today = getToday();
+    const nextMonthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
+    if (normalizeDate(nextMonthStart) <= normalizeDate(today)) {
+      setCurrentMonth(nextMonth);
+      if (Platform.OS !== 'web') {
+        haptics.lightImpact();
       }
     }
   };
 
+  const handleDateSelect = (date: Date) => {
+    if (isDateDisabled(date)) return;
+
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
+
+    const normalizedDate = normalizeDate(date);
+
+    if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
+      setSelectedStartDate(normalizedDate);
+      setSelectedEndDate(null);
+    } else {
+      const normalizedStart = normalizeDate(selectedStartDate);
+      if (normalizedDate < normalizedStart) {
+        setSelectedStartDate(normalizedDate);
+        setSelectedEndDate(null);
+      } else {
+        setSelectedEndDate(normalizedDate);
+      }
+    }
+  };
+
+  const handleQuickSelect = (days: number) => {
+    if (Platform.OS !== 'web') {
+      haptics.mediumImpact();
+    }
+
+    const today = getToday();
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - days + 1);
+    startDate.setHours(0, 0, 0, 0);
+
+    setSelectedStartDate(startDate);
+    setSelectedEndDate(today);
+  };
+
   const isDateInRange = (date: Date) => {
     if (!selectedStartDate || !selectedEndDate) return false;
-    return date >= selectedStartDate && date <= selectedEndDate;
+    const normalizedDate = normalizeDate(date);
+    const normalizedStart = normalizeDate(selectedStartDate);
+    const normalizedEnd = normalizeDate(selectedEndDate);
+    return normalizedDate >= normalizedStart && normalizedDate <= normalizedEnd;
   };
 
   const isDateSelected = (date: Date) => {
     if (!selectedStartDate) return false;
-    if (!selectedEndDate) return date.getTime() === selectedStartDate.getTime();
-    return date.getTime() === selectedStartDate.getTime() || date.getTime() === selectedEndDate.getTime();
+    const normalizedDate = normalizeDate(date);
+    const normalizedStart = normalizeDate(selectedStartDate);
+    if (!selectedEndDate) {
+      return normalizedDate.getTime() === normalizedStart.getTime();
+    }
+    const normalizedEnd = normalizeDate(selectedEndDate);
+    return normalizedDate.getTime() === normalizedStart.getTime() || normalizedDate.getTime() === normalizedEnd.getTime();
   };
 
   const handleApply = () => {
     if (selectedStartDate && selectedEndDate) {
+      if (Platform.OS !== 'web') {
+        haptics.mediumImpact();
+      }
       onSelect(selectedStartDate, selectedEndDate);
       onClose();
     }
@@ -86,10 +184,18 @@ export default function DateRangeModal({
   const handleClear = () => {
     setSelectedStartDate(null);
     setSelectedEndDate(null);
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
   };
 
   const handleClose = () => {
-    handleClear(); // Reset dates when closing
+    // Reset to initial dates when closing
+    setSelectedStartDate(initialStartDate || null);
+    setSelectedEndDate(initialEndDate || null);
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
     onClose();
   };
 
@@ -99,6 +205,13 @@ export default function DateRangeModal({
       day: 'numeric',
       year: 'numeric'
     });
+  };
+
+  // Check if next month button should be disabled
+  const isNextMonthDisabled = () => {
+    const today = getToday();
+    const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+    return normalizeDate(nextMonth) > normalizeDate(today);
   };
   
   const styles = createStyles(colors, isDark, isSmallScreen);
@@ -114,6 +227,10 @@ export default function DateRangeModal({
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={handleClose} />
         <View style={styles.modal}>
+          {/* Drag Indicator */}
+          <View style={styles.dragIndicator} />
+
+          {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTop}>
               <Text style={styles.title}>Select Date Range</Text>
@@ -121,72 +238,126 @@ export default function DateRangeModal({
                 <X size={isSmallScreen ? 20 : 24} color={colors.text} />
               </Pressable>
             </View>
-            <View style={styles.selectedRange}>
-              <Text style={styles.rangeText}>
-                {selectedStartDate ? formatDate(selectedStartDate) : 'Start date'} 
-                {' - '} 
-                {selectedEndDate ? formatDate(selectedEndDate) : 'End date'}
-              </Text>
+            
+            {/* Selected Range Display */}
+            <View style={styles.selectedRangeContainer}>
+              <View style={styles.dateDisplay}>
+                <Text style={styles.dateLabel}>Start Date</Text>
+                <Text style={[styles.dateValue, !selectedStartDate && styles.datePlaceholder]}>
+                  {selectedStartDate ? formatDate(selectedStartDate) : 'Not selected'}
+                </Text>
+              </View>
+              <View style={styles.dateSeparator}>
+                <Text style={styles.separatorText}>→</Text>
+              </View>
+              <View style={styles.dateDisplay}>
+                <Text style={styles.dateLabel}>End Date</Text>
+                <Text style={[styles.dateValue, !selectedEndDate && styles.datePlaceholder]}>
+                  {selectedEndDate ? formatDate(selectedEndDate) : 'Not selected'}
+                </Text>
+              </View>
             </View>
           </View>
 
-          <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
-            <View style={styles.calendarHeader}>
-              <Pressable onPress={handlePrevMonth} style={styles.navigationButton}>
-                <ChevronLeft size={isSmallScreen ? 20 : 24} color={colors.textSecondary} />
-              </Pressable>
-              <Text style={styles.monthYear}>
-                {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-              </Text>
-              <Pressable onPress={handleNextMonth} style={styles.navigationButton}>
-                <ChevronRight size={isSmallScreen ? 20 : 24} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-
-            <View style={styles.weekDays}>
-              {DAYS.map(day => (
-                <Text key={day} style={styles.weekDay}>{day}</Text>
-              ))}
-            </View>
-
-            <View style={styles.daysGrid}>
-              {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, index) => (
-                <View key={`empty-${index}`} style={styles.emptyCell} />
-              ))}
-              
-              {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, index) => {
-                const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), index + 1);
-                const isSelected = isDateSelected(date);
-                const inRange = isDateInRange(date);
-
-                return (
+          <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {/* Quick Select Presets */}
+            <View style={styles.quickSelectSection}>
+              <Text style={styles.sectionTitle}>Quick Select</Text>
+              <View style={styles.quickSelectGrid}>
+                {QUICK_SELECTS.map((preset, index) => (
                   <Pressable
                     key={index}
-                    style={[
-                      styles.dayCell,
-                      isSelected && styles.selectedDay,
-                      inRange && styles.inRangeDay,
-                    ]}
-                    onPress={() => handleDateSelect(date)}
+                    style={styles.quickSelectButton}
+                    onPress={() => handleQuickSelect(preset.days)}
                   >
-                    <Text style={[
-                      styles.dayText,
-                      (isSelected || inRange) && styles.selectedDayText,
-                    ]}>
-                      {index + 1}
-                    </Text>
+                    <Text style={styles.quickSelectText}>{preset.label}</Text>
                   </Pressable>
-                );
-              })}
+                ))}
+              </View>
+            </View>
+
+            {/* Calendar */}
+            <View style={styles.calendarSection}>
+              <View style={styles.calendarHeader}>
+                <Pressable 
+                  onPress={handlePrevMonth} 
+                  style={styles.navigationButton}
+                >
+                  <ChevronLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
+                </Pressable>
+                <Text style={styles.monthYear}>
+                  {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                </Text>
+                <Pressable 
+                  onPress={handleNextMonth} 
+                  style={[styles.navigationButton, isNextMonthDisabled() && styles.navigationButtonDisabled]}
+                  disabled={isNextMonthDisabled()}
+                >
+                  <ChevronRight 
+                    size={isSmallScreen ? 20 : 24} 
+                    color={isNextMonthDisabled() ? colors.textTertiary : colors.text} 
+                  />
+                </Pressable>
+              </View>
+
+              {/* Week Days Header */}
+              <View style={styles.weekDays}>
+                {DAYS.map(day => (
+                  <Text key={day} style={styles.weekDay}>{day}</Text>
+                ))}
+              </View>
+
+              {/* Calendar Grid */}
+              <View style={styles.daysGrid}>
+                {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, index) => (
+                  <View key={`empty-${index}`} style={styles.emptyCell} />
+                ))}
+                
+                {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, index) => {
+                  const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), index + 1);
+                  const normalizedDate = normalizeDate(date);
+                  const today = getToday();
+                  const isToday = normalizedDate.getTime() === today.getTime();
+                  const isSelected = isDateSelected(date);
+                  const inRange = isDateInRange(date);
+                  const isDisabled = isDateDisabled(date);
+
+                  return (
+                    <Pressable
+                      key={index}
+                      style={[
+                        styles.dayCell,
+                        isToday && styles.todayCell,
+                        isSelected && styles.selectedDay,
+                        inRange && !isSelected && styles.inRangeDay,
+                        isDisabled && styles.disabledDay,
+                      ]}
+                      onPress={() => handleDateSelect(date)}
+                      disabled={isDisabled}
+                    >
+                      <Text style={[
+                        styles.dayText,
+                        isToday && !isSelected && styles.todayText,
+                        (isSelected || inRange) && styles.selectedDayText,
+                        isDisabled && styles.disabledDayText,
+                      ]}>
+                        {index + 1}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           </ScrollView>
 
+          {/* Footer */}
           <View style={styles.footer}>
             <Button
               title="Clear"
               onPress={handleClear}
               variant="outline"
               style={styles.clearButton}
+              disabled={!selectedStartDate && !selectedEndDate}
             />
             <Button
               title="Apply"
@@ -217,21 +388,35 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   },
   modal: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     width: '100%',
     maxHeight: '90%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
+  },
+  dragIndicator: {
+    width: 40,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 8,
   },
   header: {
-    padding: isSmallScreen ? 16 : 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
+    paddingTop: 8,
+    paddingBottom: isSmallScreen ? 16 : 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -239,30 +424,54 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: isSmallScreen ? 12 : 16,
+    marginBottom: isSmallScreen ? 16 : 20,
   },
   title: {
-    fontSize: isSmallScreen ? 18 : 20,
+    fontSize: isSmallScreen ? 20 : 24,
     fontWeight: '600',
     color: colors.text,
   },
   closeButton: {
-    width: isSmallScreen ? 32 : 40,
-    height: isSmallScreen ? 32 : 40,
-    borderRadius: isSmallScreen ? 16 : 20,
+    width: isSmallScreen ? 36 : 40,
+    height: isSmallScreen ? 36 : 40,
+    borderRadius: isSmallScreen ? 18 : 20,
     backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  selectedRange: {
+  selectedRangeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: colors.backgroundTertiary,
-    padding: 12,
-    borderRadius: 8,
+    borderRadius: 12,
+    padding: isSmallScreen ? 12 : 16,
   },
-  rangeText: {
-    fontSize: isSmallScreen ? 13 : 14,
+  dateDisplay: {
+    flex: 1,
+  },
+  dateLabel: {
+    fontSize: isSmallScreen ? 11 : 12,
+    fontWeight: '500',
     color: colors.textSecondary,
-    textAlign: 'center',
+    marginBottom: 4,
+  },
+  dateValue: {
+    fontSize: isSmallScreen ? 14 : 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  datePlaceholder: {
+    color: colors.textTertiary,
+    fontWeight: '400',
+  },
+  dateSeparator: {
+    paddingHorizontal: isSmallScreen ? 8 : 12,
+  },
+  separatorText: {
+    fontSize: isSmallScreen ? 16 : 18,
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
   content: {
     maxHeight: '60%',
@@ -270,6 +479,36 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   scrollContent: {
     padding: isSmallScreen ? 16 : 20,
     paddingBottom: 16,
+  },
+  quickSelectSection: {
+    marginBottom: isSmallScreen ? 20 : 24,
+  },
+  sectionTitle: {
+    fontSize: isSmallScreen ? 14 : 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: isSmallScreen ? 12 : 16,
+  },
+  quickSelectGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickSelectButton: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    paddingHorizontal: isSmallScreen ? 12 : 16,
+    paddingVertical: isSmallScreen ? 8 : 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quickSelectText: {
+    fontSize: isSmallScreen ? 12 : 14,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  calendarSection: {
+    marginBottom: 8,
   },
   calendarHeader: {
     flexDirection: 'row',
@@ -285,22 +524,27 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     backgroundColor: colors.backgroundTertiary,
     borderRadius: isSmallScreen ? 18 : 20,
   },
+  navigationButtonDisabled: {
+    opacity: 0.4,
+  },
   monthYear: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: isSmallScreen ? 16 : 18,
     fontWeight: '600',
     color: colors.text,
   },
   weekDays: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: isSmallScreen ? 8 : 12,
+    paddingHorizontal: 4,
   },
   weekDay: {
-    width: isSmallScreen ? 32 : 40,
+    width: isSmallScreen ? 36 : 44,
     textAlign: 'center',
     fontSize: isSmallScreen ? 11 : 12,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.textSecondary,
+    textTransform: 'uppercase',
   },
   daysGrid: {
     flexDirection: 'row',
@@ -308,30 +552,45 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     justifyContent: 'space-between',
   },
   emptyCell: {
-    width: isSmallScreen ? 32 : 40,
-    height: isSmallScreen ? 32 : 40,
+    width: isSmallScreen ? 36 : 44,
+    height: isSmallScreen ? 36 : 44,
   },
   dayCell: {
-    width: isSmallScreen ? 32 : 40,
-    height: isSmallScreen ? 32 : 40,
+    width: isSmallScreen ? 36 : 44,
+    height: isSmallScreen ? 36 : 44,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: isSmallScreen ? 16 : 20,
-    margin: 2,
+    borderRadius: isSmallScreen ? 18 : 22,
+    marginVertical: 2,
+  },
+  todayCell: {
+    borderWidth: 2,
+    borderColor: colors.primary,
   },
   selectedDay: {
     backgroundColor: colors.primary,
   },
   inRangeDay: {
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#DBEAFE',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)',
+  },
+  disabledDay: {
+    opacity: 0.3,
   },
   dayText: {
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: isSmallScreen ? 13 : 15,
+    fontWeight: '500',
     color: colors.text,
+  },
+  todayText: {
+    color: colors.primary,
+    fontWeight: '600',
   },
   selectedDayText: {
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  disabledDayText: {
+    color: colors.textTertiary,
   },
   footer: {
     flexDirection: 'row',
@@ -339,13 +598,12 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     padding: isSmallScreen ? 16 : 20,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    backgroundColor: colors.surface,
   },
   clearButton: {
     flex: 1,
-    borderColor: colors.border,
   },
   applyButton: {
     flex: 1,
-    backgroundColor: colors.primary,
   },
 });

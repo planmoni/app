@@ -1,14 +1,14 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowRight, Chrome as Home, LogIn } from 'lucide-react-native';
+import { ArrowRight, Home as Home } from 'lucide-react-native';
+import { useHaptics } from '@/hooks/useHaptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
-import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import OnboardingProgress from '@/components/OnboardingProgress';
-import { supabase } from '@/lib/supabase';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
@@ -16,74 +16,29 @@ export default function SuccessScreen() {
   const firstName = params.firstName as string;
   const lastName = params.lastName as string;
   const email = params.email as string;
-  const password = params.password as string;
-  const referralCode = params.referralCode as string;
-  const emailVerified = params.emailVerified === 'true';
+  const registrationComplete = params.registrationComplete === 'true';
   
-  const { signUp } = useAuth();
-  const [isRegistering, setIsRegistering] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isUserAlreadyExists, setIsUserAlreadyExists] = useState(false);
+  const haptics = useHaptics();
+  const { showToast } = useToast();
 
+  // Show welcome toast when component mounts
   useEffect(() => {
-    const registerUser = async () => {
-      try {
-        // Sign up the user
-        const result = await signUp(email, password, firstName, lastName, referralCode);
-        
-        if (result.success) {
-          // If email was verified during onboarding, update the profile
-          if (emailVerified && result.data?.session?.user?.id) {
-            try {
-              console.log('Updating email_verified status to true');
-              const { error: updateError } = await supabase
-                .from('profiles')
-                .update({ email_verified: true })
-                .eq('id', result.data.session.user.id);
-                
-              if (updateError) {
-                console.error('Error updating email_verified status:', updateError);
-              } else {
-                console.log('Email verified status updated successfully');
-              }
-            } catch (updateError) {
-              console.error('Failed to update email_verified status:', updateError);
-            }
-          }
-        } else {
-          throw new Error(result.error || 'Failed to create account');
-        }
-        
-        setIsRegistering(false);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to create account';
-        
-        // Check if the error is specifically about user already existing
-        if (errorMessage.includes('user_already_exists') || 
-            errorMessage.includes('User already registered') ||
-            errorMessage.includes('already registered')) {
-          setError('This email is already registered. Please sign in or use a different email.');
-          setIsUserAlreadyExists(true);
-        } else {
-          setError(errorMessage);
-        }
-        setIsRegistering(false);
-      }
-    };
-
-    registerUser();
-  }, []);
+    if (registrationComplete) {
+      const timer = setTimeout(() => {
+        showToast(`Welcome to Planmoni, ${firstName}!`, 'success');
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [registrationComplete, firstName]);
 
   const handleCreatePayout = () => {
+    haptics.mediumImpact();
     router.replace('/create-payout/amount');
   };
 
   const handleGoToDashboard = () => {
+    haptics.lightImpact();
     router.replace('/(tabs)');
-  };
-
-  const handleGoToSignIn = () => {
-    router.replace('/(auth)/login');
   };
 
   const styles = createStyles(colors);
@@ -93,53 +48,30 @@ export default function SuccessScreen() {
       <OnboardingProgress currentStep={10} totalSteps={10} />
       
       <View style={styles.content}>
-        <SuccessAnimation />
+        {/* <SuccessAnimation /> */}
         
-        <Text style={styles.title}>
-          {isUserAlreadyExists ? 'Account Already Exists' : 'Welcome to Planmoni!'}
-        </Text>
+        <Text style={styles.title}>Welcome to Planmoni, {firstName}!</Text>
         <Text style={styles.subtitle}>
-          {isUserAlreadyExists 
-            ? 'It looks like you already have an account with us. Please sign in to continue.'
-            : 'Your account has been created successfully. You\'re all set to start planning your finances.'
-          }
+          Your account has been created successfully. You're all set to start planning your finances.
         </Text>
-        
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
         
         <View style={styles.buttonContainer}>
-          {isUserAlreadyExists ? (
-            <Button
-              title="Go to Sign In"
-              onPress={handleGoToSignIn}
-              style={styles.signInButton}
-              icon={LogIn}
-              disabled={isRegistering}
-            />
-          ) : (
-            <>
-              <Button
-                title="Start a Payout Plan"
-                onPress={handleCreatePayout}
-                style={styles.createButton}
-                icon={ArrowRight}
-                disabled={isRegistering}
-              />
-              
-              <Button
-                title="Go to Dashboard"
-                onPress={handleGoToDashboard}
-                variant="outline"
-                style={styles.dashboardButton}
-                icon={Home}
-                disabled={isRegistering}
-              />
-            </>
-          )}
+          <Button
+            title="Start a Payout Plan"
+            onPress={handleCreatePayout}
+            style={styles.createButton}
+            icon={ArrowRight}
+            hapticType="medium"
+          />
+          
+          <Button
+            title="Go to Dashboard"
+            onPress={handleGoToDashboard}
+            variant="outline"
+            style={styles.dashboardButton}
+            icon={Home}
+            hapticType="light"
+          />
         </View>
       </View>
     </SafeAreaView>
@@ -155,45 +87,31 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: 32,
   },
   title: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: 12,
     textAlign: 'center',
+    marginTop: 16,
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 32,
-    lineHeight: 24,
-  },
-  errorContainer: {
-    backgroundColor: colors.errorLight,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 24,
-    width: '100%',
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 14,
-    textAlign: 'center',
+    lineHeight: 22,
   },
   buttonContainer: {
     width: '100%',
-    gap: 16,
+    gap: 12,
   },
   createButton: {
     backgroundColor: colors.primary,
   },
   dashboardButton: {
     borderColor: colors.border,
-  },
-  signInButton: {
-    backgroundColor: colors.primary,
   },
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -40,67 +40,7 @@ export function useRealtimePayoutPlans() {
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
 
-  useEffect(() => {
-    if (!session?.user?.id) return;
-
-    let channel: RealtimeChannel;
-
-    const setupRealtimeSubscription = async () => {
-      try {
-        // Initial fetch
-        await fetchPayoutPlans();
-
-        // Set up real-time subscription
-        const channelName = `payout-plans-changes-${session.user.id}`;
-        channel = supabase
-          .channel(channelName)
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'payout_plans',
-              filter: `user_id=eq.${session.user.id}`,
-            },
-            (payload: any) => {
-              console.log('Payout plan change received:', payload);
-              
-              if (payload.eventType === 'INSERT' && payload.new) {
-                setPayoutPlans(prev => [payload.new as PayoutPlan, ...prev]);
-              } else if (payload.eventType === 'UPDATE' && payload.new) {
-                setPayoutPlans(prev => 
-                  prev.map(plan => 
-                    plan.id === payload.new.id ? payload.new as PayoutPlan : plan
-                  )
-                );
-              } else if (payload.eventType === 'DELETE' && payload.old) {
-                setPayoutPlans(prev => 
-                  prev.filter(plan => plan.id !== payload.old.id)
-                );
-              }
-            }
-          );
-        // Only subscribe if not already subscribed
-        if (channel.state === 'closed' || channel.state === 'leaving') {
-          channel.subscribe((status: any) => {
-            console.log('Payout plans subscription status:', status);
-          });
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to setup payout plans subscription');
-      }
-    };
-
-    setupRealtimeSubscription();
-
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
-  }, [session?.user?.id]);
-
-  const fetchPayoutPlans = async () => {
+  const fetchPayoutPlans = useCallback(async () => {
     try {
       setError(null);
       const { data, error: fetchError } = await supabase
@@ -128,7 +68,101 @@ export function useRealtimePayoutPlans() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!session?.user?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    let channel: RealtimeChannel | null = null;
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    const setupRealtimeSubscription = async () => {
+      try {
+        // Initial fetch
+        await fetchPayoutPlans();
+
+        // Set up real-time subscription with improved error handling
+        const channelName = `payout-plans-changes-${session.user.id}`;
+        console.log('🔗 Setting up real-time subscription for channel:', channelName);
+        
+        channel = supabase
+          .channel(channelName)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'payout_plans',
+              filter: `user_id=eq.${session.user.id}`,
+            },
+            (payload: any) => {
+              console.log('📡 Payout plan change received:', {
+                event: payload.event,
+                table: payload.table,
+                schema: payload.schema,
+                new: payload.new,
+                old: payload.old
+              });
+              
+              if (payload.event === 'INSERT' && payload.new) {
+                console.log('➕ INSERT event - adding new plan:', payload.new.name);
+                setPayoutPlans(prev => [payload.new as PayoutPlan, ...prev]);
+              } else if (payload.event === 'UPDATE' && payload.new) {
+                console.log('✏️ UPDATE event - updating plan:', payload.new.name);
+                setPayoutPlans(prev => {
+                  const updated = prev.map(plan => 
+                    plan.id === payload.new.id ? payload.new as PayoutPlan : plan
+                  );
+                  console.log('🔄 Updated plans count:', updated.length);
+                  return updated;
+                });
+              } else if (payload.event === 'DELETE' && payload.old) {
+                console.log('🗑️ DELETE event - removing plan:', payload.old.name);
+                setPayoutPlans(prev => 
+                  prev.filter(plan => plan.id !== payload.old.id)
+                );
+              } else {
+                console.log('❓ Unknown event type or missing data:', payload);
+              }
+            }
+          );
+        
+        // Subscribe with improved error handling
+        if (channel) {
+          channel.subscribe((status: any) => {
+          console.log('📡 Payout plans subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Successfully subscribed to payout plans changes');
+            retryCount = 0; // Reset retry count on successful subscription
+          } else if (status === 'CHANNEL_ERROR') {
+            console.warn('⚠️ Channel subscription error - continuing without realtime updates');
+            // Don't set error state, just log warning and continue
+          } else if (status === 'TIMED_OUT') {
+            console.warn('⚠️ Channel subscription timed out - continuing without realtime updates');
+            // Don't set error state, just log warning and continue
+          } else if (status === 'CLOSED') {
+            console.log('🔒 Channel subscription closed');
+          }
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to setup payout plans subscription:', err);
+        // Don't set error state for subscription failures, just log warning
+      }
+    };
+
+    setupRealtimeSubscription();
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [session?.user?.id, fetchPayoutPlans]);
 
   const pausePlan = async (planId: string) => {
     try {

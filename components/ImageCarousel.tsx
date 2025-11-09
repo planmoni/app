@@ -1,16 +1,15 @@
 // ImageCarousel.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  Image,
   Pressable,
   Dimensions,
   ActivityIndicator,
   Platform,
-  ScrollView,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -19,7 +18,8 @@ import Animated, {
 import { useTheme } from '@/contexts/ThemeContext';
 import PaginationDot from './PaginationDot';
 import { supabase } from '@/lib/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { imageCache } from '@/lib/imageCache';
+import { SupabaseImageManager } from '@/lib/supabaseImages';
 
 interface Banner {
   id: string;
@@ -32,35 +32,28 @@ interface Banner {
   is_active?: boolean;
 }
 
-interface CachedImage {
-  id: string;
-  url: string;
-  cachedAt: number;
-  size?: { width: number; height: number };
-}
-
 interface ImageCarouselProps {
   autoPlay?: boolean;
   autoPlayInterval?: number;
   showPagination?: boolean;
   height?: number;
   images?: Banner[];
+  showDimensions?: boolean; // New prop to show/hide dimensions
 }
 
 const { width: screenWidth } = Dimensions.get('window');
-const SLIDE_MARGIN = 5;
-const SLIDE_WIDTH = screenWidth - SLIDE_MARGIN * 9;
+const SLIDE_MARGIN = 15;
+// Account for: right padding (SLIDE_MARGIN) + right margin between slides (SLIDE_MARGIN)
+const SLIDE_WIDTH = screenWidth - SLIDE_MARGIN * 2;
 const SNAP_INTERVAL = SLIDE_WIDTH + SLIDE_MARGIN;
-
-const CACHE_KEY = 'image_carousel_cache';
-const CACHE_EXPIRY_DAYS = 7; // Cache images for 7 days
 
 export default function ImageCarousel({
   autoPlay = true,
   autoPlayInterval = 7000,
   showPagination = true,
-  height = 180,
+  height = 160,
   images: propImages,
+  showDimensions = false, // Default to false for production
 }: ImageCarouselProps) {
   const { colors, isDark } = useTheme();
   const [images, setImages] = useState<Banner[]>(propImages || []);
@@ -69,15 +62,16 @@ export default function ImageCarousel({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [imageSizes, setImageSizes] = useState<Record<string, { width: number; height: number }>>({});
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
-  const [cachedImages, setCachedImages] = useState<Record<string, CachedImage>>({});
+  const [cachedImagePaths, setCachedImagePaths] = useState<Map<string, string>>(new Map());
+  const [isPrefetching, setIsPrefetching] = useState(false);
 
   const scrollX = useSharedValue(0);
   const scrollViewRef = useRef<any>(null);
   const autoPlayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load cached images on mount
+  // Initialize image cache
   useEffect(() => {
-    loadCachedImages();
+    imageCache.initialize();
   }, []);
 
   // Handle prop images
@@ -85,8 +79,7 @@ export default function ImageCarousel({
     if (propImages) {
       setImages(propImages);
       setIsLoading(false);
-      // Prefetch and cache prop images
-      prefetchImages(propImages);
+      processImages(propImages);
     }
   }, [propImages]);
 
@@ -97,182 +90,74 @@ export default function ImageCarousel({
     }
   }, [propImages]);
 
-  // Load first image immediately when carousel is ready
-  useEffect(() => {
-    if (images.length > 0 && !loadedImages.has(images[0].id)) {
-      loadImage(images[0], 0);
-    }
-  }, [images]);
-
-  // Clear expired cache entries
-  const clearExpiredCache = async () => {
+  // Process images for optimal loading
+  const processImages = useCallback(async (banners: Banner[]) => {
     try {
-      const now = Date.now();
-      const expiryTime = CACHE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+      setIsPrefetching(true);
       
-      const newCache: Record<string, CachedImage> = {};
-      Object.entries(cachedImages).forEach(([key, value]) => {
-        if (now - value.cachedAt < expiryTime) {
-          newCache[key] = value;
-        }
-      });
+      // Get optimized URLs from Supabase
+      const urlMap = await SupabaseImageManager.processBannerImages(banners);
       
-      setCachedImages(newCache);
-      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(newCache));
-    } catch (error) {
-      console.error('[ImageCarousel] Error clearing expired cache:', error);
-    }
-  };
+      // Prefetch and cache images to disk
+      const cachedPaths = await imageCache.prefetchImages(Array.from(urlMap.values()));
+      setCachedImagePaths(cachedPaths);
 
-  // Clear all cache (for debugging or manual cache reset)
-  const clearAllCache = async () => {
-    try {
-      setCachedImages({});
-      await AsyncStorage.removeItem(CACHE_KEY);
-    } catch (error) {
-      console.error('[ImageCarousel] Error clearing all cache:', error);
-    }
-  };
-
-  // Load cached images from AsyncStorage
-  const loadCachedImages = async () => {
-    try {
-      const cached = await AsyncStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const parsedCache: Record<string, CachedImage> = JSON.parse(cached);
-        const now = Date.now();
-        const expiryTime = CACHE_EXPIRY_DAYS * 24 * 60 * 60 * 1000; // 7 days in milliseconds
-        
-        // Filter out expired cache entries
-        const validCache: Record<string, CachedImage> = {};
-        Object.entries(parsedCache).forEach(([key, value]) => {
-          if (now - value.cachedAt < expiryTime) {
-            validCache[key] = value;
-          }
-        });
-        
-        setCachedImages(validCache);
-        
-        // Save cleaned cache back to storage
-        if (Object.keys(validCache).length !== Object.keys(parsedCache).length) {
-          await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(validCache));
-        }
-      }
-    } catch (error) {
-      console.error('[ImageCarousel] Error loading cached images:', error);
-    }
-  };
-
-  // Save images to cache
-  const saveToCache = async (imageId: string, imageUrl: string, size?: { width: number; height: number }) => {
-    try {
-      const newCache = {
-        ...cachedImages,
-        [imageId]: {
-          id: imageId,
-          url: imageUrl,
-          cachedAt: Date.now(),
-          size,
-        },
-      };
+      // Load image sizes
+      await loadImageSizes(banners, urlMap);
       
-      setCachedImages(newCache);
-      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(newCache));
+      console.log(`✅ Processed ${banners.length} images, ${cachedPaths.size} cached`);
     } catch (error) {
-      console.error('[ImageCarousel] Error saving to cache:', error);
+      console.warn('[ImageCarousel] Error processing images:', error);
+    } finally {
+      setIsPrefetching(false);
     }
-  };
+  }, []);
 
-  // Prefetch and cache images
-  const prefetchImages = async (imagesToCache: Banner[]) => {
-    const prefetchPromises = imagesToCache.map(async (image) => {
+  // Load image sizes efficiently
+  const loadImageSizes = useCallback(async (banners: Banner[], urlMap: Map<string, string>) => {
+    const sizePromises = banners.map(async (banner) => {
       try {
-        // Check if already cached
-        if (cachedImages[image.id]) {
-          return;
-        }
-
-        // Prefetch the image
-        await Image.prefetch(image.image_url);
+        const url = urlMap.get(banner.id) || banner.image_url;
+        const size = await imageCache.getImageSize(url);
         
-        // Get image size
-        return new Promise<{ id: string; size: { width: number; height: number } }>((resolve, reject) => {
-          Image.getSize(
-            image.image_url,
-            (width, height) => {
-              resolve({ id: image.id, size: { width, height } });
-            },
-            (error) => {
-              console.error('[ImageCarousel] Failed to get size for cached image:', image.image_url, error);
-              reject(error);
-            }
-          );
-        });
+        if (size) {
+          setImageSizes(prev => ({ ...prev, [banner.id]: size }));
+          console.log(` Image ${banner.id} dimensions: ${size.width}x${size.height}`);
+        }
       } catch (error) {
-        console.error('[ImageCarousel] Error prefetching image:', image.image_url, error);
+        console.warn(`[ImageCarousel] Failed to get size for ${banner.id}:`, error);
       }
     });
 
-    try {
-      const results = await Promise.allSettled(prefetchPromises);
-      
-      // Save successful prefetches to cache
-      results.forEach((result) => {
-        if (result.status === 'fulfilled' && result.value) {
-          const image = imagesToCache.find(img => img.id === result.value!.id);
-          if (image) {
-            saveToCache(image.id, image.image_url, result.value!.size);
-          }
-        }
-      });
-    } catch (error) {
-      console.error('[ImageCarousel] Error in batch prefetch:', error);
+    await Promise.allSettled(sizePromises);
+  }, []);
+
+  // Get image source (cached local path or original URL)
+  const getImageSource = useCallback((banner: Banner, urlMap: Map<string, string>) => {
+    const url = urlMap.get(banner.id) || banner.image_url;
+    const cachedPath = cachedImagePaths.get(url);
+    
+    if (cachedPath) {
+      return { uri: cachedPath };
     }
-  };
+    
+    return { uri: url };
+  }, [cachedImagePaths]);
 
   // Check if image should be loaded (lazy loading)
-  const shouldLoadImage = (imageIndex: number) => {
+  const shouldLoadImage = useCallback((imageIndex: number) => {
     const distance = Math.abs(imageIndex - currentIndex);
-    // Load current image, next image, and previous image
-    return distance <= 1;
-  };
+    return distance <= 1; // Load current, next, and previous images
+  }, [currentIndex]);
 
   // Load image when it becomes visible
-  const loadImage = (image: Banner, imageIndex: number) => {
-    if (loadedImages.has(image.id)) return;
+  const loadImage = useCallback((image: Banner, imageIndex: number) => {
+    if (loadedImages.has(image.id) || !shouldLoadImage(imageIndex)) return;
 
-    if (shouldLoadImage(imageIndex)) {
-      setLoadedImages(prev => {
-        const newSet = new Set(prev);
-        newSet.add(image.id);
-        return newSet;
-      });
+    setLoadedImages(prev => new Set([...prev, image.id]));
+  }, [loadedImages, shouldLoadImage]);
 
-      // Get image size when loading (use cached size if available)
-      if (!imageSizes[image.id]) {
-        const cachedImage = cachedImages[image.id];
-        if (cachedImage?.size) {
-          setImageSizes((prev) => ({ ...prev, [image.id]: cachedImage.size! }));
-        } else {
-          Image.getSize(
-            image.image_url,
-            (width: number, height: number) => {
-              setImageSizes((prev) => ({ ...prev, [image.id]: { width, height } }));
-              // Save size to cache
-              saveToCache(image.id, image.image_url, { width, height });
-            },
-            (error: any) => {
-              console.error('[ImageCarousel] Failed to get image size for:', image.image_url, error);
-              // Use default size as fallback
-              setImageSizes((prev) => ({ ...prev, [image.id]: { width: 300, height: 180 } }));
-            }
-          );
-        }
-      }
-    }
-  };
-
-  const fetchImages = async () => {
+  const fetchImages = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -288,25 +173,25 @@ export default function ImageCarousel({
       const fetchedImages = data || [];
       setImages(fetchedImages);
       
-      // Prefetch and cache the fetched images
-      prefetchImages(fetchedImages);
+      // Process the fetched images
+      await processImages(fetchedImages);
     } catch (err) {
       console.error('[ImageCarousel] Error fetching images:', err);
       setError(err instanceof Error ? err.message : 'Failed to load images');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [processImages]);
 
-  const scrollToIndex = (index: number) => {
+  const scrollToIndex = useCallback((index: number) => {
     if (scrollViewRef.current?.scrollTo) {
       scrollViewRef.current.scrollTo({ x: index * SNAP_INTERVAL, animated: true });
     }
-  };
+  }, []);
 
   // Auto-play functionality
   useEffect(() => {
-    if (autoPlay && images.length > 1 && !isLoading) {
+    if (autoPlay && images.length > 1 && !isLoading && !isPrefetching) {
       autoPlayTimerRef.current = setInterval(() => {
         setCurrentIndex((prevIndex) => {
           const nextIndex = (prevIndex + 1) % images.length;
@@ -319,7 +204,7 @@ export default function ImageCarousel({
     return () => {
       if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
     };
-  }, [images.length, isLoading, autoPlay, autoPlayInterval]);
+  }, [images.length, isLoading, isPrefetching, autoPlay, autoPlayInterval, scrollToIndex]);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -327,21 +212,45 @@ export default function ImageCarousel({
     },
   });
 
-  const handleImagePress = (banner: Banner) => {
+  const handleImagePress = useCallback((banner: Banner) => {
     if (banner.link_url) {
       router.push(banner.link_url);
     }
-  };
+  }, []);
+
+  // Calculate dynamic height based on image dimensions
+  const calculateDynamicHeight = useCallback(() => {
+    if (images.length === 0) return height;
+
+    const sizes = Object.values(imageSizes);
+    if (sizes.length === 0) return height;
+
+    // Calculate median aspect ratio for stability
+    const aspectRatios = sizes.map(size => size.width / size.height);
+    aspectRatios.sort((a, b) => a - b);
+    const medianAspectRatio = aspectRatios[Math.floor(aspectRatios.length / 2)];
+
+    const calculatedHeight = SLIDE_WIDTH / medianAspectRatio;
+    const maxHeight = height * 1.5; // Allow up to 1.5x the default height
+    const minHeight = height * 0.7; // Minimum 70% of default height
+
+    return Math.max(minHeight, Math.min(maxHeight, calculatedHeight));
+  }, [images.length, imageSizes, height]);
+
+  const dynamicHeight = calculateDynamicHeight();
 
   // Loading state
-  if (isLoading) {
-    const cachedCount = Object.keys(cachedImages).length;
+  if (isLoading || isPrefetching) {
+    const cacheStats = imageCache.getCacheStats();
     return (
-      <View style={[styles.container, { height }]}> 
+      <View style={[styles.container, { height: dynamicHeight }]}> 
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={colors.primary} size="large" />
           <Text style={styles.loadingText}>
-            {cachedCount > 0 ? `Loading banners... (${cachedCount} cached)` : 'Loading banners...'}
+            {isPrefetching 
+              ? `Loading banners...` 
+              : 'Loading banners...'
+            }
           </Text>
         </View>
       </View>
@@ -351,7 +260,7 @@ export default function ImageCarousel({
   // Error state
   if (error) {
     return (
-      <View style={[styles.container, { height }]}> 
+      <View style={[styles.container, { height: dynamicHeight }]}> 
         <Text style={styles.errorText}>{error}</Text>
         <Pressable style={styles.retryButton} onPress={fetchImages}>
           <Text style={styles.retryText}>Retry</Text>
@@ -363,10 +272,10 @@ export default function ImageCarousel({
   // Empty state
   if (images.length === 0) return null;
 
-  const CarouselComponent = Platform.OS === 'web' ? ScrollView : Animated.ScrollView;
+  const CarouselComponent = Platform.OS === 'web' ? View : Animated.ScrollView;
 
   return (
-    <View style={[styles.container, { height }]}> 
+    <View style={[styles.container, { height: dynamicHeight }]}> 
       <CarouselComponent
         ref={scrollViewRef}
         horizontal
@@ -376,7 +285,8 @@ export default function ImageCarousel({
         snapToInterval={SNAP_INTERVAL}
         snapToAlignment="start"
         decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: SLIDE_MARGIN }}
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingLeft: 0, paddingRight: SLIDE_MARGIN }}
         onScroll={Platform.OS !== 'web' ? scrollHandler : undefined}
         onMomentumScrollEnd={(event) => {
           const x = event.nativeEvent.contentOffset.x;
@@ -389,28 +299,8 @@ export default function ImageCarousel({
         {images.map((image, index) => {
           const naturalSize = imageSizes[image.id];
           const isLoaded = loadedImages.has(image.id);
-          const isCached = !!cachedImages[image.id];
-          let imageHeight = height;
-          let imageWidth = SLIDE_WIDTH;
-          let resizeMode: 'cover' | 'contain' | 'stretch' | 'repeat' | 'center' = 'cover';
-
-          if (naturalSize) {
-            const aspectRatio = naturalSize.width / naturalSize.height;
-            const containerAspectRatio = SLIDE_WIDTH / height;
-
-            if (aspectRatio > containerAspectRatio) {
-              // Image is wider than container - fit to width
-              imageWidth = SLIDE_WIDTH;
-              imageHeight = SLIDE_WIDTH / aspectRatio;
-              resizeMode = 'contain';
-            } else {
-              // Image is taller than container - fit to height
-              imageHeight = height;
-              imageWidth = height * aspectRatio;
-              resizeMode = 'contain';
-            }
-          }
-
+          const imageSource = getImageSource(image, new Map());
+          
           // Load image if it should be visible
           loadImage(image, index);
 
@@ -420,25 +310,37 @@ export default function ImageCarousel({
               onPress={() => handleImagePress(image)}
               style={[styles.slide, { width: SLIDE_WIDTH }]}
             >
-              <View style={[styles.imageContainer, { height: height }]}>
-                {isLoaded || isCached ? (
-                  <Image
-                    source={{ uri: image.image_url }}
-                    style={[
-                      styles.image,
-                      {
-                        width: imageWidth,
-                        height: imageHeight,
-                      }
-                    ]}
-                    resizeMode={resizeMode}
-                    onError={() =>
-                      console.error('[ImageCarousel] Image failed to load:', image.image_url)
-                    }
-                  />
-                ) : (
-                  <View style={[styles.imagePlaceholder, { width: imageWidth, height: imageHeight }]}>
+              <View style={[styles.imageContainer, { height: dynamicHeight }]}>
+                <Image
+                  source={imageSource}
+                  style={styles.image}
+                  contentFit="cover"
+                  transition={200}
+                  cachePolicy="memory-disk"
+                  placeholder={null}
+                  onError={() => {
+                    console.warn('[ImageCarousel] Image failed to load:', imageSource.uri);
+                  }}
+                />
+                
+                {!isLoaded && (
+                  <View style={styles.loadingOverlay}>
                     <ActivityIndicator color={colors.primary} size="small" />
+                  </View>
+                )}
+
+                {/* Display image dimensions overlay */}
+                {showDimensions && naturalSize && (
+                  <View style={styles.dimensionsOverlay}>
+                    <Text style={styles.dimensionsText}>
+                      {naturalSize.width} × {naturalSize.height}
+                    </Text>
+                    <Text style={styles.aspectRatioText}>
+                      {(naturalSize.width / naturalSize.height).toFixed(2)}:1
+                    </Text>
+                    <Text style={styles.displaySizeText}>
+                      Container: {SLIDE_WIDTH} × {Math.round(dynamicHeight)}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -456,10 +358,29 @@ export default function ImageCarousel({
               currentIndex={currentIndex}
               scrollX={Platform.OS === 'web' ? undefined : scrollX}
               screenWidth={SNAP_INTERVAL}
-              color={colors.primary}
+              color={isDark ? colors.text : colors.primary}
               isDark={isDark}
             />
           ))}
+        </View>
+      )}
+
+      {/* Debug info panel */}
+      {showDimensions && (
+        <View style={styles.debugPanel}>
+          <Text style={styles.debugTitle}>Image Dimensions Debug</Text>
+          <Text style={styles.debugText}>
+            Carousel Height: {Math.round(dynamicHeight)}px
+          </Text>
+          <Text style={styles.debugText}>
+            Slide Width: {SLIDE_WIDTH}px
+          </Text>
+          <Text style={styles.debugText}>
+            Images with dimensions: {Object.keys(imageSizes).length}/{images.length}
+          </Text>
+          <Text style={styles.debugText}>
+            Cached images: {cachedImagePaths.size}
+          </Text>
         </View>
       )}
     </View>
@@ -468,12 +389,16 @@ export default function ImageCarousel({
 
 const styles = StyleSheet.create({
   container: {
+    width: screenWidth,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: -15,
+    // marginTop: 10,
+  },
+  scrollView: {
+    width: screenWidth,
   },
   slide: {
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
     marginRight: SLIDE_MARGIN,
     position: 'relative',
@@ -482,7 +407,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 2,
-    marginBottom: 10,
+    marginTop: 10,
   },
   loadingContainer: {
     justifyContent: 'center',
@@ -512,15 +437,73 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
   image: {
+    width: '100%',
+    height: '100%',
     borderRadius: 8,
   },
-  imagePlaceholder: {
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0', // A light gray background for placeholder
+    backgroundColor: 'rgba(240, 240, 240, 0.8)',
+    borderRadius: 8,
+  },
+  dimensionsOverlay: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: 6,
+    borderRadius: 4,
+    minWidth: 120,
+  },
+  dimensionsText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  aspectRatioText: {
+    color: '#fff',
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  displaySizeText: {
+    color: '#fff',
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 2,
+    opacity: 0.8,
+  },
+  debugPanel: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    padding: 8,
+    borderRadius: 6,
+  },
+  debugTitle: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  debugText: {
+    color: '#fff',
+    fontSize: 10,
+    marginBottom: 2,
   },
 });

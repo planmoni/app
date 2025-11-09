@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatPayoutDateTime } from '@/lib/formatters';
 
 export type Metric = {
   title: string;
@@ -66,94 +67,102 @@ export function useInsightsData() {
 
       // Calculate metrics
       const totalPayouts = transactions
-        ?.filter(t => t.type === 'payout' && t.status === 'completed')
-        .reduce((sum, t) => sum + t.amount, 0) || 0;
+        ?.filter((t: any) => t.type === 'payout' && t.status === 'completed')
+        .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0;
 
       const totalDeposits = transactions
-        ?.filter(t => t.type === 'deposit' && t.status === 'completed')
-        .reduce((sum, t) => sum + t.amount, 0) || 0;
+        ?.filter((t: any) => t.type === 'deposit' && t.status === 'completed')
+        .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0;
 
-      const activePlans = payoutPlans?.filter(p => p.status === 'active').length || 0;
+  const activePlans = payoutPlans?.filter((p: any) => p.status === 'active').length || 0;
       
       const totalTransactions = transactions?.length || 0;
 
       // Calculate previous month's payouts for growth calculation
       const currentDate = new Date();
-      const lastMonthDate = new Date();
-      lastMonthDate.setMonth(currentDate.getMonth() - 1);
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      
+      // Calculate last month properly handling year boundary
+      let lastMonth = currentMonth - 1;
+      let lastYear = currentYear;
+      if (lastMonth < 0) {
+        lastMonth = 11; // December
+        lastYear = currentYear - 1;
+      }
       
       const currentMonthPayouts = transactions
-        ?.filter(t => {
+        ?.filter((t: any) => {
           const txDate = new Date(t.created_at);
           return t.type === 'payout' && 
                  t.status === 'completed' && 
-                 txDate.getMonth() === currentDate.getMonth() &&
-                 txDate.getFullYear() === currentDate.getFullYear();
+                 txDate.getMonth() === currentMonth &&
+                 txDate.getFullYear() === currentYear;
         })
-        .reduce((sum, t) => sum + t.amount, 0) || 0;
+        .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0;
       
       const lastMonthPayouts = transactions
-        ?.filter(t => {
+        ?.filter((t: any) => {
           const txDate = new Date(t.created_at);
           return t.type === 'payout' && 
                  t.status === 'completed' && 
-                 txDate.getMonth() === lastMonthDate.getMonth() &&
-                 txDate.getFullYear() === lastMonthDate.getFullYear();
+                 txDate.getMonth() === lastMonth &&
+                 txDate.getFullYear() === lastYear;
         })
-        .reduce((sum, t) => sum + t.amount, 0) || 0;
+        .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0;
       
       // Calculate growth percentage for payouts
       let payoutGrowthPercentage = 0;
       if (lastMonthPayouts > 0) {
         payoutGrowthPercentage = ((currentMonthPayouts - lastMonthPayouts) / lastMonthPayouts) * 100;
       } else if (currentMonthPayouts > 0) {
-        // If last month was 0 but this month has value, show 100% growth
+        // If last month was 0 but this month has value, show actual increase
         payoutGrowthPercentage = 100;
       }
       
       // Calculate current month's deposits and previous month's deposits
       const currentMonthDeposits = transactions
-        ?.filter(t => {
+        ?.filter((t: any) => {
           const txDate = new Date(t.created_at);
           return t.type === 'deposit' && 
                  t.status === 'completed' && 
-                 txDate.getMonth() === currentDate.getMonth() &&
-                 txDate.getFullYear() === currentDate.getFullYear();
+                 txDate.getMonth() === currentMonth &&
+                 txDate.getFullYear() === currentYear;
         })
-        .reduce((sum, t) => sum + t.amount, 0) || 0;
+        .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0;
       
       const lastMonthDeposits = transactions
-        ?.filter(t => {
+        ?.filter((t: any) => {
           const txDate = new Date(t.created_at);
           return t.type === 'deposit' && 
                  t.status === 'completed' && 
-                 txDate.getMonth() === lastMonthDate.getMonth() &&
-                 txDate.getFullYear() === lastMonthDate.getFullYear();
+                 txDate.getMonth() === lastMonth &&
+                 txDate.getFullYear() === lastYear;
         })
-        .reduce((sum, t) => sum + t.amount, 0) || 0;
+        .reduce((sum: number, t: any) => sum + Number(t.amount), 0) || 0;
       
       // Calculate growth percentage for deposits
       let depositGrowthPercentage = 0;
       if (lastMonthDeposits > 0) {
         depositGrowthPercentage = ((currentMonthDeposits - lastMonthDeposits) / lastMonthDeposits) * 100;
       } else if (currentMonthDeposits > 0) {
-        // If last month was 0 but this month has value, show 100% growth
+        // If last month was 0 but this month has value, show actual increase
         depositGrowthPercentage = 100;
       }
       
       // Calculate transaction count growth
       const currentMonthTransactionCount = transactions
-        ?.filter(t => {
+        ?.filter((t: any) => {
           const txDate = new Date(t.created_at);
-          return txDate.getMonth() === currentDate.getMonth() &&
-                 txDate.getFullYear() === currentDate.getFullYear();
+          return txDate.getMonth() === currentMonth &&
+                 txDate.getFullYear() === currentYear;
         }).length || 0;
       
       const lastMonthTransactionCount = transactions
-        ?.filter(t => {
+        ?.filter((t: any) => {
           const txDate = new Date(t.created_at);
-          return txDate.getMonth() === lastMonthDate.getMonth() &&
-                 txDate.getFullYear() === lastMonthDate.getFullYear();
+          return txDate.getMonth() === lastMonth &&
+                 txDate.getFullYear() === lastYear;
         }).length || 0;
       
       // Calculate transaction count growth percentage
@@ -161,13 +170,49 @@ export function useInsightsData() {
       if (lastMonthTransactionCount > 0) {
         transactionGrowthPercentage = ((currentMonthTransactionCount - lastMonthTransactionCount) / lastMonthTransactionCount) * 100;
       } else if (currentMonthTransactionCount > 0) {
-        // If last month was 0 but this month has value, show 100% growth
+        // If last month was 0 but this month has value, show actual increase
         transactionGrowthPercentage = 100;
+      }
+      
+      // Debug logging to check the calculations
+      console.log('Monthly Growth Debug:', {
+        currentMonth,
+        currentYear,
+        lastMonth,
+        lastYear,
+        currentMonthDeposits,
+        lastMonthDeposits,
+        currentMonthPayouts,
+        lastMonthPayouts,
+        totalTransactions: transactions?.length || 0,
+        currentMonthTransactionCount,
+        lastMonthTransactionCount
+      });
+      
+      // Calculate overall monthly growth based on net financial activity
+      // Net activity = deposits - payouts (positive means more money coming in)
+      const currentMonthNetActivity = currentMonthDeposits - currentMonthPayouts;
+      const lastMonthNetActivity = lastMonthDeposits - lastMonthPayouts;
+      
+      let monthlyGrowthPercentage = 0;
+      let monthlyGrowthIsPositive = true;
+      
+      if (lastMonthNetActivity !== 0) {
+        monthlyGrowthPercentage = ((currentMonthNetActivity - lastMonthNetActivity) / Math.abs(lastMonthNetActivity)) * 100;
+        monthlyGrowthIsPositive = currentMonthNetActivity >= lastMonthNetActivity;
+      } else if (currentMonthNetActivity > 0) {
+        // If last month was neutral but this month is positive
+        monthlyGrowthPercentage = 100;
+        monthlyGrowthIsPositive = true;
+      } else if (currentMonthNetActivity < 0) {
+        // If last month was neutral but this month is negative
+        monthlyGrowthPercentage = 100;
+        monthlyGrowthIsPositive = false;
       }
       
       // Calculate average payout amount
       const averagePayoutAmount = payoutPlans && payoutPlans.length > 0
-        ? payoutPlans.reduce((sum, plan) => sum + plan.payout_amount, 0) / payoutPlans.length
+        ? payoutPlans.reduce((sum: number, plan: any) => sum + Number(plan.payout_amount), 0) / payoutPlans.length
         : 0;
       
       // Calculate upcoming payouts (next 30 days)
@@ -175,12 +220,12 @@ export function useInsightsData() {
       thirtyDaysFromNow.setDate(currentDate.getDate() + 30);
       
       const upcomingPayouts = payoutPlans
-        ?.filter(p => {
+        ?.filter((p: any) => {
           if (p.status !== 'active' || !p.next_payout_date) return false;
           const nextPayoutDate = new Date(p.next_payout_date);
           return nextPayoutDate <= thirtyDaysFromNow && nextPayoutDate >= currentDate;
         })
-        .reduce((sum, p) => sum + p.payout_amount, 0) || 0;
+        .reduce((sum: number, p: any) => sum + Number(p.payout_amount), 0) || 0;
       
       // Calculate this week and next week payouts
       const oneWeekFromNow = new Date();
@@ -190,20 +235,20 @@ export function useInsightsData() {
       twoWeeksFromNow.setDate(currentDate.getDate() + 14);
       
       const thisWeekPayouts = payoutPlans
-        ?.filter(p => {
+        ?.filter((p: any) => {
           if (p.status !== 'active' || !p.next_payout_date) return false;
           const nextPayoutDate = new Date(p.next_payout_date);
           return nextPayoutDate <= oneWeekFromNow && nextPayoutDate >= currentDate;
         })
-        .reduce((sum, p) => sum + p.payout_amount, 0) || 0;
+        .reduce((sum: number, p: any) => sum + Number(p.payout_amount), 0) || 0;
       
       const nextWeekPayouts = payoutPlans
-        ?.filter(p => {
+        ?.filter((p: any) => {
           if (p.status !== 'active' || !p.next_payout_date) return false;
           const nextPayoutDate = new Date(p.next_payout_date);
           return nextPayoutDate <= twoWeeksFromNow && nextPayoutDate > oneWeekFromNow;
         })
-        .reduce((sum, p) => sum + p.payout_amount, 0) || 0;
+        .reduce((sum: number, p: any) => sum + Number(p.payout_amount), 0) || 0;
 
       // Format currency values
       const formatCurrency = (amount: number) => {
@@ -256,13 +301,13 @@ export function useInsightsData() {
       const trendsData = [
         {
           title: 'Monthly Growth',
-          value: `${payoutGrowthPercentage >= 0 ? '+' : ''}${payoutGrowthPercentage.toFixed(2)}%`,
-          description: 'Compared to last month',
-          positive: payoutGrowthPercentage >= 0,
+          value: `${monthlyGrowthPercentage >= 0 ? '+' : ''}${monthlyGrowthPercentage.toFixed(2)}%`,
+          description: 'Net financial activity vs last month',
+          positive: monthlyGrowthIsPositive,
           details: [
-            { label: 'Last Month', value: formatCurrency(lastMonthPayouts) },
-            { label: 'This Month', value: formatCurrency(currentMonthPayouts) },
-            { label: 'Difference', value: formatCurrency(Math.abs(currentMonthPayouts - lastMonthPayouts)) },
+            { label: 'Last Month Net', value: formatCurrency(lastMonthNetActivity) },
+            { label: 'This Month Net', value: formatCurrency(currentMonthNetActivity) },
+            { label: 'Net Change', value: formatCurrency(Math.abs(currentMonthNetActivity - lastMonthNetActivity)) },
           ],
         },
         {
@@ -271,8 +316,8 @@ export function useInsightsData() {
           description: averagePayoutAmount > 0 ? 'Per payout plan' : 'No active plans',
           positive: true,
           details: [
-            { label: 'Lowest', value: formatCurrency(payoutPlans?.length > 0 ? Math.min(...payoutPlans.map(p => p.payout_amount)) : 0) },
-            { label: 'Highest', value: formatCurrency(payoutPlans?.length > 0 ? Math.max(...payoutPlans.map(p => p.payout_amount)) : 0) },
+            { label: 'Lowest', value: formatCurrency(payoutPlans?.length > 0 ? Math.min(...payoutPlans.map((p: any) => p.payout_amount)) : 0) },
+            { label: 'Highest', value: formatCurrency(payoutPlans?.length > 0 ? Math.max(...payoutPlans.map((p: any) => p.payout_amount)) : 0) },
           ],
         },
         {
@@ -287,19 +332,30 @@ export function useInsightsData() {
         },
       ];
 
-      // Set vault stats data
-      const vaultStatsData = payoutPlans?.map(plan => {
+      // Set vault stats data - AUTOMATICALLY EXCLUDE COMPLETED PAYOUTS
+      // Only show active, paused, and other non-completed plans in the "Percentage completed" section
+  const nonCompletedPlans = payoutPlans?.filter((plan: any) => plan.status !== 'completed') || [];
+      
+      const vaultStatsData = nonCompletedPlans.map((plan: any) => {
         const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
         return {
           title: plan.name,
           total: formatCurrency(plan.total_amount),
           progress: `${progress}%`,
           nextPayout: plan.next_payout_date 
-            ? new Date(plan.next_payout_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            ? formatPayoutDateTime(plan.next_payout_date)
             : 'N/A',
           status: plan.status.charAt(0).toUpperCase() + plan.status.slice(1),
         };
-      }) || [];
+      });
+
+      // Log the filtering for debugging
+      console.log('Vault Stats Filtering:', {
+        totalPlans: payoutPlans?.length || 0,
+  completedPlans: payoutPlans?.filter((p: any) => p.status === 'completed').length || 0,
+        nonCompletedPlans: nonCompletedPlans.length,
+        filteredOut: (payoutPlans?.length || 0) - nonCompletedPlans.length
+      });
 
       setMetrics(metricsData);
       setTrends(trendsData);
@@ -320,3 +376,9 @@ export function useInsightsData() {
     refreshInsights: fetchInsightsData,
   };
 }
+
+// Add a comment to document the automatic filtering
+// AUTOMATIC COMPLETED PAYOUT REMOVAL:
+// This hook automatically filters out completed payouts from the vault stats
+// to prevent them from appearing in the "Percentage completed" section.
+// Only active, paused, and other non-completed plans are shown.

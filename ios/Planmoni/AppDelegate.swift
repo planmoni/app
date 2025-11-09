@@ -1,7 +1,8 @@
 import Expo
 import React
 import ReactAppDependencyProvider
-import UIKit
+import Intercom
+// import IntercomModule.h
 
 @UIApplicationMain
 public class AppDelegate: ExpoAppDelegate {
@@ -15,6 +16,12 @@ public class AppDelegate: ExpoAppDelegate {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
     
+    // Initialize Intercom
+    Intercom.setApiKey("ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4", forAppId: "tf4dp3qt")
+    Intercom.setLauncherVisible(false) // Hide the floating button
+    // Don't login here - let React Native handle authentication to avoid conflicts
+    // Authentication will be handled by useIntercom hook when user session is available
+
     let delegate = ReactNativeDelegate()
     let factory = ExpoReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
@@ -23,13 +30,13 @@ public class AppDelegate: ExpoAppDelegate {
     reactNativeFactory = factory
     bindReactNativeFactory(factory)
 
-    #if os(iOS) || os(tvOS)
-      window = UIWindow(frame: UIScreen.main.bounds)
-      factory.startReactNative(
-        withModuleName: "main",
-        in: window,
-        launchOptions: launchOptions)
-    #endif
+#if os(iOS) || os(tvOS)
+    window = UIWindow(frame: UIScreen.main.bounds)
+    factory.startReactNative(
+      withModuleName: "main",
+      in: window,
+      launchOptions: launchOptions)
+#endif
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

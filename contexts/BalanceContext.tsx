@@ -10,9 +10,8 @@ type BalanceContextType = {
   availableBalance: number;
   isLoading: boolean;
   error: string | null;
-  addFunds: (amount: number) => Promise<void>;
-  lockFunds: (amount: number) => Promise<void>;
-  refreshWallet: () => Promise<{ balance: number; lockedBalance: number; availableBalance: number }>;
+  refreshWallet: () => Promise<{ balance: number; lockedBalance: number; availableBalance: number } | null>;
+  addFunds?: (amount: number) => Promise<void>;
 };
 
 const BalanceContext = createContext<BalanceContextType | undefined>(undefined);
@@ -53,13 +52,16 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
         availableBalance: wallet.availableBalance,
         isLoading: wallet.isLoading,
         error: wallet.error,
+        refreshWallet: wallet.refreshWallet,
+        // Lightweight stub used by some screens to trigger a wallet refresh after adding funds
         addFunds: async (amount: number) => {
-          await wallet.addFunds(amount);
+          try {
+            // The actual add-funds flow happens elsewhere (payment providers). We trigger a refresh here.
+            await wallet.refreshWallet();
+          } catch (err) {
+            console.warn('addFunds stub failed to refresh wallet', err);
+          }
         },
-        lockFunds: wallet.lockFunds,
-        refreshWallet: async () => {
-          return await wallet.refreshWallet();
-        }
       }}
     >
       {children}

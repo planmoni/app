@@ -1,10 +1,10 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert , Image } from 'react-native';
 import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, Info } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
 import HorizontalLoader from '@/components/HorizontalLoader';
 import SafeFooter from '@/components/SafeFooter';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
@@ -12,14 +12,13 @@ import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import EditPayoutAccountModal from '@/components/EditPayoutAccountModal';
 import { useHaptics } from '@/hooks/useHaptics';
 import { getBankIconLogo } from '@/lib/bankIcons';
-import React from 'react';
-import { Image } from 'react-native';
 
 export default function PayoutAccountsScreen() {
   const { colors, isDark } = useTheme();
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [showEditAccount, setShowEditAccount] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
+  const [settingDefaultId, setSettingDefaultId] = useState<string | null>(null);
   const haptics = useHaptics();
   
   const { 
@@ -38,12 +37,20 @@ export default function PayoutAccountsScreen() {
   };
 
   const handleMakeDefault = async (accountId: string) => {
+    // Prevent multiple simultaneous operations
+    if (settingDefaultId) {
+      return;
+    }
+
     try {
+      setSettingDefaultId(accountId);
       haptics.success();
       await setDefaultAccount(accountId);
     } catch (error) {
       haptics.error();
       console.error('Error setting default account:', error);
+    } finally {
+      setSettingDefaultId(null);
     }
   };
 
@@ -65,9 +72,23 @@ export default function PayoutAccountsScreen() {
             try {
               haptics.heavyImpact();
               await deleteAccount(accountId);
+              // Show success message
+              Alert.alert(
+                "Account Removed",
+                `${accountName} has been successfully removed.`,
+                [{ text: "OK", onPress: () => haptics.success() }]
+              );
             } catch (error) {
               haptics.error();
               console.error('Error removing account:', error);
+              
+              // Show user-friendly error message
+              const errorMessage = error instanceof Error ? error.message : 'Failed to remove account';
+              Alert.alert(
+                "Cannot Remove Account",
+                errorMessage,
+                [{ text: "OK", onPress: () => haptics.lightImpact() }]
+              );
             }
           }
         }
@@ -146,36 +167,56 @@ export default function PayoutAccountsScreen() {
                     </View>
                     <View style={styles.bankDetails}>
                       <Text style={styles.bankName}>{account.bank_name}</Text>
-                      <Text style={styles.accountNumber}>•••• {account.account_number.slice(-4)}</Text>
+                      <Text style={styles.accountNumber}>{account.account_number}</Text>
                     </View>
                   </View>
                 </View>
 
                 <View style={styles.accountContent}>
                   <Text style={styles.accountName}>{account.account_name}</Text>
-                  {account.is_default && (
-                    <Text style={styles.defaultText}>Default Account</Text>
-                  )}
+                  <View style={styles.accountStatusContainer}>
+                    {account.is_default && (
+                      <Text style={styles.defaultText}>Default Account</Text>
+                    )}
+                    {account.active_payout_plans_count && account.active_payout_plans_count > 0 && (
+                      <Text style={styles.activePlansText}>
+                        Used in {account.active_payout_plans_count} active payout plan{account.active_payout_plans_count > 1 ? 's' : ''}
+                      </Text>
+                    )}
+                  </View>
                 </View>
 
                 <View style={styles.accountActions}>
-                  <Pressable
-                    style={styles.actionButton}
-                    onPress={() => handleEditAccount(account)}
-                  >
-                    <Text style={styles.actionButtonText}>Edit</Text>
-                  </Pressable>
-                  
-                  {!account.is_default && (
+                  {/* Only show Edit button if no active payout plans */}
+                  {(!account.active_payout_plans_count || account.active_payout_plans_count === 0) && (
                     <Pressable
                       style={styles.actionButton}
-                      onPress={() => handleMakeDefault(account.id)}
+                      onPress={() => handleEditAccount(account)}
                     >
-                      <Text style={styles.actionButtonText}>Make Default</Text>
+                      <Text style={styles.actionButtonText}>Edit</Text>
                     </Pressable>
                   )}
                   
                   {!account.is_default && (
+                    <Pressable
+                      style={[
+                        styles.actionButton,
+                        settingDefaultId === account.id && styles.actionButtonDisabled
+                      ]}
+                      onPress={() => handleMakeDefault(account.id)}
+                      disabled={settingDefaultId !== null}
+                    >
+                      <Text style={[
+                        styles.actionButtonText,
+                        settingDefaultId !== null && styles.actionButtonTextDisabled
+                      ]}>
+                        {settingDefaultId === account.id ? 'Setting...' : 'Make Default'}
+                      </Text>
+                    </Pressable>
+                  )}
+                  
+                  {/* Only show Remove button if no active payout plans and not default */}
+                  {!account.is_default && (!account.active_payout_plans_count || account.active_payout_plans_count === 0) && (
                     <Pressable
                       style={[styles.actionButton, styles.removeButton]}
                       onPress={() => handleRemoveAccount(account.id, account.account_name)}
@@ -191,31 +232,9 @@ export default function PayoutAccountsScreen() {
             ))
           )}
 
-          <Pressable
-            style={styles.addAccountButton}
-            onPress={() => {
-              haptics.mediumImpact();
-              setShowAddAccount(true);
-            }}
-          >
-            <Plus size={20} color={colors.primary} />
-            <Text style={styles.addAccountText}>Add New Payout Account</Text>
-          </Pressable>
         </View>
 
-        <View style={styles.infoSection}>
-          <View style={styles.infoCard}>
-            <View style={styles.infoHeader}>
-              <View style={styles.infoIconContainer}>
-                <Info size={20} color={colors.primary} />
-              </View>
-              <Text style={styles.infoTitle}>About Payout Accounts</Text>
-            </View>
-            <Text style={styles.infoText}>
-              These bank accounts will be used to receive your automated payouts. You can add multiple accounts and set one as default.
-            </Text>
-          </View>
-        </View>
+        
       </ScrollView>
 
       <View style={styles.footer}>
@@ -363,11 +382,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   bankDetails: {
     gap: 4,
+    flex: 1,
+    flexShrink: 1,
   },
   bankName: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+    flexWrap: 'wrap',
+    flexShrink: 1,
   },
   accountNumber: {
     fontSize: 14,
@@ -375,17 +398,38 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   accountContent: {
     marginBottom: 16,
+    flex: 1,
+    flexShrink: 1,
   },
   accountName: {
     fontSize: 14,
     color: colors.textSecondary,
     marginBottom: 4,
+    flexWrap: 'wrap',
+    flexShrink: 1,
+  },
+  accountStatusContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    alignItems: 'center',
   },
   defaultText: {
     fontSize: 12,
     color: colors.primary,
     fontWeight: '500',
     marginBottom: 4,
+  },
+  activePlansText: {
+    fontSize: 12,
+    color: colors.warning,
+    fontWeight: '500',
+    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.1)' : '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FDE68A',
   },
   accountActions: {
     flexDirection: 'row',
@@ -399,7 +443,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 100,
     backgroundColor: colors.backgroundTertiary,
     borderWidth: 1,
     borderColor: colors.border,
@@ -408,6 +452,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: colors.text,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
+  actionButtonTextDisabled: {
+    opacity: 0.7,
   },
   removeButton: {
     backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2',
@@ -460,6 +510,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   addButton: {
     backgroundColor: colors.primary,
+    height: 55,
+    borderRadius: 100,
+    justifyContent: 'center',
   },
   addAccountButton: {
     flexDirection: 'row',
@@ -470,7 +523,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: colors.primary,
-    borderRadius: 12,
+    borderRadius: 100,
     backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : colors.backgroundTertiary,
   },
   addAccountText: {

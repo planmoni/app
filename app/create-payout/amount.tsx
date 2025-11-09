@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Info, Plus } from 'lucide-react-native';
+import { ArrowLeft, Info, Plus, X } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -55,8 +55,28 @@ export default function AmountScreen() {
   };
 
   const formatAmount = (value: string) => {
-    const numericValue = value.replace(/[^0-9]/g, '');
-    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    // Remove all non-numeric characters except decimal point
+    let cleanValue = value.replace(/[^0-9.]/g, '');
+    
+    // Handle multiple decimal points - keep only the first one
+    const parts = cleanValue.split('.');
+    if (parts.length > 2) {
+      const integerPart = parts[0];
+      const decimalPart = parts.slice(1).join('');
+      cleanValue = integerPart + '.' + decimalPart;
+    }
+    
+    // Split by decimal point
+    const [integerPart, decimalPart] = cleanValue.split('.');
+    
+    // Format integer part with commas (only if it has digits)
+    const formattedInteger = integerPart ? integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '';
+    
+    // Limit decimal part to 2 digits
+    const limitedDecimalPart = decimalPart ? decimalPart.substring(0, 2) : '';
+    
+    // Return formatted amount with decimal part if it exists
+    return limitedDecimalPart ? `${formattedInteger}.${limitedDecimalPart}` : formattedInteger;
   };
 
   const handleAmountChange = (value: string) => {
@@ -67,7 +87,7 @@ export default function AmountScreen() {
 
   const handleMaxPress = () => {
     haptics.selection();
-    setAmount(availableBalance.toLocaleString());
+    setAmount(formatAmount(availableBalance.toString()));
     setError(null);
   };
 
@@ -91,6 +111,17 @@ export default function AmountScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.push('/(tabs)');
+          }} 
+          style={styles.cancelButton}
+        >
+          <X size={24} color={colors.text} />
+        </Pressable>
       </View>
 
       <View style={styles.progressContainer}>
@@ -126,7 +157,7 @@ export default function AmountScreen() {
               style={styles.amountInput}
               placeholder="0"
               placeholderTextColor={colors.textTertiary}
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={amount}
               onChangeText={handleAmountChange}
             />
@@ -163,6 +194,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: colors.surface,
@@ -180,6 +212,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+    flex: 1,
+    textAlign: 'center',
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   progressContainer: {
     padding: 20,

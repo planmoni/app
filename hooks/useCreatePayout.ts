@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext";
-import { router } from "expo-router";
-import { useBalance } from "@/contexts/BalanceContext";
-import { useToast } from "@/contexts/ToastContext";
+import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { router } from 'expo-router';
+import { useBalance } from '@/contexts/BalanceContext';
+import { useToast } from '@/contexts/ToastContext';
+import { inAppNotificationService } from '@/lib/in-app-notifications';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
@@ -25,21 +26,14 @@ export function useCreatePayout() {
     customDates,
     emergencyWithdrawalEnabled = false,
     dayOfWeek,
+    payoutHour,
+    payoutMinute
   }: {
     name: string;
     description?: string;
     totalAmount: number;
     payoutAmount: number;
-    frequency:
-      | "weekly"
-      | "biweekly"
-      | "monthly"
-      | "custom"
-      | "weekly_specific"
-      | "end_of_month"
-      | "quarterly"
-      | "biannual"
-      | "annually";
+    frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom' | 'weekly_specific' | 'end_of_month' | 'quarterly' | 'biannual' | 'annually';
     duration: number;
     startDate: string;
     bankAccountId?: string | null;
@@ -47,6 +41,8 @@ export function useCreatePayout() {
     customDates?: string[];
     emergencyWithdrawalEnabled?: boolean;
     dayOfWeek?: number;
+    payoutHour?: number;
+    payoutMinute?: number;
   }) => {
     try {
       setIsLoading(true);
@@ -81,49 +77,29 @@ export function useCreatePayout() {
         );
       }
 
-      const {
-        balance: currentBalance,
-        lockedBalance: currentLockedBalance,
-        availableBalance: currentAvailableBalance,
-      } = walletData;
-
-      console.log("- Current Balance:", currentBalance);
-      console.log("- Locked Balance:", currentLockedBalance);
+      const { balance, lockedBalance, availableBalance } = walletData;
+      
+      console.log('- Current Balance:', balance);
+      console.log('- Locked Balance:', lockedBalance);
 
       // Check if user has enough available balance using fresh data
-      if (totalAmount > currentBalance) {
-        throw new Error(
-          `Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${currentBalance.toLocaleString()} available.`
-        );
+      if (totalAmount > balance) {
+        throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${balance.toLocaleString()} available.`);
       }
 
-      // Map frequency values to database-compatible values
-      // The database only accepts: 'weekly', 'biweekly', 'monthly', 'custom'
-      let dbFrequency: "weekly" | "biweekly" | "monthly" | "custom";
-
-      switch (frequency) {
-        case "weekly_specific":
-        case "end_of_month":
-        case "quarterly":
-        case "biannual":
-        case "annually":
-          // These special frequencies should be stored as 'custom' in the database
-          dbFrequency = "custom";
-          break;
-        default:
-          // weekly, biweekly, monthly, custom are already valid
-          dbFrequency = frequency as
-            | "weekly"
-            | "biweekly"
-            | "monthly"
-            | "custom";
-      }
+      // All frequency values are now supported in the database
+      const dbFrequency = frequency;
 
       // 📅 Calculate next payout date
       const startDateObj = new Date(startDate);
       let nextPayoutDate = new Date(startDateObj);
 
-      if (frequency === "weekly") {
+      if (frequency === 'daily') {
+        // For daily payouts, the first payout should be on the start date at the selected time
+        if (payoutHour !== undefined && payoutMinute !== undefined) {
+          nextPayoutDate.setHours(payoutHour, payoutMinute, 0, 0);
+        }
+      } else if (frequency === 'weekly') {
         nextPayoutDate.setDate(startDateObj.getDate() + 7);
       } else if (frequency === "weekly_specific" && dayOfWeek !== undefined) {
         // Calculate the next occurrence of the specified day of week
@@ -157,6 +133,8 @@ export function useCreatePayout() {
       const metadata = {
         originalFrequency: frequency,
         dayOfWeek: dayOfWeek,
+        payoutHour: payoutHour,
+        payoutMinute: payoutMinute
       };
 
       // ➕ Insert payout plan into DB
@@ -186,20 +164,17 @@ export function useCreatePayout() {
         .single();
 
       if (payoutError) {
-        console.error("Error creating payout plan:", payoutError);
+        console.error('Error creating payout plan:', payoutError);
         throw payoutError;
       }
 
-      console.log("Payout plan created:", payoutPlan.id);
+      console.log('Payout plan created:', payoutPlan.id);
 
       // 🔒 Lock funds via RPC with unambiguous parameter names
-      const { data: lockResult, error: lockError } = await supabase.rpc(
-        "lock_funds",
-        {
-          arg_user_id: session.user.id,
-          arg_amount: totalAmount,
-        }
-      );
+      const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
+        arg_user_id: session.user.id,
+        arg_amount: totalAmount
+      });
 
       if (lockError) {
         console.error("Error locking funds:", lockError);
@@ -263,23 +238,34 @@ export function useCreatePayout() {
         payout_plan_id: payoutPlan.id,
       });
 
-      // 📱 Send push notification
-      try {
-        const { sendPayoutPlanCreatedNotification } = await import(
-          "@/lib/notification-helpers"
-        );
-        await sendPayoutPlanCreatedNotification(
-          session.user.id,
-          name,
-          payoutAmount
-        );
-      } catch (notificationError) {
-        console.error(
-          "Failed to send payout plan created push notification:",
-          notificationError
-        );
-        // Don't fail the entire operation if notification fails
-      }
+      // 🔔 Create notification
+      // Format frequency for display
+      const frequencyDisplay = 
+        frequency === 'daily' ? 'daily' :
+        frequency === 'weekly' || frequency === 'weekly_specific' ? 'weekly' :
+        frequency === 'biweekly' ? 'bi-weekly' :
+        frequency === 'monthly' ? 'monthly' :
+        frequency === 'end_of_month' ? 'at the end of each month' :
+        frequency === 'quarterly' ? 'quarterly' :
+        frequency === 'biannual' ? 'twice a year' :
+        frequency === 'annually' ? 'annually' :
+        frequency === 'custom' ? 'on custom dates' :
+        'as scheduled';
+
+      await inAppNotificationService.createNotification(
+        session.user.id,
+        'Payout Plan Created',
+        `Your payout plan "${name}" has been created successfully. ₦${payoutAmount.toLocaleString()} will be paid ${frequencyDisplay}.`,
+        'payout',
+        {
+          payoutPlanId: payoutPlan.id,
+          payoutAmount: payoutAmount,
+          totalAmount: totalAmount,
+          frequency: frequency,
+          route: '/all-payouts',
+        },
+        true // Schedule local notification
+      );
 
       // ♻️ Refresh wallet
       await refreshWallet();

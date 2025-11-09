@@ -202,8 +202,16 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   dashboardButton: {
     backgroundColor: colors.primary,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   receiptButton: {
     borderColor: colors.border,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
 });

@@ -9,7 +9,10 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import FastImage from 'react-native-fast-image';
+import FastImageImport from 'react-native-fast-image';
+import { Image } from 'react-native';
+// FastImage may not be available in all environments; cast to any for static usage and JSX
+const FastImage: any = FastImageImport;
 import { router } from 'expo-router';
 import { useSharedValue, useAnimatedReaction } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -52,7 +55,7 @@ export default function BannerCarousel({
   const [imageLoadedMap, setImageLoadedMap] = useState<Record<string, boolean>>({});
 
   const scrollViewRef = useRef<ScrollView>(null);
-  const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoPlayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const animatedIndex = useSharedValue(0);
 
@@ -76,16 +79,17 @@ export default function BannerCarousel({
         const bannersData = data || [];
         setBanners(bannersData);
 
-        await Promise.all(
-          bannersData.map((banner: Banner) =>
-            FastImage.preload([
-              {
-                uri: banner.image_url,
-                priority: FastImage.priority.high,
-              },
-            ])
-          )
-        );
+        if (FastImage && typeof FastImage.preload === 'function') {
+          await Promise.all(
+            bannersData.map((banner: Banner) =>
+              FastImage.preload([
+                {
+                  uri: banner.image_url,
+                },
+              ])
+            )
+          );
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load banners');
       } finally {
@@ -97,11 +101,12 @@ export default function BannerCarousel({
 
   useEffect(() => {
     if (autoPlay && banners.length > 1 && !isLoading) {
-      autoPlayTimerRef.current = setInterval(() => {
+      // cast setInterval return to environment-agnostic ReturnType<typeof setInterval>
+      autoPlayTimerRef.current = (setInterval(() => {
         const nextIndex = (currentIndex + 1) % banners.length;
         scrollToIndex(nextIndex);
         setCurrentIndex(nextIndex);
-      }, autoPlayInterval);
+      }, autoPlayInterval) as unknown) as ReturnType<typeof setInterval>;
     }
     return () => {
       if (autoPlayTimerRef.current) {
@@ -179,28 +184,46 @@ export default function BannerCarousel({
                   <ActivityIndicator size="small" color={colors.primary} />
                 </View>
               )}
-              <FastImage
-                source={{
-                  uri: banner.image_url,
-                  priority: FastImage.priority.high,
-                  cache: FastImage.cacheControl.immutable,
-                }}
-                style={styles.image}
-                resizeMode={FastImage.resizeMode.cover}
-                onLoad={() =>
-                  setImageLoadedMap((prev) => ({
-                    ...prev,
-                    [banner.id]: true,
-                  }))
-                }
-                onError={() => {
-                  console.warn('Failed to load image:', banner.image_url);
-                  setImageLoadedMap((prev) => ({
-                    ...prev,
-                    [banner.id]: true,
-                  }));
-                }}
-              />
+              {FastImage ? (
+                <FastImage
+                  source={{ uri: banner.image_url }}
+                  style={styles.image}
+                  resizeMode={FastImage.resizeMode?.cover || 'cover'}
+                  onLoad={() =>
+                    setImageLoadedMap((prev) => ({
+                      ...prev,
+                      [banner.id]: true,
+                    }))
+                  }
+                  onError={() => {
+                    console.warn('Failed to load image:', banner.image_url);
+                    setImageLoadedMap((prev) => ({
+                      ...prev,
+                      [banner.id]: true,
+                    }));
+                  }}
+                />
+              ) : (
+                // Fallback to a simple Image if FastImage isn't available
+                <Image
+                  source={{ uri: banner.image_url }}
+                  style={styles.image}
+                  resizeMode={'cover'}
+                  onLoad={() =>
+                    setImageLoadedMap((prev) => ({
+                      ...prev,
+                      [banner.id]: true,
+                    }))
+                  }
+                  onError={() => {
+                    console.warn('Failed to load image:', banner.image_url);
+                    setImageLoadedMap((prev) => ({
+                      ...prev,
+                      [banner.id]: true,
+                    }));
+                  }}
+                />
+              )}
             </Pressable>
           );
         })}

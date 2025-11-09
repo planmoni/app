@@ -1,20 +1,20 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check } from 'lucide-react-native';
+import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCreatePayout } from '@/hooks/useCreatePayout';
 import { useBalance } from '@/contexts/BalanceContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import ErrorMessage from '@/components/ErrorMessage';
-import { Platform } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatDisplayDate, formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 import { useBanks } from '@/hooks/useBanks';
-import React from 'react';
 import { getBankIconLogo } from '@/lib/bankIcons';
+import { usePin } from '@/contexts/PinContext';
+import PinVerificationModal from '@/components/PinVerificationModal';
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -23,7 +23,9 @@ export default function ReviewScreen() {
   const { balance, lockedBalance, refreshWallet } = useBalance();
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showPinVerification, setShowPinVerification] = useState(false);
   const { banks } = useBanks();
+  const { verifyPayoutPin, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin } = usePin();
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;
@@ -39,6 +41,8 @@ export default function ReviewScreen() {
   const emergencyWithdrawal = params.emergencyWithdrawal === 'true';
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
   const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
+  const payoutHour = params.payoutHour ? parseInt(params.payoutHour as string) : undefined;
+  const payoutMinute = params.payoutMinute ? parseInt(params.payoutMinute as string) : undefined;
 
   // Calculate available balance
   const availableBalance = balance - lockedBalance;
@@ -46,10 +50,9 @@ export default function ReviewScreen() {
   // Parse total amount to number for comparison
   const numericTotalAmount = parseFloat(totalAmount.replace(/,/g, ''));
   
-  // Check if user has enough balance
+  // Check if user has insufficient balance
   const hasInsufficientBalance = numericTotalAmount > availableBalance;
 
-  // Refresh wallet balance when component mounts
   useEffect(() => {
     const fetchBalance = async () => {
       setIsRefreshing(true);
@@ -67,17 +70,7 @@ export default function ReviewScreen() {
     fetchBalance();
   }, []);
 
-  const handleStartPlan = async () => {
-    if (hasInsufficientBalance) {
-      haptics.error();
-      Alert.alert(
-        "Insufficient Balance",
-        `You need ₦${numericTotalAmount.toLocaleString()} but only have ₦${availableBalance.toLocaleString()} available.`,
-        [{ text: "OK" }]
-      );
-      return;
-    }
-    
+  const handleConfirmPayout = useCallback(async () => {
     try {
       console.log('Creating payout plan with the following parameters:');
       console.log('- Name:', `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`);
@@ -108,30 +101,76 @@ export default function ReviewScreen() {
         bankAccountId: bankAccountId || null,
         payoutAccountId: payoutAccountId || null,
         customDates,
-        emergencyWithdrawalEnabled: emergencyWithdrawal
+        emergencyWithdrawalEnabled: emergencyWithdrawal,
+        payoutHour: payoutHour,
+        payoutMinute: payoutMinute,
       });
     } catch (err) {
-      console.error('Error in handleStartPlan:', err);
+      console.error('Error in handleConfirmPayout:', err);
       if (Platform.OS !== 'web') {
         haptics.error();
       }
     }
-  };
+  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, emergencyWithdrawal, haptics, createPayout]);
+
+  const handleStartPlan = useCallback(async () => {
+    if (hasInsufficientBalance) {
+      Alert.alert(
+        'Insufficient Balance',
+        `You need at least ₦${numericTotalAmount.toLocaleString()} to start this payout plan. Your current available balance is ₦${availableBalance.toLocaleString()}.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    if (Platform.OS !== 'web') {
+      haptics.mediumImpact();
+    }
+    
+    // Check if payout biometric is enabled OR if payout PIN exists OR if app lock PIN exists (as fallback)
+    const requiresVerification = payoutBiometricEnabled || hasPayoutPin || hasAppLockPin;
+    
+    if (!requiresVerification) {
+      console.log('Create Payout - No verification required, proceeding without PIN/biometric');
+      await handleConfirmPayout();
+      return;
+    }
+    
+    console.log('Create Payout - Verification required', { 
+      payoutBiometricEnabled, 
+      hasPayoutPin, 
+      hasAppLockPin 
+    });
+    
+    // Show PIN verification modal (will auto-trigger biometric if enabled)
+    setShowPinVerification(true);
+  }, [hasInsufficientBalance, numericTotalAmount, availableBalance, haptics, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin, handleConfirmPayout]);
+
+  const handlePinVerificationSuccess = useCallback(async () => {
+    setShowPinVerification(false);
+    await handleConfirmPayout();
+  }, [handleConfirmPayout]);
+
+  const handlePinVerificationClose = useCallback(() => {
+    setShowPinVerification(false);
+  }, []);
 
   const styles = createStyles(colors, isDark);
 
   // Helper function to get bank code from bank name
-  const getBankCode = (bankName: string): string | null => {
+  const getBankCode = useCallback((bankName: string): string | null => {
     const bank = banks.find(b => b.name.toLowerCase().includes(bankName.toLowerCase()) || 
                                  bankName.toLowerCase().includes(b.name.toLowerCase()));
     return bank?.code || null;
-  };
+  }, [banks]);
 
   // Get duration display text based on frequency
-  const getDurationDisplay = () => {
+  const getDurationDisplay = useCallback(() => {
     const durationNum = parseInt(duration);
     
     switch (frequency) {
+      case 'daily':
+        return durationNum === 1 ? '1 day' : `${durationNum} days`;
       case 'weekly':
         return durationNum === 1 ? '1 week' : `${durationNum} weeks`;
       case 'weekly_specific':
@@ -149,11 +188,25 @@ export default function ReviewScreen() {
       case 'annually':
         return durationNum === 1 ? '1 year' : `${durationNum} years`;
       case 'custom':
-        return durationNum === 1 ? '1 payout' : `${durationNum} payouts`;
+        return `${durationNum} custom dates`;
       default:
         return `${durationNum} payouts`;
     }
-  };
+  }, [duration, frequency]);
+
+  const getPayoutTimeDisplay = useCallback(() => {
+    if (payoutHour !== undefined && payoutMinute !== undefined) {
+      const date = new Date();
+      date.setHours(payoutHour, payoutMinute, 0, 0);
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+    return '9:00 AM'; // Default time
+  }, [payoutHour, payoutMinute]);
+
   function getNextPayoutDate(startDate: string, frequency: string, customDates: string[] = [], dayOfWeek?: number): string {
     if (frequency === 'custom' && customDates.length > 0) {
       return formatDisplayDate(customDates[0]);
@@ -161,6 +214,10 @@ export default function ReviewScreen() {
 
     const start = new Date(startDate);
     const next = new Date(start);
+    if (frequency === 'daily') {
+      next.setDate(start.getDate() + 1);
+      return formatDisplayDate(next.toISOString());
+    }
 
     if (frequency === 'weekly_specific' && typeof dayOfWeek === 'number') {
       // Find the next occurrence of the selected dayOfWeek (0=Sunday, 6=Saturday) on or after startDate
@@ -173,6 +230,9 @@ export default function ReviewScreen() {
     }
 
     switch (frequency) {
+      case 'daily':
+        next.setDate(start.getDate() + 1);
+        break;
       case 'weekly':
         next.setDate(start.getDate() + 7);
         break;
@@ -214,6 +274,17 @@ export default function ReviewScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
+        <Pressable 
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              haptics.lightImpact();
+            }
+            router.push('/(tabs)');
+          }} 
+          style={styles.cancelButton}
+        >
+          <X size={24} color={colors.text} />
+        </Pressable>
       </View>
 
       <View style={styles.progressContainer}>
@@ -244,8 +315,8 @@ export default function ReviewScreen() {
 
             <View style={styles.detailsList}>
               <View style={styles.detailItem}>
-                <View style={[styles.detailIcon, { backgroundColor: '#F0FDF4' }]}>
-                  <Wallet size={20} color="#22C55E" />
+                <View style={[styles.detailIcon, { backgroundColor:colors.backgroundTertiary}]}>
+                  <Wallet size={20} color={colors.text} />
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Total Amount</Text>
@@ -265,8 +336,8 @@ export default function ReviewScreen() {
               </View>
 
               <View style={styles.detailItem}>
-                <View style={[styles.detailIcon, { backgroundColor: '#EFF6FF' }]}>
-                  <Calendar size={20} color="#1E3A8A" />
+                <View style={[styles.detailIcon, { backgroundColor:colors.backgroundTertiary}]}>
+                  <Calendar size={20} color={colors.text} />
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Payout Frequency</Text>
@@ -287,13 +358,13 @@ export default function ReviewScreen() {
               </View>
 
               <View style={styles.detailItem}>
-                <View style={[styles.detailIcon, { backgroundColor: '#F5F3FF' }]}>
-                  <Clock size={20} color="#8B5CF6" />
+                <View style={[styles.detailIcon, { backgroundColor:colors.backgroundTertiary}]}>
+                  <Clock size={20} color={colors.text} />
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Duration</Text>
                   <Text style={styles.detailValue}>{getDurationDisplay()}</Text>
-                  <Text style={styles.detailSubtext}>First payout on {getNextPayoutDate(startDate, frequency, customDates, dayOfWeek)}</Text>
+                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)} at {getPayoutTimeDisplay()}</Text>
                 </View>
                 <Pressable 
                   style={styles.editButton} 
@@ -309,7 +380,7 @@ export default function ReviewScreen() {
               </View>
 
               <View style={styles.detailItem}>
-                <View style={[styles.detailIcon, { backgroundColor: '#F0F9FF' }]}>
+                <View style={[styles.detailIcon, { backgroundColor:colors.backgroundTertiary}]}>
                   {(() => {
                     const bankIcon = getBankIconLogo(bankName);
                     if (bankIcon.logoSvg) {
@@ -317,7 +388,7 @@ export default function ReviewScreen() {
                       return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
                         width: 20,
                         height: 20,
-                        fill: "#0EA5E9"
+                        fill: colors.text
                       });
                     } else if (bankIcon.logo) {
                       return (
@@ -397,28 +468,7 @@ export default function ReviewScreen() {
               </Text>
             </View>
 
-            {emergencyWithdrawal && (
-              <View style={styles.emergencyInfoBox}>
-                <View style={styles.emergencyInfoIcon}>
-                  <Shield size={20} color="#1E3A8A" />
-                </View>
-                <Text style={styles.emergencyInfoText}>
-                  You've enabled emergency withdrawals for this plan. You can access your funds before the scheduled dates if needed, subject to applicable fees.
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.balanceInfo}>
-              <Text style={styles.balanceInfoText}>
-                Current wallet balance: <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
-              </Text>
-              <Text style={styles.balanceInfoText}>
-                Available balance: <Text style={[
-                  styles.balanceAmount, 
-                  hasInsufficientBalance && styles.insufficientBalance
-                ]}>₦{availableBalance.toLocaleString()}</Text>
-              </Text>
-            </View>
+            
           </View>
         </ScrollView>
       </KeyboardAvoidingWrapper>
@@ -428,6 +478,16 @@ export default function ReviewScreen() {
         onPress={handleStartPlan}
         disabled={isLoading || isRefreshing || hasInsufficientBalance}
         loading={isLoading}
+      />
+
+      <PinVerificationModal
+        isVisible={showPinVerification}
+        onClose={handlePinVerificationClose}
+        onSuccess={handlePinVerificationSuccess}
+        title="Enter Pin to confirm"
+        description="Enter your PIN to confirm payout plan"
+        customVerifyPin={hasPayoutPin || hasAppLockPin ? verifyPayoutPin : undefined}
+        biometricType="payout"
       />
     </SafeAreaView>
   );
@@ -441,6 +501,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: colors.surface,
@@ -458,6 +519,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+    flex: 1,
+    textAlign: 'center',
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   progressContainer: {
     padding: 20,

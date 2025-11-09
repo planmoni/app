@@ -28,7 +28,7 @@ export default function AuthorizationScreen() {
       // Process the deposit
       const numericAmount = parseFloat(amount.replace(/,/g, ''));
       console.log('Funding wallet with amount:', numericAmount);
-      await addFunds(numericAmount);
+  await addFunds?.(numericAmount);
       haptics.success();
       
       // Navigate to success screen

@@ -14,16 +14,35 @@
       "backgroundColor": "#1E3A8A"
     },
     "android": {
-      "package": "com.planmoni"
+      "package": "com.planmoni",
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
+     "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.planmoni",
+      "bundleIdentifier": "app.planmoni",
+      "buildNumber": "1",
       "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"],
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": [
-          "remote-notification"
-        ]
+        "NSLocationWhenInUseUsageDescription": "This app uses location services to provide a better experience.",
+        "NSLocationAlwaysUsageDescription": "This app uses location services to provide a better experience.",
+        "NSLocationUsageDescription": "This app uses location services to provide a better experience.",
+        "NSPhotoLibraryUsageDescription": "This app uses the photo library to provide a better experience.",
+        "NSCameraUsageDescription": "This app needs access to camera for liveness verification",
+        "NSMicrophoneUsageDescription": "This app uses the microphone to provide a better experience."
+      },
+      "entitlements": {
+        "aps-environment": "development",
+        "com.apple.security.application-groups": [
+          "group.${ios.bundleIdentifier}.onesignal"
+        ],
+        "keychain-access-groups": ["$(AppIdentifierPrefix)com.planmoni"]
       }
     },
     "web": {
@@ -32,19 +51,53 @@
       "favicon": "./assets/images/AppIcon.png"
     },
     "plugins": [
-      "expo-router",
-      "expo-font",
-      "expo-web-browser",
       [
-        "expo-build-properties",
-        { "android": { "compileSdkVersion": 35, "targetSdkVersion": 35, "minSdkVersion": 23 } }
+        "onesignal-expo-plugin",
+        {
+          "mode": "development"
+        }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "$(PRODUCT_NAME) needs access to your Camera to perform liveness verification.",
+          "enableMicrophonePermission": false,
+          "enableCodeScanner": false
+        }
       ],
       [
         "@intercom/intercom-react-native",
         {
           "appId": "tf4dp3qt",
           "androidApiKey": "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",
-          "iosApiKey": "ios_sdk-de52645ae34ab0f059890a422f90b18092032115",
+          "iosApiKey": "ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4",
+          "intercomRegion": "US"
+        }
+      ],
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        { 
+          "android": { 
+            "compileSdkVersion": 35, 
+            "targetSdkVersion": 35, 
+            "minSdkVersion": 29,
+            "buildToolsVersion": "35.0.0"
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ],
+      [
+        "@intercom/intercom-react-native",
+        {
+          "appId": "tf4dp3qt",
+          "androidApiKey": "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",
+          "iosApiKey": "ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4",
           "intercomRegion": "US"
         }
       ]

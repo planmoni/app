@@ -1,18 +1,17 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Animated, Dimensions, Platform, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Animated, Dimensions, Platform, Modal , Image } from 'react-native';
 import { X, Copy, ArrowUpRight, BanknoteArrowUp, ArrowDownRight, FileText, Image as LucideImage, BanknoteArrowDown } from 'lucide-react-native';
-import { Image } from 'react-native';
 import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system';
 import * as Print from 'expo-print';
 import { useToast } from '@/contexts/ToastContext';
-import React from 'react';
 import { captureRef } from 'react-native-view-shot';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
 // Planmoni logo as base64 (truncated for brevity)
 const PLANMONI_LOGO_BASE64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABXwAAAFUCAYAAACXwfQTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAEtrSURBVHgB7d3LcxRX1...'; // Use the full string from logo-base64.txt
@@ -55,11 +54,38 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
   // Animation values
   const slideAnim = useRef(new Animated.Value(screenHeight)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
   
   const receiptViewRef = useRef<View>(null);
   
+  // Gesture handling
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationY: translateY } }],
+    { useNativeDriver: true }
+  );
+
+  const onHandlerStateChange = (event: any) => {
+    if (event.nativeEvent.state === State.END) {
+      const { translationY, velocityY } = event.nativeEvent;
+      
+      // If swiped down more than 100px or with high velocity, close modal
+      if (translationY > 100 || velocityY > 500) {
+        handleClose();
+      } else {
+        // Snap back to original position
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    }
+  };
+
   useEffect(() => {
     if (isVisible) {
+      // Reset translateY
+      translateY.setValue(0);
+      
       // Animate modal in
       Animated.parallel([
         Animated.timing(overlayOpacity, {
@@ -481,7 +507,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Date: {transaction.date} {transaction.time}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Transaction ID: {transaction.transactionId}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Type: {transaction.type}</Text>
-      <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Source: {transaction.source}</Text>
+      <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Source Plan: {transaction.source}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Destination: {transaction.destination}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Plan Ref: {transaction.planRef}</Text>
       <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>Payment Method: {transaction.paymentMethod}</Text>
@@ -501,120 +527,133 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
         ]}
         pointerEvents={isVisible ? 'auto' : 'none'}
       >
-        <Animated.View
-          style={[
-            styles.modal,
-            {
-              transform: [{ translateY: slideAnim }],
-              maxHeight: modalMaxHeight
-            }
-          ]}
+        <PanGestureHandler
+          onGestureEvent={onGestureEvent}
+          onHandlerStateChange={onHandlerStateChange}
         >
-          <View style={styles.header}>
-            <View style={styles.headerContent}>
-              <Text style={styles.title}>Transaction Details</Text>
-              <Pressable onPress={handleClose} style={styles.closeButton}>
-                <X size={24} color="#FFFFFF" />
-              </Pressable>
-            </View>
-            <View style={styles.amountSection}>
-              <View style={[styles.amountIcon, { backgroundColor: isPositive ? '#DCFCE7' : '#FEE2E2' }]}>
-                {isPositive ? (
-                  <BanknoteArrowDown size={24} color="#22C55E" />
-                ) : (
-                  <BanknoteArrowUp size={24} color="#EF4444" />
-                )}
-              </View>
-              <View>
-                <Text style={[styles.amount, isPositive ? styles.positiveAmount : styles.negativeAmount]}>
-                  {transaction.amount}
-                </Text>
-                <Text style={[styles.status, isPositive ? styles.positiveStatus : styles.negativeStatus]}>
-                  {transaction.status}
-                </Text>
-              </View>
-            </View>
-          </View>
+          <Animated.View
+            style={[
+              styles.modal,
+              {
+                transform: [
+                  { translateY: Animated.add(slideAnim, translateY) }
+                ],
+                maxHeight: modalMaxHeight
+              }
+            ]}
+          >
+            {/* Drag indicator for better UX */}
+            <View style={styles.dragIndicator} />
 
-          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Transaction Information</Text>
-              <View style={styles.field}>
-                <Text style={styles.label}>Date & Time</Text>
-                <Text style={styles.value}>{transaction.date} at {transaction.time}</Text>
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.label}>Transaction Type</Text>
-                <Text style={styles.value}>{transaction.type}</Text>
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.label}>Source</Text>
-                <Text style={styles.value}>{transaction.source}</Text>
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.label}>Destination</Text>
-                <Text style={styles.value}>{transaction.destination}</Text>
+            {/* Header with title and close button - outside scroll view */}
+            <View style={styles.header}>
+              <View style={styles.headerContent}>
+                <Text style={styles.title}>Transaction Details</Text>
+                <Pressable onPress={handleClose} style={styles.closeButton}>
+                  <X size={24} color={colors.text} />
+                </Pressable>
               </View>
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Reference Details</Text>
-              <View style={styles.field}>
-                <Text style={styles.label}>Transaction ID</Text>
-                <View style={styles.idContainer}>
-                  <Text style={styles.value}>{transaction.transactionId}</Text>
-                  <Pressable onPress={handleCopyTransactionId} style={styles.copyButton}>
-                    <Copy size={20} color="#1E3A8A" />
-                  </Pressable>
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+              {/* Amount section moved inside scroll view */}
+              <View style={styles.amountSection}>
+                <View style={[styles.amountIcon, { backgroundColor: colors.primary }]}>
+                  {isPositive ? (
+                    <BanknoteArrowDown size={24} color="#FFFFFF" />
+                  ) : (
+                    <BanknoteArrowUp size={24} color="#FFFFFF" />
+                  )}
+                </View>
+                <View>
+                  <Text style={[styles.amount, isPositive ? styles.positiveAmount : styles.negativeAmount]}>
+                    {transaction.amount}
+                  </Text>
+                  <Text style={[styles.status, isPositive ? styles.positiveStatus : styles.negativeStatus]}>
+                    {transaction.status}
+                  </Text>
                 </View>
               </View>
 
-              <View style={styles.field}>
-                <Text style={styles.label}>Payout Plan Ref</Text>
-                <Text style={styles.value}>{transaction.planRef}</Text>
+              {/* Transaction Information Section */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Transaction Information</Text>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Date & Time</Text>
+                  <Text style={styles.value}>{transaction.date} at {transaction.time}</Text>
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>Transaction Type</Text>
+                  <Text style={styles.value}>{transaction.type}</Text>
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>Source Plan</Text>
+                  <Text style={styles.value}>{transaction.source}</Text>
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>Destination</Text>
+                  <Text style={styles.value}>{transaction.destination}</Text>
+                </View>
               </View>
-            </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Additional Details</Text>
-              <View style={styles.field}>
-                <Text style={styles.label}>Payment Method</Text>
-                <Text style={styles.value}>{transaction.paymentMethod}</Text>
+              {/* Reference Details Section */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Reference Details</Text>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Transaction ID</Text>
+                  <View style={styles.idContainer}>
+                    <Text style={styles.value}>{transaction.transactionId}</Text>
+                    <Pressable onPress={handleCopyTransactionId} style={styles.copyButton}>
+                      <Copy size={20} color={colors.primary} />
+                    </Pressable>
+                  </View>
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>Payout Plan Ref</Text>
+                  <Text style={styles.value}>{transaction.planRef}</Text>
+                </View>
               </View>
 
-              <View style={styles.field}>
-                <Text style={styles.label}>Initiated By</Text>
-                <Text style={styles.value}>{transaction.initiatedBy}</Text>
+              {/* Additional Details Section */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Additional Details</Text>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Payment Method</Text>
+                  <Text style={styles.value}>{transaction.paymentMethod}</Text>
+                </View>
+
+               
+
+                <View style={styles.field}>
+                  <Text style={styles.label}>Processing Time</Text>
+                  <Text style={styles.value}>{transaction.processingTime}</Text>
+                </View>
               </View>
 
-              <View style={styles.field}>
-                <Text style={styles.label}>Processing Time</Text>
-                <Text style={styles.value}>{transaction.processingTime}</Text>
+              {/* Footer content moved inside scroll view */}
+              <View style={styles.footer}>
+                <Button
+                  title="Download Receipt"
+                  style={styles.receiptButton}
+                  onPress={handleDownloadReceipt}
+                  hapticType="medium" />
+                <Button
+                  title="Report an Issue"
+                  variant="outline"
+                  style={styles.reportButton}
+                  onPress={handleReportIssue}
+                  hapticType="warning" />
               </View>
-            </View>
-          </ScrollView>
-
-          <View style={styles.footer}>
-            <Button
-              title="Download Receipt"
-              style={styles.receiptButton}
-              onPress={handleDownloadReceipt}
-              hapticType="medium" />
-            <Button
-              title="Report an Issue"
-              variant="outline"
-              style={styles.reportButton}
-              onPress={handleReportIssue}
-              hapticType="warning" />
-          </View>
-
-          {/* Drag indicator for better UX */}
-          <View style={styles.dragIndicator} />
-        </Animated.View>
+            </ScrollView>
+          </Animated.View>
+        </PanGestureHandler>
       </Animated.View>
+
+      {/* Format selection modal remains outside */}
       <Modal
         visible={showFormatModal}
         transparent={true}
@@ -673,7 +712,6 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     width: '100%',
     height: '90%',
     overflow: 'hidden',
-    // Add shadow for iOS
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -697,33 +735,43 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     zIndex: 10,
   },
   header: {
-    backgroundColor: '#1E3A8A',
-    padding: 24,
-    paddingTop: 32, // Extra padding for drag indicator
+    backgroundColor: colors.surface,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
   },
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: colors.text, // Change from white to theme text color
   },
   closeButton: {
     width: 40,
     height: 40,
+    marginLeft: 110,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.backgroundTertiary, // Change from blue to theme background
     borderRadius: 20,
   },
   amountSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 26,
+    backgroundColor: colors.backgroundTertiary,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 16,
+    marginTop: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   amountIcon: {
     width: 48,
@@ -731,6 +779,7 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.primary,
   },
   amount: {
     fontSize: 24,
@@ -738,27 +787,29 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     marginBottom: 4,
   },
   positiveAmount: {
-    color: '#fff',
+    color: '#22C55E', // Green for positive amounts
   },
   negativeAmount: {
-    color: '#fff',
+    color: colors.text, // Red for negative amounts
   },
   status: {
     fontSize: 14,
     fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   positiveStatus: {
-    color: '#fff',
+    color: colors.text, // Dark green for positive status
   },
   negativeStatus: {
-    color: '#fff',
+    color: colors.text, // Dark red for negative status
   },
   scrollView: {
-    maxHeight: '60%', // Limit scroll view height
+    flex: 1, // Take full height of modal
   },
   scrollContent: {
-    padding: 24,
-    paddingBottom: 32,
+    paddingHorizontal: 24, // Add horizontal padding
+    paddingBottom: Math.max(14, insets.bottom), // Add bottom padding for safe area
   },
   section: {
     marginBottom: 32,
@@ -768,19 +819,30 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     fontWeight: '600',
     color: colors.text,
     marginBottom: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   field: {
-    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   label: {
     fontSize: 14,
     color: colors.textSecondary,
-    marginBottom: 4,
+    fontWeight: '500',
+    flex: 1,
   },
   value: {
     fontSize: 16,
     color: colors.text,
-    fontWeight: '500',
+    fontWeight: '600',
+    textAlign: 'right',
+    flex: 1,
   },
   idContainer: {
     flexDirection: 'row',
@@ -789,24 +851,37 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     backgroundColor: colors.backgroundTertiary,
     padding: 12,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   copyButton: {
     padding: 8,
     backgroundColor: colors.backgroundSecondary,
     borderRadius: 8,
+    marginLeft: 8,
   },
   footer: {
     padding: 24,
     paddingBottom: Math.max(14, insets.bottom),
-    gap: 10,
+    gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    backgroundColor: colors.backgroundTertiary,
   },
   receiptButton: {
-    backgroundColor: '#1E3A8A',
+    backgroundColor: colors.primary,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   reportButton: {
     borderColor: colors.border,
+    backgroundColor: colors.surface,
+    height: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 100,
   },
   formatModalOverlay: {
     flex: 1,

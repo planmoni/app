@@ -5,6 +5,9 @@ export const APP_LOCK_PIN_KEY = 'app_lock_pin';
 export const APP_LOCK_ENABLED_KEY = 'app_lock_enabled';
 export const BIOMETRIC_ENABLED_KEY = 'biometric_enabled';
 export const BIOMETRIC_TOKEN_KEY = 'biometric_token';
+export const AUTH_SESSION_KEY = 'auth_session';
+export const AUTH_REFRESH_TOKEN_KEY = 'auth_refresh_token';
+export const AUTH_ACCESS_TOKEN_KEY = 'auth_access_token';
 
 // Web storage implementation
 class WebStorage {

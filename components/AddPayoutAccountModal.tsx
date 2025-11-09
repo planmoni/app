@@ -1,6 +1,5 @@
-import React from 'react';
-import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Animated, Dimensions, Platform, Image, KeyboardAvoidingView } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Modal, View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Animated, Dimensions, Platform, Image, KeyboardAvoidingView , useWindowDimensions } from 'react-native';
 import { X, Check, TriangleAlert as AlertTriangle, ChevronDown } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '@/components/Button';
@@ -12,7 +11,6 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useBanks, Bank } from '@/hooks/useBanks';
 import { useAccountResolution } from '@/hooks/useAccountResolution';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useWindowDimensions } from 'react-native';
 
 interface AddPayoutAccountModalProps {
   isVisible: boolean;
@@ -778,9 +776,15 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
   },
   addButton: {
     backgroundColor: colors.primary,
+    height: 55,
+    borderRadius: 100,
+    justifyContent: 'center',
   },
   cancelButton: {
     borderColor: colors.border,
+    height: 55,
+    borderRadius: 100,
+    justifyContent: 'center',
   },
   bankListModal: {
     backgroundColor: colors.surface,

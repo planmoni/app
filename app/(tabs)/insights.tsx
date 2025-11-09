@@ -1,16 +1,20 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
 import { TrendingUp, TrendingDown, Users, ArrowUpRight, ArrowDownRight, Wallet, Clock, Calendar, Send } from 'lucide-react-native';
 import Card from '@/components/Card';
 import { useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useInsightsData } from '@/hooks/useInsightsData';
+import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import Button from '@/components/Button';
+import SummaryCard from '@/components/SummaryCard';
+
 
 export default function InsightsScreen() {
   const { colors, isDark } = useTheme();
   const { metrics, trends, vaultStats, isLoading, error, refreshInsights } = useInsightsData();
+  const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
 
   // Map icon names to components
   const getIconComponent = (iconName: string) => {
@@ -25,9 +29,84 @@ export default function InsightsScreen() {
     }
   };
 
+  // Calculate summary stats from actual data
+  const totalPaidOut = payoutPlans.reduce((sum, plan) => 
+    sum + (plan.completed_payouts * plan.payout_amount), 0
+  );
+  
+  const pendingPayouts = payoutPlans
+    .filter(plan => plan.status === 'active')
+    .reduce((sum, plan) => 
+      sum + ((plan.duration - plan.completed_payouts) * plan.payout_amount), 0
+    );
+
+  const completionRate = payoutPlans.length > 0 
+    ? Math.round((payoutPlans.filter(plan => plan.status === 'completed').length / payoutPlans.length) * 100)
+    : 0;
+
+  // Get active payout plans for display
+  const activePlans = payoutPlans.filter(plan => plan.status === 'active');
+
+  // Find the last payout date - the most recent completed payout
+  const getLastPayoutDate = () => {
+    // Sort all plans by their completed_payouts and find the most recent one
+    const completedPayouts = payoutPlans.filter(plan => plan.completed_payouts > 0);
+    
+    if (completedPayouts.length === 0) {
+      return 'No payouts yet';
+    }
+    
+    // For simplicity, we'll use the start_date and completed_payouts to estimate the last payout date
+    // In a real app, you would track actual payout dates in transactions
+    const mostRecentPlan = completedPayouts.reduce((latest, current) => {
+      const latestDate = new Date(latest.start_date);
+      const currentDate = new Date(current.start_date);
+      
+      // Add time based on frequency and completed payouts
+      let latestPayoutDate = new Date(latestDate);
+      let currentPayoutDate = new Date(currentDate);
+      
+      if (latest.frequency === 'weekly') {
+        latestPayoutDate.setDate(latestDate.getDate() + (7 * (latest.completed_payouts - 1)));
+      } else if (latest.frequency === 'biweekly') {
+        latestPayoutDate.setDate(latestDate.getDate() + (14 * (latest.completed_payouts - 1)));
+      } else if (latest.frequency === 'monthly') {
+        latestPayoutDate.setMonth(latestDate.getMonth() + (latest.completed_payouts - 1));
+      }
+      
+      if (current.frequency === 'weekly') {
+        currentPayoutDate.setDate(currentDate.getDate() + (7 * (current.completed_payouts - 1)));
+      } else if (current.frequency === 'biweekly') {
+        currentPayoutDate.setDate(currentDate.getDate() + (14 * (current.completed_payouts - 1)));
+      } else if (current.frequency === 'monthly') {
+        currentPayoutDate.setMonth(currentDate.getMonth() + (current.completed_payouts - 1));
+      }
+      
+      return currentPayoutDate > latestPayoutDate ? current : latest;
+    });
+    
+    // Calculate the estimated last payout date
+    const startDate = new Date(mostRecentPlan.start_date);
+    let lastPayoutDate = new Date(startDate);
+    
+    if (mostRecentPlan.frequency === 'weekly') {
+      lastPayoutDate.setDate(startDate.getDate() + (7 * (mostRecentPlan.completed_payouts - 1)));
+    } else if (mostRecentPlan.frequency === 'biweekly') {
+      lastPayoutDate.setDate(startDate.getDate() + (14 * (mostRecentPlan.completed_payouts - 1)));
+    } else if (mostRecentPlan.frequency === 'monthly') {
+      lastPayoutDate.setMonth(startDate.getMonth() + (mostRecentPlan.completed_payouts - 1));
+    }
+    
+    return lastPayoutDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
   const styles = createStyles(colors, isDark);
 
-  if (isLoading) {
+  if (isLoading || payoutPlansLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
@@ -66,6 +145,9 @@ export default function InsightsScreen() {
       
       <ScrollView style={styles.content}>
         <View style={styles.contentPadding}>
+          {/* Summary Card */}
+          
+
           <Text style={styles.sectionTitle}>Key Metrics</Text>
           <View style={styles.metricsGrid}>
             {metrics.map((metric, index) => {
@@ -104,6 +186,14 @@ export default function InsightsScreen() {
               );
             })}
           </View>
+          <SummaryCard 
+            totalPaidOut={totalPaidOut}
+            pendingPayouts={pendingPayouts}
+            completionRate={completionRate}
+            activePlans={activePlans}
+            payoutPlans={payoutPlans}
+            getLastPayoutDate={getLastPayoutDate}
+          />
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Performance Trends</Text>
@@ -137,14 +227,15 @@ export default function InsightsScreen() {
               </Card>
             ))}
           </View>
+          
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Vault Performance</Text>
+            <Text style={styles.sectionTitle}>Percentage completed</Text>
             {vaultStats.length === 0 ? (
               <Card style={styles.emptyVaultCard}>
-                <Text style={styles.emptyVaultText}>No active vaults found</Text>
+                <Text style={styles.emptyVaultText}>No ongoing payout plans found</Text>
                 <Text style={styles.emptyVaultSubtext}>
-                  Create a payout plan to start tracking your vault performance
+                  Create a payout plan to start tracking your progress
                 </Text>
               </Card>
             ) : (
@@ -189,7 +280,7 @@ export default function InsightsScreen() {
                     <View 
                       style={[
                         styles.progressFill,
-                        { width: vault.progress }
+                        { width: parseFloat(vault.progress) }
                       ]} 
                     />
                   </View>
@@ -216,7 +307,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: Platform.OS === 'ios' ? 24 : 20,
     fontWeight: '700',
     color: colors.text,
   },
@@ -224,7 +315,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
   },
   contentPadding: {
-    padding: 16,
+    padding: Platform.OS === 'ios' ? 16 : 10,
     paddingBottom: 32,
   },
   loadingContainer: {
@@ -234,7 +325,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 16,
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     color: colors.textSecondary,
   },
   errorContainer: {
@@ -244,17 +335,17 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 24,
   },
   errorText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     color: colors.error,
     textAlign: 'center',
     marginBottom: 16,
   },
   retryButton: {
-    minWidth: 120,
+    minWidth: Platform.OS === 'ios' ? 120 : 100,
     backgroundColor: colors.primary,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: Platform.OS === 'ios' ? 18 : 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 16,
@@ -262,12 +353,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: Platform.OS === 'ios' ? 12 : 10,
     marginBottom: 24,
   },
   metricCard: {
     flex: 1,
-    minWidth: '48%',
+    minWidth: Platform.OS === 'ios' ? '48%' : '40%',
     padding: 16,
   },
   metricHeader: {
@@ -277,18 +368,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 12,
   },
   metricTitle: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
   },
   metricIcon: {
-    width: 36,
-    height: 36,
+    width: Platform.OS === 'ios' ? 36 : 32,
+    height: Platform.OS === 'ios' ? 36 : 32,
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
   metricValue: {
-    fontSize: 24,
+    fontSize: Platform.OS === 'ios' ? 24 : 20,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -300,38 +391,38 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 8,
   },
   metricChangeText: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '500',
   },
   metricDescription: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     color: colors.textSecondary,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   trendCard: {
-    marginBottom: 12,
+    marginBottom: Platform.OS === 'ios' ? 12 : 10,
   },
   trendContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: 16,
+    padding: Platform.OS === 'ios' ? 16 : 10,
   },
   trendTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '500',
     color: colors.text,
     marginBottom: 4,
   },
   trendDescription: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
     marginBottom: 12,
   },
   trendDetails: {
-    gap: 8,
+    gap: Platform.OS === 'ios' ? 8 : 6,
   },
   detailItem: {
     flexDirection: 'row',
@@ -339,26 +430,26 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   detailLabel: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     color: colors.textSecondary,
   },
   detailValue: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     fontWeight: '500',
     color: colors.text,
   },
   trendValue: {
-    paddingHorizontal: 12,
+    paddingHorizontal: Platform.OS === 'ios' ? 12 : 10,
     paddingVertical: 6,
     borderRadius: 16,
   },
   trendValueText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
   },
   vaultCard: {
-    marginBottom: 12,
-    padding: 16,
+    marginBottom: Platform.OS === 'ios' ? 12 : 10 ,
+    padding: Platform.OS === 'ios' ? 16 : 10,
   },
   emptyVaultCard: {
     padding: 32,
@@ -366,13 +457,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
   },
   emptyVaultText: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '500',
     color: colors.text,
     marginBottom: 8,
+    textAlign: 'center',
   },
   emptyVaultSubtext: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     color: colors.textSecondary,
     textAlign: 'center',
   },
@@ -383,39 +475,40 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 16,
   },
   vaultTitle: {
-    fontSize: 16,
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '500',
     color: colors.text,
+    maxWidth: '80%',
   },
   vaultStatus: {
-    paddingHorizontal: 8,
+    paddingHorizontal: Platform.OS === 'ios' ? 8 : 6,
     paddingVertical: 4,
     borderRadius: 12,
   },
   vaultStatusText: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     fontWeight: '500',
   },
   vaultStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: Platform.OS === 'ios' ? 16 : 10,
   },
   vaultStat: {
     alignItems: 'center',
   },
   vaultStatLabel: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'ios' ? 12 : 10,
     color: colors.textSecondary,
     marginBottom: 4,
   },
   vaultStatValue: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'ios' ? 14 : 12,
     fontWeight: '600',
     color: colors.text,
   },
   progressBar: {
-    height: 4,
+    height: Platform.OS === 'ios' ? 4 : 3,
     backgroundColor: colors.border,
     borderRadius: 2,
   },
