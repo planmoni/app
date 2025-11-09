@@ -17,6 +17,7 @@ import {
   EyeOff,
   Plus,
   CalendarCheck,
+  Clock,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -35,6 +36,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAppLock } from '@/contexts/AppLockContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
@@ -49,6 +51,7 @@ import NextPayoutCard from '@/components/NextPayoutCard';
 import PayoutPlansSection from '@/components/PayoutPlansSection';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
+import OnTrackCard from '@/components/OnTrackCard';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
 // import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
@@ -68,6 +71,7 @@ export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
+  const { updateLastActiveOnInteraction } = useAppLock();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { account: paystackAccount, isLoading: paystackAccountLoading } = useRealtimePaystackAccount();
@@ -520,6 +524,8 @@ export default function HomeScreen() {
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: false }
         )}
+        onScrollBeginDrag={() => updateLastActiveOnInteraction()}
+        onTouchStart={() => updateLastActiveOnInteraction()}
         scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
@@ -591,8 +597,8 @@ export default function HomeScreen() {
             <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
             <View style={styles.lockedSection}>
               <View style={styles.lockedLabelContainer}>
-                {/* <Clock size={16} color={colors.textSecondary} /> */}
-                <Text style={styles.lockedLabel}>You have {formatBalance(lockedBalance)} in payout plans</Text>
+                <Clock size={16} color={colors.textSecondary} />
+                <Text style={styles.lockedLabel}>{formatBalance(lockedBalance)} in active payout plans</Text>
               </View>
               {/* <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text> */}
             </View>
@@ -616,6 +622,9 @@ export default function HomeScreen() {
             </View>
           </View>
         </ImageBackground>
+        
+        {/* On Track Card */}
+        <OnTrackCard payoutPlans={payoutPlans} />
         
         {/* AI Suggestion Section */}
         <AISuggestionCard 
@@ -824,14 +833,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     letterSpacing: 0.5,
   },
   balanceCard: {
-    borderRadius: 4,
+    borderRadius: 15,
+    borderWidth: 0.5,
+    borderColor: colors.border,
     overflow: 'hidden',
     marginBottom: 10,
-    shadowColor: '#000000',
-    // shadowOffset: { width: 6, height: 6},
-    // shadowOpacity: 0.09,
-    // shadowRadius: 9,
-    // elevation: 0.9,
   },
   balanceCardContent: {
     paddingVertical: Platform.OS === 'ios' ? 16 : 10,

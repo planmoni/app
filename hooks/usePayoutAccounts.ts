@@ -145,11 +145,11 @@ export function usePayoutAccounts() {
 
       if (updateError) throw updateError;
       
-      // Update local state
+      // Update local state - ensure only one account is default
       setPayoutAccounts(prev => 
         prev.map(account => ({
           ...account,
-          is_default: account.id === accountId,
+          is_default: account.id === accountId, // Only the selected account is default
           updated_at: new Date().toISOString()
         }))
       );

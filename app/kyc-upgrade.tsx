@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image, Modal, useWindowDimensions, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Shield, User, Calendar, Info, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, ChevronLeft, X } from 'lucide-react-native';
+import { ArrowLeft, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
@@ -17,8 +17,16 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
 import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 import { safeHavenService } from '@/lib/safehaven-service';
-
-type IdentityType = 'bvn' | 'nin' | 'passport';
+import { useCameraPermission } from 'react-native-vision-camera';
+import CameraPermissionModal from '@/components/CameraPermissionModal';
+import DatePickerModal from '@/components/DatePickerModal';
+import PersonalInfoStep from '@/components/KYCSteps/PersonalInfoStep';
+import BVNVerificationStep from '@/components/KYCSteps/BVNVerificationStep';
+import IDFaceMatchStep from '@/components/KYCSteps/IDFaceMatchStep';
+import DocumentsVerificationStep from '@/components/KYCSteps/DocumentsVerificationStep';
+import AddressDetailsStep from '@/components/KYCSteps/AddressDetailsStep';
+import ReviewStep from '@/components/KYCSteps/ReviewStep';
+import { IdentityType } from '@/components/KYCSteps/types';
 
 export default function KYCUpgradeScreen() {
   const { colors, isDark } = useTheme();
@@ -33,9 +41,10 @@ export default function KYCUpgradeScreen() {
   // Custom hooks for KYC data and progress
   const { formData, loading: formDataLoading, saveFormData } = useKYCData();
   const { progress, loading: progressLoading, updateProgress, getStepProgress, updateTier, currentTier, checkTierCompletion } = useKYCProgress();
+  const params = useLocalSearchParams<{ selfieUrl?: string }>();
   
   
-
+  
   
   
   // Helper function to get the first incomplete step from scratch
@@ -99,6 +108,10 @@ export default function KYCUpgradeScreen() {
   const [livenessInitiated, setLivenessInitiated] = useState(false);
   const [livenessManuallyClosed, setLivenessManuallyClosed] = useState(false);
   const [livenessCompleted, setLivenessCompleted] = useState(false);
+  
+  // Camera permission modals
+  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
+  const { hasPermission, requestPermission } = useCameraPermission();
   
   // Personal information
   const [firstName, setFirstName] = useState('');
@@ -164,25 +177,25 @@ export default function KYCUpgradeScreen() {
     }
   }, [session]);
 
-  // Check for liveness test completion when on liveness_verification step
+  // Show camera permission modal when on liveness_verification step
   useEffect(() => {
-    const checkLivenessTestForStep = async () => {
-      // Only check if we're on the liveness_verification step
-      if (currentStep !== 'liveness_verification') {
-        return;
-      }
+    // Only check if we're on the liveness_verification step
+    if (currentStep !== 'liveness_verification') {
+      return;
+    }
 
-      // Only check if we haven't already initiated liveness test and it's not manually closed
-      if (livenessInitiated || showLivenessTest || livenessManuallyClosed) {
-        return;
-      }
+    // Only check if we haven't already initiated liveness test and it's not manually closed
+    if (livenessInitiated || showLivenessTest || livenessManuallyClosed || showCameraPermissionModal) {
+      return;
+    }
 
-      // Check if liveness test is completed in progress
-      if (progress?.liveness_test_completed) {
-        return; // Liveness already completed, move to next step
-      }
+    // Check if liveness test is completed in progress
+    if (progress?.liveness_test_completed) {
+      return; // Liveness already completed, move to next step
+    }
 
-      // Check if selfie exists in kyc_data table
+    // Check if selfie exists in kyc_data table
+    const checkSelfie = async () => {
       try {
         const { data: kycData } = await supabase
           .from('kyc_data')
@@ -192,21 +205,29 @@ export default function KYCUpgradeScreen() {
         
         const hasSelfie = kycData?.selfie_url && kycData.selfie_url.trim() !== '';
         
-        // If no selfie and liveness not completed, show liveness test
+        // If no selfie and liveness not completed, show camera permission modal
         if (!hasSelfie && !progress?.liveness_test_completed) {
-          console.log('On liveness_verification step - showing liveness test');
-          setShowLivenessTest(true);
-          setLivenessInitiated(true);
+          console.log('On liveness_verification step - showing camera permission modal');
+          setShowCameraPermissionModal(true);
         }
       } catch (error) {
         console.error('Error checking liveness test status:', error);
       }
     };
 
-    if (progress && session?.user?.id && currentStep === 'liveness_verification') {
-      checkLivenessTestForStep();
+    if (progress && session?.user?.id) {
+      checkSelfie();
     }
-  }, [currentStep, progress, session?.user?.id, livenessInitiated, showLivenessTest, livenessManuallyClosed]);
+  }, [currentStep, progress, session?.user?.id, livenessInitiated, showLivenessTest, livenessManuallyClosed, showCameraPermissionModal]);
+
+  // Handle selfie URL from navigation params (when coming from CameraPermissionModal)
+  useEffect(() => {
+    if (params.selfieUrl && !livenessCompleted && !progress?.liveness_test_completed) {
+      // Selfie URL passed from navigation - handle liveness completion
+      handleLivenessComplete(params.selfieUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.selfieUrl]);
 
   // Load form data and progress when they change
   useEffect(() => {
@@ -247,6 +268,13 @@ export default function KYCUpgradeScreen() {
         if (formData.document_front_url) setDocumentFrontImage(formData.document_front_url);
         if (formData.document_back_url) setDocumentBackImage(formData.document_back_url);
         if (formData.selfie_url) setSelfieImage(formData.selfie_url);
+        
+        // Check if selfie exists but liveness is not marked as completed in progress
+        // This handles the case where liveness was completed but progress hasn't updated yet
+        if (formData.selfie_url && !progress?.liveness_test_completed) {
+          // Selfie exists but progress not updated - trigger handleLivenessComplete
+          handleLivenessComplete(formData.selfie_url);
+        }
         
         // Load address details
         if (formData.lga) setLga(formData.lga);
@@ -2041,20 +2069,7 @@ export default function KYCUpgradeScreen() {
     }
   };
   
-  // Date picker functions
-  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const MONTHS = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
-  const getDaysInMonth = (date: Date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonth = (date: Date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-  };
+  // Date picker functions moved to DatePickerModal component
 
   const formatDateForDisplay = (date: Date) => {
     const day = String(date.getDate()).padStart(2, '0');
@@ -2392,170 +2407,8 @@ export default function KYCUpgradeScreen() {
   };
 
   
-  const renderPersonalInfoStep = () => {
-    return (
-      <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>Basic Information</Text>
-        <Text style={styles.sectionDescription}>
-          Please provide your personal details as they appear on your official documents.
-        </Text>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>First Name</Text>
-          <View style={[styles.inputContainer, errors.firstName && styles.inputError]}>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your first name"
-              placeholderTextColor={colors.textTertiary}
-              value={firstName}
-              onChangeText={(text) => {
-                setFirstName(text);
-                setErrors(prev => ({ ...prev, firstName: '' }));
-              }}
-              autoCapitalize="words"
-              returnKeyType="next"
-              onSubmitEditing={() => lastNameInputRef.current?.focus()}
-            />
-          </View>
-          {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Last Name</Text>
-          <View style={[styles.inputContainer, errors.lastName && styles.inputError]}>
-            <TextInput
-              ref={lastNameInputRef}
-              style={styles.input}
-              placeholder="Enter your last name"
-              placeholderTextColor={colors.textTertiary}
-              value={lastName}
-              onChangeText={(text) => {
-                setLastName(text);
-                setErrors(prev => ({ ...prev, lastName: '' }));
-              }}
-              autoCapitalize="words"
-              returnKeyType="next"
-              onSubmitEditing={() => middleNameInputRef.current?.focus()}
-            />
-          </View>
-          {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Middle Name (Optional)</Text>
-          <View style={styles.inputContainer}>
-            <TextInput
-              ref={middleNameInputRef}
-              style={styles.input}
-              placeholder="Enter your middle name"
-              placeholderTextColor={colors.textTertiary}
-              value={middleName}
-              onChangeText={setMiddleName}
-              autoCapitalize="words"
-              returnKeyType="next"
-              onSubmitEditing={() => phoneInputRef.current?.focus()}
-            />
-          </View>
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Date of Birth</Text>
-          <Pressable 
-            style={[styles.inputContainer, errors.dateOfBirth && styles.inputError]}
-            onPress={handleDatePickerOpen}
-          >
-            <View style={styles.dateInputContent}>
-              <Calendar size={20} color={colors.textSecondary} />
-              <Text style={[
-                styles.dateInputText,
-                !dateOfBirth && styles.dateInputPlaceholder
-              ]}>
-                {dateOfBirth || 'DD/MM/YYYY'}
-              </Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
-          {errors.dateOfBirth && <Text style={styles.errorText}>{errors.dateOfBirth}</Text>}
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Phone Number</Text>
-          <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
-            <TextInput
-              ref={phoneInputRef}
-              style={styles.input}
-              placeholder="090XXXXXXXX"
-              placeholderTextColor={colors.textTertiary}
-              value={phoneNumber}
-              onChangeText={(text) => {
-                setPhoneNumber(text);
-                setErrors(prev => ({ ...prev, phoneNumber: '' }));
-              }}
-              keyboardType="phone-pad"
-              returnKeyType="next"
-              onSubmitEditing={() => addressInputRef.current?.focus()}
-            />
-          </View>
-          {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>House/Street Number</Text>
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter house/street number"
-              placeholderTextColor={colors.textTertiary}
-              value={addressNo}
-              onChangeText={(text) => {
-                setAddressNo(text);
-                setErrors(prev => ({ ...prev, addressNo: '' }));
-              }}
-              keyboardType="numeric"
-            />
-          </View>
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Residential Address</Text>
-          <Pressable 
-            style={[styles.inputContainer, errors.address && styles.inputError]}
-            onPress={() => setShowLocationSearch(true)}
-          >
-            <TextInput
-              ref={addressInputRef}
-              style={[styles.input, styles.multilineInput]}
-              placeholder="Tap to search for your address"
-              placeholderTextColor={colors.textTertiary}
-              value={address}
-              onChangeText={(text) => {
-                setAddress(text);
-                setErrors(prev => ({ ...prev, address: '' }));
-              }}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-              editable={false}
-            />
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
-          {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
-          {address && (
-            <Text style={styles.locationInfo}>
-              📍 Location selected from map
-            </Text>
-          )}
-        </View>
-        
-        <View style={styles.infoContainer}>
-          <Info size={20} color={colors.primary} />
-          <Text style={styles.infoText}>
-            Your personal information is securely stored and will only be used for verification purposes.
-          </Text>
-        </View>
-      </View>
-    );
-  };
+  // Handle camera permission request
+  // Camera permission handling moved to CameraPermissionModal component
   
   const renderDocumentsVerificationStep = () => {
     return (
@@ -3420,210 +3273,172 @@ export default function KYCUpgradeScreen() {
   const renderCurrentStep = () => {
     switch (currentStep) {
       case 'liveness_verification':
-        return renderLivenessVerificationStep();
+        // Skip rendering - modal will handle this step
+        return null;
       case 'personal':
-        return renderPersonalInfoStep();
+        return (
+          <PersonalInfoStep
+            firstName={firstName}
+            lastName={lastName}
+            middleName={middleName}
+            dateOfBirth={dateOfBirth}
+            phoneNumber={phoneNumber}
+            address={address}
+            addressNo={addressNo}
+            errors={errors}
+            onFirstNameChange={(text) => {
+              setFirstName(text);
+              setErrors(prev => ({ ...prev, firstName: '' }));
+            }}
+            onLastNameChange={(text) => {
+              setLastName(text);
+              setErrors(prev => ({ ...prev, lastName: '' }));
+            }}
+            onMiddleNameChange={setMiddleName}
+            onDateOfBirthChange={(text) => {
+              setDateOfBirth(text);
+              setErrors(prev => ({ ...prev, dateOfBirth: '' }));
+            }}
+            onPhoneNumberChange={(text) => {
+              setPhoneNumber(text);
+              setErrors(prev => ({ ...prev, phoneNumber: '' }));
+            }}
+            onAddressChange={(text) => {
+              setAddress(text);
+              setErrors(prev => ({ ...prev, address: '' }));
+            }}
+            onAddressNoChange={(text) => {
+              setAddressNo(text);
+              setErrors(prev => ({ ...prev, addressNo: '' }));
+            }}
+            onDatePickerOpen={handleDatePickerOpen}
+            onLocationSearchOpen={() => setShowLocationSearch(true)}
+            lastNameInputRef={lastNameInputRef}
+            middleNameInputRef={middleNameInputRef}
+            phoneInputRef={phoneInputRef}
+            addressInputRef={addressInputRef}
+          />
+        );
       case 'bvn_verification':
-        return renderBvnVerificationStep();
+        return (
+          <BVNVerificationStep
+            bvn={bvn}
+            errors={errors}
+            bvnVerified={bvnVerified}
+            bvnMatchedName={bvnMatchedName}
+            isResolvingBvn={isResolvingBvn}
+            onBvnChange={(text) => {
+              setBvn(text);
+              setErrors(prev => ({ ...prev, bvn: '' }));
+            }}
+            handleNumericInput={handleNumericInput}
+            bvnInputRef={bvnInputRef}
+          />
+        );
       case 'id_face_match':
-        return renderIDFaceMatchStep();
+        return (
+          <IDFaceMatchStep
+            nin={nin}
+            errors={errors}
+            bvnVerified={bvnVerified}
+            isVerifyingDocuments={isVerifyingDocuments}
+            documentsVerified={documentsVerified}
+            onNinChange={(text) => {
+              setNin(text);
+              setErrors(prev => ({ ...prev, nin: '' }));
+            }}
+          />
+        );
       case 'documents_verification':
-        return renderDocumentsVerificationStep();
+        return (
+          <DocumentsVerificationStep
+            selectedIdentityType={selectedIdentityType}
+            documentFrontImage={documentFrontImage}
+            documentBackImage={documentBackImage}
+            errors={errors}
+            onIdentityTypeChange={setSelectedIdentityType}
+            onDocumentFrontImageChange={(uri) => {
+              setDocumentFrontImage(uri);
+              setErrors(prev => ({ ...prev, documentFront: '' }));
+            }}
+            onDocumentBackImageChange={(uri) => {
+              setDocumentBackImage(uri);
+              setErrors(prev => ({ ...prev, documentBack: '' }));
+            }}
+            onPickImage={async (setImageFunction, type) => {
+              await pickImage(setImageFunction as React.Dispatch<React.SetStateAction<string | null>>, type);
+            }}
+            onTakePicture={takePicture}
+          />
+        );
       case 'address_details':
-        return renderAddressDetailsStep();
+        return (
+          <AddressDetailsStep
+            addressNo={addressNo}
+            address={address}
+            lga={lga}
+            state={state}
+            houseUrl={houseUrl}
+            utilityBill={utilityBill}
+            errors={errors}
+            onAddressNoChange={(text) => {
+              setAddressNo(text);
+              setErrors(prev => ({ ...prev, addressNo: '' }));
+            }}
+            onAddressChange={(text) => {
+              setAddress(text);
+              setErrors(prev => ({ ...prev, address: '' }));
+            }}
+            onLgaChange={(text) => {
+              setLga(text);
+              setErrors(prev => ({ ...prev, lga: '' }));
+            }}
+            onStateChange={(text) => {
+              setState(text);
+              setErrors(prev => ({ ...prev, state: '' }));
+            }}
+            onHouseUrlChange={(uri) => {
+              setHouseUrl(uri);
+              setErrors(prev => ({ ...prev, houseUrl: '' }));
+            }}
+            onUtilityBillChange={(uri) => {
+              setUtilityBill(uri);
+              setErrors(prev => ({ ...prev, utilityBill: '' }));
+            }}
+            onLocationSearchOpen={() => setShowLocationSearch(true)}
+            onPickImage={async (setImageFunction, type) => {
+              await pickImage(setImageFunction as React.Dispatch<React.SetStateAction<string | null>>, type);
+            }}
+            onTakePicture={takePicture}
+            addressInputRef={addressInputRef}
+          />
+        );
       case 'review':
-        return renderReviewStep();
+        return (
+          <ReviewStep
+            firstName={firstName}
+            lastName={lastName}
+            middleName={middleName}
+            dateOfBirth={dateOfBirth}
+            phoneNumber={phoneNumber}
+            addressNo={addressNo}
+            address={address}
+            lga={lga}
+            state={state}
+            bvn={bvn}
+            bvnVerified={bvnVerified}
+            selectedIdentityType={selectedIdentityType}
+            nin={nin}
+            passportNumber={passportNumber}
+            documentsVerified={documentsVerified}
+            houseUrl={houseUrl}
+            utilityBill={utilityBill}
+          />
+        );
     }
   };
 
-  const renderDatePickerModal = () => {
-    const daysInMonth = getDaysInMonth(currentMonth);
-    const firstDayOffset = getFirstDayOfMonth(currentMonth);
-
-    return (
-      <Modal
-        visible={isDatePickerVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleDatePickerClose}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.datePickerModal}>
-            <View style={styles.datePickerHeader}>
-              <Text style={styles.datePickerTitle}>Select Date of Birth</Text>
-              <Pressable onPress={handleDatePickerClose} style={styles.datePickerCloseButton}>
-                <X size={20} color={colors.text} />
-              </Pressable>
-            </View>
-
-            <View style={styles.calendarHeader}>
-              {!showYearPicker ? (
-                <>
-                  <Pressable onPress={handlePrevMonth} style={styles.navigationButton}>
-                    <ChevronLeft size={20} color={colors.textSecondary} />
-                  </Pressable>
-                  <View style={styles.monthYearContainer}>
-                    <Pressable 
-                      onPress={() => setShowYearPicker(true)}
-                      style={styles.monthYearPressable}
-                    >
-                      <Text style={styles.monthYearText}>
-                        {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-                      </Text>
-                    </Pressable>
-                  </View>
-                  <Pressable onPress={handleNextMonth} style={styles.navigationButton}>
-                    <ChevronRight size={20} color={colors.textSecondary} />
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <Pressable onPress={handlePrevYear} style={styles.navigationButton}>
-                    <ChevronLeft size={20} color={colors.textSecondary} />
-                  </Pressable>
-                  <View style={styles.monthYearContainer}>
-                    <Pressable 
-                      onPress={() => setShowYearPicker(false)}
-                      style={styles.monthYearPressable}
-                    >
-                      <Text style={styles.monthYearText}>
-                        {currentMonth.getFullYear()}
-                      </Text>
-                    </Pressable>
-                  </View>
-                  <Pressable onPress={handleNextYear} style={styles.navigationButton}>
-                    <ChevronRight size={20} color={colors.textSecondary} />
-                  </Pressable>
-                </>
-              )}
-            </View>
-
-            {showYearPicker ? (
-              <ScrollView style={styles.yearPickerContainer} contentContainerStyle={styles.yearPickerContent}>
-                <View style={styles.yearPickerGrid}>
-                  {getAvailableYears().map((year) => {
-                    const isSelected = year === currentMonth.getFullYear();
-                    const isCurrentYear = year === new Date().getFullYear();
-                    return (
-                      <Pressable
-                        key={year}
-                        style={[
-                          styles.yearItem,
-                          isSelected && styles.yearItemSelected,
-                        ]}
-                        onPress={() => handleYearSelect(year)}
-                      >
-                        <Text style={[
-                          styles.yearItemText,
-                          isSelected && styles.yearItemTextSelected,
-                          isCurrentYear && !isSelected && styles.yearItemTextCurrent,
-                        ]}>
-                          {year}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-            ) : (
-              <>
-                <View style={styles.calendarContainer}>
-                  <View style={styles.weekDays}>
-                    {DAYS.map(day => (
-                      <View key={day} style={styles.weekDay}>
-                        <Text style={styles.weekDayText}>{day}</Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  <View style={styles.daysGridContainer}>
-                    {(() => {
-                      const totalCells = firstDayOffset + daysInMonth;
-                      const totalRows = Math.ceil(totalCells / 7);
-                      const weeks = [];
-                      
-                      // Build array of all cells (null for empty, number for day)
-                      const allCells = [];
-                      for (let i = 0; i < firstDayOffset; i++) {
-                        allCells.push(null);
-                      }
-                      for (let day = 1; day <= daysInMonth; day++) {
-                        allCells.push(day);
-                      }
-                      const remainingCells = totalRows * 7 - allCells.length;
-                      for (let i = 0; i < remainingCells; i++) {
-                        allCells.push(null);
-                      }
-                      
-                      // Split into weeks (rows of 7)
-                      for (let row = 0; row < totalRows; row++) {
-                        const week = allCells.slice(row * 7, (row + 1) * 7);
-                        weeks.push(week);
-                      }
-                      
-                      return weeks.map((week, weekIndex) => (
-                        <View key={`week-${weekIndex}`} style={styles.weekRow}>
-                          {week.map((day, dayIndex) => {
-                            if (day === null) {
-                              return <View key={`empty-${weekIndex}-${dayIndex}`} style={styles.dayCell} />;
-                            }
-                            
-                            const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-                            const isSelectable = isDateSelectable(date);
-                            const isSelected = selectedDate && 
-                              date.getDate() === selectedDate.getDate() &&
-                              date.getMonth() === selectedDate.getMonth() &&
-                              date.getFullYear() === selectedDate.getFullYear();
-
-                            return (
-                              <Pressable
-                                key={`day-${weekIndex}-${dayIndex}-${day}`}
-                                style={[
-                                  styles.dayCell,
-                                  isSelected && styles.selectedDay,
-                                  !isSelectable && styles.disabledDay,
-                                ]}
-                                onPress={() => isSelectable && handleDateSelect(date)}
-                                disabled={!isSelectable}
-                              >
-                                <Text style={[
-                                  styles.dayText,
-                                  isSelected && styles.selectedDayText,
-                                  !isSelectable && styles.disabledDayText,
-                                ]}>
-                                  {day}
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      ));
-                    })()}
-                  </View>
-                </View>
-              </>
-            )}
-
-            <View style={styles.datePickerActions}>
-              <Pressable 
-                style={[styles.datePickerButton, styles.cancelButton]}
-                onPress={handleDatePickerClose}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.datePickerButton, styles.confirmButton]}
-                onPress={handleDateConfirm}
-                disabled={!selectedDate}
-              >
-                <Text style={styles.confirmButtonText}>Confirm</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
+  // Date picker modal moved to DatePickerModal component
   
   // Calculate responsive sizes
   const headerPadding = isSmallScreen ? 12 : 16;
@@ -4302,6 +4117,104 @@ export default function KYCUpgradeScreen() {
       color: colors.textSecondary,
       fontWeight: '500',
     },
+    // Permission modal styles
+    permissionModal: {
+      width: '90%',
+      maxWidth: 400,
+      borderRadius: 16,
+      padding: 24,
+      alignSelf: 'center',
+    },
+    permissionModalHeader: {
+      alignItems: 'center',
+      marginBottom: 24,
+    },
+    permissionIconContainer: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    permissionDeniedIconContainer: {
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2',
+    },
+    permissionModalTitle: {
+      fontSize: isSmallScreen ? 20 : 24,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    permissionModalContent: {
+      marginBottom: 24,
+    },
+    permissionModalText: {
+      fontSize: isSmallScreen ? 14 : 16,
+      lineHeight: isSmallScreen ? 20 : 24,
+      textAlign: 'center',
+      marginBottom: 20,
+    },
+    permissionModalSubtext: {
+      fontSize: isSmallScreen ? 13 : 14,
+      lineHeight: isSmallScreen ? 18 : 20,
+      textAlign: 'center',
+      marginTop: 16,
+    },
+    permissionInfoList: {
+      gap: 12,
+      marginTop: 8,
+    },
+    permissionInfoItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+    },
+    permissionInfoText: {
+      flex: 1,
+      fontSize: isSmallScreen ? 13 : 14,
+      lineHeight: isSmallScreen ? 18 : 20,
+    },
+    permissionWarningBox: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      padding: 16,
+      borderRadius: 12,
+      borderWidth: 1,
+      marginTop: 16,
+    },
+    permissionWarningText: {
+      flex: 1,
+      fontSize: isSmallScreen ? 13 : 14,
+      lineHeight: isSmallScreen ? 18 : 20,
+      fontWeight: '500',
+    },
+    permissionModalActions: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    permissionModalButton: {
+      flex: 1,
+      paddingVertical: 14,
+      paddingHorizontal: 24,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    permissionModalButtonPrimary: {
+      // backgroundColor set inline
+    },
+    permissionModalButtonSecondary: {
+      borderWidth: 1,
+      backgroundColor: 'transparent',
+    },
+    permissionModalButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    permissionModalButtonTextPrimary: {
+      color: '#FFFFFF',
+    },
   });
   
   if ((formDataLoading || progressLoading) && !currentStep) {
@@ -4349,18 +4262,32 @@ export default function KYCUpgradeScreen() {
           disabled={
             isLoading || 
             formDataLoading ||
-            progressLoading ||
+            (progressLoading && currentStep !== 'liveness_verification') || // Allow liveness step even if progress is loading
             isResolvingBvn || 
             isVerifyingDocuments || 
             (currentStep === 'bvn_verification' && bvnVerified) ||
             (currentStep === 'id_face_match' && documentsVerified) ||
             (currentStep === 'id_face_match' && !!ninIdentityId && !otp.trim())
           }
-          loading={isLoading || formDataLoading || progressLoading || isResolvingBvn || isVerifyingDocuments}
+          loading={isLoading || formDataLoading || (progressLoading && currentStep !== 'liveness_verification') || isResolvingBvn || isVerifyingDocuments}
         />
       )}
       
-      {renderDatePickerModal()}
+      <DatePickerModal
+        visible={isDatePickerVisible}
+        selectedDate={selectedDate}
+        currentMonth={currentMonth}
+        showYearPicker={showYearPicker}
+        onClose={handleDatePickerClose}
+        onDateSelect={handleDateSelect}
+        onDateConfirm={handleDateConfirm}
+        onPrevMonth={handlePrevMonth}
+        onNextMonth={handleNextMonth}
+        onPrevYear={handlePrevYear}
+        onNextYear={handleNextYear}
+        onYearSelect={handleYearSelect}
+        onShowYearPicker={setShowYearPicker}
+      />
       
       <LocationSearchModal
         visible={showLocationSearch}
@@ -4369,11 +4296,22 @@ export default function KYCUpgradeScreen() {
         placeholder="Search for your address..."
       />
       
-      
       <LivenessTestEnhanced 
         isVisible={showLivenessTest}
         onClose={handleLivenessClose}
         onComplete={handleLivenessComplete}
+      />
+      
+      <CameraPermissionModal
+        isVisible={showCameraPermissionModal}
+        onClose={() => {
+          setShowCameraPermissionModal(false);
+          router.back();
+        }}
+        onComplete={(selfieUrl: string) => {
+          // Handle liveness completion if needed
+          handleLivenessComplete(selfieUrl);
+        }}
       />
     </SafeAreaView>
   );

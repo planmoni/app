@@ -281,6 +281,7 @@ export default function AddFundsScreen() {
         >
           <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
             Direct Deposit
+            Direct Deposit
           </Text>
         </Pressable>
         <Animated.View 
@@ -398,6 +399,7 @@ export default function AddFundsScreen() {
         {/* Cards/Bank/USSD Tab (now Direct Deposit) */}
         {/* <View style={[styles.tabContent, { width: screenWidth }]}> 
           <View style={styles.content}>
+            <Text style={styles.title}>Choose a <Text style={styles.highlight}>Linked Account</Text></Text>
             <Text style={styles.title}>Choose a <Text style={styles.highlight}>Linked Account</Text></Text>
             <Text style={styles.description}>
               Select your preferred payment option to add funds to your wallet.
@@ -1007,4 +1009,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     color: colors.textSecondary,
     fontWeight: '600',
   },
+  
+  
+  
 });

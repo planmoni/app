@@ -95,6 +95,7 @@ export default function LivenessTestEnhanced({
     progressValue.value = 0;
     pitchAngles.current = [];
     nodBaseline.current = null;
+    isCapturingPhotoRef.current = false;
     
     // Clear any pending timers
     if (setupTimerRef.current) {
@@ -104,6 +105,10 @@ export default function LivenessTestEnhanced({
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
+    }
+    if (photoCaptureTimerRef.current) {
+      clearTimeout(photoCaptureTimerRef.current);
+      photoCaptureTimerRef.current = null;
     }
   }, [progressValue]);
 
@@ -151,6 +156,8 @@ export default function LivenessTestEnhanced({
     return () => {
       if (setupTimerRef.current) clearTimeout(setupTimerRef.current);
       if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+      if (photoCaptureTimerRef.current) clearTimeout(photoCaptureTimerRef.current);
+      isCapturingPhotoRef.current = false;
     };
   }, []);
 

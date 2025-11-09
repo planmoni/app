@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
 import KYCVerificationModal from '@/components/KYCVerificationModal';
+import CameraPermissionModal from '@/components/CameraPermissionModal';
 import Tier0Icon from '@/assets/kyc/tier-0.svg';
 import Tier1Icon from '@/assets/kyc/tier-1.svg';
 import Tier2Icon from '@/assets/kyc/tier-2.svg';
@@ -22,6 +23,7 @@ export default function KYCCard() {
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
   const styles = createStyles(colors, isDark);
 
   // Check verification status from kyc_verifications table
@@ -93,7 +95,9 @@ export default function KYCCard() {
   const handlePress = () => {
     haptics.mediumImpact();
     console.log('KYCCard handlePress called, kycStatus:', kycStatus);
+    
     if (kycStatus === 'starting') {
+      // Always show KYCVerificationModal first when starting
       console.log('Setting showVerificationModal to true');
       setShowVerificationModal(true);
     } else {
@@ -102,7 +106,30 @@ export default function KYCCard() {
   };
 
   const handleStartVerification = () => {
-    router.push('/kyc-upgrade');
+    // Close KYCVerificationModal first
+    setShowVerificationModal(false);
+    
+    // Wait for the slide-out animation to complete (350ms) before showing CameraPermissionModal
+    // This ensures the KYCVerificationModal doesn't block the CameraPermissionModal
+    setTimeout(() => {
+      // Check if liveness test is not completed (first step of Tier 1)
+      if (progress && !progress.liveness_test_completed) {
+        // Show camera permission modal after KYCVerificationModal has closed
+        setShowCameraPermissionModal(true);
+      } else {
+        // Navigate directly to kyc-upgrade if liveness test is already completed
+        router.push('/kyc-upgrade');
+      }
+    }, 400); // Slightly longer than the slide-out animation (350ms)
+  };
+
+  const handleLivenessComplete = (selfieUrl: string) => {
+    // After liveness test is completed, navigate to kyc-upgrade with selfie URL
+    setShowCameraPermissionModal(false);
+    router.push({
+      pathname: '/kyc-upgrade',
+      params: { selfieUrl }
+    });
   };
 
   // Helper function to get step display name
@@ -113,7 +140,7 @@ export default function KYCCard() {
       case 'bvn_verification':
         return 'BVN Verification';
       case 'id_face_match':
-        return 'ID Face Match';
+        return 'NIN Verification';
       case 'personal':
         return 'Personal Information';
       case 'documents_verification':
@@ -219,7 +246,7 @@ export default function KYCCard() {
       case 'bvn_verification':
         return 'Complete your BVN Verification';
       case 'id_face_match':
-        return 'Complete your ID Face Match';
+        return 'Complete your NIN Verification';
       case 'documents_verification':
         return 'Complete your Document Verification';
       case 'address_details':
@@ -233,6 +260,7 @@ export default function KYCCard() {
 
   // Get status message with last completed and current step
   const getStatusMessage = (): string => {
+    if (!progress) return 'Start verification';
     const lastCompleted = getLastCompletedStep();
     // Use the actual current step from progress instead of calculating next incomplete
     const currentStepToShow = progress.current_step || getNextIncompleteStep();
@@ -247,7 +275,7 @@ export default function KYCCard() {
     }
     
     // Show both last completed and current step
-    return `Last: ${getStepDisplayName(lastCompleted)} • Next: ${getStepDisplayName(currentStepToShow)}`;
+    return `Continue with ${getStepDisplayName(currentStepToShow)}`;
   };
 
   // Get tier-specific icon and color
@@ -274,7 +302,7 @@ export default function KYCCard() {
   const getTierMessage = (): string => {
     const nextStep = getNextIncompleteStep();
     
-    if (currentTier === 0) {
+    if (currentTier === null) {
       return 'Start your verification to unlock features';
     } else if (currentTier === 1) {
       if (nextStep === 'documents_verification' || nextStep === 'address_details' || nextStep === 'review') {
@@ -306,14 +334,14 @@ export default function KYCCard() {
             <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
               <Icon width={25} height={25} />
             </View>
-            <View style={styles.textContainer}>
+            {/* <View style={styles.textContainer}>
               <Text style={styles.cardText}>
                 {currentTier === 0 ? "Let's verify your identity" : getStatusMessage()}
               </Text>
               {currentTier > 0 && (
                 <Text style={styles.cardSubtext}>{getTierMessage()}</Text>
               )}
-            </View>
+            </View> */}
             <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>Verify</Text>
             </View>
@@ -328,7 +356,7 @@ export default function KYCCard() {
             </View>
             <View style={styles.textContainer}>
               <Text style={styles.cardText}>{getStatusMessage()}</Text>
-              <Text style={styles.cardSubtext}>{getTierMessage()}</Text>
+              {/* <Text style={styles.cardSubtext}>{getTierMessage()}</Text> */}
             </View>
             <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>Continue</Text>
@@ -362,6 +390,14 @@ export default function KYCCard() {
         isVisible={showVerificationModal}
         onClose={() => setShowVerificationModal(false)}
         onStartVerification={handleStartVerification}
+      />
+      <CameraPermissionModal
+        isVisible={showCameraPermissionModal}
+        onClose={() => {
+          console.log('[KYCCard] Camera permission modal closed');
+          setShowCameraPermissionModal(false);
+        }}
+        onComplete={handleLivenessComplete}
       />
     </>
   );

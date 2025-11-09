@@ -1,25 +1,46 @@
-
 {
   "cli": {
-    "version": ">= 16.13.2",
-    "appVersionSource": "remote"
+    "version": ">= 13.0.0"
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "gradleCommand": ":app:assembleDebug",
+        "autoIncrement": true
+      },
+      "ios": {
+        "buildConfiguration": "Debug",
+        "autoIncrement": true
+      }
     },
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "autoIncrement": true
+      },
+      "ios": {
+        "simulator": false,
+        "autoIncrement": true
       }
     },
     "production": {
-      "autoIncrement": true
+      "android": {
+        "autoIncrement": true
+      },
+      "ios": {
+        "autoIncrement": true
+      }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./android-service-account.json"
+      },
+      "ios": {}
+    }
   }
 }
