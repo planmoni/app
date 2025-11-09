@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useToast } from '@/contexts/ToastContext';
+import { inAppNotificationService } from '@/lib/in-app-notifications';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
@@ -231,6 +232,35 @@ export function useCreatePayout() {
         status: 'unread',
         payout_plan_id: payoutPlan.id,
       });
+
+      // 🔔 Create notification
+      // Format frequency for display
+      const frequencyDisplay = 
+        frequency === 'daily' ? 'daily' :
+        frequency === 'weekly' || frequency === 'weekly_specific' ? 'weekly' :
+        frequency === 'biweekly' ? 'bi-weekly' :
+        frequency === 'monthly' ? 'monthly' :
+        frequency === 'end_of_month' ? 'at the end of each month' :
+        frequency === 'quarterly' ? 'quarterly' :
+        frequency === 'biannual' ? 'twice a year' :
+        frequency === 'annually' ? 'annually' :
+        frequency === 'custom' ? 'on custom dates' :
+        'as scheduled';
+
+      await inAppNotificationService.createNotification(
+        session.user.id,
+        'Payout Plan Created',
+        `Your payout plan "${name}" has been created successfully. ₦${payoutAmount.toLocaleString()} will be paid ${frequencyDisplay}.`,
+        'payout',
+        {
+          payoutPlanId: payoutPlan.id,
+          payoutAmount: payoutAmount,
+          totalAmount: totalAmount,
+          frequency: frequency,
+          route: '/all-payouts',
+        },
+        true // Schedule local notification
+      );
 
       // ♻️ Refresh wallet
       await refreshWallet();

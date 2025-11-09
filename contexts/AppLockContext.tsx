@@ -16,6 +16,7 @@ interface AppLockContextType {
   getLastActivePage: () => string;
   isPinResetMode: boolean;
   setPinResetMode: (enabled: boolean) => void;
+  updateLastActiveOnInteraction: () => void;
 }
 
 const AppLockContext = createContext<AppLockContextType | undefined>(undefined);
@@ -106,6 +107,15 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.error('Error updating last active timestamp:', error);
     }
   };
+
+  // Method to update last active timestamp on user interaction
+  // This should be called when user interacts with the app (touch, scroll, etc.)
+  const updateLastActiveOnInteraction = useCallback(() => {
+    // Only update if app is active and not locked
+    if (appState.current === 'active' && !isAppLockedRef.current) {
+      updateLastActive();
+    }
+  }, []);
 
   const lockApp = () => {
     const currentHasAppLockPin = hasAppLockPinRef.current;
@@ -352,6 +362,7 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     getLastActivePage,
     isPinResetMode,
     setPinResetMode,
+    updateLastActiveOnInteraction,
   };
 
   return (

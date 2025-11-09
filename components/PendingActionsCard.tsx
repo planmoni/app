@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
-import { ChevronRight, X, Mail, Lock, Shield, Fingerprint, CircleAlert as AlertCircle, CheckCircle, Clock } from 'lucide-react-native';
+import { ChevronRight, X, Mail, Lock, Fingerprint, CircleAlert as AlertCircle, Clock } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useState, useEffect } from 'react';
@@ -12,6 +12,9 @@ import OfflineNotice from './OfflineNotice';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
 import CameraPermissionModal from './CameraPermissionModal';
 import KYCVerificationModal from './KYCVerificationModal';
+import Tier1Icon from '@/assets/kyc/tier-1.svg';
+import Tier2Icon from '@/assets/kyc/tier-2.svg';
+import Tier3Icon from '@/assets/kyc/tier-3.svg';
 import React from 'react';
 
 type PendingAction = {
@@ -94,8 +97,8 @@ export default function PendingActionsCard() {
         actions.push({
           id: 'tier-1-verification',
           title: 'Tier 1: Basic Verification',
-          description: `${description}. Unlock up to ₦20,000 monthly deposits.`,
-          icon: Shield,
+          // description: `${description}. Unlock up to ₦20,000 monthly deposits.`,
+          icon: Tier1Icon,
           iconBg: '#FEF3C7',
           iconColor: '#F59E0B',
           route: '/kyc-upgrade',
@@ -124,7 +127,7 @@ export default function PendingActionsCard() {
       let description = '';
       if (missingSteps.length === 0) {
         // All Tier 2 steps are complete, but tier might not be updated yet
-        description = 'Complete personal information and document verification';
+        // description = 'Complete personal information and document verification';
       } else if (missingSteps.length === 1) {
         description = `Complete ${missingSteps[0]}`;
       } else {
@@ -134,10 +137,10 @@ export default function PendingActionsCard() {
       actions.push({
         id: 'tier-2-verification',
         title: 'Tier 2: Enhanced Verification',
-        description: tier1Complete 
-          ? `${description}. Unlock up to ₦100,000 monthly deposits.`
-          : 'Complete Tier 1 first to unlock Tier 2 verification',
-        icon: Fingerprint,
+        // description: tier1Complete 
+        //   ? `${description}. Unlock up to ₦100,000 monthly deposits.`
+        //   : 'Complete Tier 1 first to unlock Tier 2 verification',
+        icon: Tier2Icon,
         iconBg: tier1Complete ? '#EFF6FF' : '#F3F4F6',
         iconColor: tier1Complete ? '#1E3A8A' : '#9CA3AF',
         route: '/kyc-upgrade',
@@ -168,7 +171,7 @@ export default function PendingActionsCard() {
       let description = '';
       if (missingSteps.length === 0) {
         // All Tier 3 steps are complete, but tier might not be updated yet
-        description = 'Complete address details and utility bill verification';
+        // description = 'Complete address details and utility bill verification';
       } else if (missingSteps.length === 1) {
         description = `Complete ${missingSteps[0]}`;
       } else {
@@ -178,10 +181,10 @@ export default function PendingActionsCard() {
       actions.push({
         id: 'tier-3-verification',
         title: 'Tier 3: Full Verification',
-        description: tier2Complete
-          ? `${description}. Unlock up to ₦1,000,000 monthly deposits.`
-          : 'Complete Tier 2 first to unlock Tier 3 verification',
-        icon: CheckCircle,
+        // description: tier2Complete
+        //   ? `${description}. Unlock up to ₦1,000,000 monthly deposits.`
+        //   : 'Complete Tier 2 first to unlock Tier 3 verification',
+        icon: Tier3Icon,
         iconBg: tier2Complete ? '#F0FDF4' : '#F3F4F6',
         iconColor: tier2Complete ? '#22C55E' : '#9CA3AF',
         route: '/kyc-upgrade',
@@ -413,7 +416,11 @@ export default function PendingActionsCard() {
                 { backgroundColor: action.iconBg },
                 action.disabled && styles.iconContainerDisabled
               ]}>
-                <action.icon size={24} color={action.iconColor} />
+                {action.id.startsWith('tier-') ? (
+                  <action.icon width={24} height={24} />
+                ) : (
+                  <action.icon size={24} color={action.iconColor} />
+                )}
               </View>
               <View style={styles.actionContent}>
                 <Text style={[
@@ -496,8 +503,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
     shadowColor: '#000000',
     shadowOffset: { width: 1, height: 6},
-    shadowOpacity: 0.05,
-    shadowRadius: 9,
+    shadowOpacity: 0.02,
+    shadowRadius: 5,
     elevation: 9,
   
     flexDirection: 'row',

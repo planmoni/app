@@ -12,21 +12,16 @@ import { PinProvider } from '@/contexts/PinContext';
 import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
 import { AppVersionProvider } from '@/contexts/AppVersionContext';
 import UpdateAppModal from '@/components/UpdateAppModal';
-import { UserActivityTracker } from '@/hooks/useUserActivityTracking';
 import { NotificationProvider } from '@/contexts/NotificationContext';
-
 
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
-import { usePayoutNotifications } from '@/hooks/usePayoutNotifications';
-import { useTransactionNotifications } from '@/hooks/useTransactionNotifications';
 import { SplashScreen, Stack , usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, StyleSheet, Platform } from 'react-native';
+import { SafeAreaView, Text, View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications } from '@/lib/notifications';
-import * as SystemUI from 'expo-system-ui';
 // import { intercomInstant } from '@/lib/IntercomInstant';
 import { 
   PlusJakartaSans_400Regular, 
@@ -56,10 +51,6 @@ function RootLayoutNav() {
   
   // Track page changes for redirect after unlock
   usePageTracking();
-  
-  // Initialize notification hooks for payout and transaction notifications
-  usePayoutNotifications();
-  useTransactionNotifications();
 
   // Deterministic navigation-finish clearing: when the pathname changes,
   // clear the stored navigation token so AppLockContext won't falsely skip or lock.
@@ -237,8 +228,8 @@ function RootLayoutNav() {
       <Stack screenOptions={{ headerShown: false }}>
         {session?.user?.id ? (
           <React.Fragment key="authenticated-screens">
-            <Stack.Screen name="login-success" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="login-success" options={{ headerShown: false }} />
             <Stack.Screen name="profile" options={{ headerShown: false }} />
             <Stack.Screen name="add-funds" options={{ headerShown: false }} />
             <Stack.Screen name="all-payouts" options={{ headerShown: false }} />
@@ -250,11 +241,7 @@ function RootLayoutNav() {
             <Stack.Screen name="referral" options={{ headerShown: false }} />
             <Stack.Screen name="transaction-limits" options={{ headerShown: false }} />
             <Stack.Screen name="transactions" options={{ headerShown: false }} />
-            <Stack.Screen name="account-statement" options={{ headerShown: false }} />
             <Stack.Screen name="two-factor-auth" options={{ headerShown: false }} />
-            <Stack.Screen name="two-factor-setup" options={{ headerShown: false }} />
-            <Stack.Screen name="two-factor-settings" options={{ headerShown: false }} />
-            <Stack.Screen name="view-backup-codes" options={{ headerShown: false }} />
             <Stack.Screen name="view-payout" options={{ headerShown: false }} />
             <Stack.Screen name="app-lock-setup" options={{ headerShown: false }} />
             <Stack.Screen name="logging-out" options={{ headerShown: false }} />
@@ -273,8 +260,10 @@ function RootLayoutNav() {
       {isAppLocked && session?.user?.id && !isPinResetMode && (
         <AppLockScreen />
       )}
+
+      {/* Update App Modal - Renders at root level */}
       <UpdateAppModal />
-      
+
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* <SessionDebugger /> */}
     </GestureHandlerRootView>
@@ -283,15 +272,6 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   useFrameworkReady();
-
-  // Initialize expo-system-ui to allow system to control appearance
-  useEffect(() => {
-    if (Platform.OS !== 'web') {
-      SystemUI.setBackgroundColorAsync('system').catch((error) => {
-        console.warn('Failed to set system background color:', error);
-      });
-    }
-  }, []);
 
   return (
     <AppErrorProvider>
@@ -305,9 +285,7 @@ export default function RootLayout() {
                     <BalanceProvider>
                       <BottomNavProvider>
                         <AppBlur>
-                          <UserActivityTracker>
-                            <RootLayoutNav />
-                          </UserActivityTracker>
+                        <RootLayoutNav />
                         </AppBlur>
                       </BottomNavProvider>
                     </BalanceProvider>

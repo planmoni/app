@@ -15,6 +15,7 @@ interface AutoLogoutContextType {
   lockApp: () => void;
   setLastActivePage: (page: string) => void;
   getLastActivePage: () => string;
+  updateLastActiveOnInteraction: () => void;
 }
 
 const AutoLogoutContext = createContext<AutoLogoutContextType | undefined>(undefined);
@@ -136,6 +137,15 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       console.error('Error updating last active timestamp:', error);
     }
   };
+
+  // Method to update last active timestamp on user interaction
+  // This should be called when user interacts with the app (touch, scroll, etc.)
+  const updateLastActiveOnInteraction = React.useCallback(() => {
+    // Only update if app is active and not locked
+    if (appState.current === 'active' && !isAppLocked) {
+      updateLastActive();
+    }
+  }, [isAppLocked]);
 
   const checkIfShouldLock = async () => {
     const startTime = Date.now();
@@ -386,6 +396,7 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     lockApp,
     setLastActivePage,
     getLastActivePage,
+    updateLastActiveOnInteraction,
   };
 
   return (
