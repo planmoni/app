@@ -141,6 +141,8 @@ export default function KYCUpgradeScreen() {
   const [bvnMatchedName, setBvnMatchedName] = useState('');
   const [nin, setNin] = useState('');
   const [passportNumber, setPassportNumber] = useState('');
+  const [ninIdentityId, setNinIdentityId] = useState<string | null>(null);
+  const [otp, setOtp] = useState('');
   
   
   // Document verification
@@ -462,6 +464,19 @@ export default function KYCUpgradeScreen() {
     if (!nin.trim()) newErrors.nin = 'NIN is required';
     else if (nin.length !== 11 || !/^\d+$/.test(nin)) newErrors.nin = 'NIN must be 11 digits';
 
+    // Phone number is required for NIN verification
+    if (!phoneNumber.trim()) {
+      newErrors.phoneNumber = 'Phone number is required for NIN verification';
+    } else if (phoneNumber.length < 10 || !/^\d+$/.test(phoneNumber)) {
+      newErrors.phoneNumber = 'Phone number must be at least 10 digits';
+    }
+
+    // If identityId exists, OTP is required
+    if (ninIdentityId) {
+      if (!otp.trim()) newErrors.otp = 'OTP is required';
+      else if (otp.length !== 6 || !/^\d+$/.test(otp)) newErrors.otp = 'OTP must be 6 digits';
+    }
+
     // if (!selfieImage && !formData.selfie_url) {
     //   newErrors.selfie = 'Selfie is required';
     // }
@@ -604,15 +619,28 @@ export default function KYCUpgradeScreen() {
   };
 
   const handleNextStep = async () => {
+    console.log('[KYC] handleNextStep called, currentStep:', currentStep);
     try {
       switch (currentStep) {
         case 'liveness_verification':
-          // Show camera permission modal instead of liveness test directly
-          if (!progress || !progress.liveness_test_completed) {
-            setShowCameraPermissionModal(true);
+          console.log('[KYC] Liveness verification step - Continue button clicked');
+          console.log('[KYC] Liveness test status:', {
+            completed: progress.liveness_test_completed,
+            showLivenessTest,
+            livenessInitiated
+          });
+          // Liveness test is handled via LivenessTestEnhanced component
+          // When user clicks Continue, show the liveness test modal
+          if (!progress.liveness_test_completed) {
+            console.log('[KYC] Opening liveness test modal');
+            setShowLivenessTest(true);
+            setLivenessInitiated(true);
+            console.log('[KYC] Liveness test modal state updated');
           } else {
+            console.log('[KYC] Liveness test already completed, moving to next step');
             // If already completed, move to next step
             const nextStep = getNextIncompleteStep('liveness_verification');
+            console.log('[KYC] Next step:', nextStep);
             setCurrentStep(nextStep);
           }
           break;
@@ -697,9 +725,17 @@ export default function KYCUpgradeScreen() {
           if (validateIdFaceMatch()) {
             setIsLoading(true);
             
+            // If identityId exists, user has already initialized - proceed with verification
+            if (ninIdentityId && otp) {
+              // Verify NIN with OTP
+              await verifyNIN();
+              return;
+            }
+            
             // Save identity data (NIN verification only)
             const saveResult = await saveFormData({
               nin: nin,
+              phone_number: phoneNumber,
               // selfie_url: formData.selfie_url || undefined
             });
             
@@ -708,8 +744,9 @@ export default function KYCUpgradeScreen() {
               return;
             }
             
-            // Verify NIN with Dojah (face matching)
-            await verifyNIN(process.env.EXPO_PUBLIC_DOJAH_APP_ID!, process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!);
+            // Initialize NIN verification (sends OTP to phone number linked to NIN)
+            await initializeNINVerification();
+            // Note: After OTP is sent, user should enter OTP and click Continue again to call verifyNIN
           }
           break;
         case 'address_details':
@@ -814,8 +851,9 @@ export default function KYCUpgradeScreen() {
 
   // Handle LivenessTestEnhanced completion
   const handleLivenessComplete = async (selfieUrl: string) => {
+    console.log('[KYC] handleLivenessComplete called with selfieUrl:', selfieUrl);
     try {
-      console.log('Liveness test completed, selfie URL received:', selfieUrl);
+      console.log('[KYC] Liveness test completed, selfie URL received:', selfieUrl);
       
       // Mark liveness as completed immediately to prevent handleLivenessClose from navigating away
       setLivenessCompleted(true);
@@ -897,22 +935,30 @@ export default function KYCUpgradeScreen() {
       if (progressResult) {
         // Proceed to next incomplete step (should be bvn_verification if not completed)
         const nextStep = getNextIncompleteStep('liveness_verification');
+        console.log('[KYC] Moving to next step after liveness:', nextStep);
+        
+        // Set the current step first to transition smoothly
         setCurrentStep(nextStep);
         
-        // Close the liveness test modal after processing is complete
-        setShowLivenessTest(false);
-        setLivenessInitiated(false);
-        setLivenessManuallyClosed(false); // Reset the manually closed flag
-        
+        // Close the liveness test modal after a short delay to allow step transition
+        // This ensures the user sees the transition to BVN step
         setTimeout(() => {
-          setIsManualVerification(false);
-          // Reset completion flag after a delay
+          console.log('[KYC] Closing liveness modal after step transition');
+          setShowLivenessTest(false);
+          setLivenessInitiated(false);
+          setLivenessManuallyClosed(false); // Reset the manually closed flag
+          
           setTimeout(() => {
-            setLivenessCompleted(false);
-          }, 500);
-        }, 500);
+            setIsManualVerification(false);
+            // Reset completion flag after a delay
+            setTimeout(() => {
+              setLivenessCompleted(false);
+            }, 500);
+          }, 300);
+        }, 800); // Give time for step transition to be visible
       } else {
         // If progress update failed, still close the modal
+        console.error('[KYC] Progress update failed, closing modal');
         setShowLivenessTest(false);
         setLivenessInitiated(false);
       }
@@ -926,13 +972,26 @@ export default function KYCUpgradeScreen() {
   };
   
   const handleLivenessClose = async () => {
+    console.log('[KYC] handleLivenessClose called');
+    console.log('[KYC] Liveness close check:', {
+      livenessCompleted,
+      progressLivenessCompleted: progress?.liveness_test_completed,
+      showLivenessTest,
+      livenessInitiated,
+      currentStep
+    });
     // Check if liveness test was completed successfully
     // If it was completed, don't navigate away - let handleLivenessComplete handle the flow
     if (livenessCompleted || progress?.liveness_test_completed) {
+      console.log('[KYC] Liveness test was completed, closing modal without navigation');
+      // Just close the modal, don't navigate - the step should already be updated
       setShowLivenessTest(false);
       setLivenessInitiated(false);
+      setLivenessManuallyClosed(false);
       return; // Don't navigate away if completed
     }
+    
+    console.log('[KYC] Liveness test was not completed, user manually closed');
 
     try {
       // Create audit log for liveness test manual close
@@ -984,6 +1043,12 @@ export default function KYCUpgradeScreen() {
     setLivenessInitiated(false);
     setLivenessManuallyClosed(true);
     // Only navigate to home when liveness test is manually closed (not completed)
+    // Don't navigate if we're already on a different step (means completion happened)
+    if (currentStep !== 'liveness_verification') {
+      console.log('[KYC] Already moved to next step, not navigating away');
+      return; // Don't navigate if we've already moved to the next step
+    }
+    console.log('[KYC] Navigating to home because liveness was manually closed');
     router.push('/(tabs)');
   };
   
@@ -1565,7 +1630,8 @@ export default function KYCUpgradeScreen() {
   //   // Disabled: Driver's license verification is not supported. Use NIN only.
   // };
 
-  const verifyNIN = async (appId: string, privateKey: string) => {
+  // Initialize NIN verification - sends OTP to phone number linked to NIN
+  const initializeNINVerification = async () => {
     try {
       if (!nin.trim()) {
         throw new Error('NIN is required');
@@ -1575,16 +1641,77 @@ export default function KYCUpgradeScreen() {
         throw new Error('User session not found');
       }
 
-      // Get selfie image for verification from saved form data
-      let selfieToUse = null;
-      
-      if (formData.selfie_url) {
-        // Use the selfie URL directly (SafeHaven service will handle conversion)
-        selfieToUse = formData.selfie_url;
+      setIsLoading(true);
+      setIsManualVerification(true);
+
+      // Use SafeHaven service to initialize NIN verification
+      // Call without OTP to initialize and get identityId
+      const result = await safeHavenService.verifyNINAndCreateAccount(
+        session.user.id,
+        nin.trim(),
+        phoneNumber?.trim() || '',
+        session?.user?.email || '',
+        undefined  // otp - not provided for initialization
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to initialize NIN verification');
       }
+
+      const identityId = result.data?.identityId;
+      console.log("identityId", identityId)
       
-      if (!selfieToUse) {
-        throw new Error('Selfie image is required for NIN verification. Please complete the liveness test first.');
+      if (!identityId) {
+        throw new Error('Identity ID not found in response');
+      }
+
+      // Store identityId for use in verifyNIN
+      setNinIdentityId(identityId);
+
+      // OTP is sent to the phone number linked to the NIN
+      showToast('OTP sent to phone number linked to your NIN', 'success');
+      
+      setIsLoading(false);
+      
+      return {
+        success: true,
+        auditLogId: result.auditLogId,
+        requiresOtp: true,
+        identityId: identityId
+      };
+      
+    } catch (error) {
+      console.error('NIN verification initialization error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to initialize NIN verification';
+      showToast(errorMessage, 'error');
+      setErrors({ documentVerification: errorMessage });
+      setIsManualVerification(false);
+      setIsLoading(false);
+      throw error;
+    }
+  };
+
+  // Verify NIN with OTP and create SafeHaven account
+  const verifyNIN = async (otpValue?: string, identityIdParam?: string) => {
+    try {
+      if (!nin.trim()) {
+        throw new Error('NIN is required');
+      }
+
+      if (!session?.user?.id) {
+        throw new Error('User session not found');
+      }
+
+      // Use provided OTP or state OTP
+      const otpToUse = otpValue || otp;
+      if (!otpToUse || otpToUse.length !== 6) {
+        throw new Error('Valid 6-digit OTP is required');
+      }
+
+      // Use provided identityId or stored identityId
+      const identityIdToUse = identityIdParam || ninIdentityId;
+      if (!identityIdToUse) {
+        throw new Error('Identity ID is required. Please initialize NIN verification first.');
       }
 
       // Get phone number and email for account creation
@@ -1592,41 +1719,85 @@ export default function KYCUpgradeScreen() {
       const userEmail = session?.user?.email || '';
       
       if (!userPhoneNumber) {
-        throw new Error('Phone number is required for NIN verification. Please enter your phone number in the personal information section.');
+        throw new Error('Phone number is required for NIN verification.');
       }
       
       if (!userEmail) {
-        throw new Error('Email address is required for NIN verification. Please ensure your email is verified.');
+        throw new Error('Email address is required for NIN verification.');
       }
 
       setIsLoading(true);
       setIsManualVerification(true);
 
-      // Use SafeHaven service for NIN verification
-      // Note: OTP is optional - if account creation fails with OTP error, we can handle it later
+      // Create audit log for NIN verification
+      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session.user.id,
+        p_operation_type: 'nin_verification',
+        p_verification_type: 'nin',
+        p_verification_provider: 'safehaven',
+        p_request_data: {
+          action: 'verify_nin_with_otp',
+          nin: nin.substring(0, 4) + '****',
+          has_otp: true,
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: null,
+        p_status: 'pending',
+        p_result_message: 'NIN verification with OTP initiated',
+        p_metadata: {
+          component: 'KYCUpgradeScreen',
+          action: 'nin_verification_verify',
+          step: 'id_face_match',
+          provider: 'safehaven'
+        }
+      });
+
+      // Use SafeHaven service to create account with OTP
       const result = await safeHavenService.verifyNINAndCreateAccount(
         session.user.id,
         nin.trim(),
         userPhoneNumber,
         userEmail,
-        selfieToUse
+        otpToUse,  // OTP provided
+        identityIdToUse // identityId from initialization step
       );
 
       if (!result.success) {
-        throw new Error(result.error || 'NIN verification failed');
+        throw new Error(result.error || 'Account creation failed');
       }
 
       const verificationData = result.data;
       
-      // Check if verification was successful
       if (!verificationData || !verificationData.verified) {
         throw new Error('NIN verification failed. Please check your NIN and try again.');
       }
 
-      // Get names from SafeHaven verification data
-      const ninFirstName = verificationData.first_name || verificationData.firstName || '';
-      const ninLastName = verificationData.last_name || verificationData.lastName || '';
-      const ninMiddleName = verificationData.middle_name || verificationData.middleName || '';
+      // Extract account information
+      const accountNumber = verificationData.account_number;
+      const accountName = verificationData.account_name || `${verificationData.first_name} ${verificationData.last_name}`.trim();
+      
+      // Log the verification data for debugging
+      console.log('[KYC] NIN verification data:', {
+        hasAccountNumber: !!accountNumber,
+        hasAccountName: !!accountName,
+        hasFirstName: !!verificationData.first_name,
+        hasLastName: !!verificationData.last_name,
+        identityId: verificationData.identityId,
+        status: verificationData.status
+      });
+      
+      // Account number might not be immediately available if account creation is async
+      // We'll proceed with verification even if account number is not present
+      if (!accountNumber) {
+        console.warn('[KYC] Account number not found in response. Account might be created asynchronously.');
+        // Don't throw error - proceed with verification using identity data
+      }
+
+      // Extract names from account name
+      const names = accountName ? accountName.split(' ') : [];
+      const ninFirstName = names[0] || '';
+      const ninLastName = names[names.length - 1] || '';
+      const ninMiddleName = names.length > 2 ? names.slice(1, -1).join(' ') : '';
       
       // Get names from user's saved data
       const userFirstName = firstName || '';
@@ -1666,56 +1837,57 @@ export default function KYCUpgradeScreen() {
         const displayName = [ninFirstName, ninMiddleName, ninLastName]
           .filter(Boolean)
           .join(' ');
-        
-        // Create audit event for NIN verification (additional to what SafeHaven service already logged)
-        if (result.auditLogId) {
+
+        // Account is already stored by the service, no need to store again
+
+        // Update audit log with success
+        if (auditLogId) {
+          await supabase
+            .from('kyc_audit_logs')
+            .update({
+              status: 'success',
+              response_data: {
+                verified: true,
+                nin: nin.substring(0, 4) + '****',
+                name_match_percentage: matchPercentage,
+                matched_name: displayName,
+                hasAccount: !!accountNumber,
+                account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null
+              },
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', auditLogId);
+
           await supabase
             .from('kyc_audit_events')
             .insert({
-              audit_log_id: result.auditLogId,
+              audit_log_id: auditLogId,
               user_id: session.user.id,
               event_type: 'verification_completed',
               event_data: {
                 action: 'nin_verification_completed',
-                nin: nin.substring(0, 4) + '****', // Partial NIN for security
+                nin: nin.substring(0, 4) + '****',
                 name_match_percentage: matchPercentage,
                 matched_name: displayName,
-                hasAccount: !!verificationData.account_number
+                hasAccount: !!accountNumber,
+                account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null,
+                provider: 'safehaven'
               },
               severity: 'high'
             });
-
-          // Create audit attachment for NIN document if available
-          if (documentFrontImage) {
-            await supabase
-              .from('kyc_audit_attachments')
-              .insert({
-                audit_log_id: result.auditLogId,
-                file_name: `nin-document-${Date.now()}.jpg`,
-                file_type: 'image/jpeg',
-                file_size: 0,
-                file_hash: 'document-hash-placeholder',
-                file_path: documentFrontImage,
-                access_level: 'restricted',
-                description: 'NIN document front image',
-                tags: ['nin', 'document', 'kyc', 'id_verification', 'safehaven']
-              });
-          }
         }
         
         // Show success message
-        let successMessage = `NIN verified! Name: ${displayName}`;
-        if (verificationData.account_number) {
-          successMessage += ` • Account created: ${verificationData.account_number.substring(0, 5)}****`;
+        if (accountNumber) {
+          showToast(`NIN verified! Name: ${displayName} • Account created: ${accountNumber.substring(0, 5)}****`, 'success');
+        } else {
+          showToast(`NIN verified! Name: ${displayName} • Account creation in progress`, 'success');
         }
-        showToast(successMessage, 'success');
         
-        // Update progress with NIN verified
-        // After NIN (Tier 1 complete), move to personal (first step in Tier 2)
+        // Update progress with NIN verified (using id_face_verified)
         const progressResult = await updateProgress({
           current_step: 'personal', // Move to personal info (Tier 2) after NIN verification
-          id_face_verified: true,
-          nin_verified: true
+          id_face_verified: true
         });
         
         // Check if Tier 1 is complete (Liveness + BVN + NIN)
@@ -1736,7 +1908,7 @@ export default function KYCUpgradeScreen() {
         // Wait for toast to be visible before moving to next step
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Move to next incomplete step (skip if already verified)
+        // Move to next incomplete step
         const nextStep = getNextIncompleteStep('id_face_match');
         setCurrentStep(nextStep);
         setTimeout(() => {
@@ -1752,10 +1924,9 @@ export default function KYCUpgradeScreen() {
       const errorMessage = error instanceof Error ? error.message : 'NIN verification failed';
       showToast(errorMessage, 'error');
       setErrors({ documentVerification: errorMessage });
-      // Reset manual verification flag on error
       setIsManualVerification(false);
       setIsLoading(false);
-      throw error; // Re-throw to be handled by verifyDocuments
+      throw error;
     }
   };
   
@@ -2239,6 +2410,866 @@ export default function KYCUpgradeScreen() {
   // Handle camera permission request
   // Camera permission handling moved to CameraPermissionModal component
   
+  const renderDocumentsVerificationStep = () => {
+    return (
+      <View style={styles.formContainer}>
+        <Text style={styles.sectionTitle}>Document Verification</Text>
+        <Text style={styles.sectionDescription}>
+          Please upload clear photos of your identity document for verification.
+        </Text>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Document Type</Text>
+          <View style={styles.identityTypeContainer}>
+            <Pressable
+              style={[
+                styles.identityTypeOption,
+                selectedIdentityType === 'nin' && styles.identityTypeSelected
+              ]}
+              onPress={() => setSelectedIdentityType('nin')}
+            >
+              <Text style={[
+                styles.identityTypeText,
+                selectedIdentityType === 'nin' && styles.identityTypeTextSelected
+              ]}>
+                NIN
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.identityTypeOption,
+                selectedIdentityType === 'passport' && styles.identityTypeSelected
+              ]}
+              onPress={() => setSelectedIdentityType('passport')}
+            >
+              <Text style={[
+                styles.identityTypeText,
+                selectedIdentityType === 'passport' && styles.identityTypeTextSelected
+              ]}>
+                Passport
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Front of Document *</Text>
+          <View style={styles.documentActions}>
+            {/* <Pressable style={styles.documentButton} onPress={() => takePicture('front')}>
+              <Text style={styles.documentButtonText}>Take Photo</Text>
+            </Pressable> */}
+            <Pressable style={styles.documentButton} onPress={() => pickImage(setDocumentFrontImage, 'documentFront')}>
+              <Text style={styles.documentButtonText}>Upload Photo</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            style={[styles.imageUploadContainer, errors.documentFront && styles.inputError]}
+            onPress={() => takePicture('front')}
+          >
+            {documentFrontImage ? (
+              <Image source={{ uri: documentFrontImage }} style={styles.uploadedImage} />
+            ) : (
+              <View style={styles.uploadPlaceholder}>
+                <Camera size={24} color={colors.textSecondary} />
+                <Text style={styles.uploadText}>Tap to take photo</Text>
+              </View>
+            )}
+          </Pressable>
+          
+          {errors.documentFront && <Text style={styles.errorText}>{errors.documentFront}</Text>}
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Back of Document (Optional)</Text>
+          <View style={styles.documentActions}>
+            {/* <Pressable style={styles.documentButton} onPress={() => takePicture('back')}>
+              <Text style={styles.documentButtonText}>Take Photo</Text>
+            </Pressable> */}
+            <Pressable style={styles.documentButton} onPress={() => pickImage(setDocumentBackImage, 'documentBack')}>
+              <Text style={styles.documentButtonText}>Upload Photo</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            style={[styles.imageUploadContainer, errors.documentBack && styles.inputError]}
+            onPress={() => takePicture('back')}
+          >
+            {documentBackImage ? (
+              <Image source={{ uri: documentBackImage }} style={styles.uploadedImage} />
+            ) : (
+              <View style={styles.uploadPlaceholder}>
+                <Camera size={24} color={colors.textSecondary} />
+                <Text style={styles.uploadText}>Tap to take photo</Text>
+              </View>
+            )}
+          </Pressable>
+          
+          {errors.documentBack && <Text style={styles.errorText}>{errors.documentBack}</Text>}
+        </View>
+
+        <View style={styles.infoContainer}>
+          <Info size={20} color={colors.primary} />
+          <Text style={styles.infoText}>
+            Ensure the document is clearly visible, well-lit, and all text is readable. Avoid glare and shadows.
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  const renderBvnVerificationStep = () => {
+    return (
+      <View style={styles.formContainer}>
+        <Text style={styles.sectionTitle}>BVN Verification</Text>
+        <Text style={styles.sectionDescription}>
+          Please enter your Bank Verification Number (BVN) for identity verification.
+        </Text>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Bank Verification Number (BVN)</Text>
+          <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
+            <TextInput
+              ref={bvnInputRef}
+              style={styles.input}
+              placeholder="Enter your 11-digit BVN"
+              placeholderTextColor={colors.textTertiary}
+              value={bvn}
+              onChangeText={(text) => handleNumericInput(text, setBvn, 11, 'bvn')}
+              keyboardType="numeric"
+              maxLength={11}
+              editable={!isResolvingBvn && !bvnVerified}
+              autoCorrect={false}
+              autoCapitalize="none"
+              selectTextOnFocus={true}
+              blurOnSubmit={false}
+              returnKeyType="done"
+              textContentType="none"
+              autoComplete="off"
+              importantForAutofill="no"
+              spellCheck={false}
+            />
+            {/* {!bvn && !isResolvingBvn && !bvnVerified && (
+              <Pressable
+                style={styles.focusButton}
+                onPress={() => forceFocusInput(bvnInputRef)}
+              >
+                <Text style={styles.focusButtonText}>Tap to focus</Text>
+              </Pressable>
+            )} */}
+            {isResolvingBvn && (
+              <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
+            )}
+            {bvnVerified && (
+              <View style={styles.verifiedBadge}>
+                <Check size={16} color="#FFFFFF" />
+              </View>
+            )}
+          </View>
+          {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
+          {/* {!bvn && (
+            <Text style={styles.inputHelpText}>
+              💡 Having trouble typing? Tap the &quot;Tap to focus&quot; button above
+            </Text>
+          )} */}
+        </View>
+        
+        {bvnVerified && bvnMatchedName && (
+          <View style={styles.matchedNameContainer}>
+            <Check size={16} color={colors.success} />
+            <Text style={styles.matchedNameText}>
+              BVN verified! Name: {bvnMatchedName}
+            </Text>
+          </View>
+        )}
+        
+        <View style={styles.infoContainer}>
+          <Info size={20} color={colors.primary} />
+          <Text style={styles.infoText}>
+            Your BVN is used for verification purposes only. This helps us confirm your identity and protect your account.
+          </Text>
+        </View>
+      </View>
+    );
+  };
+  
+  const renderIDFaceMatchStep = () => {
+    return (
+      <View style={styles.formContainer}>
+        <Text style={styles.sectionTitle}>NIN Verification</Text>
+        <Text style={styles.sectionDescription}>
+          Please provide a government-issued ID and take a selfie for verification.
+        </Text>
+        
+        {!bvnVerified && (
+          <View style={styles.warningContainer}>
+            <Info size={20} color={colors.warning} />
+            <Text style={styles.warningText}>
+              You must complete BVN verification before proceeding with ID verification.
+            </Text>
+          </View>
+        )}
+        
+        <View style={styles.idTypeSelector}>
+          <Text style={styles.label}>Select ID Type</Text>
+          <View style={styles.idOptions}>
+            <Pressable
+              style={[
+                styles.idOption,
+                selectedIdentityType === 'nin' && styles.selectedIdOption
+              ]}
+              onPress={() => {
+                setSelectedIdentityType('nin');
+                setErrors({});
+              }}
+              disabled={isVerifyingDocuments || documentsVerified}
+            >
+              <Text style={[
+                styles.idOptionText,
+                selectedIdentityType === 'nin' && styles.selectedIdOptionText
+              ]}>NIN</Text>
+            </Pressable>
+            
+            {/* <Pressable
+              style={[
+                styles.idOption,
+                selectedIdentityType === 'passport' && styles.selectedIdOption
+              ]}
+              onPress={() => {
+                setSelectedIdentityType('passport');
+                setErrors({});
+              }}
+              disabled={isVerifyingDocuments || documentsVerified}
+            >
+              <Text style={[
+                styles.idOptionText,
+                selectedIdentityType === 'passport' && styles.selectedIdOptionText
+              ]}>Passport</Text>
+            </Pressable> */}
+            
+          </View>
+        </View>
+        
+        {selectedIdentityType === 'nin' && (
+          <>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>National Identification Number (NIN)</Text>
+              <View style={[styles.inputContainer, errors.nin && styles.inputError]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your 11-digit NIN"
+                  placeholderTextColor={colors.textTertiary}
+                  value={nin}
+                  onChangeText={(text) => {
+                    // Only allow numbers and limit to 11 digits
+                    const numericText = text.replace(/[^0-9]/g, '');
+                    if (numericText.length <= 11) {
+                      setNin(numericText);
+                      setErrors(prev => ({ ...prev, nin: '' }));
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={11}
+                  editable={!isVerifyingDocuments && !documentsVerified && !ninIdentityId}
+                />
+              </View>
+              {errors.nin && <Text style={styles.errorText}>{errors.nin}</Text>}
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Phone Number *</Text>
+              <Text style={styles.sectionDescription}>
+                Enter the phone number linked to your NIN. This is required for NIN verification.
+              </Text>
+              <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
+                <TextInput
+                  ref={phoneInputRef}
+                  style={styles.input}
+                  placeholder="Enter your phone number (e.g., 08012345678)"
+                  placeholderTextColor={colors.textTertiary}
+                  value={phoneNumber}
+                  onChangeText={(text) => {
+                    // Only allow numbers
+                    const numericText = text.replace(/[^0-9]/g, '');
+                    if (numericText.length <= 11) {
+                      setPhoneNumber(numericText);
+                      setErrors(prev => ({ ...prev, phoneNumber: '' }));
+                      // Save to kyc_data when phone number is entered
+                      if (numericText.length >= 10 && session?.user?.id) {
+                        saveFormData({ phone_number: numericText }).catch(err => {
+                          console.error('[KYC] Error saving phone number:', err);
+                        });
+                      }
+                    }
+                  }}
+                  keyboardType="phone-pad"
+                  maxLength={11}
+                  editable={!isVerifyingDocuments && !documentsVerified}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+              </View>
+              {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
+            </View>
+            
+            {ninIdentityId && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Enter OTP</Text>
+                <Text style={styles.sectionDescription}>
+                  An OTP has been sent to the phone number linked to your NIN. Please enter the 6-digit code.
+                </Text>
+                <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter 6-digit OTP"
+                    placeholderTextColor={colors.textTertiary}
+                    value={otp}
+                    onChangeText={(text) => {
+                      // Only allow numbers and limit to 6 digits
+                      const numericText = text.replace(/[^0-9]/g, '');
+                      if (numericText.length <= 6) {
+                        setOtp(numericText);
+                        setErrors(prev => ({ ...prev, otp: '' }));
+                      }
+                    }}
+                    keyboardType="numeric"
+                    maxLength={6}
+                    editable={!isLoading && !documentsVerified}
+                    autoFocus={true}
+                  />
+                </View>
+                {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
+              </View>
+            )}
+          </>
+        )}
+        
+        {/* {selectedIdentityType === 'passport' && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>International Passport Number</Text>
+            <View style={[styles.inputContainer, errors.passportNumber && styles.inputError]}>
+              <CreditCard size={20} color={colors.textSecondary} />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your passport number"
+                placeholderTextColor={colors.textTertiary}
+                value={passportNumber}
+                onChangeText={(text) => {
+                  setPassportNumber(text);
+                  setErrors(prev => ({ ...prev, passportNumber: '' }));
+                }}
+                autoCapitalize="characters"
+                editable={!isVerifyingDocuments && !documentsVerified}
+              />
+            </View>
+            {errors.passportNumber && <Text style={styles.errorText}>{errors.passportNumber}</Text>}
+          </View>
+        )} */}
+        
+        
+        {/* <View style={styles.documentSection}>
+          <Text style={styles.documentSectionTitle}>Document Upload</Text>
+          
+          <View style={styles.documentCard}>
+            <View style={styles.documentHeader}>
+              <Text style={styles.documentName}>Front of ID</Text>
+              <View style={styles.documentStatus}>
+                <Text style={styles.documentStatusText}>Required</Text>
+              </View>
+            </View>
+            <Text style={styles.documentDescription}>
+              Upload a clear photo of the front of your {
+                selectedIdentityType === 'nin' ? 'NIN slip' :
+                selectedIdentityType === 'passport' ? 'passport' : 'document'
+              }
+            </Text>
+            
+            {documentFrontImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image 
+                  source={{ uri: documentFrontImage }} 
+                  style={styles.imagePreview} 
+                  resizeMode="cover"
+                />
+                <Pressable 
+                  style={styles.retakeButton}
+                  onPress={() => setDocumentFrontImage(null)}
+                  disabled={isVerifyingDocuments || documentsVerified}
+                >
+                  <Text style={styles.retakeButtonText}>Retake</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.documentActions}>
+                <Pressable 
+                  style={styles.documentButton}
+                  onPress={() => pickImage(setDocumentFrontImage, 'documentFront')}
+                  disabled={isVerifyingDocuments || documentsVerified}
+                >
+                  <Upload size={16} color={colors.primary} />
+                  <Text style={styles.documentButtonText}>Upload</Text>
+                </Pressable>
+                
+                <Pressable 
+                  style={styles.documentButton}
+                  onPress={() => takePicture('front')}
+                  disabled={isVerifyingDocuments || documentsVerified}
+                >
+                  <Camera size={16} color={colors.primary} />
+                  <Text style={styles.documentButtonText}>Take Photo</Text>
+                </Pressable>
+              </View>
+            )}
+            {errors.documentFront && <Text style={styles.errorText}>{errors.documentFront}</Text>}
+          </View>
+          
+          {selectedIdentityType === 'passport' && (
+            <View style={styles.documentCard}>
+              <View style={styles.documentHeader}>
+                <Text style={styles.documentName}>Back of ID</Text>
+                <View style={styles.documentStatus}>
+                  <Text style={styles.documentStatusText}>Required</Text>
+                </View>
+              </View>
+              <Text style={styles.documentDescription}>
+                Upload a clear photo of the back of your {
+                  selectedIdentityType === 'passport' ? 'passport' : 'driver\'s license'
+                }
+              </Text>
+              
+              {documentBackImage ? (
+                <View style={styles.imagePreviewContainer}>
+                  <Image 
+                    source={{ uri: documentBackImage }} 
+                    style={styles.imagePreview} 
+                    resizeMode="cover"
+                  />
+                  <Pressable 
+                    style={styles.retakeButton}
+                    onPress={() => setDocumentBackImage(null)}
+                    disabled={isVerifyingDocuments || documentsVerified}
+                  >
+                    <Text style={styles.retakeButtonText}>Retake</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.documentActions}>
+                  <Pressable 
+                    style={styles.documentButton}
+                    onPress={() => pickImage(setDocumentBackImage, 'documentBack')}
+                    disabled={isVerifyingDocuments || documentsVerified}
+                  >
+                    <Upload size={16} color={colors.primary} />
+                    <Text style={styles.documentButtonText}>Upload</Text>
+                  </Pressable>
+                  
+                  <Pressable 
+                    style={styles.documentButton}
+                    onPress={() => takePicture('back')}
+                    disabled={isVerifyingDocuments || documentsVerified}
+                  >
+                    <Camera size={16} color={colors.primary} />
+                    <Text style={styles.documentButtonText}>Take Photo</Text>
+                  </Pressable>
+                </View>
+              )}
+              {errors.documentBack && <Text style={styles.errorText}>{errors.documentBack}</Text>}
+            </View>
+          )}
+          
+          <View style={styles.documentCard}>
+            <View style={styles.documentHeader}>
+              <Text style={styles.documentName}>Selfie Verification</Text>
+              <View style={styles.documentStatus}>
+                <Text style={styles.documentStatusText}>Required</Text>
+              </View>
+            </View>
+            <Text style={styles.documentDescription}>
+              Complete the liveness test to capture a secure selfie for verification. This advanced security feature ensures your identity is verified through facial recognition and prevents fraud.
+            </Text>
+            
+            {formData.selfie_url ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image 
+                  source={{ uri: formData.selfie_url }} 
+                  style={styles.imagePreview} 
+                  resizeMode="cover"
+                />
+                <Pressable 
+                  style={styles.retakeButton}
+                  onPress={() => {
+                    setShowLivenessTest(true);
+                    haptics.lightImpact();
+                  }}
+                  disabled={isVerifyingDocuments || documentsVerified}
+                >
+                  <Text style={styles.retakeButtonText}>Retake with Liveness Test</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.documentActions}>
+                <Pressable 
+                  style={[styles.documentButton, styles.livenessButton, { flex: 1 }]}
+                  onPress={() => {
+                    setShowLivenessTest(true);
+                    haptics.lightImpact();
+                  }}
+                  disabled={isVerifyingDocuments || documentsVerified}
+                >
+                  <Shield size={16} color={colors.primary} />
+                  <Text style={styles.documentButtonText}>Start Liveness Test</Text>
+                </Pressable>
+              </View>
+            )}
+            {errors.selfie && <Text style={styles.errorText}>{errors.selfie}</Text>}
+          </View>
+        </View> */}
+        
+        {errors.documentVerification && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{errors.documentVerification}</Text>
+          </View>
+        )}
+        
+        <View style={styles.infoContainer}>
+          <Shield size={20} color={colors.primary} />
+          <Text style={styles.infoText}>
+            Your documents are securely encrypted and will only be used for verification purposes. They will be deleted after verification is complete.
+          </Text>
+        </View>
+      </View>
+    );
+  };
+  
+  const renderAddressDetailsStep = () => {
+    return (
+      <View style={styles.formContainer}>
+        <Text style={styles.sectionTitle}>Address Details</Text>
+        <Text style={styles.sectionDescription}>
+          Please confirm your residential address and provide additional details.
+        </Text>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>House/Street Number</Text>
+          <View style={styles.inputContainer}>
+            <MapPin size={20} color={colors.textSecondary} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter house/street number"
+              placeholderTextColor={colors.textTertiary}
+              value={addressNo}
+              onChangeText={(text) => {
+                setAddressNo(text);
+                setErrors(prev => ({ ...prev, addressNo: '' }));
+              }}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Residential Address</Text>
+          <Pressable 
+            style={[styles.inputContainer, errors.address && styles.inputError]}
+            onPress={() => setShowLocationSearch(true)}
+          >
+            <MapPin size={20} color={colors.textSecondary} />
+            <TextInput
+              ref={addressInputRef}
+              style={[styles.input, styles.multilineInput]}
+              placeholder="Tap to search for your address"
+              placeholderTextColor={colors.textTertiary}
+              value={address}
+              onChangeText={(text) => {
+                setAddress(text);
+                setErrors(prev => ({ ...prev, address: '' }));
+              }}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              editable={false}
+            />
+            <ChevronRight size={20} color={colors.textTertiary} />
+          </Pressable>
+          {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
+          {address && (
+            <Text style={styles.locationInfo}>
+              📍 Location selected from map
+            </Text>
+          )}
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Local Government Area (LGA)</Text>
+          <View style={[styles.inputContainer, errors.lga && styles.inputError]}>
+            <MapPin size={20} color={colors.textSecondary} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your LGA"
+              placeholderTextColor={colors.textTertiary}
+              value={lga}
+              onChangeText={(text) => {
+                setLga(text);
+                setErrors(prev => ({ ...prev, lga: '' }));
+              }}
+            />
+          </View>
+          {errors.lga && <Text style={styles.errorText}>{errors.lga}</Text>}
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>State</Text>
+          <View style={[styles.inputContainer, errors.state && styles.inputError]}>
+            <MapPin size={20} color={colors.textSecondary} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your state"
+              placeholderTextColor={colors.textTertiary}
+              value={state}
+              onChangeText={(text) => {
+                setState(text);
+                setErrors(prev => ({ ...prev, state: '' }));
+              }}
+            />
+          </View>
+          {errors.state && <Text style={styles.errorText}>{errors.state}</Text>}
+        </View>
+        
+
+        
+        <View style={styles.documentCard}>
+          <View style={styles.documentHeader}>
+            <Text style={styles.documentName}>House Photo (Required)</Text>
+            <View style={[styles.documentStatus, styles.requiredStatus]}>
+              <Text style={styles.requiredStatusText}>Required</Text>
+            </View>
+          </View>
+          <Text style={styles.documentDescription}>
+            Take a photo of your house/building for address verification.
+          </Text>
+          {houseUrl ? (
+            <View style={styles.imagePreviewContainer}>
+              <Image 
+                source={{ uri: houseUrl }} 
+                style={styles.imagePreview} 
+                resizeMode="cover"
+              />
+              <Pressable 
+                style={styles.retakeButton}
+                onPress={() => setHouseUrl(null)}
+              >
+                <Text style={styles.retakeButtonText}>Remove</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.documentActions}>
+              <Pressable 
+                style={styles.documentButton}
+                onPress={() => takePicture('house')}
+              >
+                <Camera size={16} color={colors.primary} />
+                <Text style={styles.documentButtonText}>Take Photo</Text>
+              </Pressable>
+            </View>
+          )}
+          {errors.houseUrl && <Text style={styles.errorText}>{errors.houseUrl}</Text>}
+        </View>
+        
+        <View style={styles.documentCard}>
+          <View style={styles.documentHeader}>
+            <Text style={styles.documentName}>Utility Bill (Optional for Tier 3)</Text>
+            <View style={[styles.documentStatus, styles.optionalStatus]}>
+              <Text style={styles.optionalStatusText}>Optional</Text>
+            </View>
+          </View>
+          <Text style={styles.documentDescription}>
+            Upload a recent utility bill (electricity, water, etc.) for Tier 3 verification.
+          </Text>
+          
+          {utilityBill ? (
+            <View style={styles.imagePreviewContainer}>
+              <Image 
+                source={{ uri: utilityBill }} 
+                style={styles.imagePreview} 
+                resizeMode="cover"
+              />
+              <Pressable 
+                style={styles.retakeButton}
+                onPress={() => setUtilityBill(null)}
+              >
+                <Text style={styles.retakeButtonText}>Remove</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.documentActions}>
+              <Pressable 
+                style={styles.documentButton}
+                onPress={() => pickImage(setUtilityBill, 'utilityBill')}
+              >
+                <Upload size={16} color={colors.primary} />
+                <Text style={styles.documentButtonText}>Upload</Text>
+              </Pressable>
+              
+              <Pressable 
+                style={styles.documentButton}
+                onPress={() => takePicture('utility')}
+              >
+                <Camera size={16} color={colors.primary} />
+                <Text style={styles.documentButtonText}>Take Photo</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+        
+        <View style={styles.infoContainer}>
+          <Info size={20} color={colors.primary} />
+          <Text style={styles.infoText}>
+            Your address information is used for verification purposes and to determine your transaction limits.
+          </Text>
+        </View>
+      </View>
+    );
+  };
+  
+  const renderReviewStep = () => {
+    return (
+      <View style={styles.formContainer}>
+        <Text style={styles.sectionTitle}>Review Your Information</Text>
+        <Text style={styles.sectionDescription}>
+          Please review your information before submitting.
+        </Text>
+        
+        <View style={styles.reviewSection}>
+          <View style={styles.reviewCard}>
+            <Text style={styles.reviewSectionTitle}>Personal Information</Text>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>Full Name</Text>
+              <Text style={styles.reviewValue}>
+                {firstName} {middleName ? `${middleName} ` : ''}{lastName}
+              </Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>Date of Birth</Text>
+              <Text style={styles.reviewValue}>{dateOfBirth || 'Not provided'}</Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>Phone Number</Text>
+              <Text style={styles.reviewValue}>{phoneNumber || 'Not provided'}</Text>
+            </View>
+          </View>
+          
+          <View style={styles.reviewCard}>
+            <Text style={styles.reviewSectionTitle}>Identity Verification</Text>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>BVN</Text>
+              <Text style={styles.reviewValue}>
+                •••• •••• {bvn.slice(-3)} {bvnVerified && <Check size={16} color={colors.success} />}
+              </Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>ID Type</Text>
+              <Text style={styles.reviewValue}>
+                {selectedIdentityType === 'nin' ? 'National ID (NIN)' :
+                 selectedIdentityType === 'passport' ? 'International Passport' :
+                 'Driver\'s License'}
+              </Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>
+                {selectedIdentityType === 'nin' ? 'NIN' :
+                 selectedIdentityType === 'passport' ? 'Passport Number' :
+                 'License Number'}
+              </Text>
+              <Text style={styles.reviewValue}>
+                {selectedIdentityType === 'nin' ? nin :
+                 selectedIdentityType === 'passport' ? passportNumber :
+                 'Not provided'}
+              </Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>Document Verification</Text>
+              <Text style={[
+                styles.reviewValue,
+                documentsVerified ? styles.verifiedText : styles.pendingText
+              ]}>
+                {documentsVerified ? 'Verified' : 'Pending'}
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.reviewCard}>
+            <Text style={styles.reviewSectionTitle}>Address Information</Text>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>House/Street Number</Text>
+              <Text style={styles.reviewValue}>{addressNo || 'Not provided'}</Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>Residential Address</Text>
+              <Text style={styles.reviewValue}>{address}</Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>LGA</Text>
+              <Text style={styles.reviewValue}>{lga}</Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>State</Text>
+              <Text style={styles.reviewValue}>{state}</Text>
+            </View>
+            
+
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>House Photo</Text>
+              <Text style={styles.reviewValue}>
+                {houseUrl ? 'Uploaded' : 'Not provided'}
+              </Text>
+            </View>
+            
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewLabel}>Utility Bill</Text>
+              <Text style={styles.reviewValue}>
+                {utilityBill ? 'Uploaded' : 'Not provided (Optional for Tier 3)'}
+              </Text>
+            </View>
+          </View>
+        </View>
+        
+        <View style={styles.termsContainer}>
+          <Text style={styles.termsText}>
+            By submitting this information, I confirm that all details provided are accurate and complete. I authorize Planmoni to verify my identity using the information provided.
+          </Text>
+        </View>
+      </View>
+    );
+  };
+  
+  const renderLivenessVerificationStep = () => {
+    return (
+      <View style={styles.formContainer}>
+        <Text style={styles.sectionTitle}>Liveness Verification</Text>
+        <Text style={styles.sectionDescription}>
+          Please complete the liveness test to verify your identity. This is the first step in your KYC verification process.
+        </Text>
+        
+        <View style={styles.infoContainer}>
+          <Info size={20} color={colors.primary} />
+          <Text style={styles.infoText}>
+            The liveness test requires you to perform facial movements to ensure you are a real person. This helps protect your account from fraud.
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   const renderCurrentStep = () => {
     switch (currentStep) {
       case 'liveness_verification':
@@ -3235,7 +4266,8 @@ export default function KYCUpgradeScreen() {
             isResolvingBvn || 
             isVerifyingDocuments || 
             (currentStep === 'bvn_verification' && bvnVerified) ||
-            (currentStep === 'id_face_match' && documentsVerified)
+            (currentStep === 'id_face_match' && documentsVerified) ||
+            (currentStep === 'id_face_match' && !!ninIdentityId && !otp.trim())
           }
           loading={isLoading || formDataLoading || (progressLoading && currentStep !== 'liveness_verification') || isResolvingBvn || isVerifyingDocuments}
         />

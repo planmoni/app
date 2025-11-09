@@ -64,6 +64,8 @@ class SafeHavenService {
   private readonly API_URL = 'https://api.safehavenmfb.com';
   private readonly CLIENT_ID = process.env.EXPO_PUBLIC_SAFEHAVEN_CLIENT_ID || '';
   private readonly CLIENT_ASSERTION = process.env.EXPO_PUBLIC_SAFEHAVEN_CLIENT_ASSERTION || '';
+  // In-memory token storage as fallback when database storage fails
+  private inMemoryTokens: Map<string, SafeHavenToken> = new Map();
 
   public static getInstance(): SafeHavenService {
     if (!SafeHavenService.instance) {
@@ -77,31 +79,47 @@ class SafeHavenService {
    */
   async getToken(userId: string): Promise<SafeHavenToken | null> {
     try {
+      // First try to get from database
       const { data, error } = await supabase
         .from('safehaven_tokens')
         .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid error if no record exists
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return null; // No token found
-        }
-        throw error;
+      if (data) {
+        return {
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          token_type: data.token_type,
+          expires_in: data.expires_in,
+          expires_at: data.expires_at,
+          ibs_client_id: data.ibs_client_id,
+          ibs_user_id: data.ibs_user_id,
+          client_id: data.client_id
+        };
       }
 
-      return {
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-        token_type: data.token_type,
-        expires_in: data.expires_in,
-        expires_at: data.expires_at,
-        ibs_client_id: data.ibs_client_id,
-        ibs_user_id: data.ibs_user_id,
-        client_id: data.client_id
-      };
+      // If not in database, check in-memory storage (fallback for RLS issues)
+      const inMemoryToken = this.inMemoryTokens.get(userId);
+      if (inMemoryToken) {
+        // Check if token is still valid
+        if (!this.isTokenExpired(inMemoryToken)) {
+          return inMemoryToken;
+        } else {
+          // Remove expired token from memory
+          this.inMemoryTokens.delete(userId);
+        }
+      }
+
+      return null; // No token found
     } catch (error) {
-      console.error('Error getting SafeHaven token:', error);
+      // If database query fails, check in-memory storage
+      const inMemoryToken = this.inMemoryTokens.get(userId);
+      if (inMemoryToken && !this.isTokenExpired(inMemoryToken)) {
+        return inMemoryToken;
+      }
+      
+      console.error('[SafeHaven] Error getting SafeHaven token:', error);
       return null;
     }
   }
@@ -157,8 +175,24 @@ class SafeHavenService {
 
       const tokenData = await response.json();
 
-      // Store the new token
-      await this.storeToken(userId, tokenData, tokenData.refresh_token || '');
+      // Store the new token (may fail due to RLS, but we'll use in-memory fallback)
+      const stored = await this.storeToken(userId, tokenData, tokenData.refresh_token || '');
+      
+      // If database storage failed, store in memory as fallback
+      if (!stored) {
+        const inMemoryToken: SafeHavenToken = {
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token || '',
+          token_type: tokenData.token_type,
+          expires_in: tokenData.expires_in,
+          expires_at: new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString(),
+          ibs_client_id: tokenData.ibs_client_id,
+          ibs_user_id: tokenData.ibs_user_id,
+          client_id: tokenData.client_id
+        };
+        this.inMemoryTokens.set(userId, inMemoryToken);
+        console.log('[SafeHaven] Token stored in memory as fallback');
+      }
 
       // Update audit log with success
       await this.updateAuditLog(
@@ -211,7 +245,24 @@ class SafeHavenService {
       if (!initResult.success) {
         return null;
       }
+      // Try to get token from database or memory
       token = await this.getToken(userId);
+      // If still no token but we have data from API response, use that
+      if (!token && initResult.data) {
+        const apiToken: SafeHavenToken = {
+          access_token: initResult.data.access_token,
+          refresh_token: initResult.data.refresh_token || '',
+          token_type: initResult.data.token_type,
+          expires_in: initResult.data.expires_in,
+          expires_at: new Date(Date.now() + (initResult.data.expires_in * 1000)).toISOString(),
+          ibs_client_id: initResult.data.ibs_client_id,
+          ibs_user_id: initResult.data.ibs_user_id,
+          client_id: initResult.data.client_id
+        };
+        // Store in memory as fallback
+        this.inMemoryTokens.set(userId, apiToken);
+        return apiToken;
+      }
       if (!token) {
         return null;
       }
@@ -226,10 +277,43 @@ class SafeHavenService {
         if (!initResult.success) {
           return null;
         }
+        // Try to get token from database or memory
         token = await this.getToken(userId);
+        // If still no token but we have data from API response, use that
+        if (!token && initResult.data) {
+          const apiToken: SafeHavenToken = {
+            access_token: initResult.data.access_token,
+            refresh_token: initResult.data.refresh_token || '',
+            token_type: initResult.data.token_type,
+            expires_in: initResult.data.expires_in,
+            expires_at: new Date(Date.now() + (initResult.data.expires_in * 1000)).toISOString(),
+            ibs_client_id: initResult.data.ibs_client_id,
+            ibs_user_id: initResult.data.ibs_user_id,
+            client_id: initResult.data.client_id
+          };
+          // Store in memory as fallback
+          this.inMemoryTokens.set(userId, apiToken);
+          return apiToken;
+        }
         return token;
       }
       token = await this.getToken(userId);
+      // If still no token but we have data from refresh response, use that
+      if (!token && refreshResult.data) {
+        const apiToken: SafeHavenToken = {
+          access_token: refreshResult.data.access_token,
+          refresh_token: refreshResult.data.refresh_token || '',
+          token_type: refreshResult.data.token_type,
+          expires_in: refreshResult.data.expires_in,
+          expires_at: new Date(Date.now() + (refreshResult.data.expires_in * 1000)).toISOString(),
+          ibs_client_id: refreshResult.data.ibs_client_id,
+          ibs_user_id: refreshResult.data.ibs_user_id,
+          client_id: refreshResult.data.client_id
+        };
+        // Store in memory as fallback
+        this.inMemoryTokens.set(userId, apiToken);
+        return apiToken;
+      }
     }
 
     return token;
@@ -296,8 +380,24 @@ class SafeHavenService {
 
       const tokenData = await response.json();
 
-      // Store the new token - use refresh_token from response if available, otherwise use the old one
-      await this.storeToken(userId, tokenData, tokenData.refresh_token || refreshToken);
+      // Store the new token (may fail due to RLS, but we'll use in-memory fallback)
+      const stored = await this.storeToken(userId, tokenData, tokenData.refresh_token || refreshToken);
+      
+      // If database storage failed, store in memory as fallback
+      if (!stored) {
+        const inMemoryToken: SafeHavenToken = {
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token || refreshToken,
+          token_type: tokenData.token_type,
+          expires_in: tokenData.expires_in,
+          expires_at: new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString(),
+          ibs_client_id: tokenData.ibs_client_id,
+          ibs_user_id: tokenData.ibs_user_id,
+          client_id: tokenData.client_id
+        };
+        this.inMemoryTokens.set(userId, inMemoryToken);
+        console.log('[SafeHaven] Token stored in memory as fallback');
+      }
 
       // Update audit log with success
       await this.updateAuditLog(
@@ -341,7 +441,7 @@ class SafeHavenService {
   /**
    * Stores a SafeHaven token in the database
    */
-  private async storeToken(userId: string, tokenData: any, refreshToken: string): Promise<void> {
+  private async storeToken(userId: string, tokenData: any, refreshToken: string): Promise<boolean> {
     try {
       const tokenRecord = {
         user_id: userId,
@@ -361,9 +461,14 @@ class SafeHavenService {
         .from('safehaven_tokens')
         .select('id')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid error if no record exists
 
       if (fetchError && fetchError.code !== 'PGRST116') {
+        // RLS policy violations are expected if policies aren't configured
+        if (fetchError.code === '42501') {
+          console.warn('[SafeHaven] Token storage skipped due to RLS policy (token will be used in-memory)');
+          return false;
+        }
         throw fetchError;
       }
 
@@ -375,6 +480,11 @@ class SafeHavenService {
           .eq('user_id', userId);
 
         if (updateError) {
+          // RLS policy violations are expected if policies aren't configured
+          if (updateError.code === '42501') {
+            console.warn('[SafeHaven] Token storage skipped due to RLS policy (token will be used in-memory)');
+            return false;
+          }
           throw updateError;
         }
       } else {
@@ -387,12 +497,25 @@ class SafeHavenService {
           });
 
         if (insertError) {
+          // RLS policy violations are expected if policies aren't configured
+          if (insertError.code === '42501') {
+            console.warn('[SafeHaven] Token storage skipped due to RLS policy (token will be used in-memory)');
+            return false;
+          }
           throw insertError;
         }
       }
+
+      return true;
     } catch (error) {
-      console.error('Error storing SafeHaven token:', error);
-      throw error;
+      // RLS policy violations are expected if policies aren't configured
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('row-level security') || (error as any)?.code === '42501') {
+        console.warn('[SafeHaven] Token storage skipped due to RLS policy (token will be used in-memory)');
+        return false;
+      }
+      console.error('[SafeHaven] Error storing SafeHaven token:', error);
+      return false;
     }
   }
 
@@ -670,13 +793,25 @@ class SafeHavenService {
       });
 
       if (error) {
-        console.error('Error logging SafeHaven operation:', error);
+        // RLS policy violations are expected if policies aren't configured
+        // Log as warning instead of error to avoid noise
+        if (error.code === '42501') {
+          console.warn('[SafeHaven] Audit logging skipped due to RLS policy (this is non-critical):', error.message);
+        } else {
+          console.error('[SafeHaven] Error logging SafeHaven operation:', error);
+        }
         return undefined;
       }
 
       return data || undefined;
     } catch (error) {
-      console.error('Error in SafeHaven operation logging:', error);
+      // RLS policy violations are expected if policies aren't configured
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('row-level security') || errorMessage.includes('42501')) {
+        console.warn('[SafeHaven] Audit logging skipped due to RLS policy (this is non-critical)');
+      } else {
+        console.error('[SafeHaven] Error in SafeHaven operation logging:', error);
+      }
       return undefined;
     }
   }
@@ -766,18 +901,21 @@ class SafeHavenService {
   /**
    * Verifies NIN using SafeHaven API and creates account
    * Uses two-step workflow: identity verification first, then account creation
+   * 
+   * If OTP is not provided, only initializes verification (step 1) and returns identityId
+   * If OTP is provided, creates account (step 2) using identityId
    */
   async verifyNINAndCreateAccount(
     userId: string,
     nin: string,
     phoneNumber: string,
     emailAddress: string,
-    selfieImageUrl?: string,
-    otp?: string
+    otp?: string,
+    identityId?: string
   ): Promise<SafeHavenOperationResult> {
     const startTime = Date.now();
     let auditLogId: string | undefined = undefined;
-    let identityId: string | undefined = undefined;
+    let currentIdentityId: string | undefined = identityId;
 
     try {
       // Get valid token
@@ -797,7 +935,6 @@ class SafeHavenService {
         p_verification_provider: 'safehaven',
         p_request_data: {
           nin: nin.substring(0, 4) + '****', // Partial NIN for security
-          hasSelfie: !!selfieImageUrl,
           timestamp: new Date().toISOString()
         },
         p_response_data: null,
@@ -815,100 +952,140 @@ class SafeHavenService {
         'nin_verification',
         {
           nin: nin.substring(0, 4) + '****', // Partial NIN for security
-          hasSelfie: !!selfieImageUrl,
           step: 'identity_verification'
         },
         null,
         'pending'
       );
 
-      // STEP 1: Create identity verification
-      const defaultDebitAccountNumber = '0117753301';
-      const identityRequestPayload = {
-        type: 'NIN',
-        async: true,
-        debitAccountNumber: defaultDebitAccountNumber,
-        number: nin
-      };
-
-      const identityResponse = await fetch(`${this.API_URL}/identity/v2`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ClientID': this.CLIENT_ID,
-          'Authorization': `Bearer ${token.access_token}`
-        },
-        body: JSON.stringify(identityRequestPayload)
-      });
-
-      if (!identityResponse.ok) {
-        const errorText = await identityResponse.text();
-        const errorData = { 
-          status: identityResponse.status, 
-          statusText: identityResponse.statusText, 
-          error: errorText,
-          step: 'identity_verification'
+      // STEP 1: Create identity verification (only if identityId not provided)
+      if (!currentIdentityId) {
+        const defaultDebitAccountNumber = '0117753301';
+        const identityRequestPayload = {
+          type: 'NIN',
+          async: true,
+          debitAccountNumber: defaultDebitAccountNumber,
+          number: nin
         };
-        
-        const responseTime = Date.now() - startTime;
-        
-        // Update both audit logs with error
-        if (kycAuditLogId?.data) {
-          await supabase
-            .from('kyc_audit_logs')
-            .update({
-              status: 'failed',
-              response_data: errorData,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', kycAuditLogId.data);
+
+        const identityResponse = await fetch(`${this.API_URL}/identity/v2`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'ClientID': this.CLIENT_ID,
+            'Authorization': `Bearer ${token.access_token}`
+          },
+          body: JSON.stringify(identityRequestPayload)
+        });
+
+        if (!identityResponse.ok) {
+          const errorText = await identityResponse.text();
+          const errorData = { 
+            status: identityResponse.status, 
+            statusText: identityResponse.statusText, 
+            error: errorText,
+            step: 'identity_verification'
+          };
+          
+          const responseTime = Date.now() - startTime;
+          
+          // Update both audit logs with error
+          if (kycAuditLogId?.data) {
+            await supabase
+              .from('kyc_audit_logs')
+              .update({
+                status: 'failed',
+                response_data: errorData,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', kycAuditLogId.data);
+          }
+          await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
+
+          return {
+            success: false,
+            error: `Identity verification failed: ${identityResponse.status} ${identityResponse.statusText}`,
+            auditLogId,
+            responseTime
+          };
         }
-        await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
 
-        return {
-          success: false,
-          error: `Identity verification failed: ${identityResponse.status} ${identityResponse.statusText}`,
+        const identityData = await identityResponse.json();
+        
+        // Extract identityId from response
+        if (identityData?.data?._id) {
+          currentIdentityId = identityData.data._id;
+        } else if (identityData?._id) {
+          currentIdentityId = identityData._id;
+        } else {
+          throw new Error('Identity ID not found in response');
+        }
+
+        // Update audit log with identity verification success
+        await this.updateAuditLog(
           auditLogId,
-          responseTime
-        };
+          'pending', // Still pending as we need to create account
+          {
+            identityId: currentIdentityId,
+            status: identityData?.data?.status || identityData?.status || 'PENDING',
+            step: 'identity_verification_complete'
+          },
+          null,
+          Date.now() - startTime
+        );
+
+        // If no OTP provided, return identityId for next step
+        if (!otp) {
+          // Update KYC audit log
+          if (kycAuditLogId?.data) {
+            await supabase
+              .from('kyc_audit_logs')
+              .update({
+                status: 'success',
+                response_data: {
+                  identityId: currentIdentityId,
+                  otp_sent: true,
+                  status: identityData?.data?.status || identityData?.status || 'PENDING'
+                },
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', kycAuditLogId.data);
+          }
+
+          return {
+            success: true,
+            data: {
+              identityId: currentIdentityId,
+              requiresOtp: true,
+              status: identityData?.data?.status || identityData?.status || 'PENDING'
+            },
+            auditLogId,
+            responseTime: Date.now() - startTime
+          };
+        }
       }
 
-      const identityData = await identityResponse.json();
+      // STEP 2: Create account using identityId (requires OTP)
+      if (!otp) {
+        throw new Error('OTP is required to create account');
+      }
       
-      // Extract identityId from response
-      if (identityData?.data?._id) {
-        identityId = identityData.data._id;
-      } else if (identityData?._id) {
-        identityId = identityData._id;
-      } else {
-        throw new Error('Identity ID not found in response');
+      // When OTP is provided, identityId is required
+      if (!currentIdentityId) {
+        throw new Error('Identity ID is required when OTP is provided. Please initialize NIN verification first.');
       }
-
-      // Update audit log with identity verification success
-      await this.updateAuditLog(
-        auditLogId,
-        'pending', // Still pending as we need to create account
-        {
-          identityId: identityId,
-          status: identityData?.data?.status || identityData?.status || 'PENDING',
-          step: 'identity_verification_complete'
-        },
-        null,
-        Date.now() - startTime
-      );
-
-      // STEP 2: Create account using identityId
+      
       const accountRequestPayload: any = {
         phoneNumber: phoneNumber,
         emailAddress: emailAddress,
         identityType: 'NIN',
-        autoSweep: false,
+        autoSweep: true,
         autoSweepDetails: {
           schedule: 'Instant'
         },
         externalReference: `AC_${userId.substring(0, 8)}`,
         identityNumber: nin,
-        identityId: identityId
+        identityId: currentIdentityId
       };
 
       // Add OTP if provided
@@ -926,6 +1103,8 @@ class SafeHavenService {
         body: JSON.stringify(accountRequestPayload)
       });
 
+      console.log(' Account creation response:', JSON.stringify(accountResponse, null, 2));
+
       const responseTime = Date.now() - startTime;
 
       if (!accountResponse.ok) {
@@ -935,7 +1114,7 @@ class SafeHavenService {
           statusText: accountResponse.statusText, 
           error: errorText,
           step: 'account_creation',
-          identityId: identityId
+          identityId: currentIdentityId
         };
         
         // Update both audit logs with error
@@ -956,33 +1135,72 @@ class SafeHavenService {
           error: `Account creation failed: ${accountResponse.status} ${accountResponse.statusText}`,
           auditLogId,
           responseTime,
-          data: { identityId, requiresOtp: accountResponse.status === 400 || accountResponse.status === 422 }
+          data: { identityId: currentIdentityId, requiresOtp: accountResponse.status === 400 || accountResponse.status === 422 }
         };
       }
 
       const accountData = await accountResponse.json();
+      
+      console.log('[SafeHaven] Account creation response:', JSON.stringify(accountData, null, 2));
 
       // Extract account information from response
       const verificationData: any = {
         verified: true,
-        identityId: identityId,
+        identityId: currentIdentityId,
         identityNumber: nin,
         status: accountData?.data?.status || accountData?.status || 'PENDING'
       };
 
-      // Extract account number if available
+      // Extract account number if available - check multiple possible locations
+      let accountNumber = null;
       if (accountData?.data?.accountNumber) {
-        verificationData.account_number = accountData.data.accountNumber;
+        accountNumber = accountData.data.accountNumber;
+      } else if (accountData?.data?.account_number) {
+        accountNumber = accountData.data.account_number;
       } else if (accountData?.accountNumber) {
-        verificationData.account_number = accountData.accountNumber;
+        accountNumber = accountData.accountNumber;
+      } else if (accountData?.account_number) {
+        accountNumber = accountData.account_number;
+      } else if (accountData?.data?.account?.accountNumber) {
+        accountNumber = accountData.data.account.accountNumber;
+      } else if (accountData?.data?.account?.account_number) {
+        accountNumber = accountData.data.account.account_number;
+      }
+      
+      if (accountNumber) {
+        verificationData.account_number = accountNumber;
       }
 
-      // Extract names if available
+      // Extract account name if available - check multiple possible locations
+      let accountName = null;
       if (accountData?.data?.accountName) {
-        const names = accountData.data.accountName.split(' ');
+        accountName = accountData.data.accountName;
+      } else if (accountData?.data?.account_name) {
+        accountName = accountData.data.account_name;
+      } else if (accountData?.accountName) {
+        accountName = accountData.accountName;
+      } else if (accountData?.account_name) {
+        accountName = accountData.account_name;
+      } else if (accountData?.data?.account?.accountName) {
+        accountName = accountData.data.account.accountName;
+      } else if (accountData?.data?.account?.account_name) {
+        accountName = accountData.data.account.account_name;
+      }
+      
+      // Extract names if available
+      if (accountName) {
+        const names = accountName.split(' ');
         verificationData.first_name = names[0] || '';
         verificationData.last_name = names[names.length - 1] || '';
         verificationData.middle_name = names.length > 2 ? names.slice(1, -1).join(' ') : '';
+        verificationData.account_name = accountName;
+      }
+      
+      // If account number is not found, log the full response for debugging
+      if (!accountNumber) {
+        console.warn('[SafeHaven] Account number not found in response. Full response:', JSON.stringify(accountData, null, 2));
+        // Account might be created asynchronously, so we'll still mark as verified
+        // but log a warning
       }
 
       // Update KYC audit log with success
@@ -995,7 +1213,7 @@ class SafeHavenService {
               verified: true,
               nin: nin.substring(0, 4) + '****',
               hasAccount: !!verificationData.account_number,
-              identityId: identityId
+              identityId: currentIdentityId
             },
             updated_at: new Date().toISOString()
           })
@@ -1010,7 +1228,7 @@ class SafeHavenService {
           verified: true,
           hasAccount: !!verificationData.account_number,
           accountNumber: verificationData.account_number ? verificationData.account_number.substring(0, 5) + '****' : null,
-          identityId: identityId,
+          identityId: currentIdentityId,
           step: 'account_creation_complete'
         },
         null,
@@ -1028,11 +1246,11 @@ class SafeHavenService {
         });
       }
 
-      // Update KYC progress with NIN verification
+      // Update KYC progress with NIN verification (using id_face_verified)
       await supabase
         .from('kyc_progress')
         .update({
-          nin_verified: true,
+          id_face_verified: true,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', userId);

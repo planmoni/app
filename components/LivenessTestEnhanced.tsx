@@ -78,8 +78,6 @@ export default function LivenessTestEnhanced({
   const cameraRef = useRef<VisionCamera>(null);
   const setupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const photoCaptureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isCapturingPhotoRef = useRef<boolean>(false);
   
   console.log('[LivenessTest] Camera device:', { hasDevice: !!device, deviceId: device?.id });
 
@@ -179,21 +177,11 @@ export default function LivenessTestEnhanced({
 
   const capturePhoto = async () => {
     console.log('[LivenessTest] capturePhoto called');
-    
-    // Prevent multiple simultaneous photo captures
-    if (isCapturingPhotoRef.current) {
-      console.log('[LivenessTest] Photo capture already in progress, skipping');
-      return;
-    }
-    
-    // Check if component is still mounted and camera is available
-    if (!isVisible || !cameraRef.current) {
-      console.error('[LivenessTest] Camera ref is null or modal not visible, cannot capture photo');
-      return;
-    }
-    
     try {
-      isCapturingPhotoRef.current = true;
+      if (!cameraRef.current) {
+        console.error('[LivenessTest] Camera ref is null, cannot capture photo');
+        return;
+      }
       console.log('[LivenessTest] Taking photo...');
       const photo = await cameraRef.current.takePhoto({ 
         flash: "off", 
@@ -205,19 +193,6 @@ export default function LivenessTestEnhanced({
       console.log('[LivenessTest] Image URI set:', imageUri);
     } catch (error) {
       console.error('[LivenessTest] Error capturing photo:', error);
-      // Reset the flag on error so user can retry
-      isCapturingPhotoRef.current = false;
-      // Don't re-throw if modal is closing - this prevents "promise rejected more than once" errors
-      // The error is already logged, and we don't want to crash if the modal is closing
-      if (!isVisible) {
-        console.log('[LivenessTest] Modal closing, ignoring photo capture error');
-        return;
-      }
-    } finally {
-      // Only reset if we're still in photo_capture stage and modal is visible
-      if (livenessStage === "photo_capture" && isVisible) {
-        isCapturingPhotoRef.current = false;
-      }
     }
   };
 
@@ -266,16 +241,8 @@ export default function LivenessTestEnhanced({
         setLivenessStage("photo_capture");
         progressValue.value = withTiming(100, { duration: 300 });
         console.log('[LivenessTest] Scheduling photo capture in 1000ms');
-        
-        // Clear any existing photo capture timer
-        if (photoCaptureTimerRef.current) {
-          clearTimeout(photoCaptureTimerRef.current);
-        }
-        
-        photoCaptureTimerRef.current = setTimeout(() => {
+        setTimeout(() => {
           console.log('[LivenessTest] Executing scheduled photo capture');
-          photoCaptureTimerRef.current = null;
-          // Capture photo - the capturePhoto function will check if modal is still visible
           capturePhoto();
         }, 1000);
         break;
