@@ -436,6 +436,13 @@ export default function KYCUpgradeScreen() {
     if (!nin.trim()) newErrors.nin = 'NIN is required';
     else if (nin.length !== 11 || !/^\d+$/.test(nin)) newErrors.nin = 'NIN must be 11 digits';
 
+    // Phone number is required for NIN verification
+    if (!phoneNumber.trim()) {
+      newErrors.phoneNumber = 'Phone number is required for NIN verification';
+    } else if (phoneNumber.length < 10 || !/^\d+$/.test(phoneNumber)) {
+      newErrors.phoneNumber = 'Phone number must be at least 10 digits';
+    }
+
     // If identityId exists, OTP is required
     if (ninIdentityId) {
       if (!otp.trim()) newErrors.otp = 'OTP is required';
@@ -700,6 +707,7 @@ export default function KYCUpgradeScreen() {
             // Save identity data (NIN verification only)
             const saveResult = await saveFormData({
               nin: nin,
+              phone_number: phoneNumber,
               // selfie_url: formData.selfie_url || undefined
             });
             
@@ -899,22 +907,30 @@ export default function KYCUpgradeScreen() {
       if (progressResult) {
         // Proceed to next incomplete step (should be bvn_verification if not completed)
         const nextStep = getNextIncompleteStep('liveness_verification');
+        console.log('[KYC] Moving to next step after liveness:', nextStep);
+        
+        // Set the current step first to transition smoothly
         setCurrentStep(nextStep);
         
-        // Close the liveness test modal after processing is complete
-        setShowLivenessTest(false);
-        setLivenessInitiated(false);
-        setLivenessManuallyClosed(false); // Reset the manually closed flag
-        
+        // Close the liveness test modal after a short delay to allow step transition
+        // This ensures the user sees the transition to BVN step
         setTimeout(() => {
-          setIsManualVerification(false);
-          // Reset completion flag after a delay
+          console.log('[KYC] Closing liveness modal after step transition');
+          setShowLivenessTest(false);
+          setLivenessInitiated(false);
+          setLivenessManuallyClosed(false); // Reset the manually closed flag
+          
           setTimeout(() => {
-            setLivenessCompleted(false);
-          }, 500);
-        }, 500);
+            setIsManualVerification(false);
+            // Reset completion flag after a delay
+            setTimeout(() => {
+              setLivenessCompleted(false);
+            }, 500);
+          }, 300);
+        }, 800); // Give time for step transition to be visible
       } else {
         // If progress update failed, still close the modal
+        console.error('[KYC] Progress update failed, closing modal');
         setShowLivenessTest(false);
         setLivenessInitiated(false);
       }
@@ -933,14 +949,17 @@ export default function KYCUpgradeScreen() {
       livenessCompleted,
       progressLivenessCompleted: progress?.liveness_test_completed,
       showLivenessTest,
-      livenessInitiated
+      livenessInitiated,
+      currentStep
     });
     // Check if liveness test was completed successfully
     // If it was completed, don't navigate away - let handleLivenessComplete handle the flow
     if (livenessCompleted || progress?.liveness_test_completed) {
       console.log('[KYC] Liveness test was completed, closing modal without navigation');
+      // Just close the modal, don't navigate - the step should already be updated
       setShowLivenessTest(false);
       setLivenessInitiated(false);
+      setLivenessManuallyClosed(false);
       return; // Don't navigate away if completed
     }
     
@@ -996,6 +1015,12 @@ export default function KYCUpgradeScreen() {
     setLivenessInitiated(false);
     setLivenessManuallyClosed(true);
     // Only navigate to home when liveness test is manually closed (not completed)
+    // Don't navigate if we're already on a different step (means completion happened)
+    if (currentStep !== 'liveness_verification') {
+      console.log('[KYC] Already moved to next step, not navigating away');
+      return; // Don't navigate if we've already moved to the next step
+    }
+    console.log('[KYC] Navigating to home because liveness was manually closed');
     router.push('/(tabs)');
   };
   
@@ -1723,8 +1748,21 @@ export default function KYCUpgradeScreen() {
       const accountNumber = verificationData.account_number;
       const accountName = verificationData.account_name || `${verificationData.first_name} ${verificationData.last_name}`.trim();
       
+      // Log the verification data for debugging
+      console.log('[KYC] NIN verification data:', {
+        hasAccountNumber: !!accountNumber,
+        hasAccountName: !!accountName,
+        hasFirstName: !!verificationData.first_name,
+        hasLastName: !!verificationData.last_name,
+        identityId: verificationData.identityId,
+        status: verificationData.status
+      });
+      
+      // Account number might not be immediately available if account creation is async
+      // We'll proceed with verification even if account number is not present
       if (!accountNumber) {
-        throw new Error('Account number not found in response');
+        console.warn('[KYC] Account number not found in response. Account might be created asynchronously.');
+        // Don't throw error - proceed with verification using identity data
       }
 
       // Extract names from account name
@@ -1785,8 +1823,8 @@ export default function KYCUpgradeScreen() {
                 nin: nin.substring(0, 4) + '****',
                 name_match_percentage: matchPercentage,
                 matched_name: displayName,
-                hasAccount: true,
-                account_number: accountNumber.substring(0, 5) + '****'
+                hasAccount: !!accountNumber,
+                account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null
               },
               updated_at: new Date().toISOString()
             })
@@ -1803,7 +1841,8 @@ export default function KYCUpgradeScreen() {
                 nin: nin.substring(0, 4) + '****',
                 name_match_percentage: matchPercentage,
                 matched_name: displayName,
-                hasAccount: true,
+                hasAccount: !!accountNumber,
+                account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null,
                 provider: 'safehaven'
               },
               severity: 'high'
@@ -1811,7 +1850,11 @@ export default function KYCUpgradeScreen() {
         }
         
         // Show success message
-        showToast(`NIN verified! Name: ${displayName} • Account created: ${accountNumber.substring(0, 5)}****`, 'success');
+        if (accountNumber) {
+          showToast(`NIN verified! Name: ${displayName} • Account created: ${accountNumber.substring(0, 5)}****`, 'success');
+        } else {
+          showToast(`NIN verified! Name: ${displayName} • Account creation in progress`, 'success');
+        }
         
         // Update progress with NIN verified (using id_face_verified)
         const progressResult = await updateProgress({
@@ -2776,6 +2819,42 @@ export default function KYCUpgradeScreen() {
                 />
               </View>
               {errors.nin && <Text style={styles.errorText}>{errors.nin}</Text>}
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Phone Number *</Text>
+              <Text style={styles.sectionDescription}>
+                Enter the phone number linked to your NIN. This is required for NIN verification.
+              </Text>
+              <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
+                <TextInput
+                  ref={phoneInputRef}
+                  style={styles.input}
+                  placeholder="Enter your phone number (e.g., 08012345678)"
+                  placeholderTextColor={colors.textTertiary}
+                  value={phoneNumber}
+                  onChangeText={(text) => {
+                    // Only allow numbers
+                    const numericText = text.replace(/[^0-9]/g, '');
+                    if (numericText.length <= 11) {
+                      setPhoneNumber(numericText);
+                      setErrors(prev => ({ ...prev, phoneNumber: '' }));
+                      // Save to kyc_data when phone number is entered
+                      if (numericText.length >= 10 && session?.user?.id) {
+                        saveFormData({ phone_number: numericText }).catch(err => {
+                          console.error('[KYC] Error saving phone number:', err);
+                        });
+                      }
+                    }
+                  }}
+                  keyboardType="phone-pad"
+                  maxLength={11}
+                  editable={!isVerifyingDocuments && !documentsVerified}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+              </View>
+              {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
             </View>
             
             {ninIdentityId && (

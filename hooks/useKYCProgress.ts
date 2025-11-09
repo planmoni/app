@@ -76,45 +76,67 @@ export const useKYCProgress = () => {
         .from('kyc_progress')
         .select('*')
         .eq('user_id', session.user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid error if no record exists
 
-      if (fetchError) {
-        // If no record exists, create a default one
-        if (fetchError.code === 'PGRST116') {
-          const defaultProgress: KYCProgress = {
-            user_id: session.user.id,
-            current_step: 'liveness_verification',
-            personal_info_completed: false,
-            bvn_verified: false,
-            documents_verified: false,
-            id_face_verified: false,
-            address_completed: false,
-            overall_completed: false,
-            tier_1_completed: false,
-            tier_2_completed: false,
-            tier_3_completed: false,
-            liveness_test_completed: false,
-            utility_bill_verified: false
-          };
-
-          const { data: newData, error: createError } = await supabase
-            .from('kyc_progress')
-            .insert(defaultProgress)
-            .select()
-            .single();
-
-          if (createError) {
-            throw createError;
-          }
-
-          if (newData) {
-            setProgress(newData);
-          }
-        } else {
-          throw fetchError;
-        }
-      } else if (data) {
+      if (data) {
+        // Record exists, use it
         setProgress(data);
+      } else if (fetchError && fetchError.code !== 'PGRST116') {
+        // Only throw if it's not a "no rows" error
+        throw fetchError;
+      } else {
+        // No record exists, create a default one
+        const defaultProgress: KYCProgress = {
+          user_id: session.user.id,
+          current_step: 'liveness_verification',
+          personal_info_completed: false,
+          bvn_verified: false,
+          documents_verified: false,
+          id_face_verified: false,
+          address_completed: false,
+          overall_completed: false,
+          tier_1_completed: false,
+          tier_2_completed: false,
+          tier_3_completed: false,
+          liveness_test_completed: false,
+          utility_bill_verified: false
+        };
+
+        // Use upsert to handle race conditions where record might be created between check and insert
+        const { data: newData, error: createError } = await supabase
+          .from('kyc_progress')
+          .upsert(defaultProgress, {
+            onConflict: 'user_id',
+            ignoreDuplicates: false
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          // If upsert fails with duplicate key, try to fetch the existing record
+          if (createError.code === '23505') {
+            console.log('[KYC] Duplicate key detected, fetching existing record');
+            const { data: existingData, error: fetchExistingError } = await supabase
+              .from('kyc_progress')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .single();
+            
+            if (fetchExistingError) {
+              throw fetchExistingError;
+            }
+            
+            if (existingData) {
+              setProgress(existingData);
+              return;
+            }
+          }
+          throw createError;
+        }
+
+        if (newData) {
+          setProgress(newData);
+        }
       }
     } catch (err) {
       console.error('Error loading KYC progress:', err);
