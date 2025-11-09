@@ -59,14 +59,6 @@ export async function getPushTokenAsync(): Promise<string | null> {
     if (!hasPermission) {
       return null;
     }
-  } catch (error) {
-    console.error("❌ Error getting FCM token:", error);
-    await logAnalyticsEvent("fcm_token_error", {
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-    return null;
-  }
-}
 
     // Try to get push token (requires FCM to be configured)
     const token = (await Notifications.getDevicePushTokenAsync()).data;
@@ -79,6 +71,8 @@ export async function getPushTokenAsync(): Promise<string | null> {
       console.log('To enable remote push notifications, configure FCM: https://docs.expo.dev/push-notifications/fcm-credentials/');
       return null;
     }
+    // Log other errors
+    console.error("❌ Error getting push token:", error);
     // Re-throw other errors
     throw error;
   }
@@ -92,173 +86,61 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   if (!hasPermission) {
     return null;
   }
-}
-
-/**
- * Handle incoming FCM messages
- */
-export async function handleFCMMessage(message: any): Promise<void> {
-  try {
-    console.log("📱 FCM Message received:", message);
-
-    // Log analytics event
-    await logAnalyticsEvent("fcm_message_received", {
-      messageId: message.messageId,
-      from: message.from,
-    });
-
-  // Try to get push token (optional - only for remote push)
+  // Get push token
   return await getPushTokenAsync();
 }
 
-/**
- * Setup notification listeners
- */
-export function setupNotificationListeners(): void {
+// Save push token to database
+async function savePushTokenToDatabase(expoPushToken: string, userId: string): Promise<void> {
   try {
-    // Listen for FCM messages when app is in foreground
-    messaging().onMessage(handleFCMMessage);
+    const deviceInfo = {
+      platform: Platform.OS,
+      version: Platform.Version,
+      model: Device.modelName,
+    };
 
-    // Handle FCM messages when app is in background/killed state
-    messaging().setBackgroundMessageHandler(handleFCMMessage);
-
-    // Handle notification when app is opened from a notification
-    messaging().onNotificationOpenedApp(async (remoteMessage: any) => {
-      try {
-        console.log("🔔 App opened from notification:", remoteMessage);
-        await logAnalyticsEvent("notification_opened_app", {
-          messageId: remoteMessage.messageId,
-          notificationType: remoteMessage.data?.type,
-        });
-        router.push("/notifications");
-        console.log("✅ Navigated to notifications screen from opened app");
-      } catch (error) {
-        console.error("❌ Error handling notification open app:", error);
-      }
-    });
-
-    // Check if app was opened from a notification when it was completely closed
-    messaging()
-      .getInitialNotification()
-      .then(async (remoteMessage: any) => {
-        if (remoteMessage) {
-          try {
-            console.log(
-              "🔔 App opened from notification (cold start):",
-              remoteMessage
-            );
-            await logAnalyticsEvent("notification_opened_cold_start", {
-              messageId: remoteMessage.messageId,
-              notificationType: remoteMessage.data?.type,
-            });
-            router.push("/notifications");
-            console.log("✅ Navigated to notifications screen from cold start");
-          } catch (error) {
-            console.error("❌ Error handling notification cold start:", error);
-          }
+    const { error } = await supabase
+      .from('user_push_tokens')
+      .upsert(
+        {
+          user_id: userId,
+          expo_push_token: expoPushToken,
+          device_info: deviceInfo,
+          is_active: true,
+          last_used: new Date().toISOString(),
+        },
+        {
+          onConflict: 'user_id,expo_push_token',
         }
-      });
+      );
 
-    // Listen for notification actions and main notification press
-    notifee.onForegroundEvent(async ({ type, detail }: { type: any; detail: any }) => {
-      if (type === EventType.ACTION_PRESS) {
-        await handleNotificationAction(detail);
-      } else if (type === EventType.PRESS) {
-        // Handle main notification tap - route to notifications screen
-        try {
-          console.log("🔔 Main notification pressed");
-          await logAnalyticsEvent("notification_pressed", {
-            notificationType: detail.notification?.data?.type,
-          });
-          router.push("/notifications");
-          console.log(
-            "✅ Navigated to notifications screen from main notification press"
-          );
-        } catch (error) {
-          console.error("❌ Error handling main notification press:", error);
-        }
-      }
-    });
-
-    // Handle notification actions and main notification press when app is killed
-    notifee.onBackgroundEvent(async ({ type, detail }: { type: any; detail: any }) => {
-      if (type === EventType.ACTION_PRESS) {
-        await handleNotificationAction(detail);
-      } else if (type === EventType.PRESS) {
-        // Handle main notification tap - route to notifications screen
-        try {
-          console.log("🔔 Main notification pressed (background)");
-          await logAnalyticsEvent("notification_pressed_background", {
-            notificationType: detail.notification?.data?.type,
-          });
-          router.push("/notifications");
-          console.log(
-            "✅ Navigated to notifications screen from background notification press"
-          );
-        } catch (error) {
-          console.error(
-            "❌ Error handling background notification press:",
-            error
-          );
-        }
-      }
-    });
-
-    // Listen for token refresh
-    messaging().onTokenRefresh(async (token: string) => {
-      console.log("🔄 FCM Token refreshed:", token.substring(0, 20) + "...");
-      await AsyncStorage.setItem(STORAGE_KEYS.FCM_TOKEN, token);
-      await storeFCMTokenInSupabase(token);
-      await logAnalyticsEvent("fcm_token_refreshed");
-    });
-
-    console.log("✅ Notification listeners setup successfully");
+    if (error) {
+      console.error('Error saving push token to database:', error);
+    } else {
+      console.log('Push token saved to database successfully');
+    }
   } catch (error) {
-    console.error("❌ Error setting up notification listeners:", error);
+    console.error('Error in savePushTokenToDatabase:', error);
   }
 }
 
 /**
- * Initialize the complete notification system
+ * Setup notification listeners using expo-notifications
+ * Returns a cleanup function to remove listeners
  */
-export async function initializeNotifications(): Promise<boolean> {
+export function setupNotificationListeners(): (() => void) | null {
   try {
-    console.log("🚀 Initializing notification system...");
-
-    // Create notification channels (Android)
-    await createNotificationChannels();
-
-    // Request permissions
-    const permissionGranted = await requestNotificationPermissions();
-
-    if (!permissionGranted) {
-      console.log(
-        "⚠️ Notification permissions not granted, skipping FCM setup"
-      );
-      return false;
-    }
-
-    // Get FCM token
-    const token = await getFCMToken();
-
-    if (!token) {
-      console.log("⚠️ FCM token not obtained, notification setup incomplete");
-      return false;
-    }
-
-    // Setup listeners
-    setupNotificationListeners();
-
-    console.log("✅ Notification system initialized successfully");
-    await logAnalyticsEvent("notification_system_initialized");
-
-    return true;
+    // Note: expo-notifications listeners are typically set up in NotificationContext
+    // This function is kept for compatibility but the actual listeners
+    // should be set up using expo-notifications in the app context
+    console.log("✅ Notification listeners setup (handled by NotificationContext)");
+    return () => {
+      // Cleanup function - listeners are managed by NotificationContext
+      console.log("Notification listeners cleanup");
+    };
   } catch (error) {
-    console.error("❌ Error initializing notification system:", error);
-    await logAnalyticsEvent("notification_system_error", {
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-    return false;
+    console.error("❌ Error setting up notification listeners:", error);
+    return null;
   }
 }
 
@@ -267,8 +149,8 @@ export async function initializeNotifications(): Promise<boolean> {
  */
 export async function areNotificationsEnabled(): Promise<boolean> {
   try {
-    const settings = await notifee.getNotificationSettings();
-    return settings.authorizationStatus >= 1; // 1 = AUTHORIZED, 2 = PROVISIONAL
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === 'granted';
   } catch (error) {
     console.error("❌ Error checking notification permissions:", error);
     return false;
@@ -297,8 +179,8 @@ export async function initializeNotifications(userId: string) {
     try {
       const token = await getPushTokenAsync();
       if (token) {
-        console.log('FCM Token obtained:', token);
-        await storeFCMToken(userId, token);
+        console.log('Push token obtained:', token);
+        await savePushTokenToDatabase(token, userId);
       } else {
         console.log('Local notifications ready. Push notifications require FCM configuration.');
       }

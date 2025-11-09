@@ -1,4 +1,4 @@
-import { Modal, View, Text, StyleSheet, Pressable, Switch, ScrollView, useWindowDimensions , Platform } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, Switch, ScrollView, useWindowDimensions , Platform, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { X, Bell, Shield, Clock, Mail, BanknoteArrowUp, Key, Wallet, Megaphone, Calendar, ChevronRight } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
@@ -6,6 +6,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useEmailNotifications, EmailNotificationSettings } from '@/hooks/useEmailNotifications';
 import { useToast } from '@/contexts/ToastContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { areNotificationsEnabled, requestNotificationPermissions, getPushTokenAsync } from '@/lib/notifications';
 
 interface NotificationSettingsModalProps {
   isVisible: boolean;
@@ -39,6 +42,15 @@ export default function NotificationSettingsModal({
   const [pushEnabled, setPushEnabled] = useState(true);
   const [payoutAlerts, setPayoutAlerts] = useState(true);
   const [securityAlerts, setSecurityAlerts] = useState(true);
+  const [pushPreferences, setPushPreferences] = useState({
+    payouts: true,
+    deposits: true,
+    security: true,
+    general: true,
+  });
+  const [isPushLoading, setIsPushLoading] = useState(false);
+  const [isPushSaving, setIsPushSaving] = useState(false);
+  const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(false);
   
   // Update local settings when remote settings change
   useEffect(() => {
@@ -133,7 +145,7 @@ export default function NotificationSettingsModal({
       if (granted) {
         setPushNotificationsEnabled(true);
         // Get FCM token to ensure it's stored
-        await getFCMToken();
+        await getPushTokenAsync();
         showToast("Push notifications enabled", "success");
       } else {
         Alert.alert(
@@ -510,10 +522,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
       shadowRadius: 4,
       elevation: 5,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

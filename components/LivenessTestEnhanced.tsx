@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, ComponentRef } from "react";
 import {
   StyleSheet,
   View,
@@ -75,9 +75,11 @@ export default function LivenessTestEnhanced({
   const pitchAngles = useRef<number[]>([]);
   const nodBaseline = useRef<number | null>(null);
   const device = useCameraDevice("front");
-  const cameraRef = useRef<VisionCamera>(null);
+  const cameraRef = useRef<ComponentRef<typeof Camera>>(null);
   const setupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const photoCaptureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isCapturingPhotoRef = useRef<boolean>(false);
   
   console.log('[LivenessTest] Camera device:', { hasDevice: !!device, deviceId: device?.id });
 
