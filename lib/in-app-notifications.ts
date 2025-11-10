@@ -312,9 +312,9 @@ class InAppNotificationService {
   async getNotificationPreferences(userId: string): Promise<NotificationPreferences | null> {
     try {
       const { data, error } = await supabase
-        .from('notification_preferences')
-        .select('*')
-        .eq('user_id', userId)
+        .from('profiles')
+        .select('notification_preferences')
+        .eq('id', userId)
         .single();
 
       if (error) {
@@ -322,7 +322,17 @@ class InAppNotificationService {
         return null;
       }
 
-      return data;
+      // Map from database format to interface format
+      const prefs = data?.notification_preferences || {};
+      return {
+        transaction_alerts: prefs.deposits ?? true,
+        payout_alerts: prefs.payouts ?? true,
+        security_alerts: prefs.security ?? true,
+        marketing_alerts: prefs.general ?? false,
+        system_alerts: prefs.general ?? true,
+        local_notifications_enabled: true,
+        notification_sound: true,
+      };
     } catch (error) {
       console.error('Error in getNotificationPreferences:', error);
       return null;
@@ -334,13 +344,28 @@ class InAppNotificationService {
     preferences: Partial<NotificationPreferences>
   ): Promise<boolean> {
     try {
+      // Map from interface format to database format
+      const dbPreferences: any = {};
+      if (preferences.transaction_alerts !== undefined) {
+        dbPreferences.deposits = preferences.transaction_alerts;
+      }
+      if (preferences.payout_alerts !== undefined) {
+        dbPreferences.payouts = preferences.payout_alerts;
+      }
+      if (preferences.security_alerts !== undefined) {
+        dbPreferences.security = preferences.security_alerts;
+      }
+      if (preferences.marketing_alerts !== undefined || preferences.system_alerts !== undefined) {
+        dbPreferences.general = preferences.marketing_alerts ?? preferences.system_alerts ?? false;
+      }
+
       const { error } = await supabase
-        .from('notification_preferences')
-        .upsert({
-          user_id: userId,
-          ...preferences,
+        .from('profiles')
+        .update({
+          notification_preferences: dbPreferences,
           updated_at: new Date().toISOString(),
-        });
+        })
+        .eq('id', userId);
 
       if (error) {
         console.error('Error updating preferences:', error);
