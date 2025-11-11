@@ -518,7 +518,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     elevation: 8,
   },
   getStartedButtonText: {
-    color: '#FFFFFF',
+    color: colors.accent,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,

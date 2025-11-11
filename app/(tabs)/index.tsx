@@ -604,7 +604,7 @@ export default function HomeScreen() {
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
-                <CalendarCheck size={22} color='#fff' />
+                <CalendarCheck size={22} color={colors.accent} />
                 <Text style={styles.createButtonText}>New plan</Text>
               </Pressable>
               
@@ -690,7 +690,7 @@ export default function HomeScreen() {
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <CalendarCheck size={22} color='#fff' />
+          <CalendarCheck size={22} color={colors.accent} />
           <Text style={styles.createButtonText}>New plan</Text>
         </Pressable>
         
@@ -891,13 +891,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
     padding: Platform.OS === 'ios' ? 14 : 10,
     borderRadius: 100,
+    borderColor: colors.accent,
+    borderWidth: 2,
     height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
   createButtonText: {
-    color: '#fff',
+    color: colors.accent,
     fontSize: Platform.OS === 'ios' ? 16 : 14,
     fontWeight: '600',
   },
@@ -906,8 +908,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.backgroundBlack,
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 1, 
+    borderColor: isDark ? '#fff' : colors.primary,
     borderRadius: 100,
     height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',

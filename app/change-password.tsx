@@ -185,6 +185,7 @@ export default function ChangePasswordScreen() {
             <Text style={styles.label}>Current Password</Text>
             <View style={[
               styles.inputContainer,
+              currentPassword.trim() !== '' && styles.inputContainerFilled,
               fieldErrors.currentPassword && styles.inputError
             ]}>
               <TextInput
@@ -216,6 +217,7 @@ export default function ChangePasswordScreen() {
             <Text style={styles.label}>New Password</Text>
             <View style={[
               styles.inputContainer,
+              newPassword.trim() !== '' && styles.inputContainerFilled,
               fieldErrors.newPassword && styles.inputError
             ]}>
               <TextInput
@@ -274,6 +276,7 @@ export default function ChangePasswordScreen() {
             <Text style={styles.label}>Confirm New Password</Text>
             <View style={[
               styles.inputContainer,
+              confirmPassword.trim() !== '' && styles.inputContainerFilled,
               fieldErrors.confirmPassword && styles.inputError
             ]}>
               <TextInput
@@ -411,13 +414,17 @@ const createStyles = (colors: any) => StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
-    borderRadius: 8,
-    backgroundColor: colors.card,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+  },
+  inputContainerFilled: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentBackground || colors.background,
   },
   inputError: {
-    borderColor: colors.error,
+    borderColor: colors.error || '#DC2626',
   },
   input: {
     flex: 1,

@@ -12,6 +12,7 @@ import Tier0Icon from '@/assets/kyc/tier-0.svg';
 import Tier1Icon from '@/assets/kyc/tier-1.svg';
 import Tier2Icon from '@/assets/kyc/tier-2.svg';
 import Tier3Icon from '@/assets/kyc/tier-3.svg';
+import {BadgeCheck} from 'lucide-react-native';
 
 type KYCStatus = 'starting' | 'continuing' | 'pending';
 
@@ -283,18 +284,18 @@ export default function KYCCard() {
     switch (currentTier) {
       case 0:
         // No tier - unverified
-        return { Icon: Tier0Icon, bgColor: isDark ? '#374151' : '#E5E7EB' };
+        return { Icon: BadgeCheck, bgColor: isDark ? '#374151' : '#E5E7EB' };
       case 1:
         // Tier 1 - Basic verification
-        return { Icon: Tier1Icon, bgColor: '#FEF3C7' };
+        return { Icon: BadgeCheck, bgColor: isDark ? '#374151' : '#E5E7EB' };
       case 2:
         // Tier 2 - Enhanced verification
-        return { Icon: Tier2Icon, bgColor: '#DBEAFE' };
+        return { Icon: BadgeCheck, bgColor: isDark ? '#374151' : '#E5E7EB' };
       case 3:
         // Tier 3 - Full verification
-        return { Icon: Tier3Icon, bgColor: '#D1FAE5' };
+        return { Icon: BadgeCheck, bgColor: isDark ? '#374151' : '#E5E7EB' };
       default:
-        return { Icon: Tier0Icon, bgColor: isDark ? '#374151' : '#E5E7EB' };
+        return { Icon: BadgeCheck, bgColor: isDark ? '#374151' : '#E5E7EB' };
     }
   };
 

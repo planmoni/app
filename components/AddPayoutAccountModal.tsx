@@ -315,8 +315,9 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
               <View style={styles.field}>
                 <Text style={styles.label}>Account Number</Text>
                 <View style={[
-                  styles.inputContainer, 
-                  formErrors.accountNumber && styles.inputError,
+                  styles.inputContainer,
+                  formData.accountNumber.trim() !== '' && styles.inputContainerFilled,
+                  formErrors.accountNumber && styles.inputContainerError,
                   accountResolved && styles.resolvedInput
                 ]}>
                   <TextInput
@@ -376,8 +377,9 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
               <View style={styles.field}>
                 <Text style={styles.label}>Account Name</Text>
                 <View style={[
-                  styles.inputContainer, 
-                  formErrors.accountName && styles.inputError,
+                  styles.inputContainer,
+                  formData.accountName.trim() !== '' && styles.inputContainerFilled,
+                  formErrors.accountName && styles.inputContainerError,
                   accountResolved && styles.resolvedInput
                 ]}>
                   <TextInput
@@ -683,11 +685,18 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
     borderRadius: 12,
     padding: isSmallScreen ? 12 : 16,
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: colors.background,
+  },
+  inputContainerFilled: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentBackground || colors.background,
+  },
+  inputContainerError: {
+    borderColor: colors.error || '#DC2626',
   },
   input: {
     flex: 1,
@@ -713,7 +722,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     color: colors.text,
   },
   inputError: {
-    borderColor: colors.error,
+    borderColor: colors.error || '#DC2626',
   },
   selectedInput: {
     borderColor: colors.primary,

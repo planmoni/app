@@ -48,7 +48,7 @@ export default function FloatingButton({
     tabBarHeight,
   });
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark);
 
   // Calculate the final bottom position
   const getBottomPosition = () => {
@@ -103,6 +103,7 @@ export default function FloatingButton({
             icon={icon}
             variant={variant}
             hapticType={hapticType}
+            textColor={colors.accent}
           />
         </View>
       </View>
@@ -110,7 +111,7 @@ export default function FloatingButton({
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     position: 'absolute',
     left: 0,
@@ -155,6 +156,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     height: 55,
     borderRadius: 100,
     backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: isDark ? '#fff' : colors.accent,
   },
   androidButton: {
     // Android-specific button styling for constant position

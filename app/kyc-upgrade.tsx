@@ -3703,20 +3703,19 @@ export default function KYCUpgradeScreen() {
     inputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      borderWidth: 0.5,
+      borderWidth: 2,
       borderColor: colors.border,
-      shadowColor: '#000000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.1,
-      shadowRadius: 2,
-      elevation: 1,
       borderRadius: 12,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.background,
       paddingHorizontal: 14,
       height: inputHeight,
     },
+    inputFilled: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentBackground || colors.background,
+    },
     inputError: {
-      borderColor: colors.error,
+      borderColor: colors.error || '#DC2626',
     },
     resolvedInput: {
       borderColor: colors.success,

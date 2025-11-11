@@ -10,6 +10,7 @@ type ButtonProps = PressableProps & {
   disabled?: boolean;
   icon?: React.ComponentType<any>;
   hapticType?: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' | 'selection' | 'none';
+  textColor?: string;
 };
 
 export default function Button({
@@ -21,6 +22,7 @@ export default function Button({
   style,
   icon: Icon,
   hapticType = 'light',
+  textColor,
   ...props
 }: ButtonProps) {
   const haptics = useHaptics();
@@ -39,16 +41,25 @@ export default function Button({
   };
 
   const getTextStyle = () => {
-    switch (variant) {
-      case 'primary':
-        return styles.primaryText;
-      case 'secondary':
-        return styles.secondaryText;
-      case 'outline':
-        return styles.outlineText;
-      default:
-        return styles.primaryText;
+    const baseStyle = (() => {
+      switch (variant) {
+        case 'primary':
+          return styles.primaryText;
+        case 'secondary':
+          return styles.secondaryText;
+        case 'outline':
+          return styles.outlineText;
+        default:
+          return styles.primaryText;
+      }
+    })();
+    
+    // Override text color if provided
+    if (textColor) {
+      return [baseStyle, { color: textColor }];
     }
+    
+    return baseStyle;
   };
 
   const getSizeStyle = () => {
@@ -131,13 +142,13 @@ export default function Button({
         {isLoading ? (
           <ActivityIndicator 
             size="small" 
-            color={variant === 'outline' ? '#1E3A8A' : '#FFFFFF'} 
+            color={textColor || (variant === 'outline' ? '#1E3A8A' : '#FFFFFF')} 
           />
         ) : (
           <>
             {Icon && (
               <Icon 
-                color={variant === 'outline' ? '#1E3A8A' : '#FFFFFF'} 
+                color={textColor || (variant === 'outline' ? '#1E3A8A' : '#FFFFFF')} 
                 size={24} 
                 style={styles.icon} 
               />
