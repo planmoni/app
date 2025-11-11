@@ -291,6 +291,12 @@ async function processTransferWebhook(transferData: SafeHavenTransferData): Prom
       await updateUserBalance(userId, transferData, accountNumber);
     }
 
+    // Check if this transfer is related to an automated payout
+    // For Outwards transfers (payouts), check if we have an automated_payout record
+    if (transferData.type === 'Outwards') {
+      await updateAutomatedPayoutFromWebhook(transferData, userId);
+    }
+
     return { 
       success: true, 
       transferId: transferData._id, 
@@ -587,6 +593,186 @@ async function updateUserBalance(userId: string, transferData: SafeHavenTransfer
 
   } catch (error) {
     console.error('Error updating user balance:', error);
+  }
+}
+
+// Update automated payout from webhook
+async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferData, userId: string): Promise<void> {
+  try {
+    console.log('Checking for automated payout related to transfer:', transferData._id);
+
+    // Try to find automated payout by transfer ID or payment reference
+    const paymentRef = transferData.paymentReference || (transferData as any).reference || '';
+    const { data: automatedPayout, error: payoutError } = await supabase
+      .from('automated_payouts')
+      .select('id, payout_plan_id, status, amount, user_id')
+      .eq('user_id', userId)
+      .or(`safehaven_transfer_id.eq.${transferData._id},payment_reference.eq.${paymentRef}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (payoutError && payoutError.code !== 'PGRST116') {
+      console.error('Error finding automated payout:', payoutError);
+      return;
+    }
+
+    if (!automatedPayout) {
+      console.log('No automated payout found for transfer:', transferData._id);
+      return;
+    }
+
+    console.log('Found automated payout:', automatedPayout.id, 'Current status:', automatedPayout.status);
+
+    // Map SafeHaven status to our status
+    let newStatus = automatedPayout.status;
+    if (transferData.status === 'Completed') {
+      newStatus = 'completed';
+    } else if (transferData.status === 'Failed') {
+      newStatus = 'failed';
+    } else if (transferData.status === 'Pending') {
+      newStatus = 'processing';
+    } else if (transferData.status === 'Reversed') {
+      newStatus = 'failed';
+    }
+
+    // Only update if status changed
+    if (newStatus !== automatedPayout.status) {
+      const updateData: any = {
+        status: newStatus,
+        updated_at: new Date().toISOString()
+      };
+
+      if (newStatus === 'completed') {
+        updateData.completed_at = new Date().toISOString();
+        updateData.transferred_at = new Date().toISOString();
+      } else if (newStatus === 'failed') {
+        updateData.error_message = transferData.responseMessage || 'Transfer failed';
+        updateData.completed_at = new Date().toISOString();
+      }
+
+      // Update automated payout
+      const { error: updateError } = await supabase
+        .from('automated_payouts')
+        .update(updateData)
+        .eq('id', automatedPayout.id);
+
+      if (updateError) {
+        console.error('Error updating automated payout:', updateError);
+        return;
+      }
+
+      console.log(`Updated automated payout ${automatedPayout.id} to status: ${newStatus}`);
+
+      // Update transaction record if exists
+      const paymentRef = transferData.paymentReference || (transferData as any).reference || '';
+      const { data: transaction, error: transactionError } = await supabase
+        .from('transactions')
+        .select('id, status')
+        .eq('reference', paymentRef)
+        .eq('user_id', userId)
+        .limit(1)
+        .maybeSingle();
+
+      if (!transactionError && transaction) {
+        await supabase
+          .from('transactions')
+          .update({
+            status: newStatus === 'completed' ? 'completed' : (newStatus === 'failed' ? 'failed' : 'pending'),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', transaction.id);
+      }
+
+      // If completed, update payout plan and create notification
+      if (newStatus === 'completed') {
+        // Get payout plan
+        const { data: payoutPlan, error: planError } = await supabase
+          .from('payout_plans')
+          .select('id, name, payout_amount, completed_payouts, duration, frequency, start_date, next_payout_date')
+          .eq('id', automatedPayout.payout_plan_id)
+          .single();
+
+        if (!planError && payoutPlan) {
+          const newCompletedPayouts = (payoutPlan.completed_payouts || 0) + 1;
+          
+          // Calculate next payout date
+          let nextPayoutDate = null;
+          if (newCompletedPayouts < payoutPlan.duration) {
+            const startDate = new Date(payoutPlan.start_date);
+            let nextDate = new Date(startDate);
+
+            switch (payoutPlan.frequency) {
+              case 'weekly':
+                nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7));
+                break;
+              case 'biweekly':
+                nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 14));
+                break;
+              case 'monthly':
+                nextDate.setMonth(startDate.getMonth() + newCompletedPayouts);
+                break;
+            }
+
+            nextPayoutDate = nextDate.toISOString().split('T')[0];
+          }
+
+          const planUpdates: any = {
+            completed_payouts: newCompletedPayouts,
+            updated_at: new Date().toISOString()
+          };
+          
+          if (nextPayoutDate) {
+            planUpdates.next_payout_date = nextPayoutDate;
+          } else {
+            planUpdates.next_payout_date = null;
+          }
+
+          if (newCompletedPayouts >= payoutPlan.duration) {
+            planUpdates.status = 'completed';
+          }
+
+          await supabase
+            .from('payout_plans')
+            .update(planUpdates)
+            .eq('id', payoutPlan.id);
+
+          // Create success notification
+          await supabase
+            .from('events')
+            .insert({
+              user_id: userId,
+              type: 'payout_completed',
+              title: 'Payout Completed',
+              description: `Your payout of ₦${payoutPlan.payout_amount.toLocaleString()} from "${payoutPlan.name}" has been processed successfully.`,
+              status: 'unread',
+              payout_plan_id: payoutPlan.id
+            });
+        }
+      } else if (newStatus === 'failed') {
+        // Create failure notification
+        const { data: payoutPlan } = await supabase
+          .from('payout_plans')
+          .select('id, name, payout_amount')
+          .eq('id', automatedPayout.payout_plan_id)
+          .single();
+
+        if (payoutPlan) {
+          await supabase
+            .from('events')
+            .insert({
+              user_id: userId,
+              type: 'disbursement_failed',
+              title: 'Payout Failed',
+              description: `Your scheduled payout from "${payoutPlan.name}" failed to process: ${transferData.responseMessage || 'Unknown error'}`,
+              status: 'unread',
+              payout_plan_id: payoutPlan.id
+            });
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('Error updating automated payout from webhook:', error);
   }
 }
 

@@ -76,7 +76,7 @@ serve(async (req) => {
       )
     }
 
-    const results = []
+    const results: any[] = []
     let successCount = 0
     let failureCount = 0
 
@@ -104,7 +104,7 @@ serve(async (req) => {
         }
 
         // Determine which account to use for payout
-        let accountDetails = null
+        let accountDetails: any = null
         let accountType = ""
 
         if (plan.payout_account_id && plan.payout_accounts) {
@@ -153,92 +153,146 @@ serve(async (req) => {
 
         console.log("Created automated payout record:", automatedPayout.id)
 
-        // Get Paystack secret key
-        const paystackSecretKey = Deno.env.get("PAYSTACK_SECRET_KEY")
+        // Get SafeHaven configuration
+        const safeHavenClientId = Deno.env.get("EXPO_PUBLIC_SAFEHAVEN_CLIENT_ID") || Deno.env.get("SAFEHAVEN_CLIENT_ID")
+        const safeHavenClientAssertion = Deno.env.get("EXPO_PUBLIC_SAFEHAVEN_CLIENT_ASSERTION") || Deno.env.get("SAFEHAVEN_CLIENT_ASSERTION")
+        const safeHavenApiUrl = "https://api.safehavenmfb.com"
         
-        if (!paystackSecretKey) {
-          throw new Error("Paystack secret key not configured")
+        if (!safeHavenClientId || !safeHavenClientAssertion) {
+          throw new Error("SafeHaven credentials not configured")
         }
 
-        let recipientCode = accountDetails.paystack_recipient_code
+        // Get user's SafeHaven token
+        const { data: safeHavenToken, error: tokenError } = await supabase
+          .from("safehaven_tokens")
+          .select("access_token, expires_at, refresh_token")
+          .eq("user_id", plan.user_id)
+          .single()
 
-        // Create recipient if not exists
-        if (!recipientCode) {
-          console.log("Creating Paystack recipient for:", {
-            account_name: accountDetails.account_name,
-            account_number: accountDetails.account_number,
-            bank_code: accountDetails.bank_code
-          })
+        if (tokenError || !safeHavenToken) {
+          throw new Error("SafeHaven token not found. User needs to authenticate with SafeHaven first.")
+        }
 
-          const recipientResponse = await fetch("https://api.paystack.co/transferrecipient", {
+        // Check if token is expired (with 5 minute buffer)
+        const expiresAt = new Date(safeHavenToken.expires_at)
+        const now = new Date()
+        const bufferTime = 5 * 60 * 1000 // 5 minutes in milliseconds
+        
+        if (expiresAt.getTime() - now.getTime() < bufferTime) {
+          // Token expired or expiring soon, try to refresh
+          console.log("SafeHaven token expired or expiring soon, attempting refresh...")
+          
+          const refreshResponse = await fetch(`${safeHavenApiUrl}/oauth2/token`, {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${paystackSecretKey}`,
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              type: "nuban",
-              name: accountDetails.account_name,
-              account_number: accountDetails.account_number,
-              bank_code: accountDetails.bank_code,
-              currency: "NGN"
+              grant_type: "refresh_token",
+              client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+              client_assertion: safeHavenClientAssertion,
+              client_id: safeHavenClientId,
+              refresh_token: safeHavenToken.refresh_token
             })
           })
 
-          const recipientData = await recipientResponse.json()
-          
-          if (!recipientResponse.ok || !recipientData.status) {
-            throw new Error(`Failed to create recipient: ${recipientData.message || 'Cannot resolve account'}`)
+          if (!refreshResponse.ok) {
+            throw new Error("Failed to refresh SafeHaven token")
           }
 
-          recipientCode = recipientData.data.recipient_code
-
-          // Update account with recipient code
-          const updateTable = accountType === "payout_account" ? "payout_accounts" : "bank_accounts"
+          const refreshData = await refreshResponse.json()
+          
+          // Update token in database
           await supabase
-            .from(updateTable)
-            .update({ 
-              paystack_recipient_code: recipientCode,
-              transfer_enabled: true,
-              last_transfer_attempt: new Date().toISOString()
+            .from("safehaven_tokens")
+            .update({
+              access_token: refreshData.access_token,
+              refresh_token: refreshData.refresh_token || safeHavenToken.refresh_token,
+              expires_at: new Date(Date.now() + (refreshData.expires_in * 1000)).toISOString(),
+              updated_at: new Date().toISOString()
             })
-            .eq("id", accountType === "payout_account" ? plan.payout_account_id : plan.bank_account_id)
+            .eq("user_id", plan.user_id)
+
+          safeHavenToken.access_token = refreshData.access_token
         }
 
-        console.log("Processing transfer with recipient code:", recipientCode)
+        // Get user's SafeHaven default account (fromAccount)
+        const { data: safeHavenAccount, error: accountError } = await supabase
+          .from("safehaven_accounts")
+          .select("account_number, account_name, can_debit, account_balance")
+          .eq("user_id", plan.user_id)
+          .eq("is_deleted", false)
+          .order("is_default", { ascending: false })
+          .order("account_balance", { ascending: false })
+          .limit(1)
+          .single()
 
-        // Process the transfer
-        const transferResponse = await fetch("https://api.paystack.co/transfer", {
+        if (accountError || !safeHavenAccount) {
+          throw new Error("SafeHaven account not found. User needs to have a SafeHaven account.")
+        }
+
+        if (!safeHavenAccount.can_debit) {
+          throw new Error("SafeHaven account does not allow debits")
+        }
+
+        if (safeHavenAccount.account_balance < plan.payout_amount) {
+          throw new Error(`Insufficient balance. Available: ₦${safeHavenAccount.account_balance}, Required: ₦${plan.payout_amount}`)
+        }
+
+        console.log("Processing SafeHaven transfer:", {
+          fromAccount: safeHavenAccount.account_number,
+          toAccount: accountDetails.account_number,
+          amount: plan.payout_amount
+        })
+
+        // Initiate SafeHaven transfer
+        const transferResponse = await fetch(`${safeHavenApiUrl}/transfers/`, {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${paystackSecretKey}`,
+            "ClientID": safeHavenClientId,
+            "Authorization": `Bearer ${safeHavenToken.access_token}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            source: "balance",
-            amount: plan.payout_amount * 100, // Convert to kobo
-            recipient: recipientCode,
-            reason: `Automated payout: ${plan.name}`,
-            reference: transferReference
+            fromAccount: safeHavenAccount.account_number,
+            toAccount: accountDetails.account_number,
+            amount: plan.payout_amount,
+            narration: `Automated payout: ${plan.name}`,
+            beneficiaryName: accountDetails.account_name,
+            beneficiaryBank: accountDetails.bank_name
           })
         })
 
         const transferData = await transferResponse.json()
         
-        if (!transferResponse.ok || !transferData.status) {
-          throw new Error(`Transfer failed: ${transferData.message || 'Unknown transfer error'}`)
+        if (!transferResponse.ok) {
+          const errorMessage = transferData.message || transferData.error || 'Unknown transfer error'
+          throw new Error(`SafeHaven transfer failed: ${errorMessage}`)
         }
 
-        console.log("Transfer successful:", transferData.data.transfer_code)
+        // Extract transfer details from response
+        const transferResult = transferData.data || transferData
+        const transferId = transferResult._id || transferResult.id
+        const paymentReference = transferResult.paymentReference || transferReference
+        const sessionId = transferResult.sessionId || transferResult.session_id
 
-        // Update automated payout to completed
+        console.log("SafeHaven transfer initiated:", {
+          transferId,
+          paymentReference,
+          status: transferResult.status || "Pending"
+        })
+
+        // Update automated payout with SafeHaven transfer details
+        // Note: Status will be updated by webhook when transfer completes
         await supabase
           .from("automated_payouts")
           .update({ 
-            status: "completed",
-            paystack_transfer_id: transferData.data.id,
-            transfer_code: transferData.data.transfer_code,
-            completed_at: new Date().toISOString(),
+            status: transferResult.status === "Completed" ? "completed" : "processing",
+            safehaven_transfer_id: transferId,
+            transfer_code: paymentReference,
+            session_id: sessionId,
+            payment_reference: paymentReference,
+            completed_at: transferResult.status === "Completed" ? new Date().toISOString() : null,
             transferred_at: new Date().toISOString()
           })
           .eq("id", automatedPayout.id)
@@ -250,17 +304,19 @@ serve(async (req) => {
             user_id: plan.user_id,
             type: "payout",
             amount: plan.payout_amount,
-            status: "completed",
+            status: transferResult.status === "Completed" ? "completed" : "pending",
             source: "payout_plan",
             destination: "bank_account",
             payout_plan_id: plan.id,
             bank_account_id: plan.bank_account_id,
-            reference: transferReference,
+            reference: paymentReference,
             description: `Automated payout from ${plan.name}`,
             metadata: {
               automated_payout_id: automatedPayout.id,
-              paystack_transfer_id: transferData.data.id,
-              transfer_code: transferData.data.transfer_code
+              safehaven_transfer_id: transferId,
+              transfer_code: paymentReference,
+              session_id: sessionId,
+              provider: "safehaven"
             }
           })
 
@@ -322,8 +378,13 @@ serve(async (req) => {
         // Update payout plan
         const planUpdates: any = {
           completed_payouts: newCompletedPayouts,
-          next_payout_date: nextPayoutDate,
           updated_at: new Date().toISOString()
+        }
+        
+        if (nextPayoutDate) {
+          planUpdates.next_payout_date = nextPayoutDate
+        } else {
+          planUpdates.next_payout_date = null
         }
 
         // Mark as completed if all payouts are done
@@ -336,29 +397,54 @@ serve(async (req) => {
           .update(planUpdates)
           .eq("id", plan.id)
 
-        // Create success notification
-        await supabase
-          .from("events")
-          .insert({
-            user_id: plan.user_id,
-            type: "payout_completed",
-            title: "Payout Completed",
-            description: `Your payout of ₦${plan.payout_amount.toLocaleString()} from "${plan.name}" has been processed successfully.`,
-            status: "unread",
-            payout_plan_id: plan.id
-          })
+        // Create success notification (only if transfer is completed immediately)
+        if (transferResult.status === "Completed") {
+          await supabase
+            .from("events")
+            .insert({
+              user_id: plan.user_id,
+              type: "payout_completed",
+              title: "Payout Completed",
+              description: `Your payout of ₦${plan.payout_amount.toLocaleString()} from "${plan.name}" has been processed successfully.`,
+              status: "unread",
+              payout_plan_id: plan.id
+            })
+        } else {
+          // If transfer is pending, create a processing notification
+          await supabase
+            .from("events")
+            .insert({
+              user_id: plan.user_id,
+              type: "payout_processing",
+              title: "Payout Processing",
+              description: `Your payout of ₦${plan.payout_amount.toLocaleString()} from "${plan.name}" is being processed. You will be notified when it completes.`,
+              status: "unread",
+              payout_plan_id: plan.id
+            })
+        }
 
-        console.log(`Successfully processed payout for plan ${plan.id}`)
+        console.log(`Successfully initiated SafeHaven transfer for plan ${plan.id}`)
         
         results.push({
           planId: plan.id,
           planName: plan.name,
           amount: plan.payout_amount,
-          status: "success",
-          transferCode: transferData.data.transfer_code
+          status: transferResult.status === "Completed" ? "success" : "processing",
+          transferId: transferId,
+          transferCode: paymentReference,
+          message: transferResult.status === "Completed" 
+            ? "Transfer completed successfully" 
+            : "Transfer initiated, awaiting completion"
         })
         
-        successCount++
+        // Only count as success if completed immediately
+        if (transferResult.status === "Completed") {
+          successCount++
+        } else {
+          // Count as success since transfer was initiated successfully
+          // Webhook will update status when it completes
+          successCount++
+        }
 
       } catch (error: any) {
         console.error(`Error processing payout for plan ${plan.id}:`, error)
