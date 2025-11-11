@@ -39,7 +39,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAppLock } from '@/contexts/AppLockContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
-import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
+import { useSafeHavenAccount } from '@/hooks/useSafeHavenAccount';
+import { useKYCProgress } from '@/hooks/useKYCProgress';
 // import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
@@ -74,7 +75,8 @@ export default function HomeScreen() {
   const { updateLastActiveOnInteraction } = useAppLock();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
-  const { account: paystackAccount, isLoading: paystackAccountLoading } = useRealtimePaystackAccount();
+  const { account: safehavenAccount, isLoading: safehavenAccountLoading } = useSafeHavenAccount();
+  const { checkTierCompletion, loading: kycProgressLoading } = useKYCProgress();
   
   // Debug: Track payoutPlans changes
   useEffect(() => {
@@ -95,8 +97,7 @@ export default function HomeScreen() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
-  const [safehavenAccount, setSafehavenAccount] = useState<any>(null);
-  const [isCheckingAccount, setIsCheckingAccount] = useState(false);
+  const [hasShownTier1ClaimModal, setHasShownTier1ClaimModal] = useState(false);
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
 
@@ -119,35 +120,24 @@ export default function HomeScreen() {
     }
   }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
 
-  // Check for SafeHaven account
+  // Show ClaimAccountModal immediately after Tier 1 completion if no SafeHaven account exists
   useEffect(() => {
-    const checkSafeHavenAccount = async () => {
-      if (!session?.user?.id || isCheckingAccount) return;
+    if (!session?.user?.id || kycProgressLoading || safehavenAccountLoading) return;
+    
+    const tierCompletion = checkTierCompletion();
+    const hasSafeHavenAccount = safehavenAccount?.account_number;
+    
+    // Show modal if Tier 1 is complete, no SafeHaven account exists, and we haven't shown it yet
+    if (tierCompletion.tier1 && !hasSafeHavenAccount && !hasShownTier1ClaimModal && !showClaimAccountModal) {
+      // Add a small delay to ensure smooth user experience
+      const timer = setTimeout(() => {
+        setShowClaimAccountModal(true);
+        setHasShownTier1ClaimModal(true);
+      }, 1500);
       
-      try {
-        setIsCheckingAccount(true);
-        const { data, error } = await supabase
-          .from('safehaven_accounts')
-          .select('account_number, account_name')
-          .eq('user_id', session.user.id)
-          .eq('is_deleted', false)
-          .limit(1)
-          .maybeSingle();
-
-        if (error && error.code !== 'PGRST116') {
-          console.warn('Error checking SafeHaven account:', error);
-        } else if (data) {
-          setSafehavenAccount(data);
-        }
-      } catch (err) {
-        console.warn('Error checking SafeHaven account:', err);
-      } finally {
-        setIsCheckingAccount(false);
-      }
-    };
-
-    checkSafeHavenAccount();
-  }, [session?.user?.id]);
+      return () => clearTimeout(timer);
+    }
+  }, [checkTierCompletion, safehavenAccount, kycProgressLoading, safehavenAccountLoading, hasShownTier1ClaimModal, showClaimAccountModal, session?.user?.id]);
 
   
   // Log screen view for analytics
@@ -290,11 +280,10 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // Check if user has a bank account (Paystack or SafeHaven)
-    const hasPaystackAccount = paystackAccount?.account_number;
+    // Check if user has a SafeHaven account
     const hasSafeHavenAccount = safehavenAccount?.account_number;
     
-    if (!hasPaystackAccount && !hasSafeHavenAccount) {
+    if (!hasSafeHavenAccount) {
       // Show modal if user doesn't have an account
       setShowClaimAccountModal(true);
       logAnalyticsEvent('add_funds_click_no_account');

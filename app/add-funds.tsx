@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions, Modal, Image } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, Info, ChevronRight, CreditCard, Smartphone, Building2, CircleCheck as CheckCircle, Clock } from 'lucide-react-native';
-import { getBankIconLogo } from '@/lib/bankIcons';
+import { ArrowLeft, Copy, Info } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -11,10 +10,8 @@ import * as Clipboard from 'expo-clipboard';
 import Button from '@/components/Button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
-import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
-import AddBankAccountModal from '@/components/AddBankAccountModal';
-import PlanmoniLoader from '@/components/PlanmoniLoader';
+import { useSafeHavenAccount } from '@/hooks/useSafeHavenAccount';
+import { useKYCProgress } from '@/hooks/useKYCProgress';
 
 const { width } = Dimensions.get('window');
 type VirtualAccount = {
@@ -30,11 +27,9 @@ export default function AddFundsScreen() {
   const { showToast } = useToast();
   const haptics = useHaptics();
   
-  const { session, signOut } = useAuth();
-  const { account: paystackAccount, isLoading: accountLoading } = useRealtimePaystackAccount();
-  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
-  const [showComingSoon, setShowComingSoon] = useState(false);
-  const { bankAccounts, isLoading: bankAccountsLoading, error: bankAccountsError, addBankAccount } = useRealtimeBankAccounts();
+  const { session } = useAuth();
+  const { account: safehavenAccount, isLoading: accountLoading, error: accountError, refreshAccount } = useSafeHavenAccount();
+  const { checkTierCompletion } = useKYCProgress();
 
   
   const firstName = session?.user?.user_metadata?.first_name || '';
@@ -45,9 +40,6 @@ export default function AddFundsScreen() {
 
   // const styles = createStyles(colors);
   const [virtualAccount, setVirtualAccount] = useState< VirtualAccount | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showBankModal, setShowBankModal] = useState(false);
-  const [selectedBank, setSelectedBank] = useState<string | null>(null);
   
   const [activeTab, setActiveTab] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -56,23 +48,26 @@ export default function AddFundsScreen() {
   // Determine if we're on a small screen
   const isSmallScreen = screenWidth < 380;
 
-  const banks = [
-    { id: 'wema', name: 'Wema Bank', code: 'wema-bank' },
-    { id: 'paystack', name: 'Paystack Titan', code: 'titan-paystack' }
-  ];
-
-  // Update virtual account state when paystack account changes
+  // Update virtual account state when SafeHaven account changes
   useEffect(() => {
-    if (paystackAccount && paystackAccount.account_number) {
-      setVirtualAccount({
-        account_number: paystackAccount.account_number,
-        bank_name: paystackAccount.bank_name,
-        account_name: paystackAccount.account_name,
-      });
-    } else {
-      setVirtualAccount(null);
-    }
-  }, [paystackAccount]);
+    // Debounce updates to prevent excessive re-renders
+    const timeoutId = setTimeout(() => {
+      // Only set account if it has a real account number (not a placeholder)
+      if (safehavenAccount && safehavenAccount.account_number && !safehavenAccount.account_number.startsWith('PENDING_')) {
+        // Format account name as "PLANMONI/{ACCOUNT_NAME}"
+        const formattedAccountName = `PLANMONI/${safehavenAccount.account_name.toUpperCase()}`;
+        setVirtualAccount({
+          account_number: safehavenAccount.account_number,
+          bank_name: safehavenAccount.bank_name,
+          account_name: formattedAccountName,
+        });
+      } else {
+        setVirtualAccount(null);
+      }
+    }, 300); // Debounce by 300ms
+
+    return () => clearTimeout(timeoutId);
+  }, [safehavenAccount]);
 
   const handleCopyAccountNumber = async (accountNumber : string) => {
     console.log("Account number to copy:", accountNumber); // ✅ Debug
@@ -97,109 +92,6 @@ export default function AddFundsScreen() {
     }
   };
   
-  const handleBankSelection = (bankId: string) => {
-    setSelectedBank(bankId);
-    setShowBankModal(false);
-  };
-
-  const handleCreateVirtualAccount = async () => {
-    setIsLoading(true);
-
-    try {
-      // 1. Create Customer
-      const customerPayload = {
-        email: email,
-        first_name: firstName,
-        last_name: lastName,
-        phone: phoneNumber,
-      };
-
-      const customerResponse = await fetch('https://api.paystack.co/customer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
-        },
-        body: JSON.stringify(customerPayload),
-      });
-
-      const customerResult = await customerResponse.json();
-      if (!customerResponse.ok || !customerResult.status) {
-        showToast(customerResult.message || 'Failed to create customer', 'error');
-        setIsLoading(false);
-        return;
-      }
-
-      const customerId = customerResult.data.id;
-      const customerCode = customerResult.data.customer_code;
-
-      // 2. Create Dedicated Account
-      const selectedBankData = banks.find(bank => bank.id === selectedBank);
-      const accountPayload = {
-        customer: customerId,
-        preferred_bank: selectedBankData?.code || 'titan-paystack',
-      };
-
-      const accountResponse = await fetch('https://api.paystack.co/dedicated_account', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`
-        },
-        body: JSON.stringify(accountPayload),
-      });
-
-      const accountResult = await accountResponse.json();
-      if (!accountResponse.ok || !accountResult.status) {
-        showToast(accountResult.message || 'Failed to create account', 'error');
-        setIsLoading(false);
-        return;
-      }
-
-      const accountData = accountResult.data;
-      
-      // 3. Insert into Supabase
-      const { error } = await supabase
-        .from('paystack_accounts')
-        .insert([{
-          user_id: (await supabase.auth.getUser()).data.user?.id,
-          customer_code: customerCode,
-          bank_name: accountData.bank.name,
-          account_number: accountData.account_number,
-          account_name: accountData.account_name,
-          accountId: accountData.id,
-          is_active: accountData.active || false, // Check if account is immediately active
-        }])
-        .select();
-      
-      console.log("Database error:", error);
-      if (error) {
-        showToast('Failed to save account to database', 'error');
-        setIsLoading(false);
-        return;
-      }
-
-      // Set virtual account state
-      setVirtualAccount({
-        account_number: accountData.account_number,
-        bank_name: accountData.bank.name,
-        account_name: accountData.account_name,
-      });
-
-      // Show appropriate message based on account status
-      if (accountData.active) {
-        showToast('Virtual account created and activated successfully', 'success');
-      } else {
-        showToast('Virtual account created successfully. It will be activated shortly.', 'success');
-      }
-
-    } catch (error) {
-      console.error('Something went wrong', error);
-      showToast('Something went wrong', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleMoreDepositMethods = () => {
     haptics.mediumImpact();
@@ -349,48 +241,68 @@ export default function AddFundsScreen() {
 
               </View>
 
-              {paystackAccount && !paystackAccount.is_active && (
+              {safehavenAccount && safehavenAccount.status !== 'Active' && (
                 <View style={styles.pendingNotice}>
                   <Info size={16} color="#F59E0B" />
                   <Text style={styles.pendingNoticeText}>
-                    Your virtual account is being activated. You'll be able to receive funds once it's active.
+                    Your account is being activated. You'll be able to receive funds once it's active.
                   </Text>
                 </View>
               )}
             </View>
             ) : (
               <View style={{ marginTop: 40, marginBottom: 24 }}>
-                <Text style={{ marginBottom: 16, fontWeight: 700, color: colors.text }}>Request a bank account</Text>
-                
-                {/* Bank Selection Button */}
-                <Pressable 
-                  style={[
-                    styles.bankSelectionButton,
-                    selectedBank && styles.bankSelectionButtonSelected
-                  ]}
-                  onPress={() => setShowBankModal(true)}
-                >
-                  <View style={styles.bankSelectionContent}>
-                    <View style={styles.bankSelectionLeft}>
-                      <Text style={styles.bankSelectionLabel}>Select Bank</Text>
-                      <Text style={styles.bankSelectionText}>
-                        {selectedBank ? banks.find(bank => bank.id === selectedBank)?.name : 'Choose your preferred bank'}
-                      </Text>
-                    </View>
-                    <ChevronRight size={20} color={colors.textSecondary} />
+                {accountLoading ? (
+                  <View style={{ alignItems: 'center', padding: 20 }}>
+                    <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 16 }}>
+                      Loading account information...
+                    </Text>
                   </View>
-                </Pressable>
-
-                <Button
-                  title="Create Account"
-                  onPress={handleCreateVirtualAccount}
-                  isLoading={isLoading}
-                  disabled={!selectedBank}
-                  style={[
-                    styles.createAccountButton,
-                    !selectedBank && styles.createAccountButtonDisabled
-                  ]}
-                />
+                ) : accountError ? (
+                  <View style={{ alignItems: 'center', padding: 20 }}>
+                    <Text style={{ fontSize: 14, color: colors.error || '#DC2626', marginBottom: 16, textAlign: 'center' }}>
+                      Error loading account: {accountError}
+                    </Text>
+                    <Button
+                      title="Retry"
+                      onPress={refreshAccount}
+                      style={styles.createAccountButton}
+                    />
+                  </View>
+                ) : (
+                  <>
+                    <Text style={{ marginBottom: 16, fontWeight: 700, color: colors.text }}>Claim your bank account</Text>
+                    <Text style={{ marginBottom: 24, fontSize: 14, color: colors.textSecondary, lineHeight: 20 }}>
+                      {(() => {
+                        const tierCompletion = checkTierCompletion();
+                        if (tierCompletion.tier1) {
+                          return 'You\'ve completed Tier 1 verification. Your SafeHaven account will be available soon. Please check back later or contact support if you need assistance.';
+                        } else {
+                          return 'Complete Tier 1 verification (Liveness, BVN, and NIN) to get your SafeHaven account number.';
+                        }
+                      })()}
+                    </Text>
+                    {(() => {
+                      const tierCompletion = checkTierCompletion();
+                      if (!tierCompletion.tier1) {
+                        return (
+                          <Button
+                            title="Complete Tier 1 Verification"
+                            onPress={() => router.push('/kyc-upgrade')}
+                            style={styles.createAccountButton}
+                          />
+                        );
+                      }
+                      return (
+                        <Button
+                          title="Refresh Account"
+                          onPress={refreshAccount}
+                          style={styles.createAccountButton}
+                        />
+                      );
+                    })()}
+                  </>
+                )}
               </View>
             )}
           </View>
@@ -478,86 +390,6 @@ export default function AddFundsScreen() {
         />
       </View>
 
-      {/* Bank Selection Modal */}
-      <Modal
-        visible={showBankModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowBankModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Your Bank</Text>
-              <Text style={styles.modalSubtitle}>Choose your preferred bank for the virtual account</Text>
-            </View>
-            
-            <View style={styles.bankOptionsContainer}>
-              {banks.map(bank => {
-                const bankIcon = getBankIconLogo(bank.name);
-                return (
-                  <Pressable
-                    key={bank.id}
-                    onPress={() => handleBankSelection(bank.id)}
-                    style={[
-                      styles.bankOption,
-                      selectedBank === bank.id && styles.selectedBankOption
-                    ]}
-                  >
-                    <View style={styles.bankOptionIcon}>
-                      {bankIcon.logo ? (
-                        <Image 
-                          source={bankIcon.logo} 
-                          style={styles.bankLogo} 
-                          resizeMode="contain"
-                        />
-                      ) : bankIcon.logoSvg ? (
-                        <bankIcon.logoSvg width={24} height={24} />
-                      ) : (
-                        <Building2 size={24} color={selectedBank === bank.id ? colors.primary : colors.textSecondary} />
-                      )}
-                    </View>
-                    <View style={styles.bankOptionInfo}>
-                      <Text style={[
-                        styles.bankOptionText,
-                        selectedBank === bank.id && styles.selectedBankOptionText
-                      ]}>
-                        {bank.name}
-                      </Text>
-                      <Text style={styles.bankOptionDescription}>
-                        {bank.id === 'wema' ? 'Traditional banking partner' : 'Digital payment solution'}
-                      </Text>
-                    </View>
-                    {selectedBank === bank.id && (
-                      <View style={styles.selectedIndicator}>
-                        <View style={styles.selectedDot} />
-                      </View>
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={() => setShowBankModal(false)}
-                style={styles.cancelButton}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </Pressable>
-              
-              {selectedBank && (
-                <Pressable
-                  onPress={() => setShowBankModal(false)}
-                  style={styles.confirmButton}
-                >
-                  <Text style={styles.confirmButtonText}>Confirm Selection</Text>
-                </Pressable>
-              )}
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

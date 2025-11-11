@@ -132,6 +132,20 @@ class SafeHavenService {
     let auditLogId: string | undefined = undefined;
 
     try {
+      // Validate credentials before making API call
+      if (!this.CLIENT_ID || !this.CLIENT_ASSERTION) {
+        const missingCredentials = [];
+        if (!this.CLIENT_ID) missingCredentials.push('CLIENT_ID');
+        if (!this.CLIENT_ASSERTION) missingCredentials.push('CLIENT_ASSERTION');
+        
+        console.error(`[SafeHaven] API credentials are missing: ${missingCredentials.join(', ')}`);
+        return {
+          success: false,
+          error: `SafeHaven API credentials are missing (${missingCredentials.join(', ')}). Please configure EXPO_PUBLIC_SAFEHAVEN_CLIENT_ID and EXPO_PUBLIC_SAFEHAVEN_CLIENT_ASSERTION.`,
+          responseTime: Date.now() - startTime
+        };
+      }
+
       // Create audit log entry
       auditLogId = await this.logOperation(
         userId,
@@ -160,6 +174,30 @@ class SafeHavenService {
 
       if (!response.ok) {
         const errorText = await response.text();
+        let errorMessage: string;
+        
+        // Distinguish between invalid credentials and other API errors
+        if (response.status === 401 || response.status === 403) {
+          errorMessage = `SafeHaven API authentication failed. Please verify your CLIENT_ID and CLIENT_ASSERTION are correct. (Status: ${response.status})`;
+          console.error('[SafeHaven] Invalid credentials - authentication failed:', {
+            status: response.status,
+            error: errorText.substring(0, 200) // Log first 200 chars to avoid logging sensitive data
+          });
+        } else if (response.status >= 500) {
+          errorMessage = `SafeHaven API server error. Please try again later. (Status: ${response.status})`;
+          console.error('[SafeHaven] API server error:', {
+            status: response.status,
+            error: errorText.substring(0, 200)
+          });
+        } else {
+          errorMessage = `SafeHaven API request failed. (Status: ${response.status} ${response.statusText})`;
+          console.error('[SafeHaven] API request failed:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorText.substring(0, 200)
+          });
+        }
+        
         const errorData = { status: response.status, statusText: response.statusText, error: errorText };
         
         // Update audit log with error
@@ -167,7 +205,7 @@ class SafeHavenService {
 
         return {
           success: false,
-          error: `Token initialization failed: ${response.status} ${response.statusText}`,
+          error: errorMessage,
           auditLogId,
           responseTime
         };
@@ -217,7 +255,19 @@ class SafeHavenService {
 
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      let errorMessage: string;
+      
+      // Distinguish between network errors and other errors
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        errorMessage = 'Network error: Unable to connect to SafeHaven API. Please check your internet connection.';
+        console.error('[SafeHaven] Network error during token initialization:', error);
+      } else if (error instanceof Error) {
+        errorMessage = `SafeHaven token initialization error: ${error.message}`;
+        console.error('[SafeHaven] Error during token initialization:', error);
+      } else {
+        errorMessage = 'Unknown error occurred during SafeHaven token initialization.';
+        console.error('[SafeHaven] Unknown error during token initialization:', error);
+      }
 
       // Update audit log with error
       if (auditLogId) {
@@ -918,6 +968,15 @@ class SafeHavenService {
     let currentIdentityId: string | undefined = identityId;
 
     try {
+      // Check if SafeHaven is configured before attempting token initialization
+      if (!this.isConfigured()) {
+        console.error('[SafeHaven] Service not configured. Missing CLIENT_ID or CLIENT_ASSERTION.');
+        return {
+          success: false,
+          error: 'SafeHaven service is not configured. Please contact support.'
+        };
+      }
+
       // Get valid token
       const token = await this.getValidToken(userId);
       if (!token) {
@@ -957,6 +1016,12 @@ class SafeHavenService {
         null,
         'pending'
       );
+
+      // Variables to store names extracted from identity verification
+      let identityFirstName = '';
+      let identityLastName = '';
+      let identityMiddleName = '';
+      let identityDateOfBirth = '';
 
       // STEP 1: Create identity verification (only if identityId not provided)
       if (!currentIdentityId) {
@@ -1021,6 +1086,85 @@ class SafeHavenService {
           throw new Error('Identity ID not found in response');
         }
 
+        // Extract names from identity verification response
+        // SafeHaven NIN verification returns user names in the identity response
+        const identityResponseData = identityData?.data || identityData;
+        
+        // Check multiple possible locations for names in identity response
+        identityFirstName = identityResponseData?.firstName || 
+                           identityResponseData?.first_name || 
+                           identityResponseData?.firstName || 
+                           identityResponseData?.firstname ||
+                           identityResponseData?.givenName ||
+                           identityResponseData?.given_name ||
+                           '';
+        
+        identityLastName = identityResponseData?.lastName || 
+                          identityResponseData?.last_name || 
+                          identityResponseData?.surname ||
+                          identityResponseData?.familyName ||
+                          identityResponseData?.family_name ||
+                          '';
+        
+        identityMiddleName = identityResponseData?.middleName || 
+                            identityResponseData?.middle_name || 
+                            identityResponseData?.otherName ||
+                            identityResponseData?.other_name ||
+                            '';
+        
+        identityDateOfBirth = identityResponseData?.dateOfBirth || 
+                              identityResponseData?.date_of_birth || 
+                              identityResponseData?.birthDate ||
+                              identityResponseData?.birth_date ||
+                              identityResponseData?.dob ||
+                              '';
+
+        // If names are in a nested structure, check there too
+        if (!identityFirstName || !identityLastName) {
+          const nestedData = identityResponseData?.data || identityResponseData?.identity || identityResponseData?.user;
+          if (nestedData) {
+            identityFirstName = identityFirstName || nestedData?.firstName || nestedData?.first_name || nestedData?.givenName || '';
+            identityLastName = identityLastName || nestedData?.lastName || nestedData?.last_name || nestedData?.surname || nestedData?.familyName || '';
+            identityMiddleName = identityMiddleName || nestedData?.middleName || nestedData?.middle_name || nestedData?.otherName || '';
+            identityDateOfBirth = identityDateOfBirth || nestedData?.dateOfBirth || nestedData?.date_of_birth || nestedData?.dob || '';
+          }
+        }
+
+        // If we have a full name string, try to parse it
+        const fullName = identityResponseData?.fullName || 
+                        identityResponseData?.full_name || 
+                        identityResponseData?.name ||
+                        identityResponseData?.accountName ||
+                        identityResponseData?.account_name ||
+                        '';
+        
+        if (fullName && (!identityFirstName || !identityLastName)) {
+          const nameParts = fullName.trim().split(/\s+/).filter(Boolean);
+          if (nameParts.length > 0) {
+            identityFirstName = identityFirstName || nameParts[0] || '';
+            identityLastName = identityLastName || (nameParts.length > 1 ? nameParts[nameParts.length - 1] : '') || '';
+            identityMiddleName = identityMiddleName || (nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '') || '';
+          }
+        }
+
+        // Log extracted names for debugging
+        if (identityFirstName || identityLastName) {
+          console.log('[SafeHaven] ✅ Extracted names from identity verification:', {
+            firstName: identityFirstName,
+            lastName: identityLastName,
+            middleName: identityMiddleName,
+            dateOfBirth: identityDateOfBirth ? '***' : '',
+            source: 'identity_verification_response'
+          });
+        } else {
+          console.warn('[SafeHaven] ⚠️ No names found in identity verification response. Response structure:', {
+            hasData: !!identityData?.data,
+            dataKeys: identityData?.data ? Object.keys(identityData.data) : [],
+            topLevelKeys: Object.keys(identityData || {}),
+            sampleData: JSON.stringify(identityData, null, 2).substring(0, 500)
+          });
+        }
+
         // Update audit log with identity verification success
         await this.updateAuditLog(
           auditLogId,
@@ -1074,6 +1218,71 @@ class SafeHavenService {
       if (!currentIdentityId) {
         throw new Error('Identity ID is required when OTP is provided. Please initialize NIN verification first.');
       }
+
+      // Get user data for account creation - prioritize identity verification names
+      // Priority: 1. Identity verification response, 2. KYC data, 3. Profile
+      let firstName = identityFirstName || '';
+      let lastName = identityLastName || '';
+      let middleName = identityMiddleName || '';
+      let dateOfBirth = identityDateOfBirth || '';
+      
+      // If names not found in identity response, try KYC data
+      if (!firstName || !lastName) {
+        try {
+          const { data: kycData } = await supabase
+            .from('kyc_data')
+            .select('first_name, last_name, middle_name, date_of_birth')
+            .eq('user_id', userId)
+            .single();
+
+          if (kycData) {
+            firstName = firstName || kycData.first_name || '';
+            lastName = lastName || kycData.last_name || '';
+            middleName = middleName || kycData.middle_name || '';
+            dateOfBirth = dateOfBirth || kycData.date_of_birth || '';
+          }
+        } catch (kycError) {
+          console.warn('[SafeHaven] Could not fetch KYC data:', kycError);
+        }
+      }
+
+      // If still no names, try profile
+      if (!firstName || !lastName) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', userId)
+            .single();
+
+          if (profile) {
+            firstName = firstName || profile.first_name || '';
+            lastName = lastName || profile.last_name || '';
+          }
+        } catch (profileError) {
+          console.warn('[SafeHaven] Could not fetch profile data:', profileError);
+        }
+      }
+
+      // Validate names - ensure we have valid values (not undefined or empty)
+      firstName = (firstName && firstName.trim()) || '';
+      lastName = (lastName && lastName.trim()) || '';
+      middleName = (middleName && middleName.trim()) || '';
+      dateOfBirth = (dateOfBirth && dateOfBirth.trim()) || '';
+
+      // Log final names being used for account creation
+      console.log('[SafeHaven] Names for account creation:', {
+        firstName: firstName || '(empty)',
+        lastName: lastName || '(empty)',
+        middleName: middleName || '(empty)',
+        dateOfBirth: dateOfBirth ? '***' : '(empty)',
+        source: identityFirstName ? 'identity_verification' : (firstName ? 'kyc_data_or_profile' : 'none')
+      });
+
+      // Warn if we don't have names - account creation might fail
+      if (!firstName || !lastName) {
+        console.warn('[SafeHaven] ⚠️ Warning: Missing first name or last name for account creation. Account creation may fail or use placeholder names.');
+      }
       
       const accountRequestPayload: any = {
         phoneNumber: phoneNumber,
@@ -1085,13 +1294,41 @@ class SafeHavenService {
         },
         externalReference: `AC_${userId.substring(0, 8)}`,
         identityNumber: nin,
-        identityId: currentIdentityId
+        identityId: currentIdentityId,
+        otp: otp
       };
 
-      // Add OTP if provided
-      if (otp) {
-        accountRequestPayload.otp = otp;
+      // Add name fields - only include if we have valid values
+      // SafeHaven API requires names for account creation
+      if (firstName && firstName.trim()) {
+        accountRequestPayload.firstName = firstName.trim();
       }
+      if (lastName && lastName.trim()) {
+        accountRequestPayload.lastName = lastName.trim();
+      }
+      if (middleName && middleName.trim()) {
+        accountRequestPayload.middleName = middleName.trim();
+      }
+      if (dateOfBirth && dateOfBirth.trim()) {
+        accountRequestPayload.dateOfBirth = dateOfBirth.trim();
+      }
+
+      // Log the payload being sent (without sensitive data)
+      console.log('[SafeHaven] Account creation payload (sanitized):', {
+        ...accountRequestPayload,
+        otp: '***',
+        identityNumber: nin.substring(0, 4) + '****',
+        hasFirstName: !!accountRequestPayload.firstName,
+        hasLastName: !!accountRequestPayload.lastName,
+        hasMiddleName: !!accountRequestPayload.middleName,
+        hasDateOfBirth: !!accountRequestPayload.dateOfBirth
+      });
+
+      console.log('[SafeHaven] Creating sub-account with payload:', {
+        ...accountRequestPayload,
+        otp: '***', // Don't log OTP
+        identityNumber: nin.substring(0, 4) + '****'
+      });
 
       const accountResponse = await fetch(`${this.API_URL}/accounts/v2/subaccount`, {
         method: 'POST',
@@ -1103,19 +1340,41 @@ class SafeHavenService {
         body: JSON.stringify(accountRequestPayload)
       });
 
-      console.log(' Account creation response:', JSON.stringify(accountResponse, null, 2));
+      console.log('[SafeHaven] Account creation response status:', accountResponse.status, accountResponse.statusText);
 
       const responseTime = Date.now() - startTime;
 
       if (!accountResponse.ok) {
-        const errorText = await accountResponse.text();
+        let errorText = '';
+        let errorJson: any = null;
+        
+        try {
+          errorText = await accountResponse.text();
+          try {
+            errorJson = JSON.parse(errorText);
+          } catch {
+            // Not JSON, use as text
+          }
+        } catch (readError) {
+          console.error('[SafeHaven] Error reading error response:', readError);
+          errorText = 'Unable to read error response';
+        }
+
         const errorData = { 
           status: accountResponse.status, 
           statusText: accountResponse.statusText, 
           error: errorText,
+          errorJson: errorJson,
           step: 'account_creation',
-          identityId: currentIdentityId
+          identityId: currentIdentityId,
+          requestPayload: {
+            ...accountRequestPayload,
+            otp: '***',
+            identityNumber: nin.substring(0, 4) + '****'
+          }
         };
+
+        console.error('[SafeHaven] Account creation failed:', errorData);
         
         // Update both audit logs with error
         if (kycAuditLogId?.data) {
@@ -1130,18 +1389,39 @@ class SafeHavenService {
         }
         await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
 
+        // Extract user-friendly error message
+        let errorMessage = `Account creation failed: ${accountResponse.status} ${accountResponse.statusText}`;
+        if (errorJson?.message) {
+          errorMessage = errorJson.message;
+        } else if (errorJson?.error) {
+          errorMessage = errorJson.error;
+        } else if (errorText && errorText.length < 200) {
+          errorMessage = errorText;
+        }
+
         return {
           success: false,
-          error: `Account creation failed: ${accountResponse.status} ${accountResponse.statusText}`,
+          error: errorMessage,
           auditLogId,
           responseTime,
-          data: { identityId: currentIdentityId, requiresOtp: accountResponse.status === 400 || accountResponse.status === 422 }
+          data: { 
+            identityId: currentIdentityId, 
+            requiresOtp: accountResponse.status === 400 || accountResponse.status === 422,
+            errorDetails: errorData
+          }
         };
       }
 
-      const accountData = await accountResponse.json();
-      
-      console.log('[SafeHaven] Account creation response:', JSON.stringify(accountData, null, 2));
+      let accountData: any;
+      try {
+        accountData = await accountResponse.json();
+        console.log('[SafeHaven] Account creation response data:', JSON.stringify(accountData, null, 2));
+      } catch (parseError) {
+        console.error('[SafeHaven] Error parsing account creation response:', parseError);
+        const responseText = await accountResponse.text();
+        console.error('[SafeHaven] Raw response:', responseText);
+        throw new Error('Invalid response format from SafeHaven API');
+      }
 
       // Extract account information from response
       const verificationData: any = {
@@ -1152,23 +1432,68 @@ class SafeHavenService {
       };
 
       // Extract account number if available - check multiple possible locations
+      // SafeHaven API may return account number in various nested structures
       let accountNumber = null;
-      if (accountData?.data?.accountNumber) {
-        accountNumber = accountData.data.accountNumber;
-      } else if (accountData?.data?.account_number) {
-        accountNumber = accountData.data.account_number;
-      } else if (accountData?.accountNumber) {
-        accountNumber = accountData.accountNumber;
-      } else if (accountData?.account_number) {
-        accountNumber = accountData.account_number;
-      } else if (accountData?.data?.account?.accountNumber) {
-        accountNumber = accountData.data.account.accountNumber;
-      } else if (accountData?.data?.account?.account_number) {
-        accountNumber = accountData.data.account.account_number;
+      const accountNumberPaths = [
+        // Direct paths
+        accountData?.data?.accountNumber,
+        accountData?.data?.account_number,
+        accountData?.accountNumber,
+        accountData?.account_number,
+        // Nested account object
+        accountData?.data?.account?.accountNumber,
+        accountData?.data?.account?.account_number,
+        accountData?.account?.accountNumber,
+        accountData?.account?.account_number,
+        // ID fields (sometimes account ID is the account number)
+        accountData?.data?._id,
+        accountData?._id,
+        accountData?.data?.account?._id,
+        accountData?.account?._id,
+        // Response wrapper paths
+        accountData?.data?.response?.accountNumber,
+        accountData?.data?.response?.account_number,
+        accountData?.response?.accountNumber,
+        accountData?.response?.account_number,
+        // Result paths
+        accountData?.data?.result?.accountNumber,
+        accountData?.data?.result?.account_number,
+        accountData?.result?.accountNumber,
+        accountData?.result?.account_number,
+        // Subaccount paths
+        accountData?.data?.subaccount?.accountNumber,
+        accountData?.data?.subaccount?.account_number,
+        accountData?.subaccount?.accountNumber,
+        accountData?.subaccount?.account_number,
+      ];
+
+      for (const path of accountNumberPaths) {
+        if (path && typeof path === 'string') {
+          // Account numbers are typically 10 digits, but can be longer
+          // Check if it looks like an account number (numeric, 10+ characters)
+          const cleaned = path.replace(/\D/g, ''); // Remove non-digits
+          if (cleaned.length >= 10) {
+            accountNumber = cleaned;
+            console.log('[SafeHaven] Found account number in response:', accountNumber.substring(0, 5) + '****');
+            break;
+          }
+        }
       }
       
       if (accountNumber) {
         verificationData.account_number = accountNumber;
+      } else {
+        console.warn('[SafeHaven] Account number not found in response. Checking for pending status...');
+        // Check if account is being created asynchronously
+        const status = accountData?.data?.status || accountData?.status || 'UNKNOWN';
+        const message = accountData?.data?.message || accountData?.message || '';
+        console.log('[SafeHaven] Account creation status:', status, 'Message:', message);
+        
+        if (status === 'PENDING' || status === 'PROCESSING' || message.toLowerCase().includes('pending') || message.toLowerCase().includes('processing')) {
+          verificationData.status = 'PENDING';
+          verificationData.message = message || 'Account is being created. Please check back later.';
+          console.log('[SafeHaven] Account creation is pending. Will store with pending status.');
+        }
       }
 
       // Extract account name if available - check multiple possible locations
@@ -1187,20 +1512,185 @@ class SafeHavenService {
         accountName = accountData.data.account.account_name;
       }
       
-      // Extract names if available
-      if (accountName) {
-        const names = accountName.split(' ');
-        verificationData.first_name = names[0] || '';
-        verificationData.last_name = names[names.length - 1] || '';
-        verificationData.middle_name = names.length > 2 ? names.slice(1, -1).join(' ') : '';
-        verificationData.account_name = accountName;
+      // Also check for name fields directly in the response
+      let responseFirstName = null;
+      let responseLastName = null;
+      let responseMiddleName = null;
+      
+      // Check for direct name fields in accountData
+      if (accountData?.data?.firstName || accountData?.data?.first_name) {
+        responseFirstName = accountData.data.firstName || accountData.data.first_name;
+      } else if (accountData?.firstName || accountData?.first_name) {
+        responseFirstName = accountData.firstName || accountData.first_name;
       }
       
-      // If account number is not found, log the full response for debugging
+      if (accountData?.data?.lastName || accountData?.data?.last_name) {
+        responseLastName = accountData.data.lastName || accountData.data.last_name;
+      } else if (accountData?.lastName || accountData?.last_name) {
+        responseLastName = accountData.lastName || accountData.last_name;
+      }
+      
+      if (accountData?.data?.middleName || accountData?.data?.middle_name) {
+        responseMiddleName = accountData.data.middleName || accountData.data.middle_name;
+      } else if (accountData?.middleName || accountData?.middle_name) {
+        responseMiddleName = accountData.middleName || accountData.middle_name;
+      }
+      
+      // Extract names from accountName if direct fields not available
+      if (accountName && (!responseFirstName || !responseLastName)) {
+        const names = accountName.split(' ').filter(Boolean);
+        if (names.length > 0) {
+          responseFirstName = responseFirstName || names[0] || '';
+          responseLastName = responseLastName || names[names.length - 1] || '';
+          responseMiddleName = responseMiddleName || (names.length > 2 ? names.slice(1, -1).join(' ') : '');
+        }
+      }
+      
+      // Set names in verificationData if available (prefer response names, fallback to KYC data)
+      const finalFirstName = responseFirstName || firstName || '';
+      const finalLastName = responseLastName || lastName || '';
+      const finalMiddleName = responseMiddleName || '';
+      
+      if (finalFirstName || finalLastName) {
+        verificationData.first_name = finalFirstName;
+        verificationData.last_name = finalLastName;
+        verificationData.middle_name = finalMiddleName;
+        if (accountName) {
+          verificationData.account_name = accountName;
+        } else if (finalFirstName || finalLastName) {
+          // Construct account name from individual name fields
+          verificationData.account_name = [finalFirstName, finalMiddleName, finalLastName].filter(Boolean).join(' ');
+        }
+      } else if (accountName) {
+        // Fallback: extract from accountName if no direct fields
+        const names = accountName.split(' ').filter(Boolean);
+        if (names.length > 0) {
+          verificationData.first_name = names[0] || '';
+          verificationData.last_name = names[names.length - 1] || '';
+          verificationData.middle_name = names.length > 2 ? names.slice(1, -1).join(' ') : '';
+          verificationData.account_name = accountName;
+        }
+      }
+      
+      // Log extracted names for debugging
+      if (verificationData.first_name || verificationData.last_name) {
+        console.log('[SafeHaven] Extracted names:', {
+          first_name: verificationData.first_name,
+          last_name: verificationData.last_name,
+          middle_name: verificationData.middle_name,
+          account_name: verificationData.account_name
+        });
+      } else {
+        console.warn('[SafeHaven] Warning: Could not extract names from account response. Account data:', JSON.stringify(accountData, null, 2));
+      }
+      
+      // If account number is not found in response, immediately fetch accounts from API
+      // This matches the SafeHaven Dashboard behavior - account is created synchronously
+      // We fetch immediately to get the account number without waiting for polling/webhooks
       if (!accountNumber) {
-        console.warn('[SafeHaven] Account number not found in response. Full response:', JSON.stringify(accountData, null, 2));
-        // Account might be created asynchronously, so we'll still mark as verified
-        // but log a warning
+        console.log('[SafeHaven] Account number not in response. Fetching accounts immediately from API...');
+        
+        try {
+          // Immediately fetch accounts from SafeHaven API to get the newly created account
+          // Account creation is synchronous in SafeHaven, so we can fetch immediately
+          const accountsResponse = await fetch(`${this.API_URL}/accounts/v2`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'ClientID': this.CLIENT_ID,
+              'Authorization': `Bearer ${token.access_token}`
+            }
+          });
+
+          if (accountsResponse.ok) {
+            const accountsData = await accountsResponse.json();
+            const accounts = accountsData?.data || accountsData || [];
+            
+            console.log('[SafeHaven] Fetched accounts from API:', accounts.length, 'accounts found');
+            
+            // Find the newly created account by identityId or externalReference
+            const externalRef = `AC_${userId.substring(0, 8)}`;
+            const matchingAccount = accounts.find((acc: any) => {
+              // Check by identityId (most reliable)
+              if (acc.identityId === currentIdentityId || acc.identity_id === currentIdentityId) {
+                return true;
+              }
+              // Check by externalReference
+              if (acc.externalReference === externalRef || acc.external_reference === externalRef) {
+                return true;
+              }
+              // Check if externalReference contains user ID
+              if (acc.externalReference && acc.externalReference.includes(userId.substring(0, 8))) {
+                return true;
+              }
+              if (acc.external_reference && acc.external_reference.includes(userId.substring(0, 8))) {
+                return true;
+              }
+              return false;
+            });
+
+            if (matchingAccount) {
+              // Extract account number from the matching account - check multiple locations
+              const foundAccountNumber = matchingAccount.accountNumber || 
+                                        matchingAccount.account_number || 
+                                        matchingAccount._id ||
+                                        matchingAccount.id;
+              
+              if (foundAccountNumber) {
+                // Clean the account number (remove non-digits)
+                const cleaned = foundAccountNumber.toString().replace(/\D/g, '');
+                if (cleaned.length >= 10) {
+                  accountNumber = cleaned;
+                  verificationData.account_number = accountNumber;
+                  
+                  // Also update account name if available
+                  if (matchingAccount.accountName || matchingAccount.account_name) {
+                    accountName = matchingAccount.accountName || matchingAccount.account_name;
+                    verificationData.account_name = accountName;
+                  }
+                  
+                  // Update status if available
+                  if (matchingAccount.status) {
+                    verificationData.status = matchingAccount.status;
+                  }
+                  
+                  console.log('[SafeHaven] ✅ Found account number via immediate fetch:', accountNumber.substring(0, 5) + '****');
+                } else {
+                  console.warn('[SafeHaven] Matching account found but account number too short:', foundAccountNumber);
+                }
+              } else {
+                console.warn('[SafeHaven] Matching account found but no account number field:', Object.keys(matchingAccount));
+              }
+            } else {
+              console.warn('[SafeHaven] No matching account found in fetched accounts.', {
+                externalRef,
+                identityId: currentIdentityId,
+                totalAccounts: accounts.length,
+                accountIds: accounts.map((acc: any) => ({
+                  id: acc._id || acc.id,
+                  identityId: acc.identityId || acc.identity_id,
+                  externalRef: acc.externalReference || acc.external_reference
+                }))
+              });
+            }
+          } else {
+            const errorText = await accountsResponse.text();
+            console.warn('[SafeHaven] Failed to fetch accounts from API:', accountsResponse.status, accountsResponse.statusText, errorText);
+          }
+        } catch (fetchError) {
+          console.error('[SafeHaven] Error fetching accounts immediately after creation:', fetchError);
+        }
+      }
+
+      // If account number still not found, log the full response for debugging
+      if (!accountNumber) {
+        console.warn('[SafeHaven] Account number not found after immediate fetch. Full response structure:', {
+          hasData: !!accountData?.data,
+          dataKeys: accountData?.data ? Object.keys(accountData.data) : [],
+          topLevelKeys: Object.keys(accountData || {}),
+          status: accountData?.data?.status || accountData?.status,
+          message: accountData?.data?.message || accountData?.message
+        });
       }
 
       // Update KYC audit log with success
@@ -1235,16 +1725,24 @@ class SafeHavenService {
         responseTime
       );
 
-      // If account was created, store it
+      // Store account - account number should be available after immediate fetch
+      // Only use PENDING status if we really couldn't find the account number
+      const accountStatus = verificationData.account_number ? 'active' : 'pending';
+      
+      // Always store the account - it should have an account number after immediate fetch
       if (verificationData.account_number) {
-        await this.storeAccountFromNINVerification(userId, {
-          account_number: verificationData.account_number,
-          account_name: accountData?.data?.accountName || `${verificationData.first_name} ${verificationData.last_name}`.trim(),
-          account_type: 'savings',
-          currency_code: 'NGN',
-          status: 'active'
-        });
+        console.log('[SafeHaven] ✅ Storing account with account number:', verificationData.account_number.substring(0, 5) + '****');
+      } else {
+        console.warn('[SafeHaven] ⚠️ Storing account without account number - will be updated when available');
       }
+      
+      await this.storeAccountFromNINVerification(userId, {
+        account_number: verificationData.account_number || null,
+        account_name: verificationData.account_name || accountData?.data?.accountName || accountData?.data?.account_name || `${verificationData.first_name} ${verificationData.last_name}`.trim() || 'Pending Account',
+        account_type: 'savings',
+        currency_code: 'NGN',
+        status: accountStatus
+      });
 
       // Update KYC progress with NIN verification (using id_face_verified)
       await supabase
@@ -1285,50 +1783,224 @@ class SafeHavenService {
    */
   private async storeAccountFromNINVerification(userId: string, verificationData: any): Promise<void> {
     try {
-      const accountRecord = {
+      // For pending accounts, use a placeholder account number if account_number is not available
+      // The account_number field is NOT NULL in the database, so we need a placeholder
+      const accountNumber = verificationData.account_number || `PENDING_${userId.substring(0, 8)}_${Date.now()}`;
+      
+      const accountRecord: any = {
         user_id: userId,
-        safehaven_account_id: verificationData.account_id || null,
-        account_number: verificationData.account_number,
-        account_name: verificationData.account_name || verificationData.full_name,
+        safehaven_account_id: verificationData.account_id || verificationData.safehaven_account_id || `PENDING_${userId.substring(0, 8)}`,
+        client_id: this.CLIENT_ID || 'PENDING',
+        account_product: verificationData.account_type || 'savings',
+        account_number: accountNumber,
+        account_name: verificationData.account_name || verificationData.full_name || 'Pending Account',
         account_type: verificationData.account_type || 'savings',
         currency_code: verificationData.currency_code || 'NGN',
         bvn: verificationData.bvn || null,
         account_balance: verificationData.account_balance || 0,
         book_balance: verificationData.book_balance || 0,
-        status: verificationData.status || 'active',
+        status: verificationData.status || 'pending',
         is_default: true, // New account from NIN verification is default
         can_debit: verificationData.can_debit !== false,
         can_credit: verificationData.can_credit !== false,
         synced_at: new Date().toISOString()
       };
 
-      // Check if account already exists
-      const { data: existingAccount } = await supabase
-        .from('safehaven_accounts')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('account_number', verificationData.account_number)
-        .single();
+      // Note: identity_id and external_reference are not stored in safehaven_accounts table
+      // They are tracked in audit logs instead
+
+      // Check if account already exists (by account_number or by pending status)
+      let existingAccount = null;
+      
+      if (verificationData.account_number && !accountNumber.startsWith('PENDING_')) {
+        // Check by actual account number
+        const { data } = await supabase
+          .from('safehaven_accounts')
+          .select('id, account_number, status')
+          .eq('user_id', userId)
+          .eq('account_number', verificationData.account_number)
+          .maybeSingle();
+        existingAccount = data;
+      } else {
+        // If no account number or pending, check for pending account for this user
+        const { data } = await supabase
+          .from('safehaven_accounts')
+          .select('id, account_number, status')
+          .eq('user_id', userId)
+          .eq('status', 'pending')
+          .like('account_number', 'PENDING_%')
+          .maybeSingle();
+        existingAccount = data;
+      }
 
       if (existingAccount) {
         // Update existing account
-        await supabase
+        console.log('[SafeHaven] Updating existing account:', {
+          id: existingAccount.id,
+          currentAccountNumber: existingAccount.account_number,
+          newAccountNumber: accountRecord.account_number,
+          status: accountRecord.status
+        });
+        
+        const { data: updatedAccount, error: updateError } = await supabase
           .from('safehaven_accounts')
-          .update(accountRecord)
-          .eq('id', existingAccount.id);
+          .update({
+            ...accountRecord,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingAccount.id)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('[SafeHaven] Error updating account:', updateError);
+          throw updateError;
+        }
+        console.log('[SafeHaven] ✅ Updated existing account:', {
+          id: updatedAccount?.id,
+          accountNumber: updatedAccount?.account_number?.substring(0, 5) + '****',
+          status: updatedAccount?.status
+        });
       } else {
         // Insert new account
-        await supabase
+        console.log('[SafeHaven] Inserting new account:', {
+          userId,
+          accountNumber: accountRecord.account_number?.substring(0, 5) + '****',
+          accountName: accountRecord.account_name,
+          status: accountRecord.status,
+          safehavenAccountId: accountRecord.safehaven_account_id?.substring(0, 10) + '...'
+        });
+        
+        const { data: newAccount, error: insertError } = await supabase
           .from('safehaven_accounts')
           .insert({
             ...accountRecord,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('[SafeHaven] ❌ Error inserting account:', {
+            error: insertError,
+            code: insertError.code,
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint,
+            accountRecord: {
+              ...accountRecord,
+              account_number: accountRecord.account_number?.substring(0, 5) + '****'
+            }
           });
+          throw insertError;
+        }
+        console.log('[SafeHaven] ✅ Created new account:', {
+          id: newAccount?.id,
+          accountNumber: newAccount?.account_number?.substring(0, 5) + '****',
+          status: newAccount?.status,
+          accountName: newAccount?.account_name
+        });
       }
     } catch (error) {
-      console.error('Error storing account from NIN verification:', error);
+      console.error('[SafeHaven] Error storing account from NIN verification:', error);
       throw error;
     }
+  }
+
+  /**
+   * Polls for account status if account was created asynchronously
+   */
+  async pollAccountStatus(userId: string, identityId: string, maxAttempts: number = 10, intervalMs: number = 5000): Promise<SafeHavenOperationResult> {
+    console.log('[SafeHaven] Starting account status polling for identityId:', identityId);
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+        
+        // Get token
+        const token = await this.getValidToken(userId);
+        if (!token) {
+          return {
+            success: false,
+            error: 'Unable to get SafeHaven token for polling'
+          };
+        }
+
+        // Check if account exists in database
+        const { data: account } = await supabase
+          .from('safehaven_accounts')
+          .select('account_number, status')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .not('account_number', 'is', null)
+          .maybeSingle();
+
+        if (account?.account_number) {
+          console.log('[SafeHaven] Account found in database:', account.account_number.substring(0, 5) + '****');
+          return {
+            success: true,
+            data: {
+              account_number: account.account_number,
+              status: account.status
+            }
+          };
+        }
+
+        // Try to fetch accounts from SafeHaven API
+        const accountsResponse = await fetch(`${this.API_URL}/accounts/v2`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'ClientID': this.CLIENT_ID,
+            'Authorization': `Bearer ${token.access_token}`
+          }
+        });
+
+        if (accountsResponse.ok) {
+          const accountsData = await accountsResponse.json();
+          const accounts = accountsData?.data || accountsData || [];
+          
+          // Find account by identityId or external reference
+          const matchingAccount = accounts.find((acc: any) => 
+            acc.identityId === identityId || 
+            acc.identity_id === identityId ||
+            acc.externalReference?.includes(userId.substring(0, 8))
+          );
+
+          if (matchingAccount?.accountNumber || matchingAccount?.account_number) {
+            const accountNumber = matchingAccount.accountNumber || matchingAccount.account_number;
+            console.log('[SafeHaven] Account found via API polling:', accountNumber.substring(0, 5) + '****');
+            
+            // Store the account
+            await this.storeAccountFromNINVerification(userId, {
+              account_number: accountNumber,
+              account_name: matchingAccount.accountName || matchingAccount.account_name || 'Account',
+              account_type: 'savings',
+              currency_code: 'NGN',
+              status: 'active'
+            });
+
+            return {
+              success: true,
+              data: {
+                account_number: accountNumber,
+                status: 'active'
+              }
+            };
+          }
+        }
+
+        console.log(`[SafeHaven] Polling attempt ${attempt}/${maxAttempts} - account not found yet`);
+      } catch (error) {
+        console.error(`[SafeHaven] Error during polling attempt ${attempt}:`, error);
+      }
+    }
+
+    return {
+      success: false,
+      error: 'Account not found after polling. Please check back later or contact support.'
+    };
   }
 
   /**

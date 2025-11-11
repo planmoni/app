@@ -27,6 +27,7 @@ import DocumentsVerificationStep from '@/components/KYCSteps/DocumentsVerificati
 import AddressDetailsStep from '@/components/KYCSteps/AddressDetailsStep';
 import ReviewStep from '@/components/KYCSteps/ReviewStep';
 import { IdentityType } from '@/components/KYCSteps/types';
+import SafeHavenOTPModal from '@/components/SafeHavenOTPModal';
 
 export default function KYCUpgradeScreen() {
   const { colors, isDark } = useTheme();
@@ -143,6 +144,7 @@ export default function KYCUpgradeScreen() {
   const [passportNumber, setPassportNumber] = useState('');
   const [ninIdentityId, setNinIdentityId] = useState<string | null>(null);
   const [otp, setOtp] = useState('');
+  const [showOTPModal, setShowOTPModal] = useState(false);
   
   
   // Document verification
@@ -1673,6 +1675,9 @@ export default function KYCUpgradeScreen() {
       
       setIsLoading(false);
       
+      // Show OTP modal
+      setShowOTPModal(true);
+      
       return {
         success: true,
         auditLogId: result.auditLogId,
@@ -1702,7 +1707,7 @@ export default function KYCUpgradeScreen() {
         throw new Error('User session not found');
       }
 
-      // Use provided OTP or state OTP
+      // Use provided OTP (from modal) or state OTP
       const otpToUse = otpValue || otp;
       if (!otpToUse || otpToUse.length !== 6) {
         throw new Error('Valid 6-digit OTP is required');
@@ -1768,13 +1773,15 @@ export default function KYCUpgradeScreen() {
 
       const verificationData = result.data;
       
-      if (!verificationData || !verificationData.verified) {
+      if (!verificationData || (!verificationData.verified && verificationData.status !== 'PENDING')) {
         throw new Error('NIN verification failed. Please check your NIN and try again.');
       }
 
       // Extract account information
       const accountNumber = verificationData.account_number;
-      const accountName = verificationData.account_name || `${verificationData.first_name} ${verificationData.last_name}`.trim();
+      const accountStatus = verificationData.status || (accountNumber ? 'ACTIVE' : 'PENDING');
+      const accountName = verificationData.account_name || `${verificationData.first_name || ''} ${verificationData.last_name || ''}`.trim();
+      const identityId = verificationData.identityId;
       
       // Log the verification data for debugging
       console.log('[KYC] NIN verification data:', {
@@ -1782,22 +1789,43 @@ export default function KYCUpgradeScreen() {
         hasAccountName: !!accountName,
         hasFirstName: !!verificationData.first_name,
         hasLastName: !!verificationData.last_name,
-        identityId: verificationData.identityId,
-        status: verificationData.status
+        hasMiddleName: !!verificationData.middle_name,
+        identityId: identityId,
+        status: accountStatus,
+        verified: verificationData.verified,
+        verificationData: verificationData
       });
       
       // Account number might not be immediately available if account creation is async
       // We'll proceed with verification even if account number is not present
-      if (!accountNumber) {
+      if (!accountNumber && accountStatus === 'PENDING') {
+        console.log('[KYC] Account creation is pending. Realtime subscription will handle updates.');
+        // Don't start polling immediately - let the realtime subscription handle updates
+        // This prevents blocking the UI with background polling
+      } else if (!accountNumber) {
         console.warn('[KYC] Account number not found in response. Account might be created asynchronously.');
         // Don't throw error - proceed with verification using identity data
       }
 
-      // Extract names from account name
-      const names = accountName ? accountName.split(' ') : [];
-      const ninFirstName = names[0] || '';
-      const ninLastName = names[names.length - 1] || '';
-      const ninMiddleName = names.length > 2 ? names.slice(1, -1).join(' ') : '';
+      // Extract names - prefer direct fields from verificationData, fallback to parsing accountName
+      let ninFirstName = verificationData.first_name || '';
+      let ninLastName = verificationData.last_name || '';
+      let ninMiddleName = verificationData.middle_name || '';
+      
+      // If direct fields are not available, try to extract from accountName
+      if ((!ninFirstName || !ninLastName) && accountName) {
+        const names = accountName.split(' ').filter(Boolean);
+        if (names.length > 0) {
+          ninFirstName = ninFirstName || names[0] || '';
+          ninLastName = ninLastName || names[names.length - 1] || '';
+          ninMiddleName = ninMiddleName || (names.length > 2 ? names.slice(1, -1).join(' ') : '');
+        }
+      }
+      
+      // Final fallback: if still empty, log warning
+      if (!ninFirstName && !ninLastName) {
+        console.warn('[KYC] Warning: Could not extract names from NIN verification data. Account name:', accountName);
+      }
       
       // Get names from user's saved data
       const userFirstName = firstName || '';
@@ -1877,11 +1905,16 @@ export default function KYCUpgradeScreen() {
             });
         }
         
+        // Close OTP modal on success
+        setShowOTPModal(false);
+        
         // Show success message
         if (accountNumber) {
           showToast(`NIN verified! Name: ${displayName} • Account created: ${accountNumber.substring(0, 5)}****`, 'success');
+        } else if (accountStatus === 'PENDING') {
+          showToast(`NIN verified! Name: ${displayName} • Account creation in progress. You'll be notified when ready.`, 'info');
         } else {
-          showToast(`NIN verified! Name: ${displayName} • Account creation in progress`, 'success');
+          showToast(`NIN verified! Name: ${displayName} • Account creation initiated`, 'success');
         }
         
         // Update progress with NIN verified (using id_face_verified)
@@ -1916,7 +1949,166 @@ export default function KYCUpgradeScreen() {
           setIsLoading(false);
         }, 1000);
       } else {
-        throw new Error('Name mismatch detected. Please verify your personal information.');
+        // Name mismatch detected - auto-update personal information to match NIN data
+        console.log('[KYC] Name mismatch detected. Updating personal information to match NIN data...');
+        
+        // Update local state to match NIN data
+        setFirstName(ninFirstName);
+        setLastName(ninLastName);
+        setMiddleName(ninMiddleName);
+        
+        // Update personal information in kyc_data table
+        const updateResult = await saveFormData({
+          first_name: ninFirstName,
+          last_name: ninLastName,
+          middle_name: ninMiddleName,
+        });
+        
+        if (!updateResult) {
+          console.warn('[KYC] Failed to update personal information in kyc_data table');
+        }
+        
+        // Also update profiles table if it has first_name and last_name
+        try {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .update({
+              first_name: ninFirstName,
+              last_name: ninLastName,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', session.user.id);
+          
+          if (profileError) {
+            console.warn('[KYC] Failed to update profiles table:', profileError);
+          } else {
+            console.log('[KYC] Successfully updated profiles table with NIN data');
+          }
+        } catch (profileUpdateError) {
+          console.warn('[KYC] Error updating profiles table:', profileUpdateError);
+        }
+        
+        // Log the auto-update in audit log
+        if (auditLogId) {
+          await supabase
+            .from('kyc_audit_events')
+            .insert({
+              audit_log_id: auditLogId,
+              user_id: session.user.id,
+              event_type: 'data_auto_updated',
+              event_data: {
+                action: 'auto_update_personal_info_from_nin',
+                reason: 'name_mismatch',
+                old_names: {
+                  first_name: userFirstName,
+                  last_name: userLastName,
+                  middle_name: userMiddleName
+                },
+                new_names: {
+                  first_name: ninFirstName,
+                  last_name: ninLastName,
+                  middle_name: ninMiddleName
+                },
+                match_percentage: matchPercentage
+              },
+              severity: 'medium'
+            });
+        }
+        
+        // Show info message about auto-update
+        showToast('Personal information updated to match your NIN data', 'info');
+        
+        // Continue with verification (treat as success after update)
+        setDocumentsVerified(true);
+        
+        // Create a display name from NIN data
+        const displayName = [ninFirstName, ninMiddleName, ninLastName]
+          .filter(Boolean)
+          .join(' ');
+
+        // Update audit log with success (after auto-update)
+        if (auditLogId) {
+          await supabase
+            .from('kyc_audit_logs')
+            .update({
+              status: 'success',
+              response_data: {
+                verified: true,
+                nin: nin.substring(0, 4) + '****',
+                name_match_percentage: matchPercentage,
+                matched_name: displayName,
+                hasAccount: !!accountNumber,
+                account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null,
+                auto_updated: true,
+                auto_update_reason: 'name_mismatch'
+              },
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', auditLogId);
+
+          await supabase
+            .from('kyc_audit_events')
+            .insert({
+              audit_log_id: auditLogId,
+              user_id: session.user.id,
+              event_type: 'verification_completed',
+              event_data: {
+                action: 'nin_verification_completed',
+                nin: nin.substring(0, 4) + '****',
+                name_match_percentage: matchPercentage,
+                matched_name: displayName,
+                hasAccount: !!accountNumber,
+                account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null,
+                provider: 'safehaven',
+                auto_updated: true
+              },
+              severity: 'high'
+            });
+        }
+        
+        // Close OTP modal on success
+        setShowOTPModal(false);
+        
+        // Show success message
+        if (accountNumber) {
+          showToast(`NIN verified! Name: ${displayName} • Account created: ${accountNumber.substring(0, 5)}****`, 'success');
+        } else if (accountStatus === 'PENDING') {
+          showToast(`NIN verified! Name: ${displayName} • Account creation in progress. You'll be notified when ready.`, 'info');
+        } else {
+          showToast(`NIN verified! Name: ${displayName} • Account creation initiated`, 'success');
+        }
+        
+        // Update progress with NIN verified (using id_face_verified)
+        const progressResult = await updateProgress({
+          current_step: 'personal', // Move to personal info (Tier 2) after NIN verification
+          id_face_verified: true
+        });
+        
+        // Check if Tier 1 is complete (Liveness + BVN + NIN)
+        if (progressResult) {
+          await updateTier(); // Update tier after NIN verification
+          const tierStatus = checkTierCompletion();
+          if (tierStatus.tier1) {
+            console.log('Tier 1 completed! User can now proceed to Tier 2.');
+            showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+          }
+        }
+        
+        if (!progressResult) {
+          showToast('Failed to update progress. Please try again.', 'error');
+          return;
+        }
+        
+        // Wait for toast to be visible before moving to next step
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Move to next incomplete step
+        const nextStep = getNextIncompleteStep('id_face_match');
+        setCurrentStep(nextStep);
+        setTimeout(() => {
+          setIsManualVerification(false);
+          setIsLoading(false);
+        }, 1000);
       }
       
     } catch (error) {
@@ -1926,8 +2118,24 @@ export default function KYCUpgradeScreen() {
       setErrors({ documentVerification: errorMessage });
       setIsManualVerification(false);
       setIsLoading(false);
+      // Don't close OTP modal on error - let user retry
       throw error;
     }
+  };
+
+  // Handle OTP verification from modal
+  const handleOTPVerify = async (otpValue: string) => {
+    await verifyNIN(otpValue, ninIdentityId || undefined);
+  };
+
+  // Handle OTP resend
+  const handleOTPResend = async () => {
+    if (!nin.trim() || !session?.user?.id) {
+      throw new Error('NIN and session are required to resend OTP');
+    }
+    
+    // Re-initialize NIN verification to resend OTP
+    await initializeNINVerification();
   };
   
   const handlePreviousStep = async () => {
@@ -2709,36 +2917,6 @@ export default function KYCUpgradeScreen() {
               </View>
               {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
             </View>
-            
-            {ninIdentityId && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Enter OTP</Text>
-                <Text style={styles.sectionDescription}>
-                  An OTP has been sent to the phone number linked to your NIN. Please enter the 6-digit code.
-                </Text>
-                <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter 6-digit OTP"
-                    placeholderTextColor={colors.textTertiary}
-                    value={otp}
-                    onChangeText={(text) => {
-                      // Only allow numbers and limit to 6 digits
-                      const numericText = text.replace(/[^0-9]/g, '');
-                      if (numericText.length <= 6) {
-                        setOtp(numericText);
-                        setErrors(prev => ({ ...prev, otp: '' }));
-                      }
-                    }}
-                    keyboardType="numeric"
-                    maxLength={6}
-                    editable={!isLoading && !documentsVerified}
-                    autoFocus={true}
-                  />
-                </View>
-                {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
-              </View>
-            )}
           </>
         )}
         
@@ -4266,8 +4444,7 @@ export default function KYCUpgradeScreen() {
             isResolvingBvn || 
             isVerifyingDocuments || 
             (currentStep === 'bvn_verification' && bvnVerified) ||
-            (currentStep === 'id_face_match' && documentsVerified) ||
-            (currentStep === 'id_face_match' && !!ninIdentityId && !otp.trim())
+            (currentStep === 'id_face_match' && documentsVerified)
           }
           loading={isLoading || formDataLoading || (progressLoading && currentStep !== 'liveness_verification') || isResolvingBvn || isVerifyingDocuments}
         />
@@ -4312,6 +4489,18 @@ export default function KYCUpgradeScreen() {
           // Handle liveness completion if needed
           handleLivenessComplete(selfieUrl);
         }}
+      />
+      
+      <SafeHavenOTPModal
+        isVisible={showOTPModal}
+        onClose={() => {
+          setShowOTPModal(false);
+          // Optionally reset ninIdentityId if user cancels
+          // setNinIdentityId(null);
+        }}
+        onVerify={handleOTPVerify}
+        phoneNumber={phoneNumber}
+        onResend={handleOTPResend}
       />
     </SafeAreaView>
   );
