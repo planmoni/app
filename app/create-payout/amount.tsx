@@ -232,7 +232,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
   },
   progressBar: {
-    height: 4,
+    height: 2,
     backgroundColor: colors.border,
     borderRadius: 2,
     marginBottom: 8,

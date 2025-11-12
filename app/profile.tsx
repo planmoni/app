@@ -465,7 +465,7 @@ const createStyles = (colors: any, screenWidth: number) => {
       borderColor: colors.primary,
       paddingVertical: 12,
       paddingHorizontal: 16,
-      borderRadius: 100,
+      borderRadius: 20,
     },
     upgradeButtonText: {
       fontSize: 14,
@@ -606,7 +606,7 @@ const createStyles = (colors: any, screenWidth: number) => {
     signOutButton: {
       borderColor: '#EF4444',
       borderWidth: 1,
-      borderRadius: 100,
+      borderRadius: 20,
     },
   });
 };

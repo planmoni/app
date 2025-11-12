@@ -938,7 +938,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   selfiePlaceholder: {
-    borderRadius: 100,
+    borderRadius: 20,
     width: 200,
     height: 200,
     alignSelf: 'center',
@@ -979,7 +979,7 @@ const styles = StyleSheet.create({
   },
   doneButton: {
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -103,7 +103,7 @@ export default function Tier1CompletionModal({
       backgroundColor: colors.primary,
       paddingVertical: 16,
       paddingHorizontal: 24,
-      borderRadius: 100,
+      borderRadius: 20,
       gap: 8,
     },
     secondaryButton: {
@@ -115,7 +115,7 @@ export default function Tier1CompletionModal({
       borderColor: colors.border,
       paddingVertical: 16,
       paddingHorizontal: 24,
-      borderRadius: 100,
+      borderRadius: 20,
       gap: 8,
     },
     primaryButtonText: {

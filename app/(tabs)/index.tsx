@@ -10,7 +10,7 @@ import KYCCard from '@/components/KYCCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 // import { IntercomButton } from '@/components/IntercomButton';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   HelpCircleIcon,
@@ -32,6 +32,7 @@ import {
   ImageBackground,
   Image,
   Platform,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -78,6 +79,7 @@ export default function HomeScreen() {
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { account: safehavenAccount, isLoading: safehavenAccountLoading, refreshAccount } = useSafeHavenAccount();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress } = useKYCProgress();
+  const navigation = useNavigation();
   
   // Debug: Track payoutPlans changes
   useEffect(() => {
@@ -101,6 +103,56 @@ export default function HomeScreen() {
   const [hasShownTier1ClaimModal, setHasShownTier1ClaimModal] = useState(false);
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
+
+  // Prevent navigation back to welcome page when authenticated
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    // Dynamically disable gestures when authenticated
+    navigation.setOptions({
+      gestureEnabled: false,
+    });
+
+    // Handle Android back button
+    const backHandler = Platform.OS === 'android' 
+      ? BackHandler.addEventListener('hardwareBackPress', () => {
+          // Prevent back navigation when authenticated
+          return true; // Return true to prevent default back behavior
+        })
+      : null;
+
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      // Always prevent going back when authenticated - block all back navigation
+      // This prevents going back to welcome page (index route) or any previous screen
+      const action = e.data.action;
+      
+      // Block all back navigation types
+      if (action.type === 'GO_BACK' || action.type === 'POP') {
+        e.preventDefault();
+        return;
+      }
+      
+      // Also block navigation to index route
+      if (action.type === 'NAVIGATE') {
+        const targetRoute = (action.payload as any)?.name;
+        if (targetRoute === 'index') {
+          e.preventDefault();
+          return;
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      if (backHandler) {
+        backHandler.remove();
+      }
+      // Re-enable gestures when component unmounts (if needed)
+      navigation.setOptions({
+        gestureEnabled: false, // Keep disabled even on unmount
+      });
+    };
+  }, [navigation, session?.user?.id]);
 
   // Intercom
   const { openChat, isLoading, isSupported } = useIntercom();
@@ -923,9 +975,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.primary,
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderRadius: 100,
-    borderColor: colors.accent,
-    borderWidth: 2,
+    borderRadius: 20,
     height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
@@ -933,17 +983,17 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   createButtonText: {
     color: colors.accent,
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: Platform.OS === 'ios' ? 17 : 15,
     fontWeight: '600',
   },
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: colors.backgroundBlack,
+    backgroundColor: colors.accentBackground,
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderWidth: 1, 
+    borderWidth: 0.5, 
     borderColor: isDark ? '#fff' : colors.primary,
-    borderRadius: 100,
+    borderRadius: 20,
     height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
@@ -951,7 +1001,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   addFundsText: {
     color: colors.primary,
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: Platform.OS === 'ios' ? 17 : 15,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -1236,7 +1286,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 100,
+    borderRadius: 20,
   },
   createFirstPayoutText: {
     color: '#FFFFFF',

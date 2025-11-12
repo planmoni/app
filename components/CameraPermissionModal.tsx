@@ -168,7 +168,7 @@ export default function CameraPermissionModal({
       flex: 1,
       paddingVertical: 14,
       paddingHorizontal: 24,
-      borderRadius: 100,
+      borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
     },

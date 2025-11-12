@@ -803,7 +803,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   progressBar: {
     flex: 1,
-    height: 8,
+    height: 2,
     backgroundColor: colors.border,
     borderRadius: 4,
     overflow: 'hidden',

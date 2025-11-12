@@ -534,7 +534,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
     verifyButton: {
       backgroundColor: colors.primary,
       paddingVertical: isSmallScreen ? 14 : 16,
-      borderRadius: 100,
+      borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
     },

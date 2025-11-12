@@ -116,7 +116,7 @@ export default function AccountDisplayCard({
     },
     actionButton: {
       backgroundColor: colors.primary,
-      borderRadius: 100,
+      borderRadius: 20,
       paddingVertical: 14,
       paddingHorizontal: 24,
       alignItems: 'center',

@@ -304,7 +304,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   closeButton2: {
     backgroundColor: colors.primary,
     padding: isSmallScreen ? 12 : 16,
-    borderRadius: 100,
+    borderRadius: 20,
     alignItems: 'center',
     height: 55,
   },

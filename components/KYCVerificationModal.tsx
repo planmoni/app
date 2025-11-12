@@ -347,7 +347,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   startButton: {
     backgroundColor: '#1E3A8A',
-    borderRadius: 100,
+    borderRadius: 20,
     paddingVertical: 16,
     justifyContent: 'center',
     alignItems: 'center',

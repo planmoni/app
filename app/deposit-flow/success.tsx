@@ -205,13 +205,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     height: 55,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 100,
+    borderRadius: 20,
   },
   receiptButton: {
     borderColor: colors.border,
     height: 55,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 100,
+    borderRadius: 20,
   },
 });

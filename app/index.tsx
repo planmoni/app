@@ -375,6 +375,7 @@ export default function WelcomeScreen() {
 const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.accentBackground,
   },
   backgroundGradient: {
     position: 'absolute',
@@ -508,7 +509,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     justifyContent: 'center',
     gap: 12,
     height: 60,
-    borderRadius: 100,
+    borderRadius: 20,
     paddingHorizontal: 24,
     flex: 1,
     shadowColor: '#000',
@@ -527,15 +528,15 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     alignItems: 'center',
     justifyContent: 'center',
     height: 60,
-    borderRadius: 100,
+    borderRadius: 20,
     paddingHorizontal: 24,
     flex: 1,
-    borderWidth: 2,
-    borderColor: colors.buttonPrimary,
+    backgroundColor: colors.accent,
+
   },
   signInButtonText: {
     color: colors.buttonTextPrimary,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
 });

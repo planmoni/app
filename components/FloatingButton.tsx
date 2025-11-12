@@ -104,6 +104,7 @@ export default function FloatingButton({
             variant={variant}
             hapticType={hapticType}
             textColor={colors.accent}
+            textStyle={styles.buttonText}
           />
         </View>
       </View>
@@ -153,20 +154,22 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   button: {
     width: '100%',
-    height: 55,
-    borderRadius: 100,
+    height: 60,
+    borderRadius: 20,
     backgroundColor: colors.primary,
-    borderWidth: 1,
-    borderColor: isDark ? '#fff' : colors.accent,
   },
   androidButton: {
     // Android-specific button styling for constant position
     height: 52,
-    borderRadius: 100,
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  buttonText: {
+    fontSize: 17,
+    fontWeight: '600',
   },
 });

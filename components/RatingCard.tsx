@@ -71,7 +71,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.backgroundTertiary,
     paddingHorizontal: Platform.OS === 'ios' ? 24 : 16,
     paddingVertical: Platform.OS === 'ios' ? 10 : 8,
-    borderRadius: 100,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     height: 55,

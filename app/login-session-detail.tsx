@@ -848,7 +848,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 14,
     paddingHorizontal: 20,
-    borderRadius: 100,
+    borderRadius: 20,
     gap: 8,
     borderWidth: 1.5
   },

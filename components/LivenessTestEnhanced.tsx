@@ -745,7 +745,7 @@ const styles = StyleSheet.create({
     right: 20,
     paddingVertical: 16,
     paddingHorizontal: 32,
-    borderRadius: 100,
+    borderRadius: 20,
     alignItems: "center",
   },
   submitText: {

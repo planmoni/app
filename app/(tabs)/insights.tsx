@@ -508,7 +508,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
   },
   progressBar: {
-    height: Platform.OS === 'ios' ? 4 : 3,
+    height: 2,
     backgroundColor: colors.border,
     borderRadius: 2,
   },

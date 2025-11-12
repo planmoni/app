@@ -624,7 +624,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
     backgroundColor: colors.backgroundTertiary,
     paddingVertical: 12,
     paddingHorizontal: 8,
-    borderRadius: 100,
+    borderRadius: 20,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
@@ -633,7 +633,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
   selectedOption: {
     backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
     borderColor: colors.primary,
-    borderRadius: 100,
+    borderRadius: 20,
   },
   summaryOptionText: {
     fontSize: isSmallScreen ? 12 : 14,
@@ -662,7 +662,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
   saveButton: {
     backgroundColor: colors.primary,
     padding: isSmallScreen ? 12 : 16,
-    borderRadius: 100,
+    borderRadius: 20,
     height: 55,
     alignItems: 'center',
   },

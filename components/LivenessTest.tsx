@@ -1331,7 +1331,7 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     width: '100%',
-    height: 4,
+    height: 2,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 2,
   },
@@ -1347,7 +1347,7 @@ const styles = StyleSheet.create({
   photoPreview: {
     width: 200,
     height: 200,
-    borderRadius: 100,
+    borderRadius: 20,
     overflow: 'hidden',
     marginBottom: 20,
     borderWidth: 4,

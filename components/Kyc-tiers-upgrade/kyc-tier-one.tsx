@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
   },
   addFundsButton: {
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -602,7 +602,7 @@ const styles = StyleSheet.create({
   },
   doneButton: {
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 25,

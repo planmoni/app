@@ -197,6 +197,7 @@ export default function TabLayout() {
         // tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
         tabBarLabelStyle: styles.tabBarLabel,
         headerShown: false,
+        gestureEnabled: false, // Disable swipe gestures in tabs
       }}>
       <Tabs.Screen
         name="index"

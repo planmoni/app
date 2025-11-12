@@ -1098,7 +1098,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: '#FEF2F2',
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 100,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: '#FECACA',
     width: '100%',

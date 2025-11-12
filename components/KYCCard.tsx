@@ -431,7 +431,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   actionButton: {
     backgroundColor: colors.accent,
-    borderRadius: 100,
+    borderRadius: 15,
     paddingVertical: 10,
     paddingHorizontal: 20,
     minWidth: 90,

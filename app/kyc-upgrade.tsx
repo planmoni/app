@@ -4335,14 +4335,14 @@ export default function KYCUpgradeScreen() {
       height: 55,
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 100,
+      borderRadius: 20,
     },
     confirmButton: {
       backgroundColor: colors.primary,
       height: 55,
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 100,
+      borderRadius: 20,
     },
     cancelButtonText: {
       fontSize: 14,

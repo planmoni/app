@@ -11,6 +11,7 @@ type ButtonProps = PressableProps & {
   icon?: React.ComponentType<any>;
   hapticType?: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' | 'selection' | 'none';
   textColor?: string;
+  textStyle?: any;
 };
 
 export default function Button({
@@ -23,6 +24,7 @@ export default function Button({
   icon: Icon,
   hapticType = 'light',
   textColor,
+  textStyle,
   ...props
 }: ButtonProps) {
   const haptics = useHaptics();
@@ -161,6 +163,7 @@ export default function Button({
                   getTextStyle(),
                   getTextSizeStyle(),
                   disabled && styles.disabledText,
+                  textStyle,
                 ]}
               >
                 {title || ''}
@@ -175,7 +178,7 @@ export default function Button({
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 100,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     height: 55,
@@ -196,7 +199,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     backgroundColor: '#1E3A8A',
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
   },
   primaryText: {
@@ -205,7 +208,7 @@ const styles = StyleSheet.create({
   secondaryButton: {
     backgroundColor: '#CBD5E1',
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
   },
   secondaryText: {
@@ -216,7 +219,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#1E3A8A',
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
   },
   outlineText: {
@@ -227,21 +230,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
   },
   mediumButton: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
   },
   largeButton: {
     paddingVertical: 16,
     paddingHorizontal: 24,
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
   },
   smallText: {
@@ -258,7 +261,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E2E8F0',
     borderColor: '#E2E8F0',
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
   },
   disabledText: {
