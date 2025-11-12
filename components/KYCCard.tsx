@@ -66,20 +66,22 @@ export default function KYCCard() {
       return 'pending';
     }
 
-    // Check if user has started KYC (has progress beyond initial state)
-    // Include liveness test as it's the first step in Tier 1
-    const hasStarted = progress.current_step !== 'liveness_verification' || 
+    // Check if user has started KYC (has any progress beyond initial state)
+    // New Tier 1 flow: Personal Info → Liveness Check → BVN → NIN
+    // KYC has started if ANY step is completed OR current_step is beyond 'personal'
+    const hasStarted = progress.personal_info_completed || 
                       progress.liveness_test_completed ||
-                      progress.personal_info_completed || 
                       progress.bvn_verified || 
-                      progress.documents_verified ||
                       progress.id_face_verified ||
-                      progress.address_completed;
+                      progress.documents_verified ||
+                      progress.address_completed ||
+                      (progress.current_step && progress.current_step !== 'personal');
 
     if (hasStarted && !progress.overall_completed) {
       return 'continuing';
     }
 
+    // If no steps are completed and current_step is 'personal' or null/undefined, KYC hasn't started
     return 'starting';
   };
 
@@ -319,14 +321,12 @@ export default function KYCCard() {
             <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
               <Icon width={25} height={25} />
             </View>
-            {/* <View style={styles.textContainer}>
+            <View style={styles.textContainer}>
               <Text style={styles.cardText}>
-                {currentTier === 0 ? "Let's verify your identity" : getStatusMessage()}
+                Let's verify your identity
               </Text>
-              {currentTier > 0 && (
-                <Text style={styles.cardSubtext}>{getTierMessage()}</Text>
-              )}
-            </View> */}
+              <Text style={styles.cardSubtext}>Start your verification to unlock features</Text>
+            </View>
             <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>Verify</Text>
             </View>
@@ -389,7 +389,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     minHeight: 64,
     shadowColor: '#000000',
     shadowOffset: { width: 1, height: 6},
@@ -399,7 +399,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     width: '100%',
     borderWidth: 0.5,
     borderColor: colors.border,
-    flexWrap: 'wrap',
   },
   iconContainer: {
     width: 40,
@@ -414,18 +413,21 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     flexShrink: 1,
     marginRight: 10,
+    minWidth: 0, // Allow text to shrink properly in flex layout
   },
   cardText: {
     fontSize: 17,
     fontWeight: '500',
     color: isDark ? colors.text : '#374151',
     marginBottom: 2,
+    flexShrink: 1,
   },
   cardSubtext: {
     fontSize: 14,
     fontWeight: '400',
     color: isDark ? colors.textSecondary : '#6B7280',
     marginTop: 2,
+    flexShrink: 1,
   },
   actionButton: {
     backgroundColor: colors.accent,
