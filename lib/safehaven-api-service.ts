@@ -427,6 +427,90 @@ class SafeHavenApiService {
   }
 
   /**
+   * Initiates identity verification
+   */
+  async initiateVerification(
+    userId: string,
+    type: 'NIN' | 'BVN',
+    number: string,
+    debitAccountNumber?: string
+  ): Promise<SafeHavenApiResponse<{ _id: string; status: string }>> {
+    const body = {
+      type: type,
+      async: false,
+      debitAccountNumber: debitAccountNumber || '0117753301',
+      number: number
+    };
+
+    return this.makeApiRequest(userId, '/identity/v2', 'POST', body, 'identity_verification_initiate');
+  }
+
+  /**
+   * Validates identity verification with OTP
+   */
+  async validateVerification(
+    userId: string,
+    identityId: string,
+    type: 'NIN' | 'BVN',
+    otp: string
+  ): Promise<SafeHavenApiResponse<any>> {
+    const body = {
+      identityId: identityId,
+      type: type,
+      otp: otp
+    };
+
+    return this.makeApiRequest(userId, '/identity/v2/validate', 'POST', body, 'identity_verification_validate');
+  }
+
+  /**
+   * Creates an individual sub account
+   */
+  async createIndividualSubAccount(
+    userId: string,
+    subaccountData: {
+      identityId: string;
+      identityNumber: string;
+      identityType: 'NIN' | 'BVN';
+      firstName: string;
+      lastName: string;
+      middleName?: string;
+      dateOfBirth?: string;
+      phoneNumber: string;
+      emailAddress: string;
+      autoSweep?: boolean;
+      autoSweepDetails?: {
+        schedule: string;
+      };
+      externalReference?: string;
+    }
+  ): Promise<SafeHavenApiResponse<any>> {
+    const body: any = {
+      identityId: subaccountData.identityId,
+      identityNumber: subaccountData.identityNumber,
+      identityType: subaccountData.identityType,
+      firstName: subaccountData.firstName,
+      lastName: subaccountData.lastName,
+      phoneNumber: subaccountData.phoneNumber,
+      emailAddress: subaccountData.emailAddress,
+      autoSweep: subaccountData.autoSweep !== undefined ? subaccountData.autoSweep : true,
+      autoSweepDetails: subaccountData.autoSweepDetails || { schedule: 'Instant' }
+    };
+
+    if (subaccountData.middleName) {
+      body.middleName = subaccountData.middleName;
+    }
+    if (subaccountData.dateOfBirth) {
+      body.dateOfBirth = subaccountData.dateOfBirth;
+    }
+    if (subaccountData.externalReference) {
+      body.externalReference = subaccountData.externalReference;
+    }
+
+    return this.makeApiRequest(userId, '/accounts/v2/subaccount', 'POST', body, 'subaccount_creation');
+  }
+
+  /**
    * Initiates subaccount creation with OTP verification
    */
   async initiateSubaccountCreation(

@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
 import KYCVerificationModal from '@/components/KYCVerificationModal';
-import CameraPermissionModal from '@/components/CameraPermissionModal';
 import Tier0Icon from '@/assets/kyc/tier-0.svg';
 import Tier1Icon from '@/assets/kyc/tier-1.svg';
 import Tier2Icon from '@/assets/kyc/tier-2.svg';
@@ -24,7 +23,6 @@ export default function KYCCard() {
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
   const styles = createStyles(colors, isDark);
 
   // Check verification status from kyc_verifications table
@@ -110,28 +108,14 @@ export default function KYCCard() {
     // Close KYCVerificationModal first
     setShowVerificationModal(false);
     
-    // Wait for the slide-out animation to complete (350ms) before showing CameraPermissionModal
-    // This ensures the KYCVerificationModal doesn't block the CameraPermissionModal
+    // Navigate directly to kyc-upgrade page
+    // The page will automatically show the first incomplete step (personal info if not completed)
+    // This ensures the correct order: Personal Info → Liveness → BVN → NIN
     setTimeout(() => {
-      // Check if liveness test is not completed (first step of Tier 1)
-      if (progress && !progress.liveness_test_completed) {
-        // Show camera permission modal after KYCVerificationModal has closed
-        setShowCameraPermissionModal(true);
-      } else {
-        // Navigate directly to kyc-upgrade if liveness test is already completed
-        router.push('/kyc-upgrade');
-      }
-    }, 400); // Slightly longer than the slide-out animation (350ms)
+      router.push('/kyc-upgrade');
+    }, 350); // Wait for the slide-out animation to complete
   };
 
-  const handleLivenessComplete = (selfieUrl: string) => {
-    // After liveness test is completed, navigate to kyc-upgrade with selfie URL
-    setShowCameraPermissionModal(false);
-    router.push({
-      pathname: '/kyc-upgrade',
-      params: { selfieUrl }
-    });
-  };
 
   // Helper function to get step display name
   const getStepDisplayName = (step: KYCStep): string => {
@@ -196,12 +180,12 @@ export default function KYCCard() {
 
   // Helper function to get the next incomplete step (matching kyc-upgrade.tsx logic)
   const getNextIncompleteStep = (): KYCStep => {
-    // Define step order based on tiers:
-    // Tier 1: liveness_verification, bvn_verification, id_face_match
-    // Tier 2: personal, documents_verification
+    // Updated step order: Personal Info → Liveness Check → BVN(Dojah) → NIN Initiate → NIN Validate → Create Sub Account (Tier 1 complete)
+    // Tier 1: personal, liveness_verification, bvn_verification, id_face_match (NIN)
+    // Tier 2: documents_verification
     // Tier 3: address_details
-    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
-    const current = progress.current_step || 'liveness_verification';
+    const stepOrder: KYCStep[] = ['personal', 'liveness_verification', 'bvn_verification', 'id_face_match', 'documents_verification', 'address_details', 'review'];
+    const current = progress.current_step || 'personal';
     const currentIndex = stepOrder.indexOf(current);
     
     // Find the next incomplete step starting from current
@@ -303,7 +287,7 @@ export default function KYCCard() {
   const getTierMessage = (): string => {
     const nextStep = getNextIncompleteStep();
     
-    if (currentTier === null) {
+    if (currentTier === 0) {
       return 'Start your verification to unlock features';
     } else if (currentTier === 1) {
       if (nextStep === 'documents_verification' || nextStep === 'address_details' || nextStep === 'review') {
@@ -391,14 +375,6 @@ export default function KYCCard() {
         isVisible={showVerificationModal}
         onClose={() => setShowVerificationModal(false)}
         onStartVerification={handleStartVerification}
-      />
-      <CameraPermissionModal
-        isVisible={showCameraPermissionModal}
-        onClose={() => {
-          console.log('[KYCCard] Camera permission modal closed');
-          setShowCameraPermissionModal(false);
-        }}
-        onComplete={handleLivenessComplete}
       />
     </>
   );

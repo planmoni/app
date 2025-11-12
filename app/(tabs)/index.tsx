@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import TransactionModal from '@/components/TransactionModal';
 import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
 import ClaimAccountModal from '@/components/ClaimAccountModal';
+import AccountDisplayCard from '@/components/AccountDisplayCard';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
@@ -73,10 +74,10 @@ export default function HomeScreen() {
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
   const { updateLastActiveOnInteraction } = useAppLock();
-  const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
+  const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
-  const { account: safehavenAccount, isLoading: safehavenAccountLoading } = useSafeHavenAccount();
-  const { checkTierCompletion, loading: kycProgressLoading } = useKYCProgress();
+  const { account: safehavenAccount, isLoading: safehavenAccountLoading, refreshAccount } = useSafeHavenAccount();
+  const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress } = useKYCProgress();
   
   // Debug: Track payoutPlans changes
   useEffect(() => {
@@ -85,7 +86,7 @@ export default function HomeScreen() {
       plans: payoutPlans.map(p => ({ id: p.id, name: p.name, status: p.status }))
     });
   }, [payoutPlans]);
-  const { transactions, isLoading: transactionsLoading } = useRealtimeTransactions();
+  const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
@@ -121,13 +122,16 @@ export default function HomeScreen() {
   }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
 
   // Show ClaimAccountModal immediately after Tier 1 completion if no SafeHaven account exists
+  // Only show modal if account doesn't exist in safehaven_accounts table
   useEffect(() => {
     if (!session?.user?.id || kycProgressLoading || safehavenAccountLoading) return;
     
     const tierCompletion = checkTierCompletion();
-    const hasSafeHavenAccount = safehavenAccount?.account_number;
+    // Check if account exists and is not pending
+    const hasSafeHavenAccount = safehavenAccount?.account_number && !safehavenAccount.account_number.startsWith('PENDING_');
     
     // Show modal if Tier 1 is complete, no SafeHaven account exists, and we haven't shown it yet
+    // Don't show if account already exists in database
     if (tierCompletion.tier1 && !hasSafeHavenAccount && !hasShownTier1ClaimModal && !showClaimAccountModal) {
       // Add a small delay to ensure smooth user experience
       const timer = setTimeout(() => {
@@ -136,6 +140,11 @@ export default function HomeScreen() {
       }, 1500);
       
       return () => clearTimeout(timer);
+    }
+    
+    // If account exists, don't show the modal
+    if (hasSafeHavenAccount && showClaimAccountModal) {
+      setShowClaimAccountModal(false);
     }
   }, [checkTierCompletion, safehavenAccount, kycProgressLoading, safehavenAccountLoading, hasShownTier1ClaimModal, showClaimAccountModal, session?.user?.id]);
 
@@ -198,17 +207,30 @@ export default function HomeScreen() {
     logAnalyticsEvent('profile_click');
   };
 
-  // Handle pull-to-refresh
+  // Handle pull-to-refresh - refresh all page data
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Refresh wallet balance
-      await refreshWallet();
-      // Fetch latest Paystack transactions
-      // await fetchPaystackTransactions();
+      // Refresh all data in parallel for better performance
+      await Promise.all([
+        // Refresh wallet balance
+        refreshWallet(),
+        // Refresh payout plans
+        fetchPayoutPlans(),
+        // Refresh transactions
+        fetchTransactions(),
+        // Refresh SafeHaven account
+        refreshAccount(),
+        // Refresh KYC progress
+        loadProgress(),
+        // Refresh carousel images
+        fetchCarouselImages(),
+      ]);
+      
       // Add haptic feedback for successful refresh
       impact();
     } catch (error) {
+      console.error('Error refreshing page data:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -621,7 +643,6 @@ export default function HomeScreen() {
           onSuggestionPress={handleAISuggestionPress}
         />
         {/* <IntercomButton /> */}
-        <KYCCard />
 
         {/* KYC Tiers Test Buttons */}
         {/* <View style={styles.kycTiersContainer}>
@@ -649,6 +670,15 @@ export default function HomeScreen() {
         </View> */}
 
         <ImageCarousel images={carouselImages} />
+        {!checkTierCompletion().tier1 && <KYCCard />}
+        {checkTierCompletion().tier1 && safehavenAccount?.account_number && !safehavenAccount.account_number.startsWith('PENDING_') && (
+          <AccountDisplayCard
+            accountNumber={safehavenAccount.account_number}
+            bankName="SAFEHAVEN MFB"
+            accountName={safehavenAccount.account_name ? `PLANMONI/${safehavenAccount.account_name.toUpperCase()}` : undefined}
+            onViewAccount={() => router.push('/add-funds')}
+          />
+        )}
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
@@ -718,17 +748,20 @@ export default function HomeScreen() {
         onGoToDashboard={handleGoToDashboard}
       />
 
-      <ClaimAccountModal
-        isVisible={showClaimAccountModal}
-        onClose={() => setShowClaimAccountModal(false)}
-        accountNumber={safehavenAccount?.account_number ? `${safehavenAccount.account_number.slice(0, 5)} XXXXX` : '01177 XXXXX'}
-        bankName="SAFEHAVEN MFB"
-        accountName={safehavenAccount?.account_name ? `PLANMONI/${safehavenAccount.account_name.toUpperCase()}` : `PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
-        onClaim={() => {
-          router.push('/add-funds');
-          logAnalyticsEvent('claim_account_click');
-        }}
-      />
+      {/* Only show ClaimAccountModal if account doesn't exist in safehaven_accounts table */}
+      {!safehavenAccount?.account_number || safehavenAccount.account_number.startsWith('PENDING_') ? (
+        <ClaimAccountModal
+          isVisible={showClaimAccountModal}
+          onClose={() => setShowClaimAccountModal(false)}
+          accountNumber={safehavenAccount?.account_number ? `${safehavenAccount.account_number.slice(0, 5)} XXXXX` : '01177 XXXXX'}
+          bankName="SAFEHAVEN MFB"
+          accountName={safehavenAccount?.account_name ? `PLANMONI/${safehavenAccount.account_name.toUpperCase()}` : `PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
+          onClaim={() => {
+            router.push('/add-funds');
+            logAnalyticsEvent('claim_account_click');
+          }}
+        />
+      ) : null}
 
       {/* <LivenessTestEnhanced 
         isVisible={showLivenessTest}

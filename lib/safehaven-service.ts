@@ -39,9 +39,9 @@ export interface SafeHavenAccount {
   canCredit: boolean;
 }
 
-export interface SafeHavenOperationResult {
+export interface SafeHavenOperationResult<T = any> {
   success: boolean;
-  data?: any;
+  data?: T;
   error?: string;
   auditLogId?: string;
   responseTime?: number;
@@ -347,12 +347,16 @@ class SafeHavenService {
         }
         return token;
       }
-      token = await this.getToken(userId);
-      // If still no token but we have data from refresh response, use that
-      if (!token && refreshResult.data) {
+      // Always re-fetch from database after refresh to ensure we have the latest token
+      const refreshedToken = await this.getToken(userId);
+      if (refreshedToken) {
+        token = refreshedToken;
+      } else if (refreshResult.data) {
+        // If still no token but we have data from refresh response, use that
+        const oldToken = token; // Save reference before token might be null
         const apiToken: SafeHavenToken = {
           access_token: refreshResult.data.access_token,
-          refresh_token: refreshResult.data.refresh_token || '',
+          refresh_token: refreshResult.data.refresh_token || oldToken?.refresh_token || '',
           token_type: refreshResult.data.token_type,
           expires_in: refreshResult.data.expires_in,
           expires_at: new Date(Date.now() + (refreshResult.data.expires_in * 1000)).toISOString(),
@@ -362,8 +366,20 @@ class SafeHavenService {
         };
         // Store in memory as fallback
         this.inMemoryTokens.set(userId, apiToken);
-        return apiToken;
+        token = apiToken;
       }
+      
+      // Verify the token we got is not expired
+      if (token && this.isTokenExpired(token)) {
+        console.warn('[SafeHaven] Token from database is still expired after refresh, this should not happen');
+        // This shouldn't happen, but if it does, return null to force re-initialization
+        return null;
+      }
+    }
+    
+    // Final check: ensure token is valid before returning
+    if (token && this.isTokenExpired(token)) {
+      console.warn('[SafeHaven] Returning expired token - this may cause API errors');
     }
 
     return token;
@@ -493,13 +509,33 @@ class SafeHavenService {
    */
   private async storeToken(userId: string, tokenData: any, refreshToken: string): Promise<boolean> {
     try {
+      // Validate expires_in to prevent date out of bounds errors
+      const expiresIn = tokenData.expires_in || 3600; // Default to 1 hour if not provided
+      const expiresInMs = expiresIn * 1000;
+      
+      // Ensure expires_in is within reasonable bounds (1 second to 1 year)
+      const maxExpiresIn = 365 * 24 * 60 * 60; // 1 year in seconds
+      const minExpiresIn = 1; // 1 second
+      const validExpiresIn = Math.max(minExpiresIn, Math.min(expiresIn, maxExpiresIn));
+      
+      // Calculate expires_at with validation
+      const now = Date.now();
+      const expiresAt = new Date(now + (validExpiresIn * 1000));
+      
+      // Validate the date is valid
+      if (isNaN(expiresAt.getTime())) {
+        console.error('[SafeHaven] Invalid expires_at date calculated:', { expiresIn, validExpiresIn, now });
+        // Fallback to 1 hour from now
+        expiresAt.setTime(now + (3600 * 1000));
+      }
+      
       const tokenRecord = {
         user_id: userId,
         access_token: tokenData.access_token,
         refresh_token: refreshToken,
         token_type: tokenData.token_type,
-        expires_in: tokenData.expires_in,
-        expires_at: new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString(),
+        expires_in: validExpiresIn,
+        expires_at: expiresAt.toISOString(),
         ibs_client_id: tokenData.ibs_client_id,
         ibs_user_id: tokenData.ibs_user_id,
         client_id: tokenData.client_id,
@@ -949,8 +985,805 @@ class SafeHavenService {
   }
 
   /**
+   * Initiates identity verification with SafeHaven API
+   * Sends OTP to the phone number linked to the NIN
+   * 
+   * @param userId - User ID
+   * @param nin - National Identification Number
+   * @param phoneNumber - Phone number linked to NIN
+   * @returns Operation result with identityId if successful
+   */
+  async initiateIdentityVerification(
+    userId: string,
+    nin: string,
+    phoneNumber: string
+  ): Promise<SafeHavenOperationResult<{ identityId: string; requiresOtp: boolean; status: string }>> {
+    const startTime = Date.now();
+    let auditLogId: string | undefined = undefined;
+
+    try {
+      // Check if SafeHaven is configured
+      if (!this.isConfigured()) {
+        console.error('[SafeHaven] Service not configured. Missing CLIENT_ID or CLIENT_ASSERTION.');
+        return {
+          success: false,
+          error: 'SafeHaven service is not configured. Please contact support.'
+        };
+      }
+
+      // Get valid token
+      const token = await this.getValidToken(userId);
+      if (!token) {
+        return {
+          success: false,
+          error: 'Unable to get SafeHaven token. Please try again.'
+        };
+      }
+
+      // Create audit log entry for KYC
+      const kycAuditLogId = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: userId,
+        p_operation_type: 'nin_verification',
+        p_verification_type: 'nin',
+        p_verification_provider: 'safehaven',
+        p_request_data: {
+          nin: nin.substring(0, 4) + '****',
+          timestamp: new Date().toISOString(),
+          step: 'initiate'
+        },
+        p_response_data: null,
+        p_status: 'pending',
+        p_result_message: 'NIN verification initiated',
+        p_metadata: {
+          service: 'safehaven-service',
+          operation: 'initiate_identity_verification'
+        }
+      });
+
+      // Create SafeHaven audit log entry
+      auditLogId = await this.logOperation(
+        userId,
+        'initiate_identity_verification',
+        {
+          nin: nin.substring(0, 4) + '****',
+          step: 'identity_verification_initiate'
+        },
+        null,
+        'pending'
+      );
+
+      const defaultDebitAccountNumber = '0117753301';
+      const identityRequestPayload = {
+        type: 'NIN',
+        async: false,
+        debitAccountNumber: defaultDebitAccountNumber,
+        number: nin
+      };
+
+      // Make API request with retry logic for 403 errors
+      let identityResponse = await fetch(`${this.API_URL}/identity/v2`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ClientID': this.CLIENT_ID,
+          'Authorization': `Bearer ${token.access_token}`
+        },
+        body: JSON.stringify(identityRequestPayload)
+      });
+
+      // If we get a 403, try refreshing the token and retry once
+      if (identityResponse.status === 403) {
+        const errorText = await identityResponse.text();
+        const isExpiredTokenError = errorText.includes('Expired token') || errorText.includes('expired');
+        
+        console.log('[SafeHaven] Got 403 error, attempting to refresh token and retry...', {
+          isExpiredToken: isExpiredTokenError,
+          errorPreview: errorText.substring(0, 200)
+        });
+        
+        // Force refresh token from Supabase database
+        let newToken: SafeHavenToken | null = null;
+        
+        // Try to refresh the token
+        const refreshResult = await this.refreshToken(userId, token.refresh_token);
+        if (refreshResult.success) {
+          // Always re-fetch from database to get the latest token
+          newToken = await this.getToken(userId);
+          
+          // If database fetch fails but we have refresh response data, use that
+          if (!newToken && refreshResult.data) {
+            newToken = {
+              access_token: refreshResult.data.access_token,
+              refresh_token: refreshResult.data.refresh_token || token.refresh_token,
+              token_type: refreshResult.data.token_type,
+              expires_in: refreshResult.data.expires_in,
+              expires_at: new Date(Date.now() + (refreshResult.data.expires_in * 1000)).toISOString(),
+              ibs_client_id: refreshResult.data.ibs_client_id,
+              ibs_user_id: refreshResult.data.ibs_user_id,
+              client_id: refreshResult.data.client_id
+            };
+            // Store in memory as fallback
+            this.inMemoryTokens.set(userId, newToken);
+          }
+          
+          if (newToken) {
+            console.log('[SafeHaven] Token refreshed, retrying identity verification with fresh token...', {
+              tokenExpiresAt: newToken.expires_at,
+              isExpired: this.isTokenExpired(newToken)
+            });
+            // Retry the request with the new token
+            identityResponse = await fetch(`${this.API_URL}/identity/v2`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'ClientID': this.CLIENT_ID,
+                'Authorization': `Bearer ${newToken.access_token}`
+              },
+              body: JSON.stringify(identityRequestPayload)
+            });
+          } else {
+            console.error('[SafeHaven] Failed to get new token after refresh');
+          }
+        } else {
+          // If refresh fails, try to initialize a completely new token
+          console.log('[SafeHaven] Token refresh failed, attempting to initialize new token...');
+          const initResult = await this.initializeToken(userId);
+          if (initResult.success) {
+            newToken = await this.getToken(userId);
+            if (!newToken && initResult.data) {
+              newToken = {
+                access_token: initResult.data.access_token,
+                refresh_token: initResult.data.refresh_token || '',
+                token_type: initResult.data.token_type,
+                expires_in: initResult.data.expires_in,
+                expires_at: new Date(Date.now() + (initResult.data.expires_in * 1000)).toISOString(),
+                ibs_client_id: initResult.data.ibs_client_id,
+                ibs_user_id: initResult.data.ibs_user_id,
+                client_id: initResult.data.client_id
+              };
+              this.inMemoryTokens.set(userId, newToken);
+            }
+            
+            if (newToken) {
+              console.log('[SafeHaven] New token initialized, retrying identity verification...');
+              identityResponse = await fetch(`${this.API_URL}/identity/v2`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'ClientID': this.CLIENT_ID,
+                  'Authorization': `Bearer ${newToken.access_token}`
+                },
+                body: JSON.stringify(identityRequestPayload)
+              });
+            }
+          }
+        }
+      }
+
+      const responseTime = Date.now() - startTime;
+
+      if (!identityResponse.ok) {
+        // Try to parse error response as JSON first, fallback to text
+        let errorData: any;
+        const contentType = identityResponse.headers.get('content-type');
+        try {
+          if (contentType && contentType.includes('application/json')) {
+            errorData = await identityResponse.json();
+          } else {
+            const errorText = await identityResponse.text();
+            errorData = { message: errorText, raw: errorText };
+          }
+        } catch (parseError) {
+          // If parsing fails, get text
+          const errorText = await identityResponse.text();
+          errorData = { message: errorText, raw: errorText };
+        }
+        
+        const errorMessage = errorData?.message || errorData?.error || errorData?.raw || 'Unknown error';
+        let userFacingMessage: string;
+        
+        // Provide more specific error messages based on status code
+        if (identityResponse.status === 403) {
+          userFacingMessage = errorData?.message || 'Access forbidden. This may indicate invalid credentials or insufficient permissions. Please contact support.';
+          console.error('[SafeHaven] 403 Forbidden error:', {
+            status: identityResponse.status,
+            statusText: identityResponse.statusText,
+            error: typeof errorData === 'string' ? errorData.substring(0, 500) : JSON.stringify(errorData).substring(0, 500),
+            clientId: this.CLIENT_ID ? `${this.CLIENT_ID.substring(0, 8)}...` : 'MISSING',
+            hasToken: !!token.access_token,
+            requestPayload: {
+              type: identityRequestPayload.type,
+              hasNumber: !!identityRequestPayload.number,
+              numberLength: identityRequestPayload.number?.length
+            }
+          });
+        } else if (identityResponse.status === 401) {
+          userFacingMessage = errorData?.message || 'Authentication failed. Please try again.';
+          console.error('[SafeHaven] 401 Unauthorized error:', {
+            status: identityResponse.status,
+            error: typeof errorData === 'string' ? errorData.substring(0, 500) : JSON.stringify(errorData).substring(0, 500)
+          });
+        } else {
+          userFacingMessage = errorData?.message || `Identity verification initiation failed: ${identityResponse.status} ${identityResponse.statusText}`;
+          console.error('[SafeHaven] Identity verification error:', {
+            status: identityResponse.status,
+            statusText: identityResponse.statusText,
+            error: typeof errorData === 'string' ? errorData.substring(0, 500) : JSON.stringify(errorData).substring(0, 500)
+          });
+        }
+        
+        const auditErrorData = { 
+          status: identityResponse.status, 
+          statusText: identityResponse.statusText, 
+          error: errorData,
+          step: 'identity_verification_initiate',
+          retried: identityResponse.status === 403
+        };
+        
+        // Update both audit logs with error
+        if (kycAuditLogId?.data) {
+          await supabase
+            .from('kyc_audit_logs')
+            .update({
+              status: 'failed',
+              response_data: auditErrorData,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', kycAuditLogId.data);
+        }
+        await this.updateAuditLog(auditLogId, 'failed', null, auditErrorData, responseTime);
+
+        return {
+          success: false,
+          error: userFacingMessage,
+          auditLogId,
+          responseTime
+        };
+      }
+
+      const identityData = await identityResponse.json();
+      
+      // Extract identityId from response
+      let identityId: string | undefined;
+      if (identityData?.data?._id) {
+        identityId = identityData.data._id;
+      } else if (identityData?._id) {
+        identityId = identityData._id;
+      } else {
+        throw new Error('Identity ID not found in response');
+      }
+
+      // Update audit logs with success
+      if (kycAuditLogId?.data) {
+        await supabase
+          .from('kyc_audit_logs')
+          .update({
+            status: 'success',
+            response_data: {
+              identityId: identityId,
+              otp_sent: true,
+              status: identityData?.data?.status || identityData?.status || 'PENDING'
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', kycAuditLogId.data);
+      }
+
+      await this.updateAuditLog(
+        auditLogId,
+        'success',
+        {
+          identityId: identityId,
+          status: identityData?.data?.status || identityData?.status || 'PENDING',
+          step: 'identity_verification_initiated',
+          otp_sent: true
+        },
+        null,
+        responseTime
+      );
+
+      if (!identityId) {
+        throw new Error('Identity ID not found in response');
+      }
+      
+      return {
+        success: true,
+        data: {
+          identityId: identityId,
+          requiresOtp: true,
+          status: identityData?.data?.status || identityData?.status || 'PENDING'
+        },
+        auditLogId,
+        responseTime
+      };
+
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+
+      // Update audit log with error
+      if (auditLogId) {
+        await this.updateAuditLog(auditLogId, 'failed', null, { error: errorMessage }, responseTime);
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+        auditLogId: auditLogId || undefined,
+        responseTime
+      };
+    }
+  }
+
+  /**
+   * Validates identity verification with OTP
+   * 
+   * @param userId - User ID
+   * @param identityId - Identity ID from initiateIdentityVerification
+   * @param otp - OTP received by user
+   * @param type - Verification type (default: 'NIN')
+   * @returns Operation result with verified data if successful
+   */
+  async validateIdentityVerification(
+    userId: string,
+    identityId: string,
+    otp: string,
+    type: 'NIN' | 'BVN' = 'NIN'
+  ): Promise<SafeHavenOperationResult<{ verifiedData: any; identityId: string; verified: boolean }>> {
+    const startTime = Date.now();
+    let auditLogId: string | undefined = undefined;
+
+    try {
+      // Check if SafeHaven is configured
+      if (!this.isConfigured()) {
+        console.error('[SafeHaven] Service not configured. Missing CLIENT_ID or CLIENT_ASSERTION.');
+        return {
+          success: false,
+          error: 'SafeHaven service is not configured. Please contact support.'
+        };
+      }
+
+      // Get valid token
+      const token = await this.getValidToken(userId);
+      if (!token) {
+        return {
+          success: false,
+          error: 'Unable to get SafeHaven token. Please try again.'
+        };
+      }
+
+      // Create audit log entry
+      auditLogId = await this.logOperation(
+        userId,
+        'validate_identity_verification',
+        {
+          identityId: identityId,
+          type: type,
+          step: 'identity_verification_validate'
+        },
+        null,
+        'pending'
+      );
+
+      // Call validate endpoint
+      const validateResponse = await fetch(`${this.API_URL}/identity/v2/validate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ClientID': this.CLIENT_ID,
+          'Authorization': `Bearer ${token.access_token}`
+        },
+        body: JSON.stringify({
+          identityId: identityId,
+          type: type,
+          otp: otp
+        })
+      });
+
+      const responseTime = Date.now() - startTime;
+
+      if (!validateResponse.ok) {
+        const errorText = await validateResponse.text();
+        let errorJson: any = null;
+        try {
+          errorJson = JSON.parse(errorText);
+        } catch {
+          // Not JSON
+        }
+
+        const errorData = { 
+          status: validateResponse.status, 
+          statusText: validateResponse.statusText, 
+          error: errorText,
+          errorJson: errorJson,
+          step: 'identity_verification_validate'
+        };
+
+        await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
+
+        // Extract user-friendly error message
+        let errorMessage = `Identity verification failed: ${validateResponse.status} ${validateResponse.statusText}`;
+        if (errorJson?.message) {
+          errorMessage = errorJson.message;
+        } else if (errorJson?.error) {
+          errorMessage = errorJson.error;
+        }
+
+        return {
+          success: false,
+          error: errorMessage,
+          auditLogId,
+          responseTime
+        };
+      }
+
+      const validatedData = await validateResponse.json();
+      
+      // Extract verified information from response
+      const verifiedData = validatedData?.data || validatedData;
+
+      // Update audit log with success
+      await this.updateAuditLog(
+        auditLogId,
+        'success',
+        {
+          identityId: identityId,
+          verified: true,
+          step: 'identity_verification_validated'
+        },
+        {
+          // Store sanitized verified data (without sensitive info)
+          hasData: !!verifiedData,
+          dataKeys: verifiedData ? Object.keys(verifiedData) : []
+        },
+        responseTime
+      );
+
+      return {
+        success: true,
+        data: {
+          verifiedData: verifiedData,
+          identityId: identityId,
+          verified: true
+        },
+        auditLogId,
+        responseTime
+      };
+
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+
+      // Update audit log with error
+      if (auditLogId) {
+        await this.updateAuditLog(auditLogId, 'failed', null, { error: errorMessage }, responseTime);
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+        auditLogId: auditLogId || undefined,
+        responseTime
+      };
+    }
+  }
+
+  /**
+   * Creates a sub account (individual) with SafeHaven
+   * Requires validated identityId from validateIdentityVerification
+   * 
+   * @param userId - User ID
+   * @param identityId - Validated identity ID
+   * @param personalInfo - Personal information for account creation
+   * @param nin - National Identification Number
+   * @returns Operation result with account data if successful
+   */
+  async createSubAccount(
+    userId: string,
+    identityId: string,
+    personalInfo: {
+      firstName: string;
+      lastName: string;
+      middleName?: string;
+      dateOfBirth?: string;
+      phoneNumber: string;
+      emailAddress: string;
+    },
+    nin: string
+  ): Promise<SafeHavenOperationResult<{ accountData: any; account_number?: string; account_name?: string; status?: string }>> {
+    const startTime = Date.now();
+    let auditLogId: string | undefined = undefined;
+
+    try {
+      // Check if SafeHaven is configured
+      if (!this.isConfigured()) {
+        console.error('[SafeHaven] Service not configured. Missing CLIENT_ID or CLIENT_ASSERTION.');
+        return {
+          success: false,
+          error: 'SafeHaven service is not configured. Please contact support.'
+        };
+      }
+
+      // Get valid token
+      const token = await this.getValidToken(userId);
+      if (!token) {
+        return {
+          success: false,
+          error: 'Unable to get SafeHaven token. Please try again.'
+        };
+      }
+
+      // Create audit log entry
+      auditLogId = await this.logOperation(
+        userId,
+        'create_sub_account',
+        {
+          identityId: identityId,
+          nin: nin.substring(0, 4) + '****',
+          step: 'sub_account_creation'
+        },
+        null,
+        'pending'
+      );
+
+      // Prepare account creation payload
+      const accountRequestPayload: any = {
+        phoneNumber: personalInfo.phoneNumber,
+        emailAddress: personalInfo.emailAddress,
+        identityType: 'NIN',
+        autoSweep: true,
+        autoSweepDetails: {
+          schedule: 'Instant'
+        },
+        externalReference: `AC_${userId.substring(0, 8)}`,
+        identityNumber: nin,
+        identityId: identityId
+      };
+
+      // Add name fields
+      if (personalInfo.firstName && personalInfo.firstName.trim()) {
+        accountRequestPayload.firstName = personalInfo.firstName.trim();
+      }
+      if (personalInfo.lastName && personalInfo.lastName.trim()) {
+        accountRequestPayload.lastName = personalInfo.lastName.trim();
+      }
+      if (personalInfo.middleName && personalInfo.middleName.trim()) {
+        accountRequestPayload.middleName = personalInfo.middleName.trim();
+      }
+      if (personalInfo.dateOfBirth && personalInfo.dateOfBirth.trim()) {
+        accountRequestPayload.dateOfBirth = personalInfo.dateOfBirth.trim();
+      }
+
+      console.log('[SafeHaven] Creating sub-account with payload (sanitized):', {
+        ...accountRequestPayload,
+        identityNumber: nin.substring(0, 4) + '****',
+        hasFirstName: !!accountRequestPayload.firstName,
+        hasLastName: !!accountRequestPayload.lastName,
+        hasMiddleName: !!accountRequestPayload.middleName,
+        hasDateOfBirth: !!accountRequestPayload.dateOfBirth,
+        autoSweep: accountRequestPayload.autoSweep,
+        autoSweepDetails: accountRequestPayload.autoSweepDetails
+      });
+
+      const accountResponse = await fetch(`${this.API_URL}/accounts/v2/subaccount`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ClientID': this.CLIENT_ID,
+          'Authorization': `Bearer ${token.access_token}`
+        },
+        body: JSON.stringify(accountRequestPayload)
+      });
+
+      const responseTime = Date.now() - startTime;
+
+      if (!accountResponse.ok) {
+        let errorText = '';
+        let errorJson: any = null;
+        
+        try {
+          errorText = await accountResponse.text();
+          try {
+            errorJson = JSON.parse(errorText);
+          } catch {
+            // Not JSON
+          }
+        } catch (readError) {
+          console.error('[SafeHaven] Error reading error response:', readError);
+          errorText = 'Unable to read error response';
+        }
+
+        const errorData = { 
+          status: accountResponse.status, 
+          statusText: accountResponse.statusText, 
+          error: errorText,
+          errorJson: errorJson,
+          step: 'sub_account_creation'
+        };
+
+        console.error('[SafeHaven] Sub account creation failed:', errorData);
+        
+        await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
+
+        // Extract user-friendly error message
+        let errorMessage = `Sub account creation failed: ${accountResponse.status} ${accountResponse.statusText}`;
+        if (errorJson?.message) {
+          errorMessage = errorJson.message;
+        } else if (errorJson?.error) {
+          errorMessage = errorJson.error;
+        }
+
+        return {
+          success: false,
+          error: errorMessage,
+          auditLogId,
+          responseTime
+        };
+      }
+
+      let accountData: any;
+      try {
+        accountData = await accountResponse.json();
+        console.log('[SafeHaven] Sub account creation response data:', JSON.stringify(accountData, null, 2));
+      } catch (parseError) {
+        console.error('[SafeHaven] Error parsing account creation response:', parseError);
+        throw new Error('Invalid response format from SafeHaven API');
+      }
+
+      // Extract account information
+      const accountInfo: any = {
+        verified: true,
+        identityId: identityId,
+        identityNumber: nin,
+        status: accountData?.data?.status || accountData?.status || 'PENDING'
+      };
+
+      // Extract account number
+      let accountNumber = null;
+      const accountNumberPaths = [
+        accountData?.data?.accountNumber,
+        accountData?.data?.account_number,
+        accountData?.accountNumber,
+        accountData?.account_number,
+        accountData?.data?.account?.accountNumber,
+        accountData?.data?.account?.account_number,
+        accountData?.data?._id,
+        accountData?._id
+      ];
+
+      for (const path of accountNumberPaths) {
+        if (path && typeof path === 'string') {
+          const cleaned = path.replace(/\D/g, '');
+          if (cleaned.length >= 10) {
+            accountNumber = cleaned;
+            break;
+          }
+        }
+      }
+
+      if (accountNumber) {
+        accountInfo.account_number = accountNumber;
+      }
+
+      // Extract account name and names
+      let accountName = accountData?.data?.accountName || accountData?.data?.account_name || accountData?.accountName || accountData?.account_name;
+      let firstName = accountData?.data?.firstName || accountData?.data?.first_name || accountData?.firstName || accountData?.first_name || personalInfo.firstName;
+      let lastName = accountData?.data?.lastName || accountData?.data?.last_name || accountData?.lastName || accountData?.last_name || personalInfo.lastName;
+      let middleName = accountData?.data?.middleName || accountData?.data?.middle_name || accountData?.middleName || accountData?.middle_name || personalInfo.middleName;
+
+      if (accountName && (!firstName || !lastName)) {
+        const names = accountName.split(' ').filter(Boolean);
+        if (names.length > 0) {
+          firstName = firstName || names[0] || '';
+          lastName = lastName || names[names.length - 1] || '';
+          middleName = middleName || (names.length > 2 ? names.slice(1, -1).join(' ') : '');
+        }
+      }
+
+      if (firstName || lastName) {
+        accountInfo.first_name = firstName;
+        accountInfo.last_name = lastName;
+        accountInfo.middle_name = middleName;
+        accountInfo.account_name = accountName || [firstName, middleName, lastName].filter(Boolean).join(' ');
+      }
+
+      // Try to fetch account immediately if account number not in response
+      if (!accountNumber) {
+        try {
+          const accountsResponse = await fetch(`${this.API_URL}/accounts/v2`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'ClientID': this.CLIENT_ID,
+              'Authorization': `Bearer ${token.access_token}`
+            }
+          });
+
+          if (accountsResponse.ok) {
+            const accountsData = await accountsResponse.json();
+            const accounts = accountsData?.data || accountsData || [];
+            const externalRef = `AC_${userId.substring(0, 8)}`;
+            
+            const matchingAccount = accounts.find((acc: any) => {
+              if (acc.identityId === identityId || acc.identity_id === identityId) return true;
+              if (acc.externalReference === externalRef || acc.external_reference === externalRef) return true;
+              return false;
+            });
+
+            if (matchingAccount) {
+              const foundAccountNumber = matchingAccount.accountNumber || matchingAccount.account_number || matchingAccount._id || matchingAccount.id;
+              const cleaned = foundAccountNumber?.toString().replace(/\D/g, '');
+              if (cleaned && cleaned.length >= 10) {
+                accountNumber = cleaned;
+                accountInfo.account_number = accountNumber;
+              }
+            }
+          }
+        } catch (fetchError) {
+          console.error('[SafeHaven] Error fetching accounts after creation:', fetchError);
+        }
+      }
+
+      // Store account
+      const accountStatus = accountInfo.account_number ? 'active' : 'pending';
+      await this.storeAccountFromNINVerification(userId, {
+        account_number: accountInfo.account_number || null,
+        account_name: accountInfo.account_name || `${accountInfo.first_name} ${accountInfo.last_name}`.trim() || 'Pending Account',
+        account_type: 'savings',
+        currency_code: 'NGN',
+        status: accountStatus
+      });
+
+      // Update audit log with success
+      await this.updateAuditLog(
+        auditLogId,
+        'success',
+        {
+          verified: true,
+          hasAccount: !!accountInfo.account_number,
+          accountNumber: accountInfo.account_number ? accountInfo.account_number.substring(0, 5) + '****' : null,
+          identityId: identityId,
+          step: 'sub_account_creation_complete'
+        },
+        null,
+        responseTime
+      );
+
+      return {
+        success: true,
+        data: {
+          accountData: accountInfo,
+          account_number: accountInfo.account_number,
+          account_name: accountInfo.account_name,
+          status: accountInfo.status
+        },
+        auditLogId,
+        responseTime
+      };
+
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+
+      // Update audit log with error
+      if (auditLogId) {
+        await this.updateAuditLog(auditLogId, 'failed', null, { error: errorMessage }, responseTime);
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+        auditLogId: auditLogId || undefined,
+        responseTime
+      };
+    }
+  }
+
+  /**
    * Verifies NIN using SafeHaven API and creates account
    * Uses two-step workflow: identity verification first, then account creation
+   * 
+   * @deprecated Use initiateIdentityVerification, validateIdentityVerification, and createSubAccount instead
    * 
    * If OTP is not provided, only initializes verification (step 1) and returns identityId
    * If OTP is provided, creates account (step 2) using identityId
@@ -1028,7 +1861,7 @@ class SafeHavenService {
         const defaultDebitAccountNumber = '0117753301';
         const identityRequestPayload = {
           type: 'NIN',
-          async: true,
+          async: false,
           debitAccountNumber: defaultDebitAccountNumber,
           number: nin
         };

@@ -10,7 +10,6 @@ import { usePin } from '@/contexts/PinContext';
 import { useOnlineStatus } from './OnlineStatusProvider';
 import OfflineNotice from './OfflineNotice';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
-import CameraPermissionModal from './CameraPermissionModal';
 import KYCVerificationModal from './KYCVerificationModal';
 import Tier1Icon from '@/assets/kyc/tier-1.svg';
 import Tier2Icon from '@/assets/kyc/tier-2.svg';
@@ -41,7 +40,6 @@ export default function PendingActionsCard() {
   const { progress, currentTier = 0, getTierInfo } = useKYCProgress();
   const [tierInfo, setTierInfo] = useState<any>(null);
   const [showKYCVerificationModal, setShowKYCVerificationModal] = useState(false);
-  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
 
   // Load profile data and tier info from database on mount
@@ -316,19 +314,13 @@ export default function PendingActionsCard() {
     // Close KYCVerificationModal first
     setShowKYCVerificationModal(false);
     
-    // Wait for the slide-out animation to complete (350ms) before showing CameraPermissionModal
-    // This ensures the KYCVerificationModal doesn't block the CameraPermissionModal
+    // Navigate directly to kyc-upgrade page
+    // The page will automatically show the first incomplete step (personal info if not completed)
+    // This ensures the correct order: Personal Info → Liveness → BVN → NIN
     setTimeout(() => {
-      // Check if liveness test is not completed (first step of Tier 1)
-      if (progress && !progress.liveness_test_completed) {
-        // Show camera permission modal after KYCVerificationModal has closed
-        setShowCameraPermissionModal(true);
-      } else {
-        // Navigate directly to kyc-upgrade if liveness test is already completed
-        setSelectedActionId(null);
-        router.push('/kyc-upgrade');
-      }
-    }, 400); // Slightly longer than the slide-out animation (350ms)
+      setSelectedActionId(null);
+      router.push('/kyc-upgrade');
+    }, 350); // Wait for the slide-out animation to complete
   };
 
   const handleLivenessComplete = (selfieUrl: string) => {
@@ -467,15 +459,6 @@ export default function PendingActionsCard() {
           setSelectedActionId(null);
         }}
         onStartVerification={handleStartVerification}
-      />
-      <CameraPermissionModal
-        isVisible={showCameraPermissionModal}
-        onClose={() => {
-          console.log('[PendingActionsCard] Camera permission modal closed');
-          setShowCameraPermissionModal(false);
-          setSelectedActionId(null);
-        }}
-        onComplete={handleLivenessComplete}
       />
     </View>
   );

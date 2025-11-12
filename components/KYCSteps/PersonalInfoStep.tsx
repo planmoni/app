@@ -203,6 +203,7 @@ export default function PersonalInfoStep({
             numberOfLines={3}
             textAlignVertical="top"
             editable={false}
+            onPress={onLocationSearchOpen}
           />
           <ChevronRight size={20} color={colors.textTertiary} />
         </Pressable>

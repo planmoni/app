@@ -215,7 +215,7 @@ export default function SafeHavenOTPModal({
     
     const otpValue = otp.join('');
 
-    if (otpValue.length !== 6) {
+    if (otpValue.length !== 6 || otpValue.length < 6) {
       if (isMountedRef.current) {
         setError('Please enter the complete 6-digit OTP');
         showToast('Please enter the complete 6-digit OTP', 'error');
@@ -532,9 +532,9 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
       color: colors.textTertiary,
     },
     verifyButton: {
-      backgroundColor: colors.accent,
+      backgroundColor: colors.primary,
       paddingVertical: isSmallScreen ? 14 : 16,
-      borderRadius: 12,
+      borderRadius: 100,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -542,7 +542,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
       opacity: 0.5,
     },
     verifyButtonText: {
-      color: '#065F46',
+      color: colors.accent,
       fontSize: isSmallScreen ? 16 : 18,
       fontWeight: '600',
     },

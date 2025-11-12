@@ -114,6 +114,15 @@ interface SafeHavenSubaccountData {
   status: 'Pending' | 'Active' | 'Inactive' | 'Suspended' | 'Failed';
   otpVerified?: boolean;
   otpVerifiedAt?: string;
+  identityId?: string;
+  identity_id?: string;
+  autoSweep?: boolean;
+  autoSweepDetails?: {
+    schedule?: string;
+    mainAccountNumber?: string;
+    main_account_number?: string;
+  };
+  mainAccountNumber?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -653,6 +662,16 @@ async function processSubaccountCreatedWebhook(subaccountData: SafeHavenSubaccou
     }
 
     // Store subaccount data
+    // Extract auto sweep information from webhook payload
+    const autoSweepEnabled = subaccountData.autoSweep !== undefined 
+      ? subaccountData.autoSweep 
+      : (subaccountData.autoSweepDetails ? true : false);
+    const mainAccountNumber = subaccountData.autoSweepDetails?.mainAccountNumber 
+      || subaccountData.autoSweepDetails?.main_account_number 
+      || subaccountData.mainAccountNumber
+      || null;
+    const identityId = subaccountData.identityId || subaccountData.identity_id || null;
+
     const { error: insertError } = await supabase
       .from('safehaven_subaccounts')
       .upsert({
@@ -670,12 +689,16 @@ async function processSubaccountCreatedWebhook(subaccountData: SafeHavenSubaccou
         status: subaccountData.status,
         otp_verified: subaccountData.otpVerified || false,
         otp_verified_at: subaccountData.otpVerifiedAt,
+        identity_id: identityId,
+        auto_sweep_enabled: autoSweepEnabled,
+        main_account_number: mainAccountNumber,
         created_at: subaccountData.createdAt,
         updated_at: subaccountData.updatedAt,
         synced_at: new Date().toISOString(),
         metadata: {
           webhook_received_at: new Date().toISOString(),
-          safehaven_data: subaccountData
+          safehaven_data: subaccountData,
+          auto_sweep_details: subaccountData.autoSweepDetails || null
         }
       });
 
@@ -684,7 +707,22 @@ async function processSubaccountCreatedWebhook(subaccountData: SafeHavenSubaccou
       return { error: 'Failed to store subaccount' };
     }
 
-    console.log('Subaccount created webhook processed successfully:', subaccountData._id);
+    // Mark Tier 1 as complete when sub account is successfully created
+    if (subaccountData.status === 'Active' || subaccountData.status === 'active') {
+      await supabase
+        .from('kyc_progress')
+        .update({
+          tier1_completed: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userData.user_id);
+    }
+
+    console.log('Subaccount created webhook processed successfully:', subaccountData._id, {
+      autoSweepEnabled,
+      mainAccountNumber: mainAccountNumber ? mainAccountNumber.substring(0, 5) + '****' : null,
+      identityId: identityId ? identityId.substring(0, 8) + '****' : null
+    });
     return { success: true, subaccountId: subaccountData._id };
 
   } catch (error) {
