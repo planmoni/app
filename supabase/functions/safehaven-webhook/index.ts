@@ -41,7 +41,7 @@ const SAFEHAVEN_ALLOWED_IPS: string[] = [
 ];
 
 interface SafeHavenWebhookPayload {
-  type: 'transfer' | 'virtualAccount.transfer' | 'account.update' | 'transaction.update' | 'subaccount.created' | 'subaccount.updated' | 'subaccount.status';
+  type: 'transfer' | 'virtualAccount.transfer' | 'account.update' | 'account.debit' | 'transaction.update' | 'subaccount.created' | 'subaccount.updated' | 'subaccount.status' | 'identityCreditCheck';
   data: any;
   timestamp: string;
   signature?: string;
@@ -114,6 +114,49 @@ interface SafeHavenSubaccountData {
   status: 'Pending' | 'Active' | 'Inactive' | 'Suspended' | 'Failed';
   otpVerified?: boolean;
   otpVerifiedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SafeHavenIdentityCreditCheckData {
+  _id: string;
+  clientId: string;
+  identityNumber: string;
+  type: 'BVN' | 'NIN' | string;
+  amount: number;
+  status: 'SUCCESS' | 'FAILED' | 'PENDING';
+  debitAccountNumber: string;
+  vat: number;
+  stampDuty: number;
+  isDeleted: boolean;
+  otpVerified: boolean;
+  otpResendCount: number;
+  debitMessage?: string;
+  debitResponsCode?: number;
+  debitSessionId?: string;
+  otpId?: string;
+  creditMessage?: string;
+  creditResponsCode?: number;
+  creditSessionId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SafeHavenAccountDebitData {
+  _id?: string;
+  client: string;
+  account: string;
+  debitAccountName: string;
+  debitAccountNumber: string;
+  reference: string;
+  type: 'Debit' | string;
+  provider: string;
+  providerChannel: string;
+  narration: string;
+  amount: number;
+  fees: number;
+  vat: number;
+  stampDuty: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -325,31 +368,150 @@ async function logDepositWebhook(transferData: any, userId: string | null): Prom
       ? transferData.creditAccountNumber 
       : (transferData.debitAccountNumber || transferData.accountNumber);
 
+    // Find the account in safehaven_accounts to get the user_account_id
+    // NOTE: safehaven_user_accounts is handled in the frontend when sending money (payouts/transfers)
+    // For webhooks, we only need to reference safehaven_accounts
+    let userAccountId: string | null = null;
+    if (accountNumber) {
+      // Query safehaven_accounts (the main accounts table)
+      const { data: accountData, error: accountError } = await supabase
+        .from('safehaven_accounts')
+        .select('id')
+        .eq('account_number', accountNumber)
+        .eq('is_deleted', false)
+        .single();
+
+      if (!accountError && accountData) {
+        userAccountId = accountData.id;
+      } else {
+        console.warn(`Could not find safehaven_accounts record for account number: ${accountNumber}`);
+      }
+
+      // COMMENTED OUT: safehaven_user_accounts is handled in frontend for sending money
+      // // First try safehaven_user_accounts (the table referenced by the foreign key)
+      // const { data: userAccountData, error: userAccountError } = await supabase
+      //   .from('safehaven_user_accounts')
+      //   .select('id')
+      //   .eq('account_number', accountNumber)
+      //   .eq('is_deleted', false)
+      //   .single();
+      // 
+      // if (!userAccountError && userAccountData) {
+      //   userAccountId = userAccountData.id;
+      // } else {
+      //   // If not found, try safehaven_accounts (they might be the same table or have a mapping)
+      //   const { data: accountData, error: accountError } = await supabase
+      //     .from('safehaven_accounts')
+      //     .select('id')
+      //     .eq('account_number', accountNumber)
+      //     .eq('is_deleted', false)
+      //     .single();
+      // 
+      //   if (!accountError && accountData) {
+      //     userAccountId = accountData.id;
+      //   } else {
+      //     console.warn(`Could not find safehaven_user_accounts or safehaven_accounts record for account number: ${accountNumber}`);
+      //   }
+      // }
+    }
+
+    // If we have userId but no userAccountId, try to find account by userId
+    if (!userAccountId && userId) {
+      // Query safehaven_accounts by userId
+      const { data: accountData, error: accountError } = await supabase
+        .from('safehaven_accounts')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('is_deleted', false)
+        .eq('is_default', true)
+        .single();
+
+      if (!accountError && accountData) {
+        userAccountId = accountData.id;
+      }
+
+      // COMMENTED OUT: safehaven_user_accounts is handled in frontend for sending money
+      // // Try safehaven_user_accounts first
+      // const { data: userAccountData, error: userAccountError } = await supabase
+      //   .from('safehaven_user_accounts')
+      //   .select('id')
+      //   .eq('user_id', userId)
+      //   .eq('is_deleted', false)
+      //   .eq('is_default', true)
+      //   .single();
+      // 
+      // if (!userAccountError && userAccountData) {
+      //   userAccountId = userAccountData.id;
+      // } else {
+      //   // Fallback to safehaven_accounts
+      //   const { data: accountData, error: accountError } = await supabase
+      //     .from('safehaven_accounts')
+      //     .select('id')
+      //     .eq('user_id', userId)
+      //     .eq('is_deleted', false)
+      //     .eq('is_default', true)
+      //     .single();
+      // 
+      //   if (!accountError && accountData) {
+      //     userAccountId = accountData.id;
+      //   }
+      // }
+    }
+
+    // Determine webhook type
+    const webhookType = transferData.virtualAccount ? 'virtualAccount.transfer' : 'transfer';
+
+    // Map status to table status values
+    let status = 'pending';
+    if (transferData.status === 'Completed') {
+      status = 'processed';
+    } else if (transferData.status === 'Failed' || transferData.status === 'Reversed') {
+      status = 'failed';
+    } else if (transferData.status === 'Pending') {
+      status = 'processing';
+    }
+
+    // Determine sender information based on transfer type
+    const senderName = transferData.type === 'Inwards' 
+      ? transferData.debitAccountName 
+      : transferData.creditAccountName;
+    const senderAccount = transferData.type === 'Inwards' 
+      ? transferData.debitAccountNumber 
+      : transferData.creditAccountNumber;
+    const senderBank = transferData.provider || transferData.destinationInstitutionCode || null;
+
+    // Skip insert if we can't find the user_account_id (table requires it)
+    if (!userAccountId) {
+      console.warn(`Skipping webhook log insert: Could not find safehaven_accounts record for account number: ${accountNumber}`);
+      return;
+    }
+
+    const insertData: any = {
+      user_account_id: userAccountId,
+      webhook_type: webhookType,
+      transfer_id: transferData._id || transferData.id,
+      transaction_reference: transferData.paymentReference || transferData.reference || null,
+      sender_name: senderName || null,
+      sender_account: senderAccount || null,
+      sender_bank: senderBank,
+      amount: transferData.amount || 0,
+      currency: 'NGN',
+      narration: transferData.narration || null,
+      status: status,
+      wallet_credited: false,
+      wallet_transaction_id: null,
+      webhook_payload: transferData,
+      received_at: new Date().toISOString()
+    };
+
+    // Only set processed_at if status is processed or failed
+    if (status === 'processed' || status === 'failed') {
+      insertData.processed_at = new Date().toISOString();
+    }
+
     const { error } = await supabase
       .from('safehaven_deposit_webhooks')
-      .insert({
-        user_id: userId,
-        webhook_id: transferData._id || transferData.id,
-        transfer_type: transferData.type,
-        account_number: accountNumber,
-        amount: transferData.amount || 0,
-        fees: transferData.fees || 0,
-        status: transferData.status,
-        payment_reference: transferData.paymentReference || transferData.reference,
-        session_id: transferData.sessionId,
-        provider: transferData.provider,
-        response_code: transferData.responseCode,
-        response_message: transferData.responseMessage,
-        narration: transferData.narration,
-        credit_account_name: transferData.creditAccountName,
-        credit_account_number: transferData.creditAccountNumber,
-        debit_account_name: transferData.debitAccountName,
-        debit_account_number: transferData.debitAccountNumber,
-        webhook_data: transferData,
-        processed: true,
-        processed_at: new Date().toISOString(),
-        created_at: new Date().toISOString()
-      });
+      .insert(insertData);
 
     if (error) {
       console.error('Error logging deposit webhook:', error);
@@ -523,7 +685,7 @@ async function updateUserBalance(userId: string, transferData: SafeHavenTransfer
     console.log(`Updating balance for user ${userId}: ${transferData.type} ${transferData.amount}`);
 
     // Calculate new balance based on transfer type
-    // For Inwards: add amount (minus fees)
+    // For Inwards: add amount (minus fees) - this is what actually arrived in the account
     // For Outwards: subtract amount (plus fees)
     const balanceChange = transferData.type === 'Inwards' 
       ? transferData.amount - (transferData.fees || 0)
@@ -546,6 +708,8 @@ async function updateUserBalance(userId: string, transferData: SafeHavenTransfer
     const newBookBalance = (currentAccount.book_balance || 0) + balanceChange;
 
     // Update safehaven_accounts balance
+    // NOTE: safehaven_account_balances is a VIEW that automatically reflects changes from safehaven_accounts
+    // When we update safehaven_accounts, the view will automatically show the updated balance
     const { error: updateError } = await supabase
       .from('safehaven_accounts')
       .update({
@@ -561,34 +725,142 @@ async function updateUserBalance(userId: string, transferData: SafeHavenTransfer
       console.error('Error updating account balance:', updateError);
     } else {
       console.log(`Account balance updated: ${currentAccount.account_balance} -> ${newAccountBalance}`);
+      console.log('Note: safehaven_account_balances view will automatically reflect this update');
     }
 
-    // Log balance update to safehaven_account_balances table
-    try {
-      const { error: balanceLogError } = await supabase
-        .from('safehaven_account_balances')
-        .insert({
-          user_id: userId,
-          account_number: accountNumber,
-          previous_balance: currentAccount.account_balance || 0,
-          new_balance: newAccountBalance,
-          balance_change: balanceChange,
-          transfer_id: transferData._id,
-          transfer_type: transferData.type,
-          amount: transferData.amount,
-          fees: transferData.fees || 0,
-          status: transferData.status,
-          updated_at: new Date().toISOString(),
-          created_at: new Date().toISOString()
-        });
+    // Update wallet balance for Inwards transfers (deposits)
+    // IMPORTANT: Credit wallet with FULL amount (before fees) so user sees the full amount they sent
+    // Example: User sends 200, SafeHaven deducts 5 in fees, account gets 195, but wallet shows 200
+    if (transferData.type === 'Inwards') {
+      try {
+        // Get current wallet balance
+        const { data: wallet, error: walletError } = await supabase
+          .from('wallets')
+          .select('balance, locked_balance')
+          .eq('user_id', userId)
+          .single();
 
-      if (balanceLogError) {
-        console.warn('Error logging balance update (table may not exist):', balanceLogError);
-      } else {
-        console.log('Balance update logged successfully');
+        if (walletError && walletError.code !== 'PGRST116') {
+          console.error('Error fetching wallet:', walletError);
+        } else {
+          // Calculate new wallet balance (add full amount, not minus fees)
+          const walletAmount = transferData.amount; // Full amount, not minus fees
+          const newWalletBalance = (wallet?.balance || 0) + walletAmount;
+          const currentLockedBalance = wallet?.locked_balance || 0;
+          
+          // Calculate available_balance explicitly: balance - locked_balance
+          // NOTE: The trigger should also do this, but we set it explicitly to ensure it's correct
+          const newAvailableBalance = newWalletBalance - currentLockedBalance;
+          
+          // Update wallet balance and available_balance using function
+          // This bypasses the trigger that blocks direct updates
+          const { error: walletUpdateError } = await supabase.rpc('update_wallet_from_webhook', {
+            arg_user_id: userId,
+            arg_balance: newWalletBalance,
+            arg_available_balance: newAvailableBalance
+          });
+
+          if (walletUpdateError) {
+            console.error('Error updating wallet balance:', walletUpdateError);
+          } else {
+            console.log(`Wallet balance updated: ${wallet?.balance || 0} -> ${newWalletBalance} (credited full amount: ${walletAmount}, fees absorbed)`);
+            console.log(`Available balance updated: ${wallet?.available_balance || 0} -> ${newAvailableBalance} (balance: ${newWalletBalance} - locked: ${currentLockedBalance})`);
+            
+            // Create transaction record
+            const paymentRef = transferData.paymentReference || (transferData as any).reference || '';
+            const narration = transferData.narration || 'SafeHaven deposit';
+            const senderName = transferData.debitAccountName || 'Unknown';
+            
+            // Check if transaction already exists to avoid duplicates
+            let transactionId: string | null = null;
+            if (paymentRef) {
+              const { data: existingTransaction } = await supabase
+                .from('transactions')
+                .select('id')
+                .eq('reference', paymentRef)
+                .eq('type', 'deposit')
+                .eq('user_id', userId)
+                .single();
+
+              if (!existingTransaction) {
+                // Create new transaction record
+                const { data: newTransaction, error: transactionError } = await supabase
+                  .from('transactions')
+                  .insert({
+                    user_id: userId,
+                    type: 'deposit',
+                    amount: walletAmount,
+                    status: 'completed',
+                    source: 'SafeHaven',
+                    destination: 'wallet',
+                    reference: paymentRef,
+                    description: `${narration} - From ${senderName}`,
+                    // metadata column may or may not exist - if it doesn't, the insert will still work without it
+                    ...(transferData._id && {
+                      metadata: {
+                        safehaven_transfer_id: transferData._id,
+                        safehaven_account_number: accountNumber,
+                        fees: transferData.fees || 0,
+                        full_amount: walletAmount,
+                        net_amount: walletAmount - (transferData.fees || 0),
+                        webhook_processed_at: new Date().toISOString()
+                      }
+                    })
+                  } as any)
+                  .select('id')
+                  .single();
+
+                if (transactionError) {
+                  console.warn('Error creating transaction record:', transactionError);
+                } else {
+                  transactionId = newTransaction?.id || null;
+                  console.log('Transaction record created:', transactionId);
+                }
+              } else {
+                transactionId = existingTransaction.id;
+                console.log('Transaction already exists, skipping duplicate:', transactionId);
+              }
+            }
+
+            // Mark wallet as credited in safehaven_deposit_webhooks table
+            if (paymentRef) {
+              // Get the account ID to find the webhook record
+              const { data: accountData } = await supabase
+                .from('safehaven_accounts')
+                .select('id')
+                .eq('account_number', accountNumber)
+                .eq('user_id', userId)
+                .single();
+
+              if (accountData?.id) {
+                const updateData: any = {
+                  wallet_credited: true,
+                  updated_at: new Date().toISOString()
+                };
+
+                if (transactionId) {
+                  updateData.wallet_transaction_id = transactionId;
+                }
+
+                const { error: webhookUpdateError } = await supabase
+                  .from('safehaven_deposit_webhooks')
+                  .update(updateData)
+                  .eq('transaction_reference', paymentRef)
+                  .eq('user_account_id', accountData.id);
+
+                if (webhookUpdateError) {
+                  console.warn('Error updating wallet_credited flag:', webhookUpdateError);
+                } else {
+                  console.log('Marked wallet_credited as true in safehaven_deposit_webhooks');
+                }
+              }
+            }
+          }
+        }
+      } catch (walletError) {
+        console.error('Error updating wallet in updateUserBalance:', walletError);
+        // Don't throw - wallet update failure shouldn't break the webhook processing
       }
-    } catch (balanceLogError) {
-      console.warn('safehaven_account_balances table may not exist, skipping:', balanceLogError);
     }
 
   } catch (error) {
@@ -780,13 +1052,17 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
 async function updateVirtualAccountBalance(userId: string, transferData: SafeHavenVirtualAccountTransferData): Promise<void> {
   try {
     // For virtual accounts, we can update the main account balance
-    // Find account by user_id and update balance
-    const accountNumber = transferData.type === 'Inwards' 
-      ? transferData.creditAccountNumber 
-      : transferData.debitAccountNumber;
+    // Virtual account transfers are typically Inwards (deposits to the virtual account)
+    // Use credit account number for virtual account deposits
+    const accountNumber = transferData.creditAccountNumber;
 
     if (accountNumber) {
-      await updateUserBalance(userId, transferData as any, accountNumber);
+      // Create a transfer-like object with type 'Inwards' for virtual account deposits
+      const transferLikeData = {
+        ...transferData,
+        type: 'Inwards' as const
+      };
+      await updateUserBalance(userId, transferLikeData as any, accountNumber);
     }
   } catch (error) {
     console.error('Error updating virtual account balance:', error);
@@ -980,6 +1256,158 @@ async function processSubaccountStatusWebhook(subaccountData: SafeHavenSubaccoun
   }
 }
 
+// Process identity credit check webhook
+// This webhook is sent when an identity verification (BVN/NIN) check is performed and charged
+async function processIdentityCreditCheckWebhook(identityData: SafeHavenIdentityCreditCheckData): Promise<any> {
+  console.log('Processing identity credit check webhook:', identityData._id);
+
+  try {
+    // Get user ID from client ID
+    const { data: userData, error: userError } = await supabase
+      .from('safehaven_tokens')
+      .select('user_id')
+      .eq('ibs_client_id', identityData.clientId)
+      .single();
+
+    if (userError || !userData) {
+      console.error('Could not find user for client ID:', identityData.clientId);
+      // Still log the webhook even if we can't find the user
+      return { 
+        error: 'User not found',
+        note: 'Webhook received but user not found',
+        identityCheckId: identityData._id
+      };
+    }
+
+    // Create audit log for identity credit check
+    await createAuditLog(
+      userData.user_id,
+      'identity_credit_check_webhook_processed',
+      { 
+        identityCheckId: identityData._id,
+        identityType: identityData.type,
+        identityNumber: identityData.identityNumber,
+        debitAccountNumber: identityData.debitAccountNumber
+      },
+      { 
+        status: identityData.status,
+        amount: identityData.amount,
+        vat: identityData.vat,
+        stampDuty: identityData.stampDuty,
+        otpVerified: identityData.otpVerified,
+        debitMessage: identityData.debitMessage,
+        creditMessage: identityData.creditMessage
+      },
+      identityData.status === 'SUCCESS' ? 'success' : 'failed'
+    );
+
+    console.log('Identity credit check webhook processed successfully:', identityData._id);
+    return { 
+      success: true, 
+      identityCheckId: identityData._id, 
+      status: identityData.status,
+      userId: userData.user_id
+    };
+
+  } catch (error) {
+    console.error('Error processing identity credit check webhook:', error);
+    return { error: 'Failed to process identity credit check webhook' };
+  }
+}
+
+// Process account debit webhook
+// This webhook is sent when an account is debited (e.g., for fees, charges, or other debits)
+async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData): Promise<any> {
+  console.log('Processing account debit webhook:', debitData.reference);
+
+  try {
+    // Get user ID from client ID
+    const { data: userData, error: userError } = await supabase
+      .from('safehaven_tokens')
+      .select('user_id')
+      .eq('ibs_client_id', debitData.client)
+      .single();
+
+    if (userError || !userData) {
+      console.error('Could not find user for client ID:', debitData.client);
+      return { 
+        error: 'User not found',
+        note: 'Webhook received but user not found',
+        reference: debitData.reference
+      };
+    }
+
+    // Find account by account number
+    const { data: accountData, error: accountError } = await supabase
+      .from('safehaven_accounts')
+      .select('id, account_balance, book_balance')
+      .eq('account_number', debitData.debitAccountNumber)
+      .eq('user_id', userData.user_id)
+      .eq('is_deleted', false)
+      .single();
+
+    if (accountError || !accountData) {
+      console.error('Could not find account for account number:', debitData.debitAccountNumber);
+      // Still create audit log even if account not found
+    } else {
+      // Update account balance (subtract the debit amount + fees)
+      const totalDebit = debitData.amount + debitData.fees + debitData.vat + debitData.stampDuty;
+      const newAccountBalance = (accountData.account_balance || 0) - totalDebit;
+      const newBookBalance = (accountData.book_balance || 0) - totalDebit;
+
+      const { error: updateError } = await supabase
+        .from('safehaven_accounts')
+        .update({
+          account_balance: newAccountBalance,
+          book_balance: newBookBalance,
+          updated_at: new Date().toISOString(),
+          synced_at: new Date().toISOString()
+        })
+        .eq('id', accountData.id);
+
+      if (updateError) {
+        console.error('Error updating account balance after debit:', updateError);
+      } else {
+        console.log(`Account balance updated after debit: ${accountData.account_balance} -> ${newAccountBalance}`);
+      }
+    }
+
+    // Create audit log for account debit
+    await createAuditLog(
+      userData.user_id,
+      'account_debit_webhook_processed',
+      { 
+        reference: debitData.reference,
+        accountId: debitData.account,
+        debitAccountNumber: debitData.debitAccountNumber,
+        provider: debitData.provider,
+        providerChannel: debitData.providerChannel
+      },
+      { 
+        amount: debitData.amount,
+        fees: debitData.fees,
+        vat: debitData.vat,
+        stampDuty: debitData.stampDuty,
+        narration: debitData.narration,
+        totalDebit: debitData.amount + debitData.fees + debitData.vat + debitData.stampDuty
+      },
+      'success'
+    );
+
+    console.log('Account debit webhook processed successfully:', debitData.reference);
+    return { 
+      success: true, 
+      reference: debitData.reference, 
+      amount: debitData.amount,
+      userId: userData.user_id
+    };
+
+  } catch (error) {
+    console.error('Error processing account debit webhook:', error);
+    return { error: 'Failed to process account debit webhook' };
+  }
+}
+
 // Main function handler
 // CORS headers for webhook requests
 const corsHeaders = {
@@ -1038,10 +1466,15 @@ Deno.serve(async (req) => {
 
     // SafeHaven sends webhook in format: { type: "transfer", data: {...} }
     // or directly as the transfer object with a type field
+    // Some webhooks also have eventType field (e.g., eventType: "account.debit")
     let webhookType: string;
     let webhookData: any;
 
-    if (rawPayload.type && rawPayload.data) {
+    // Check for eventType first (e.g., "account.debit")
+    if (rawPayload.eventType) {
+      webhookType = rawPayload.eventType;
+      webhookData = rawPayload.data || rawPayload;
+    } else if (rawPayload.type && rawPayload.data) {
       // Standard format: { type: "transfer", data: {...} }
       webhookType = rawPayload.type;
       webhookData = rawPayload.data;
@@ -1057,10 +1490,19 @@ Deno.serve(async (req) => {
       } else if (rawPayload.accountNumber) {
         webhookType = 'account.update';
         webhookData = rawPayload;
+      } else if (rawPayload.debitAccountNumber && rawPayload.reference) {
+        // Account debit webhook
+        webhookType = 'account.debit';
+        webhookData = rawPayload;
       } else {
         console.error('Unable to determine webhook type from payload');
         return createJsonResponse({ error: 'Unable to determine webhook type' }, 400);
       }
+    }
+
+    // Normalize webhook type (handle "debit" -> "account.debit")
+    if (webhookType === 'debit') {
+      webhookType = 'account.debit';
     }
 
     console.log('Parsed webhook type:', webhookType);
@@ -1104,6 +1546,9 @@ Deno.serve(async (req) => {
         case 'account.update':
           result = await processAccountUpdateWebhook(webhookData);
           break;
+        case 'account.debit':
+          result = await processAccountDebitWebhook(webhookData);
+          break;
         case 'transaction.update':
           result = await processTransactionUpdateWebhook(webhookData);
           break;
@@ -1115,6 +1560,9 @@ Deno.serve(async (req) => {
           break;
         case 'subaccount.status':
           result = await processSubaccountStatusWebhook(webhookData);
+          break;
+        case 'identityCreditCheck':
+          result = await processIdentityCreditCheckWebhook(webhookData);
           break;
         default:
           throw new Error(`Unknown webhook type: ${webhookType}`);

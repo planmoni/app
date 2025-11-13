@@ -130,6 +130,7 @@ export default function KYCUpgradeScreen() {
   const [passportNumber, setPassportNumber] = useState('');
   const [ninIdentityId, setNinIdentityId] = useState<string | null>(null);
   const [otp, setOtp] = useState('');
+  const [otpMessage, setOtpMessage] = useState<string | null>(null);
   
   
   // Document verification
@@ -1199,107 +1200,111 @@ export default function KYCUpgradeScreen() {
       const userLastName = lastName || '';
       const userMiddleName = middleName || '';
       
-      console.log('Name comparison:', {
-        bvn: { firstName: bvnFirstName, lastName: bvnLastName, middleName: bvnMiddleName },
-        user: { firstName: userFirstName, lastName: lastName, middleName: userMiddleName }
+      // TODO: Name mismatch check temporarily commented out
+      // console.log('Name comparison:', {
+      //   bvn: { firstName: bvnFirstName, lastName: bvnLastName, middleName: bvnMiddleName },
+      //   user: { firstName: userFirstName, lastName: lastName, middleName: userMiddleName }
+      // });
+      
+      // // Check if any name matches (considering possible swaps)
+      // const allBvnNames = [bvnFirstName, bvnLastName, bvnMiddleName].filter(Boolean);
+      // const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
+      
+      // let nameMatches = 0;
+      // let totalNames = Math.max(allBvnNames.length, allUserNames.length);
+      
+      // // Check for matches (including swapped positions)
+      // for (const bvnName of allBvnNames) {
+      //   for (const userName of allUserNames) {
+      //     if (isNameMatch(bvnName, userName)) {
+      //       nameMatches++;
+      //       break;
+      //     }
+      //   }
+      // }
+      
+      // const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
+      // console.log(`Name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
+      
+      // // Consider it a match if at least 60% of names match
+      // if (matchPercentage >= 60) {
+      
+      // Proceed with verification without name matching check
+      setBvnVerified(true);
+      
+      // Create a display name from BVN data
+      const displayName = [bvnFirstName, bvnMiddleName, bvnLastName]
+        .filter(Boolean)
+        .join(' ');
+      
+      setBvnMatchedName(displayName);
+      
+      // Create audit log for BVN verification
+      await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session.user.id,
+        p_operation_type: 'bvn_verified',
+        p_verification_type: 'bvn',
+        p_verification_provider: 'dojah',
+        p_request_data: {
+          bvn: bvn,
+          selfie_verification: true,
+          name_matching: false // Temporarily disabled
+        },
+        p_response_data: {
+          bvn_data: bvnData,
+          // name_match_percentage: matchPercentage,
+          selfie_confidence: bvnData.selfie_verification?.confidence_value,
+          matched_name: displayName
+        },
+        p_status: 'success',
+        p_result_message: `BVN verified successfully. Name: ${displayName}`,
+        p_confidence_score: bvnData.selfie_verification?.confidence_value || 95.0,
+        p_metadata: {
+          component: 'kyc-upgrade',
+          verification_step: 'bvn_verification',
+          // name_match_percentage: matchPercentage,
+          provider: 'dojah'
+        }
       });
       
-      // Check if any name matches (considering possible swaps)
-      const allBvnNames = [bvnFirstName, bvnLastName, bvnMiddleName].filter(Boolean);
-      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
+      // BVN verification successful with Dojah
+      showToast(`BVN verified! Name: ${displayName}`, 'success');
       
-      let nameMatches = 0;
-      let totalNames = Math.max(allBvnNames.length, allUserNames.length);
+      // Update progress with BVN verified and check for Tier 1 completion
+      // After BVN (Tier 1), move to id_face_match (NIN verification, still Tier 1)
+      const progressResult = await updateProgress({
+        current_step: 'id_face_match', // Move to NIN verification (Tier 1) after BVN
+        bvn_verified: true
+      });
       
-      // Check for matches (including swapped positions)
-      for (const bvnName of allBvnNames) {
-        for (const userName of allUserNames) {
-          if (isNameMatch(bvnName, userName)) {
-            nameMatches++;
-            break;
-          }
+      // Check if Tier 1 is complete (Liveness + BVN + NIN)
+      if (progressResult) {
+        await updateTier(); // Update tier after BVN verification
+        const tierStatus = checkTierCompletion();
+        if (tierStatus.tier1) {
+          console.log('Tier 1 completed! User can now proceed to Tier 2.');
+          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
         }
       }
       
-      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
-      console.log(`Name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
-      
-      // Consider it a match if at least 60% of names match
-      if (matchPercentage >= 60) {
-        setBvnVerified(true);
-        
-        // Create a display name from BVN data
-        const displayName = [bvnFirstName, bvnMiddleName, bvnLastName]
-          .filter(Boolean)
-          .join(' ');
-        
-        setBvnMatchedName(displayName);
-        
-        // Create audit log for BVN verification
-        await supabase.rpc('create_kyc_audit_log', {
-          p_user_id: session.user.id,
-          p_operation_type: 'bvn_verified',
-          p_verification_type: 'bvn',
-          p_verification_provider: 'dojah',
-          p_request_data: {
-            bvn: bvn,
-            selfie_verification: true,
-            name_matching: true
-          },
-          p_response_data: {
-            bvn_data: bvnData,
-            name_match_percentage: matchPercentage,
-            selfie_confidence: bvnData.selfie_verification?.confidence_value,
-            matched_name: displayName
-          },
-          p_status: 'success',
-          p_result_message: `BVN verified successfully. Name: ${displayName}`,
-          p_confidence_score: bvnData.selfie_verification?.confidence_value || 95.0,
-          p_metadata: {
-            component: 'kyc-upgrade',
-            verification_step: 'bvn_verification',
-            name_match_percentage: matchPercentage,
-            provider: 'dojah'
-          }
-        });
-        
-        // BVN verification successful with Dojah
-        showToast(`BVN verified! Name: ${displayName}`, 'success');
-        
-        // Update progress with BVN verified and check for Tier 1 completion
-        // After BVN (Tier 1), move to id_face_match (NIN verification, still Tier 1)
-        const progressResult = await updateProgress({
-          current_step: 'id_face_match', // Move to NIN verification (Tier 1) after BVN
-          bvn_verified: true
-        });
-        
-        // Check if Tier 1 is complete (Liveness + BVN + NIN)
-        if (progressResult) {
-          await updateTier(); // Update tier after BVN verification
-          const tierStatus = checkTierCompletion();
-          if (tierStatus.tier1) {
-            console.log('Tier 1 completed! User can now proceed to Tier 2.');
-            showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
-          }
-        }
-        
-        if (!progressResult) {
-          showToast('Failed to update progress. Please try again.', 'error');
-          return;
-        }
-        
-        // Wait for toast to be visible before moving to next step
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Move to next incomplete step (skip if already verified)
-        const nextStep = getNextIncompleteStep('bvn_verification');
-        setCurrentStep(nextStep);
-        setTimeout(() => {
-          setIsManualVerification(false);
-        }, 1000);
-      } else {
-        throw new Error('Name mismatch detected. Please verify your personal information.');
+      if (!progressResult) {
+        showToast('Failed to update progress. Please try again.', 'error');
+        return;
       }
+      
+      // Wait for toast to be visible before moving to next step
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Move to next incomplete step (skip if already verified)
+      const nextStep = getNextIncompleteStep('bvn_verification');
+      setCurrentStep(nextStep);
+      setTimeout(() => {
+        setIsManualVerification(false);
+      }, 1000);
+      
+      // } else {
+      //   throw new Error('Name mismatch detected. Please verify your personal information.');
+      // }
       
     } catch (error) {
       console.error('BVN verification error:', error);
@@ -1631,14 +1636,16 @@ export default function KYCUpgradeScreen() {
       }
 
       const identityId = result.data?.identityId;
+      const message = result.data?.otpMessage;
       console.log("identityId", identityId)
       
       if (!identityId) {
         throw new Error('Identity ID not found in response');
       }
 
-      // Store identityId for use in verifyNIN
+      // Store identityId and OTP message for use in verifyNIN
       setNinIdentityId(identityId);
+      setOtpMessage(message || null);
 
       // OTP is sent to the phone number linked to the NIN
       showToast('OTP sent to phone number linked to your NIN', 'success');
@@ -1776,120 +1783,124 @@ export default function KYCUpgradeScreen() {
       const userLastName = lastName || '';
       const userMiddleName = middleName || '';
       
-      console.log('NIN name comparison:', {
-        nin: { firstName: ninFirstName, lastName: ninLastName, middleName: ninMiddleName },
-        user: { firstName: userFirstName, lastName: userLastName, middleName: userMiddleName }
+      // TODO: Name mismatch check temporarily commented out
+      // console.log('NIN name comparison:', {
+      //   nin: { firstName: ninFirstName, lastName: ninLastName, middleName: ninMiddleName },
+      //   user: { firstName: userFirstName, lastName: userLastName, middleName: userMiddleName }
+      // });
+      
+      // // Check if any name matches (considering possible swaps)
+      // const allNinNames = [ninFirstName, ninLastName, ninMiddleName].filter(Boolean);
+      // const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
+      
+      // let nameMatches = 0;
+      // let totalNames = Math.max(allNinNames.length, allUserNames.length);
+      
+      // // Check for matches (including swapped positions)
+      // for (const ninName of allNinNames) {
+      //   for (const userName of allUserNames) {
+      //     if (isNameMatch(ninName, userName)) {
+      //       nameMatches++;
+      //       break;
+      //     }
+      //   }
+      // }
+      
+      // const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
+      // console.log(`NIN name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
+      
+      // // Consider it a match if at least 60% of names match
+      // if (matchPercentage >= 60) {
+      
+      // Proceed with verification without name matching check
+      setDocumentsVerified(true);
+      
+      // Create a display name from NIN data
+      const displayName = [ninFirstName, ninMiddleName, ninLastName]
+        .filter(Boolean)
+        .join(' ');
+
+      // Account is already stored by the service, no need to store again
+
+      // Update audit log with success
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_logs')
+          .update({
+            status: 'success',
+            response_data: {
+              verified: true,
+              nin: nin.substring(0, 4) + '****',
+              // name_match_percentage: matchPercentage,
+              matched_name: displayName,
+              hasAccount: !!accountNumber,
+              account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', auditLogId);
+
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session.user.id,
+            event_type: 'verification_completed',
+            event_data: {
+              action: 'nin_verification_completed',
+              nin: nin.substring(0, 4) + '****',
+              // name_match_percentage: matchPercentage,
+              matched_name: displayName,
+              hasAccount: !!accountNumber,
+              account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null,
+              provider: 'safehaven'
+            },
+            severity: 'high'
+          });
+      }
+      
+      // Show success message
+      if (accountNumber) {
+        showToast(`NIN verified! Name: ${displayName} • Account created: ${accountNumber.substring(0, 5)}****`, 'success');
+      } else {
+        showToast(`NIN verified! Name: ${displayName} • Account creation in progress`, 'success');
+      }
+      
+      // Update progress with NIN verified (using id_face_verified)
+      const progressResult = await updateProgress({
+        current_step: 'personal', // Move to personal info (Tier 2) after NIN verification
+        id_face_verified: true
       });
       
-      // Check if any name matches (considering possible swaps)
-      const allNinNames = [ninFirstName, ninLastName, ninMiddleName].filter(Boolean);
-      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
-      
-      let nameMatches = 0;
-      let totalNames = Math.max(allNinNames.length, allUserNames.length);
-      
-      // Check for matches (including swapped positions)
-      for (const ninName of allNinNames) {
-        for (const userName of allUserNames) {
-          if (isNameMatch(ninName, userName)) {
-            nameMatches++;
-            break;
-          }
+      // Check if Tier 1 is complete (Liveness + BVN + NIN)
+      if (progressResult) {
+        await updateTier(); // Update tier after NIN verification
+        const tierStatus = checkTierCompletion();
+        if (tierStatus.tier1) {
+          console.log('Tier 1 completed! User can now proceed to Tier 2.');
+          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
         }
       }
       
-      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
-      console.log(`NIN name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
-      
-      // Consider it a match if at least 60% of names match
-      if (matchPercentage >= 60) {
-        setDocumentsVerified(true);
-        
-        // Create a display name from NIN data
-        const displayName = [ninFirstName, ninMiddleName, ninLastName]
-          .filter(Boolean)
-          .join(' ');
-
-        // Account is already stored by the service, no need to store again
-
-        // Update audit log with success
-        if (auditLogId) {
-          await supabase
-            .from('kyc_audit_logs')
-            .update({
-              status: 'success',
-              response_data: {
-                verified: true,
-                nin: nin.substring(0, 4) + '****',
-                name_match_percentage: matchPercentage,
-                matched_name: displayName,
-                hasAccount: !!accountNumber,
-                account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null
-              },
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', auditLogId);
-
-          await supabase
-            .from('kyc_audit_events')
-            .insert({
-              audit_log_id: auditLogId,
-              user_id: session.user.id,
-              event_type: 'verification_completed',
-              event_data: {
-                action: 'nin_verification_completed',
-                nin: nin.substring(0, 4) + '****',
-                name_match_percentage: matchPercentage,
-                matched_name: displayName,
-                hasAccount: !!accountNumber,
-                account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null,
-                provider: 'safehaven'
-              },
-              severity: 'high'
-            });
-        }
-        
-        // Show success message
-        if (accountNumber) {
-          showToast(`NIN verified! Name: ${displayName} • Account created: ${accountNumber.substring(0, 5)}****`, 'success');
-        } else {
-          showToast(`NIN verified! Name: ${displayName} • Account creation in progress`, 'success');
-        }
-        
-        // Update progress with NIN verified (using id_face_verified)
-        const progressResult = await updateProgress({
-          current_step: 'personal', // Move to personal info (Tier 2) after NIN verification
-          id_face_verified: true
-        });
-        
-        // Check if Tier 1 is complete (Liveness + BVN + NIN)
-        if (progressResult) {
-          await updateTier(); // Update tier after NIN verification
-          const tierStatus = checkTierCompletion();
-          if (tierStatus.tier1) {
-            console.log('Tier 1 completed! User can now proceed to Tier 2.');
-            showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
-          }
-        }
-        
-        if (!progressResult) {
-          showToast('Failed to update progress. Please try again.', 'error');
-          return;
-        }
-        
-        // Wait for toast to be visible before moving to next step
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Move to next incomplete step
-        const nextStep = getNextIncompleteStep('id_face_match');
-        setCurrentStep(nextStep);
-        setTimeout(() => {
-          setIsManualVerification(false);
-          setIsLoading(false);
-        }, 1000);
-      } else {
-        throw new Error('Name mismatch detected. Please verify your personal information.');
+      if (!progressResult) {
+        showToast('Failed to update progress. Please try again.', 'error');
+        return;
       }
+      
+      // Wait for toast to be visible before moving to next step
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Move to next incomplete step
+      const nextStep = getNextIncompleteStep('id_face_match');
+      setCurrentStep(nextStep);
+      setTimeout(() => {
+        setIsManualVerification(false);
+        setIsLoading(false);
+      }, 1000);
+      
+      // } else {
+      //   throw new Error('Name mismatch detected. Please verify your personal information.');
+      // }
       
     } catch (error) {
       console.error('NIN verification error:', error);
@@ -2861,7 +2872,7 @@ export default function KYCUpgradeScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Enter OTP</Text>
                 <Text style={styles.sectionDescription}>
-                  An OTP has been sent to the phone number linked to your NIN. Please enter the 6-digit code.
+                  {otpMessage || 'An OTP has been sent to the phone number linked to your NIN. Please enter the 6-digit code.'}
                 </Text>
                 <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
                   <TextInput

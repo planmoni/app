@@ -828,7 +828,7 @@ class SafeHavenService {
         const defaultDebitAccountNumber = '0117753301';
         const identityRequestPayload = {
           type: 'NIN',
-          async: true,
+          async: false,
           debitAccountNumber: defaultDebitAccountNumber,
           number: nin
         };
@@ -876,7 +876,7 @@ class SafeHavenService {
         }
 
         const identityData = await identityResponse.json();
-        
+        console.log("safehaven nin verification identityData", identityData)
         // Extract identityId from response
         if (identityData?.data?._id) {
           currentIdentityId = identityData.data._id;
@@ -886,15 +886,14 @@ class SafeHavenService {
           throw new Error('Identity ID not found in response');
         }
 
-        // Update audit log with identity verification success
+        // Extract OTP message from response
+        const otpMessage = identityData?.message || null;
+
+        // Update audit log with identity verification success - store full response
         await this.updateAuditLog(
           auditLogId,
           'pending', // Still pending as we need to create account
-          {
-            identityId: currentIdentityId,
-            status: identityData?.data?.status || identityData?.status || 'PENDING',
-            step: 'identity_verification_complete'
-          },
+          identityData, // Store full response in response_data
           null,
           Date.now() - startTime
         );
@@ -910,7 +909,8 @@ class SafeHavenService {
                 response_data: {
                   identityId: currentIdentityId,
                   otp_sent: true,
-                  status: identityData?.data?.status || identityData?.status || 'PENDING'
+                  status: identityData?.data?.status || identityData?.status || 'PENDING',
+                  otp_message: otpMessage
                 },
                 updated_at: new Date().toISOString()
               })
@@ -922,7 +922,8 @@ class SafeHavenService {
             data: {
               identityId: currentIdentityId,
               requiresOtp: true,
-              status: identityData?.data?.status || identityData?.status || 'PENDING'
+              status: identityData?.data?.status || identityData?.status || 'PENDING',
+              otpMessage: otpMessage
             },
             auditLogId,
             responseTime: Date.now() - startTime
@@ -944,9 +945,10 @@ class SafeHavenService {
         phoneNumber: phoneNumber,
         emailAddress: emailAddress,
         identityType: 'NIN',
-        autoSweep: false,
+        autoSweep: true,
         autoSweepDetails: {
-          schedule: 'Instant'
+          schedule: 'Instant',
+          accountNumber: "0117753301"
         },
         externalReference: `AC_${userId.substring(0, 8)}`,
         identityNumber: nin,
@@ -1003,7 +1005,7 @@ class SafeHavenService {
       }
 
       const accountData = await accountResponse.json();
-
+      console.log("safehaven account creation accountData", accountData)
       // Extract account information from response
       const verificationData: any = {
         verified: true,
@@ -1012,16 +1014,42 @@ class SafeHavenService {
         status: accountData?.data?.status || accountData?.status || 'PENDING'
       };
 
-      // Extract account number if available
+      // Extract account number if available - check multiple possible locations
+      let accountNumber: string | null = null;
       if (accountData?.data?.accountNumber) {
-        verificationData.account_number = accountData.data.accountNumber;
+        accountNumber = accountData.data.accountNumber;
+      } else if (accountData?.data?.account_number) {
+        accountNumber = accountData.data.account_number;
       } else if (accountData?.accountNumber) {
-        verificationData.account_number = accountData.accountNumber;
+        accountNumber = accountData.accountNumber;
+      } else if (accountData?.account_number) {
+        accountNumber = accountData.account_number;
+      } else if (accountData?.data?.data?.accountNumber) {
+        accountNumber = accountData.data.data.accountNumber;
+      }
+      
+      if (accountNumber) {
+        verificationData.account_number = accountNumber;
+        console.log("safehaven account number extracted:", accountNumber);
+      } else {
+        console.warn("safehaven account number not found in response:", JSON.stringify(accountData, null, 2));
+      }
+
+      // Extract account name if available - check multiple possible locations
+      let accountName: string | null = null;
+      if (accountData?.data?.accountName) {
+        accountName = accountData.data.accountName;
+      } else if (accountData?.data?.account_name) {
+        accountName = accountData.data.account_name;
+      } else if (accountData?.accountName) {
+        accountName = accountData.accountName;
+      } else if (accountData?.account_name) {
+        accountName = accountData.account_name;
       }
 
       // Extract names if available
-      if (accountData?.data?.accountName) {
-        const names = accountData.data.accountName.split(' ');
+      if (accountName) {
+        const names = accountName.split(' ');
         verificationData.first_name = names[0] || '';
         verificationData.last_name = names[names.length - 1] || '';
         verificationData.middle_name = names.length > 2 ? names.slice(1, -1).join(' ') : '';
@@ -1053,7 +1081,8 @@ class SafeHavenService {
           hasAccount: !!verificationData.account_number,
           accountNumber: verificationData.account_number ? verificationData.account_number.substring(0, 5) + '****' : null,
           identityId: currentIdentityId,
-          step: 'account_creation_complete'
+          step: 'account_creation_complete',
+          responseData: accountData
         },
         null,
         responseTime
@@ -1061,13 +1090,28 @@ class SafeHavenService {
 
       // If account was created, store it
       if (verificationData.account_number) {
-        await this.storeAccountFromNINVerification(userId, {
-          account_number: verificationData.account_number,
-          account_name: accountData?.data?.accountName || `${verificationData.first_name} ${verificationData.last_name}`.trim(),
-          account_type: 'savings',
-          currency_code: 'NGN',
-          status: 'active'
-        });
+        console.log("safehaven account creation verificationData", verificationData)
+        try {
+          await this.storeAccountFromNINVerification(userId, {
+            account_number: verificationData.account_number,
+            account_name: accountName || `${verificationData.first_name} ${verificationData.last_name}`.trim() || 'NIN Account',
+            account_type: accountData?.data?.accountType || accountData?.accountType || 'savings',
+            account_product: accountData?.data?.accountProduct || accountData?.accountProduct || 'Savings',
+            currency_code: accountData?.data?.currencyCode || accountData?.currencyCode || 'NGN',
+            status: accountData?.data?.status || accountData?.status || 'active',
+            account_id: accountData?.data?._id || accountData?.data?.id || accountData?._id || accountData?.id || null,
+            account_balance: accountData?.data?.accountBalance || accountData?.accountBalance || 0,
+            book_balance: accountData?.data?.bookBalance || accountData?.bookBalance || 0,
+            interest_balance: accountData?.data?.interestBalance || accountData?.interestBalance || 0,
+            withholding_tax_balance: accountData?.data?.withHoldingTaxBalance || accountData?.withHoldingTaxBalance || 0
+          });
+          console.log("safehaven account saved successfully to database");
+        } catch (storeError) {
+          console.error("safehaven error storing account:", storeError);
+          // Don't throw - log the error but continue with verification
+        }
+      } else {
+        console.warn("safehaven account number not found, skipping database storage");
       }
 
       // Update KYC progress with NIN verification
@@ -1109,45 +1153,95 @@ class SafeHavenService {
    */
   private async storeAccountFromNINVerification(userId: string, verificationData: any): Promise<void> {
     try {
-      const accountRecord = {
+      if (!verificationData.account_number) {
+        console.error('Cannot store account: account_number is missing');
+        throw new Error('Account number is required to store account');
+      }
+
+      // Get client_id from token or use default
+      const token = await this.getToken(userId);
+      const clientId = token?.client_id || this.CLIENT_ID || '';
+
+      const accountRecord: any = {
         user_id: userId,
-        safehaven_account_id: verificationData.account_id || null,
+        safehaven_account_id: verificationData.account_id || verificationData.safehaven_account_id || verificationData.account_number, // Required: use account number as fallback
+        client_id: clientId, // Required field
+        account_product: verificationData.account_product || 'Savings', // Required field - default to Savings
         account_number: verificationData.account_number,
-        account_name: verificationData.account_name || verificationData.full_name,
+        cba_account_id: verificationData.cba_account_id || null,
+        account_name: verificationData.account_name || verificationData.full_name || 'NIN Account',
         account_type: verificationData.account_type || 'savings',
         currency_code: verificationData.currency_code || 'NGN',
         bvn: verificationData.bvn || null,
         account_balance: verificationData.account_balance || 0,
         book_balance: verificationData.book_balance || 0,
+        interest_balance: verificationData.interest_balance || 0,
+        withholding_tax_balance: verificationData.withholding_tax_balance || 0,
         status: verificationData.status || 'active',
         is_default: true, // New account from NIN verification is default
         can_debit: verificationData.can_debit !== false,
         can_credit: verificationData.can_credit !== false,
-        synced_at: new Date().toISOString()
+        nominal_annual_interest_rate: verificationData.nominal_annual_interest_rate || 0,
+        interest_compounding_period: verificationData.interest_compounding_period || null,
+        interest_posting_period: verificationData.interest_posting_period || null,
+        interest_calculation_type: verificationData.interest_calculation_type || null,
+        interest_calculation_days_in_year_type: verificationData.interest_calculation_days_in_year_type || null,
+        min_required_opening_balance: verificationData.min_required_opening_balance || 0,
+        lockin_period_frequency: verificationData.lockin_period_frequency || 0,
+        lockin_period_frequency_type: verificationData.lockin_period_frequency_type || null,
+        allow_overdraft: verificationData.allow_overdraft !== false,
+        overdraft_limit: verificationData.overdraft_limit || 0,
+        charge_withholding_tax: verificationData.charge_withholding_tax !== false,
+        charge_value_added_tax: verificationData.charge_value_added_tax !== false,
+        charge_stamp_duty: verificationData.charge_stamp_duty !== false,
+        notification_settings: verificationData.notification_settings || null,
+        is_sub_account: verificationData.is_sub_account !== false,
+        is_deleted: verificationData.is_deleted !== false,
+        synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
-      // Check if account already exists
-      const { data: existingAccount } = await supabase
+      // Check if account already exists by account number
+      const { data: existingAccount, error: fetchError } = await supabase
         .from('safehaven_accounts')
-        .select('id')
+        .select('id, safehaven_account_id')
         .eq('user_id', userId)
         .eq('account_number', verificationData.account_number)
-        .single();
+        .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error checking for existing account:', fetchError);
+        throw fetchError;
+      }
 
       if (existingAccount) {
         // Update existing account
-        await supabase
+        console.log('Updating existing SafeHaven account:', existingAccount.id);
+        const { error: updateError } = await supabase
           .from('safehaven_accounts')
           .update(accountRecord)
           .eq('id', existingAccount.id);
+
+        if (updateError) {
+          console.error('Error updating existing account:', updateError);
+          throw updateError;
+        }
+        console.log('SafeHaven account updated successfully');
       } else {
         // Insert new account
-        await supabase
+        console.log('Inserting new SafeHaven account:', verificationData.account_number);
+        const { error: insertError } = await supabase
           .from('safehaven_accounts')
           .insert({
             ...accountRecord,
             created_at: new Date().toISOString()
           });
+
+        if (insertError) {
+          console.error('Error inserting new account:', insertError);
+          throw insertError;
+        }
+        console.log('SafeHaven account inserted successfully');
       }
     } catch (error) {
       console.error('Error storing account from NIN verification:', error);
