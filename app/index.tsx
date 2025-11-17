@@ -531,11 +531,11 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     borderRadius: 20,
     paddingHorizontal: 24,
     flex: 1,
-    backgroundColor: colors.accent,
-
+    borderWidth: 2,
+    borderColor: isDark ? '#fff' : colors.primary,
   },
   signInButtonText: {
-    color: colors.buttonTextPrimary,
+    color: isDark ? '#fff' : colors.primary,
     fontSize: 18,
     fontWeight: '600',
   },
