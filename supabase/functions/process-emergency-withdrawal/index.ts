@@ -10,6 +10,11 @@ declare global {
   };
 }
 
+// SafeHaven API configuration
+const safeHavenClientId = Deno.env.get("EXPO_PUBLIC_SAFEHAVEN_CLIENT_ID") || Deno.env.get("SAFEHAVEN_CLIENT_ID");
+const safeHavenClientAssertion = Deno.env.get("EXPO_PUBLIC_SAFEHAVEN_CLIENT_ASSERTION") || Deno.env.get("SAFEHAVEN_CLIENT_ASSERTION");
+const safeHavenApiUrl = "https://api.safehavenmfb.com";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -250,157 +255,94 @@ serve(async (req: Request) => {
     // Only process immediately for instant withdrawals
     if (correctWithdrawalType === "instant") {
       try {
-        // Get Paystack secret key
-        const paystackSecretKey = Deno.env.get("PAYSTACK_SECRET_KEY")
-        
-        if (!paystackSecretKey) {
-          throw new Error("Paystack secret key not configured")
+        // Validate SafeHaven credentials
+        if (!safeHavenClientId || !safeHavenClientAssertion) {
+          throw new Error("SafeHaven credentials not configured")
         }
 
-      // Determine recipient code and account details based on account type
-      let recipientCode = ""
-      let accountDetails = ""
-      let bankCode = ""
-      let accountName = ""
-      let accountNumber = ""
-      let bankName = ""
-      
-      if (withdrawal.payout_account_id && withdrawal.payout_accounts) {
-        recipientCode = withdrawal.payout_accounts.paystack_recipient_code || ""
-        bankCode = withdrawal.payout_accounts.bank_code || ""
-        accountName = withdrawal.payout_accounts.account_name
-        accountNumber = withdrawal.payout_accounts.account_number
-        bankName = withdrawal.payout_accounts.bank_name
-        accountDetails = `${bankName} ${accountNumber}`
-      } else if (withdrawal.bank_account_id && withdrawal.bank_accounts) {
-        recipientCode = withdrawal.bank_accounts.paystack_recipient_code || ""
-        bankCode = withdrawal.bank_accounts.bank_code || ""
-        accountName = withdrawal.bank_accounts.account_name
-        accountNumber = withdrawal.bank_accounts.account_number
-        bankName = withdrawal.bank_accounts.bank_name
-        accountDetails = `${bankName} ${accountNumber}`
-      } else {
-        throw new Error("No valid bank account found for this withdrawal")
-      }
-
-      // Validate that we have a bank code
-      if (!bankCode) {
-        throw new Error(`Bank code not found for account ${accountNumber}. Please update your bank account details.`)
-      }
-
-      // Validate that we have all required account details
-      if (!accountName || !accountNumber || !bankName) {
-        throw new Error("Incomplete bank account information. Please update your account details.")
-      }
-
-      // If no recipient code, create one (this would normally be done when adding the account)
-      if (!recipientCode) {
-        console.log("Creating Paystack recipient with:", {
-          account_name: accountName,
-          account_number: accountNumber,
-          bank_code: bankCode,
-          bank_name: bankName
-        })
-
-        // Create recipient on Paystack
-        const recipientResponse = await fetch("https://api.paystack.co/transferrecipient", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${paystackSecretKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            type: "nuban",
-            name: accountName,
-            account_number: accountNumber,
-            bank_code: bankCode,
-            currency: "NGN"
-          })
-        })
-
-        const recipientData = await recipientResponse.json()
+        // Determine account details based on account type
+        let accountDetails = ""
+        let bankCode = ""
+        let accountName = ""
+        let accountNumber = ""
+        let bankName = ""
+        let payoutAccount: any = null
         
-        console.log("Paystack recipient response:", {
-          status: recipientResponse.status,
-          ok: recipientResponse.ok,
-          data: recipientData
-        })
-        
-        if (recipientResponse.ok && recipientData.status) {
-          recipientCode = recipientData.data.recipient_code
-          
-          // Update the account with the recipient code and enable transfers
-          if (withdrawal.payout_account_id) {
-            await supabase
-              .from("payout_accounts")
-              .update({ 
-                paystack_recipient_code: recipientCode,
-                transfer_enabled: true,
-                last_transfer_attempt: new Date().toISOString()
-              })
-              .eq("id", withdrawal.payout_account_id)
-          } else if (withdrawal.bank_account_id) {
-            await supabase
-              .from("bank_accounts")
-              .update({ 
-                paystack_recipient_code: recipientCode,
-                transfer_enabled: true,
-                last_transfer_attempt: new Date().toISOString()
-              })
-              .eq("id", withdrawal.bank_account_id)
-          }
+        if (withdrawal.payout_account_id && withdrawal.payout_accounts) {
+          payoutAccount = withdrawal.payout_accounts
+          bankCode = payoutAccount.bank_code || ""
+          accountName = payoutAccount.account_name
+          accountNumber = payoutAccount.account_number
+          bankName = payoutAccount.bank_name
+          accountDetails = `${bankName} ${accountNumber}`
+        } else if (withdrawal.bank_account_id && withdrawal.bank_accounts) {
+          payoutAccount = withdrawal.bank_accounts
+          bankCode = payoutAccount.bank_code || ""
+          accountName = payoutAccount.account_name
+          accountNumber = payoutAccount.account_number
+          bankName = payoutAccount.bank_name
+          accountDetails = `${bankName} ${accountNumber}`
         } else {
-          throw new Error(`Failed to create recipient: ${recipientData.message || 'Cannot resolve account'}`)
+          throw new Error("No valid bank account found for this withdrawal")
         }
-      }
 
-      console.log("Processing transfer with recipient code:", recipientCode)
+        // Validate that we have all required account details
+        if (!accountName || !accountNumber || !bankName) {
+          throw new Error("Incomplete bank account information. Please update your account details.")
+        }
 
-      // Process the transfer via Paystack
-      const transferResponse = await fetch("https://api.paystack.co/transfer", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${paystackSecretKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          source: "balance",
-          amount: netAmount * 100, // Convert to kobo - use calculated net amount
-          recipient: recipientCode,
-          reason: `Emergency withdrawal: ${plan.name}`,
-          reference: withdrawal.reference
-        })
-      })
+        // Get SafeHaven token
+        const { data: safeHavenToken, error: tokenError } = await supabase
+          .from("safehaven_tokens")
+          .select("access_token, expires_at, refresh_token")
+          .eq("user_id", userId)
+          .single();
 
-      const transferData = await transferResponse.json()
-      
-      console.log("Paystack transfer response:", {
-        status: transferResponse.status,
-        ok: transferResponse.ok,
-        data: transferData
-      })
-      
-      if (!transferResponse.ok || !transferData.status) {
-        throw new Error(`Transfer failed: ${transferData.message || 'Unknown transfer error'}`)
-      }
+        if (tokenError || !safeHavenToken) {
+          throw new Error("SafeHaven token not found. User needs to authenticate with SafeHaven first.");
+        }
 
-      // Update withdrawal status to completed
-      const { error: completeError } = await supabase
-        .from("emergency_withdrawals")
-        .update({ 
-          status: "completed",
-          transfer_code: transferData.data.transfer_code,
-          transferred_at: new Date().toISOString(),
-          metadata: {
-            paystack_transfer_id: transferData.data.id,
-            paystack_reference: transferData.data.reference
-          }
-        })
-        .eq("id", emergencyWithdrawalId)
+        // Check if token needs refresh
+        const expiresAt = new Date(safeHavenToken.expires_at);
+        const now = new Date();
+        const bufferTime = 5 * 60 * 1000; // 5 minutes in milliseconds
+        
+        const needsRefresh = isNaN(expiresAt.getTime()) || (expiresAt.getTime() - now.getTime() < bufferTime);
+        
+        let accessToken = safeHavenToken.access_token;
+        
+        if (needsRefresh) {
+          console.log("SafeHaven token expired or expiring soon, attempting refresh...");
+          accessToken = await refreshOrCreateSafeHavenToken(userId, safeHavenToken, supabase);
+        }
 
-      if (completeError) {
-        console.error("Error updating withdrawal to completed:", completeError)
-      }
+        // Process the transfer via SafeHaven
+        const transferResult = await initiateSafeHavenEmergencyTransfer(
+          withdrawal,
+          payoutAccount,
+          accessToken,
+          netAmount,
+          plan.name
+        );
+
+        // Update withdrawal status to completed
+        const { error: completeError } = await supabase
+          .from("emergency_withdrawals")
+          .update({ 
+            status: "completed",
+            transfer_code: transferResult.reference || transferResult.paymentReference,
+            transferred_at: new Date().toISOString(),
+            metadata: {
+              safehaven_transfer_id: transferResult.id || transferResult._id,
+              safehaven_reference: transferResult.reference || transferResult.paymentReference,
+              session_id: transferResult.sessionId
+            }
+          })
+          .eq("id", emergencyWithdrawalId)
+
+        if (completeError) {
+          console.error("Error updating withdrawal to completed:", completeError)
+        }
 
       // Reduce both balance and locked_balance since money is being withdrawn from the system
       const { error: reduceError } = await supabase.rpc("transfer_funds", {
@@ -425,8 +367,9 @@ serve(async (req: Request) => {
         p_payout_plan_id: withdrawal.payout_plan_id,
         p_description: 'Emergency withdrawal transfer',
         p_metadata: {
-          paystack_transfer_id: transferData.data.id,
-          transfer_code: transferData.data.transfer_code,
+          safehaven_transfer_id: transferResult.id || transferResult._id,
+          transfer_code: transferResult.reference || transferResult.paymentReference,
+          session_id: transferResult.sessionId,
           emergency_withdrawal_id: withdrawal.id,
           withdrawal_type: correctWithdrawalType,
           fee_percentage: feePercentage,
@@ -470,7 +413,9 @@ serve(async (req: Request) => {
           success: true,
           message: "Emergency withdrawal processed successfully",
           data: {
-            transfer_code: transferData.data.transfer_code,
+            transfer_code: transferResult.reference || transferResult.paymentReference,
+            transfer_id: transferResult.id || transferResult._id,
+            session_id: transferResult.sessionId,
             reference: withdrawal.reference,
             withdrawal_type: correctWithdrawalType,
             fee_percentage: feePercentage,
@@ -579,3 +524,330 @@ serve(async (req: Request) => {
     )
   }
 })
+
+/**
+ * Refresh or create SafeHaven token
+ */
+async function refreshOrCreateSafeHavenToken(userId: string, safeHavenToken: any, supabase: any): Promise<string> {
+  let tokenData: any = null;
+  let tokenUpdated = false;
+  
+  // Try to refresh the token first
+  if (safeHavenToken.refresh_token) {
+    try {
+      const refreshResponse = await fetch(`${safeHavenApiUrl}/oauth2/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          grant_type: "refresh_token",
+          client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+          client_assertion: safeHavenClientAssertion,
+          client_id: safeHavenClientId,
+          refresh_token: safeHavenToken.refresh_token
+        })
+      });
+
+      if (refreshResponse.ok) {
+        tokenData = await refreshResponse.json();
+        
+        if (tokenData.access_token) {
+          tokenUpdated = true;
+          console.log("✅ Successfully refreshed SafeHaven token");
+        }
+      } else {
+        console.log("⚠️ Token refresh failed, will create new token");
+      }
+    } catch (refreshError) {
+      console.log("⚠️ Token refresh error, will create new token:", refreshError);
+    }
+  }
+  
+  // If refresh failed or no refresh token, create a new token using client_credentials
+  if (!tokenUpdated) {
+    console.log("Creating new SafeHaven access token using client_credentials...");
+    
+    try {
+      const newTokenResponse = await fetch(`${safeHavenApiUrl}/oauth2/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          grant_type: "client_credentials",
+          client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+          client_assertion: safeHavenClientAssertion,
+          client_id: safeHavenClientId
+        })
+      });
+
+      if (!newTokenResponse.ok) {
+        const errorText = await newTokenResponse.text();
+        throw new Error(`Failed to create new SafeHaven token: ${newTokenResponse.status} ${newTokenResponse.statusText} - ${errorText}`);
+      }
+
+      tokenData = await newTokenResponse.json();
+      
+      if (!tokenData.access_token) {
+        throw new Error("Failed to create new SafeHaven token: No access token in response");
+      }
+      
+      console.log("✅ Successfully created new SafeHaven token");
+    } catch (newTokenError) {
+      throw new Error(`Failed to create new SafeHaven token: ${newTokenError.message}`);
+    }
+  }
+  
+  // Calculate expiration time with fallback
+  const expiresIn = tokenData.expires_in && typeof tokenData.expires_in === 'number' 
+    ? tokenData.expires_in 
+    : 3600; // Default to 1 hour
+  
+  const currentTimestamp = Date.now();
+  const expiresAtTimestamp = currentTimestamp + (expiresIn * 1000);
+  const expiresAtDate = new Date(expiresAtTimestamp);
+  
+  // Validate the date is valid
+  if (isNaN(expiresAtDate.getTime())) {
+    throw new Error(`Failed to calculate token expiration date. expiresIn: ${expiresIn}, timestamp: ${expiresAtTimestamp}`);
+  }
+  
+  const currentDate = new Date();
+  if (isNaN(currentDate.getTime())) {
+    throw new Error("Failed to get current date");
+  }
+  
+  // Update token in database
+  const { error: updateError } = await supabase
+    .from("safehaven_tokens")
+    .update({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token || safeHavenToken.refresh_token || null,
+      expires_at: expiresAtDate.toISOString(),
+      updated_at: currentDate.toISOString()
+    })
+    .eq("user_id", userId);
+
+  if (updateError) {
+    throw new Error(`Failed to update SafeHaven token in database: ${updateError.message}`);
+  }
+
+  return tokenData.access_token;
+}
+
+/**
+ * Fetch list of banks from SafeHaven API
+ */
+async function fetchSafeHavenBanks(accessToken: string) {
+  console.log("Fetching SafeHaven banks list...");
+  const banksResponse = await fetch(`${safeHavenApiUrl}/transfers/banks`, {
+    method: "GET",
+    headers: {
+      "ClientID": safeHavenClientId,
+      "Authorization": `Bearer ${accessToken}`,
+      "accept": "application/json"
+    }
+  });
+
+  if (!banksResponse.ok) {
+    const errorText = await banksResponse.text();
+    throw new Error(`Failed to fetch SafeHaven banks: ${banksResponse.status} ${banksResponse.statusText} - ${errorText}`);
+  }
+
+  const banksData = await banksResponse.json();
+  
+  if (banksData.statusCode !== 200 || banksData.responseCode !== "00") {
+    throw new Error(`Failed to fetch SafeHaven banks: ${banksData.message || "Unknown error"}`);
+  }
+
+  return banksData.data || [];
+}
+
+/**
+ * Find SafeHaven bank code by matching bank name
+ */
+function findSafeHavenBankCode(bankName: string, safeHavenBanks: any[]): string | null {
+  if (!bankName || !safeHavenBanks || safeHavenBanks.length === 0) {
+    return null;
+  }
+
+  // Normalize bank name for comparison
+  const normalizedBankName = bankName.toUpperCase().trim().replace(/\s+/g, " ");
+
+  // First, try exact match
+  for (const bank of safeHavenBanks) {
+    const bankNameNormalized = bank.name?.toUpperCase().trim();
+    if (bankNameNormalized === normalizedBankName) {
+      console.log(`✅ Found exact bank match: ${bank.name} -> ${bank.bankCode}`);
+      return bank.bankCode;
+    }
+  }
+
+  // Then, try matching with aliases
+  for (const bank of safeHavenBanks) {
+    if (bank.alias && Array.isArray(bank.alias)) {
+      for (const alias of bank.alias) {
+        const aliasNormalized = alias.toUpperCase().trim();
+        if (aliasNormalized === normalizedBankName) {
+          console.log(`✅ Found bank match via alias: ${bank.name} (${alias}) -> ${bank.bankCode}`);
+          return bank.bankCode;
+        }
+      }
+    }
+  }
+
+  // Finally, try partial match (contains)
+  for (const bank of safeHavenBanks) {
+    const bankNameNormalized = bank.name?.toUpperCase().trim();
+    if (bankNameNormalized && normalizedBankName.includes(bankNameNormalized)) {
+      console.log(`✅ Found partial bank match: ${bank.name} -> ${bank.bankCode}`);
+      return bank.bankCode;
+    }
+    
+    // Check aliases for partial match
+    if (bank.alias && Array.isArray(bank.alias)) {
+      for (const alias of bank.alias) {
+        const aliasNormalized = alias.toUpperCase().trim();
+        if (normalizedBankName.includes(aliasNormalized) || aliasNormalized.includes(normalizedBankName)) {
+          console.log(`✅ Found partial bank match via alias: ${bank.name} (${alias}) -> ${bank.bankCode}`);
+          return bank.bankCode;
+        }
+      }
+    }
+  }
+
+  console.log(`⚠️ Could not find SafeHaven bank code for: ${bankName}`);
+  return null;
+}
+
+/**
+ * Initiate SafeHaven transfer for emergency withdrawal
+ */
+async function initiateSafeHavenEmergencyTransfer(
+  withdrawal: any,
+  payoutAccount: any,
+  accessToken: string,
+  netAmount: number,
+  planName: string
+) {
+  const transferReference = withdrawal.reference || `EMERGENCY_${withdrawal.id}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+  
+  console.log("Processing SafeHaven emergency withdrawal transfer:", {
+    fromAccount: "0117753301",
+    toAccount: payoutAccount.account_number,
+    amount: netAmount,
+    storedBankCode: payoutAccount.bank_code,
+    bankName: payoutAccount.bank_name
+  });
+
+  // Step 0: Fetch SafeHaven banks list and find correct bank code
+  console.log("Fetching SafeHaven banks to find correct bank code...");
+  const safeHavenBanks = await fetchSafeHavenBanks(accessToken);
+  
+  // Find the correct bank code by matching bank name
+  let correctBankCode = payoutAccount.bank_code; // Fallback to stored bank code
+  if (payoutAccount.bank_name) {
+    const foundBankCode = findSafeHavenBankCode(payoutAccount.bank_name, safeHavenBanks);
+    if (foundBankCode) {
+      correctBankCode = foundBankCode;
+      console.log(`✅ Using SafeHaven bank code: ${correctBankCode} (matched from bank name: ${payoutAccount.bank_name})`);
+    } else {
+      console.log(`⚠️ Could not match bank name "${payoutAccount.bank_name}", using stored bank code: ${correctBankCode}`);
+    }
+  } else {
+    console.log(`⚠️ No bank name available, using stored bank code: ${correctBankCode}`);
+  }
+
+  // Step 1: Perform name enquiry first
+  console.log("Performing name enquiry...");
+  const nameEnquiryResponse = await fetch(`${safeHavenApiUrl}/transfers/name-enquiry`, {
+    method: "POST",
+    headers: {
+      "ClientID": safeHavenClientId,
+      "Authorization": `Bearer ${accessToken}`,
+      "accept": "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      bankCode: correctBankCode,
+      accountNumber: payoutAccount.account_number
+    })
+  });
+
+  const nameEnquiryData = await nameEnquiryResponse.json();
+  
+  if (!nameEnquiryResponse.ok) {
+    const errorMessage = nameEnquiryData.message || nameEnquiryData.error || 'Name enquiry failed';
+    throw new Error(`SafeHaven name enquiry failed: ${errorMessage}`);
+  }
+
+  // Check if response indicates success
+  if (nameEnquiryData.statusCode !== 200 || nameEnquiryData.responseCode !== "00") {
+    const errorMessage = nameEnquiryData.message || nameEnquiryData.data?.responseMessage || 'Name enquiry failed';
+    throw new Error(`SafeHaven name enquiry failed: ${errorMessage}`);
+  }
+
+  const nameEnquiryReference = nameEnquiryData.data?.sessionId || nameEnquiryData.sessionId;
+  if (!nameEnquiryReference) {
+    throw new Error("Name enquiry did not return sessionId");
+  }
+
+  console.log("Name enquiry successful, sessionId:", nameEnquiryReference);
+  console.log("Account details:", {
+    accountName: nameEnquiryData.data?.accountName,
+    accountNumber: nameEnquiryData.data?.accountNumber,
+    bankCode: nameEnquiryData.data?.bankCode
+  });
+
+  // Step 2: Initiate SafeHaven transfer with nameEnquiryReference
+  console.log(`💸 Initiating emergency withdrawal transfer of ₦${netAmount} to ${payoutAccount.account_number}`);
+  const transferResponse = await fetch(`${safeHavenApiUrl}/transfers`, {
+    method: "POST",
+    headers: {
+      "ClientID": safeHavenClientId,
+      "Authorization": `Bearer ${accessToken}`,
+      "accept": "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      saveBeneficiary: true,
+      amount: netAmount,
+      beneficiaryAccountNumber: payoutAccount.account_number,
+      beneficiaryBankCode: correctBankCode,
+      debitAccountNumber: "0117753301",
+      nameEnquiryReference: nameEnquiryReference,
+      narration: `Emergency withdrawal: ${planName}`,
+      paymentReference: transferReference
+    })
+  });
+
+  const transferData = await transferResponse.json();
+  
+  if (!transferResponse.ok) {
+    const errorMessage = transferData.message || transferData.error || 'Unknown transfer error';
+    throw new Error(`SafeHaven transfer failed: ${errorMessage}`);
+  }
+
+  // Extract transfer details from response
+  const transferResult = transferData.data || transferData;
+  const transferId = transferResult._id || transferResult.id;
+  const paymentReference = transferResult.paymentReference || transferReference;
+  const sessionId = transferResult.sessionId || transferResult.session_id;
+
+  console.log("SafeHaven transfer initiated:", {
+    transferId,
+    paymentReference,
+    status: transferResult.status || "Pending"
+  });
+
+  return {
+    id: transferId,
+    _id: transferId,
+    reference: paymentReference,
+    paymentReference: paymentReference,
+    transfer_code: paymentReference,
+    sessionId: sessionId,
+    status: transferResult.status || "Pending"
+  };
+}
