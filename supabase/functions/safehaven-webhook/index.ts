@@ -33,6 +33,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 const SAFEHAVEN_WEBHOOK_SECRET = Deno.env.get('SAFEHAVEN_WEBHOOK_SECRET') || '';
 const SAFEHAVEN_API_DOMAIN = 'safehavenmfb.com';
 const SAFEHAVEN_API_URL = 'https://api.safehavenmfb.com';
+const resendApiKey = Deno.env.get('RESEND_API_KEY');
 
 // Allowed SafeHaven IP addresses (if known - add SafeHaven's webhook server IPs here)
 const SAFEHAVEN_ALLOWED_IPS: string[] = [
@@ -960,7 +961,7 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
         // Get payout plan
         const { data: payoutPlan, error: planError } = await supabase
           .from('payout_plans')
-          .select('id, name, payout_amount, completed_payouts, duration, frequency, start_date, next_payout_date')
+          .select('id, name, payout_amount, completed_payouts, duration, frequency, start_date, next_payout_date, payout_account_id, bank_account_id')
           .eq('id', automatedPayout.payout_plan_id)
           .single();
 
@@ -968,7 +969,7 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
           const newCompletedPayouts = (payoutPlan.completed_payouts || 0) + 1;
           
           // Calculate next payout date
-          let nextPayoutDate = null;
+          let nextPayoutDate: string | null = null;
           if (newCompletedPayouts < payoutPlan.duration) {
             const startDate = new Date(payoutPlan.start_date);
             let nextDate = new Date(startDate);
@@ -1019,6 +1020,40 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
               status: 'unread',
               payout_plan_id: payoutPlan.id
             });
+
+          // Send success email notification
+          try {
+            // Get account details for email - check both payout_accounts and bank_accounts
+            let payoutAccount: { account_name?: string; bank_name?: string; account_number?: string } | null = null;
+            if (payoutPlan.payout_account_id) {
+              const { data } = await supabase
+                .from('payout_accounts')
+                .select('account_name, bank_name, account_number')
+                .eq('id', payoutPlan.payout_account_id)
+                .single();
+              payoutAccount = data;
+            } else if (payoutPlan.bank_account_id) {
+              const { data } = await supabase
+                .from('bank_accounts')
+                .select('account_name, bank_name, account_number')
+                .eq('id', payoutPlan.bank_account_id)
+                .single();
+              payoutAccount = data;
+            }
+
+            await sendPayoutSuccessEmailNotification(
+              userId,
+              automatedPayout.amount,
+              paymentRef,
+              automatedPayout.id,
+              payoutPlan.name,
+              payoutAccount?.account_name || transferData.creditAccountName || 'Your Account',
+              payoutAccount?.bank_name || 'Your Bank',
+              payoutAccount?.account_number || transferData.creditAccountNumber || '****'
+            );
+          } catch (emailError) {
+            console.error('Error sending success email notification:', emailError);
+          }
         }
       } else if (newStatus === 'failed') {
         // Create failure notification
@@ -1039,6 +1074,20 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
               status: 'unread',
               payout_plan_id: payoutPlan.id
             });
+
+          // Send failure email notification
+          try {
+            await sendPayoutFailedEmailNotification(
+              userId,
+              automatedPayout.amount,
+              paymentRef,
+              automatedPayout.id,
+              transferData.responseMessage || 'Transfer failed',
+              payoutPlan.name
+            );
+          } catch (emailError) {
+            console.error('Error sending failure email notification:', emailError);
+          }
         }
       }
     }
@@ -1625,3 +1674,309 @@ Deno.serve(async (req) => {
     }, 500);
   }
 });
+
+// Email template functions
+function generatePayoutSuccessEmailHtml(data: {
+  firstName: string;
+  amount: string;
+  date: string;
+  reference: string;
+  payoutId: string | null;
+  planName?: string;
+  accountName?: string;
+  bankName?: string;
+  accountNumber?: string;
+}) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Payout Successful - Planmoni</title>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+        .amount { font-size: 32px; font-weight: bold; color: #22C55E; text-align: center; margin: 20px 0; }
+        .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+        .detail-row:last-child { border-bottom: none; }
+        .label { font-weight: 600; color: #6b7280; }
+        .value { color: #111827; }
+        .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+        .button { display: inline-block; background: #1E3A8A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .success-icon { font-size: 48px; text-align: center; margin: 20px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="success-icon">✅</div>
+          <h1>Payout Successful!</h1>
+          <p>Hello ${data.firstName}, your payout has been processed</p>
+        </div>
+        
+        <div class="content">
+          <div class="amount">${data.amount}</div>
+          
+          <div class="details">
+            ${data.planName ? `<div class="detail-row">
+              <span class="label">Plan Name:</span>
+              <span class="value">${data.planName}</span>
+            </div>` : ''}
+            ${data.accountName ? `<div class="detail-row">
+              <span class="label">Account Name:</span>
+              <span class="value">${data.accountName}</span>
+            </div>` : ''}
+            ${data.bankName ? `<div class="detail-row">
+              <span class="label">Bank:</span>
+              <span class="value">${data.bankName}</span>
+            </div>` : ''}
+            ${data.accountNumber ? `<div class="detail-row">
+              <span class="label">Account Number:</span>
+              <span class="value">${data.accountNumber}</span>
+            </div>` : ''}
+            <div class="detail-row">
+              <span class="label">Date & Time:</span>
+              <span class="value">${data.date}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Reference:</span>
+              <span class="value">${data.reference}</span>
+            </div>
+          </div>
+          
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="https://planmoni.com/transactions" class="button">View Transaction Details</a>
+          </p>
+          
+          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+            Your funds have been successfully transferred to your bank account. 
+            The transaction may take a few minutes to reflect in your account depending on your bank.
+          </p>
+        </div>
+        
+        <div class="footer">
+          <p>This is an automated message, please do not reply directly to this email.</p>
+          <p>&copy; ${new Date().getFullYear()} Planmoni. All rights reserved.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+function generatePayoutFailedEmailHtml(data: {
+  firstName: string;
+  amount: string;
+  date: string;
+  reference: string;
+  payoutId: string | null;
+  failureReason: string;
+  planName?: string;
+}) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Payout Failed - Planmoni</title>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+        .amount { font-size: 32px; font-weight: bold; color: #EF4444; text-align: center; margin: 20px 0; }
+        .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+        .detail-row:last-child { border-bottom: none; }
+        .label { font-weight: 600; color: #6b7280; }
+        .value { color: #111827; }
+        .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+        .button { display: inline-block; background: #1E3A8A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .error-icon { font-size: 48px; text-align: center; margin: 20px 0; }
+        .alert { background-color: #FEF2F2; border-left: 4px solid #EF4444; padding: 15px; margin: 20px 0; border-radius: 4px; }
+        .alert p { margin: 5px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="error-icon">⚠️</div>
+          <h1>Payout Failed</h1>
+          <p>Hello ${data.firstName}, we encountered an issue processing your payout</p>
+        </div>
+        
+        <div class="content">
+          <div class="amount">${data.amount}</div>
+          
+          <div class="alert">
+            <p><strong>Reason:</strong> ${data.failureReason}</p>
+            <p>We're sorry for the inconvenience. Please try again or contact support if the issue persists.</p>
+          </div>
+          
+          <div class="details">
+            ${data.planName ? `<div class="detail-row">
+              <span class="label">Plan Name:</span>
+              <span class="value">${data.planName}</span>
+            </div>` : ''}
+            <div class="detail-row">
+              <span class="label">Date & Time:</span>
+              <span class="value">${data.date}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">Reference:</span>
+              <span class="value">${data.reference}</span>
+            </div>
+          </div>
+          
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="https://planmoni.com/support" class="button">Contact Support</a>
+          </p>
+          
+          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+            Your funds remain safe in your wallet. You can retry the payout or contact our support team for assistance.
+          </p>
+        </div>
+        
+        <div class="footer">
+          <p>This is an automated message, please do not reply directly to this email.</p>
+          <p>&copy; ${new Date().getFullYear()} Planmoni. All rights reserved.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+// Email notification functions
+async function sendPayoutSuccessEmailNotification(
+  userId: string,
+  amount: number,
+  reference: string,
+  payoutId: string | null,
+  planName: string,
+  accountName: string,
+  bankName: string,
+  accountNumber: string
+) {
+  try {
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name')
+      .eq('id', userId)
+      .single()
+
+    if (!userProfile?.email) {
+      console.log('No email found for user')
+      return
+    }
+
+    const emailData = {
+      firstName: userProfile.first_name || 'User',
+      amount: `₦${amount.toLocaleString()}`,
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      reference,
+      payoutId,
+      planName,
+      accountName,
+      bankName,
+      accountNumber
+    }
+
+    await sendEmail(
+      userProfile.email,
+      "Payout Successful - Planmoni",
+      generatePayoutSuccessEmailHtml(emailData)
+    )
+  } catch (error) {
+    console.error('❌ Error sending payout success email notification:', error)
+  }
+}
+
+async function sendPayoutFailedEmailNotification(
+  userId: string,
+  amount: number,
+  reference: string,
+  payoutId: string | null,
+  failureReason: string,
+  planName: string
+) {
+  try {
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name')
+      .eq('id', userId)
+      .single()
+
+    if (!userProfile?.email) {
+      console.log('No email found for user')
+      return
+    }
+
+    const emailData = {
+      firstName: userProfile.first_name || 'User',
+      amount: `₦${amount.toLocaleString()}`,
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      reference,
+      payoutId,
+      failureReason: failureReason || 'Transfer failed',
+      planName
+    }
+
+    await sendEmail(
+      userProfile.email,
+      "Payout Failed - Planmoni",
+      generatePayoutFailedEmailHtml(emailData)
+    )
+  } catch (error) {
+    console.error('❌ Error sending payout failed email notification:', error)
+  }
+}
+
+// Generic email sending function
+async function sendEmail(to: string, subject: string, html: string) {
+  try {
+    if (!resendApiKey) {
+      console.warn('RESEND_API_KEY not configured, skipping email')
+      return
+    }
+
+    const emailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: "Planmoni <notifications@planmoni.com>",
+        to,
+        subject,
+        html
+      })
+    })
+
+    if (emailResponse.ok) {
+      console.log(`📧 Email notification sent to ${to}`)
+    } else {
+      console.error('❌ Failed to send email notification:', await emailResponse.text())
+    }
+  } catch (error) {
+    console.error('❌ Error sending email:', error)
+  }
+}

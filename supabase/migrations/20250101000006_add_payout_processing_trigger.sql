@@ -16,7 +16,9 @@ BEGIN
     -- Trigger the automated payout processing function
     PERFORM net.http_post(
       url := 'https://your-project-ref.supabase.co/functions/v1/process-automated-payouts',
-      headers := '{"Authorization": "Bearer " || current_setting('app.settings.service_role_key')}'::jsonb
+      headers := json_build_object(
+        'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+      )
     );
   END IF;
   

@@ -82,6 +82,10 @@ serve(async (req) => {
 
     // Process each due payout plan
     for (const plan of duePlans) {
+      // Declare variables outside try block for use in catch block
+      let transferReference: string | null = null
+      let automatedPayout: any = null
+      
       try {
         console.log(`Processing payout for plan: ${plan.name} (${plan.id})`)
 
@@ -129,9 +133,9 @@ serve(async (req) => {
         }
 
         // Create automated payout record
-        const transferReference = `AUTO_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+        transferReference = `AUTO_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
         
-        const { data: automatedPayout, error: createPayoutError } = await supabase
+        const { data: createdPayout, error: createPayoutError } = await supabase
           .from("automated_payouts")
           .insert({
             payout_plan_id: plan.id,
@@ -151,6 +155,7 @@ serve(async (req) => {
           throw new Error("Failed to create payout record")
         }
 
+        automatedPayout = createdPayout
         console.log("Created automated payout record:", automatedPayout.id)
 
         // Get SafeHaven configuration
@@ -245,21 +250,54 @@ serve(async (req) => {
           amount: plan.payout_amount
         })
 
-        // Initiate SafeHaven transfer
-        const transferResponse = await fetch(`${safeHavenApiUrl}/transfers/`, {
+        // Step 1: Perform name enquiry first
+        console.log("Performing name enquiry...")
+        const nameEnquiryResponse = await fetch(`${safeHavenApiUrl}/transfers/name-enquiry`, {
           method: "POST",
           headers: {
             "ClientID": safeHavenClientId,
             "Authorization": `Bearer ${safeHavenToken.access_token}`,
+            "accept": "application/json",
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            fromAccount: safeHavenAccount.account_number,
-            toAccount: accountDetails.account_number,
+            bankCode: accountDetails.bank_code,
+            accountNumber: accountDetails.account_number
+          })
+        })
+
+        const nameEnquiryData = await nameEnquiryResponse.json()
+        
+        if (!nameEnquiryResponse.ok) {
+          const errorMessage = nameEnquiryData.message || nameEnquiryData.error || 'Name enquiry failed'
+          throw new Error(`SafeHaven name enquiry failed: ${errorMessage}`)
+        }
+
+        const nameEnquiryReference = nameEnquiryData.data?.sessionId || nameEnquiryData.sessionId
+        if (!nameEnquiryReference) {
+          throw new Error("Name enquiry did not return sessionId")
+        }
+
+        console.log("Name enquiry successful, sessionId:", nameEnquiryReference)
+
+        // Step 2: Initiate SafeHaven transfer with nameEnquiryReference
+        const transferResponse = await fetch(`${safeHavenApiUrl}/transfers`, {
+          method: "POST",
+          headers: {
+            "ClientID": safeHavenClientId,
+            "Authorization": `Bearer ${safeHavenToken.access_token}`,
+            "accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            saveBeneficiary: true,
             amount: plan.payout_amount,
+            beneficiaryAccountNumber: accountDetails.account_number,
+            beneficiaryBankCode: accountDetails.bank_code,
+            debitAccountNumber: safeHavenAccount.account_number,
+            nameEnquiryReference: nameEnquiryReference,
             narration: `Automated payout: ${plan.name}`,
-            beneficiaryName: accountDetails.account_name,
-            beneficiaryBank: accountDetails.bank_name
+            paymentReference: transferReference
           })
         })
 
@@ -409,6 +447,7 @@ serve(async (req) => {
               status: "unread",
               payout_plan_id: plan.id
             })
+          
         } else {
           // If transfer is pending, create a processing notification
           await supabase
@@ -476,6 +515,7 @@ serve(async (req) => {
             status: "unread",
             payout_plan_id: plan.id
           })
+
 
         results.push({
           planId: plan.id,
