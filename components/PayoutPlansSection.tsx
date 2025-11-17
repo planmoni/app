@@ -288,7 +288,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
   },
   createFirstPayoutText: {
     color: colors.text,

@@ -311,13 +311,13 @@ const createStyles = (colors: any, isSmallScreen: boolean, isMediumScreen: boole
     height: 55,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 100,
+    borderRadius: 20,
   },
   dashboardButton: {
     borderColor: colors.border,
     height: 55,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 100,
+    borderRadius: 20,
   },
 });

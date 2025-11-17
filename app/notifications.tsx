@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { router } from 'expo-router';
-import { TriangleAlert as AlertTriangle, Calendar, Check, Download, Shield, Smartphone, Wallet, ArrowLeft, Bell } from 'lucide-react-native';
+import { TriangleAlert as AlertTriangle, Calendar, Check, Download, Shield, Smartphone, Wallet, ArrowLeft, Bell, ShieldUser } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -95,7 +95,7 @@ export default function NotificationsScreen() {
         statusBg = '#FEE2E2';
         break;
       case 'security_alert':
-        icon = Shield;
+        icon = ShieldUser;
         iconBg = '#FEF3C7';
         iconColor = '#D97706';
         break;

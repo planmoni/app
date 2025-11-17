@@ -187,7 +187,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     backgroundColor: colors.primary,
     paddingVertical: 16,
     paddingHorizontal: 32,
-    borderRadius: 12,
+    borderRadius: 20,
     alignItems: 'center',
     shadowColor: colors.primary,
     shadowOffset: {

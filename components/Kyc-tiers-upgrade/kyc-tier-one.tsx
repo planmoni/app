@@ -181,7 +181,12 @@ export default function KycTierOne() {
 
         <View style={styles.inputGroup}>
           <Text style={[styles.label, { color: colors.text }]}>BVN *</Text>
-          <View style={[styles.inputContainer, errors.bvn && styles.inputError, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+          <View style={[
+            styles.inputContainer,
+            bvn.trim() !== '' && styles.inputFilled,
+            errors.bvn && styles.inputError,
+            { borderColor: colors.border, backgroundColor: colors.background }
+          ]}>
             <Fingerprint size={20} color={colors.textSecondary} style={{ marginRight: 12 }} />
             <TextInput
               ref={bvnInputRef}
@@ -215,7 +220,12 @@ export default function KycTierOne() {
 
         <View style={styles.inputGroup}>
           <Text style={[styles.label, { color: colors.text }]}>NIN *</Text>
-          <View style={[styles.inputContainer, errors.nin && styles.inputError, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+          <View style={[
+            styles.inputContainer,
+            nin.trim() !== '' && styles.inputFilled,
+            errors.nin && styles.inputError,
+            { borderColor: colors.border, backgroundColor: colors.background }
+          ]}>
             <User size={20} color={colors.textSecondary} style={{ marginRight: 12 }} />
             <TextInput
               ref={ninInputRef}
@@ -494,12 +504,16 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 0.5,
+    borderWidth: 2,
     borderColor: '#E5E7EB',
     borderRadius: 12,
     backgroundColor: 'transparent',
     paddingHorizontal: 14,
     height: 55,
+  },
+  inputFilled: {
+    borderColor: '#10B981',
+    backgroundColor: '#F0FDF4',
   },
   inputError: {
     borderColor: '#EF4444',
@@ -576,7 +590,7 @@ const styles = StyleSheet.create({
   },
   addFundsButton: {
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -588,7 +602,7 @@ const styles = StyleSheet.create({
   },
   doneButton: {
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 25,

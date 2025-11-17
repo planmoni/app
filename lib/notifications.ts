@@ -4,6 +4,8 @@ import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
 // Configure notification handler for foreground notifications
+// Note: This will be overridden by in-app-notifications.ts if both are imported
+// The handler in in-app-notifications.ts takes precedence
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -14,103 +16,182 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Request notification permissions and get FCM token
-export async function registerForPushNotificationsAsync() {
-  let token;
+// Request notification permissions (required for both local and push notifications)
+export async function requestNotificationPermissions() {
+  if (!Device.isDevice) {
+    console.log('Must use a physical device for notifications');
+    return false;
+  }
 
-  if (Device.isDevice) {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
 
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
 
-    if (finalStatus !== 'granted') {
-      console.log('Failed to get push token for push notifications!');
+  if (finalStatus !== 'granted') {
+    console.log('Notification permissions not granted');
+    return false;
+  }
+
+  // Set up Android notification channels (required for local notifications on Android)
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'Default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#FF231F7C',
+      sound: 'default',
+    });
+  }
+
+  return true;
+}
+
+// Get FCM push token (optional - only needed for remote push notifications)
+// Local notifications work perfectly without this
+export async function getPushTokenAsync(): Promise<string | null> {
+  try {
+    // First ensure we have permissions
+    const hasPermission = await requestNotificationPermissions();
+    if (!hasPermission) {
       return null;
     }
 
-    token = (await Notifications.getDevicePushTokenAsync()).data;
-
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-        sound: 'default',
-      });
+    // Try to get push token (requires FCM to be configured)
+    const token = (await Notifications.getDevicePushTokenAsync()).data;
+    console.log('Push token obtained successfully');
+    return token;
+  } catch (error: any) {
+    // If Firebase isn't initialized, that's okay - local notifications still work
+    if (error?.message?.includes('FirebaseApp') || error?.message?.includes('FCM')) {
+      console.log('FCM not configured. Local notifications will still work.');
+      console.log('To enable remote push notifications, configure FCM: https://docs.expo.dev/push-notifications/fcm-credentials/');
+      return null;
     }
-  } else {
-    console.log('Must use a physical device for push notifications');
+    // Log other errors
+    console.error("❌ Error getting push token:", error);
+    // Re-throw other errors
+    throw error;
   }
-
-  return token;
 }
 
-// Store FCM token in Supabase
-export async function storeFCMToken(userId: string, token: string) {
+// Backward compatibility: Export old function name as alias
+// This function requests permissions and optionally gets push token
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  // Request permissions first (required for both local and push)
+  const hasPermission = await requestNotificationPermissions();
+  if (!hasPermission) {
+    return null;
+  }
+  // Get push token
+  return await getPushTokenAsync();
+}
+
+// Save push token to database
+async function savePushTokenToDatabase(expoPushToken: string, userId: string): Promise<void> {
   try {
+    const deviceInfo = {
+      platform: Platform.OS,
+      version: Platform.Version,
+      model: Device.modelName,
+    };
+
     const { error } = await supabase
-      .from('user_fcm_tokens')
-      .upsert({
-        user_id: userId,
-        fcm_token: token,
-        platform: Platform.OS,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id,platform'
-      });
+      .from('user_push_tokens')
+      .upsert(
+        {
+          user_id: userId,
+          expo_push_token: expoPushToken,
+          device_info: deviceInfo,
+          is_active: true,
+          last_used: new Date().toISOString(),
+        },
+        {
+          onConflict: 'user_id,expo_push_token',
+        }
+      );
 
     if (error) {
-      console.error('Error storing FCM token:', error);
-      return false;
+      console.error('Error saving push token to database:', error);
+    } else {
+      console.log('Push token saved to database successfully');
     }
-
-    console.log('FCM token stored successfully');
-    return true;
   } catch (error) {
-    console.error('Error in storeFCMToken:', error);
+    console.error('Error in savePushTokenToDatabase:', error);
+  }
+}
+
+/**
+ * Setup notification listeners using expo-notifications
+ * Returns a cleanup function to remove listeners
+ */
+export function setupNotificationListeners(): (() => void) | null {
+  try {
+    // Note: expo-notifications listeners are typically set up in NotificationContext
+    // This function is kept for compatibility but the actual listeners
+    // should be set up using expo-notifications in the app context
+    console.log("✅ Notification listeners setup (handled by NotificationContext)");
+    return () => {
+      // Cleanup function - listeners are managed by NotificationContext
+      console.log("Notification listeners cleanup");
+    };
+  } catch (error) {
+    console.error("❌ Error setting up notification listeners:", error);
+    return null;
+  }
+}
+
+/**
+ * Check if notifications are enabled
+ */
+export async function areNotificationsEnabled(): Promise<boolean> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === 'granted';
+  } catch (error) {
+    console.error("❌ Error checking notification permissions:", error);
     return false;
   }
 }
 
-// Setup notification listeners
-export function setupNotificationListeners() {
-  const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
-    console.log('Notification received in foreground:', notification);
-  });
-
-  const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-    console.log('Notification tapped:', response);
-    const { data } = response.notification.request.content;
-    
-    if (data?.type === 'deposit_successful') {
-      console.log('Navigate to wallet screen');
-    }
-  });
-
-  return () => {
-    foregroundSubscription.remove();
-    responseSubscription.remove();
-  };
-}
-
 // Initialize notifications
+// This sets up local notifications (which work on Android without FCM)
+// Push token registration is optional and only needed for remote push notifications
 export async function initializeNotifications(userId: string) {
   try {
-    const token = await registerForPushNotificationsAsync();
+    // Request permissions and set up Android channels
+    // This is required for local notifications to work
+    const hasPermission = await requestNotificationPermissions();
     
-    if (token) {
-      console.log('FCM Token:', token);
-      await storeFCMToken(userId, token);
+    if (!hasPermission) {
+      console.warn('Notification permissions not granted. Local notifications may not work.');
+      return null;
     }
 
+    // Set up listeners for local notifications (works without FCM)
     const cleanup = setupNotificationListeners();
+
+    // Try to get push token (optional - only for remote push notifications)
+    // This will fail gracefully if FCM isn't configured, but local notifications still work
+    try {
+      const token = await getPushTokenAsync();
+      if (token) {
+        console.log('Push token obtained:', token);
+        await savePushTokenToDatabase(token, userId);
+      } else {
+        console.log('Local notifications ready. Push notifications require FCM configuration.');
+      }
+    } catch (error: any) {
+      // Push token failure is not critical - local notifications still work
+      console.log('Push token not available (local notifications still work):', error?.message);
+    }
+
+    console.log('Notifications initialized successfully (local notifications ready)');
     return cleanup;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error initializing notifications:', error);
     return null;
   }

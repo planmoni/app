@@ -320,20 +320,24 @@ export function useSupabaseAuth() {
 
   const signIn = async (email: string, password: string): Promise<AuthResult> => {
     try {
-      setIsLoading(true);
+      // Don't set isLoading here - it causes black screen in _layout.tsx
+      // isLoading should only be for initial auth loading, not individual operations
       setError(null);
 
+      console.log('🔑 useSupabaseAuth.signIn - Starting sign in...');
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.log('❌ useSupabaseAuth.signIn - Error:', error.message);
         setError(error.message);
         return { success: false, error: error.message };
       }
 
       if (data.session) {
+        console.log('✅ useSupabaseAuth.signIn - Session received, setting session...');
         setSession(data.session);
         await saveSession(data.session);
         
@@ -345,22 +349,23 @@ export function useSupabaseAuth() {
           }
         }
         
+        console.log('✅ useSupabaseAuth.signIn - Sign in successful');
         return { success: true };
       }
 
+      console.log('❌ useSupabaseAuth.signIn - No session returned');
       return { success: false, error: 'No session returned' };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Sign in failed';
+      console.log('❌ useSupabaseAuth.signIn - Exception:', errorMessage);
       setError(errorMessage);
       return { success: false, error: errorMessage };
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const signUp = async (email: string, password: string, metadata?: any): Promise<AuthResult> => {
     try {
-      setIsLoading(true);
+      // Don't set isLoading here - it causes black screen in _layout.tsx
       setError(null);
 
       const { data, error } = await supabase.auth.signUp({
@@ -381,14 +386,12 @@ export function useSupabaseAuth() {
       const errorMessage = err instanceof Error ? err.message : 'Sign up failed';
       setError(errorMessage);
       return { success: false, error: errorMessage };
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const resetPassword = async (email: string): Promise<AuthResult> => {
     try {
-      setIsLoading(true);
+      // Don't set isLoading here - it causes black screen in _layout.tsx
       setError(null);
 
       const { error } = await supabase.auth.resetPasswordForEmail(email);
@@ -403,8 +406,6 @@ export function useSupabaseAuth() {
       const errorMessage = err instanceof Error ? err.message : 'Password reset failed';
       setError(errorMessage);
       return { success: false, error: errorMessage };
-    } finally {
-      setIsLoading(false);
     }
   };
 

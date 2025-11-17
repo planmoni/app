@@ -687,14 +687,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     height: 55,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 100,
+    borderRadius: 20,
   },
   cancelButton: {
     borderColor: colors.border,
     height: 55,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 100,
+    borderRadius: 20,
   },
   disabledOption: {
     opacity: 0.5,

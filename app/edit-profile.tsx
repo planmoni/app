@@ -170,7 +170,11 @@ export default function EditProfileScreen() {
         <View style={styles.form}>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>First Name</Text>
-            <View style={styles.inputContainer}>
+            <View style={[
+              styles.inputContainer,
+              firstName.trim() !== '' && styles.inputContainerFilled,
+              error && styles.inputContainerError,
+            ]}>
               <TextInput
                 style={styles.input}
                 placeholder="Enter your first name"
@@ -185,7 +189,11 @@ export default function EditProfileScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Last Name</Text>
-            <View style={styles.inputContainer}>
+            <View style={[
+              styles.inputContainer,
+              lastName.trim() !== '' && styles.inputContainerFilled,
+              error && styles.inputContainerError,
+            ]}>
               <TextInput
                 style={styles.input}
                 placeholder="Enter your last name"
@@ -200,7 +208,11 @@ export default function EditProfileScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Email Address</Text>
-            <View style={styles.inputContainer}>
+            <View style={[
+              styles.inputContainer,
+              email.trim() !== '' && styles.inputContainerFilled,
+              error && styles.inputContainerError,
+            ]}>
               <TextInput
                 style={styles.input}
                 placeholder="Enter your email"
@@ -322,12 +334,19 @@ const createStyles = (colors: any) => StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
     borderRadius: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     paddingHorizontal: 16,
     height: 56,
+  },
+  inputContainerFilled: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentBackground || colors.background,
+  },
+  inputContainerError: {
+    borderColor: colors.error || '#DC2626',
   },
   inputIcon: {
     marginRight: 12,

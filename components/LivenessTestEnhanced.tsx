@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, ComponentRef } from "react";
 import {
   StyleSheet,
   View,
@@ -75,9 +75,11 @@ export default function LivenessTestEnhanced({
   const pitchAngles = useRef<number[]>([]);
   const nodBaseline = useRef<number | null>(null);
   const device = useCameraDevice("front");
-  const cameraRef = useRef<VisionCamera>(null);
+  const cameraRef = useRef<ComponentRef<typeof Camera>>(null);
   const setupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const photoCaptureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isCapturingPhotoRef = useRef<boolean>(false);
   
   console.log('[LivenessTest] Camera device:', { hasDevice: !!device, deviceId: device?.id });
 
@@ -95,6 +97,7 @@ export default function LivenessTestEnhanced({
     progressValue.value = 0;
     pitchAngles.current = [];
     nodBaseline.current = null;
+    isCapturingPhotoRef.current = false;
     
     // Clear any pending timers
     if (setupTimerRef.current) {
@@ -104,6 +107,10 @@ export default function LivenessTestEnhanced({
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
+    }
+    if (photoCaptureTimerRef.current) {
+      clearTimeout(photoCaptureTimerRef.current);
+      photoCaptureTimerRef.current = null;
     }
   }, [progressValue]);
 
@@ -151,6 +158,8 @@ export default function LivenessTestEnhanced({
     return () => {
       if (setupTimerRef.current) clearTimeout(setupTimerRef.current);
       if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+      if (photoCaptureTimerRef.current) clearTimeout(photoCaptureTimerRef.current);
+      isCapturingPhotoRef.current = false;
     };
   }, []);
 
@@ -736,7 +745,7 @@ const styles = StyleSheet.create({
     right: 20,
     paddingVertical: 16,
     paddingHorizontal: 32,
-    borderRadius: 12,
+    borderRadius: 20,
     alignItems: "center",
   },
   submitText: {

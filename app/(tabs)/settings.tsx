@@ -26,15 +26,18 @@ import {
   MessageSquare, 
   Moon, 
   Shield, 
+  ShieldUser,
   Trash2,
   Wallet,
-  History
+  History,
+  AlertTriangle,
+  ScanFace,
+  ClockAlert
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View , Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AccountStatementModal from '@/components/AccountStatementModal';
 import HelpCenterModal from '@/components/HelpCenterModal';
 import LanguageModal from '@/components/LanguageModal';
 import NotificationSettingsModal from '@/components/NotificationSettingsModal';
@@ -43,20 +46,27 @@ import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import React from 'react';
+import { useEmailNotifications } from '@/hooks/useEmailNotifications';
+import { useAppVersion } from '@/contexts/AppVersionContext';
+import Constants from 'expo-constants';
+import { Download, Info } from 'lucide-react-native';
 
 export default function SettingsScreen() {
   const { colors, theme, setTheme } = useTheme();
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
   const haptics = useHaptics();
+  const { settings: emailSettings, updateSettings: updateEmailSettings } = useEmailNotifications();
+  const { needsUpdate, checkForUpdates, currentVersion, currentBuild, isChecking } = useAppVersion();
   
   const firstName = session?.user?.user_metadata?.first_name || '';
   const lastName = session?.user?.user_metadata?.last_name || '';
   const email = session?.user?.email || '';
 
-  const [vaultAlerts, setVaultAlerts] = useState(true);
-  const [loginAlerts, setLoginAlerts] = useState(true);
-  const [expiryReminders, setExpiryReminders] = useState(false);
+  // Use email notification settings from the hook
+  const vaultAlerts = emailSettings.payout_alerts;
+  const loginAlerts = emailSettings.login_alerts;
+  const expiryReminders = emailSettings.expiry_reminders;
   
   // 2FA status state
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
@@ -64,7 +74,6 @@ export default function SettingsScreen() {
   const [isLoading2FA, setIsLoading2FA] = useState(true);
 
   // Modal visibility states
-  const [showAccountStatement, setShowAccountStatement] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [showSecurity, setShowSecurity] = useState(false);
   const [showHelpCenter, setShowHelpCenter] = useState(false);
@@ -218,6 +227,13 @@ export default function SettingsScreen() {
       method: twoFactorMethod 
     });
   };
+  const handleLoginHistory = () => {
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
+    router.push('/login-history');
+    logAnalyticsEvent('view_login_history');
+  };
 
   const handleTransactionLimits = () => {
     if (Platform.OS !== 'web') {
@@ -243,14 +259,20 @@ export default function SettingsScreen() {
     logAnalyticsEvent('change_theme', { theme: newTheme });
   };
 
-  const handleToggleSwitch = (setter: React.Dispatch<React.SetStateAction<boolean>>, settingName: string) => {
+  const handleToggleSwitch = async (settingName: 'payout_alerts' | 'login_alerts' | 'expiry_reminders') => {
     if (Platform.OS !== 'web') {
       haptics.selection();
     }
-    setter(prev => {
-      const newValue = !prev;
-      logAnalyticsEvent('toggle_setting', { setting: settingName, value: newValue });
-      return newValue;
+    
+    const currentValue = emailSettings[settingName];
+    const newValue = !currentValue;
+    
+    logAnalyticsEvent('toggle_setting', { setting: settingName, value: newValue });
+    
+    // Update settings through the hook (persists to database)
+    await updateEmailSettings({
+      ...emailSettings,
+      [settingName]: newValue
     });
   };
 
@@ -400,7 +422,7 @@ export default function SettingsScreen() {
                 if (Platform.OS !== 'web') {
                   haptics.lightImpact();
                 }
-                setShowAccountStatement(true);
+                router.push('/account-statement');
                 logAnalyticsEvent('view_account_statement');
               }}
             >
@@ -438,13 +460,14 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleViewLinkedAccounts}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}>
+              <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}> 
                 <Building2 size={20} color="#0EA5E9" />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Linked Bank Accounts</Text>
                 <Text style={styles.settingDescription}>Manage accounts for deposits</Text>
               </View>
+             <View style={styles.comingSoonTag}><Text style={styles.comingSoonText}>Coming Soon</Text></View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
             
@@ -471,7 +494,7 @@ export default function SettingsScreen() {
               onPress={handleTransactionLimits}
             >
               <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
-                <DollarSign size={20} color={colors.textSecondary} />
+                <ClockAlert size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Transaction Limits</Text>
@@ -513,7 +536,7 @@ export default function SettingsScreen() {
               }}
             >
               <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
-                <Shield size={20} color={colors.textSecondary} />
+                <ScanFace size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Security Center</Text>
@@ -546,9 +569,9 @@ export default function SettingsScreen() {
             >
               <View style={[
                 styles.settingIcon, 
-                { backgroundColor: twoFactorEnabled ? '#F0FDF4' : '#FEF2F2' }
+                { backgroundColor: twoFactorEnabled ? colors.backgroundTertiary : colors.backgroundTertiary }
               ]}>
-                <Shield size={20} color={twoFactorEnabled ? "#22C55E" : "#EF4444"} />
+                <ShieldUser size={20} color={twoFactorEnabled ? colors.primary : colors.textTertiary} />
               </View>
               <View style={styles.settingContent}>
                 <View style={styles.settingLabelContainer}>
@@ -556,13 +579,13 @@ export default function SettingsScreen() {
                   {!isLoading2FA && (
                     <View style={[
                       styles.statusBadge,
-                      { backgroundColor: twoFactorEnabled ? '#DCFCE7' : '#FEE2E2' }
+                      { backgroundColor: twoFactorEnabled ? colors.backgroundTertiary : colors.backgroundTertiary }
                     ]}>
                       <Text style={[
                         styles.statusText,
-                        { color: twoFactorEnabled ? '#22C55E' : '#EF4444' }
+                        { color: twoFactorEnabled ? colors.primary : colors.textTertiary }
                       ]}>
-                        {twoFactorEnabled ? 'Enabled' : 'Disabled'}
+                        {twoFactorEnabled ? 'Enabled' : 'Not Enabled'}
                       </Text>
                     </View>
                   )}
@@ -578,6 +601,22 @@ export default function SettingsScreen() {
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
+            
+            <View style={styles.divider} />
+
+            <Pressable
+              style={styles.settingItem}
+              onPress={handleLoginHistory}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <History size={20} color={colors.textSecondary} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Login History</Text>
+                <Text style={styles.settingDescription}>View your recent login activity</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
           </View>
         </View>
 
@@ -590,12 +629,12 @@ export default function SettingsScreen() {
                 <Bell size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
-                <Text style={styles.settingLabel}>Vault Payout Alerts</Text>
+                <Text style={styles.settingLabel}>Payout Alerts</Text>
                 <Text style={styles.settingDescription}>Get notified about payouts</Text>
               </View>
               <Switch
                 value={vaultAlerts}
-                onValueChange={() => handleToggleSwitch(setVaultAlerts, 'vault_alerts')}
+                onValueChange={() => handleToggleSwitch('payout_alerts')}
                 trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={vaultAlerts ? '#1E3A8A' : colors.backgroundTertiary}
               />
@@ -605,7 +644,7 @@ export default function SettingsScreen() {
 
             <View style={styles.settingItem}>
               <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
-                <Shield size={20} color={colors.textSecondary} />
+                <AlertTriangle size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>New Login Notifications</Text>
@@ -613,7 +652,7 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={loginAlerts}
-                onValueChange={() => handleToggleSwitch(setLoginAlerts, 'login_alerts')}
+                onValueChange={() => handleToggleSwitch('login_alerts')}
                 trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={loginAlerts ? '#1E3A8A' : colors.backgroundTertiary}
               />
@@ -631,7 +670,7 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={expiryReminders}
-                onValueChange={() => handleToggleSwitch(setExpiryReminders, 'expiry_reminders')}
+                onValueChange={() => handleToggleSwitch('expiry_reminders')}
                 trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
                 thumbColor={expiryReminders ? '#1E3A8A' : colors.backgroundTertiary}
               />
@@ -730,6 +769,62 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
         </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>App Information</Text>
+
+          <View style={styles.card}>
+            <Pressable
+              style={styles.settingItem}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                }
+                checkForUpdates();
+                logAnalyticsEvent('check_for_updates_manual');
+              }}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Info size={20} color={colors.textSecondary} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>App Version</Text>
+                <Text style={styles.settingDescription}>
+                  Version {currentVersion} (Build {currentBuild})
+                </Text>
+              </View>
+              {needsUpdate && (
+                <View style={styles.updateBadge}>
+                  <Download size={14} color="#FFFFFF" />
+                </View>
+              )}
+            </Pressable>
+
+            {needsUpdate && (
+              <>
+                <View style={styles.divider} />
+                <Pressable
+                  style={styles.settingItem}
+                  onPress={() => {
+                    if (Platform.OS !== 'web') {
+                      haptics.selection();
+                    }
+                    checkForUpdates();
+                    logAnalyticsEvent('trigger_update_modal');
+                  }}
+                >
+                  <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
+                    <Download size={20} color="#1E3A8A" />
+                  </View>
+                  <View style={styles.settingContent}>
+                    <Text style={[styles.settingLabel, { color: colors.primary }]}>Update Available</Text>
+                    <Text style={styles.settingDescription}>Tap to update to the latest version</Text>
+                  </View>
+                  <ChevronRight size={20} color={colors.primary} />
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
 
         <View style={styles.accountActions}>
 
@@ -751,15 +846,7 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
 
-      <AccountStatementModal
-        isVisible={showAccountStatement}
-        onClose={() => {
-          if (Platform.OS !== 'web') {
-            haptics.lightImpact();
-          }
-          setShowAccountStatement(false);
-        }}
-      />
+     
 
       <NotificationSettingsModal
         isVisible={showNotificationSettings}
@@ -1011,7 +1098,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: '#FEF2F2',
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 100,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: '#FECACA',
     width: '100%',
@@ -1032,5 +1119,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textTertiary,
     marginLeft: 8,
+  },
+  disabledSettingItem: {
+    opacity: 0.5,
+  },
+  comingSoonTag: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginRight: 8,
+    alignSelf: 'center',
+  },
+  comingSoonText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
 });

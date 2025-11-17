@@ -23,30 +23,6 @@ CREATE INDEX IF NOT EXISTS idx_bank_accounts_user_default ON bank_accounts(user_
 CREATE INDEX IF NOT EXISTS idx_transactions_user_type ON transactions(user_id, type, created_at);
 CREATE INDEX IF NOT EXISTS idx_events_user_status ON events(user_id, status, created_at);
 
--- Function to calculate next payout date
-CREATE OR REPLACE FUNCTION calculate_next_payout_date(
-  p_start_date date,
-  p_frequency text,
-  p_completed_payouts integer
-)
-RETURNS date
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  CASE p_frequency
-    WHEN 'weekly' THEN
-      RETURN p_start_date + (p_completed_payouts * INTERVAL '1 week');
-    WHEN 'biweekly' THEN
-      RETURN p_start_date + (p_completed_payouts * INTERVAL '2 weeks');
-    WHEN 'monthly' THEN
-      RETURN p_start_date + (p_completed_payouts * INTERVAL '1 month');
-    ELSE
-      -- For custom frequency, we'll need to look at custom_payout_dates
-      RETURN p_start_date;
-  END CASE;
-END;
-$$;
-
 -- Function to update payout plan progress
 CREATE OR REPLACE FUNCTION update_payout_plan_progress(p_plan_id uuid)
 RETURNS void

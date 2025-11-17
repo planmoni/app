@@ -199,7 +199,7 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      {isDark && <Animated.View style={[styles.backgroundGradient, backgroundStyle]} />}
+      {isDark && <Animated.View style={[styles.backgroundGradient, { backgroundColor: colors.background }]} />}
       
       <View style={styles.logoContainer}>
         <Image 
@@ -375,6 +375,7 @@ export default function WelcomeScreen() {
 const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.accentBackground,
   },
   backgroundGradient: {
     position: 'absolute',
@@ -508,7 +509,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     justifyContent: 'center',
     gap: 12,
     height: 60,
-    borderRadius: 100,
+    borderRadius: 20,
     paddingHorizontal: 24,
     flex: 1,
     shadowColor: '#000',
@@ -518,7 +519,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     elevation: 8,
   },
   getStartedButtonText: {
-    color: '#FFFFFF',
+    color: colors.accent,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -527,15 +528,15 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     alignItems: 'center',
     justifyContent: 'center',
     height: 60,
-    borderRadius: 100,
+    borderRadius: 20,
     paddingHorizontal: 24,
     flex: 1,
     borderWidth: 2,
-    borderColor: colors.buttonPrimary,
+    borderColor: isDark ? '#fff' : colors.primary,
   },
   signInButtonText: {
-    color: colors.buttonTextPrimary,
-    fontSize: 16,
+    color: isDark ? '#fff' : colors.primary,
+    fontSize: 18,
     fontWeight: '600',
   },
 });

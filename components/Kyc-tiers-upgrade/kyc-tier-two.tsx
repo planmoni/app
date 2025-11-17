@@ -243,7 +243,12 @@ export default function KycTierTwo() {
 
         <View style={styles.inputGroup}>
           <Text style={[styles.label, { color: colors.text }]}>First Name *</Text>
-          <View style={[styles.inputContainer, errors.firstName && styles.inputError, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+          <View style={[
+            styles.inputContainer,
+            firstName.trim() !== '' && styles.inputFilled,
+            errors.firstName && styles.inputError,
+            { borderColor: colors.border, backgroundColor: colors.background }
+          ]}>
             <TextInput
               style={[styles.input, { color: colors.text }]}
               placeholder="Enter your first name"
@@ -263,7 +268,12 @@ export default function KycTierTwo() {
 
         <View style={styles.inputGroup}>
           <Text style={[styles.label, { color: colors.text }]}>Last Name *</Text>
-          <View style={[styles.inputContainer, errors.lastName && styles.inputError, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+          <View style={[
+            styles.inputContainer,
+            lastName.trim() !== '' && styles.inputFilled,
+            errors.lastName && styles.inputError,
+            { borderColor: colors.border, backgroundColor: colors.background }
+          ]}>
             <TextInput
               ref={lastNameInputRef}
               style={[styles.input, { color: colors.text }]}
@@ -284,7 +294,11 @@ export default function KycTierTwo() {
 
         <View style={styles.inputGroup}>
           <Text style={[styles.label, { color: colors.text }]}>Middle Name (Optional)</Text>
-          <View style={[styles.inputContainer, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+          <View style={[
+            styles.inputContainer,
+            middleName.trim() !== '' && styles.inputFilled,
+            { borderColor: colors.border, backgroundColor: colors.background }
+          ]}>
             <TextInput
               ref={middleNameInputRef}
               style={[styles.input, { color: colors.text }]}
@@ -301,7 +315,12 @@ export default function KycTierTwo() {
         <View style={styles.inputGroup}>
           <Text style={[styles.label, { color: colors.text }]}>Date of Birth *</Text>
           <Pressable 
-            style={[styles.inputContainer, errors.dateOfBirth && styles.inputError, { borderColor: colors.border, backgroundColor: colors.surface }]}
+            style={[
+              styles.inputContainer,
+              dateOfBirth && styles.inputFilled,
+              errors.dateOfBirth && styles.inputError,
+              { borderColor: colors.border, backgroundColor: colors.background }
+            ]}
             onPress={() => setIsDatePickerVisible(true)}
           >
             <Text style={[styles.dateInputText, { color: dateOfBirth ? colors.text : colors.textTertiary }]}>
@@ -313,7 +332,12 @@ export default function KycTierTwo() {
 
         <View style={styles.inputGroup}>
           <Text style={[styles.label, { color: colors.text }]}>Residential Address *</Text>
-          <View style={[styles.inputContainer, errors.address && styles.inputError, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+          <View style={[
+            styles.inputContainer,
+            address.trim() !== '' && styles.inputFilled,
+            errors.address && styles.inputError,
+            { borderColor: colors.border, backgroundColor: colors.background }
+          ]}>
             <TextInput
               style={[styles.input, styles.multilineInput, { color: colors.text }]}
               placeholder="Enter your address"
@@ -807,11 +831,15 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 0.5,
+    borderWidth: 2,
     borderRadius: 12,
     paddingHorizontal: 14,
     height: 55,
     gap: 12,
+  },
+  inputFilled: {
+    borderColor: '#10B981',
+    backgroundColor: '#F0FDF4',
   },
   inputError: {
     borderColor: '#EF4444',
@@ -910,7 +938,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   selfiePlaceholder: {
-    borderRadius: 100,
+    borderRadius: 20,
     width: 200,
     height: 200,
     alignSelf: 'center',
@@ -951,7 +979,7 @@ const styles = StyleSheet.create({
   },
   doneButton: {
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },

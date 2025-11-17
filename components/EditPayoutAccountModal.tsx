@@ -197,7 +197,11 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
           
           <View style={styles.formGroup}>
             <Text style={styles.label}>Account Name</Text>
-            <View style={[styles.inputContainer, formErrors.accountName && styles.inputError]}>
+            <View style={[
+              styles.inputContainer,
+              formData.accountName.trim() !== '' && styles.inputContainerFilled,
+              formErrors.accountName && styles.inputError
+            ]}>
               <TextInput
                 style={styles.input}
                 placeholder="Enter account holder name"
@@ -219,7 +223,11 @@ export default function EditPayoutAccountModal({ isVisible, onClose, account }: 
           
           <View style={styles.formGroup}>
             <Text style={styles.label}>Account Number</Text>
-            <View style={[styles.inputContainer, formErrors.accountNumber && styles.inputError]}>
+            <View style={[
+              styles.inputContainer,
+              formData.accountNumber.trim() !== '' && styles.inputContainerFilled,
+              formErrors.accountNumber && styles.inputError
+            ]}>
               <TextInput
                 style={styles.input}
                 placeholder="Enter 10-digit account number"
@@ -393,11 +401,15 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
     borderRadius: 12,
     padding: 16,
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: colors.background,
+  },
+  inputContainerFilled: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentBackground || colors.background,
   },
   input: {
     flex: 1,
@@ -405,7 +417,7 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     color: colors.text,
   },
   inputError: {
-    borderColor: colors.error,
+    borderColor: colors.error || '#DC2626',
   },
   fieldError: {
     fontSize: 12,

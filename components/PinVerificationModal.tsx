@@ -102,9 +102,16 @@ export default function PinVerificationModal({
         })
       ]).start();
       
-      // Auto-trigger biometric if enabled and available AND we have a custom verify function
-      // This ensures we only auto-trigger when we're actually verifying a PIN that exists
-      if (isBiometricEnabled && customVerifyPin) {
+      // Auto-trigger biometric if enabled and available
+      // For payout/emergency, we can trigger even without customVerifyPin (will fall back to app lock PIN)
+      // For app, we need customVerifyPin to ensure PIN exists
+      const shouldAutoTrigger = isBiometricEnabled && (
+        biometricType === 'payout' || 
+        biometricType === 'emergency' || 
+        (biometricType === 'app' && customVerifyPin)
+      );
+      
+      if (shouldAutoTrigger) {
         setTimeout(() => {
           handleBiometricAuth();
         }, 500);
@@ -217,6 +224,12 @@ export default function PinVerificationModal({
 
   const handleBiometricAuth = async () => {
     if (!isBiometricEnabled || !biometricSupport?.isAvailable || Platform.OS === 'web') {
+      console.log('PinVerificationModal - Biometric auth skipped:', {
+        isBiometricEnabled,
+        isAvailable: biometricSupport?.isAvailable,
+        isEnrolled: biometricSupport?.isEnrolled,
+        platform: Platform.OS
+      });
       return;
     }
 
@@ -224,21 +237,29 @@ export default function PinVerificationModal({
       setIsVerifying(true);
       haptics.mediumImpact();
       
-      const result = await verifyBiometric(
+      console.log('PinVerificationModal - Attempting biometric auth for type:', biometricType);
+      
+      // Use BiometricService directly to ensure it works regardless of app biometric setting
+      const result = await BiometricService.authenticateWithBiometrics(
         `Use ${getBiometricLabel()} to authorize this transaction`
       );
 
-      if (result) {
+      console.log('PinVerificationModal - Biometric auth result:', result);
+
+      if (result.success) {
         haptics.success();
         handleClose();
         onSuccess();
       } else {
         haptics.error();
-        setError('Biometric authentication failed');
+        setError(result.error || 'Biometric authentication failed');
+        console.log('PinVerificationModal - Biometric auth failed:', result.error);
       }
     } catch (error) {
       haptics.error();
-      setError('Biometric authentication failed');
+      const errorMessage = error instanceof Error ? error.message : 'Biometric authentication failed';
+      setError(errorMessage);
+      console.error('PinVerificationModal - Biometric auth error:', error);
     } finally {
       setIsVerifying(false);
     }

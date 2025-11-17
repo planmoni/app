@@ -10,10 +10,17 @@ import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { PinProvider } from '@/contexts/PinContext';
 import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
+import { AppVersionProvider } from '@/contexts/AppVersionContext';
+import UpdateAppModal from '@/components/UpdateAppModal';
+import { UserActivityTracker } from '@/hooks/useUserActivityTracking';
+import { NotificationProvider } from '@/contexts/NotificationContext';
+
 
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
+import { usePayoutNotifications } from '@/hooks/usePayoutNotifications';
+import { useTransactionNotifications } from '@/hooks/useTransactionNotifications';
 import { SplashScreen, Stack , usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Text, View, StyleSheet, Platform } from 'react-native';
@@ -35,7 +42,9 @@ import AppBlur from '@/components/AppBlur';
 import AppErrorProvider, { useAppError } from '@/contexts/AppErrorContext';
 
 // Prevent the splash screen from auto-hiding
-SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
+SplashScreen.preventAutoHideAsync().catch((e) =>
+  console.warn("Failed to prevent splash screen auto-hide:", e)
+);
 
 function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
@@ -49,6 +58,10 @@ function RootLayoutNav() {
   
   // Track page changes for redirect after unlock
   usePageTracking();
+  
+  // Initialize notification hooks for payout and transaction notifications
+  usePayoutNotifications();
+  useTransactionNotifications();
 
   // Deterministic navigation-finish clearing: when the pathname changes,
   // clear the stored navigation token so AppLockContext won't falsely skip or lock.
@@ -171,14 +184,16 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (fontError) {
-      console.error('Font loading error:', fontError);
+      console.error("Font loading error:", fontError);
     }
   }, [fontError]);
 
   useEffect(() => {
     if (fontsLoaded && !isLoading) {
       // Hide the native splash screen
-      SplashScreen.hideAsync().catch(e => console.warn("Failed to hide splash screen:", e));
+      SplashScreen.hideAsync().catch((e) =>
+        console.warn("Failed to hide splash screen:", e)
+      );
     }
   }, [fontsLoaded, isLoading]);
 
@@ -199,7 +214,8 @@ function RootLayoutNav() {
       <View style={styles.errorContainer}>
         <Text style={styles.errorMessage}>{appError.message}</Text>
         <Text style={styles.errorInstructions}>
-          Please check your environment configuration and database setup as described in the README.md file.
+          Please check your environment configuration and database setup as
+          described in the README.md file.
         </Text>
       </View>
     );
@@ -226,41 +242,116 @@ function RootLayoutNav() {
       <Stack screenOptions={{ headerShown: false }}>
         {session?.user?.id ? (
           <React.Fragment key="authenticated-screens">
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="login-success" options={{ headerShown: false }} />
-            <Stack.Screen name="profile" options={{ headerShown: false }} />
-            <Stack.Screen name="add-funds" options={{ headerShown: false }} />
-            <Stack.Screen name="all-payouts" options={{ headerShown: false }} />
-            <Stack.Screen name="change-password" options={{ headerShown: false }} />
-            <Stack.Screen name="create-payout" options={{ headerShown: false }} />
-            <Stack.Screen name="deposit-flow" options={{ headerShown: false }} />
-            <Stack.Screen name="linked-accounts" options={{ headerShown: false }} />
-            <Stack.Screen name="pause-confirmation" options={{ headerShown: false }} />
-            <Stack.Screen name="referral" options={{ headerShown: false }} />
-            <Stack.Screen name="transaction-limits" options={{ headerShown: false }} />
-            <Stack.Screen name="transactions" options={{ headerShown: false }} />
-            <Stack.Screen name="two-factor-auth" options={{ headerShown: false }} />
-            <Stack.Screen name="two-factor-setup" options={{ headerShown: false }} />
-            <Stack.Screen name="two-factor-settings" options={{ headerShown: false }} />
-            <Stack.Screen name="view-backup-codes" options={{ headerShown: false }} />
-            <Stack.Screen name="view-payout" options={{ headerShown: false }} />
-            <Stack.Screen name="app-lock-setup" options={{ headerShown: false }} />
-            <Stack.Screen name="logging-out" options={{ headerShown: false }} />
+            <Stack.Screen 
+              name="login-success" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="(tabs)" 
+              options={{ 
+                headerShown: false, 
+                gestureEnabled: false,
+                animationEnabled: false, // Disable animations that might allow gestures
+              }} 
+            />
+            <Stack.Screen 
+              name="profile" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="add-funds" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="all-payouts" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen
+              name="change-password"
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="create-payout"
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="deposit-flow"
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="linked-accounts"
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="pause-confirmation"
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen 
+              name="referral" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="transaction-limits" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="transactions" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="account-statement" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="two-factor-auth" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="two-factor-setup" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="two-factor-settings" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="view-backup-codes" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="view-payout" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="app-lock-setup" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="logging-out" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
           </React.Fragment>
         ) : (
           <React.Fragment key="unauthenticated-screens">
-            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen 
+              name="index" 
+              options={{ 
+                headerShown: false,
+                gestureEnabled: true, // Allow gestures only when not authenticated
+              }} 
+            />
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
             <Stack.Screen name="logging-out" options={{ headerShown: false }} />
           </React.Fragment>
         )}
-        <Stack.Screen name="+not-found" options={{ title: 'Page Not Found' }} />
+        <Stack.Screen name="+not-found" options={{ title: "Page Not Found" }} />
       </Stack>
       
       {/* Lock Screen Overlay - Renders at root level */}
       {isAppLocked && session?.user?.id && !isPinResetMode && (
         <AppLockScreen />
       )}
+      <UpdateAppModal />
       
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* <SessionDebugger /> */}
@@ -285,50 +376,56 @@ export default function RootLayout() {
       <ThemeProvider>
         <ToastProvider>
           <AuthProvider>
-            <PinProvider>
-              <AppLockProvider>
-                <BalanceProvider>
-                  <BottomNavProvider>
-                    <AppBlur>
-                    <RootLayoutNav />
-                    </AppBlur>
-                  </BottomNavProvider>
-                </BalanceProvider>
+            <AppVersionProvider>
+              <PinProvider>
+                <AppLockProvider>
+                  <NotificationProvider>
+                    <BalanceProvider>
+                      <BottomNavProvider>
+                        <AppBlur>
+                          <UserActivityTracker>
+                            <RootLayoutNav />
+                          </UserActivityTracker>
+                        </AppBlur>
+                      </BottomNavProvider>
+                    </BalanceProvider>
+                  </NotificationProvider>
               </AppLockProvider>
             </PinProvider>
-          </AuthProvider>
-        </ToastProvider>
-      </ThemeProvider>
-    </AppErrorProvider>
+          </AppVersionProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </ThemeProvider>
+  </AppErrorProvider>
   );
 }
 
 const styles = StyleSheet.create({
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
   },
   errorTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#d32f2f',
+    fontWeight: "bold",
+    color: "#d32f2f",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   errorMessage: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 24,
   },
   errorInstructions: {
     fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
+    color: "#888",
+    textAlign: "center",
     lineHeight: 20,
   },
   nonFatalBanner: {

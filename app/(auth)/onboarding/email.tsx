@@ -159,7 +159,11 @@ export default function EmailScreen() {
               </View>
             )}
             
-            <View style={styles.inputContainer}>
+            <View style={[
+              styles.inputContainer,
+              email.trim() !== '' && styles.inputContainerFilled,
+              error && styles.inputContainerError,
+            ]}>
               <TextInput
                 ref={emailInputRef}
                 style={styles.input}
@@ -269,17 +273,19 @@ const createStyles = (colors: any) => StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 0.5,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    borderWidth: 2,
     borderColor: colors.border,
     borderRadius: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     paddingHorizontal: 16,
     height: 56,
+  },
+  inputContainerFilled: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentBackground || colors.background,
+  },
+  inputContainerError: {
+    borderColor: colors.error || '#DC2626',
   },
   inputIcon: {
     marginRight: 12,

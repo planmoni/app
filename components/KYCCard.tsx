@@ -11,6 +11,7 @@ import Tier0Icon from '@/assets/kyc/tier-0.svg';
 import Tier1Icon from '@/assets/kyc/tier-1.svg';
 import Tier2Icon from '@/assets/kyc/tier-2.svg';
 import Tier3Icon from '@/assets/kyc/tier-3.svg';
+import {BadgeCheck} from 'lucide-react-native';
 
 type KYCStatus = 'starting' | 'continuing' | 'pending';
 
@@ -65,20 +66,22 @@ export default function KYCCard() {
       return 'pending';
     }
 
-    // Check if user has started KYC (has progress beyond initial state)
-    // Include liveness test as it's the first step in Tier 1
-    const hasStarted = progress.current_step !== 'liveness_verification' || 
+    // Check if user has started KYC (has any progress beyond initial state)
+    // New Tier 1 flow: Personal Info → Liveness Check → BVN → NIN
+    // KYC has started if ANY step is completed OR current_step is beyond 'personal'
+    const hasStarted = progress.personal_info_completed || 
                       progress.liveness_test_completed ||
-                      progress.personal_info_completed || 
                       progress.bvn_verified || 
-                      progress.documents_verified ||
                       progress.id_face_verified ||
-                      progress.address_completed;
+                      progress.documents_verified ||
+                      progress.address_completed ||
+                      (progress.current_step && progress.current_step !== 'personal');
 
     if (hasStarted && !progress.overall_completed) {
       return 'continuing';
     }
 
+    // If no steps are completed and current_step is 'personal' or null/undefined, KYC hasn't started
     return 'starting';
   };
 
@@ -93,7 +96,9 @@ export default function KYCCard() {
   const handlePress = () => {
     haptics.mediumImpact();
     console.log('KYCCard handlePress called, kycStatus:', kycStatus);
+    
     if (kycStatus === 'starting') {
+      // Always show KYCVerificationModal first when starting
       console.log('Setting showVerificationModal to true');
       setShowVerificationModal(true);
     } else {
@@ -102,8 +107,17 @@ export default function KYCCard() {
   };
 
   const handleStartVerification = () => {
-    router.push('/kyc-upgrade');
+    // Close KYCVerificationModal first
+    setShowVerificationModal(false);
+    
+    // Navigate directly to kyc-upgrade page
+    // The page will automatically show the first incomplete step (personal info if not completed)
+    // This ensures the correct order: Personal Info → Liveness → BVN → NIN
+    setTimeout(() => {
+      router.push('/kyc-upgrade');
+    }, 350); // Wait for the slide-out animation to complete
   };
+
 
   // Helper function to get step display name
   const getStepDisplayName = (step: KYCStep): string => {
@@ -113,7 +127,7 @@ export default function KYCCard() {
       case 'bvn_verification':
         return 'BVN Verification';
       case 'id_face_match':
-        return 'ID Face Match';
+        return 'NIN Verification';
       case 'personal':
         return 'Personal Information';
       case 'documents_verification':
@@ -168,12 +182,12 @@ export default function KYCCard() {
 
   // Helper function to get the next incomplete step (matching kyc-upgrade.tsx logic)
   const getNextIncompleteStep = (): KYCStep => {
-    // Define step order based on tiers:
-    // Tier 1: liveness_verification, bvn_verification, id_face_match
-    // Tier 2: personal, documents_verification
+    // Updated step order: Personal Info → Liveness Check → BVN(Dojah) → NIN Initiate → NIN Validate → Create Sub Account (Tier 1 complete)
+    // Tier 1: personal, liveness_verification, bvn_verification, id_face_match (NIN)
+    // Tier 2: documents_verification
     // Tier 3: address_details
-    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
-    const current = progress.current_step || 'liveness_verification';
+    const stepOrder: KYCStep[] = ['personal', 'liveness_verification', 'bvn_verification', 'id_face_match', 'documents_verification', 'address_details', 'review'];
+    const current = progress.current_step || 'personal';
     const currentIndex = stepOrder.indexOf(current);
     
     // Find the next incomplete step starting from current
@@ -219,7 +233,7 @@ export default function KYCCard() {
       case 'bvn_verification':
         return 'Complete your BVN Verification';
       case 'id_face_match':
-        return 'Complete your ID Face Match';
+        return 'Complete your NIN Verification';
       case 'documents_verification':
         return 'Complete your Document Verification';
       case 'address_details':
@@ -233,6 +247,7 @@ export default function KYCCard() {
 
   // Get status message with last completed and current step
   const getStatusMessage = (): string => {
+    if (!progress) return 'Start verification';
     const lastCompleted = getLastCompletedStep();
     // Use the actual current step from progress instead of calculating next incomplete
     const currentStepToShow = progress.current_step || getNextIncompleteStep();
@@ -247,7 +262,7 @@ export default function KYCCard() {
     }
     
     // Show both last completed and current step
-    return `Last: ${getStepDisplayName(lastCompleted)} • Next: ${getStepDisplayName(currentStepToShow)}`;
+    return `Continue with ${getStepDisplayName(currentStepToShow)}`;
   };
 
   // Get tier-specific icon and color
@@ -255,18 +270,18 @@ export default function KYCCard() {
     switch (currentTier) {
       case 0:
         // No tier - unverified
-        return { Icon: Tier0Icon, bgColor: isDark ? '#374151' : '#E5E7EB' };
+        return { Icon: BadgeCheck, bgColor: isDark ? '#374151' : '#E5E7EB' };
       case 1:
         // Tier 1 - Basic verification
-        return { Icon: Tier1Icon, bgColor: '#FEF3C7' };
+        return { Icon: BadgeCheck, bgColor: isDark ? '#374151' : '#E5E7EB' };
       case 2:
         // Tier 2 - Enhanced verification
-        return { Icon: Tier2Icon, bgColor: '#DBEAFE' };
+        return { Icon: BadgeCheck, bgColor: isDark ? '#374151' : '#E5E7EB' };
       case 3:
         // Tier 3 - Full verification
-        return { Icon: Tier3Icon, bgColor: '#D1FAE5' };
+        return { Icon: BadgeCheck, bgColor: isDark ? '#374151' : '#E5E7EB' };
       default:
-        return { Icon: Tier0Icon, bgColor: isDark ? '#374151' : '#E5E7EB' };
+        return { Icon: BadgeCheck, bgColor: isDark ? '#374151' : '#E5E7EB' };
     }
   };
 
@@ -308,11 +323,9 @@ export default function KYCCard() {
             </View>
             <View style={styles.textContainer}>
               <Text style={styles.cardText}>
-                {currentTier === 0 ? "Let's verify your identity" : getStatusMessage()}
+                Let's verify your identity
               </Text>
-              {currentTier > 0 && (
-                <Text style={styles.cardSubtext}>{getTierMessage()}</Text>
-              )}
+              <Text style={styles.cardSubtext}>Start your verification to unlock features</Text>
             </View>
             <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>Verify</Text>
@@ -328,7 +341,7 @@ export default function KYCCard() {
             </View>
             <View style={styles.textContainer}>
               <Text style={styles.cardText}>{getStatusMessage()}</Text>
-              <Text style={styles.cardSubtext}>{getTierMessage()}</Text>
+              {/* <Text style={styles.cardSubtext}>{getTierMessage()}</Text> */}
             </View>
             <View style={styles.actionButton}>
               <Text style={styles.actionButtonText}>Continue</Text>
@@ -376,7 +389,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     minHeight: 64,
     shadowColor: '#000000',
     shadowOffset: { width: 1, height: 6},
@@ -386,7 +399,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     width: '100%',
     borderWidth: 0.5,
     borderColor: colors.border,
-    flexWrap: 'wrap',
   },
   iconContainer: {
     width: 40,
@@ -401,22 +413,25 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     flexShrink: 1,
     marginRight: 10,
+    minWidth: 0, // Allow text to shrink properly in flex layout
   },
   cardText: {
     fontSize: 17,
     fontWeight: '500',
     color: isDark ? colors.text : '#374151',
     marginBottom: 2,
+    flexShrink: 1,
   },
   cardSubtext: {
     fontSize: 14,
     fontWeight: '400',
     color: isDark ? colors.textSecondary : '#6B7280',
     marginTop: 2,
+    flexShrink: 1,
   },
   actionButton: {
     backgroundColor: colors.accent,
-    borderRadius: 100,
+    borderRadius: 15,
     paddingVertical: 10,
     paddingHorizontal: 20,
     minWidth: 90,

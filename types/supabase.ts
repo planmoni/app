@@ -46,7 +46,7 @@ export interface Database {
           description: string | null
           total_amount: number
           payout_amount: number
-          frequency: 'daily' | 'weekly' | 'weekly_specific' | 'biweekly' | 'monthly' | 'end_of_month' | 'quarterly' | 'biannual' | 'annually' | 'custom'
+          frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom'
           day_of_week: number | null
           duration: number
           start_date: string
@@ -67,7 +67,7 @@ export interface Database {
           description?: string | null
           total_amount: number
           payout_amount: number
-          frequency: 'daily' | 'weekly' | 'weekly_specific' | 'biweekly' | 'monthly' | 'end_of_month' | 'quarterly' | 'biannual' | 'annually' | 'custom'
+          frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom'
           day_of_week?: number | null
           duration: number
           start_date: string
@@ -88,7 +88,7 @@ export interface Database {
           description?: string | null
           total_amount?: number
           payout_amount?: number
-          frequency?: 'daily' | 'weekly' | 'weekly_specific' | 'biweekly' | 'monthly' | 'end_of_month' | 'quarterly' | 'biannual' | 'annually' | 'custom'
+          frequency?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom'
           day_of_week?: number | null
           duration?: number
           start_date?: string
@@ -128,6 +128,7 @@ export interface Database {
           id: string
           user_id: string
           bank_name: string
+          bank_code: string | null
           account_number: string
           account_name: string
           is_default: boolean
@@ -138,6 +139,7 @@ export interface Database {
           id?: string
           user_id: string
           bank_name: string
+          bank_code?: string | null
           account_number: string
           account_name: string
           is_default?: boolean
@@ -148,6 +150,7 @@ export interface Database {
           id?: string
           user_id?: string
           bank_name?: string
+          bank_code?: string | null
           account_number?: string
           account_name?: string
           is_default?: boolean
@@ -162,6 +165,7 @@ export interface Database {
           account_name: string
           account_number: string
           bank_name: string
+          bank_code: string | null
           is_default: boolean
           created_at: string
           updated_at: string
@@ -172,6 +176,7 @@ export interface Database {
           account_name: string
           account_number: string
           bank_name: string
+          bank_code?: string | null
           is_default?: boolean
           created_at?: string
           updated_at?: string
@@ -182,81 +187,54 @@ export interface Database {
           account_name?: string
           account_number?: string
           bank_name?: string
+          bank_code?: string | null
           is_default?: boolean
           created_at?: string
           updated_at?: string
         }
       }
-      transactions: {
+      app_versions: {
         Row: {
           id: string
-          user_id: string
-          type: string // 'deposit', 'reward', etc.
-          amount: number
-          status: string
+          android_version: string
+          ios_version: string
+          android_build: number
+          ios_build: number
+          android_update_url: string
+          ios_update_url: string
+          update_message: string
+          force_update: boolean
+          is_active: boolean
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
-          user_id: string
-          type: string
-          amount: number
-          status?: string
+          android_version?: string
+          ios_version?: string
+          android_build?: number
+          ios_build?: number
+          android_update_url?: string
+          ios_update_url?: string
+          update_message?: string
+          force_update?: boolean
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
-          user_id?: string
-          type?: string
-          amount?: number
-          status?: string
+          android_version?: string
+          ios_version?: string
+          android_build?: number
+          ios_build?: number
+          android_update_url?: string
+          ios_update_url?: string
+          update_message?: string
+          force_update?: boolean
+          is_active?: boolean
           created_at?: string
-        }
-      }
-      referrals: {
-        Row: {
-          id: string
-          referrer_id: string
-          referred_id: string
-          status: string // 'pending', 'qualified', 'rewarded'
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          referrer_id: string
-          referred_id: string
-          status?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          referrer_id?: string
-          referred_id?: string
-          status?: string
-          created_at?: string
-        }
-      }
-      deposits: {
-        Row: {
-          id: string
-          user_id: string
-          amount: number
-          status: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          amount: number
-          status?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          amount?: number
-          status?: string
-          created_at?: string
+          updated_at?: string
         }
       }
     }

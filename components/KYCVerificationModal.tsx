@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Modal, View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { Modal, View, Text, StyleSheet, Pressable, ScrollView, Dimensions, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CheckCircle,BadgeCheck, ChevronDown, ChevronUp, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -23,13 +23,13 @@ interface FAQItem {
 const faqs: FAQItem[] = [
   {
     id: '1',
-    question: 'What information do I need to have in order to start using Planmoni?',
-    answer: 'You will need to provide your personal information including your full name, date of birth, phone number, and address. You\'ll also need to verify your identity using your BVN (Bank Verification Number) and upload a valid government-issued ID card such as National ID, Passport, or Driver\'s License.',
+    question: 'What information do I need to provide in order to start using Planmoni?',
+    answer: 'You will need to conduct a live face recognition test, provide your personal information including your full name, date of birth, phone number, and address. You\'ll also need to verify your identity using your BVN (Bank Verification Number) and upload a valid government-issued ID card such as National ID, Passport, or Driver\'s License.',
   },
   {
     id: '2',
     question: 'How long before the process is complete?',
-    answer: 'The verification process typically takes 24-48 hours after you submit all required documents. Our team reviews your information to ensure everything is accurate. You\'ll receive a notification once your verification is complete.',
+    answer: 'The verification process is typically instant but in rare cases up to 24 hours after you submit all required documents. Our team reviews your information to ensure everything is accurate. You\'ll receive a notification once your verification is complete.',
   },
   {
     id: '3',
@@ -51,12 +51,57 @@ export default function KYCVerificationModal({
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [modalVisible, setModalVisible] = useState(false);
+  const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const styles = createStyles(colors, isDark);
 
   // Debug log
-  React.useEffect(() => {
+  useEffect(() => {
     console.log('KYCVerificationModal isVisible:', isVisible);
   }, [isVisible]);
+
+  // Handle slide in/out animation
+  useEffect(() => {
+    if (isVisible) {
+      // Show modal first, then animate in
+      setModalVisible(true);
+      // Reset animation values
+      slideAnim.setValue(Dimensions.get('window').height);
+      fadeAnim.setValue(0);
+      
+      // Slide in from bottom
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else if (modalVisible) {
+      // Slide out to bottom, then hide modal
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: Dimensions.get('window').height,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        // Hide modal after animation completes
+        setModalVisible(false);
+      });
+    }
+  }, [isVisible, modalVisible]);
 
   const handleClose = () => {
     haptics.lightImpact();
@@ -65,12 +110,14 @@ export default function KYCVerificationModal({
 
   const handleStartVerification = () => {
     haptics.mediumImpact();
+    // Call onStartVerification first - it will handle closing the modal
     if (onStartVerification) {
       onStartVerification();
     } else {
+      // If no callback, close modal and navigate
+      onClose();
       router.push('/kyc-upgrade');
     }
-    onClose();
   };
 
   const toggleItem = (id: string) => {
@@ -88,14 +135,33 @@ export default function KYCVerificationModal({
 
   return (
     <Modal
-      visible={isVisible}
-      animationType="slide"
+      visible={modalVisible}
       transparent={true}
       onRequestClose={onClose}
       statusBarTranslucent={true}
+      animationType="none"
     >
-      <Pressable style={styles.overlay} onPress={handleClose}>
-        <Pressable style={styles.modalContainer} onPress={(e) => e.stopPropagation()}>
+      <Animated.View 
+        style={[
+          styles.overlay,
+          {
+            opacity: fadeAnim,
+          }
+        ]}
+        pointerEvents={isVisible && modalVisible ? 'auto' : 'none'}
+      >
+        {isVisible && modalVisible && (
+          <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
+        )}
+        <Animated.View
+          style={[
+            styles.modalContainer,
+            {
+              transform: [{ translateY: slideAnim }],
+            }
+          ]}
+          pointerEvents={isVisible && modalVisible ? 'auto' : 'none'}
+        >
           {/* Close Button */}
           <Pressable 
             style={styles.closeButton}
@@ -162,8 +228,8 @@ export default function KYCVerificationModal({
             {/* Footer */}
             <Text style={styles.footer}>Powered by Dojah</Text>
           </SafeAreaView>
-        </Pressable>
-      </Pressable>
+        </Animated.View>
+      </Animated.View>
     </Modal>
   );
 }
@@ -281,7 +347,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   startButton: {
     backgroundColor: '#1E3A8A',
-    borderRadius: 100,
+    borderRadius: 20,
     paddingVertical: 16,
     justifyContent: 'center',
     alignItems: 'center',

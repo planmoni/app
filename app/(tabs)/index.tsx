@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import TransactionModal from '@/components/TransactionModal';
 import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
 import ClaimAccountModal from '@/components/ClaimAccountModal';
+import AccountDisplayCard from '@/components/AccountDisplayCard';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
@@ -9,7 +10,7 @@ import KYCCard from '@/components/KYCCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 // import { IntercomButton } from '@/components/IntercomButton';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   HelpCircleIcon,
@@ -17,6 +18,7 @@ import {
   EyeOff,
   Plus,
   CalendarCheck,
+  Clock,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -30,14 +32,16 @@ import {
   ImageBackground,
   Image,
   Platform,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAppLock } from '@/contexts/AppLockContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
-import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
+import { useKYCProgress } from '@/hooks/useKYCProgress';
 // import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
@@ -49,6 +53,7 @@ import NextPayoutCard from '@/components/NextPayoutCard';
 import PayoutPlansSection from '@/components/PayoutPlansSection';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
+import OnTrackCard from '@/components/OnTrackCard';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
 // import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
@@ -68,9 +73,12 @@ export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
-  const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
+  const { updateLastActiveOnInteraction } = useAppLock();
+  const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
-  const { account: paystackAccount, isLoading: paystackAccountLoading } = useRealtimePaystackAccount();
+  const { account: safehavenAccount, isLoading: safehavenAccountLoading, refreshAccount } = useSafeHavenAccount();
+  const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress } = useKYCProgress();
+  const navigation = useNavigation();
   
   // Debug: Track payoutPlans changes
   useEffect(() => {
@@ -79,7 +87,7 @@ export default function HomeScreen() {
       plans: payoutPlans.map(p => ({ id: p.id, name: p.name, status: p.status }))
     });
   }, [payoutPlans]);
-  const { transactions, isLoading: transactionsLoading } = useRealtimeTransactions();
+  const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
@@ -91,10 +99,59 @@ export default function HomeScreen() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
-  const [safehavenAccount, setSafehavenAccount] = useState<any>(null);
-  const [isCheckingAccount, setIsCheckingAccount] = useState(false);
+  const [hasShownTier1ClaimModal, setHasShownTier1ClaimModal] = useState(false);
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
+
+  // Prevent navigation back to welcome page when authenticated
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    // Dynamically disable gestures when authenticated
+    navigation.setOptions({
+      gestureEnabled: false,
+    });
+
+    // Handle Android back button
+    const backHandler = Platform.OS === 'android' 
+      ? BackHandler.addEventListener('hardwareBackPress', () => {
+          // Prevent back navigation when authenticated
+          return true; // Return true to prevent default back behavior
+        })
+      : null;
+
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      // Always prevent going back when authenticated - block all back navigation
+      // This prevents going back to welcome page (index route) or any previous screen
+      const action = e.data.action;
+      
+      // Block all back navigation types
+      if (action.type === 'GO_BACK' || action.type === 'POP') {
+        e.preventDefault();
+        return;
+      }
+      
+      // Also block navigation to index route
+      if (action.type === 'NAVIGATE') {
+        const targetRoute = (action.payload as any)?.name;
+        if (targetRoute === 'index') {
+          e.preventDefault();
+          return;
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      if (backHandler) {
+        backHandler.remove();
+      }
+      // Re-enable gestures when component unmounts (if needed)
+      navigation.setOptions({
+        gestureEnabled: false, // Keep disabled even on unmount
+      });
+    };
+  }, [navigation, session?.user?.id]);
 
   // Intercom
   const { openChat, isLoading, isSupported } = useIntercom();
@@ -115,35 +172,32 @@ export default function HomeScreen() {
     }
   }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
 
-  // Check for SafeHaven account
+  // Show ClaimAccountModal immediately after Tier 1 completion if no SafeHaven account exists
+  // Only show modal if account doesn't exist in safehaven_accounts table
   useEffect(() => {
-    const checkSafeHavenAccount = async () => {
-      if (!session?.user?.id || isCheckingAccount) return;
+    if (!session?.user?.id || kycProgressLoading || safehavenAccountLoading) return;
+    
+    const tierCompletion = checkTierCompletion();
+    // Check if account exists and is not pending
+    const hasSafeHavenAccount = safehavenAccount?.account_number && !safehavenAccount.account_number.startsWith('PENDING_');
+    
+    // Show modal if Tier 1 is complete, no SafeHaven account exists, and we haven't shown it yet
+    // Don't show if account already exists in database
+    if (tierCompletion.tier1 && !hasSafeHavenAccount && !hasShownTier1ClaimModal && !showClaimAccountModal) {
+      // Add a small delay to ensure smooth user experience
+      const timer = setTimeout(() => {
+        setShowClaimAccountModal(true);
+        setHasShownTier1ClaimModal(true);
+      }, 1500);
       
-      try {
-        setIsCheckingAccount(true);
-        const { data, error } = await supabase
-          .from('safehaven_accounts')
-          .select('account_number, account_name')
-          .eq('user_id', session.user.id)
-          .eq('is_deleted', false)
-          .limit(1)
-          .maybeSingle();
-
-        if (error && error.code !== 'PGRST116') {
-          console.warn('Error checking SafeHaven account:', error);
-        } else if (data) {
-          setSafehavenAccount(data);
-        }
-      } catch (err) {
-        console.warn('Error checking SafeHaven account:', err);
-      } finally {
-        setIsCheckingAccount(false);
-      }
-    };
-
-    checkSafeHavenAccount();
-  }, [session?.user?.id]);
+      return () => clearTimeout(timer);
+    }
+    
+    // If account exists, don't show the modal
+    if (hasSafeHavenAccount && showClaimAccountModal) {
+      setShowClaimAccountModal(false);
+    }
+  }, [checkTierCompletion, safehavenAccount, kycProgressLoading, safehavenAccountLoading, hasShownTier1ClaimModal, showClaimAccountModal, session?.user?.id]);
 
   
   // Log screen view for analytics
@@ -204,17 +258,30 @@ export default function HomeScreen() {
     logAnalyticsEvent('profile_click');
   };
 
-  // Handle pull-to-refresh
+  // Handle pull-to-refresh - refresh all page data
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Refresh wallet balance
-      await refreshWallet();
-      // Fetch latest Paystack transactions
-      // await fetchPaystackTransactions();
+      // Refresh all data in parallel for better performance
+      await Promise.all([
+        // Refresh wallet balance
+        refreshWallet(),
+        // Refresh payout plans
+        fetchPayoutPlans(),
+        // Refresh transactions
+        fetchTransactions(),
+        // Refresh SafeHaven account
+        refreshAccount(),
+        // Refresh KYC progress
+        loadProgress(),
+        // Refresh carousel images
+        fetchCarouselImages(),
+      ]);
+      
       // Add haptic feedback for successful refresh
       impact();
     } catch (error) {
+      console.error('Error refreshing page data:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -286,12 +353,11 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // Check if user has a bank account (Paystack or SafeHaven)
-    const hasPaystackAccount = paystackAccount?.account_number;
-    const hasSafeHavenAccount = safehavenAccount?.account_number;
+    // Check if user has a valid SafeHaven account (not pending)
+    const hasSafeHavenAccount = safehavenAccount?.account_number && !safehavenAccount.account_number.startsWith('PENDING_');
     
-    if (!hasPaystackAccount && !hasSafeHavenAccount) {
-      // Show modal if user doesn't have an account
+    if (!hasSafeHavenAccount) {
+      // Show modal if user doesn't have a valid account
       setShowClaimAccountModal(true);
       logAnalyticsEvent('add_funds_click_no_account');
     } else {
@@ -520,6 +586,8 @@ export default function HomeScreen() {
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: false }
         )}
+        onScrollBeginDrag={() => updateLastActiveOnInteraction()}
+        onTouchStart={() => updateLastActiveOnInteraction()}
         scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
@@ -591,8 +659,8 @@ export default function HomeScreen() {
             <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
             <View style={styles.lockedSection}>
               <View style={styles.lockedLabelContainer}>
-                {/* <Clock size={16} color={colors.textSecondary} /> */}
-                <Text style={styles.lockedLabel}>You have {formatBalance(lockedBalance)} in payout plans</Text>
+                <Clock size={16} color={colors.textSecondary} />
+                <Text style={styles.lockedLabel}>{formatBalance(lockedBalance)} in active payout plans</Text>
               </View>
               {/* <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text> */}
             </View>
@@ -609,7 +677,7 @@ export default function HomeScreen() {
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
-                <CalendarCheck size={22} color='#fff' />
+                <CalendarCheck size={22} color={colors.accent} />
                 <Text style={styles.createButtonText}>New plan</Text>
               </Pressable>
               
@@ -617,13 +685,15 @@ export default function HomeScreen() {
           </View>
         </ImageBackground>
         
+        {/* On Track Card */}
+        <OnTrackCard payoutPlans={payoutPlans} />
+        
         {/* AI Suggestion Section */}
         <AISuggestionCard 
           availableBalance={availableBalance}
           onSuggestionPress={handleAISuggestionPress}
         />
         {/* <IntercomButton /> */}
-        <KYCCard />
 
         {/* KYC Tiers Test Buttons */}
         {/* <View style={styles.kycTiersContainer}>
@@ -651,6 +721,15 @@ export default function HomeScreen() {
         </View> */}
 
         <ImageCarousel images={carouselImages} />
+        {!checkTierCompletion().tier1 && <KYCCard />}
+        {checkTierCompletion().tier1 && safehavenAccount?.account_number && !safehavenAccount.account_number.startsWith('PENDING_') && (
+          <AccountDisplayCard
+            accountNumber={safehavenAccount.account_number}
+            bankName="SAFEHAVEN MFB"
+            accountName={safehavenAccount.account_name ? `PLANMONI/${safehavenAccount.account_name.toUpperCase()}` : undefined}
+            onViewAccount={() => router.push('/add-funds')}
+          />
+        )}
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
@@ -692,7 +771,7 @@ export default function HomeScreen() {
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <CalendarCheck size={22} color='#fff' />
+          <CalendarCheck size={22} color={colors.accent} />
           <Text style={styles.createButtonText}>New plan</Text>
         </Pressable>
         
@@ -720,17 +799,20 @@ export default function HomeScreen() {
         onGoToDashboard={handleGoToDashboard}
       />
 
-      <ClaimAccountModal
-        isVisible={showClaimAccountModal}
-        onClose={() => setShowClaimAccountModal(false)}
-        accountNumber={safehavenAccount?.account_number ? `${safehavenAccount.account_number.slice(0, 5)} XXXXX` : '01177 XXXXX'}
-        bankName="SAFEHAVEN MFB"
-        accountName={safehavenAccount?.account_name ? `PLANMONI/${safehavenAccount.account_name.toUpperCase()}` : `PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
-        onClaim={() => {
-          router.push('/add-funds');
-          logAnalyticsEvent('claim_account_click');
-        }}
-      />
+      {/* Only show ClaimAccountModal if account doesn't exist in safehaven_accounts table or is pending */}
+      {(!safehavenAccount?.account_number || safehavenAccount.account_number.startsWith('PENDING_')) && (
+        <ClaimAccountModal
+          isVisible={showClaimAccountModal}
+          onClose={() => setShowClaimAccountModal(false)}
+          accountNumber={safehavenAccount?.account_number ? `${safehavenAccount.account_number.slice(0, 5)} XXXXX` : '01177 XXXXX'}
+          bankName="SAFEHAVEN MFB"
+          accountName={safehavenAccount?.account_name ? `PLANMONI/${safehavenAccount.account_name.toUpperCase()}` : `PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
+          onClaim={() => {
+            router.push('/add-funds');
+            logAnalyticsEvent('claim_account_click');
+          }}
+        />
+      )}
 
       {/* <LivenessTestEnhanced 
         isVisible={showLivenessTest}
@@ -824,14 +906,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     letterSpacing: 0.5,
   },
   balanceCard: {
-    borderRadius: 4,
+    borderRadius: 15,
+    borderWidth: 0.5,
+    borderColor: colors.border,
     overflow: 'hidden',
     marginBottom: 10,
-    shadowColor: '#000000',
-    // shadowOffset: { width: 6, height: 6},
-    // shadowOpacity: 0.09,
-    // shadowRadius: 9,
-    // elevation: 0.9,
   },
   balanceCardContent: {
     paddingVertical: Platform.OS === 'ios' ? 16 : 10,
@@ -895,25 +974,25 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.primary,
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderRadius: 100,
+    borderRadius: 20,
     height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
   createButtonText: {
-    color: '#fff',
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    color: colors.accent,
+    fontSize: Platform.OS === 'ios' ? 17 : 15,
     fontWeight: '600',
   },
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: colors.backgroundBlack,
+    backgroundColor: colors.backgroundBlack + '70',
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 100,
+    borderWidth: 2, 
+    borderColor: isDark ? '#fff' : colors.primary,
+    borderRadius: 20,
     height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
@@ -921,7 +1000,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   addFundsText: {
     color: colors.primary,
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: Platform.OS === 'ios' ? 17 : 15,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -1206,7 +1285,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 100,
+    borderRadius: 20,
   },
   createFirstPayoutText: {
     color: '#FFFFFF',
