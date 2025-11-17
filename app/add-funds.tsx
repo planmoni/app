@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Animated, Dimensions, useWindowDimensions, Modal, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Animated, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Copy, Info } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,10 +10,7 @@ import * as Clipboard from 'expo-clipboard';
 import Button from '@/components/Button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSafeHavenAccount } from '@/hooks/useSafeHavenAccount';
-import { useKYCProgress } from '@/hooks/useKYCProgress';
-
-const { width } = Dimensions.get('window');
+import PlanmoniLoader from '@/components/PlanmoniLoader';
 type VirtualAccount = {
   account_number: string;
   bank_name: string;
@@ -28,15 +25,8 @@ export default function AddFundsScreen() {
   const haptics = useHaptics();
   
   const { session } = useAuth();
-  const { account: safehavenAccount, isLoading: accountLoading, error: accountError, refreshAccount } = useSafeHavenAccount();
-  const { checkTierCompletion } = useKYCProgress();
-
-  
-  const firstName = session?.user?.user_metadata?.first_name || '';
-  const lastName = session?.user?.user_metadata?.last_name || '';
-  const middleName = session?.user?.user_metadata?.middle_name || '';
-  const phoneNumber = session?.user?.user_metadata?.phone_number || "+2347034000000";
-  const email = session?.user?.email || '';
+  const [safehavenAccount, setSafehavenAccount] = useState<any>(null);
+  const [safehavenAccountLoading, setSafehavenAccountLoading] = useState(true);
 
   // const styles = createStyles(colors);
   const [virtualAccount, setVirtualAccount] = useState< VirtualAccount | null>(null);
@@ -48,26 +38,67 @@ export default function AddFundsScreen() {
   // Determine if we're on a small screen
   const isSmallScreen = screenWidth < 380;
 
-  // Update virtual account state when SafeHaven account changes
+  // Fetch SafeHaven account from database
   useEffect(() => {
-    // Debounce updates to prevent excessive re-renders
-    const timeoutId = setTimeout(() => {
-      // Only set account if it has a real account number (not a placeholder)
-      if (safehavenAccount && safehavenAccount.account_number && !safehavenAccount.account_number.startsWith('PENDING_')) {
-        // Format account name as "PLANMONI/{ACCOUNT_NAME}"
-        const formattedAccountName = `PLANMONI/${safehavenAccount.account_name.toUpperCase()}`;
-        setVirtualAccount({
-          account_number: safehavenAccount.account_number,
-          bank_name: safehavenAccount.bank_name,
-          account_name: formattedAccountName,
-        });
-      } else {
-        setVirtualAccount(null);
+    const fetchSafehavenAccount = async () => {
+      if (!session?.user?.id) {
+        setSafehavenAccountLoading(false);
+        return;
       }
-    }, 300); // Debounce by 300ms
 
-    return () => clearTimeout(timeoutId);
+      try {
+        setSafehavenAccountLoading(true);
+        const { data, error } = await supabase
+          .from('safehaven_accounts')
+          .select('account_number, account_name, status')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .limit(1)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          console.warn('Error fetching SafeHaven account:', error);
+        } else if (data) {
+          setSafehavenAccount(data);
+        } else {
+          setSafehavenAccount(null);
+        }
+      } catch (err) {
+        console.warn('Error fetching SafeHaven account:', err);
+        setSafehavenAccount(null);
+      } finally {
+        setSafehavenAccountLoading(false);
+      }
+    };
+
+    fetchSafehavenAccount();
+  }, [session?.user?.id]);
+
+  // Update virtual account state when safehaven account changes
+  useEffect(() => {
+    if (safehavenAccount && safehavenAccount.account_number) {
+      setVirtualAccount({
+        account_number: safehavenAccount.account_number,
+        bank_name: 'SAFEHAVEN MFB',
+        account_name: safehavenAccount.account_name,
+      });
+    } else {
+      setVirtualAccount(null);
+    }
   }, [safehavenAccount]);
+
+  // COMMENTED OUT: Update virtual account state when paystack account changes
+  // useEffect(() => {
+  //   if (paystackAccount && paystackAccount.account_number) {
+  //     setVirtualAccount({
+  //       account_number: paystackAccount.account_number,
+  //       bank_name: paystackAccount.bank_name,
+  //       account_name: paystackAccount.account_name,
+  //     });
+  //   } else {
+  //     setVirtualAccount(null);
+  //   }
+  // }, [paystackAccount]);
 
   const handleCopyAccountNumber = async (accountNumber : string) => {
     console.log("Account number to copy:", accountNumber); // ✅ Debug
@@ -158,34 +189,6 @@ export default function AddFundsScreen() {
         <Text style={styles.headerTitle}>Add funds</Text>
       </View>
 
-      {/* <View style={styles.tabContainer}>
-        <Pressable 
-          style={[styles.tab, activeTab === 0 && styles.activeTab]} 
-          onPress={() => handleTabPress(0)}
-        >
-          <Text style={[styles.tabText, activeTab === 0 && styles.activeTabText]}>
-            Bank Transfer
-          </Text>
-        </Pressable>
-        <Pressable 
-          style={[styles.tab, activeTab === 1 && styles.activeTab]} 
-          onPress={() => handleTabPress(1)}
-        >
-          <Text style={[styles.tabText, activeTab === 1 && styles.activeTabText]}>
-            Direct Deposit
-            Direct Deposit
-          </Text>
-        </Pressable>
-        <Animated.View 
-          style={[
-            styles.tabIndicator, 
-            { 
-              transform: [{ translateX: indicatorTranslateX }] 
-            }
-          ]} 
-        />
-      </View> */}
-
       <Animated.ScrollView
         ref={scrollViewRef}
         // horizontal
@@ -205,104 +208,62 @@ export default function AddFundsScreen() {
           <View style={styles.content}>
 
 
-            {virtualAccount ? (
-            <View style={styles.accountDetailsCard}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>Your {virtualAccount.bank_name} Account Details</Text>
-                <Text style={styles.description}>
-              Transfer money to the account details below and it will automatically appear on your available balance.
-            </Text>
+            {safehavenAccountLoading ? (
+              <View style={{ marginTop: 40, alignItems: 'center' }}>
+                <PlanmoniLoader size="medium" description="Loading account details..." />
               </View>
-
-              <View style={styles.fieldsContainer}>
-                <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>Account Number</Text>
-                  <View style={styles.accountNumberContainer}>
-                    <Text style={styles.accountNumber}>{virtualAccount.account_number}</Text>
-                    <Pressable onPress={handleCopyPress} style={styles.copyButton}>
-                      <Copy size={20} color={colors.primary} />
-                    </Pressable>
-                  </View>
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>Bank Name</Text>
-                  <View style={styles.fieldValueContainer}>
-                    <Text style={styles.fieldValue}>{virtualAccount.bank_name}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>Account Name</Text>
-                  <View style={styles.fieldValueContainer}>
-                    <Text style={styles.fieldValue}>{virtualAccount.account_name}</Text>
-                  </View>
-                </View>
-
-              </View>
-
-              {safehavenAccount && safehavenAccount.status !== 'Active' && (
-                <View style={styles.pendingNotice}>
-                  <Info size={16} color="#F59E0B" />
-                  <Text style={styles.pendingNoticeText}>
-                    Your account is being activated. You'll be able to receive funds once it's active.
+            ) : virtualAccount ? (
+              <View style={styles.accountDetailsCard}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardTitle}>Your {virtualAccount.bank_name} Account Details</Text>
+                  <Text style={styles.description}>
+                    Transfer money to the account details below and it will automatically appear on your available balance.
                   </Text>
                 </View>
-              )}
-            </View>
+
+                <View style={styles.fieldsContainer}>
+                  <View style={styles.field}>
+                    <Text style={styles.fieldLabel}>Account Number</Text>
+                    <View style={styles.accountNumberContainer}>
+                      <Text style={styles.accountNumber}>{virtualAccount.account_number}</Text>
+                      <Pressable onPress={handleCopyPress} style={styles.copyButton}>
+                        <Copy size={20} color={colors.primary} />
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  <View style={styles.field}>
+                    <Text style={styles.fieldLabel}>Bank Name</Text>
+                    <View style={styles.fieldValueContainer}>
+                      <Text style={styles.fieldValue}>{virtualAccount.bank_name}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.field}>
+                    <Text style={styles.fieldLabel}>Account Name</Text>
+                    <View style={styles.fieldValueContainer}>
+                      <Text style={styles.fieldValue}>{virtualAccount.account_name}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* {safehavenAccount && safehavenAccount.status !== 'Active' && (
+                  <View style={styles.pendingNotice}>
+                    <Info size={16} color="#F59E0B" />
+                    <Text style={styles.pendingNoticeText}>
+                      Your account is being activated. You'll be able to receive funds once it's active.
+                    </Text>
+                  </View>
+                )} */}
+              </View>
             ) : (
-              <View style={{ marginTop: 40, marginBottom: 24 }}>
-                {accountLoading ? (
-                  <View style={{ alignItems: 'center', padding: 20 }}>
-                    <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 16 }}>
-                      Loading account information...
-                    </Text>
-                  </View>
-                ) : accountError ? (
-                  <View style={{ alignItems: 'center', padding: 20 }}>
-                    <Text style={{ fontSize: 14, color: colors.error || '#DC2626', marginBottom: 16, textAlign: 'center' }}>
-                      Error loading account: {accountError}
-                    </Text>
-                    <Button
-                      title="Retry"
-                      onPress={refreshAccount}
-                      style={styles.createAccountButton}
-                    />
-                  </View>
-                ) : (
-                  <>
-                    <Text style={{ marginBottom: 16, fontWeight: 700, color: colors.text }}>Claim your bank account</Text>
-                    <Text style={{ marginBottom: 24, fontSize: 14, color: colors.textSecondary, lineHeight: 20 }}>
-                      {(() => {
-                        const tierCompletion = checkTierCompletion();
-                        if (tierCompletion.tier1) {
-                          return 'You\'ve completed Tier 1 verification. Your SafeHaven account will be available soon. Please check back later or contact support if you need assistance.';
-                        } else {
-                          return 'Complete Tier 1 verification (Liveness, BVN, and NIN) to get your SafeHaven account number.';
-                        }
-                      })()}
-                    </Text>
-                    {(() => {
-                      const tierCompletion = checkTierCompletion();
-                      if (!tierCompletion.tier1) {
-                        return (
-                          <Button
-                            title="Complete Tier 1 Verification"
-                            onPress={() => router.push('/kyc-upgrade')}
-                            style={styles.createAccountButton}
-                          />
-                        );
-                      }
-                      return (
-                        <Button
-                          title="Refresh Account"
-                          onPress={refreshAccount}
-                          style={styles.createAccountButton}
-                        />
-                      );
-                    })()}
-                  </>
-                )}
+              <View style={{ marginTop: 40, marginBottom: 24, alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>
+                  No account found
+                </Text>
+                <Text style={{ fontSize: 14, color: colors.textSecondary, textAlign: 'center' }}>
+                  Please complete KYC to create your SafeHaven account.
+                </Text>
               </View>
             )}
           </View>
@@ -311,7 +272,6 @@ export default function AddFundsScreen() {
         {/* Cards/Bank/USSD Tab (now Direct Deposit) */}
         {/* <View style={[styles.tabContent, { width: screenWidth }]}> 
           <View style={styles.content}>
-            <Text style={styles.title}>Choose a <Text style={styles.highlight}>Linked Account</Text></Text>
             <Text style={styles.title}>Choose a <Text style={styles.highlight}>Linked Account</Text></Text>
             <Text style={styles.description}>
               Select your preferred payment option to add funds to your wallet.
@@ -605,7 +565,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   doneButton: {
     width: '100%',
     height: 55,
-    borderRadius: 20,
+    borderRadius: 100,
     backgroundColor: colors.primary,
   },
   bankSelectionButton: {
@@ -641,7 +601,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   },
   createAccountButton: {
     backgroundColor: colors.primary,
-    borderRadius: 20,
+    borderRadius: 100,
     height: 55,
   },
   createAccountButtonDisabled: {
@@ -757,7 +717,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     backgroundColor: colors.backgroundSecondary,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 20,
+    borderRadius: 100,
     padding: 16,
     alignItems: 'center',
   },
@@ -841,7 +801,4 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     color: colors.textSecondary,
     fontWeight: '600',
   },
-  
-  
-  
 });

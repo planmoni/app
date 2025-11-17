@@ -6,7 +6,6 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useKYCData } from '@/hooks/useKYCData';
-import { useSafeHavenAccount } from '@/hooks/useSafeHavenAccount';
 import Button from '@/components/Button';
 import { router } from 'expo-router';
 import { getBankIconLogo } from '@/lib/bankIcons';
@@ -38,7 +37,6 @@ export default function ClaimAccountModal({
   const { showToast } = useToast();
   const { session } = useAuth();
   const { formData } = useKYCData();
-  const { account: existingAccount, refreshAccount } = useSafeHavenAccount();
   const styles = createStyles(colors, isDark);
   
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);

@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, useWindowDimensions } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image, Modal, useWindowDimensions, ScrollView } from 'react-native';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, X } from 'lucide-react-native';
+import { ArrowLeft, Shield, User, Calendar, Info, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, ChevronLeft, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
@@ -17,18 +17,8 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
 import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 import { safeHavenService } from '@/lib/safehaven-service';
-import { useCameraPermission } from 'react-native-vision-camera';
-import CameraPermissionModal from '@/components/CameraPermissionModal';
-import DatePickerModal from '@/components/DatePickerModal';
-import PersonalInfoStep from '@/components/KYCSteps/PersonalInfoStep';
-import BVNVerificationStep from '@/components/KYCSteps/BVNVerificationStep';
-import IDFaceMatchStep from '@/components/KYCSteps/IDFaceMatchStep';
-import DocumentsVerificationStep from '@/components/KYCSteps/DocumentsVerificationStep';
-import AddressDetailsStep from '@/components/KYCSteps/AddressDetailsStep';
-import ReviewStep from '@/components/KYCSteps/ReviewStep';
-import { IdentityType } from '@/components/KYCSteps/types';
-import SafeHavenOTPModal from '@/components/SafeHavenOTPModal';
-import Tier1CompletionModal from '@/components/Tier1CompletionModal';
+
+type IdentityType = 'bvn' | 'nin' | 'passport';
 
 export default function KYCUpgradeScreen() {
   const { colors, isDark } = useTheme();
@@ -43,49 +33,31 @@ export default function KYCUpgradeScreen() {
   // Custom hooks for KYC data and progress
   const { formData, loading: formDataLoading, saveFormData } = useKYCData();
   const { progress, loading: progressLoading, updateProgress, getStepProgress, updateTier, currentTier, checkTierCompletion } = useKYCProgress();
-  const params = useLocalSearchParams<{ selfieUrl?: string }>();
   
   
-  
+
   
   
   // Helper function to get the first incomplete step from scratch
   const getFirstIncompleteStep = useCallback((): KYCStep => {
-    if (!progress) return 'personal';
+    if (!progress) return 'liveness_verification';
     
-    // Updated step order: Personal Info → Liveness Check → BVN(Dojah) → NIN Initiate → NIN Validate → Create Sub Account (Tier 1 complete)
-    const stepOrder: KYCStep[] = ['personal', 'liveness_verification', 'bvn_verification', 'id_face_match', 'documents_verification', 'address_details', 'review'];
+    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
     
-    // Find the first incomplete step - MUST check in order
+    // Find the first incomplete step
     for (const step of stepOrder) {
       switch (step) {
-        case 'personal':
-          // Always check personal first - if not completed, return it immediately
-          if (!progress.personal_info_completed) {
-            console.log('[KYC] getFirstIncompleteStep: personal not completed, returning personal');
-            return step;
-          }
-          break;
         case 'liveness_verification':
-          // Only check liveness if personal is completed
-          if (progress.personal_info_completed && !progress.liveness_test_completed) {
-            console.log('[KYC] getFirstIncompleteStep: personal completed, liveness not completed, returning liveness');
-            return step;
-          }
+          if (!progress.liveness_test_completed) return step;
           break;
         case 'bvn_verification':
-          // Only check BVN if personal and liveness are completed
-          if (progress.personal_info_completed && progress.liveness_test_completed && !progress.bvn_verified) {
-            console.log('[KYC] getFirstIncompleteStep: personal and liveness completed, bvn not verified, returning bvn');
-            return step;
-          }
+          if (!progress.bvn_verified) return step;
           break;
         case 'id_face_match':
-          // Only check NIN if personal, liveness, and BVN are completed
-          if (progress.personal_info_completed && progress.liveness_test_completed && progress.bvn_verified && !progress.id_face_verified) {
-            console.log('[KYC] getFirstIncompleteStep: personal, liveness, bvn completed, nin not verified, returning nin');
-            return step;
-          }
+          if (!progress.id_face_verified) return step;
+          break;
+        case 'personal':
+          if (!progress.personal_info_completed) return step;
           break;
         case 'documents_verification':
           if (!progress.documents_verified) return step;
@@ -102,7 +74,7 @@ export default function KYCUpgradeScreen() {
   }, [progress]);
 
   // Step management - will be initialized to first incomplete step by useEffect
-  const [currentStep, setCurrentStep] = useState<KYCStep>('personal');
+  const [currentStep, setCurrentStep] = useState<KYCStep>('liveness_verification');
   
   // Identity verification
   const [selectedIdentityType, setSelectedIdentityType] = useState<IdentityType>('bvn');
@@ -117,7 +89,6 @@ export default function KYCUpgradeScreen() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showYearPicker, setShowYearPicker] = useState(false);
-  const [showMonthPicker, setShowMonthPicker] = useState(false);
   
   // Verification status
   const [bvnVerified, setBvnVerified] = useState(false);
@@ -128,13 +99,6 @@ export default function KYCUpgradeScreen() {
   const [livenessInitiated, setLivenessInitiated] = useState(false);
   const [livenessManuallyClosed, setLivenessManuallyClosed] = useState(false);
   const [livenessCompleted, setLivenessCompleted] = useState(false);
-  
-  // Camera permission modals
-  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
-  const { hasPermission, requestPermission } = useCameraPermission();
-  
-  // Tier 1 completion modal
-  const [showTier1CompletionModal, setShowTier1CompletionModal] = useState(false);
   
   // Personal information
   const [firstName, setFirstName] = useState('');
@@ -166,7 +130,7 @@ export default function KYCUpgradeScreen() {
   const [passportNumber, setPassportNumber] = useState('');
   const [ninIdentityId, setNinIdentityId] = useState<string | null>(null);
   const [otp, setOtp] = useState('');
-  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [otpMessage, setOtpMessage] = useState<string | null>(null);
   
   
   // Document verification
@@ -201,55 +165,25 @@ export default function KYCUpgradeScreen() {
     }
   }, [session]);
 
-  // Show camera permission modal when on liveness_verification step
-  // CRITICAL: Only show after personal information is completed
+  // Check for liveness test completion when on liveness_verification step
   useEffect(() => {
-    // Only check if we're on the liveness_verification step
-    if (currentStep !== 'liveness_verification') {
-      return;
-    }
-
-    // CRITICAL: Ensure personal info is completed FIRST before any liveness checks
-    if (!progress?.personal_info_completed) {
-      console.log('[KYC] Personal info not completed, cannot show liveness yet - moving to personal step');
-      // Personal not completed, should not be on liveness step - move back to personal
-      setCurrentStep('personal');
-      return;
-    }
-
-    // CRITICAL: If liveness is already completed, don't show anything - move to next step
-    if (progress?.liveness_test_completed) {
-      console.log('[KYC] Liveness already completed, moving to next step');
-      // Liveness already completed, use getFirstIncompleteStep to ensure correct order
-      const nextStep = getFirstIncompleteStep();
-      console.log('[KYC] Liveness completed, next step from getFirstIncompleteStep:', nextStep);
-      // Ensure we don't go back to liveness if it's already completed
-      if (nextStep !== 'liveness_verification') {
-        setCurrentStep(nextStep);
-      } else {
-        // Fallback: if somehow nextStep is still liveness, force move to BVN or personal
-        const fallbackStep = progress?.personal_info_completed 
-          ? (progress?.bvn_verified ? 'id_face_match' : 'bvn_verification')
-          : 'personal';
-        console.warn('[KYC] getFirstIncompleteStep returned liveness even though completed, using fallback:', fallbackStep);
-        setCurrentStep(fallbackStep);
+    const checkLivenessTestForStep = async () => {
+      // Only check if we're on the liveness_verification step
+      if (currentStep !== 'liveness_verification') {
+        return;
       }
-      return;
-    }
 
-    // Only check if we haven't already initiated liveness test and it's not manually closed
-    if (livenessInitiated || showLivenessTest || livenessManuallyClosed || showCameraPermissionModal) {
-      return;
-    }
+      // Only check if we haven't already initiated liveness test and it's not manually closed
+      if (livenessInitiated || showLivenessTest || livenessManuallyClosed) {
+        return;
+      }
 
-    // At this point, we know:
-    // 1. We're on liveness_verification step
-    // 2. Personal info IS completed
-    // 3. Liveness is NOT completed
-    // 4. No modals are currently showing
-    
-    // Check if selfie exists in kyc_data table
-    const checkSelfie = async () => {
+      // Check if liveness test is completed in progress
+      if (progress?.liveness_test_completed) {
+        return; // Liveness already completed, move to next step
+      }
+
+      // Check if selfie exists in kyc_data table
       try {
         const { data: kycData } = await supabase
           .from('kyc_data')
@@ -259,31 +193,21 @@ export default function KYCUpgradeScreen() {
         
         const hasSelfie = kycData?.selfie_url && kycData.selfie_url.trim() !== '';
         
-        // If no selfie and liveness not completed, show camera permission modal
-        // This will only trigger if personal info is completed (checked above)
-        if (!hasSelfie && !progress?.liveness_test_completed && progress?.personal_info_completed) {
-          console.log('[KYC] On liveness_verification step with personal completed - showing camera permission modal');
-          setShowCameraPermissionModal(true);
+        // If no selfie and liveness not completed, show liveness test
+        if (!hasSelfie && !progress?.liveness_test_completed) {
+          console.log('On liveness_verification step - showing liveness test');
+          setShowLivenessTest(true);
+          setLivenessInitiated(true);
         }
       } catch (error) {
         console.error('Error checking liveness test status:', error);
       }
     };
 
-    if (progress && session?.user?.id && progress.personal_info_completed) {
-      checkSelfie();
+    if (progress && session?.user?.id && currentStep === 'liveness_verification') {
+      checkLivenessTestForStep();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep, progress, session?.user?.id, livenessInitiated, showLivenessTest, livenessManuallyClosed, showCameraPermissionModal]);
-
-  // Handle selfie URL from navigation params (when coming from CameraPermissionModal)
-  useEffect(() => {
-    if (params.selfieUrl && !livenessCompleted && !progress?.liveness_test_completed) {
-      // Selfie URL passed from navigation - handle liveness completion
-      handleLivenessComplete(params.selfieUrl);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.selfieUrl]);
+  }, [currentStep, progress, session?.user?.id, livenessInitiated, showLivenessTest, livenessManuallyClosed]);
 
   // Load form data and progress when they change
   useEffect(() => {
@@ -325,20 +249,6 @@ export default function KYCUpgradeScreen() {
         if (formData.document_back_url) setDocumentBackImage(formData.document_back_url);
         if (formData.selfie_url) setSelfieImage(formData.selfie_url);
         
-        // Check if selfie exists but liveness is not marked as completed in progress
-        // This handles the case where liveness was completed but progress hasn't updated yet
-        // Only trigger if we're actually on the liveness step or if personal is completed
-        // Don't trigger if liveness is already completed or if we're on a different step
-        if (formData.selfie_url && 
-            !progress?.liveness_test_completed && 
-            progress?.personal_info_completed &&
-            (currentStep === 'liveness_verification' || !currentStep || currentStep === 'personal')) {
-          // Selfie exists but progress not updated - trigger handleLivenessComplete
-          // But only if we're in the right context (personal completed, on liveness step)
-          console.log('[KYC] Selfie exists but liveness not marked complete, triggering completion');
-          handleLivenessComplete(formData.selfie_url);
-        }
-        
         // Load address details
         if (formData.lga) setLga(formData.lga);
         if (formData.state) setState(formData.state);
@@ -354,11 +264,11 @@ export default function KYCUpgradeScreen() {
 
   // Helper function to get the next incomplete step
   const getNextIncompleteStep = (current: KYCStep): KYCStep => {
-    // Updated step order: Personal Info → Liveness Check → BVN(Dojah) → NIN Initiate → NIN Validate → Create Sub Account (Tier 1 complete)
-    // Tier 1: personal, liveness_verification, bvn_verification, id_face_match (NIN)
-    // Tier 2: documents_verification
+    // Define step order based on tiers:
+    // Tier 1: liveness_verification, bvn_verification, id_face_match
+    // Tier 2: personal, documents_verification
     // Tier 3: address_details
-    const stepOrder: KYCStep[] = ['personal', 'liveness_verification', 'bvn_verification', 'id_face_match', 'documents_verification', 'address_details', 'review'];
+    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
     const currentIndex = stepOrder.indexOf(current);
     
     // Find the next incomplete step
@@ -393,11 +303,11 @@ export default function KYCUpgradeScreen() {
 
   // Helper function to get the previous incomplete step (or first incomplete if going back from a completed step)
   const getPreviousIncompleteStep = (current: KYCStep): KYCStep | null => {
-    // Updated step order: Personal Info → Liveness Check → BVN(Dojah) → NIN Initiate → NIN Validate → Create Sub Account (Tier 1 complete)
-    // Tier 1: personal, liveness_verification, bvn_verification, id_face_match (NIN)
-    // Tier 2: documents_verification
+    // Define step order based on tiers:
+    // Tier 1: liveness_verification, bvn_verification, id_face_match
+    // Tier 2: personal, documents_verification
     // Tier 3: address_details
-    const stepOrder: KYCStep[] = ['personal', 'liveness_verification', 'bvn_verification', 'id_face_match', 'documents_verification', 'address_details', 'review'];
+    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
     const currentIndex = stepOrder.indexOf(current);
     
     // Find the last incomplete step before current
@@ -429,24 +339,16 @@ export default function KYCUpgradeScreen() {
   };
 
   // Update current step when progress changes, but skip to first incomplete step
-  // Always use getFirstIncompleteStep() to ensure correct order: Personal → Liveness → BVN → NIN
   useEffect(() => {
     if (progress && !progressLoading) {
       setBvnVerified(progress.bvn_verified);
       setDocumentsVerified(progress.documents_verified);
       
-      // Always get the first incomplete step using the helper function
-      // This ensures we follow the correct order: Personal → Liveness → BVN → NIN
-      // Ignore the stored current_step from database as it may be outdated
+      // Get the first incomplete step directly using the helper function
       const targetStep = getFirstIncompleteStep();
-      console.log('[KYC] Setting current step to:', targetStep, 'based on first incomplete step');
       setCurrentStep(targetStep);
-    } else if (!progress && !progressLoading) {
-      // If no progress exists, start with personal
-      console.log('[KYC] No progress found, starting with personal step');
-      setCurrentStep('personal');
     }
-  }, [progress, progressLoading, getFirstIncompleteStep]);
+  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep]);
 
   // Auto-focus BVN input when step changes to bvn_verification
   useEffect(() => {
@@ -698,18 +600,8 @@ export default function KYCUpgradeScreen() {
           console.log('[KYC] Liveness test status:', {
             completed: progress.liveness_test_completed,
             showLivenessTest,
-            livenessInitiated,
-            personalCompleted: progress.personal_info_completed
+            livenessInitiated
           });
-          
-          // Ensure personal info is completed first
-          if (!progress.personal_info_completed) {
-            console.log('[KYC] Personal info not completed, moving to personal step');
-            showToast('Please complete personal information first', 'error');
-            setCurrentStep('personal');
-            return;
-          }
-          
           // Liveness test is handled via LivenessTestEnhanced component
           // When user clicks Continue, show the liveness test modal
           if (!progress.liveness_test_completed) {
@@ -719,17 +611,10 @@ export default function KYCUpgradeScreen() {
             console.log('[KYC] Liveness test modal state updated');
           } else {
             console.log('[KYC] Liveness test already completed, moving to next step');
-            // If already completed, use getFirstIncompleteStep to ensure correct order
-            const nextStep = getFirstIncompleteStep();
-            console.log('[KYC] Next step from getFirstIncompleteStep:', nextStep);
-            // Ensure we don't go back to liveness if it's already completed
-            if (nextStep === 'liveness_verification') {
-              const fallbackStep = progress.bvn_verified ? 'id_face_match' : 'bvn_verification';
-              console.warn('[KYC] getFirstIncompleteStep returned liveness even though completed, using fallback:', fallbackStep);
-              setCurrentStep(fallbackStep);
-            } else {
-              setCurrentStep(nextStep);
-            }
+            // If already completed, move to next step
+            const nextStep = getNextIncompleteStep('liveness_verification');
+            console.log('[KYC] Next step:', nextStep);
+            setCurrentStep(nextStep);
           }
           break;
         case 'personal':
@@ -753,30 +638,33 @@ export default function KYCUpgradeScreen() {
               
               if (!saveResult) {
                 showToast('Failed to save personal information. Please try again.', 'error');
-                setIsLoading(false);
                 return;
               }
               
+              
               // Update progress when personal info is completed
-              // After personal (Tier 1), move to liveness_verification (Tier 1)
+              // After personal (Tier 2), move to documents_verification (still Tier 2)
               const progressResult = await updateProgress({
-                current_step: 'liveness_verification', // Move to liveness verification (Tier 1) after personal info
+                current_step: 'documents_verification', // Move to documents verification (Tier 2) after personal info
                 personal_info_completed: true
               });
               
               if (!progressResult) {
                 showToast('Failed to update progress. Please try again.', 'error');
-                setIsLoading(false);
                 return;
               }
               
-              // Show camera permission modal to start liveness check
-              setIsLoading(false);
-              setShowCameraPermissionModal(true);
+              // Proceed to next incomplete step (should be documents_verification if not completed)
+              const nextStep = getNextIncompleteStep('personal');
+              setCurrentStep(nextStep);
+              setTimeout(() => {
+                setIsManualVerification(false);
+              }, 1000);
               
             } catch (error) {
               console.error('Error proceeding after personal info:', error);
               showToast('An error occurred. Please try again.', 'error');
+            } finally {
               setIsLoading(false);
             }
           }
@@ -1011,27 +899,19 @@ export default function KYCUpgradeScreen() {
       showToast('Selfie captured and saved successfully', 'success');
       
       // Update current_step to next step after liveness completion
-      // Tier 1: After liveness, move to BVN verification (but only if personal is completed)
+      // Tier 1: After liveness, move to BVN verification
       const progressResult = await updateProgress({
-        current_step: progress?.personal_info_completed ? 'bvn_verification' : 'personal', // Move to BVN if personal done, else personal
+        current_step: 'bvn_verification', // Move to BVN verification (Tier 1) after liveness
         liveness_test_completed: true
       });
       
       if (progressResult) {
-        // Proceed to next incomplete step using getFirstIncompleteStep to ensure correct order
-        // This ensures we don't skip steps and follow: Personal → Liveness → BVN → NIN
-        const nextStep = getFirstIncompleteStep();
-        console.log('[KYC] Moving to next step after liveness completion:', nextStep);
+        // Proceed to next incomplete step (should be bvn_verification if not completed)
+        const nextStep = getNextIncompleteStep('liveness_verification');
+        console.log('[KYC] Moving to next step after liveness:', nextStep);
         
-        // Set the current step - this should never be liveness_verification if we just completed it
-        if (nextStep !== 'liveness_verification') {
-          setCurrentStep(nextStep);
-        } else {
-          // If somehow nextStep is still liveness, force move to BVN or personal
-          const fallbackStep = progress?.personal_info_completed ? 'bvn_verification' : 'personal';
-          console.warn('[KYC] Next step was still liveness after completion, moving to:', fallbackStep);
-          setCurrentStep(fallbackStep);
-        }
+        // Set the current step first to transition smoothly
+        setCurrentStep(nextStep);
         
         // Close the liveness test modal after a short delay to allow step transition
         // This ensures the user sees the transition to BVN step
@@ -1320,108 +1200,111 @@ export default function KYCUpgradeScreen() {
       const userLastName = lastName || '';
       const userMiddleName = middleName || '';
       
-      console.log('Name comparison:', {
-        bvn: { firstName: bvnFirstName, lastName: bvnLastName, middleName: bvnMiddleName },
-        user: { firstName: userFirstName, lastName: lastName, middleName: userMiddleName }
+      // TODO: Name mismatch check temporarily commented out
+      // console.log('Name comparison:', {
+      //   bvn: { firstName: bvnFirstName, lastName: bvnLastName, middleName: bvnMiddleName },
+      //   user: { firstName: userFirstName, lastName: lastName, middleName: userMiddleName }
+      // });
+      
+      // // Check if any name matches (considering possible swaps)
+      // const allBvnNames = [bvnFirstName, bvnLastName, bvnMiddleName].filter(Boolean);
+      // const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
+      
+      // let nameMatches = 0;
+      // let totalNames = Math.max(allBvnNames.length, allUserNames.length);
+      
+      // // Check for matches (including swapped positions)
+      // for (const bvnName of allBvnNames) {
+      //   for (const userName of allUserNames) {
+      //     if (isNameMatch(bvnName, userName)) {
+      //       nameMatches++;
+      //       break;
+      //     }
+      //   }
+      // }
+      
+      // const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
+      // console.log(`Name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
+      
+      // // Consider it a match if at least 60% of names match
+      // if (matchPercentage >= 60) {
+      
+      // Proceed with verification without name matching check
+      setBvnVerified(true);
+      
+      // Create a display name from BVN data
+      const displayName = [bvnFirstName, bvnMiddleName, bvnLastName]
+        .filter(Boolean)
+        .join(' ');
+      
+      setBvnMatchedName(displayName);
+      
+      // Create audit log for BVN verification
+      await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: session.user.id,
+        p_operation_type: 'bvn_verified',
+        p_verification_type: 'bvn',
+        p_verification_provider: 'dojah',
+        p_request_data: {
+          bvn: bvn,
+          selfie_verification: true,
+          name_matching: false // Temporarily disabled
+        },
+        p_response_data: {
+          bvn_data: bvnData,
+          // name_match_percentage: matchPercentage,
+          selfie_confidence: bvnData.selfie_verification?.confidence_value,
+          matched_name: displayName
+        },
+        p_status: 'success',
+        p_result_message: `BVN verified successfully. Name: ${displayName}`,
+        p_confidence_score: bvnData.selfie_verification?.confidence_value || 95.0,
+        p_metadata: {
+          component: 'kyc-upgrade',
+          verification_step: 'bvn_verification',
+          // name_match_percentage: matchPercentage,
+          provider: 'dojah'
+        }
       });
       
-      // Check if any name matches (considering possible swaps)
-      const allBvnNames = [bvnFirstName, bvnLastName, bvnMiddleName].filter(Boolean);
-      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
+      // BVN verification successful with Dojah
+      showToast(`BVN verified! Name: ${displayName}`, 'success');
       
-      let nameMatches = 0;
-      let totalNames = Math.max(allBvnNames.length, allUserNames.length);
+      // Update progress with BVN verified and check for Tier 1 completion
+      // After BVN (Tier 1), move to id_face_match (NIN verification, still Tier 1)
+      const progressResult = await updateProgress({
+        current_step: 'id_face_match', // Move to NIN verification (Tier 1) after BVN
+        bvn_verified: true
+      });
       
-      // Check for matches (including swapped positions)
-      for (const bvnName of allBvnNames) {
-        for (const userName of allUserNames) {
-          if (isNameMatch(bvnName, userName)) {
-            nameMatches++;
-            break;
-          }
+      // Check if Tier 1 is complete (Liveness + BVN + NIN)
+      if (progressResult) {
+        await updateTier(); // Update tier after BVN verification
+        const tierStatus = checkTierCompletion();
+        if (tierStatus.tier1) {
+          console.log('Tier 1 completed! User can now proceed to Tier 2.');
+          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
         }
       }
       
-      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
-      console.log(`Name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
-      
-      // Consider it a match if at least 60% of names match
-      if (matchPercentage >= 60) {
-        setBvnVerified(true);
-        
-        // Create a display name from BVN data
-        const displayName = [bvnFirstName, bvnMiddleName, bvnLastName]
-          .filter(Boolean)
-          .join(' ');
-        
-        setBvnMatchedName(displayName);
-        
-        // Create audit log for BVN verification
-        await supabase.rpc('create_kyc_audit_log', {
-          p_user_id: session.user.id,
-          p_operation_type: 'bvn_verified',
-          p_verification_type: 'bvn',
-          p_verification_provider: 'dojah',
-          p_request_data: {
-            bvn: bvn,
-            selfie_verification: true,
-            name_matching: true
-          },
-          p_response_data: {
-            bvn_data: bvnData,
-            name_match_percentage: matchPercentage,
-            selfie_confidence: bvnData.selfie_verification?.confidence_value,
-            matched_name: displayName
-          },
-          p_status: 'success',
-          p_result_message: `BVN verified successfully. Name: ${displayName}`,
-          p_confidence_score: bvnData.selfie_verification?.confidence_value || 95.0,
-          p_metadata: {
-            component: 'kyc-upgrade',
-            verification_step: 'bvn_verification',
-            name_match_percentage: matchPercentage,
-            provider: 'dojah'
-          }
-        });
-        
-        // BVN verification successful with Dojah
-        showToast(`BVN verified! Name: ${displayName}`, 'success');
-        
-        // Update progress with BVN verified and check for Tier 1 completion
-        // After BVN (Tier 1), move to id_face_match (NIN verification, still Tier 1)
-        const progressResult = await updateProgress({
-          current_step: 'id_face_match', // Move to NIN verification (Tier 1) after BVN
-          bvn_verified: true
-        });
-        
-        // Check if Tier 1 is complete (Personal + Liveness + BVN + NIN with Sub Account)
-        if (progressResult) {
-          await updateTier(); // Update tier after BVN verification
-          const tierStatus = checkTierCompletion();
-          if (tierStatus.tier1) {
-            console.log('Tier 1 completed! Sub account created. User can now proceed to Tier 2.');
-            // Show Tier 1 completion modal instead of just a toast
-            setShowTier1CompletionModal(true);
-          }
-        }
-        
-        if (!progressResult) {
-          showToast('Failed to update progress. Please try again.', 'error');
-          return;
-        }
-        
-        // Wait for toast to be visible before moving to next step
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Move to next incomplete step (skip if already verified)
-        const nextStep = getNextIncompleteStep('bvn_verification');
-        setCurrentStep(nextStep);
-        setTimeout(() => {
-          setIsManualVerification(false);
-        }, 1000);
-      } else {
-        throw new Error('Name mismatch detected. Please verify your personal information.');
+      if (!progressResult) {
+        showToast('Failed to update progress. Please try again.', 'error');
+        return;
       }
+      
+      // Wait for toast to be visible before moving to next step
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Move to next incomplete step (skip if already verified)
+      const nextStep = getNextIncompleteStep('bvn_verification');
+      setCurrentStep(nextStep);
+      setTimeout(() => {
+        setIsManualVerification(false);
+      }, 1000);
+      
+      // } else {
+      //   throw new Error('Name mismatch detected. Please verify your personal information.');
+      // }
       
     } catch (error) {
       console.error('BVN verification error:', error);
@@ -1739,11 +1622,13 @@ export default function KYCUpgradeScreen() {
       setIsManualVerification(true);
 
       // Use SafeHaven service to initialize NIN verification
-      // This sends OTP to the phone number linked to the NIN
-      const result = await safeHavenService.initiateIdentityVerification(
+      // Call without OTP to initialize and get identityId
+      const result = await safeHavenService.verifyNINAndCreateAccount(
         session.user.id,
         nin.trim(),
-        phoneNumber?.trim() || ''
+        phoneNumber?.trim() || '',
+        session?.user?.email || '',
+        undefined  // otp - not provided for initialization
       );
 
       if (!result.success) {
@@ -1751,22 +1636,21 @@ export default function KYCUpgradeScreen() {
       }
 
       const identityId = result.data?.identityId;
+      const message = result.data?.otpMessage;
       console.log("identityId", identityId)
       
       if (!identityId) {
         throw new Error('Identity ID not found in response');
       }
 
-      // Store identityId for use in verifyNIN
+      // Store identityId and OTP message for use in verifyNIN
       setNinIdentityId(identityId);
+      setOtpMessage(message || null);
 
       // OTP is sent to the phone number linked to the NIN
       showToast('OTP sent to phone number linked to your NIN', 'success');
       
       setIsLoading(false);
-      
-      // Show OTP modal
-      setShowOTPModal(true);
       
       return {
         success: true,
@@ -1797,7 +1681,7 @@ export default function KYCUpgradeScreen() {
         throw new Error('User session not found');
       }
 
-      // Use provided OTP (from modal) or state OTP
+      // Use provided OTP or state OTP
       const otpToUse = otpValue || otp;
       if (!otpToUse || otpToUse.length !== 6) {
         throw new Error('Valid 6-digit OTP is required');
@@ -1847,56 +1731,29 @@ export default function KYCUpgradeScreen() {
         }
       });
 
-      // Step 1: Validate identity verification with OTP
-      const validateResult = await safeHavenService.validateIdentityVerification(
+      // Use SafeHaven service to create account with OTP
+      const result = await safeHavenService.verifyNINAndCreateAccount(
         session.user.id,
-        identityIdToUse,
-        otpToUse,
-        'NIN'
+        nin.trim(),
+        userPhoneNumber,
+        userEmail,
+        otpToUse,  // OTP provided
+        identityIdToUse // identityId from initialization step
       );
 
-      if (!validateResult.success) {
-        throw new Error(validateResult.error || 'Identity verification failed');
+      if (!result.success) {
+        throw new Error(result.error || 'Account creation failed');
       }
 
-      const verifiedData = validateResult.data?.verifiedData;
-      if (!verifiedData) {
-        throw new Error('Identity verification failed. Please check your OTP and try again.');
-      }
-
-      // Step 2: Create sub account immediately after validation
-      // Get personal info from form or verified data
-      const personalInfo = {
-        firstName: firstName || verifiedData.firstName || verifiedData.first_name || '',
-        lastName: lastName || verifiedData.lastName || verifiedData.last_name || '',
-        middleName: middleName || verifiedData.middleName || verifiedData.middle_name || '',
-        dateOfBirth: dateOfBirth || verifiedData.dateOfBirth || verifiedData.date_of_birth || '',
-        phoneNumber: userPhoneNumber,
-        emailAddress: userEmail
-      };
-
-      const createAccountResult = await safeHavenService.createSubAccount(
-        session.user.id,
-        identityIdToUse,
-        personalInfo,
-        nin.trim()
-      );
-
-      if (!createAccountResult.success) {
-        throw new Error(createAccountResult.error || 'Sub account creation failed');
-      }
-
-      const verificationData = createAccountResult.data?.accountData;
+      const verificationData = result.data;
       
-      if (!verificationData) {
-        throw new Error('Sub account creation failed. Please try again.');
+      if (!verificationData || !verificationData.verified) {
+        throw new Error('NIN verification failed. Please check your NIN and try again.');
       }
 
       // Extract account information
       const accountNumber = verificationData.account_number;
-      const accountStatus = verificationData.status || (accountNumber ? 'ACTIVE' : 'PENDING');
-      const accountName = verificationData.account_name || `${verificationData.first_name || ''} ${verificationData.last_name || ''}`.trim();
-      const identityId = verificationData.identityId;
+      const accountName = verificationData.account_name || `${verificationData.first_name} ${verificationData.last_name}`.trim();
       
       // Log the verification data for debugging
       console.log('[KYC] NIN verification data:', {
@@ -1904,331 +1761,146 @@ export default function KYCUpgradeScreen() {
         hasAccountName: !!accountName,
         hasFirstName: !!verificationData.first_name,
         hasLastName: !!verificationData.last_name,
-        hasMiddleName: !!verificationData.middle_name,
-        identityId: identityId,
-        status: accountStatus,
-        verified: verificationData.verified,
-        verificationData: verificationData
+        identityId: verificationData.identityId,
+        status: verificationData.status
       });
       
       // Account number might not be immediately available if account creation is async
       // We'll proceed with verification even if account number is not present
-      if (!accountNumber && accountStatus === 'PENDING') {
-        console.log('[KYC] Account creation is pending. Realtime subscription will handle updates.');
-        // Don't start polling immediately - let the realtime subscription handle updates
-        // This prevents blocking the UI with background polling
-      } else if (!accountNumber) {
+      if (!accountNumber) {
         console.warn('[KYC] Account number not found in response. Account might be created asynchronously.');
         // Don't throw error - proceed with verification using identity data
       }
 
-      // Extract names - prefer direct fields from verificationData, fallback to parsing accountName
-      let ninFirstName = verificationData.first_name || '';
-      let ninLastName = verificationData.last_name || '';
-      let ninMiddleName = verificationData.middle_name || '';
-      
-      // If direct fields are not available, try to extract from accountName
-      if ((!ninFirstName || !ninLastName) && accountName) {
-        const names = accountName.split(' ').filter(Boolean);
-        if (names.length > 0) {
-          ninFirstName = ninFirstName || names[0] || '';
-          ninLastName = ninLastName || names[names.length - 1] || '';
-          ninMiddleName = ninMiddleName || (names.length > 2 ? names.slice(1, -1).join(' ') : '');
-        }
-      }
-      
-      // Final fallback: if still empty, log warning
-      if (!ninFirstName && !ninLastName) {
-        console.warn('[KYC] Warning: Could not extract names from NIN verification data. Account name:', accountName);
-      }
+      // Extract names from account name
+      const names = accountName ? accountName.split(' ') : [];
+      const ninFirstName = names[0] || '';
+      const ninLastName = names[names.length - 1] || '';
+      const ninMiddleName = names.length > 2 ? names.slice(1, -1).join(' ') : '';
       
       // Get names from user's saved data
       const userFirstName = firstName || '';
       const userLastName = lastName || '';
       const userMiddleName = middleName || '';
       
-      console.log('NIN name comparison:', {
-        nin: { firstName: ninFirstName, lastName: ninLastName, middleName: ninMiddleName },
-        user: { firstName: userFirstName, lastName: userLastName, middleName: userMiddleName }
+      // TODO: Name mismatch check temporarily commented out
+      // console.log('NIN name comparison:', {
+      //   nin: { firstName: ninFirstName, lastName: ninLastName, middleName: ninMiddleName },
+      //   user: { firstName: userFirstName, lastName: userLastName, middleName: userMiddleName }
+      // });
+      
+      // // Check if any name matches (considering possible swaps)
+      // const allNinNames = [ninFirstName, ninLastName, ninMiddleName].filter(Boolean);
+      // const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
+      
+      // let nameMatches = 0;
+      // let totalNames = Math.max(allNinNames.length, allUserNames.length);
+      
+      // // Check for matches (including swapped positions)
+      // for (const ninName of allNinNames) {
+      //   for (const userName of allUserNames) {
+      //     if (isNameMatch(ninName, userName)) {
+      //       nameMatches++;
+      //       break;
+      //     }
+      //   }
+      // }
+      
+      // const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
+      // console.log(`NIN name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
+      
+      // // Consider it a match if at least 60% of names match
+      // if (matchPercentage >= 60) {
+      
+      // Proceed with verification without name matching check
+      setDocumentsVerified(true);
+      
+      // Create a display name from NIN data
+      const displayName = [ninFirstName, ninMiddleName, ninLastName]
+        .filter(Boolean)
+        .join(' ');
+
+      // Account is already stored by the service, no need to store again
+
+      // Update audit log with success
+      if (auditLogId) {
+        await supabase
+          .from('kyc_audit_logs')
+          .update({
+            status: 'success',
+            response_data: {
+              verified: true,
+              nin: nin.substring(0, 4) + '****',
+              // name_match_percentage: matchPercentage,
+              matched_name: displayName,
+              hasAccount: !!accountNumber,
+              account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', auditLogId);
+
+        await supabase
+          .from('kyc_audit_events')
+          .insert({
+            audit_log_id: auditLogId,
+            user_id: session.user.id,
+            event_type: 'verification_completed',
+            event_data: {
+              action: 'nin_verification_completed',
+              nin: nin.substring(0, 4) + '****',
+              // name_match_percentage: matchPercentage,
+              matched_name: displayName,
+              hasAccount: !!accountNumber,
+              account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null,
+              provider: 'safehaven'
+            },
+            severity: 'high'
+          });
+      }
+      
+      // Show success message
+      if (accountNumber) {
+        showToast(`NIN verified! Name: ${displayName} • Account created: ${accountNumber.substring(0, 5)}****`, 'success');
+      } else {
+        showToast(`NIN verified! Name: ${displayName} • Account creation in progress`, 'success');
+      }
+      
+      // Update progress with NIN verified (using id_face_verified)
+      const progressResult = await updateProgress({
+        current_step: 'personal', // Move to personal info (Tier 2) after NIN verification
+        id_face_verified: true
       });
       
-      // Check if any name matches (considering possible swaps)
-      const allNinNames = [ninFirstName, ninLastName, ninMiddleName].filter(Boolean);
-      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
-      
-      let nameMatches = 0;
-      let totalNames = Math.max(allNinNames.length, allUserNames.length);
-      
-      // Check for matches (including swapped positions)
-      for (const ninName of allNinNames) {
-        for (const userName of allUserNames) {
-          if (isNameMatch(ninName, userName)) {
-            nameMatches++;
-            break;
-          }
+      // Check if Tier 1 is complete (Liveness + BVN + NIN)
+      if (progressResult) {
+        await updateTier(); // Update tier after NIN verification
+        const tierStatus = checkTierCompletion();
+        if (tierStatus.tier1) {
+          console.log('Tier 1 completed! User can now proceed to Tier 2.');
+          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
         }
       }
       
-      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
-      console.log(`NIN name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
-      
-      // Consider it a match if at least 60% of names match
-      if (matchPercentage >= 60) {
-        setDocumentsVerified(true);
-        
-        // Create a display name from NIN data
-        const displayName = [ninFirstName, ninMiddleName, ninLastName]
-          .filter(Boolean)
-          .join(' ');
-
-        // Account is already stored by the service, no need to store again
-
-        // Update audit log with success
-        if (auditLogId) {
-          await supabase
-            .from('kyc_audit_logs')
-            .update({
-              status: 'success',
-              response_data: {
-                verified: true,
-                nin: nin.substring(0, 4) + '****',
-                name_match_percentage: matchPercentage,
-                matched_name: displayName,
-                hasAccount: !!accountNumber,
-                account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null
-              },
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', auditLogId);
-
-          await supabase
-            .from('kyc_audit_events')
-            .insert({
-              audit_log_id: auditLogId,
-              user_id: session.user.id,
-              event_type: 'verification_completed',
-              event_data: {
-                action: 'nin_verification_completed',
-                nin: nin.substring(0, 4) + '****',
-                name_match_percentage: matchPercentage,
-                matched_name: displayName,
-                hasAccount: !!accountNumber,
-                account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null,
-                provider: 'safehaven'
-              },
-              severity: 'high'
-            });
-        }
-        
-        // Close OTP modal on success
-        setShowOTPModal(false);
-        
-        // Show success message
-        if (accountNumber) {
-          showToast(`NIN verified! Name: ${displayName} • Sub account created: ${accountNumber.substring(0, 5)}****`, 'success');
-        } else if (accountStatus === 'PENDING') {
-          showToast(`NIN verified! Name: ${displayName} • Sub account creation in progress. You'll be notified when ready.`, 'info');
-        } else {
-          showToast(`NIN verified! Name: ${displayName} • Sub account creation initiated`, 'success');
-        }
-        
-        // Update progress with NIN verified (using id_face_verified)
-        const progressResult = await updateProgress({
-          current_step: 'documents_verification', // Move to documents (Tier 2) after NIN verification
-          id_face_verified: true
-        });
-        
-        // Check if Tier 1 is complete (Personal + Liveness + BVN + NIN with Sub Account)
-        if (progressResult) {
-          await updateTier(); // Update tier after NIN verification
-          const tierStatus = checkTierCompletion();
-          if (tierStatus.tier1) {
-            console.log('Tier 1 completed! Sub account created. User can now proceed to Tier 2.');
-            // Show Tier 1 completion modal instead of just a toast
-            setShowTier1CompletionModal(true);
-            return; // Don't move to next step, show modal instead
-          }
-        }
-        
-        if (!progressResult) {
-          showToast('Failed to update progress. Please try again.', 'error');
-          return;
-        }
-        
-        // Wait for toast to be visible before moving to next step
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Move to next incomplete step
-        const nextStep = getNextIncompleteStep('id_face_match');
-        setCurrentStep(nextStep);
-        setTimeout(() => {
-          setIsManualVerification(false);
-          setIsLoading(false);
-        }, 1000);
-      } else {
-        // Name mismatch detected - auto-update personal information to match NIN data
-        console.log('[KYC] Name mismatch detected. Updating personal information to match NIN data...');
-        
-        // Update local state to match NIN data
-        setFirstName(ninFirstName);
-        setLastName(ninLastName);
-        setMiddleName(ninMiddleName);
-        
-        // Update personal information in kyc_data table
-        const updateResult = await saveFormData({
-          first_name: ninFirstName,
-          last_name: ninLastName,
-          middle_name: ninMiddleName,
-        });
-        
-        if (!updateResult) {
-          console.warn('[KYC] Failed to update personal information in kyc_data table');
-        }
-        
-        // Also update profiles table if it has first_name and last_name
-        try {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({
-              first_name: ninFirstName,
-              last_name: ninLastName,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', session.user.id);
-          
-          if (profileError) {
-            console.warn('[KYC] Failed to update profiles table:', profileError);
-          } else {
-            console.log('[KYC] Successfully updated profiles table with NIN data');
-          }
-        } catch (profileUpdateError) {
-          console.warn('[KYC] Error updating profiles table:', profileUpdateError);
-        }
-        
-        // Log the auto-update in audit log
-        if (auditLogId) {
-          await supabase
-            .from('kyc_audit_events')
-            .insert({
-              audit_log_id: auditLogId,
-              user_id: session.user.id,
-              event_type: 'data_auto_updated',
-              event_data: {
-                action: 'auto_update_personal_info_from_nin',
-                reason: 'name_mismatch',
-                old_names: {
-                  first_name: userFirstName,
-                  last_name: userLastName,
-                  middle_name: userMiddleName
-                },
-                new_names: {
-                  first_name: ninFirstName,
-                  last_name: ninLastName,
-                  middle_name: ninMiddleName
-                },
-                match_percentage: matchPercentage
-              },
-              severity: 'medium'
-            });
-        }
-        
-        // Show info message about auto-update
-        showToast('Personal information updated to match your NIN data', 'info');
-        
-        // Continue with verification (treat as success after update)
-        setDocumentsVerified(true);
-        
-        // Create a display name from NIN data
-        const displayName = [ninFirstName, ninMiddleName, ninLastName]
-          .filter(Boolean)
-          .join(' ');
-
-        // Update audit log with success (after auto-update)
-        if (auditLogId) {
-          await supabase
-            .from('kyc_audit_logs')
-            .update({
-              status: 'success',
-              response_data: {
-                verified: true,
-                nin: nin.substring(0, 4) + '****',
-                name_match_percentage: matchPercentage,
-                matched_name: displayName,
-                hasAccount: !!accountNumber,
-                account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null,
-                auto_updated: true,
-                auto_update_reason: 'name_mismatch'
-              },
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', auditLogId);
-
-          await supabase
-            .from('kyc_audit_events')
-            .insert({
-              audit_log_id: auditLogId,
-              user_id: session.user.id,
-              event_type: 'verification_completed',
-              event_data: {
-                action: 'nin_verification_completed',
-                nin: nin.substring(0, 4) + '****',
-                name_match_percentage: matchPercentage,
-                matched_name: displayName,
-                hasAccount: !!accountNumber,
-                account_number: accountNumber ? accountNumber.substring(0, 5) + '****' : null,
-                provider: 'safehaven',
-                auto_updated: true
-              },
-              severity: 'high'
-            });
-        }
-        
-        // Close OTP modal on success
-        setShowOTPModal(false);
-        
-        // Show success message
-        if (accountNumber) {
-          showToast(`NIN verified! Name: ${displayName} • Sub account created: ${accountNumber.substring(0, 5)}****`, 'success');
-        } else if (accountStatus === 'PENDING') {
-          showToast(`NIN verified! Name: ${displayName} • Sub account creation in progress. You'll be notified when ready.`, 'info');
-        } else {
-          showToast(`NIN verified! Name: ${displayName} • Sub account creation initiated`, 'success');
-        }
-        
-        // Update progress with NIN verified (using id_face_verified)
-        const progressResult = await updateProgress({
-          current_step: 'documents_verification', // Move to documents (Tier 2) after NIN verification
-          id_face_verified: true
-        });
-        
-        // Check if Tier 1 is complete (Personal + Liveness + BVN + NIN with Sub Account)
-        if (progressResult) {
-          await updateTier(); // Update tier after NIN verification
-          const tierStatus = checkTierCompletion();
-          if (tierStatus.tier1) {
-            console.log('Tier 1 completed! Sub account created. User can now proceed to Tier 2.');
-            // Show Tier 1 completion modal instead of just a toast
-            setShowTier1CompletionModal(true);
-            return; // Don't move to next step, show modal instead
-          }
-        }
-        
-        if (!progressResult) {
-          showToast('Failed to update progress. Please try again.', 'error');
-          return;
-        }
-        
-        // Wait for toast to be visible before moving to next step
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Move to next incomplete step
-        const nextStep = getNextIncompleteStep('id_face_match');
-        setCurrentStep(nextStep);
-        setTimeout(() => {
-          setIsManualVerification(false);
-          setIsLoading(false);
-        }, 1000);
+      if (!progressResult) {
+        showToast('Failed to update progress. Please try again.', 'error');
+        return;
       }
+      
+      // Wait for toast to be visible before moving to next step
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Move to next incomplete step
+      const nextStep = getNextIncompleteStep('id_face_match');
+      setCurrentStep(nextStep);
+      setTimeout(() => {
+        setIsManualVerification(false);
+        setIsLoading(false);
+      }, 1000);
+      
+      // } else {
+      //   throw new Error('Name mismatch detected. Please verify your personal information.');
+      // }
       
     } catch (error) {
       console.error('NIN verification error:', error);
@@ -2237,24 +1909,8 @@ export default function KYCUpgradeScreen() {
       setErrors({ documentVerification: errorMessage });
       setIsManualVerification(false);
       setIsLoading(false);
-      // Don't close OTP modal on error - let user retry
       throw error;
     }
-  };
-
-  // Handle OTP verification from modal
-  const handleOTPVerify = async (otpValue: string) => {
-    await verifyNIN(otpValue, ninIdentityId || undefined);
-  };
-
-  // Handle OTP resend
-  const handleOTPResend = async () => {
-    if (!nin.trim() || !session?.user?.id) {
-      throw new Error('NIN and session are required to resend OTP');
-    }
-    
-    // Re-initialize NIN verification to resend OTP
-    await initializeNINVerification();
   };
   
   const handlePreviousStep = async () => {
@@ -2396,7 +2052,20 @@ export default function KYCUpgradeScreen() {
     }
   };
   
-  // Date picker functions moved to DatePickerModal component
+  // Date picker functions
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
 
   const formatDateForDisplay = (date: Date) => {
     const day = String(date.getDate()).padStart(2, '0');
@@ -2435,7 +2104,6 @@ export default function KYCUpgradeScreen() {
   const handleDatePickerClose = () => {
     setIsDatePickerVisible(false);
     setShowYearPicker(false);
-    setShowMonthPicker(false);
   };
 
   const handleDateSelect = (date: Date) => {
@@ -2538,12 +2206,6 @@ export default function KYCUpgradeScreen() {
     const newDate = new Date(year, currentMonth.getMonth(), 1);
     setCurrentMonth(newDate);
     setShowYearPicker(false);
-  };
-
-  const handleMonthSelect = (month: number) => {
-    const newDate = new Date(currentMonth.getFullYear(), month, 1);
-    setCurrentMonth(newDate);
-    setShowMonthPicker(false);
   };
 
   const getAvailableYears = () => {
@@ -2741,8 +2403,170 @@ export default function KYCUpgradeScreen() {
   };
 
   
-  // Handle camera permission request
-  // Camera permission handling moved to CameraPermissionModal component
+  const renderPersonalInfoStep = () => {
+    return (
+      <View style={styles.formContainer}>
+        <Text style={styles.sectionTitle}>Basic Information</Text>
+        <Text style={styles.sectionDescription}>
+          Please provide your personal details as they appear on your official documents.
+        </Text>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>First Name</Text>
+          <View style={[styles.inputContainer, errors.firstName && styles.inputError]}>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your first name"
+              placeholderTextColor={colors.textTertiary}
+              value={firstName}
+              onChangeText={(text) => {
+                setFirstName(text);
+                setErrors(prev => ({ ...prev, firstName: '' }));
+              }}
+              autoCapitalize="words"
+              returnKeyType="next"
+              onSubmitEditing={() => lastNameInputRef.current?.focus()}
+            />
+          </View>
+          {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Last Name</Text>
+          <View style={[styles.inputContainer, errors.lastName && styles.inputError]}>
+            <TextInput
+              ref={lastNameInputRef}
+              style={styles.input}
+              placeholder="Enter your last name"
+              placeholderTextColor={colors.textTertiary}
+              value={lastName}
+              onChangeText={(text) => {
+                setLastName(text);
+                setErrors(prev => ({ ...prev, lastName: '' }));
+              }}
+              autoCapitalize="words"
+              returnKeyType="next"
+              onSubmitEditing={() => middleNameInputRef.current?.focus()}
+            />
+          </View>
+          {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Middle Name (Optional)</Text>
+          <View style={styles.inputContainer}>
+            <TextInput
+              ref={middleNameInputRef}
+              style={styles.input}
+              placeholder="Enter your middle name"
+              placeholderTextColor={colors.textTertiary}
+              value={middleName}
+              onChangeText={setMiddleName}
+              autoCapitalize="words"
+              returnKeyType="next"
+              onSubmitEditing={() => phoneInputRef.current?.focus()}
+            />
+          </View>
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Date of Birth</Text>
+          <Pressable 
+            style={[styles.inputContainer, errors.dateOfBirth && styles.inputError]}
+            onPress={handleDatePickerOpen}
+          >
+            <View style={styles.dateInputContent}>
+              <Calendar size={20} color={colors.textSecondary} />
+              <Text style={[
+                styles.dateInputText,
+                !dateOfBirth && styles.dateInputPlaceholder
+              ]}>
+                {dateOfBirth || 'DD/MM/YYYY'}
+              </Text>
+            </View>
+            <ChevronRight size={20} color={colors.textTertiary} />
+          </Pressable>
+          {errors.dateOfBirth && <Text style={styles.errorText}>{errors.dateOfBirth}</Text>}
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Phone Number</Text>
+          <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
+            <TextInput
+              ref={phoneInputRef}
+              style={styles.input}
+              placeholder="090XXXXXXXX"
+              placeholderTextColor={colors.textTertiary}
+              value={phoneNumber}
+              onChangeText={(text) => {
+                setPhoneNumber(text);
+                setErrors(prev => ({ ...prev, phoneNumber: '' }));
+              }}
+              keyboardType="phone-pad"
+              returnKeyType="next"
+              onSubmitEditing={() => addressInputRef.current?.focus()}
+            />
+          </View>
+          {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>House/Street Number</Text>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter house/street number"
+              placeholderTextColor={colors.textTertiary}
+              value={addressNo}
+              onChangeText={(text) => {
+                setAddressNo(text);
+                setErrors(prev => ({ ...prev, addressNo: '' }));
+              }}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Residential Address</Text>
+          <Pressable 
+            style={[styles.inputContainer, errors.address && styles.inputError]}
+            onPress={() => setShowLocationSearch(true)}
+          >
+            <TextInput
+              ref={addressInputRef}
+              style={[styles.input, styles.multilineInput]}
+              placeholder="Tap to search for your address"
+              placeholderTextColor={colors.textTertiary}
+              value={address}
+              onChangeText={(text) => {
+                setAddress(text);
+                setErrors(prev => ({ ...prev, address: '' }));
+              }}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              editable={false}
+            />
+            <ChevronRight size={20} color={colors.textTertiary} />
+          </Pressable>
+          {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
+          {address && (
+            <Text style={styles.locationInfo}>
+              📍 Location selected from map
+            </Text>
+          )}
+        </View>
+        
+        <View style={styles.infoContainer}>
+          <Info size={20} color={colors.primary} />
+          <Text style={styles.infoText}>
+            Your personal information is securely stored and will only be used for verification purposes.
+          </Text>
+        </View>
+      </View>
+    );
+  };
   
   const renderDocumentsVerificationStep = () => {
     return (
@@ -3043,6 +2867,36 @@ export default function KYCUpgradeScreen() {
               </View>
               {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
             </View>
+            
+            {ninIdentityId && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Enter OTP</Text>
+                <Text style={styles.sectionDescription}>
+                  {otpMessage || 'An OTP has been sent to the phone number linked to your NIN. Please enter the 6-digit code.'}
+                </Text>
+                <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter 6-digit OTP"
+                    placeholderTextColor={colors.textTertiary}
+                    value={otp}
+                    onChangeText={(text) => {
+                      // Only allow numbers and limit to 6 digits
+                      const numericText = text.replace(/[^0-9]/g, '');
+                      if (numericText.length <= 6) {
+                        setOtp(numericText);
+                        setErrors(prev => ({ ...prev, otp: '' }));
+                      }
+                    }}
+                    keyboardType="numeric"
+                    maxLength={6}
+                    editable={!isLoading && !documentsVerified}
+                    autoFocus={true}
+                  />
+                </View>
+                {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
+              </View>
+            )}
           </>
         )}
         
@@ -3577,172 +3431,210 @@ export default function KYCUpgradeScreen() {
   const renderCurrentStep = () => {
     switch (currentStep) {
       case 'liveness_verification':
-        // Skip rendering - modal will handle this step
-        return null;
+        return renderLivenessVerificationStep();
       case 'personal':
-        return (
-          <PersonalInfoStep
-            firstName={firstName}
-            lastName={lastName}
-            middleName={middleName}
-            dateOfBirth={dateOfBirth}
-            phoneNumber={phoneNumber}
-            address={address}
-            addressNo={addressNo}
-            errors={errors}
-            onFirstNameChange={(text) => {
-              setFirstName(text);
-              setErrors(prev => ({ ...prev, firstName: '' }));
-            }}
-            onLastNameChange={(text) => {
-              setLastName(text);
-              setErrors(prev => ({ ...prev, lastName: '' }));
-            }}
-            onMiddleNameChange={setMiddleName}
-            onDateOfBirthChange={(text) => {
-              setDateOfBirth(text);
-              setErrors(prev => ({ ...prev, dateOfBirth: '' }));
-            }}
-            onPhoneNumberChange={(text) => {
-              setPhoneNumber(text);
-              setErrors(prev => ({ ...prev, phoneNumber: '' }));
-            }}
-            onAddressChange={(text) => {
-              setAddress(text);
-              setErrors(prev => ({ ...prev, address: '' }));
-            }}
-            onAddressNoChange={(text) => {
-              setAddressNo(text);
-              setErrors(prev => ({ ...prev, addressNo: '' }));
-            }}
-            onDatePickerOpen={handleDatePickerOpen}
-            onLocationSearchOpen={() => setShowLocationSearch(true)}
-            lastNameInputRef={lastNameInputRef}
-            middleNameInputRef={middleNameInputRef}
-            phoneInputRef={phoneInputRef}
-            addressInputRef={addressInputRef}
-          />
-        );
+        return renderPersonalInfoStep();
       case 'bvn_verification':
-        return (
-          <BVNVerificationStep
-            bvn={bvn}
-            errors={errors}
-            bvnVerified={bvnVerified}
-            bvnMatchedName={bvnMatchedName}
-            isResolvingBvn={isResolvingBvn}
-            onBvnChange={(text) => {
-              setBvn(text);
-              setErrors(prev => ({ ...prev, bvn: '' }));
-            }}
-            handleNumericInput={handleNumericInput}
-            bvnInputRef={bvnInputRef}
-          />
-        );
+        return renderBvnVerificationStep();
       case 'id_face_match':
-        return (
-          <IDFaceMatchStep
-            nin={nin}
-            errors={errors}
-            bvnVerified={bvnVerified}
-            isVerifyingDocuments={isVerifyingDocuments}
-            documentsVerified={documentsVerified}
-            onNinChange={(text) => {
-              setNin(text);
-              setErrors(prev => ({ ...prev, nin: '' }));
-            }}
-          />
-        );
+        return renderIDFaceMatchStep();
       case 'documents_verification':
-        return (
-          <DocumentsVerificationStep
-            selectedIdentityType={selectedIdentityType}
-            documentFrontImage={documentFrontImage}
-            documentBackImage={documentBackImage}
-            errors={errors}
-            onIdentityTypeChange={setSelectedIdentityType}
-            onDocumentFrontImageChange={(uri) => {
-              setDocumentFrontImage(uri);
-              setErrors(prev => ({ ...prev, documentFront: '' }));
-            }}
-            onDocumentBackImageChange={(uri) => {
-              setDocumentBackImage(uri);
-              setErrors(prev => ({ ...prev, documentBack: '' }));
-            }}
-            onPickImage={async (setImageFunction, type) => {
-              await pickImage(setImageFunction as React.Dispatch<React.SetStateAction<string | null>>, type);
-            }}
-            onTakePicture={takePicture}
-          />
-        );
+        return renderDocumentsVerificationStep();
       case 'address_details':
-        return (
-          <AddressDetailsStep
-            addressNo={addressNo}
-            address={address}
-            lga={lga}
-            state={state}
-            houseUrl={houseUrl}
-            utilityBill={utilityBill}
-            errors={errors}
-            onAddressNoChange={(text) => {
-              setAddressNo(text);
-              setErrors(prev => ({ ...prev, addressNo: '' }));
-            }}
-            onAddressChange={(text) => {
-              setAddress(text);
-              setErrors(prev => ({ ...prev, address: '' }));
-            }}
-            onLgaChange={(text) => {
-              setLga(text);
-              setErrors(prev => ({ ...prev, lga: '' }));
-            }}
-            onStateChange={(text) => {
-              setState(text);
-              setErrors(prev => ({ ...prev, state: '' }));
-            }}
-            onHouseUrlChange={(uri) => {
-              setHouseUrl(uri);
-              setErrors(prev => ({ ...prev, houseUrl: '' }));
-            }}
-            onUtilityBillChange={(uri) => {
-              setUtilityBill(uri);
-              setErrors(prev => ({ ...prev, utilityBill: '' }));
-            }}
-            onLocationSearchOpen={() => setShowLocationSearch(true)}
-            onPickImage={async (setImageFunction, type) => {
-              await pickImage(setImageFunction as React.Dispatch<React.SetStateAction<string | null>>, type);
-            }}
-            onTakePicture={takePicture}
-            addressInputRef={addressInputRef}
-          />
-        );
+        return renderAddressDetailsStep();
       case 'review':
-        return (
-          <ReviewStep
-            firstName={firstName}
-            lastName={lastName}
-            middleName={middleName}
-            dateOfBirth={dateOfBirth}
-            phoneNumber={phoneNumber}
-            addressNo={addressNo}
-            address={address}
-            lga={lga}
-            state={state}
-            bvn={bvn}
-            bvnVerified={bvnVerified}
-            selectedIdentityType={selectedIdentityType}
-            nin={nin}
-            passportNumber={passportNumber}
-            documentsVerified={documentsVerified}
-            houseUrl={houseUrl}
-            utilityBill={utilityBill}
-          />
-        );
+        return renderReviewStep();
     }
   };
 
-  // Date picker modal moved to DatePickerModal component
+  const renderDatePickerModal = () => {
+    const daysInMonth = getDaysInMonth(currentMonth);
+    const firstDayOffset = getFirstDayOfMonth(currentMonth);
+
+    return (
+      <Modal
+        visible={isDatePickerVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleDatePickerClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.datePickerModal}>
+            <View style={styles.datePickerHeader}>
+              <Text style={styles.datePickerTitle}>Select Date of Birth</Text>
+              <Pressable onPress={handleDatePickerClose} style={styles.datePickerCloseButton}>
+                <X size={20} color={colors.text} />
+              </Pressable>
+            </View>
+
+            <View style={styles.calendarHeader}>
+              {!showYearPicker ? (
+                <>
+                  <Pressable onPress={handlePrevMonth} style={styles.navigationButton}>
+                    <ChevronLeft size={20} color={colors.textSecondary} />
+                  </Pressable>
+                  <View style={styles.monthYearContainer}>
+                    <Pressable 
+                      onPress={() => setShowYearPicker(true)}
+                      style={styles.monthYearPressable}
+                    >
+                      <Text style={styles.monthYearText}>
+                        {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Pressable onPress={handleNextMonth} style={styles.navigationButton}>
+                    <ChevronRight size={20} color={colors.textSecondary} />
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Pressable onPress={handlePrevYear} style={styles.navigationButton}>
+                    <ChevronLeft size={20} color={colors.textSecondary} />
+                  </Pressable>
+                  <View style={styles.monthYearContainer}>
+                    <Pressable 
+                      onPress={() => setShowYearPicker(false)}
+                      style={styles.monthYearPressable}
+                    >
+                      <Text style={styles.monthYearText}>
+                        {currentMonth.getFullYear()}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Pressable onPress={handleNextYear} style={styles.navigationButton}>
+                    <ChevronRight size={20} color={colors.textSecondary} />
+                  </Pressable>
+                </>
+              )}
+            </View>
+
+            {showYearPicker ? (
+              <ScrollView style={styles.yearPickerContainer} contentContainerStyle={styles.yearPickerContent}>
+                <View style={styles.yearPickerGrid}>
+                  {getAvailableYears().map((year) => {
+                    const isSelected = year === currentMonth.getFullYear();
+                    const isCurrentYear = year === new Date().getFullYear();
+                    return (
+                      <Pressable
+                        key={year}
+                        style={[
+                          styles.yearItem,
+                          isSelected && styles.yearItemSelected,
+                        ]}
+                        onPress={() => handleYearSelect(year)}
+                      >
+                        <Text style={[
+                          styles.yearItemText,
+                          isSelected && styles.yearItemTextSelected,
+                          isCurrentYear && !isSelected && styles.yearItemTextCurrent,
+                        ]}>
+                          {year}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            ) : (
+              <>
+                <View style={styles.calendarContainer}>
+                  <View style={styles.weekDays}>
+                    {DAYS.map(day => (
+                      <View key={day} style={styles.weekDay}>
+                        <Text style={styles.weekDayText}>{day}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <View style={styles.daysGridContainer}>
+                    {(() => {
+                      const totalCells = firstDayOffset + daysInMonth;
+                      const totalRows = Math.ceil(totalCells / 7);
+                      const weeks = [];
+                      
+                      // Build array of all cells (null for empty, number for day)
+                      const allCells = [];
+                      for (let i = 0; i < firstDayOffset; i++) {
+                        allCells.push(null);
+                      }
+                      for (let day = 1; day <= daysInMonth; day++) {
+                        allCells.push(day);
+                      }
+                      const remainingCells = totalRows * 7 - allCells.length;
+                      for (let i = 0; i < remainingCells; i++) {
+                        allCells.push(null);
+                      }
+                      
+                      // Split into weeks (rows of 7)
+                      for (let row = 0; row < totalRows; row++) {
+                        const week = allCells.slice(row * 7, (row + 1) * 7);
+                        weeks.push(week);
+                      }
+                      
+                      return weeks.map((week, weekIndex) => (
+                        <View key={`week-${weekIndex}`} style={styles.weekRow}>
+                          {week.map((day, dayIndex) => {
+                            if (day === null) {
+                              return <View key={`empty-${weekIndex}-${dayIndex}`} style={styles.dayCell} />;
+                            }
+                            
+                            const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+                            const isSelectable = isDateSelectable(date);
+                            const isSelected = selectedDate && 
+                              date.getDate() === selectedDate.getDate() &&
+                              date.getMonth() === selectedDate.getMonth() &&
+                              date.getFullYear() === selectedDate.getFullYear();
+
+                            return (
+                              <Pressable
+                                key={`day-${weekIndex}-${dayIndex}-${day}`}
+                                style={[
+                                  styles.dayCell,
+                                  isSelected && styles.selectedDay,
+                                  !isSelectable && styles.disabledDay,
+                                ]}
+                                onPress={() => isSelectable && handleDateSelect(date)}
+                                disabled={!isSelectable}
+                              >
+                                <Text style={[
+                                  styles.dayText,
+                                  isSelected && styles.selectedDayText,
+                                  !isSelectable && styles.disabledDayText,
+                                ]}>
+                                  {day}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      ));
+                    })()}
+                  </View>
+                </View>
+              </>
+            )}
+
+            <View style={styles.datePickerActions}>
+              <Pressable 
+                style={[styles.datePickerButton, styles.cancelButton]}
+                onPress={handleDatePickerClose}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.datePickerButton, styles.confirmButton]}
+                onPress={handleDateConfirm}
+                disabled={!selectedDate}
+              >
+                <Text style={styles.confirmButtonText}>Confirm</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
   
   // Calculate responsive sizes
   const headerPadding = isSmallScreen ? 12 : 16;
@@ -3829,19 +3721,20 @@ export default function KYCUpgradeScreen() {
     inputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      borderWidth: 2,
+      borderWidth: 0.5,
       borderColor: colors.border,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 1,
       borderRadius: 12,
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
       paddingHorizontal: 14,
       height: inputHeight,
     },
-    inputFilled: {
-      borderColor: colors.accent,
-      backgroundColor: colors.accentBackground || colors.background,
-    },
     inputError: {
-      borderColor: colors.error || '#DC2626',
+      borderColor: colors.error,
     },
     resolvedInput: {
       borderColor: colors.success,
@@ -4335,14 +4228,14 @@ export default function KYCUpgradeScreen() {
       height: 55,
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 20,
+      borderRadius: 100,
     },
     confirmButton: {
       backgroundColor: colors.primary,
       height: 55,
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 20,
+      borderRadius: 100,
     },
     cancelButtonText: {
       fontSize: 14,
@@ -4420,104 +4313,6 @@ export default function KYCUpgradeScreen() {
       color: colors.textSecondary,
       fontWeight: '500',
     },
-    // Permission modal styles
-    permissionModal: {
-      width: '90%',
-      maxWidth: 400,
-      borderRadius: 16,
-      padding: 24,
-      alignSelf: 'center',
-    },
-    permissionModalHeader: {
-      alignItems: 'center',
-      marginBottom: 24,
-    },
-    permissionIconContainer: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    permissionDeniedIconContainer: {
-      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2',
-    },
-    permissionModalTitle: {
-      fontSize: isSmallScreen ? 20 : 24,
-      fontWeight: '600',
-      textAlign: 'center',
-    },
-    permissionModalContent: {
-      marginBottom: 24,
-    },
-    permissionModalText: {
-      fontSize: isSmallScreen ? 14 : 16,
-      lineHeight: isSmallScreen ? 20 : 24,
-      textAlign: 'center',
-      marginBottom: 20,
-    },
-    permissionModalSubtext: {
-      fontSize: isSmallScreen ? 13 : 14,
-      lineHeight: isSmallScreen ? 18 : 20,
-      textAlign: 'center',
-      marginTop: 16,
-    },
-    permissionInfoList: {
-      gap: 12,
-      marginTop: 8,
-    },
-    permissionInfoItem: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 12,
-    },
-    permissionInfoText: {
-      flex: 1,
-      fontSize: isSmallScreen ? 13 : 14,
-      lineHeight: isSmallScreen ? 18 : 20,
-    },
-    permissionWarningBox: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 12,
-      padding: 16,
-      borderRadius: 12,
-      borderWidth: 1,
-      marginTop: 16,
-    },
-    permissionWarningText: {
-      flex: 1,
-      fontSize: isSmallScreen ? 13 : 14,
-      lineHeight: isSmallScreen ? 18 : 20,
-      fontWeight: '500',
-    },
-    permissionModalActions: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-    permissionModalButton: {
-      flex: 1,
-      paddingVertical: 14,
-      paddingHorizontal: 24,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    permissionModalButtonPrimary: {
-      // backgroundColor set inline
-    },
-    permissionModalButtonSecondary: {
-      borderWidth: 1,
-      backgroundColor: 'transparent',
-    },
-    permissionModalButtonText: {
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    permissionModalButtonTextPrimary: {
-      color: '#FFFFFF',
-    },
   });
   
   if ((formDataLoading || progressLoading) && !currentStep) {
@@ -4565,34 +4360,18 @@ export default function KYCUpgradeScreen() {
           disabled={
             isLoading || 
             formDataLoading ||
-            (progressLoading && currentStep !== 'liveness_verification') || // Allow liveness step even if progress is loading
+            progressLoading ||
             isResolvingBvn || 
             isVerifyingDocuments || 
             (currentStep === 'bvn_verification' && bvnVerified) ||
-            (currentStep === 'id_face_match' && documentsVerified)
+            (currentStep === 'id_face_match' && documentsVerified) ||
+            (currentStep === 'id_face_match' && !!ninIdentityId && !otp.trim())
           }
-          loading={isLoading || formDataLoading || (progressLoading && currentStep !== 'liveness_verification') || isResolvingBvn || isVerifyingDocuments}
+          loading={isLoading || formDataLoading || progressLoading || isResolvingBvn || isVerifyingDocuments}
         />
       )}
       
-      <DatePickerModal
-        visible={isDatePickerVisible}
-        selectedDate={selectedDate}
-        currentMonth={currentMonth}
-        showYearPicker={showYearPicker}
-        showMonthPicker={showMonthPicker}
-        onClose={handleDatePickerClose}
-        onDateSelect={handleDateSelect}
-        onDateConfirm={handleDateConfirm}
-        onPrevMonth={handlePrevMonth}
-        onNextMonth={handleNextMonth}
-        onPrevYear={handlePrevYear}
-        onNextYear={handleNextYear}
-        onYearSelect={handleYearSelect}
-        onMonthSelect={handleMonthSelect}
-        onShowYearPicker={setShowYearPicker}
-        onShowMonthPicker={setShowMonthPicker}
-      />
+      {renderDatePickerModal()}
       
       <LocationSearchModal
         visible={showLocationSearch}
@@ -4601,46 +4380,11 @@ export default function KYCUpgradeScreen() {
         placeholder="Search for your address..."
       />
       
+      
       <LivenessTestEnhanced 
         isVisible={showLivenessTest}
         onClose={handleLivenessClose}
         onComplete={handleLivenessComplete}
-      />
-      
-      <CameraPermissionModal
-        isVisible={showCameraPermissionModal}
-        onClose={() => {
-          setShowCameraPermissionModal(false);
-        }}
-        onComplete={(selfieUrl: string) => {
-          // Handle liveness completion - this will update progress and move to next step
-          handleLivenessComplete(selfieUrl);
-          setShowCameraPermissionModal(false);
-        }}
-      />
-      
-      <SafeHavenOTPModal
-        isVisible={showOTPModal}
-        onClose={() => {
-          setShowOTPModal(false);
-          // Optionally reset ninIdentityId if user cancels
-          // setNinIdentityId(null);
-        }}
-        onVerify={handleOTPVerify}
-        phoneNumber={phoneNumber}
-        onResend={handleOTPResend}
-      />
-      
-      <Tier1CompletionModal
-        isVisible={showTier1CompletionModal}
-        onClose={() => setShowTier1CompletionModal(false)}
-        onGoToDashboard={() => {
-          router.replace('/(tabs)');
-        }}
-        onUpgradeToTier2={() => {
-          // Stay on the page but move to documents_verification step
-          setCurrentStep('documents_verification');
-        }}
       />
     </SafeAreaView>
   );

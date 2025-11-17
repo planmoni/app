@@ -41,7 +41,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAppLock } from '@/contexts/AppLockContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
-import { useSafeHavenAccount } from '@/hooks/useSafeHavenAccount';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
 // import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -354,11 +353,11 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // Check if user has a SafeHaven account
-    const hasSafeHavenAccount = safehavenAccount?.account_number;
+    // Check if user has a valid SafeHaven account (not pending)
+    const hasSafeHavenAccount = safehavenAccount?.account_number && !safehavenAccount.account_number.startsWith('PENDING_');
     
     if (!hasSafeHavenAccount) {
-      // Show modal if user doesn't have an account
+      // Show modal if user doesn't have a valid account
       setShowClaimAccountModal(true);
       logAnalyticsEvent('add_funds_click_no_account');
     } else {
@@ -800,8 +799,8 @@ export default function HomeScreen() {
         onGoToDashboard={handleGoToDashboard}
       />
 
-      {/* Only show ClaimAccountModal if account doesn't exist in safehaven_accounts table */}
-      {!safehavenAccount?.account_number || safehavenAccount.account_number.startsWith('PENDING_') ? (
+      {/* Only show ClaimAccountModal if account doesn't exist in safehaven_accounts table or is pending */}
+      {(!safehavenAccount?.account_number || safehavenAccount.account_number.startsWith('PENDING_')) && (
         <ClaimAccountModal
           isVisible={showClaimAccountModal}
           onClose={() => setShowClaimAccountModal(false)}
@@ -813,7 +812,7 @@ export default function HomeScreen() {
             logAnalyticsEvent('claim_account_click');
           }}
         />
-      ) : null}
+      )}
 
       {/* <LivenessTestEnhanced 
         isVisible={showLivenessTest}
