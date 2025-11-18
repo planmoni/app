@@ -1115,17 +1115,53 @@ async function handleAutomatedPayoutSuccess(automatedPayout: any, transferData: 
 
     console.log(`✅ Automated payout ${automatedPayout.id} marked as completed`);
 
-    // Create transaction record
-    await createTransactionRecord(automatedPayout, transferData, 'completed');
-
     // Update SafeHaven account balance (debit the account)
+    // The trigger will automatically handle wallet and transaction updates
     // For Outwards transfers, we need to subtract amount + fees from the account
     const debitAccountNumber = transferData.debitAccountNumber || '0117753301';
-    await updateUserBalance(automatedPayout.user_id, transferData, debitAccountNumber);
-    console.log(`✅ Updated SafeHaven account balance for automated payout`);
+    
+    // Get current account to update with metadata
+    const { data: currentAccount } = await supabase
+      .from('safehaven_accounts')
+      .select('account_balance, book_balance, metadata')
+      .eq('user_id', automatedPayout.user_id)
+      .eq('account_number', debitAccountNumber)
+      .single();
 
-    // Update wallet balance
-    await updateWalletBalance(automatedPayout.user_id, transferData.amount);
+    if (currentAccount) {
+      const balanceChange = -(transferData.amount + (transferData.fees || 0));
+      const newAccountBalance = (currentAccount.account_balance || 0) + balanceChange;
+      const newBookBalance = (currentAccount.book_balance || 0) + balanceChange;
+      const paymentRef = transferData.paymentReference || transferData.sessionId || automatedPayout.payment_reference || automatedPayout.transfer_reference;
+
+      // Update account balance with metadata containing payment reference and status
+      // The trigger will automatically handle transaction and wallet updates
+      await supabase
+        .from('safehaven_accounts')
+        .update({
+          account_balance: newAccountBalance,
+          book_balance: newBookBalance,
+          updated_at: new Date().toISOString(),
+          synced_at: new Date().toISOString(),
+          metadata: {
+            ...(currentAccount.metadata || {}),
+            payment_reference: paymentRef,
+            transfer_reference: paymentRef,
+            transfer_status: 'Completed',
+            automated_payout_id: automatedPayout.id,
+            balance_change: balanceChange,
+            updated_by: 'webhook_success'
+          }
+        })
+        .eq('user_id', automatedPayout.user_id)
+        .eq('account_number', debitAccountNumber);
+      
+      console.log(`✅ Updated SafeHaven account balance for automated payout (trigger will handle wallet/transaction updates)`);
+    } else {
+      // Fallback to old method if account not found
+      await updateUserBalance(automatedPayout.user_id, transferData, debitAccountNumber);
+      await updateWalletBalance(automatedPayout.user_id, transferData.amount);
+    }
 
     // Send push notification
     await supabase.rpc('send_push_notification', {
@@ -1228,8 +1264,49 @@ async function handleAutomatedPayoutFailed(automatedPayout: any, transferData: S
 
     console.log(`❌ Automated payout ${automatedPayout.id} marked as failed`);
 
-    // Create transaction record
-    await createTransactionRecord(automatedPayout, transferData, 'failed');
+    // Update SafeHaven account balance with failure status in metadata
+    // The trigger will automatically update transaction status (but NOT wallet on failure)
+    const debitAccountNumber = transferData.debitAccountNumber || '0117753301';
+    const paymentRef = transferData.paymentReference || transferData.sessionId || automatedPayout.payment_reference || automatedPayout.transfer_reference;
+
+    // Get current account to update with metadata
+    const { data: currentAccount } = await supabase
+      .from('safehaven_accounts')
+      .select('account_balance, book_balance, metadata')
+      .eq('user_id', automatedPayout.user_id)
+      .eq('account_number', debitAccountNumber)
+      .single();
+
+    if (currentAccount && paymentRef) {
+      // Update account with failure metadata (balance doesn't change on failure, but we log it)
+      await supabase
+        .from('safehaven_accounts')
+        .update({
+          updated_at: new Date().toISOString(),
+          synced_at: new Date().toISOString(),
+          metadata: {
+            ...(currentAccount.metadata || {}),
+            payment_reference: paymentRef,
+            transfer_reference: paymentRef,
+            transfer_status: 'Failed',
+            automated_payout_id: automatedPayout.id,
+            failure_reason: transferData.responseMessage || 'Transfer failed',
+            updated_by: 'webhook_failed'
+          }
+        })
+        .eq('user_id', automatedPayout.user_id)
+        .eq('account_number', debitAccountNumber);
+      
+      // Manually update transaction since balance didn't change (trigger won't fire)
+      await updateTransactionStatus(automatedPayout, transferData, 'failed');
+      
+      console.log(`✅ Updated SafeHaven account metadata for failed payout (trigger will handle transaction update)`);
+    } else {
+      // Fallback: manually update transaction
+      await updateTransactionStatus(automatedPayout, transferData, 'failed');
+    }
+    
+    // Note: Do not update wallets or automated payouts balance on failure
 
     // Send push notification
     await supabase.rpc('send_push_notification', {
@@ -1375,6 +1452,63 @@ async function handleAutomatedPayoutReversed(automatedPayout: any, transferData:
   } catch (error) {
     console.error('❌ Error handling automated payout reversed:', error);
     throw error;
+  }
+}
+
+// Update existing transaction record status
+async function updateTransactionStatus(payoutData: any, transferData: SafeHavenTransferData, status: string): Promise<void> {
+  try {
+    const paymentRef = transferData.paymentReference || transferData.sessionId || payoutData.reference || payoutData.payment_reference || payoutData.transfer_reference;
+    console.log(`📑 Updating transaction status to '${status}' for reference: ${paymentRef}`);
+    
+    if (!paymentRef) {
+      console.warn('⚠️ No payment reference found, cannot update transaction');
+      return;
+    }
+
+    // Find the existing transaction by reference
+    const { data: existingTransaction, error: findError } = await supabase
+      .from('transactions')
+      .select('id, status')
+      .eq('reference', paymentRef)
+      .eq('user_id', payoutData.user_id)
+      .eq('type', 'payout')
+      .single();
+
+    if (findError || !existingTransaction) {
+      console.warn(`⚠️ Transaction not found for reference ${paymentRef}, attempting to create new one`);
+      // Fallback: create new transaction if not found
+      await createTransactionRecord(payoutData, transferData, status);
+      return;
+    }
+
+    // Update the existing transaction
+    const { error: updateError } = await supabase
+      .from('transactions')
+      .update({
+        status: status,
+        updated_at: new Date().toISOString(),
+        ...(status === 'completed' && { completed_at: new Date().toISOString() }),
+        ...(status === 'failed' && { failed_at: new Date().toISOString() }),
+        metadata: {
+          ...(existingTransaction.metadata || {}),
+          safehaven_transfer_id: transferData._id,
+          safehaven_transfer_code: transferData.paymentReference || transferData.sessionId,
+          automated_payout_id: payoutData.id,
+          payout_plan_id: payoutData.payout_plan_id,
+          webhook_updated_at: new Date().toISOString()
+        }
+      })
+      .eq('id', existingTransaction.id);
+
+    if (updateError) {
+      console.error(`❌ Failed to update transaction status:`, updateError);
+      return;
+    }
+
+    console.log(`✅ Transaction ${existingTransaction.id} status updated to '${status}'`);
+  } catch (error) {
+    console.error('❌ Error updating transaction status:', error);
   }
 }
 
@@ -1945,27 +2079,9 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
   console.log('User ID (client): ', debitData.client);
 
   try {
-    // Get user ID from client ID
-    const { data: userData, error: userError } = await supabase
-      .from('safehaven_tokens')
-      .select('user_id')
-      .eq('ibs_client_id', debitData.client)
-      .single();
-
-    console.log('User data: ', userData);
-    console.log('User error: ', userError);
-
     let userId: string | null = null;
-    if (!userError && userData) {
-      userId = userData.user_id;
-      console.log('User ID: ', userId);
-    } else {
-      console.warn('Could not find user for client ID:', debitData.client);
-      // Continue processing - we might still be able to match by reference
-    }
 
-    // Check if this debit is related to a transfer (payout or emergency withdrawal)
-    // Account debit webhooks are sent when transfers are completed
+    // Try to get user ID from payment reference (automated payout or emergency withdrawal)
     // First, check if this is an emergency withdrawal
     const { data: emergencyWithdrawal, error: emergencyError } = await supabase
       .from('emergency_withdrawals')
@@ -1977,6 +2093,7 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
     console.log('Emergency error: ', emergencyError);
 
     if (!emergencyError && emergencyWithdrawal) {
+      userId = emergencyWithdrawal.user_id;
       console.log(`🚨 Processing emergency withdrawal from account debit: ${paymentRef}`);
       // Convert debit data to transfer-like format for handler
       const transferLikeData: any = {
@@ -2000,11 +2117,12 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
     // If not emergency withdrawal, check for automated payout
     const { data: automatedPayout, error: payoutError } = await supabase
       .from('automated_payouts')
-      .select('id, payout_plan_id, user_id, amount, status')
+      .select('id, payout_plan_id, user_id, amount, status, payment_reference, transfer_reference')
       .or(`payment_reference.eq.${paymentRef},transfer_reference.eq.${paymentRef}`)
       .single();
 
     if (!payoutError && automatedPayout) {
+      userId = automatedPayout.user_id;
       console.log(`📋 Processing automated payout from account debit: ${paymentRef}`);
       // Convert debit data to transfer-like format for handler
       const transferLikeData: any = {
@@ -2021,29 +2139,58 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
         updatedAt: debitData.updatedAt || new Date().toISOString(),
         ...debitData
       };
-      await handleAutomatedPayoutSuccess(automatedPayout, transferLikeData);
-      return { success: true, type: 'automated_payout', reference: paymentRef };
+      
+      // Check if debit was successful (Created status means successful)
+      const isSuccessful = debitData.status === 'Created' || debitData.status === 'Completed';
+      
+      if (isSuccessful) {
+        // Update safehaven_account table (this triggers safehaven_account_balance view update)
+        // Then handle success which updates transaction, wallets, etc.
+        await handleAutomatedPayoutSuccess(automatedPayout, transferLikeData);
+        return { success: true, type: 'automated_payout', reference: paymentRef, status: 'completed' };
+      } else {
+        // Handle failure - update transaction status but don't update wallets or automated payouts balance
+        await handleAutomatedPayoutFailed(automatedPayout, transferLikeData);
+        return { success: true, type: 'automated_payout', reference: paymentRef, status: 'failed' };
+      }
     }
 
-    // If not related to payout/withdrawal, it's just a regular account debit (fees, charges, etc.)
-    console.log('Processing regular account debit (not related to payout/withdrawal):', paymentRef);
-    
-    // For regular debits, we need userId to update account balance
-    if (!userId) {
-      console.warn('Cannot process regular account debit: User ID not found for client:', debitData.client);
-      return { 
-        success: false,
-        error: 'User not found',
-        note: 'Webhook received but user not found for regular account debit',
-        reference: paymentRef
-      };
-    }
-
-    // Find account by account number (use debitAccountNumber if available, otherwise try to find by account ID)
+    // If not related to payout/withdrawal, try to get user_id from account number
+    // This handles regular account debits (fees, charges, etc.)
     const accountNumber = debitData.debitAccountNumber || '0117753301'; // Default to main account
+    
+    if (!userId) {
+      console.log(`Trying to find user by account number: ${accountNumber}`);
+      
+      const { data: accountData, error: accountError } = await supabase
+        .from('safehaven_accounts')
+        .select('user_id, account_number')
+        .eq('account_number', accountNumber)
+        .eq('is_deleted', false)
+        .single();
+
+      if (!accountError && accountData) {
+        userId = accountData.user_id;
+        console.log(`Found user ${userId} for account number ${accountNumber}`);
+      } else {
+        console.warn('Cannot process account debit: User ID not found for account number:', accountNumber);
+        return { 
+          success: false,
+          error: 'User not found',
+          note: 'Webhook received but user not found for account debit. Could not match by payment reference or account number.',
+          reference: paymentRef,
+          accountNumber: accountNumber
+        };
+      }
+    }
+
+    // Process regular account debit (fees, charges, etc.)
+    console.log('Processing regular account debit (not related to payout/withdrawal):', paymentRef);
+
+    // Find account by account number to update balance
     const { data: accountData, error: accountError } = await supabase
       .from('safehaven_accounts')
-      .select('id, account_balance, book_balance')
+      .select('id, account_balance, book_balance, metadata')
       .eq('account_number', accountNumber)
       .eq('user_id', userId)
       .eq('is_deleted', false)
@@ -2064,7 +2211,15 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
           account_balance: newAccountBalance,
           book_balance: newBookBalance,
           updated_at: new Date().toISOString(),
-          synced_at: new Date().toISOString()
+          synced_at: new Date().toISOString(),
+          metadata: {
+            ...(accountData.metadata || {}),
+            payment_reference: paymentRef,
+            transfer_reference: paymentRef,
+            transfer_status: 'Regular Debit',
+            updated_by: 'webhook_regular_debit',
+            debit_amount: totalDebit
+          }
         })
         .eq('id', accountData.id);
 

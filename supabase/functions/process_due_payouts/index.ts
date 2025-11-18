@@ -250,13 +250,16 @@ const safeHavenApiUrl = "https://api.safehavenmfb.com";
   // 8. Initiate SafeHaven transfer (with name enquiry first)
   const transferResult = await initiateSafeHavenTransfer(plan, payoutAccount, safeHavenToken.access_token, payoutId);
   
-  // 9. Update automated payout record with transfer details
+  // 9. Create transaction record with pending status
+  await createTransactionRecord(plan, transferResult);
+  
+  // 10. Update automated payout record with transfer details
   await updateAutomatedPayout(payoutId, transferResult);
   
-  // 10. Update payout plan progress
+  // 11. Update payout plan progress
   await updatePayoutPlanProgress(plan.plan_id);
   
-  // 11. Create notification (email will be sent by webhook when transfer completes)
+  // 12. Create notification (email will be sent by webhook when transfer completes)
   await createNotification(plan.user_id, plan, transferResult);
 }
 /**
@@ -500,8 +503,6 @@ const safeHavenApiUrl = "https://api.safehavenmfb.com";
 /**
  * Create transaction record
  */ async function createTransactionRecord(plan, transferResult) {
-  const user_ids = plan.user_id;
-  const plan_ids = plan.plan_id;
   console.log(`📑 Creating transaction record for payout: ${plan.name}`);
   console.log({
     plan,
@@ -513,14 +514,24 @@ const safeHavenApiUrl = "https://api.safehavenmfb.com";
   // Use the database function with proper type casting
   const { data: transactionId, error } = await supabase.rpc("create_transaction_record", {
     p_user_id: plan.user_id,
-    p_type: "payout",
+    p_type: 'payout',
     p_amount: plan.payout_amount,
-    p_status: "completed",
-    p_source: "wallet",
-    p_destination: "Bank Transfer",
+    p_status: 'pending',
+    p_source: 'Wallet',
+    p_destination: 'Bank Transfer',
     p_reference: transferResult.reference,
     p_payout_plan_id: plan.plan_id,
-    p_description: `Automated payout from ${plan.name}`
+    p_description: `Automated payout from ${plan.name}`,
+    p_metadata: {
+      safehaven_transfer_id: transferResult.id || transferResult._id,
+      transfer_code: transferResult.reference || transferResult.paymentReference,
+      session_id: transferResult.sessionId,
+      automated_payout_id: transferResult.id || transferResult._id,
+      payout_plan_id: plan.plan_id,
+      safehaven_transfer_code: transferResult.reference || transferResult.paymentReference,
+      safehaven_transfer_status: transferResult.status || "Pending",
+      safehaven_transfer_session_id: transferResult.sessionId,
+    }
   });
   console.log("this is transaction: ", transactionId);
   if (error) {
