@@ -325,7 +325,6 @@ export default function PendingActionsCard() {
 
   const handleLivenessComplete = (selfieUrl: string) => {
     // After liveness test is completed, navigate to kyc-upgrade with selfie URL
-    setShowCameraPermissionModal(false);
     setSelectedActionId(null);
     router.push({
       pathname: '/kyc-upgrade',
