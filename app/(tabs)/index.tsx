@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import TransactionModal from '@/components/TransactionModal';
 import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
 import ClaimAccountModal from '@/components/ClaimAccountModal';
-import AccountDisplayCard from '@/components/AccountDisplayCard';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
@@ -76,7 +75,6 @@ export default function HomeScreen() {
   const { updateLastActiveOnInteraction } = useAppLock();
   const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
-  const { account: safehavenAccount, isLoading: safehavenAccountLoading, refreshAccount } = useSafeHavenAccount();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress } = useKYCProgress();
   const navigation = useNavigation();
   
@@ -172,18 +170,14 @@ export default function HomeScreen() {
     }
   }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
 
-  // Show ClaimAccountModal immediately after Tier 1 completion if no SafeHaven account exists
-  // Only show modal if account doesn't exist in safehaven_accounts table
+  // Show ClaimAccountModal immediately after Tier 1 completion
   useEffect(() => {
-    if (!session?.user?.id || kycProgressLoading || safehavenAccountLoading) return;
+    if (!session?.user?.id || kycProgressLoading) return;
     
     const tierCompletion = checkTierCompletion();
-    // Check if account exists and is not pending
-    const hasSafeHavenAccount = safehavenAccount?.account_number && !safehavenAccount.account_number.startsWith('PENDING_');
     
-    // Show modal if Tier 1 is complete, no SafeHaven account exists, and we haven't shown it yet
-    // Don't show if account already exists in database
-    if (tierCompletion.tier1 && !hasSafeHavenAccount && !hasShownTier1ClaimModal && !showClaimAccountModal) {
+    // Show modal if Tier 1 is complete and we haven't shown it yet
+    if (tierCompletion.tier1 && !hasShownTier1ClaimModal && !showClaimAccountModal) {
       // Add a small delay to ensure smooth user experience
       const timer = setTimeout(() => {
         setShowClaimAccountModal(true);
@@ -192,12 +186,7 @@ export default function HomeScreen() {
       
       return () => clearTimeout(timer);
     }
-    
-    // If account exists, don't show the modal
-    if (hasSafeHavenAccount && showClaimAccountModal) {
-      setShowClaimAccountModal(false);
-    }
-  }, [checkTierCompletion, safehavenAccount, kycProgressLoading, safehavenAccountLoading, hasShownTier1ClaimModal, showClaimAccountModal, session?.user?.id]);
+  }, [checkTierCompletion, kycProgressLoading, hasShownTier1ClaimModal, showClaimAccountModal, session?.user?.id]);
 
   
   // Log screen view for analytics
@@ -270,8 +259,6 @@ export default function HomeScreen() {
         fetchPayoutPlans(),
         // Refresh transactions
         fetchTransactions(),
-        // Refresh SafeHaven account
-        refreshAccount(),
         // Refresh KYC progress
         loadProgress(),
         // Refresh carousel images
@@ -353,18 +340,9 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // Check if user has a valid SafeHaven account (not pending)
-    const hasSafeHavenAccount = safehavenAccount?.account_number && !safehavenAccount.account_number.startsWith('PENDING_');
-    
-    if (!hasSafeHavenAccount) {
-      // Show modal if user doesn't have a valid account
-      setShowClaimAccountModal(true);
-      logAnalyticsEvent('add_funds_click_no_account');
-    } else {
-      // Navigate directly to add funds page
-      router.push('/add-funds');
-      logAnalyticsEvent('add_funds_click');
-    }
+    // Navigate directly to add funds page
+    router.push('/add-funds');
+    logAnalyticsEvent('add_funds_click');
   };
 
   const handleCreatePayout = () => {
@@ -722,14 +700,6 @@ export default function HomeScreen() {
 
         <ImageCarousel images={carouselImages} />
         {!checkTierCompletion().tier1 && <KYCCard />}
-        {checkTierCompletion().tier1 && safehavenAccount?.account_number && !safehavenAccount.account_number.startsWith('PENDING_') && (
-          <AccountDisplayCard
-            accountNumber={safehavenAccount.account_number}
-            bankName="SAFEHAVEN MFB"
-            accountName={safehavenAccount.account_name ? `PLANMONI/${safehavenAccount.account_name.toUpperCase()}` : undefined}
-            onViewAccount={() => router.push('/add-funds')}
-          />
-        )}
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
@@ -799,20 +769,17 @@ export default function HomeScreen() {
         onGoToDashboard={handleGoToDashboard}
       />
 
-      {/* Only show ClaimAccountModal if account doesn't exist in safehaven_accounts table or is pending */}
-      {(!safehavenAccount?.account_number || safehavenAccount.account_number.startsWith('PENDING_')) && (
-        <ClaimAccountModal
-          isVisible={showClaimAccountModal}
-          onClose={() => setShowClaimAccountModal(false)}
-          accountNumber={safehavenAccount?.account_number ? `${safehavenAccount.account_number.slice(0, 5)} XXXXX` : '01177 XXXXX'}
-          bankName="SAFEHAVEN MFB"
-          accountName={safehavenAccount?.account_name ? `PLANMONI/${safehavenAccount.account_name.toUpperCase()}` : `PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
-          onClaim={() => {
-            router.push('/add-funds');
-            logAnalyticsEvent('claim_account_click');
-          }}
-        />
-      )}
+      <ClaimAccountModal
+        isVisible={showClaimAccountModal}
+        onClose={() => setShowClaimAccountModal(false)}
+        accountNumber="01177 XXXXX"
+        bankName="SAFEHAVEN MFB"
+        accountName={`PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
+        onClaim={() => {
+          router.push('/add-funds');
+          logAnalyticsEvent('claim_account_click');
+        }}
+      />
 
       {/* <LivenessTestEnhanced 
         isVisible={showLivenessTest}

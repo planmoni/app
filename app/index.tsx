@@ -22,7 +22,7 @@ import { BlurView } from 'expo-blur';
 const SLIDES = [
   {
     id: '1',
-    title: 'Pace your spending like a pro',
+    title: 'Financial control at your fingertips',
     // subtitle: 'Smart Financial Planning',
     description: "Planmoni is your financial companion, equipped with advanced tools, insights & A.I capabilities to help pace your spending like a pro.",
     image: require('@/assets/images/StayInControl.png'),
@@ -31,7 +31,7 @@ const SLIDES = [
   },
   {
     id: '2',
-    title: 'Receive money just when you need it',
+    title: 'Choose when and how you get paid',
     // subtitle: 'Automated Scheduling',
     description: 'Split lump-sums into scheduled daily, weekly, bi-weekly or monthly payouts that work for your lifestyle.',
     image: require('@/assets/images/PayYourselfOnTime.png'),

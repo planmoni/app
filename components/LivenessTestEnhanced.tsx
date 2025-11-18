@@ -29,6 +29,7 @@ import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import * as FileSystem from "expo-file-system";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -190,11 +191,40 @@ export default function LivenessTestEnhanced({
         enableShutterSound: false 
       });
       console.log('[LivenessTest] Photo captured:', photo.path);
-      const imageUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+      
+      // Check if the original file exists
+      const originalPath = photo.path.startsWith('file://') ? photo.path.replace('file://', '') : photo.path;
+      const fileInfo = await FileSystem.getInfoAsync(originalPath);
+      
+      if (!fileInfo.exists) {
+        throw new Error(`Original photo file does not exist at: ${originalPath}`);
+      }
+      
+      // Copy the file to a permanent location in the cache directory
+      const fileName = `liveness-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+      const permanentPath = `${FileSystem.cacheDirectory}${fileName}`;
+      
+      console.log('[LivenessTest] Copying photo to permanent location:', permanentPath);
+      await FileSystem.copyAsync({
+        from: originalPath,
+        to: permanentPath,
+      });
+      
+      // Verify the copied file exists
+      const copiedFileInfo = await FileSystem.getInfoAsync(permanentPath);
+      if (!copiedFileInfo.exists) {
+        throw new Error(`Failed to copy photo to permanent location: ${permanentPath}`);
+      }
+      
+      const imageUri = `file://${permanentPath}`;
       setCapturedImage(imageUri);
       console.log('[LivenessTest] Image URI set:', imageUri);
     } catch (error) {
       console.error('[LivenessTest] Error capturing photo:', error);
+      // Show user-friendly error message
+      if (error instanceof Error) {
+        console.error('[LivenessTest] Error details:', error.message);
+      }
     }
   };
 

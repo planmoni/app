@@ -184,16 +184,21 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (fontError) {
-      console.error("Font loading error:", fontError);
+      console.warn("Font loading error (app will continue with system fonts):", fontError);
+      // Don't block app startup if fonts fail to load - use system fonts as fallback
     }
   }, [fontError]);
 
   useEffect(() => {
-    if (fontsLoaded && !isLoading) {
-      // Hide the native splash screen
-      SplashScreen.hideAsync().catch((e) =>
-        console.warn("Failed to hide splash screen:", e)
-      );
+    // Hide splash screen even if fonts fail to load (after a short delay)
+    if (!isLoading) {
+      const timer = setTimeout(() => {
+        SplashScreen.hideAsync().catch((e) =>
+          console.warn("Failed to hide splash screen:", e)
+        );
+      }, fontsLoaded ? 0 : 1000); // Wait 1s if fonts didn't load, otherwise hide immediately
+      
+      return () => clearTimeout(timer);
     }
   }, [fontsLoaded, isLoading]);
 
@@ -203,8 +208,8 @@ function RootLayoutNav() {
   // remains mounted (e.g. credential validation failures).
   const { appError, clearError } = useAppError();
 
-  if (appError && !fontsLoaded) {
-    // Keep splash screen visible when fonts are not yet loaded
+  if (appError && !fontsLoaded && !fontError) {
+    // Keep splash screen visible when fonts are not yet loaded (but not if there's a font error)
     return null;
   }
 
@@ -221,7 +226,8 @@ function RootLayoutNav() {
     );
   }
 
-  if (!fontsLoaded || isLoading) {
+  // Allow app to continue even if fonts fail to load (use system fonts as fallback)
+  if ((!fontsLoaded && !fontError) || isLoading) {
     return null; // Keep native splash screen visible
   }
 

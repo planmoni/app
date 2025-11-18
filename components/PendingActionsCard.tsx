@@ -11,9 +11,9 @@ import { useOnlineStatus } from './OnlineStatusProvider';
 import OfflineNotice from './OfflineNotice';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
 import KYCVerificationModal from './KYCVerificationModal';
-import Tier1Icon from '@/assets/kyc/tier-1.svg';
-import Tier2Icon from '@/assets/kyc/tier-2.svg';
-import Tier3Icon from '@/assets/kyc/tier-3.svg';
+import Tier1Icon from '@/assets/kyc/1.svg';
+import Tier2Icon from '@/assets/kyc/2.svg';
+import Tier3Icon from '@/assets/kyc/3.svg';
 import React from 'react';
 
 type PendingAction = {
@@ -97,7 +97,7 @@ export default function PendingActionsCard() {
           title: 'Tier 1: Basic Verification',
           // description: `${description}. Unlock up to ₦20,000 monthly deposits.`,
           icon: Tier1Icon,
-          iconBg: '#FEF3C7',
+          iconBg: '#EFEDED',
           iconColor: '#F59E0B',
           route: '/kyc-upgrade',
           priority: 'high',

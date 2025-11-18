@@ -45,6 +45,7 @@ export default function ClaimAccountModal({
   const [nin, setNin] = useState<string>('');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [isCheckingAccount, setIsCheckingAccount] = useState(false);
+  const [existingAccount, setExistingAccount] = useState<{ account_number: string; account_name?: string; status?: string } | null>(null);
 
   // Get NIN and phone number from KYC data when modal opens
   useEffect(() => {
@@ -66,9 +67,6 @@ export default function ClaimAccountModal({
     
     setIsCheckingAccount(true);
     try {
-      // Refresh account data
-      await refreshAccount();
-      
       // Check if account exists in database
       const { data, error } = await supabase
         .from('safehaven_accounts')
@@ -80,11 +78,19 @@ export default function ClaimAccountModal({
 
       if (error) {
         console.error('[ClaimAccountModal] Error checking existing account:', error);
+        setExistingAccount(null);
+        return;
       }
 
-      // If account exists and is valid, close modal and navigate to add-funds
+      // Store account data if it exists and is valid
       if (data && data.account_number && !data.account_number.startsWith('PENDING_')) {
         console.log('[ClaimAccountModal] Existing account found:', data.account_number.substring(0, 5) + '****');
+        setExistingAccount({
+          account_number: data.account_number,
+          account_name: data.account_name,
+          status: data.status
+        });
+        
         showToast('Your account is already available!', 'success');
         
         // Close modal and navigate
@@ -96,9 +102,12 @@ export default function ClaimAccountModal({
             router.push('/add-funds');
           }
         }, 500);
+      } else {
+        setExistingAccount(null);
       }
     } catch (error) {
       console.error('[ClaimAccountModal] Error checking account:', error);
+      setExistingAccount(null);
     } finally {
       setIsCheckingAccount(false);
     }
@@ -175,7 +184,7 @@ export default function ClaimAccountModal({
       if (result.data?.verified || result.data?.status === 'PENDING') {
         const accountNumber = result.data?.account_number;
         const status = result.data?.status || 'PENDING';
-        const identityId = result.data?.identityId || identityId;
+        const newIdentityId = result.data?.identityId || identityId;
         
         if (accountNumber) {
           showToast('Account created successfully!', 'success');
