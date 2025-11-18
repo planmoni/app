@@ -29,6 +29,7 @@ import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import * as FileSystem from 'expo-file-system';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -181,7 +182,16 @@ export default function LivenessTestEnhanced({
         enableShutterSound: false 
       });
       console.log('[LivenessTest] Photo captured:', photo.path);
-      const imageUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+      
+      // On iOS, the photo path is temporary and may be deleted. Copy to permanent location.
+      const sourcePath = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+      const fileName = `liveness-${Date.now()}.jpg`;
+      const destPath = `${FileSystem.cacheDirectory}${fileName}`;
+      
+      console.log('[LivenessTest] Copying photo to permanent location:', destPath);
+      await FileSystem.copyAsync({ from: sourcePath, to: destPath });
+      
+      const imageUri = `file://${destPath}`;
       setCapturedImage(imageUri);
       console.log('[LivenessTest] Image URI set:', imageUri);
     } catch (error) {
