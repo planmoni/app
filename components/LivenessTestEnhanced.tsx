@@ -183,13 +183,24 @@ export default function LivenessTestEnhanced({
       });
       console.log('[LivenessTest] Photo captured:', photo.path);
       
-      // On iOS, the photo path is temporary and may be deleted. Copy to permanent location.
-      const sourcePath = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+      // On iOS, the photo path is temporary and gets deleted very quickly.
+      // Read file content immediately into memory, then write to permanent location.
+      const sourcePath = photo.path;
       const fileName = `liveness-${Date.now()}.jpg`;
       const destPath = `${FileSystem.cacheDirectory}${fileName}`;
       
-      console.log('[LivenessTest] Copying photo to permanent location:', destPath);
-      await FileSystem.copyAsync({ from: sourcePath, to: destPath });
+      console.log('[LivenessTest] Reading photo from temporary path:', sourcePath);
+      
+      // Read file as base64 immediately (before it gets deleted)
+      const base64 = await FileSystem.readAsStringAsync(sourcePath, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      console.log('[LivenessTest] Writing photo to permanent location:', destPath);
+      // Write to permanent location
+      await FileSystem.writeAsStringAsync(destPath, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
       
       const imageUri = `file://${destPath}`;
       setCapturedImage(imageUri);

@@ -76,7 +76,7 @@
       </dict>
     </dict>
     <key>NSCameraUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your camera to upload photos in support conversations</string>
+    <string>$(PRODUCT_NAME) needs access to your Camera to take photos for liveness verification.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to use Face ID</string>
     <key>NSMicrophoneUsageDescription</key>
