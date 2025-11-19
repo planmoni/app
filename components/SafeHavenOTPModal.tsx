@@ -167,22 +167,66 @@ export default function SafeHavenOTPModal({
   const handleOtpChange = (text: string, index: number) => {
     if (!isMountedRef.current || !isVisible) return;
     
+    // Handle pasting - if text length > 1, it's likely a paste operation
     if (text.length > 1) {
-      text = text[text.length - 1];
+      // Extract only digits from pasted text
+      const digits = text.replace(/[^0-9]/g, '').slice(0, 6);
+      
+      if (digits.length > 0) {
+        const newOtp = ['', '', '', '', '', ''];
+        
+        // Fill OTP fields with pasted digits
+        for (let i = 0; i < digits.length && i < 6; i++) {
+          newOtp[i] = digits[i];
+        }
+        
+        setOtp(newOtp);
+        setError(null);
+        
+        // Focus the next empty field or the last field if all are filled
+        const nextIndex = Math.min(digits.length, 5);
+        setTimeout(() => {
+          if (isMountedRef.current && isVisible) {
+            inputRefs.current[nextIndex]?.focus();
+            
+            // Auto-verify if all 6 digits are pasted
+            if (digits.length === 6 && newOtp.every((digit) => digit !== '')) {
+              // Clear any existing verify timeout
+              if (verifyTimeoutRef.current) {
+                clearTimeout(verifyTimeoutRef.current);
+              }
+              
+              verifyTimeoutRef.current = setTimeout(() => {
+                if (isMountedRef.current && isVisible) {
+                  // Use the pasted OTP value directly
+                  const otpValue = newOtp.join('');
+                  if (otpValue.length === 6 && /^\d{6}$/.test(otpValue)) {
+                    handleVerifyWithOtp(otpValue);
+                  }
+                }
+              }, 300);
+            }
+          }
+        }, 0);
+        
+        return;
+      }
     }
 
+    // Handle single character input
+    const digit = text.replace(/[^0-9]/g, '').charAt(0);
     const newOtp = [...otp];
-    newOtp[index] = text.replace(/[^0-9]/g, '');
+    newOtp[index] = digit;
     setOtp(newOtp);
     setError(null);
 
     // Auto-focus next input
-    if (text !== '' && index < 5 && isMountedRef.current && isVisible) {
+    if (digit !== '' && index < 5 && isMountedRef.current && isVisible) {
       inputRefs.current[index + 1]?.focus();
     }
 
-    // Auto-submit when all digits are entered
-    if (index === 5 && text !== '' && newOtp.every((digit) => digit !== '')) {
+    // Auto-verify when all digits are entered (check after state update)
+    if (newOtp.every((d) => d !== '')) {
       // Clear any existing verify timeout
       if (verifyTimeoutRef.current) {
         clearTimeout(verifyTimeoutRef.current);
@@ -190,7 +234,11 @@ export default function SafeHavenOTPModal({
       
       verifyTimeoutRef.current = setTimeout(() => {
         if (isMountedRef.current && isVisible) {
-          handleVerify();
+          // Use the newOtp value directly instead of reading from state
+          const otpValue = newOtp.join('');
+          if (otpValue.length === 6 && /^\d{6}$/.test(otpValue)) {
+            handleVerifyWithOtp(otpValue);
+          }
         }
       }, 300);
     }
@@ -211,11 +259,14 @@ export default function SafeHavenOTPModal({
   };
 
   const handleVerify = async () => {
-    if (!isMountedRef.current || !isVisible) return;
-    
     const otpValue = otp.join('');
+    await handleVerifyWithOtp(otpValue);
+  };
 
-    if (otpValue.length !== 6 || otpValue.length < 6) {
+  const handleVerifyWithOtp = async (otpValue: string) => {
+    if (!isMountedRef.current || !isVisible) return;
+
+    if (otpValue.length !== 6) {
       if (isMountedRef.current) {
         setError('Please enter the complete 6-digit OTP');
         showToast('Please enter the complete 6-digit OTP', 'error');
@@ -354,7 +405,7 @@ export default function SafeHavenOTPModal({
                     onChangeText={(text) => handleOtpChange(text, index)}
                     onKeyPress={(e) => handleKeyPress(e, index)}
                     keyboardType="number-pad"
-                    maxLength={1}
+                    maxLength={6}
                     editable={!isLoading}
                     selectTextOnFocus
                   />

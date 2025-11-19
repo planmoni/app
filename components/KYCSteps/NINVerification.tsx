@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react';
 import { View, Text, TextInput, ActivityIndicator, Pressable } from 'react-native';
 import { Info, Shield, Check } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -50,6 +50,7 @@ const NINVerification = forwardRef<NINVerificationHandle, NINVerificationProps>(
     const [isBvnVerified, setIsBvnVerified] = useState(normalizeBoolean(bvnVerified));
     const [showOtpModal, setShowOtpModal] = useState(false);
     const [pendingOtp, setPendingOtp] = useState('');
+    const phoneInputRef = useRef<TextInput>(null);
 
     // Load data from form data and progress updates
     useEffect(() => {
@@ -399,6 +400,7 @@ const NINVerification = forwardRef<NINVerificationHandle, NINVerificationProps>(
           </Text>
           <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
             <TextInput
+              ref={phoneInputRef}
               style={styles.input}
               placeholder="Enter your phone number (e.g., 08012345678)"
               placeholderTextColor={colors.textTertiary}
@@ -409,6 +411,12 @@ const NINVerification = forwardRef<NINVerificationHandle, NINVerificationProps>(
               editable={!isLoading && !verified}
               autoCorrect={false}
               autoCapitalize="none"
+              blurOnSubmit={true}
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                // Dismiss keyboard when Done is pressed
+                phoneInputRef.current?.blur();
+              }}
             />
           </View>
           {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}

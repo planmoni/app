@@ -46,7 +46,7 @@ export default function KYCUpgradeScreen() {
   
   // Custom hooks for KYC data and progress
   const { formData, loading: formDataLoading, saveFormData } = useKYCData();
-  const { progress, loading: progressLoading, updateProgress, updateTier, checkTierCompletion } = useKYCProgress();
+  const { progress, loading: progressLoading, updateProgress, updateTier, checkTierCompletion, loadProgress } = useKYCProgress();
   
   const normalizeBooleanFlag = (value: any) =>
     value === true || value === 'true' || value === 1 || value === '1';
@@ -77,7 +77,7 @@ export default function KYCUpgradeScreen() {
   // Verification status (for UI display)
   const [bvnVerified, setBvnVerified] = useState(false);
   const [documentsVerified, setDocumentsVerified] = useState(false);
-
+  
   // Check for route params to show CameraPermissionModal
   useEffect(() => {
     if (params.showCameraPermission === 'true' && navigation.currentStep === 'bvn_verification' && !progress?.liveness_test_completed) {
@@ -94,8 +94,8 @@ export default function KYCUpgradeScreen() {
     const selfieUrl = typeof selfieUrlParam === 'string' ? selfieUrlParam : undefined;
     if (!selfieUrl) {
       hasProcessedSelfieParamRef.current = false;
-      return;
-    }
+        return;
+      }
 
     if (hasProcessedSelfieParamRef.current) return;
     hasProcessedSelfieParamRef.current = true;
@@ -159,15 +159,15 @@ export default function KYCUpgradeScreen() {
     if (formState.phoneNumber && !/^0[789][01]\d{8}$/.test(formState.phoneNumber)) {
       newErrors.phoneNumber = 'Please enter a valid Nigerian phone number';
     }
-    
+
     setErrors(newErrors);
-    
+
     if (Object.keys(newErrors).length > 0) {
       const firstError = Object.values(newErrors)[0];
       showToast(firstError, 'error');
       return false;
     }
-    
+
     return true;
   };
   
@@ -300,8 +300,8 @@ export default function KYCUpgradeScreen() {
   const handleNextStep = async () => {
     console.log('[KYC] handleNextStep called, currentStep:', navigation.currentStep);
     try {
-      setIsLoading(true);
-      
+            setIsLoading(true);
+            
       switch (navigation.currentStep) {
         case 'bvn_verification':
           if (bvnVerificationRef.current) {
@@ -318,7 +318,7 @@ export default function KYCUpgradeScreen() {
             if (!ninVerificationRef.current.isValid()) {
               const initialized = await ninVerificationRef.current.initialize();
               if (!initialized) {
-                setIsLoading(false);
+              setIsLoading(false);
                 return; // Wait for OTP input
               }
             }
@@ -336,7 +336,7 @@ export default function KYCUpgradeScreen() {
             }
           }
           break;
-
+            
         case 'personal':
           if (validatePersonalInfo()) {
             const saveResult = await saveFormData({
@@ -414,8 +414,8 @@ export default function KYCUpgradeScreen() {
             });
             
             await updateTier();
-            const tierStatus = checkTierCompletion();
-            if (tierStatus.tier3) {
+              const tierStatus = checkTierCompletion();
+              if (tierStatus.tier3) {
               setTimeout(() => {
                 setShowTier3CompletionModal(true);
               }, 300);
@@ -470,7 +470,7 @@ export default function KYCUpgradeScreen() {
   const handleTier2GoToDashboard = () => {
     router.push('/(tabs)');
   };
-
+  
   const handleTier2UpgradeToTier3 = () => {
     navigation.goToStep('address_details');
   };
@@ -796,11 +796,11 @@ export default function KYCUpgradeScreen() {
     }
   };
 
-
+  
   const renderCurrentStep = () => {
     switch (navigation.currentStep) {
       case 'personal':
-        return (
+    return (
           <PersonalInfoStep
             firstName={formState.firstName}
             lastName={formState.lastName}
@@ -812,26 +812,26 @@ export default function KYCUpgradeScreen() {
             errors={errors}
             onFirstNameChange={(text) => {
               formState.setFirstName(text);
-              setErrors(prev => ({ ...prev, firstName: '' }));
-            }}
+                setErrors(prev => ({ ...prev, firstName: '' }));
+              }}
             onLastNameChange={(text) => {
               formState.setLastName(text);
-              setErrors(prev => ({ ...prev, lastName: '' }));
-            }}
+                setErrors(prev => ({ ...prev, lastName: '' }));
+              }}
             onMiddleNameChange={formState.setMiddleName}
             onDateOfBirthChange={datePicker.setDateOfBirth}
             onPhoneNumberChange={(text) => {
               formState.setPhoneNumber(text);
-              setErrors(prev => ({ ...prev, phoneNumber: '' }));
-            }}
+                setErrors(prev => ({ ...prev, phoneNumber: '' }));
+              }}
             onAddressChange={(text) => {
               formState.setAddress(text);
               setErrors(prev => ({ ...prev, address: '' }));
             }}
             onAddressNoChange={(text) => {
               formState.setAddressNo(text);
-              setErrors(prev => ({ ...prev, addressNo: '' }));
-            }}
+                setErrors(prev => ({ ...prev, addressNo: '' }));
+              }}
             onDatePickerOpen={datePicker.handleDatePickerOpen}
             onLocationSearchOpen={() => setShowLocationSearch(true)}
             lastNameInputRef={formState.lastNameInputRef}
@@ -842,7 +842,7 @@ export default function KYCUpgradeScreen() {
           />
         );
       case 'bvn_verification':
-        return (
+    return (
           <BVNVerification
             ref={bvnVerificationRef}
             onComplete={() => navigation.goToNextStep('bvn_verification')}
@@ -851,17 +851,20 @@ export default function KYCUpgradeScreen() {
           />
         );
       case 'id_face_match':
-        return (
+    return (
           <NINVerification
             ref={ninVerificationRef}
-            onComplete={() => {
+            onComplete={async () => {
               navigation.goToNextStep('id_face_match');
-              const tierStatus = checkTierCompletion();
-              if (tierStatus.tier1) {
-                setTimeout(() => {
+              // Reload progress to get the latest state before checking tier completion
+              await loadProgress();
+              // Small delay to ensure state is updated
+              setTimeout(() => {
+                const tierStatus = checkTierCompletion();
+                if (tierStatus.tier1) {
                   setShowTier1CompletionModal(true);
-                }, 300);
-              }
+                }
+              }, 500);
             }}
             onError={(msg) => showToast(msg, 'error')}
             initialNin={formState.nin}
@@ -883,7 +886,7 @@ export default function KYCUpgradeScreen() {
           />
         );
       case 'address_details':
-        return (
+    return (
           <AddressDetailsStep
             addressNo={formState.addressNo}
             address={formState.address}
@@ -894,20 +897,20 @@ export default function KYCUpgradeScreen() {
             errors={errors}
             onAddressNoChange={(text) => {
               formState.setAddressNo(text);
-              setErrors(prev => ({ ...prev, addressNo: '' }));
-            }}
+                setErrors(prev => ({ ...prev, addressNo: '' }));
+              }}
             onAddressChange={(text) => {
               formState.setAddress(text);
-              setErrors(prev => ({ ...prev, address: '' }));
-            }}
+                setErrors(prev => ({ ...prev, address: '' }));
+              }}
             onLgaChange={(text) => {
               formState.setLga(text);
-              setErrors(prev => ({ ...prev, lga: '' }));
-            }}
+                setErrors(prev => ({ ...prev, lga: '' }));
+              }}
             onStateChange={(text) => {
               formState.setState(text);
-              setErrors(prev => ({ ...prev, state: '' }));
-            }}
+                setErrors(prev => ({ ...prev, state: '' }));
+              }}
             onHouseUrlChange={formState.setHouseUrl}
             onUtilityBillChange={formState.setUtilityBill}
             onLocationSearchOpen={() => setShowLocationSearch(true)}
@@ -917,7 +920,7 @@ export default function KYCUpgradeScreen() {
           />
         );
       case 'review':
-        return (
+    return (
           <ReviewStep
             firstName={formState.firstName}
             lastName={formState.lastName}
@@ -1722,14 +1725,14 @@ export default function KYCUpgradeScreen() {
       height: 55,
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 100,
+      borderRadius: 24,
     },
     confirmButton: {
       backgroundColor: colors.primary,
       height: 55,
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 100,
+      borderRadius: 24,
     },
     cancelButtonText: {
       fontSize: 14,

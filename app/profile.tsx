@@ -146,7 +146,6 @@ export default function ProfileScreen() {
               <>
                 <View style={styles.kycHeader}>
                   <View style={styles.kycTitleContainer}>
-                    <Shield size={24} color={kycStatus.color} />
                     <Text style={styles.kycTitle}>Verification Status</Text>
                   </View>
                 </View>
@@ -628,14 +627,14 @@ const createStyles = (colors: any, screenWidth: number) => {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      backgroundColor: '#F0FDF4',
+      backgroundColor: colors.primary,
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 16,
     },
     verifiedText: {
       fontSize: 12,
-      color: '#22C55E',
+      color: colors.accent,
       fontWeight: '600',
     },
     divider: {

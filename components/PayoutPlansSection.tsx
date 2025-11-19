@@ -193,14 +193,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     maxWidth: '75%',
   },
   activeTag: {
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#F8FCF4',
+    backgroundColor: isDark ? colors.accent : colors.accent,
     paddingHorizontal: Platform.OS === 'ios' ? 10 : 8,
     paddingVertical: Platform.OS === 'ios' ? 6 : 4,
     borderRadius: Platform.OS === 'ios' ? 20 : 16,
   },
   activeTagText: {
     fontSize: Platform.OS === 'ios' ? 12 : 10,
-    color: '#22C55E',
+    color: colors.primary,
     fontWeight: '600',
   },
   planAmount: {

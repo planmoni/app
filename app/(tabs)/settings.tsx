@@ -335,7 +335,6 @@ export default function SettingsScreen() {
                 </View>
                 {!isLoading2FA && twoFactorEnabled && (
                   <View style={styles.twoFactorBadge}>
-                    <Shield size={12} color="#22C55E" />
                     <Text style={styles.twoFactorText}>2FA</Text>
                   </View>
                 )}
@@ -974,14 +973,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   verifiedBadge: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.primary,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,
   },
   verifiedText: {
     fontSize: Platform.OS === 'ios' ? 12 : 10,
-    color: '#22C55E',
+    color: colors.accent,
     fontWeight: '500',
   },
   twoFactorBadge: {

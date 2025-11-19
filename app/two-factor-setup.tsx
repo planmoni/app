@@ -293,7 +293,6 @@ export default function TwoFactorSetupScreen() {
     <View style={styles.stepContainer}>
       <View style={styles.heroSection}>
         <View style={styles.shieldIcon}>
-          <Shield size={32} color="#22C55E" />
         </View>
         <Text style={styles.heroTitle}>Save Backup Codes</Text>
         <Text style={styles.heroDescription}>

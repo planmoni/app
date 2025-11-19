@@ -317,8 +317,15 @@ const BVNVerification = forwardRef<BVNVerificationHandle, BVNVerificationProps>(
             autoCorrect={false}
             autoCapitalize="none"
             selectTextOnFocus={true}
-            blurOnSubmit={false}
+            blurOnSubmit={true}
             returnKeyType="done"
+            onSubmitEditing={() => {
+              if (bvn.length === 11 && !isResolvingBvn && !bvnVerified) {
+                verifyBvn();
+              } else {
+                bvnInputRef.current?.blur();
+              }
+            }}
             textContentType="none"
             autoComplete="off"
             importantForAutofill="no"

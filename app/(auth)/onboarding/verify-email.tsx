@@ -64,17 +64,41 @@ export default function VerifyEmailScreen() {
   }, [timer]);
 
   const handleOtpChange = (text: string, index: number) => {
+    // Handle pasting - if text length > 1, it's likely a paste operation
     if (text.length > 1) {
-      text = text[text.length - 1];
+      // Extract only digits from pasted text
+      const digits = text.replace(/[^0-9]/g, '').slice(0, 6);
+      
+      if (digits.length > 0) {
+        const newOtp = ['', '', '', '', '', ''];
+        
+        // Fill OTP fields with pasted digits
+        for (let i = 0; i < digits.length && i < 6; i++) {
+          newOtp[i] = digits[i];
+        }
+        
+        setOtp(newOtp);
+        setError(null);
+        
+        // Focus the next empty field or the last field if all are filled
+        const nextIndex = Math.min(digits.length, 5);
+        setTimeout(() => {
+          inputRefs.current[nextIndex]?.focus();
+        }, 0);
+        
+        return;
+      }
     }
     
+    // Handle single character input - take only the first character
+    const digit = text.replace(/[^0-9]/g, '').charAt(0);
     const newOtp = [...otp];
-    newOtp[index] = text.replace(/[^0-9]/g, '');
+    newOtp[index] = digit;
     setOtp(newOtp);
     setError(null);
     
     // Auto-focus next input
-    if (text !== '' && index < 5) {
+    if (digit !== '' && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
@@ -275,7 +299,7 @@ export default function VerifyEmailScreen() {
                   onChangeText={(text) => handleOtpChange(text, index)}
                   onKeyPress={(e) => handleKeyPress(e, index)}
                   keyboardType="number-pad"
-                  maxLength={1}
+                  maxLength={6}
                   editable={!isLoading}
                   selectTextOnFocus
                 />

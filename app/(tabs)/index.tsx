@@ -110,6 +110,7 @@ export default function HomeScreen() {
   const [showPlanCreationModal, setShowPlanCreationModal] = useState(false);
   const [lastDepositAmount, setLastDepositAmount] = useState<number | null>(null);
   const [lastShownDepositId, setLastShownDepositId] = useState<string | null>(null);
+  const [shownDepositIds, setShownDepositIds] = useState<Set<string>>(new Set());
   const [showAppLockModal, setShowAppLockModal] = useState(false);
   const [hasShownAppLockModal, setHasShownAppLockModal] = useState(false);
   const { hasAppLockPin } = usePin();
@@ -219,6 +220,27 @@ export default function HomeScreen() {
     }
   }, [params.showAccountInfo, session?.user?.id, hasShownAccountInfoModal]);
 
+  // Load shown deposit IDs from storage on mount
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const loadShownDepositIds = async () => {
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const key = `shown_deposit_ids_${session.user.id}`;
+        const stored = await AsyncStorage.getItem(key);
+        if (stored) {
+          const ids = JSON.parse(stored) as string[];
+          setShownDepositIds(new Set(ids));
+        }
+      } catch (error) {
+        console.error('Error loading shown deposit IDs:', error);
+      }
+    };
+
+    loadShownDepositIds();
+  }, [session?.user?.id]);
+
   // Detect new deposits and show PlanCreationModal
   useEffect(() => {
     if (!session?.user?.id || transactions.length === 0) return;
@@ -232,19 +254,32 @@ export default function HomeScreen() {
       const depositAmount = latestDeposit.amount;
       const depositId = latestDeposit.id;
 
-      // Check if this is a new deposit (different from last shown)
-      // Use transaction ID to avoid showing modal for the same deposit multiple times
-      if (lastShownDepositId !== depositId) {
+      // Check if this deposit has already been shown
+      if (!shownDepositIds.has(depositId)) {
         // Small delay to ensure transaction is processed
-        const timer = setTimeout(() => {
+        const timer = setTimeout(async () => {
           setShowPlanCreationModal(true);
           setLastDepositAmount(depositAmount);
           setLastShownDepositId(depositId);
+          
+          // Mark this deposit as shown and persist it
+          const newShownIds = new Set(shownDepositIds);
+          newShownIds.add(depositId);
+          setShownDepositIds(newShownIds);
+          
+          // Persist to AsyncStorage
+          try {
+            const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+            const key = `shown_deposit_ids_${session.user.id}`;
+            await AsyncStorage.setItem(key, JSON.stringify(Array.from(newShownIds)));
+          } catch (error) {
+            console.error('Error saving shown deposit IDs:', error);
+          }
         }, 1000);
         return () => clearTimeout(timer);
       }
     }
-  }, [transactions, session?.user?.id, lastShownDepositId]);
+  }, [transactions, session?.user?.id, shownDepositIds]);
 
   // Show AppLockModal if no PIN is set up AND user just created their first plan
   useEffect(() => {

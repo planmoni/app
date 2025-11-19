@@ -307,7 +307,6 @@ export default function ChangePasswordScreen() {
           <View style={styles.requirements}>
             <View style={styles.requirementsHeader}>
               <View style={styles.requirementsIconContainer}>
-                <Shield size={20} color="#1E3A8A" />
               </View>
               <Text style={styles.requirementsTitle}>Password Requirements</Text>
             </View>

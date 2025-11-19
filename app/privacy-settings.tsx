@@ -159,7 +159,6 @@ export default function PrivacySettingsScreen() {
 
           <View style={styles.settingItem}>
             <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}>
-              <Shield size={20} color="#0EA5E9" />
             </View>
             <View style={styles.settingContent}>
               <Text style={styles.settingLabel}>Activity Tracking</Text>
@@ -241,7 +240,6 @@ export default function PrivacySettingsScreen() {
         <View style={styles.infoCard}>
           <View style={styles.infoHeader}>
             <View style={styles.infoIconContainer}>
-              <Shield size={20} color={colors.primary} />
             </View>
             <Text style={styles.infoTitle}>Your Privacy Matters</Text>
           </View>

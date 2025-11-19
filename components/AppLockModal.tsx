@@ -23,7 +23,7 @@ export default function AppLockModal({
   const handleGoToSecurityCenter = () => {
     haptics.mediumImpact();
     onClose();
-    router.push('/settings/security');
+    router.push('/settings/security-center');
   };
 
   const handleClose = () => {
@@ -121,7 +121,7 @@ export default function AppLockModal({
             <Lock size={48} color="#EF4444" />
           </View>
 
-          <Text style={styles.title}>Set up App PIN</Text>
+          <Text style={styles.title}>Set up App Lock</Text>
           
           <Text style={styles.message}>
             Set up App PIN to protect your account and secure your payout plans.
