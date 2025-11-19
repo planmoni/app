@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import TransactionModal from '@/components/TransactionModal';
 import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
 import ClaimAccountModal from '@/components/ClaimAccountModal';
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
+import AccountInformationModal from '@/components/AccountInformationModal';
+import PlanCreationModal from '@/components/PlanCreationModal';
+import AppLockModal from '@/components/AppLockModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
@@ -39,6 +42,7 @@ import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAppLock } from '@/contexts/AppLockContext';
+import { usePin } from '@/contexts/PinContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
@@ -100,6 +104,15 @@ export default function HomeScreen() {
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
   const [hasShownTier1ClaimModal, setHasShownTier1ClaimModal] = useState(false);
   const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
+  const [showAccountInfoModal, setShowAccountInfoModal] = useState(false);
+  const [hasShownAccountInfoModal, setHasShownAccountInfoModal] = useState(false);
+  const accountInfoModalShownRef = useRef(false);
+  const [showPlanCreationModal, setShowPlanCreationModal] = useState(false);
+  const [lastDepositAmount, setLastDepositAmount] = useState<number | null>(null);
+  const [lastShownDepositId, setLastShownDepositId] = useState<string | null>(null);
+  const [showAppLockModal, setShowAppLockModal] = useState(false);
+  const [hasShownAppLockModal, setHasShownAppLockModal] = useState(false);
+  const { hasAppLockPin } = usePin();
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
 
@@ -185,6 +198,67 @@ export default function HomeScreen() {
   // Don't show ClaimAccountModal after Tier 1 completion - user can navigate directly to add funds
   // Removed the useEffect that automatically shows ClaimAccountModal after Tier 1 completion
 
+  // Show AccountInformationModal only when coming from Tier1CompletionModal
+  const params = useLocalSearchParams();
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    
+    const shouldShowAccountInfo = params.showAccountInfo === 'true';
+    
+    if (shouldShowAccountInfo && !hasShownAccountInfoModal && !accountInfoModalShownRef.current) {
+      accountInfoModalShownRef.current = true;
+      // Small delay to ensure smooth transition
+      const timer = setTimeout(() => {
+        setShowAccountInfoModal(true);
+      }, 500);
+      
+      // Clear the param after showing modal
+      router.setParams({ showAccountInfo: undefined });
+      
+      return () => clearTimeout(timer);
+    }
+  }, [params.showAccountInfo, session?.user?.id, hasShownAccountInfoModal]);
+
+  // Detect new deposits and show PlanCreationModal
+  useEffect(() => {
+    if (!session?.user?.id || transactions.length === 0) return;
+
+    const depositTransactions = transactions.filter(
+      t => t.type === 'deposit' && t.status === 'completed'
+    );
+
+    if (depositTransactions.length > 0) {
+      const latestDeposit = depositTransactions[0];
+      const depositAmount = latestDeposit.amount;
+      const depositId = latestDeposit.id;
+
+      // Check if this is a new deposit (different from last shown)
+      // Use transaction ID to avoid showing modal for the same deposit multiple times
+      if (lastShownDepositId !== depositId) {
+        // Small delay to ensure transaction is processed
+        const timer = setTimeout(() => {
+          setShowPlanCreationModal(true);
+          setLastDepositAmount(depositAmount);
+          setLastShownDepositId(depositId);
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [transactions, session?.user?.id, lastShownDepositId]);
+
+  // Show AppLockModal if no PIN is set up AND user just created their first plan
+  useEffect(() => {
+    if (!session?.user?.id || hasAppLockPin || hasShownAppLockModal) return;
+
+    // Check if this is the first plan
+    if (payoutPlans.length === 1) {
+      // Small delay to ensure plan is created
+      const timer = setTimeout(() => {
+        setShowAppLockModal(true);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [payoutPlans.length, hasAppLockPin, session?.user?.id, hasShownAppLockModal]);
   
   // Log screen view for analytics
   useEffect(() => {
@@ -833,6 +907,34 @@ export default function HomeScreen() {
         onAddFundsAfterClose={() => {
           // Navigate after modal is fully closed
           handleAddFunds();
+        }}
+      />
+
+      <AccountInformationModal
+        isVisible={showAccountInfoModal}
+        onClose={() => {
+          setShowAccountInfoModal(false);
+          setHasShownAccountInfoModal(true);
+        }}
+        onDone={async () => {
+          setShowAccountInfoModal(false);
+          setHasShownAccountInfoModal(true);
+          // Refresh the app to clear any blocking state
+          await handleRefresh();
+        }}
+      />
+
+      <PlanCreationModal
+        isVisible={showPlanCreationModal}
+        onClose={() => setShowPlanCreationModal(false)}
+        depositAmount={lastDepositAmount || 0}
+      />
+
+      <AppLockModal
+        isVisible={showAppLockModal}
+        onClose={() => {
+          setShowAppLockModal(false);
+          setHasShownAppLockModal(true);
         }}
       />
 

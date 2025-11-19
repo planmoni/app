@@ -456,7 +456,10 @@ export default function KYCUpgradeScreen() {
 
   // Handle Tier1CompletionModal actions
   const handleTier1GoToDashboard = () => {
-    router.push('/(tabs)');
+    router.push({
+      pathname: '/(tabs)',
+      params: { showAccountInfo: 'true' }
+    });
   };
 
   const handleTier1UpgradeToTier2 = () => {
