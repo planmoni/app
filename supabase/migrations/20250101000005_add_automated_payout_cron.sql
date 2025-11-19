@@ -12,18 +12,26 @@
 SELECT cron.schedule(
   'process-automated-payouts',
   '* * * * *', -- Every minute for immediate processing
-  'SELECT net.http_post(
-    url := ''https://your-project-ref.supabase.co/functions/v1/process-automated-payouts'',
-    headers := ''{"Authorization": "Bearer " || current_setting(''app.settings.service_role_key'')}''::jsonb
-  );'
+  $$
+  SELECT net.http_post(
+    url := 'https://your-project-ref.supabase.co/functions/v1/process-automated-payouts',
+    headers := json_build_object(
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+    )
+  );
+  $$
 );
 
 -- Create cron job to schedule automated payouts daily
 SELECT cron.schedule(
   'schedule-automated-payouts',
   '0 0 * * *', -- Daily at midnight
-  'SELECT net.http_post(
-    url := ''https://your-project-ref.supabase.co/functions/v1/schedule-automated-payouts'',
-    headers := ''{"Authorization": "Bearer " || current_setting(''app.settings.service_role_key'')}''::jsonb
-  );'
+  $$
+  SELECT net.http_post(
+    url := 'https://your-project-ref.supabase.co/functions/v1/schedule-automated-payouts',
+    headers := json_build_object(
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+    )
+  );
+  $$
 ); 

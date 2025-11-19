@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import TransactionModal from '@/components/TransactionModal';
 import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
 import ClaimAccountModal from '@/components/ClaimAccountModal';
-import AccountDisplayCard from '@/components/AccountDisplayCard';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';

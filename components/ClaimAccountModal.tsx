@@ -184,7 +184,7 @@ export default function ClaimAccountModal({
       if (result.data?.verified || result.data?.status === 'PENDING') {
         const accountNumber = result.data?.account_number;
         const status = result.data?.status || 'PENDING';
-        const identityId = result.data?.identityId || identityId;
+        const newIdentityId = result.data?.identityId || identityId;
         
         if (accountNumber) {
           showToast('Account created successfully!', 'success');

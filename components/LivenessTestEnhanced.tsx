@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, ComponentRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -29,6 +29,7 @@ import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import * as FileSystem from "expo-file-system";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -75,11 +76,9 @@ export default function LivenessTestEnhanced({
   const pitchAngles = useRef<number[]>([]);
   const nodBaseline = useRef<number | null>(null);
   const device = useCameraDevice("front");
-  const cameraRef = useRef<ComponentRef<typeof Camera>>(null);
+  const cameraRef = useRef<VisionCamera>(null);
   const setupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const photoCaptureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isCapturingPhotoRef = useRef<boolean>(false);
   
   console.log('[LivenessTest] Camera device:', { hasDevice: !!device, deviceId: device?.id });
 
@@ -97,7 +96,6 @@ export default function LivenessTestEnhanced({
     progressValue.value = 0;
     pitchAngles.current = [];
     nodBaseline.current = null;
-    isCapturingPhotoRef.current = false;
     
     // Clear any pending timers
     if (setupTimerRef.current) {
@@ -107,10 +105,6 @@ export default function LivenessTestEnhanced({
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
-    }
-    if (photoCaptureTimerRef.current) {
-      clearTimeout(photoCaptureTimerRef.current);
-      photoCaptureTimerRef.current = null;
     }
   }, [progressValue]);
 
@@ -158,8 +152,6 @@ export default function LivenessTestEnhanced({
     return () => {
       if (setupTimerRef.current) clearTimeout(setupTimerRef.current);
       if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
-      if (photoCaptureTimerRef.current) clearTimeout(photoCaptureTimerRef.current);
-      isCapturingPhotoRef.current = false;
     };
   }, []);
 
@@ -177,24 +169,86 @@ export default function LivenessTestEnhanced({
     console.log('[LivenessTest] Test started, stage: blink');
   }, [progressValue]);
 
-  const capturePhoto = async () => {
-    console.log('[LivenessTest] capturePhoto called');
+  const capturePhoto = async (retryCount = 0) => {
+    const maxRetries = 2;
+    console.log('[LivenessTest] capturePhoto called, retry:', retryCount);
     try {
       if (!cameraRef.current) {
         console.error('[LivenessTest] Camera ref is null, cannot capture photo');
+        if (retryCount < maxRetries) {
+          console.log('[LivenessTest] Retrying in 500ms...');
+          setTimeout(() => capturePhoto(retryCount + 1), 500);
+        }
         return;
       }
+      
+      if (!device) {
+        console.error('[LivenessTest] Camera device is not available');
+        if (retryCount < maxRetries) {
+          console.log('[LivenessTest] Retrying in 500ms...');
+          setTimeout(() => capturePhoto(retryCount + 1), 500);
+        }
+        return;
+      }
+      
+      // Wait a bit to ensure camera is fully ready (longer wait on first attempt)
+      const waitTime = retryCount === 0 ? 500 : 300;
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
       console.log('[LivenessTest] Taking photo...');
       const photo = await cameraRef.current.takePhoto({ 
         flash: "off", 
-        enableShutterSound: false 
+        enableShutterSound: false,
       });
       console.log('[LivenessTest] Photo captured:', photo.path);
-      const imageUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+      
+      // Extract the file path (remove file:// prefix if present)
+      const originalPath = photo.path.startsWith('file://') 
+        ? photo.path.replace('file://', '') 
+        : photo.path;
+      
+      // Verify the original file exists
+      const fileInfo = await FileSystem.getInfoAsync(originalPath);
+      if (!fileInfo.exists) {
+        throw new Error(`Photo file does not exist at: ${originalPath}`);
+      }
+      
+      // Copy to permanent location in cache directory
+      const fileName = `liveness-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+      const permanentPath = `${FileSystem.cacheDirectory}${fileName}`;
+      
+      console.log('[LivenessTest] Copying photo to permanent location:', permanentPath);
+      await FileSystem.copyAsync({
+        from: originalPath,
+        to: permanentPath,
+      });
+      
+      // Verify the copied file exists
+      const copiedFileInfo = await FileSystem.getInfoAsync(permanentPath);
+      if (!copiedFileInfo.exists) {
+        throw new Error(`Failed to copy photo to permanent location: ${permanentPath}`);
+      }
+      
+      const imageUri = `file://${permanentPath}`;
       setCapturedImage(imageUri);
       console.log('[LivenessTest] Image URI set:', imageUri);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[LivenessTest] Error capturing photo:', error);
+      // Check if it's a file IO error and retry if we haven't exceeded max retries
+      if ((error?.message?.includes('file-io-error') || error?.message?.includes("doesn't exist")) && retryCount < maxRetries) {
+        console.log('[LivenessTest] File IO error detected, retrying in 800ms...');
+        setTimeout(() => capturePhoto(retryCount + 1), 800);
+      } else {
+        // Final error - log details
+        if (error?.message?.includes('file-io-error') || error?.message?.includes("doesn't exist")) {
+          console.error('[LivenessTest] File IO error - camera may not have proper permissions or storage access');
+        }
+        if (error?.message) {
+          console.error('[LivenessTest] Error details:', error.message);
+        } else if (error instanceof Error) {
+          console.error('[LivenessTest] Error details:', error.message);
+        }
+      }
     }
   };
 
@@ -745,7 +799,7 @@ const styles = StyleSheet.create({
     right: 20,
     paddingVertical: 16,
     paddingHorizontal: 32,
-    borderRadius: 20,
+    borderRadius: 12,
     alignItems: "center",
   },
   submitText: {
