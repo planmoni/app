@@ -64,8 +64,6 @@ class SafeHavenService {
   private readonly API_URL = 'https://api.safehavenmfb.com';
   private readonly CLIENT_ID = process.env.EXPO_PUBLIC_SAFEHAVEN_CLIENT_ID || '';
   private readonly CLIENT_ASSERTION = process.env.EXPO_PUBLIC_SAFEHAVEN_CLIENT_ASSERTION || '';
-  // In-memory token storage as fallback when database storage fails
-  private inMemoryTokens: Map<string, SafeHavenToken> = new Map();
 
   public static getInstance(): SafeHavenService {
     if (!SafeHavenService.instance) {
@@ -79,47 +77,31 @@ class SafeHavenService {
    */
   async getToken(userId: string): Promise<SafeHavenToken | null> {
     try {
-      // First try to get from database
       const { data, error } = await supabase
         .from('safehaven_tokens')
         .select('*')
         .eq('user_id', userId)
-        .maybeSingle(); // Use maybeSingle to avoid error if no record exists
+        .single();
 
-      if (data) {
-        return {
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          token_type: data.token_type,
-          expires_in: data.expires_in,
-          expires_at: data.expires_at,
-          ibs_client_id: data.ibs_client_id,
-          ibs_user_id: data.ibs_user_id,
-          client_id: data.client_id
-        };
-      }
-
-      // If not in database, check in-memory storage (fallback for RLS issues)
-      const inMemoryToken = this.inMemoryTokens.get(userId);
-      if (inMemoryToken) {
-        // Check if token is still valid
-        if (!this.isTokenExpired(inMemoryToken)) {
-          return inMemoryToken;
-        } else {
-          // Remove expired token from memory
-          this.inMemoryTokens.delete(userId);
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null; // No token found
         }
+        throw error;
       }
 
-      return null; // No token found
+      return {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        token_type: data.token_type,
+        expires_in: data.expires_in,
+        expires_at: data.expires_at,
+        ibs_client_id: data.ibs_client_id,
+        ibs_user_id: data.ibs_user_id,
+        client_id: data.client_id
+      };
     } catch (error) {
-      // If database query fails, check in-memory storage
-      const inMemoryToken = this.inMemoryTokens.get(userId);
-      if (inMemoryToken && !this.isTokenExpired(inMemoryToken)) {
-        return inMemoryToken;
-      }
-      
-      console.error('[SafeHaven] Error getting SafeHaven token:', error);
+      console.error('Error getting SafeHaven token:', error);
       return null;
     }
   }
@@ -175,24 +157,8 @@ class SafeHavenService {
 
       const tokenData = await response.json();
 
-      // Store the new token (may fail due to RLS, but we'll use in-memory fallback)
-      const stored = await this.storeToken(userId, tokenData, tokenData.refresh_token || '');
-      
-      // If database storage failed, store in memory as fallback
-      if (!stored) {
-        const inMemoryToken: SafeHavenToken = {
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token || '',
-          token_type: tokenData.token_type,
-          expires_in: tokenData.expires_in,
-          expires_at: new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString(),
-          ibs_client_id: tokenData.ibs_client_id,
-          ibs_user_id: tokenData.ibs_user_id,
-          client_id: tokenData.client_id
-        };
-        this.inMemoryTokens.set(userId, inMemoryToken);
-        console.log('[SafeHaven] Token stored in memory as fallback');
-      }
+      // Store the new token
+      await this.storeToken(userId, tokenData, tokenData.refresh_token || '');
 
       // Update audit log with success
       await this.updateAuditLog(
@@ -245,24 +211,7 @@ class SafeHavenService {
       if (!initResult.success) {
         return null;
       }
-      // Try to get token from database or memory
       token = await this.getToken(userId);
-      // If still no token but we have data from API response, use that
-      if (!token && initResult.data) {
-        const apiToken: SafeHavenToken = {
-          access_token: initResult.data.access_token,
-          refresh_token: initResult.data.refresh_token || '',
-          token_type: initResult.data.token_type,
-          expires_in: initResult.data.expires_in,
-          expires_at: new Date(Date.now() + (initResult.data.expires_in * 1000)).toISOString(),
-          ibs_client_id: initResult.data.ibs_client_id,
-          ibs_user_id: initResult.data.ibs_user_id,
-          client_id: initResult.data.client_id
-        };
-        // Store in memory as fallback
-        this.inMemoryTokens.set(userId, apiToken);
-        return apiToken;
-      }
       if (!token) {
         return null;
       }
@@ -277,43 +226,10 @@ class SafeHavenService {
         if (!initResult.success) {
           return null;
         }
-        // Try to get token from database or memory
         token = await this.getToken(userId);
-        // If still no token but we have data from API response, use that
-        if (!token && initResult.data) {
-          const apiToken: SafeHavenToken = {
-            access_token: initResult.data.access_token,
-            refresh_token: initResult.data.refresh_token || '',
-            token_type: initResult.data.token_type,
-            expires_in: initResult.data.expires_in,
-            expires_at: new Date(Date.now() + (initResult.data.expires_in * 1000)).toISOString(),
-            ibs_client_id: initResult.data.ibs_client_id,
-            ibs_user_id: initResult.data.ibs_user_id,
-            client_id: initResult.data.client_id
-          };
-          // Store in memory as fallback
-          this.inMemoryTokens.set(userId, apiToken);
-          return apiToken;
-        }
         return token;
       }
       token = await this.getToken(userId);
-      // If still no token but we have data from refresh response, use that
-      if (!token && refreshResult.data) {
-        const apiToken: SafeHavenToken = {
-          access_token: refreshResult.data.access_token,
-          refresh_token: refreshResult.data.refresh_token || '',
-          token_type: refreshResult.data.token_type,
-          expires_in: refreshResult.data.expires_in,
-          expires_at: new Date(Date.now() + (refreshResult.data.expires_in * 1000)).toISOString(),
-          ibs_client_id: refreshResult.data.ibs_client_id,
-          ibs_user_id: refreshResult.data.ibs_user_id,
-          client_id: refreshResult.data.client_id
-        };
-        // Store in memory as fallback
-        this.inMemoryTokens.set(userId, apiToken);
-        return apiToken;
-      }
     }
 
     return token;
@@ -380,24 +296,8 @@ class SafeHavenService {
 
       const tokenData = await response.json();
 
-      // Store the new token (may fail due to RLS, but we'll use in-memory fallback)
-      const stored = await this.storeToken(userId, tokenData, tokenData.refresh_token || refreshToken);
-      
-      // If database storage failed, store in memory as fallback
-      if (!stored) {
-        const inMemoryToken: SafeHavenToken = {
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token || refreshToken,
-          token_type: tokenData.token_type,
-          expires_in: tokenData.expires_in,
-          expires_at: new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString(),
-          ibs_client_id: tokenData.ibs_client_id,
-          ibs_user_id: tokenData.ibs_user_id,
-          client_id: tokenData.client_id
-        };
-        this.inMemoryTokens.set(userId, inMemoryToken);
-        console.log('[SafeHaven] Token stored in memory as fallback');
-      }
+      // Store the new token - use refresh_token from response if available, otherwise use the old one
+      await this.storeToken(userId, tokenData, tokenData.refresh_token || refreshToken);
 
       // Update audit log with success
       await this.updateAuditLog(
@@ -441,7 +341,7 @@ class SafeHavenService {
   /**
    * Stores a SafeHaven token in the database
    */
-  private async storeToken(userId: string, tokenData: any, refreshToken: string): Promise<boolean> {
+  private async storeToken(userId: string, tokenData: any, refreshToken: string): Promise<void> {
     try {
       const tokenRecord = {
         user_id: userId,
@@ -461,14 +361,9 @@ class SafeHavenService {
         .from('safehaven_tokens')
         .select('id')
         .eq('user_id', userId)
-        .maybeSingle(); // Use maybeSingle to avoid error if no record exists
+        .single();
 
       if (fetchError && fetchError.code !== 'PGRST116') {
-        // RLS policy violations are expected if policies aren't configured
-        if (fetchError.code === '42501') {
-          console.warn('[SafeHaven] Token storage skipped due to RLS policy (token will be used in-memory)');
-          return false;
-        }
         throw fetchError;
       }
 
@@ -480,11 +375,6 @@ class SafeHavenService {
           .eq('user_id', userId);
 
         if (updateError) {
-          // RLS policy violations are expected if policies aren't configured
-          if (updateError.code === '42501') {
-            console.warn('[SafeHaven] Token storage skipped due to RLS policy (token will be used in-memory)');
-            return false;
-          }
           throw updateError;
         }
       } else {
@@ -497,25 +387,12 @@ class SafeHavenService {
           });
 
         if (insertError) {
-          // RLS policy violations are expected if policies aren't configured
-          if (insertError.code === '42501') {
-            console.warn('[SafeHaven] Token storage skipped due to RLS policy (token will be used in-memory)');
-            return false;
-          }
           throw insertError;
         }
       }
-
-      return true;
     } catch (error) {
-      // RLS policy violations are expected if policies aren't configured
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('row-level security') || (error as any)?.code === '42501') {
-        console.warn('[SafeHaven] Token storage skipped due to RLS policy (token will be used in-memory)');
-        return false;
-      }
-      console.error('[SafeHaven] Error storing SafeHaven token:', error);
-      return false;
+      console.error('Error storing SafeHaven token:', error);
+      throw error;
     }
   }
 
@@ -793,25 +670,13 @@ class SafeHavenService {
       });
 
       if (error) {
-        // RLS policy violations are expected if policies aren't configured
-        // Log as warning instead of error to avoid noise
-        if (error.code === '42501') {
-          console.warn('[SafeHaven] Audit logging skipped due to RLS policy (this is non-critical):', error.message);
-        } else {
-          console.error('[SafeHaven] Error logging SafeHaven operation:', error);
-        }
+        console.error('Error logging SafeHaven operation:', error);
         return undefined;
       }
 
       return data || undefined;
     } catch (error) {
-      // RLS policy violations are expected if policies aren't configured
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('row-level security') || errorMessage.includes('42501')) {
-        console.warn('[SafeHaven] Audit logging skipped due to RLS policy (this is non-critical)');
-      } else {
-        console.error('[SafeHaven] Error in SafeHaven operation logging:', error);
-      }
+      console.error('Error in SafeHaven operation logging:', error);
       return undefined;
     }
   }
@@ -963,7 +828,7 @@ class SafeHavenService {
         const defaultDebitAccountNumber = '0117753301';
         const identityRequestPayload = {
           type: 'NIN',
-          async: true,
+          async: false,
           debitAccountNumber: defaultDebitAccountNumber,
           number: nin
         };
@@ -1011,7 +876,7 @@ class SafeHavenService {
         }
 
         const identityData = await identityResponse.json();
-        
+        console.log("safehaven nin verification identityData", identityData)
         // Extract identityId from response
         if (identityData?.data?._id) {
           currentIdentityId = identityData.data._id;
@@ -1021,15 +886,14 @@ class SafeHavenService {
           throw new Error('Identity ID not found in response');
         }
 
-        // Update audit log with identity verification success
+        // Extract OTP message from response
+        const otpMessage = identityData?.message || null;
+
+        // Update audit log with identity verification success - store full response
         await this.updateAuditLog(
           auditLogId,
           'pending', // Still pending as we need to create account
-          {
-            identityId: currentIdentityId,
-            status: identityData?.data?.status || identityData?.status || 'PENDING',
-            step: 'identity_verification_complete'
-          },
+          identityData, // Store full response in response_data
           null,
           Date.now() - startTime
         );
@@ -1045,7 +909,8 @@ class SafeHavenService {
                 response_data: {
                   identityId: currentIdentityId,
                   otp_sent: true,
-                  status: identityData?.data?.status || identityData?.status || 'PENDING'
+                  status: identityData?.data?.status || identityData?.status || 'PENDING',
+                  otp_message: otpMessage
                 },
                 updated_at: new Date().toISOString()
               })
@@ -1057,7 +922,8 @@ class SafeHavenService {
             data: {
               identityId: currentIdentityId,
               requiresOtp: true,
-              status: identityData?.data?.status || identityData?.status || 'PENDING'
+              status: identityData?.data?.status || identityData?.status || 'PENDING',
+              otpMessage: otpMessage
             },
             auditLogId,
             responseTime: Date.now() - startTime
@@ -1081,7 +947,8 @@ class SafeHavenService {
         identityType: 'NIN',
         autoSweep: true,
         autoSweepDetails: {
-          schedule: 'Instant'
+          schedule: 'Instant',
+          accountNumber: "0117753301"
         },
         externalReference: `AC_${userId.substring(0, 8)}`,
         identityNumber: nin,
@@ -1102,8 +969,6 @@ class SafeHavenService {
         },
         body: JSON.stringify(accountRequestPayload)
       });
-
-      console.log(' Account creation response:', JSON.stringify(accountResponse, null, 2));
 
       const responseTime = Date.now() - startTime;
 
@@ -1140,9 +1005,7 @@ class SafeHavenService {
       }
 
       const accountData = await accountResponse.json();
-      
-      console.log('[SafeHaven] Account creation response:', JSON.stringify(accountData, null, 2));
-
+      console.log("safehaven account creation accountData", accountData)
       // Extract account information from response
       const verificationData: any = {
         verified: true,
@@ -1152,7 +1015,7 @@ class SafeHavenService {
       };
 
       // Extract account number if available - check multiple possible locations
-      let accountNumber = null;
+      let accountNumber: string | null = null;
       if (accountData?.data?.accountNumber) {
         accountNumber = accountData.data.accountNumber;
       } else if (accountData?.data?.account_number) {
@@ -1161,18 +1024,19 @@ class SafeHavenService {
         accountNumber = accountData.accountNumber;
       } else if (accountData?.account_number) {
         accountNumber = accountData.account_number;
-      } else if (accountData?.data?.account?.accountNumber) {
-        accountNumber = accountData.data.account.accountNumber;
-      } else if (accountData?.data?.account?.account_number) {
-        accountNumber = accountData.data.account.account_number;
+      } else if (accountData?.data?.data?.accountNumber) {
+        accountNumber = accountData.data.data.accountNumber;
       }
       
       if (accountNumber) {
         verificationData.account_number = accountNumber;
+        console.log("safehaven account number extracted:", accountNumber);
+      } else {
+        console.warn("safehaven account number not found in response:", JSON.stringify(accountData, null, 2));
       }
 
       // Extract account name if available - check multiple possible locations
-      let accountName = null;
+      let accountName: string | null = null;
       if (accountData?.data?.accountName) {
         accountName = accountData.data.accountName;
       } else if (accountData?.data?.account_name) {
@@ -1181,26 +1045,14 @@ class SafeHavenService {
         accountName = accountData.accountName;
       } else if (accountData?.account_name) {
         accountName = accountData.account_name;
-      } else if (accountData?.data?.account?.accountName) {
-        accountName = accountData.data.account.accountName;
-      } else if (accountData?.data?.account?.account_name) {
-        accountName = accountData.data.account.account_name;
       }
-      
+
       // Extract names if available
       if (accountName) {
         const names = accountName.split(' ');
         verificationData.first_name = names[0] || '';
         verificationData.last_name = names[names.length - 1] || '';
         verificationData.middle_name = names.length > 2 ? names.slice(1, -1).join(' ') : '';
-        verificationData.account_name = accountName;
-      }
-      
-      // If account number is not found, log the full response for debugging
-      if (!accountNumber) {
-        console.warn('[SafeHaven] Account number not found in response. Full response:', JSON.stringify(accountData, null, 2));
-        // Account might be created asynchronously, so we'll still mark as verified
-        // but log a warning
       }
 
       // Update KYC audit log with success
@@ -1229,7 +1081,8 @@ class SafeHavenService {
           hasAccount: !!verificationData.account_number,
           accountNumber: verificationData.account_number ? verificationData.account_number.substring(0, 5) + '****' : null,
           identityId: currentIdentityId,
-          step: 'account_creation_complete'
+          step: 'account_creation_complete',
+          responseData: accountData
         },
         null,
         responseTime
@@ -1237,20 +1090,35 @@ class SafeHavenService {
 
       // If account was created, store it
       if (verificationData.account_number) {
-        await this.storeAccountFromNINVerification(userId, {
-          account_number: verificationData.account_number,
-          account_name: accountData?.data?.accountName || `${verificationData.first_name} ${verificationData.last_name}`.trim(),
-          account_type: 'savings',
-          currency_code: 'NGN',
-          status: 'active'
-        });
+        console.log("safehaven account creation verificationData", verificationData)
+        try {
+          await this.storeAccountFromNINVerification(userId, {
+            account_number: verificationData.account_number,
+            account_name: accountName || `${verificationData.first_name} ${verificationData.last_name}`.trim() || 'NIN Account',
+            account_type: accountData?.data?.accountType || accountData?.accountType || 'savings',
+            account_product: accountData?.data?.accountProduct || accountData?.accountProduct || 'Savings',
+            currency_code: accountData?.data?.currencyCode || accountData?.currencyCode || 'NGN',
+            status: accountData?.data?.status || accountData?.status || 'active',
+            account_id: accountData?.data?._id || accountData?.data?.id || accountData?._id || accountData?.id || null,
+            account_balance: accountData?.data?.accountBalance || accountData?.accountBalance || 0,
+            book_balance: accountData?.data?.bookBalance || accountData?.bookBalance || 0,
+            interest_balance: accountData?.data?.interestBalance || accountData?.interestBalance || 0,
+            withholding_tax_balance: accountData?.data?.withHoldingTaxBalance || accountData?.withHoldingTaxBalance || 0
+          });
+          console.log("safehaven account saved successfully to database");
+        } catch (storeError) {
+          console.error("safehaven error storing account:", storeError);
+          // Don't throw - log the error but continue with verification
+        }
+      } else {
+        console.warn("safehaven account number not found, skipping database storage");
       }
 
-      // Update KYC progress with NIN verification (using id_face_verified)
+      // Update KYC progress with NIN verification
       await supabase
         .from('kyc_progress')
         .update({
-          id_face_verified: true,
+          nin_verified: true,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', userId);
@@ -1285,45 +1153,95 @@ class SafeHavenService {
    */
   private async storeAccountFromNINVerification(userId: string, verificationData: any): Promise<void> {
     try {
-      const accountRecord = {
+      if (!verificationData.account_number) {
+        console.error('Cannot store account: account_number is missing');
+        throw new Error('Account number is required to store account');
+      }
+
+      // Get client_id from token or use default
+      const token = await this.getToken(userId);
+      const clientId = token?.client_id || this.CLIENT_ID || '';
+
+      const accountRecord: any = {
         user_id: userId,
-        safehaven_account_id: verificationData.account_id || null,
+        safehaven_account_id: verificationData.account_id || verificationData.safehaven_account_id || verificationData.account_number, // Required: use account number as fallback
+        client_id: clientId, // Required field
+        account_product: verificationData.account_product || 'Savings', // Required field - default to Savings
         account_number: verificationData.account_number,
-        account_name: verificationData.account_name || verificationData.full_name,
+        cba_account_id: verificationData.cba_account_id || null,
+        account_name: verificationData.account_name || verificationData.full_name || 'NIN Account',
         account_type: verificationData.account_type || 'savings',
         currency_code: verificationData.currency_code || 'NGN',
         bvn: verificationData.bvn || null,
         account_balance: verificationData.account_balance || 0,
         book_balance: verificationData.book_balance || 0,
+        interest_balance: verificationData.interest_balance || 0,
+        withholding_tax_balance: verificationData.withholding_tax_balance || 0,
         status: verificationData.status || 'active',
         is_default: true, // New account from NIN verification is default
         can_debit: verificationData.can_debit !== false,
         can_credit: verificationData.can_credit !== false,
-        synced_at: new Date().toISOString()
+        nominal_annual_interest_rate: verificationData.nominal_annual_interest_rate || 0,
+        interest_compounding_period: verificationData.interest_compounding_period || null,
+        interest_posting_period: verificationData.interest_posting_period || null,
+        interest_calculation_type: verificationData.interest_calculation_type || null,
+        interest_calculation_days_in_year_type: verificationData.interest_calculation_days_in_year_type || null,
+        min_required_opening_balance: verificationData.min_required_opening_balance || 0,
+        lockin_period_frequency: verificationData.lockin_period_frequency || 0,
+        lockin_period_frequency_type: verificationData.lockin_period_frequency_type || null,
+        allow_overdraft: verificationData.allow_overdraft !== false,
+        overdraft_limit: verificationData.overdraft_limit || 0,
+        charge_withholding_tax: verificationData.charge_withholding_tax !== false,
+        charge_value_added_tax: verificationData.charge_value_added_tax !== false,
+        charge_stamp_duty: verificationData.charge_stamp_duty !== false,
+        notification_settings: verificationData.notification_settings || null,
+        is_sub_account: verificationData.is_sub_account !== false,
+        is_deleted: verificationData.is_deleted === true,
+        synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
-      // Check if account already exists
-      const { data: existingAccount } = await supabase
+      // Check if account already exists by account number
+      const { data: existingAccount, error: fetchError } = await supabase
         .from('safehaven_accounts')
-        .select('id')
+        .select('id, safehaven_account_id')
         .eq('user_id', userId)
         .eq('account_number', verificationData.account_number)
-        .single();
+        .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error checking for existing account:', fetchError);
+        throw fetchError;
+      }
 
       if (existingAccount) {
         // Update existing account
-        await supabase
+        console.log('Updating existing SafeHaven account:', existingAccount.id);
+        const { error: updateError } = await supabase
           .from('safehaven_accounts')
           .update(accountRecord)
           .eq('id', existingAccount.id);
+
+        if (updateError) {
+          console.error('Error updating existing account:', updateError);
+          throw updateError;
+        }
+        console.log('SafeHaven account updated successfully');
       } else {
         // Insert new account
-        await supabase
+        console.log('Inserting new SafeHaven account:', verificationData.account_number);
+        const { error: insertError } = await supabase
           .from('safehaven_accounts')
           .insert({
             ...accountRecord,
             created_at: new Date().toISOString()
           });
+
+        if (insertError) {
+          console.error('Error inserting new account:', insertError);
+          throw insertError;
+        }
+        console.log('SafeHaven account inserted successfully');
       }
     } catch (error) {
       console.error('Error storing account from NIN verification:', error);

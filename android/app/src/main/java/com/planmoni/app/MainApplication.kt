@@ -1,4 +1,5 @@
 package com.planmoni.app
+import com.intercom.reactnative.IntercomModule
 
 import android.app.Application
 import android.content.res.Configuration
@@ -48,7 +49,8 @@ class MainApplication : Application(), ReactApplication {
       load()
     }
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
-  }
+  IntercomModule.initialize(this, "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf", "tf4dp3qt")
+}
 
   override fun onConfigurationChanged(newConfig: Configuration) {
     super.onConfigurationChanged(newConfig)

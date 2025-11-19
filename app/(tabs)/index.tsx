@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import TransactionModal from '@/components/TransactionModal';
 import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
 import ClaimAccountModal from '@/components/ClaimAccountModal';
+import NewPlanInfoModal from '@/components/NewPlanInfoModal';
+import AccountInformationModal from '@/components/AccountInformationModal';
+import PlanCreationModal from '@/components/PlanCreationModal';
+import AppLockModal from '@/components/AppLockModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
@@ -9,7 +13,7 @@ import KYCCard from '@/components/KYCCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 // import { IntercomButton } from '@/components/IntercomButton';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   HelpCircleIcon,
@@ -31,15 +35,17 @@ import {
   ImageBackground,
   Image,
   Platform,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAppLock } from '@/contexts/AppLockContext';
+import { usePin } from '@/contexts/PinContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
-import { useRealtimePaystackAccount } from '@/hooks/useRealtimePaystackAccount';
+import { useKYCProgress } from '@/hooks/useKYCProgress';
 // import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
@@ -72,9 +78,10 @@ export default function HomeScreen() {
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
   const { updateLastActiveOnInteraction } = useAppLock();
-  const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
+  const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
-  const { account: paystackAccount, isLoading: paystackAccountLoading } = useRealtimePaystackAccount();
+  const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress } = useKYCProgress();
+  const navigation = useNavigation();
   
   // Debug: Track payoutPlans changes
   useEffect(() => {
@@ -83,7 +90,7 @@ export default function HomeScreen() {
       plans: payoutPlans.map(p => ({ id: p.id, name: p.name, status: p.status }))
     });
   }, [payoutPlans]);
-  const { transactions, isLoading: transactionsLoading } = useRealtimeTransactions();
+  const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
@@ -95,10 +102,80 @@ export default function HomeScreen() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
-  const [safehavenAccount, setSafehavenAccount] = useState<any>(null);
-  const [isCheckingAccount, setIsCheckingAccount] = useState(false);
+  const [hasShownTier1ClaimModal, setHasShownTier1ClaimModal] = useState(false);
+  const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
+  const [showAccountInfoModal, setShowAccountInfoModal] = useState(false);
+  const [hasShownAccountInfoModal, setHasShownAccountInfoModal] = useState(false);
+  const accountInfoModalShownRef = useRef(false);
+  const [showPlanCreationModal, setShowPlanCreationModal] = useState(false);
+  const [lastDepositAmount, setLastDepositAmount] = useState<number | null>(null);
+  const [lastShownDepositId, setLastShownDepositId] = useState<string | null>(null);
+  const [shownDepositIds, setShownDepositIds] = useState<Set<string>>(new Set());
+  const [showAppLockModal, setShowAppLockModal] = useState(false);
+  const [hasShownAppLockModal, setHasShownAppLockModal] = useState(false);
+  const { hasAppLockPin } = usePin();
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
+
+  // Prevent navigation back to welcome page when authenticated
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    // Dynamically disable gestures when authenticated
+    navigation.setOptions({
+      gestureEnabled: false,
+    });
+
+    // Handle Android back button
+    const backHandler = Platform.OS === 'android' 
+      ? BackHandler.addEventListener('hardwareBackPress', () => {
+          // Prevent back navigation when authenticated
+          return true; // Return true to prevent default back behavior
+        })
+      : null;
+
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      // Always prevent going back when authenticated - block all back navigation
+      // This prevents going back to welcome page (index route) or any previous screen
+      const action = e.data.action;
+      
+      // Only block back navigation types, not forward navigation
+      if (action.type === 'GO_BACK' || action.type === 'POP') {
+        e.preventDefault();
+        return;
+      }
+      
+      // Also block navigation to index route
+      if (action.type === 'NAVIGATE') {
+        const targetRoute = (action.payload as any)?.name;
+        if (targetRoute === 'index') {
+          e.preventDefault();
+          return;
+        }
+      }
+      
+      // Allow PUSH actions (forward navigation) to proceed
+      if (action.type === 'PUSH' || action.type === 'NAVIGATE') {
+        // Check if it's navigating away from tabs (forward navigation)
+        const targetRoute = (action.payload as any)?.name;
+        if (targetRoute && targetRoute !== 'index' && !targetRoute.includes('(tabs)')) {
+          // Allow forward navigation to proceed
+          return;
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      if (backHandler) {
+        backHandler.remove();
+      }
+      // Re-enable gestures when component unmounts (if needed)
+      navigation.setOptions({
+        gestureEnabled: false, // Keep disabled even on unmount
+      });
+    };
+  }, [navigation, session?.user?.id]);
 
   // Intercom
   const { openChat, isLoading, isSupported } = useIntercom();
@@ -119,36 +196,104 @@ export default function HomeScreen() {
     }
   }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
 
-  // Check for SafeHaven account
-  useEffect(() => {
-    const checkSafeHavenAccount = async () => {
-      if (!session?.user?.id || isCheckingAccount) return;
-      
-      try {
-        setIsCheckingAccount(true);
-        const { data, error } = await supabase
-          .from('safehaven_accounts')
-          .select('account_number, account_name')
-          .eq('user_id', session.user.id)
-          .eq('is_deleted', false)
-          .limit(1)
-          .maybeSingle();
+  // Don't show ClaimAccountModal after Tier 1 completion - user can navigate directly to add funds
+  // Removed the useEffect that automatically shows ClaimAccountModal after Tier 1 completion
 
-        if (error && error.code !== 'PGRST116') {
-          console.warn('Error checking SafeHaven account:', error);
-        } else if (data) {
-          setSafehavenAccount(data);
+  // Show AccountInformationModal only when coming from Tier1CompletionModal
+  const params = useLocalSearchParams();
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    
+    const shouldShowAccountInfo = params.showAccountInfo === 'true';
+    
+    if (shouldShowAccountInfo && !hasShownAccountInfoModal && !accountInfoModalShownRef.current) {
+      accountInfoModalShownRef.current = true;
+      // Small delay to ensure smooth transition
+      const timer = setTimeout(() => {
+        setShowAccountInfoModal(true);
+      }, 500);
+      
+      // Clear the param after showing modal
+      router.setParams({ showAccountInfo: undefined });
+      
+      return () => clearTimeout(timer);
+    }
+  }, [params.showAccountInfo, session?.user?.id, hasShownAccountInfoModal]);
+
+  // Load shown deposit IDs from storage on mount
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const loadShownDepositIds = async () => {
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const key = `shown_deposit_ids_${session.user.id}`;
+        const stored = await AsyncStorage.getItem(key);
+        if (stored) {
+          const ids = JSON.parse(stored) as string[];
+          setShownDepositIds(new Set(ids));
         }
-      } catch (err) {
-        console.warn('Error checking SafeHaven account:', err);
-      } finally {
-        setIsCheckingAccount(false);
+      } catch (error) {
+        console.error('Error loading shown deposit IDs:', error);
       }
     };
 
-    checkSafeHavenAccount();
+    loadShownDepositIds();
   }, [session?.user?.id]);
 
+  // Detect new deposits and show PlanCreationModal
+  useEffect(() => {
+    if (!session?.user?.id || transactions.length === 0) return;
+
+    const depositTransactions = transactions.filter(
+      t => t.type === 'deposit' && t.status === 'completed'
+    );
+
+    if (depositTransactions.length > 0) {
+      const latestDeposit = depositTransactions[0];
+      const depositAmount = latestDeposit.amount;
+      const depositId = latestDeposit.id;
+
+      // Check if this deposit has already been shown
+      if (!shownDepositIds.has(depositId)) {
+        // Small delay to ensure transaction is processed
+        const timer = setTimeout(async () => {
+          setShowPlanCreationModal(true);
+          setLastDepositAmount(depositAmount);
+          setLastShownDepositId(depositId);
+          
+          // Mark this deposit as shown and persist it
+          const newShownIds = new Set(shownDepositIds);
+          newShownIds.add(depositId);
+          setShownDepositIds(newShownIds);
+          
+          // Persist to AsyncStorage
+          try {
+            const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+            const key = `shown_deposit_ids_${session.user.id}`;
+            await AsyncStorage.setItem(key, JSON.stringify(Array.from(newShownIds)));
+          } catch (error) {
+            console.error('Error saving shown deposit IDs:', error);
+          }
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [transactions, session?.user?.id, shownDepositIds]);
+
+  // Show AppLockModal if no PIN is set up AND user just created their first plan
+  useEffect(() => {
+    if (!session?.user?.id || hasAppLockPin || hasShownAppLockModal) return;
+
+    // Check if this is the first plan
+    if (payoutPlans.length === 1) {
+      // Small delay to ensure plan is created
+      const timer = setTimeout(() => {
+        setShowAppLockModal(true);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [payoutPlans.length, hasAppLockPin, session?.user?.id, hasShownAppLockModal]);
   
   // Log screen view for analytics
   useEffect(() => {
@@ -208,17 +353,28 @@ export default function HomeScreen() {
     logAnalyticsEvent('profile_click');
   };
 
-  // Handle pull-to-refresh
+  // Handle pull-to-refresh - refresh all page data
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Refresh wallet balance
-      await refreshWallet();
-      // Fetch latest Paystack transactions
-      // await fetchPaystackTransactions();
+      // Refresh all data in parallel for better performance
+      await Promise.all([
+        // Refresh wallet balance
+        refreshWallet(),
+        // Refresh payout plans
+        fetchPayoutPlans(),
+        // Refresh transactions
+        fetchTransactions(),
+        // Refresh KYC progress
+        loadProgress(),
+        // Refresh carousel images
+        fetchCarouselImages(),
+      ]);
+      
       // Add haptic feedback for successful refresh
       impact();
     } catch (error) {
+      console.error('Error refreshing page data:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -290,26 +446,62 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // Check if user has a bank account (Paystack or SafeHaven)
-    const hasPaystackAccount = paystackAccount?.account_number;
-    const hasSafeHavenAccount = safehavenAccount?.account_number;
+    // Check if user has completed Tier 1
+    const tierCompletion = checkTierCompletion();
     
-    if (!hasPaystackAccount && !hasSafeHavenAccount) {
-      // Show modal if user doesn't have an account
-      setShowClaimAccountModal(true);
-      logAnalyticsEvent('add_funds_click_no_account');
-    } else {
-      // Navigate directly to add funds page
+    // Check if user has an account
+    let hasAccount = false;
+    if (session?.user?.id) {
+      try {
+        const { data } = await supabase
+          .from('safehaven_accounts')
+          .select('id, account_number')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .not('account_number', 'ilike', 'PENDING_%')
+          .maybeSingle();
+        
+        hasAccount = !!(data && data.account_number && !data.account_number.startsWith('PENDING_'));
+      } catch (error) {
+        console.error('Error checking account:', error);
+      }
+    }
+    
+    // If Tier 1 is complete, navigate directly to add funds page
+    if (tierCompletion.tier1) {
       router.push('/add-funds');
       logAnalyticsEvent('add_funds_click');
+      return;
+    }
+    
+    // If Tier 1 not complete or no account, show ClaimAccountModal
+    if (!hasAccount || !tierCompletion.tier1) {
+      setShowClaimAccountModal(true);
+      logAnalyticsEvent('add_funds_click_claim_modal');
+    } else {
+    // Navigate directly to add funds page
+    router.push('/add-funds');
+    logAnalyticsEvent('add_funds_click');
     }
   };
 
   const handleCreatePayout = () => {
     // Trigger medium impact haptic feedback
     impact();
+    
+    // Check if balance is ₦0 and no payout plans exist
+    const hasNoBalance = balance === 0 && availableBalance === 0;
+    const hasNoPlans = payoutPlans.length === 0;
+    
+    // If no balance and no plans, show info modal
+    if (hasNoBalance && hasNoPlans) {
+      setShowNewPlanInfoModal(true);
+      logAnalyticsEvent('create_payout_click_no_balance_modal');
+    } else {
+      // Navigate directly to create payout
     router.push('/create-payout/amount');
     logAnalyticsEvent('create_payout_click');
+    }
   };
 
   const handleAISuggestionPress = (suggestion: any) => {
@@ -615,7 +807,7 @@ export default function HomeScreen() {
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
-                <CalendarCheck size={22} color='#fff' />
+                <CalendarCheck size={22} color={'#fff'} />
                 <Text style={styles.createButtonText}>New plan</Text>
               </Pressable>
               
@@ -632,7 +824,6 @@ export default function HomeScreen() {
           onSuggestionPress={handleAISuggestionPress}
         />
         {/* <IntercomButton /> */}
-        <KYCCard />
 
         {/* KYC Tiers Test Buttons */}
         {/* <View style={styles.kycTiersContainer}>
@@ -660,6 +851,7 @@ export default function HomeScreen() {
         </View> */}
 
         <ImageCarousel images={carouselImages} />
+        {!checkTierCompletion().tier1 && <KYCCard />}
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
@@ -670,7 +862,10 @@ export default function HomeScreen() {
         <NextPayoutCard nextPayout={nextPayout} />
 
         {/* Payout Plans Section */}
-        <PayoutPlansSection activePlans={activePlans} />
+        <PayoutPlansSection 
+          activePlans={activePlans} 
+          onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}
+        />
 
         <View style={styles.bottomPadding} />
 
@@ -701,7 +896,7 @@ export default function HomeScreen() {
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <CalendarCheck size={22} color='#fff' />
+          <CalendarCheck size={22} color={'#fff'} />
           <Text style={styles.createButtonText}>New plan</Text>
         </Pressable>
         
@@ -732,12 +927,49 @@ export default function HomeScreen() {
       <ClaimAccountModal
         isVisible={showClaimAccountModal}
         onClose={() => setShowClaimAccountModal(false)}
-        accountNumber={safehavenAccount?.account_number ? `${safehavenAccount.account_number.slice(0, 5)} XXXXX` : '01177 XXXXX'}
+        accountNumber="01177 XXXXX"
         bankName="SAFEHAVEN MFB"
-        accountName={safehavenAccount?.account_name ? `PLANMONI/${safehavenAccount.account_name.toUpperCase()}` : `PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
+        accountName={`PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
         onClaim={() => {
           router.push('/add-funds');
           logAnalyticsEvent('claim_account_click');
+        }}
+      />
+
+      <NewPlanInfoModal
+        isVisible={showNewPlanInfoModal}
+        onClose={() => setShowNewPlanInfoModal(false)}
+        onAddFundsAfterClose={() => {
+          // Navigate after modal is fully closed
+          handleAddFunds();
+        }}
+      />
+
+      <AccountInformationModal
+        isVisible={showAccountInfoModal}
+        onClose={() => {
+          setShowAccountInfoModal(false);
+          setHasShownAccountInfoModal(true);
+        }}
+        onDone={async () => {
+          setShowAccountInfoModal(false);
+          setHasShownAccountInfoModal(true);
+          // Refresh the app to clear any blocking state
+          await handleRefresh();
+        }}
+      />
+
+      <PlanCreationModal
+        isVisible={showPlanCreationModal}
+        onClose={() => setShowPlanCreationModal(false)}
+        depositAmount={lastDepositAmount || 0}
+      />
+
+      <AppLockModal
+        isVisible={showAppLockModal}
+        onClose={() => {
+          setShowAppLockModal(false);
+          setHasShownAppLockModal(true);
         }}
       />
 
@@ -901,7 +1133,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.primary,
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderRadius: 100,
+    borderRadius: 20,
     height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
@@ -909,17 +1141,17 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   createButtonText: {
     color: '#fff',
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: Platform.OS === 'ios' ? 17 : 15,
     fontWeight: '600',
   },
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: colors.backgroundBlack,
+    backgroundColor: colors.backgroundBlack + '70',
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 100,
+    borderWidth: 2, 
+    borderColor: isDark ? '#fff' : colors.primary,
+    borderRadius: 20,
     height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
@@ -927,7 +1159,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   addFundsText: {
     color: colors.primary,
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: Platform.OS === 'ios' ? 17 : 15,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -1212,7 +1444,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 100,
+    borderRadius: 20,
   },
   createFirstPayoutText: {
     color: '#FFFFFF',

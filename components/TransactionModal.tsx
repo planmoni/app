@@ -873,7 +873,7 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     height: 55,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 100,
+    borderRadius: 20,
   },
   reportButton: {
     borderColor: colors.border,
@@ -881,7 +881,7 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     height: 55,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 100,
+    borderRadius: 20,
   },
   formatModalOverlay: {
     flex: 1,

@@ -422,7 +422,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   saveButton: {
     backgroundColor: colors.primary,
     paddingVertical: 16,
-    borderRadius: 100,
+    borderRadius: 20,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

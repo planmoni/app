@@ -137,7 +137,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     justifyContent: 'center',
     paddingVertical: isSmallScreen ? 12 : 16,
     paddingHorizontal: isSmallScreen ? 20 : 24,
-    borderRadius: 100,
+    borderRadius: 20,
     minWidth: '100%',
     shadowColor: colors.primary || '#1E3A8A',
     shadowOffset: {

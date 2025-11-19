@@ -60,10 +60,11 @@ export default function CameraPermissionModal({
   // Handle liveness test completion
   const handleLivenessComplete = (selfieUrl: string) => {
     setShowLivenessTest(false);
+    // Don't call onClose here - let the parent handle closing after step transition
+    // The parent will close this modal after updating the step to BVN
     if (onComplete) {
       onComplete(selfieUrl);
     }
-    onClose();
   };
 
   // Handle liveness test close
@@ -168,7 +169,7 @@ export default function CameraPermissionModal({
       flex: 1,
       paddingVertical: 14,
       paddingHorizontal: 24,
-      borderRadius: 100,
+      borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -181,12 +182,12 @@ export default function CameraPermissionModal({
       borderColor: colors.border,
     },
     permissionModalButtonText: {
-      fontSize: 14,
+      fontSize: 17,
       fontWeight: '600',
       color: colors.text,
     },
     permissionModalButtonTextPrimary: {
-      color: '#FFFFFF',
+      color: '#fff',
     },
   });
 
@@ -293,29 +294,8 @@ export default function CameraPermissionModal({
           
           <View style={styles.permissionModalContent}>
             <Text style={styles.permissionModalText}>
-              To complete your KYC verification, we need access to your camera to perform a liveness check.
+              To start your KYC verification, we need access to your camera to perform a liveness check where you will be required to blink your eyes and move your head and smile. This helps us ensure you are a real person, prevent fraud and secure your account. It takes less than a minute to complete.
             </Text>
-            
-            <View style={styles.permissionInfoList}>
-              <View style={styles.permissionInfoItem}>
-                <Check size={20} color={colors.primary} />
-                <Text style={styles.permissionInfoText}>
-                  Verify your identity through facial recognition
-                </Text>
-              </View>
-              <View style={styles.permissionInfoItem}>
-                <Check size={20} color={colors.primary} />
-                <Text style={styles.permissionInfoText}>
-                  Ensure you are a real person (anti-fraud protection)
-                </Text>
-              </View>
-              <View style={styles.permissionInfoItem}>
-                <Check size={20} color={colors.primary} />
-                <Text style={styles.permissionInfoText}>
-                  Your privacy is protected - images are securely stored
-                </Text>
-              </View>
-            </View>
           </View>
           
           <View style={styles.permissionModalActions}>

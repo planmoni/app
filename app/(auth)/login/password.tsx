@@ -122,7 +122,11 @@ export default function LoginPasswordScreen() {
               </View>
             )}
             
-            <View style={[styles.inputContainer, error && { borderColor: colors.error }]}>
+            <View style={[
+              styles.inputContainer,
+              password.trim() !== '' && styles.inputContainerFilled,
+              error && styles.inputContainerError,
+            ]}>
               {/* <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} /> */}
               <TextInput
                 ref={passwordInputRef}
@@ -257,12 +261,19 @@ const createStyles = (colors: any) => StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
     borderRadius: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     paddingHorizontal: 16,
     height: 56,
+  },
+  inputContainerFilled: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentBackground || colors.background,
+  },
+  inputContainerError: {
+    borderColor: colors.error || '#DC2626',
   },
   inputIcon: {
     marginRight: 12,

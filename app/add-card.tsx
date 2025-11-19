@@ -312,7 +312,6 @@ export default function AddCardScreen() {
 
             <View style={styles.securityInfo}>
               <View style={styles.securityIconContainer}>
-                <Shield size={20} color={colors.primary} />
               </View>
               <Text style={styles.securityText}>
                 Your card information is securely processed by Paystack. We never store your full card details on our servers.

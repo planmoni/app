@@ -4,6 +4,8 @@ import Intercom from '@intercom/intercom-react-native';
 // Global state for instant Intercom access
 let isIntercomAuthenticated = false;
 let isInitialized = false;
+let isRegisteringToken = false;
+let lastRegisteredToken: string | null = null;
 
 class IntercomInstant {
   private static instance: IntercomInstant;
@@ -67,6 +69,72 @@ class IntercomInstant {
   }
 
   /**
+   * Register push token with Intercom for push notifications
+   */
+  async registerPushToken(expoPushToken: string): Promise<void> {
+    try {
+      if (Platform.OS === 'web') {
+        console.log('⚠️ Push notifications not supported on web');
+        return;
+      }
+
+      // Prevent multiple simultaneous registrations
+      if (isRegisteringToken) {
+        console.log('ℹ️ Token registration already in progress, skipping...');
+        return;
+      }
+
+      // Skip if we're trying to register the same token again
+      if (lastRegisteredToken === expoPushToken) {
+        console.log('ℹ️ Token already registered with Intercom, skipping...');
+        return;
+      }
+
+      if (!expoPushToken || !expoPushToken.trim()) {
+        console.warn('⚠️ Invalid push token provided to Intercom');
+        return;
+      }
+
+      // Ensure Intercom is initialized before registering token
+      if (!isInitialized) {
+        console.log('🔄 Intercom not initialized, initializing now...');
+        await this.initialize();
+      }
+
+      // Set flag to prevent concurrent calls
+      isRegisteringToken = true;
+
+      // Add a small delay to ensure Intercom is fully ready
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      console.log('📱 Registering push token with Intercom...');
+      await Intercom.sendTokenToIntercom(expoPushToken);
+      
+      // Store the successfully registered token
+      lastRegisteredToken = expoPushToken;
+      console.log('✅ Push token registered with Intercom successfully');
+    } catch (error: any) {
+      // Reset flag on error
+      isRegisteringToken = false;
+      
+      // Use warn instead of error since this is non-critical
+      // Intercom push notifications are optional and the error is already handled gracefully
+      const errorMessage = error?.message || String(error);
+      if (errorMessage.includes('sendTokenToIntercom') || errorMessage.includes('already been rejected')) {
+        // This is a known issue - Intercom might not be ready or user might not be authenticated
+        // It's safe to ignore as push notifications will work once Intercom is properly set up
+        console.log('ℹ️ Intercom push token registration skipped (will retry after authentication)');
+      } else {
+        console.warn('⚠️ Failed to register push token with Intercom:', errorMessage);
+      }
+      // Don't throw - push notifications are optional
+    } finally {
+      // Always reset the flag
+      isRegisteringToken = false;
+    }
+  }
+
+  /**
    * Authenticate user with Intercom (background process)
    */
   async authenticateUser(userId: string, email: string, name: string, phone?: string): Promise<void> {
@@ -91,6 +159,17 @@ class IntercomInstant {
       
       isIntercomAuthenticated = true;
       console.log('✅ User authenticated with Intercom successfully');
+      
+      // Register push token with Intercom after authentication
+      try {
+        const { registerForPushNotificationsAsync } = await import('@/lib/notifications');
+        const token = await registerForPushNotificationsAsync();
+        if (token) {
+          await this.registerPushToken(token);
+        }
+      } catch (tokenError) {
+        console.warn('⚠️ Failed to register push token with Intercom:', tokenError);
+      }
       
     } catch (error) {
       console.error('❌ Failed to authenticate user with Intercom:', error);
@@ -128,6 +207,7 @@ class IntercomInstant {
     try {
       await Intercom.logout();
       isIntercomAuthenticated = false;
+      lastRegisteredToken = null; // Reset token so it can be registered again after re-login
       console.log('✅ Logged out from Intercom');
     } catch (error) {
       console.error('❌ Failed to logout from Intercom:', error);

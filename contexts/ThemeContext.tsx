@@ -24,7 +24,7 @@ const lightColors = {
   transactionLight: '#E2E8FF',
   iconBackground: '#EFF6FF',
   iconColor: '#203B8B',
-  buttonPrimary: '#203B8B',
+  buttonText: '#203B8B',
   buttonTextPrimary: '#203B8B',
   accent: '#C3F57E',
   accentText: '#C3F57E',
@@ -42,7 +42,7 @@ const lightColors = {
   
   // Primary colors
   primary: '#1E3A8A',
-  primaryLight: '#FAD923',
+  primaryLight: '#C8A2FF',
   primaryDark: '#1E40AF',
   
   // Status colors
@@ -79,6 +79,7 @@ const darkColors = {
   iconBackground: '#002964',
   iconColor: '#85A9DE',
   buttonPrimary: '#fff',
+  buttonText: '#065F46',
   buttonTextPrimary: '#fff',
   accent: '#C3F57E',
   accentText: '#C3F57E',

@@ -443,7 +443,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 100,
+    borderRadius: 20,
     backgroundColor: colors.backgroundTertiary,
     borderWidth: 1,
     borderColor: colors.border,
@@ -511,7 +511,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   addButton: {
     backgroundColor: colors.primary,
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     justifyContent: 'center',
   },
   addAccountButton: {
@@ -523,7 +523,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: colors.primary,
-    borderRadius: 100,
+    borderRadius: 20,
     backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : colors.backgroundTertiary,
   },
   addAccountText: {

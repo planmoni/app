@@ -495,7 +495,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 24,
     backgroundColor: colors.primary,
-    borderRadius: 100,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },

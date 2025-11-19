@@ -2,12 +2,16 @@
   "expo": {
     "name": "Planmoni",
     "slug": "planmoni",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/AppIcon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "notification": {
+      "icon": "./assets/images/AppIcon.png",
+      "color": "#1E3A8A"
+    },
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
@@ -15,8 +19,9 @@
     },
     "android": {
       "package": "com.planmoni",
-      "versionCode": 1,
+      "versionCode": 2,
       "softwareKeyboardLayoutMode": "resize",
+      "useNextNotificationsApi": true,
      "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
@@ -39,9 +44,6 @@
       },
       "entitlements": {
         "aps-environment": "development",
-        "com.apple.security.application-groups": [
-          "group.${ios.bundleIdentifier}.onesignal"
-        ],
         "keychain-access-groups": ["$(AppIdentifierPrefix)com.planmoni"]
       }
     },
@@ -51,12 +53,6 @@
       "favicon": "./assets/images/AppIcon.png"
     },
     "plugins": [
-      [
-        "onesignal-expo-plugin",
-        {
-          "mode": "development"
-        }
-      ],
       [
         "react-native-vision-camera",
         {
@@ -88,7 +84,7 @@
             "buildToolsVersion": "35.0.0"
           },
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "16.0"
           }
         }
       ],

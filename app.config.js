@@ -6,13 +6,13 @@ module.exports = {
     name: "Planmoni",
     owner: "planmoni", // 👈 Add this line
     slug: "planmoni",
-    version: "1.0.0",
+    version: "1.0.1",
     scheme: "myapp",
     userInterfaceStyle: "automatic", // Allow system to control theme
     updates: {
       url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83"
     },
-    runtimeVersion: "1.0.0",
+    runtimeVersion: "1.0.1",
     android: {
       package: "com.planmoni.app", // ← choose your unique package name
       permissions: [
@@ -50,9 +50,6 @@ module.exports = {
       },
       "entitlements": {
         "aps-environment": "development", // ✅ Required for push notification, change to "production" for Testflight and App Store builds
-        "com.apple.security.application-groups": [
-          "group.${ios.bundleIdentifier}.onesignal" // // ✅ Required for confirmed delivery
-        ],
         "keychain-access-groups": ["$(AppIdentifierPrefix)com.planmoni"]
       }
     },
@@ -62,12 +59,6 @@ module.exports = {
         {
           "photosPermission": "Planmoni needs access to your photos to upload document images.",
           "cameraPermission": "Planmoni needs access to your camera to take document photos."
-        }
-      ],
-      [
-        "onesignal-expo-plugin",
-        {
-          "mode": "development"
         }
       ],
       [
@@ -89,7 +80,7 @@ module.exports = {
             "buildToolsVersion": "35.0.0"
           },
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "16.0"
           }
         }
        

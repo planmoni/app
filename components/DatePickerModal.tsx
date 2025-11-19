@@ -15,6 +15,7 @@ interface DatePickerModalProps {
   selectedDate: Date | null;
   currentMonth: Date;
   showYearPicker: boolean;
+  showMonthPicker: boolean;
   onClose: () => void;
   onDateSelect: (date: Date) => void;
   onDateConfirm: () => void;
@@ -23,7 +24,9 @@ interface DatePickerModalProps {
   onPrevYear: () => void;
   onNextYear: () => void;
   onYearSelect: (year: number) => void;
+  onMonthSelect: (month: number) => void;
   onShowYearPicker: (show: boolean) => void;
+  onShowMonthPicker: (show: boolean) => void;
 }
 
 export default function DatePickerModal({
@@ -31,6 +34,7 @@ export default function DatePickerModal({
   selectedDate,
   currentMonth,
   showYearPicker,
+  showMonthPicker,
   onClose,
   onDateSelect,
   onDateConfirm,
@@ -39,7 +43,9 @@ export default function DatePickerModal({
   onPrevYear,
   onNextYear,
   onYearSelect,
+  onMonthSelect,
   onShowYearPicker,
+  onShowMonthPicker,
 }: DatePickerModalProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
@@ -159,12 +165,14 @@ export default function DatePickerModal({
       justifyContent: 'flex-start',
     },
     yearItem: {
-      width: `${100/4}%`,
+      width: `${90/4}%`,
       aspectRatio: 1.5,
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: 8,
-      borderRadius: 8,
+      borderRadius: 20,
+      gap: 8,
+      marginRight: 8,
       backgroundColor: colors.backgroundTertiary,
     },
     yearItemSelected: {
@@ -180,6 +188,44 @@ export default function DatePickerModal({
       fontWeight: '600',
     },
     yearItemTextCurrent: {
+      color: colors.primary,
+    },
+    monthPickerContainer: {
+      maxHeight: 400,
+      marginBottom: 24,
+    },
+    monthPickerContent: {
+      paddingBottom: 8,
+    },
+    monthPickerGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-start',
+    },
+    monthItem: {
+      width: `${93/3}%`,
+      aspectRatio: 1.5,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 12,
+      borderRadius: 20,
+      gap: 8,
+      marginRight: 8,
+      backgroundColor: colors.backgroundTertiary,
+    },
+    monthItemSelected: {
+      backgroundColor: colors.primary,
+    },
+    monthItemText: {
+      fontSize: isSmallScreen ? 13 : 14,
+      color: colors.text,
+      fontWeight: '500',
+    },
+    monthItemTextSelected: {
+      color: '#FFFFFF',
+      fontWeight: '600',
+    },
+    monthItemTextCurrent: {
       color: colors.primary,
     },
     calendarContainer: {
@@ -255,14 +301,14 @@ export default function DatePickerModal({
       height: 55,
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 100,
+      borderRadius: 20,
     },
     confirmButton: {
       backgroundColor: colors.primary,
       height: 55,
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 100,
+      borderRadius: 20,
     },
     cancelButtonText: {
       fontSize: 14,
@@ -293,24 +339,44 @@ export default function DatePickerModal({
           </View>
 
           <View style={styles.calendarHeader}>
-            {!showYearPicker ? (
+            {!showYearPicker && !showMonthPicker ? (
               <>
                 <Pressable onPress={onPrevMonth} style={styles.navigationButton}>
                   <ChevronLeft size={20} color={colors.textSecondary} />
                 </Pressable>
                 <View style={styles.monthYearContainer}>
                   <Pressable 
+                    onPress={() => onShowMonthPicker(true)}
+                    style={styles.monthYearPressable}
+                  >
+                    <Text style={styles.monthYearText}>
+                      {MONTHS[currentMonth.getMonth()]}
+                    </Text>
+                  </Pressable>
+                  <Pressable 
                     onPress={() => onShowYearPicker(true)}
                     style={styles.monthYearPressable}
                   >
                     <Text style={styles.monthYearText}>
-                      {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                      {currentMonth.getFullYear()}
                     </Text>
                   </Pressable>
                 </View>
                 <Pressable onPress={onNextMonth} style={styles.navigationButton}>
                   <ChevronRight size={20} color={colors.textSecondary} />
                 </Pressable>
+              </>
+            ) : showMonthPicker ? (
+              <>
+                <Pressable onPress={() => onShowMonthPicker(false)} style={styles.navigationButton}>
+                  <ChevronLeft size={20} color={colors.textSecondary} />
+                </Pressable>
+                <View style={styles.monthYearContainer}>
+                  <Text style={styles.monthYearText}>
+                    Select Month
+                  </Text>
+                </View>
+                <View style={styles.navigationButton} />
               </>
             ) : (
               <>
@@ -334,7 +400,34 @@ export default function DatePickerModal({
             )}
           </View>
 
-          {showYearPicker ? (
+          {showMonthPicker ? (
+            <ScrollView style={styles.monthPickerContainer} contentContainerStyle={styles.monthPickerContent}>
+              <View style={styles.monthPickerGrid}>
+                {MONTHS.map((month, index) => {
+                  const isSelected = index === currentMonth.getMonth();
+                  const isCurrentMonth = index === new Date().getMonth() && currentMonth.getFullYear() === new Date().getFullYear();
+                  return (
+                    <Pressable
+                      key={month}
+                      style={[
+                        styles.monthItem,
+                        isSelected && styles.monthItemSelected,
+                      ]}
+                      onPress={() => onMonthSelect(index)}
+                    >
+                      <Text style={[
+                        styles.monthItemText,
+                        isSelected && styles.monthItemTextSelected,
+                        isCurrentMonth && !isSelected && styles.monthItemTextCurrent,
+                      ]}>
+                        {month}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          ) : showYearPicker ? (
             <ScrollView style={styles.yearPickerContainer} contentContainerStyle={styles.yearPickerContent}>
               <View style={styles.yearPickerGrid}>
                 {getAvailableYears().map((year) => {

@@ -26,12 +26,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!user?.id) return;
 
     const initializeNotifications = async () => {
+      console.log('🔔 Initializing notifications for user:', user.id);
+      
       const hasPermission = await inAppNotificationService.requestPermissions();
+      console.log('🔔 Notification permissions granted:', hasPermission);
 
       if (hasPermission) {
+        console.log('🔔 Setting up notification listeners...');
         inAppNotificationService.setupListeners(
           (notification) => {
-            console.log('Foreground notification:', notification);
+            console.log('🔔 Foreground notification received:', notification.request.content.title);
             Toast.show({
               type: 'info',
               text1: notification.request.content.title || 'New Notification',
@@ -48,10 +52,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             refreshUnreadCount();
           },
           (data) => {
-            console.log('Notification tapped:', data);
+            console.log('🔔 Notification tapped:', data);
             handleNotificationNavigation(data);
           }
         );
+        console.log('✅ Notification listeners set up successfully');
+      } else {
+        console.warn('⚠️ Notification permissions not granted');
       }
 
       await refreshUnreadCount();
@@ -92,8 +99,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [user?.id]);
 
-  const handleNotificationNavigation = (data: any) => {
+  const handleNotificationNavigation = async (data: any) => {
     if (!data) return;
+
+    // Handle Intercom notifications
+    if (data.intercom) {
+      console.log('📬 Intercom notification tapped, opening Intercom...');
+      try {
+        const { intercomInstant } = await import('@/lib/IntercomInstant');
+        await intercomInstant.open();
+      } catch (error) {
+        console.error('Failed to open Intercom:', error);
+      }
+      return;
+    }
 
     // If route is specified in data, use it
     if (data.route) {

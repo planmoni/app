@@ -42,20 +42,23 @@ export const useKYCStyles = () => {
     inputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      borderWidth: 0.5,
+      borderWidth: 2,
       borderColor: colors.border,
-      shadowColor: '#000000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.1,
-      shadowRadius: 2,
-      elevation: 1,
       borderRadius: 12,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.background,
       paddingHorizontal: 14,
       height: inputHeight,
     },
+    inputFilled: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentBackground || colors.background,
+    },
     inputError: {
-      borderColor: colors.error,
+      borderColor: colors.error || '#DC2626',
+    },
+    resolvedInput: {
+      borderColor: colors.success,
+      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
     },
     input: {
       flex: 1,
@@ -374,6 +377,23 @@ export const useKYCStyles = () => {
       fontSize: 14,
       color: colors.textSecondary,
       lineHeight: 20,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 16,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    buttonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#FFFFFF',
     },
   });
 };

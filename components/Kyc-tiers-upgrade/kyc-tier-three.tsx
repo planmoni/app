@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
   facialRecognitionCircle: {
     width: 200,
     height: 200,
-    borderRadius: 100,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
   startButton: {
     paddingVertical: 16,
     paddingHorizontal: 32,
-    borderRadius: 100,
+    borderRadius: 20,
     marginTop: 16,
   },
   startButtonText: {
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
   },
   doneButton: {
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
@@ -57,41 +58,79 @@ export async function getPushTokenAsync(): Promise<string | null> {
     // First ensure we have permissions
     const hasPermission = await requestNotificationPermissions();
     if (!hasPermission) {
+      console.warn('⚠️ Cannot get push token: permissions not granted');
       return null;
     }
 
     // Try to get push token (requires FCM to be configured)
-    const token = (await Notifications.getDevicePushTokenAsync()).data;
-    console.log('Push token obtained successfully');
+    const tokenData = await Notifications.getDevicePushTokenAsync();
+    const token = tokenData.data;
+    console.log('✅ Push token obtained successfully:', token?.substring(0, 20) + '...');
     return token;
   } catch (error: any) {
     // If Firebase isn't initialized, that's okay - local notifications still work
     if (error?.message?.includes('FirebaseApp') || error?.message?.includes('FCM')) {
-      console.log('FCM not configured. Local notifications will still work.');
+      console.log('ℹ️ FCM not configured. Local notifications will still work.');
       console.log('To enable remote push notifications, configure FCM: https://docs.expo.dev/push-notifications/fcm-credentials/');
       return null;
     }
     // Log other errors
     console.error("❌ Error getting push token:", error);
-    // Re-throw other errors
-    throw error;
-  }
-}
-
-// Backward compatibility: Export old function name as alias
-// This function requests permissions and optionally gets push token
-export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  // Request permissions first (required for both local and push)
-  const hasPermission = await requestNotificationPermissions();
-  if (!hasPermission) {
+    // Don't re-throw - return null so local notifications can still work
     return null;
   }
-  // Get push token
-  return await getPushTokenAsync();
 }
 
-// Save push token to database
-async function savePushTokenToDatabase(expoPushToken: string, userId: string): Promise<void> {
+// Register for push notifications and get Expo push token
+// Following the admin push notifications integration guide
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  let token;
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#1E3A8A',
+    });
+  }
+
+  if (Device.isDevice) {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+      console.log('Failed to get push token for push notification!');
+      return null;
+    }
+
+    // Get Expo push token with project ID
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    if (!projectId) {
+      console.error('EAS project ID not found in app.json');
+      return null;
+    }
+
+    token = (await Notifications.getExpoPushTokenAsync({
+      projectId: projectId,
+    })).data;
+
+    console.log('Expo Push Token:', token);
+  } else {
+    console.log('Must use physical device for Push Notifications');
+    return null;
+  }
+
+  return token;
+}
+
+// Save push token to database following the admin push notifications guide
+export async function savePushTokenToDatabase(expoPushToken: string, userId: string) {
   try {
     const deviceInfo = {
       platform: Platform.OS,
@@ -99,49 +138,116 @@ async function savePushTokenToDatabase(expoPushToken: string, userId: string): P
       model: Device.modelName,
     };
 
-    const { error } = await supabase
+    // Check if token already exists
+    const { data: existingToken } = await supabase
       .from('user_push_tokens')
-      .upsert(
-        {
+      .select('id')
+      .eq('expo_push_token', expoPushToken)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existingToken) {
+      // Update existing token
+      const { error } = await supabase
+        .from('user_push_tokens')
+        .update({
+          device_info: deviceInfo,
+          is_active: true,
+          last_used: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingToken.id);
+
+      if (error) throw error;
+      console.log('Push token updated in database');
+    } else {
+      // Insert new token
+      const { error } = await supabase
+        .from('user_push_tokens')
+        .insert({
           user_id: userId,
           expo_push_token: expoPushToken,
           device_info: deviceInfo,
           is_active: true,
-          last_used: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+      console.log('Push token saved to database');
+    }
+
+    // Also store/update the token in user_fcm_tokens so server-side push function can find it
+    const platform =
+      Platform.OS === 'ios'
+        ? 'ios'
+        : Platform.OS === 'android'
+        ? 'android'
+        : 'web';
+
+    const { error: fcmError } = await supabase
+      .from('user_fcm_tokens')
+      .upsert(
+        {
+          user_id: userId,
+          fcm_token: expoPushToken,
+          platform,
         },
         {
-          onConflict: 'user_id,expo_push_token',
+          onConflict: 'user_id,platform',
         }
       );
 
-    if (error) {
-      console.error('Error saving push token to database:', error);
+    if (fcmError) {
+      console.error('Error saving token to user_fcm_tokens:', fcmError);
     } else {
-      console.log('Push token saved to database successfully');
+      console.log('Push token synced to user_fcm_tokens');
     }
+
+    return true;
   } catch (error) {
-    console.error('Error in savePushTokenToDatabase:', error);
+    console.error('Error saving push token:', error);
+    return false;
   }
 }
 
-/**
- * Setup notification listeners using expo-notifications
- * Returns a cleanup function to remove listeners
- */
-export function setupNotificationListeners(): (() => void) | null {
-  try {
-    // Note: expo-notifications listeners are typically set up in NotificationContext
-    // This function is kept for compatibility but the actual listeners
-    // should be set up using expo-notifications in the app context
-    console.log("✅ Notification listeners setup (handled by NotificationContext)");
-    return () => {
-      // Cleanup function - listeners are managed by NotificationContext
-      console.log("Notification listeners cleanup");
-    };
-  } catch (error) {
-    console.error("❌ Error setting up notification listeners:", error);
-    return null;
-  }
+// Setup notification listeners
+export function setupNotificationListeners() {
+  const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
+    console.log('Notification received in foreground:', notification);
+    
+    // Check if it's an Intercom notification
+    const data = notification.request.content.data;
+    if (data?.intercom) {
+      console.log('📬 Intercom notification received in foreground');
+      // Intercom will handle displaying the notification
+    }
+  });
+
+  const responseSubscription = Notifications.addNotificationResponseReceivedListener(async response => {
+    console.log('Notification tapped:', response);
+    const { data } = response.notification.request.content;
+    
+    // Handle Intercom notification tap
+    if (data?.intercom) {
+      console.log('📬 Intercom notification tapped, opening Intercom...');
+      try {
+        const { intercomInstant } = await import('@/lib/IntercomInstant');
+        await intercomInstant.open();
+      } catch (error) {
+        console.error('Failed to open Intercom:', error);
+      }
+      return;
+    }
+    
+    // Handle other notification types
+    if (data?.type === 'deposit_successful') {
+      console.log('Navigate to wallet screen');
+    }
+  });
+
+  return () => {
+    foregroundSubscription.remove();
+    responseSubscription.remove();
+  };
 }
 
 /**
@@ -155,6 +261,57 @@ export async function areNotificationsEnabled(): Promise<boolean> {
     console.error("❌ Error checking notification permissions:", error);
     return false;
   }
+}
+
+// Register push token for admin panel and Intercom
+// This should be called whenever the user logs in or the app starts
+export async function registerPushToken(userId: string): Promise<boolean> {
+  try {
+    const token = await registerForPushNotificationsAsync();
+    if (token) {
+      const stored = await savePushTokenToDatabase(token, userId);
+      
+      // Register token with Intercom for push notifications
+      try {
+        const { intercomInstant } = await import('@/lib/IntercomInstant');
+        await intercomInstant.registerPushToken(token);
+      } catch (intercomError) {
+        console.warn('⚠️ Failed to register token with Intercom:', intercomError);
+        // Don't fail the whole registration if Intercom fails
+      }
+      
+      if (stored) {
+        console.log('✅ Push token registered successfully for admin panel');
+        return true;
+      } else {
+        console.warn('⚠️ Failed to store push token in database');
+        return false;
+      }
+    } else {
+      console.log('ℹ️ No push token available (permissions may not be granted)');
+      return false;
+    }
+  } catch (error: any) {
+    console.error('❌ Error registering push token:', error);
+    return false;
+  }
+}
+
+// Refresh push token periodically (tokens can expire or change)
+export function setupTokenRefresh(userId: string, intervalMinutes: number = 60): () => void {
+  // Refresh immediately
+  registerPushToken(userId).catch(console.error);
+  
+  // Set up periodic refresh
+  const interval = setInterval(() => {
+    console.log('🔄 Refreshing push token...');
+    registerPushToken(userId).catch(console.error);
+  }, intervalMinutes * 60 * 1000);
+
+  // Return cleanup function
+  return () => {
+    clearInterval(interval);
+  };
 }
 
 // Initialize notifications
@@ -174,19 +331,13 @@ export async function initializeNotifications(userId: string) {
     // Set up listeners for local notifications (works without FCM)
     const cleanup = setupNotificationListeners();
 
-    // Try to get push token (optional - only for remote push notifications)
-    // This will fail gracefully if FCM isn't configured, but local notifications still work
+    // Register push token for admin panel
+    // This will work with Expo Push Notifications even if FCM isn't configured
     try {
-      const token = await getPushTokenAsync();
-      if (token) {
-        console.log('Push token obtained:', token);
-        await savePushTokenToDatabase(token, userId);
-      } else {
-        console.log('Local notifications ready. Push notifications require FCM configuration.');
-      }
+      await registerPushToken(userId);
     } catch (error: any) {
       // Push token failure is not critical - local notifications still work
-      console.log('Push token not available (local notifications still work):', error?.message);
+      console.log('Push token registration failed (local notifications still work):', error?.message);
     }
 
     console.log('Notifications initialized successfully (local notifications ready)');

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, ComponentRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -29,6 +29,7 @@ import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import * as FileSystem from "expo-file-system";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -56,6 +57,7 @@ export default function LivenessTestEnhanced({
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
+  const styles = createStyles(colors, isDark);
   
   console.log('[LivenessTest] Permissions check:', { hasPermission, hasSession: !!session });
 
@@ -68,6 +70,7 @@ export default function LivenessTestEnhanced({
   const [positionValid, setPositionValid] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadComplete, setUploadComplete] = useState(false);
   const [faceTooClose, setFaceTooClose] = useState(false);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
 
@@ -75,11 +78,9 @@ export default function LivenessTestEnhanced({
   const pitchAngles = useRef<number[]>([]);
   const nodBaseline = useRef<number | null>(null);
   const device = useCameraDevice("front");
-  const cameraRef = useRef<ComponentRef<typeof Camera>>(null);
+  const cameraRef = useRef<VisionCamera>(null);
   const setupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const photoCaptureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isCapturingPhotoRef = useRef<boolean>(false);
   
   console.log('[LivenessTest] Camera device:', { hasDevice: !!device, deviceId: device?.id });
 
@@ -94,10 +95,10 @@ export default function LivenessTestEnhanced({
     setPositionValid(false);
     setCapturedImage(null);
     setFaceTooClose(false);
+    setUploadComplete(false);
     progressValue.value = 0;
     pitchAngles.current = [];
     nodBaseline.current = null;
-    isCapturingPhotoRef.current = false;
     
     // Clear any pending timers
     if (setupTimerRef.current) {
@@ -107,10 +108,6 @@ export default function LivenessTestEnhanced({
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
-    }
-    if (photoCaptureTimerRef.current) {
-      clearTimeout(photoCaptureTimerRef.current);
-      photoCaptureTimerRef.current = null;
     }
   }, [progressValue]);
 
@@ -158,8 +155,6 @@ export default function LivenessTestEnhanced({
     return () => {
       if (setupTimerRef.current) clearTimeout(setupTimerRef.current);
       if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
-      if (photoCaptureTimerRef.current) clearTimeout(photoCaptureTimerRef.current);
-      isCapturingPhotoRef.current = false;
     };
   }, []);
 
@@ -177,24 +172,86 @@ export default function LivenessTestEnhanced({
     console.log('[LivenessTest] Test started, stage: blink');
   }, [progressValue]);
 
-  const capturePhoto = async () => {
-    console.log('[LivenessTest] capturePhoto called');
+  const capturePhoto = async (retryCount = 0) => {
+    const maxRetries = 2;
+    console.log('[LivenessTest] capturePhoto called, retry:', retryCount);
     try {
       if (!cameraRef.current) {
         console.error('[LivenessTest] Camera ref is null, cannot capture photo');
+        if (retryCount < maxRetries) {
+          console.log('[LivenessTest] Retrying in 500ms...');
+          setTimeout(() => capturePhoto(retryCount + 1), 500);
+        }
         return;
       }
+      
+      if (!device) {
+        console.error('[LivenessTest] Camera device is not available');
+        if (retryCount < maxRetries) {
+          console.log('[LivenessTest] Retrying in 500ms...');
+          setTimeout(() => capturePhoto(retryCount + 1), 500);
+        }
+        return;
+      }
+      
+      // Wait a bit to ensure camera is fully ready (longer wait on first attempt)
+      const waitTime = retryCount === 0 ? 500 : 300;
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
       console.log('[LivenessTest] Taking photo...');
       const photo = await cameraRef.current.takePhoto({ 
         flash: "off", 
-        enableShutterSound: false 
+        enableShutterSound: false,
       });
       console.log('[LivenessTest] Photo captured:', photo.path);
-      const imageUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+      
+      // Extract the file path (remove file:// prefix if present)
+      const originalPath = photo.path.startsWith('file://') 
+        ? photo.path.replace('file://', '') 
+        : photo.path;
+      
+      // Verify the original file exists
+      const fileInfo = await FileSystem.getInfoAsync(originalPath);
+      if (!fileInfo.exists) {
+        throw new Error(`Photo file does not exist at: ${originalPath}`);
+      }
+      
+      // Copy to permanent location in cache directory
+      const fileName = `liveness-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+      const permanentPath = `${FileSystem.cacheDirectory}${fileName}`;
+      
+      console.log('[LivenessTest] Copying photo to permanent location:', permanentPath);
+      await FileSystem.copyAsync({
+        from: originalPath,
+        to: permanentPath,
+      });
+      
+      // Verify the copied file exists
+      const copiedFileInfo = await FileSystem.getInfoAsync(permanentPath);
+      if (!copiedFileInfo.exists) {
+        throw new Error(`Failed to copy photo to permanent location: ${permanentPath}`);
+      }
+      
+      const imageUri = `file://${permanentPath}`;
       setCapturedImage(imageUri);
       console.log('[LivenessTest] Image URI set:', imageUri);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[LivenessTest] Error capturing photo:', error);
+      // Check if it's a file IO error and retry if we haven't exceeded max retries
+      if ((error?.message?.includes('file-io-error') || error?.message?.includes("doesn't exist")) && retryCount < maxRetries) {
+        console.log('[LivenessTest] File IO error detected, retrying in 800ms...');
+        setTimeout(() => capturePhoto(retryCount + 1), 800);
+      } else {
+        // Final error - log details
+        if (error?.message?.includes('file-io-error') || error?.message?.includes("doesn't exist")) {
+          console.error('[LivenessTest] File IO error - camera may not have proper permissions or storage access');
+        }
+        if (error?.message) {
+          console.error('[LivenessTest] Error details:', error.message);
+        } else if (error instanceof Error) {
+          console.error('[LivenessTest] Error details:', error.message);
+        }
+      }
     }
   };
 
@@ -339,19 +396,25 @@ export default function LivenessTestEnhanced({
         }
       }
 
+      // Mark upload as complete
+      setIsSubmitting(false);
+      setUploadComplete(true);
+      
       // Call the onComplete callback with the storage URL
+      // Let the parent component handle closing and transitioning to BVN step
       if (onComplete && storageUrl) {
         console.log('[LivenessTest] Calling onComplete callback with URL:', storageUrl);
-        onComplete(storageUrl);
+        // Small delay to show success state, then let parent handle transition
+        setTimeout(() => {
+          onComplete(storageUrl);
+        }, 600);
       } else {
         console.log('[LivenessTest] No onComplete callback or storageUrl');
+        // If no callback, close after showing success
+        setTimeout(() => {
+          onClose();
+        }, 1500);
       }
-
-      setTimeout(() => {
-        console.log('[LivenessTest] Closing modal after submission');
-        setIsSubmitting(false);
-        onClose();
-      }, 1000);
     } catch (error) {
       console.error('[LivenessTest] Error uploading liveness photo:', error);
       setIsSubmitting(false);
@@ -376,10 +439,10 @@ export default function LivenessTestEnhanced({
       case "look_right": return "Turn your head right";
       case "look_left": return "Turn your head left";
       case "smile": return "Smile at the camera";
-      case "photo_capture": return "Photo captured! Submit to complete";
+      case "photo_capture": return uploadComplete ? "Verifying..." : "Liveness test complete!";
       default: return "Position your face in the circle";
     }
-  }, [hasPermission, isRequestingPermission, livenessStage]);
+  }, [hasPermission, isRequestingPermission, livenessStage, uploadComplete]);
 
   const getWarningText = () => {
     if (faceTooClose) return "Please move the phone away from your face";
@@ -645,23 +708,35 @@ export default function LivenessTestEnhanced({
         </View>
 
         {/* Submit Button */}
-        {livenessStage === "photo_capture" && capturedImage && (
+        {livenessStage === "photo_capture" && capturedImage && !uploadComplete && (
           <Pressable
             style={[styles.submitButton, { backgroundColor: colors.primary }]}
             onPress={handleSubmit}
             disabled={isSubmitting}
           >
             <Text style={styles.submitText}>
-              {isSubmitting ? "Uploading..." : "Continue"}
+              {isSubmitting ? "Confirming..." : "Continue"}
             </Text>
           </Pressable>
+        )}
+        
+        {/* Success State */}
+        {uploadComplete && (
+          <View style={styles.successContainer}>
+            <Text style={[styles.successText, { color: '#fff' }]}>
+              ✓ Upload Complete
+            </Text>
+            <Text style={[styles.successSubtext, { color: colors.textSecondary }]}>
+              Proceeding to BVN verification...
+            </Text>
+          </View>
         )}
       </View>
     </Modal>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "center",
@@ -749,8 +824,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   submitText: {
-    color: "#FFF",
-    fontSize: 16,
+    color: '#fff',
+    fontSize: 17,
     fontWeight: "600",
   },
   permissionPlaceholder: {
@@ -774,5 +849,23 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  successContainer: {
+    position: "absolute",
+    bottom: 50,
+    left: 20,
+    right: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+  },
+  successText: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  successSubtext: {
+    fontSize: 14,
+    fontWeight: "500",
   },
 });
