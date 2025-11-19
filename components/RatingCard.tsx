@@ -10,7 +10,7 @@ export default function RatingCard() {
   const styles = createStyles(colors, isDark);
 
   // Store URLs
-  const iOSStoreURL = 'https://apps.apple.com/app/id6753706776';
+  const iOSStoreURL = 'https://apps.apple.com/app/id6753706776?action=write-review';
   const androidStoreURL = 'https://play.google.com/store/apps/details?id=com.planmoni'; // Update with actual Play Store URL when available
 
   return (
@@ -24,30 +24,34 @@ export default function RatingCard() {
           ))}
         </View>
         <View style={styles.buttonsRow}>
-          <Pressable
-            style={[styles.feedbackButton, Platform.OS === 'ios' && styles.feedbackButtonActive]}
-            onPress={() => {
-              Linking.openURL(iOSStoreURL).catch((err) => {
-                console.error('Failed to open iOS store URL:', err);
-              });
-            }}
-          >
-            <Text style={[styles.feedbackButtonText, Platform.OS === 'ios' && styles.feedbackButtonTextActive]}>
-              Rate on App Store
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.feedbackButton, Platform.OS === 'android' && styles.feedbackButtonActive]}
-            onPress={() => {
-              Linking.openURL(androidStoreURL).catch((err) => {
-                console.error('Failed to open Android store URL:', err);
-              });
-            }}
-          >
-            <Text style={[styles.feedbackButtonText, Platform.OS === 'android' && styles.feedbackButtonTextActive]}>
-              Rate on Play Store
-            </Text>
-          </Pressable>
+          {Platform.OS === 'ios' && (
+            <Pressable
+              style={[styles.feedbackButton, styles.feedbackButtonActive]}
+              onPress={() => {
+                Linking.openURL(iOSStoreURL).catch((err) => {
+                  console.error('Failed to open iOS store URL:', err);
+                });
+              }}
+            >
+              <Text style={[styles.feedbackButtonText, styles.feedbackButtonTextActive]}>
+                Rate on App Store
+              </Text>
+            </Pressable>
+          )}
+          {Platform.OS === 'android' && (
+            <Pressable
+              style={[styles.feedbackButton, styles.feedbackButtonActive]}
+              onPress={() => {
+                Linking.openURL(androidStoreURL).catch((err) => {
+                  console.error('Failed to open Android store URL:', err);
+                });
+              }}
+            >
+              <Text style={[styles.feedbackButtonText, styles.feedbackButtonTextActive]}>
+                Rate on Play Store
+              </Text>
+            </Pressable>
+          )}
         </View>
       </View>
     </Card>

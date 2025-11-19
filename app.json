@@ -44,9 +44,6 @@
       },
       "entitlements": {
         "aps-environment": "development",
-        "com.apple.security.application-groups": [
-          "group.${ios.bundleIdentifier}.onesignal"
-        ],
         "keychain-access-groups": ["$(AppIdentifierPrefix)com.planmoni"]
       }
     },
@@ -56,12 +53,6 @@
       "favicon": "./assets/images/AppIcon.png"
     },
     "plugins": [
-      [
-        "onesignal-expo-plugin",
-        {
-          "mode": "development"
-        }
-      ],
       [
         "react-native-vision-camera",
         {
@@ -93,7 +84,7 @@
             "buildToolsVersion": "35.0.0"
           },
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "16.0"
           }
         }
       ],

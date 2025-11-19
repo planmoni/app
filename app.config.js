@@ -50,9 +50,6 @@ module.exports = {
       },
       "entitlements": {
         "aps-environment": "development", // ✅ Required for push notification, change to "production" for Testflight and App Store builds
-        "com.apple.security.application-groups": [
-          "group.${ios.bundleIdentifier}.onesignal" // // ✅ Required for confirmed delivery
-        ],
         "keychain-access-groups": ["$(AppIdentifierPrefix)com.planmoni"]
       }
     },
@@ -62,12 +59,6 @@ module.exports = {
         {
           "photosPermission": "Planmoni needs access to your photos to upload document images.",
           "cameraPermission": "Planmoni needs access to your camera to take document photos."
-        }
-      ],
-      [
-        "onesignal-expo-plugin",
-        {
-          "mode": "development"
         }
       ],
       [
@@ -89,7 +80,7 @@ module.exports = {
             "buildToolsVersion": "35.0.0"
           },
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "16.0"
           }
         }
        
