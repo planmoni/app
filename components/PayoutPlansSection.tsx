@@ -9,11 +9,12 @@ import { logAnalyticsEvent } from '@/lib/firebase';
 
 interface PayoutPlansSectionProps {
   activePlans: any[];
+  onShowNewPlanInfo?: () => void;
 }
 
-export default function PayoutPlansSection({ activePlans }: PayoutPlansSectionProps) {
+export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: PayoutPlansSectionProps) {
   const { colors, isDark } = useTheme();
-  const { showBalances } = useBalance();
+  const { showBalances, balance, availableBalance } = useBalance();
 
   const formatBalance = (amount: number) => {
     return showBalances ? `₦${amount.toLocaleString()}` : '*********';
@@ -33,8 +34,19 @@ export default function PayoutPlansSection({ activePlans }: PayoutPlansSectionPr
   };
 
   const handleCreatePayout = () => {
+    // Check if balance is ₦0 and no plans exist
+    const hasNoBalance = balance === 0 && availableBalance === 0;
+    const hasNoPlans = activePlans.length === 0;
+    
+    // If no balance and no plans, show info modal
+    if (hasNoBalance && hasNoPlans && onShowNewPlanInfo) {
+      onShowNewPlanInfo();
+      logAnalyticsEvent('create_payout_click_no_balance_modal');
+    } else {
+      // Navigate directly to create payout
     router.push('/create-payout/amount');
     logAnalyticsEvent('create_payout_click');
+    }
   };
 
   const styles = createStyles(colors, isDark);
@@ -181,14 +193,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     maxWidth: '75%',
   },
   activeTag: {
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#F8FCF4',
+    backgroundColor: isDark ? colors.accent : colors.accent,
     paddingHorizontal: Platform.OS === 'ios' ? 10 : 8,
     paddingVertical: Platform.OS === 'ios' ? 6 : 4,
     borderRadius: Platform.OS === 'ios' ? 20 : 16,
   },
   activeTagText: {
     fontSize: Platform.OS === 'ios' ? 12 : 10,
-    color: '#22C55E',
+    color: colors.primary,
     fontWeight: '600',
   },
   planAmount: {
@@ -288,7 +300,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
   },
   createFirstPayoutText: {
     color: colors.text,

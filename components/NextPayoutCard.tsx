@@ -151,14 +151,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     maxWidth: '72%',
   },
   activeTag: {
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#F8FCF4',
+    backgroundColor: isDark ? colors.accent : colors.accent,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
   },
   activeTagText: {
     fontSize: 12,
-    color: '#22C55E',
+    color: colors.primary,
     fontWeight: '600',
   },
   payoutDetails: {

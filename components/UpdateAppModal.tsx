@@ -246,7 +246,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.primary,
     paddingVertical: 16,
     paddingHorizontal: 24,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
     gap: 8,
     marginBottom: 12,

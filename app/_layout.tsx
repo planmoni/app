@@ -42,7 +42,9 @@ import AppBlur from '@/components/AppBlur';
 import AppErrorProvider, { useAppError } from '@/contexts/AppErrorContext';
 
 // Prevent the splash screen from auto-hiding
-SplashScreen.preventAutoHideAsync().catch(e => console.warn("Failed to prevent splash screen auto-hide:", e));
+SplashScreen.preventAutoHideAsync().catch((e) =>
+  console.warn("Failed to prevent splash screen auto-hide:", e)
+);
 
 function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
@@ -229,14 +231,21 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (fontError) {
-      console.error('Font loading error:', fontError);
+      console.warn("Font loading error (app will continue with system fonts):", fontError);
+      // Don't block app startup if fonts fail to load - use system fonts as fallback
     }
   }, [fontError]);
 
   useEffect(() => {
-    if (fontsLoaded && !isLoading) {
-      // Hide the native splash screen
-      SplashScreen.hideAsync().catch(e => console.warn("Failed to hide splash screen:", e));
+    // Hide splash screen even if fonts fail to load (after a short delay)
+    if (!isLoading) {
+      const timer = setTimeout(() => {
+        SplashScreen.hideAsync().catch((e) =>
+          console.warn("Failed to hide splash screen:", e)
+        );
+      }, fontsLoaded ? 0 : 1000); // Wait 1s if fonts didn't load, otherwise hide immediately
+      
+      return () => clearTimeout(timer);
     }
   }, [fontsLoaded, isLoading]);
 
@@ -246,8 +255,8 @@ function RootLayoutNav() {
   // remains mounted (e.g. credential validation failures).
   const { appError, clearError } = useAppError();
 
-  if (appError && !fontsLoaded) {
-    // Keep splash screen visible when fonts are not yet loaded
+  if (appError && !fontsLoaded && !fontError) {
+    // Keep splash screen visible when fonts are not yet loaded (but not if there's a font error)
     return null;
   }
 
@@ -257,13 +266,15 @@ function RootLayoutNav() {
       <View style={styles.errorContainer}>
         <Text style={styles.errorMessage}>{appError.message}</Text>
         <Text style={styles.errorInstructions}>
-          Please check your environment configuration and database setup as described in the README.md file.
+          Please check your environment configuration and database setup as
+          described in the README.md file.
         </Text>
       </View>
     );
   }
 
-  if (!fontsLoaded || isLoading) {
+  // Allow app to continue even if fonts fail to load (use system fonts as fallback)
+  if ((!fontsLoaded && !fontError) || isLoading) {
     return null; // Keep native splash screen visible
   }
 
@@ -284,36 +295,108 @@ function RootLayoutNav() {
       <Stack screenOptions={{ headerShown: false }}>
         {session?.user?.id ? (
           <React.Fragment key="authenticated-screens">
-            <Stack.Screen name="login-success" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="profile" options={{ headerShown: false }} />
-            <Stack.Screen name="add-funds" options={{ headerShown: false }} />
-            <Stack.Screen name="all-payouts" options={{ headerShown: false }} />
-            <Stack.Screen name="change-password" options={{ headerShown: false }} />
-            <Stack.Screen name="create-payout" options={{ headerShown: false }} />
-            <Stack.Screen name="deposit-flow" options={{ headerShown: false }} />
-            <Stack.Screen name="linked-accounts" options={{ headerShown: false }} />
-            <Stack.Screen name="pause-confirmation" options={{ headerShown: false }} />
-            <Stack.Screen name="referral" options={{ headerShown: false }} />
-            <Stack.Screen name="transaction-limits" options={{ headerShown: false }} />
-            <Stack.Screen name="transactions" options={{ headerShown: false }} />
-            <Stack.Screen name="account-statement" options={{ headerShown: false }} />
-            <Stack.Screen name="two-factor-auth" options={{ headerShown: false }} />
-            <Stack.Screen name="two-factor-setup" options={{ headerShown: false }} />
-            <Stack.Screen name="two-factor-settings" options={{ headerShown: false }} />
-            <Stack.Screen name="view-backup-codes" options={{ headerShown: false }} />
-            <Stack.Screen name="view-payout" options={{ headerShown: false }} />
-            <Stack.Screen name="app-lock-setup" options={{ headerShown: false }} />
-            <Stack.Screen name="logging-out" options={{ headerShown: false }} />
+            <Stack.Screen 
+              name="login-success" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="(tabs)" 
+              options={{ 
+                headerShown: false, 
+                gestureEnabled: false,
+              }} 
+            />
+            <Stack.Screen 
+              name="profile" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="add-funds" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="all-payouts" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen
+              name="change-password"
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="create-payout"
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="deposit-flow"
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="linked-accounts"
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="pause-confirmation"
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen 
+              name="referral" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="transaction-limits" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="transactions" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="account-statement" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="two-factor-auth" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="two-factor-setup" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="two-factor-settings" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="view-backup-codes" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="view-payout" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="app-lock-setup" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
+            <Stack.Screen 
+              name="logging-out" 
+              options={{ headerShown: false, gestureEnabled: false }} 
+            />
           </React.Fragment>
         ) : (
           <React.Fragment key="unauthenticated-screens">
-            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen 
+              name="index" 
+              options={{ 
+                headerShown: false,
+                gestureEnabled: true, // Allow gestures only when not authenticated
+              }} 
+            />
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
             <Stack.Screen name="logging-out" options={{ headerShown: false }} />
           </React.Fragment>
         )}
-        <Stack.Screen name="+not-found" options={{ title: 'Page Not Found' }} />
+        <Stack.Screen name="+not-found" options={{ title: "Page Not Found" }} />
       </Stack>
       
       {/* Lock Screen Overlay - Renders at root level */}
@@ -372,29 +455,29 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
   },
   errorTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#d32f2f',
+    fontWeight: "bold",
+    color: "#d32f2f",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   errorMessage: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 24,
   },
   errorInstructions: {
     fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
+    color: "#888",
+    textAlign: "center",
     lineHeight: 20,
   },
   nonFatalBanner: {

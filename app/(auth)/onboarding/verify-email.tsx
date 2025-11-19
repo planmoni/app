@@ -1,8 +1,8 @@
-import { View, Text, StyleSheet, Pressable, TextInput, Alert , Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Alert , Platform, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Mail } from 'lucide-react-native';
+import { ArrowLeft, Mail, Clock } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
@@ -12,9 +12,11 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
 
 export default function VerifyEmailScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { showToast } = useToast();
   const haptics = useHaptics();
+  const { width, height } = useWindowDimensions();
+  const isSmallScreen = width < 380 || height < 700;
   const params = useLocalSearchParams();
   const firstName = params.firstName as string;
   const lastName = params.lastName as string;
@@ -62,17 +64,41 @@ export default function VerifyEmailScreen() {
   }, [timer]);
 
   const handleOtpChange = (text: string, index: number) => {
+    // Handle pasting - if text length > 1, it's likely a paste operation
     if (text.length > 1) {
-      text = text[text.length - 1];
+      // Extract only digits from pasted text
+      const digits = text.replace(/[^0-9]/g, '').slice(0, 6);
+      
+      if (digits.length > 0) {
+        const newOtp = ['', '', '', '', '', ''];
+        
+        // Fill OTP fields with pasted digits
+        for (let i = 0; i < digits.length && i < 6; i++) {
+          newOtp[i] = digits[i];
+        }
+        
+        setOtp(newOtp);
+        setError(null);
+        
+        // Focus the next empty field or the last field if all are filled
+        const nextIndex = Math.min(digits.length, 5);
+        setTimeout(() => {
+          inputRefs.current[nextIndex]?.focus();
+        }, 0);
+        
+        return;
+      }
     }
     
+    // Handle single character input - take only the first character
+    const digit = text.replace(/[^0-9]/g, '').charAt(0);
     const newOtp = [...otp];
-    newOtp[index] = text;
+    newOtp[index] = digit;
     setOtp(newOtp);
     setError(null);
     
     // Auto-focus next input
-    if (text !== '' && index < 5) {
+    if (digit !== '' && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
@@ -223,7 +249,7 @@ export default function VerifyEmailScreen() {
     sendOTP();
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark, isSmallScreen);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -264,28 +290,37 @@ export default function VerifyEmailScreen() {
                 <TextInput
                   key={index}
                   ref={(el) => setInputRef(el, index)}
-                  style={styles.otpInput}
+                  style={[
+                    styles.otpInput,
+                    digit !== '' && styles.otpInputFilled,
+                    error && styles.otpInputError,
+                  ]}
                   value={digit}
                   onChangeText={(text) => handleOtpChange(text, index)}
                   onKeyPress={(e) => handleKeyPress(e, index)}
                   keyboardType="number-pad"
-                  maxLength={1}
+                  maxLength={6}
                   editable={!isLoading}
+                  selectTextOnFocus
                 />
               ))}
             </View>
             
             <View style={styles.resendContainer}>
               {timer > 0 ? (
-                <Text style={styles.timerText}>
-                  Resend code in {timer} seconds
-                </Text>
+                <View style={styles.timerContainer}>
+                  <Clock size={16} color={colors.textSecondary} />
+                  <Text style={styles.timerText}>
+                    Resend code in {timer} seconds
+                  </Text>
+                </View>
               ) : (
                 <Pressable 
                   onPress={handleResendOtp}
                   disabled={isResending}
+                  style={styles.resendButton}
                 >
-                  <Text style={styles.resendText}>
+                  <Text style={[styles.resendText, isResending && styles.resendTextDisabled]}>
                     {isResending ? 'Sending...' : 'Resend verification code'}
                   </Text>
                 </Pressable>
@@ -304,7 +339,7 @@ export default function VerifyEmailScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -354,48 +389,65 @@ const createStyles = (colors: any) => StyleSheet.create({
     textAlign: 'left',
   },
   errorContainer: {
-    backgroundColor: colors.errorLight,
+    backgroundColor: colors.errorBackground || '#FEE2E2',
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
   },
   errorText: {
-    color: colors.error,
+    color: colors.error || '#DC2626',
     fontSize: 14,
+    textAlign: 'center',
   },
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 24,
+    gap: 12,
   },
   otpInput: {
-    width: 48,
-    height: 56,
-    borderWidth: 0.5,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    flex: 1,
+    height: isSmallScreen ? 56 : 64,
+    borderWidth: 2,
     borderColor: colors.border,
     borderRadius: 12,
-    fontSize: 18,
-    fontWeight: '600',
+    backgroundColor: colors.background,
     textAlign: 'center',
+    fontSize: isSmallScreen ? 24 : 28,
+    fontWeight: '600',
     color: colors.text,
-    backgroundColor: colors.surface,
+  },
+  otpInputFilled: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentBackground || colors.background,
+  },
+  otpInputError: {
+    borderColor: colors.error || '#DC2626',
   },
   resendContainer: {
     alignItems: 'center',
     marginTop: 16,
+    marginBottom: 16,
+  },
+  timerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   timerText: {
     fontSize: 14,
     color: colors.textSecondary,
   },
+  resendButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
   resendText: {
     fontSize: 14,
-    color: colors.primary,
-    fontWeight: '500',
+    color: colors.accent,
+    fontWeight: '600',
+  },
+  resendTextDisabled: {
+    color: colors.textTertiary,
   },
 });

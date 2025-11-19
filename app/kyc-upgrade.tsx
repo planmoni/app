@@ -1,31 +1,37 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, useWindowDimensions } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Modal, useWindowDimensions, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, X } from 'lucide-react-native';
+import { ChevronRight, ChevronLeft, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useAuth } from '@/contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
-import { Linking } from 'react-native';
 import LocationSearchModal from '@/components/LocationSearchModal';
 import { useKYCData } from '@/hooks/useKYCData';
-import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
-import { useHaptics } from '@/hooks/useHaptics';
+import { useKYCProgress } from '@/hooks/useKYCProgress';
 import { supabase } from '@/lib/supabase';
 import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
-import { safeHavenService } from '@/lib/safehaven-service';
-import { useCameraPermission } from 'react-native-vision-camera';
 import CameraPermissionModal from '@/components/CameraPermissionModal';
-import DatePickerModal from '@/components/DatePickerModal';
+import KYCVerificationModal from '@/components/KYCVerificationModal';
+import Tier1CompletionModal from '@/components/Tier1CompletionModal';
+import Tier2CompletionModal from '@/components/Tier2CompletionModal';
+import Tier3CompletionModal from '@/components/Tier3CompletionModal';
+// Hooks
+import { useKYCFormState } from '@/hooks/useKYCFormState';
+import { useKYCNavigation } from '@/hooks/useKYCNavigation';
+import { useKYCLiveness } from '@/hooks/useKYCLiveness';
+import { useKYCDatePicker } from '@/hooks/useKYCDatePicker';
+// KYC Step Components (UI only)
 import PersonalInfoStep from '@/components/KYCSteps/PersonalInfoStep';
-import BVNVerificationStep from '@/components/KYCSteps/BVNVerificationStep';
-import IDFaceMatchStep from '@/components/KYCSteps/IDFaceMatchStep';
-import DocumentsVerificationStep from '@/components/KYCSteps/DocumentsVerificationStep';
 import AddressDetailsStep from '@/components/KYCSteps/AddressDetailsStep';
 import ReviewStep from '@/components/KYCSteps/ReviewStep';
+// Self-contained verification components
+import BVNVerification, { BVNVerificationHandle } from '@/components/KYCSteps/BVNVerification';
+import NINVerification, { NINVerificationHandle } from '@/components/KYCSteps/NINVerification';
+import DocumentVerification, { DocumentVerificationHandle } from '@/components/KYCSteps/DocumentVerification';
 import { IdentityType } from '@/components/KYCSteps/types';
 
 export default function KYCUpgradeScreen() {
@@ -33,438 +39,126 @@ export default function KYCUpgradeScreen() {
   const { width, height } = useWindowDimensions();
   const { showToast } = useToast();
   const { session } = useAuth();
-  const haptics = useHaptics();
+  const params = useLocalSearchParams();
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
   
   // Custom hooks for KYC data and progress
   const { formData, loading: formDataLoading, saveFormData } = useKYCData();
-  const { progress, loading: progressLoading, updateProgress, getStepProgress, updateTier, currentTier, checkTierCompletion } = useKYCProgress();
-  const params = useLocalSearchParams<{ selfieUrl?: string }>();
+  const { progress, loading: progressLoading, updateProgress, updateTier, checkTierCompletion, loadProgress } = useKYCProgress();
   
-  
-  
-  
-  
-  // Helper function to get the first incomplete step from scratch
-  const getFirstIncompleteStep = useCallback((): KYCStep => {
-    if (!progress) return 'liveness_verification';
-    
-    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
-    
-    // Find the first incomplete step
-    for (const step of stepOrder) {
-      switch (step) {
-        case 'liveness_verification':
-          if (!progress.liveness_test_completed) return step;
-          break;
-        case 'bvn_verification':
-          if (!progress.bvn_verified) return step;
-          break;
-        case 'id_face_match':
-          if (!progress.id_face_verified) return step;
-          break;
-        case 'personal':
-          if (!progress.personal_info_completed) return step;
-          break;
-        case 'documents_verification':
-          if (!progress.documents_verified) return step;
-          break;
-        case 'address_details':
-          if (!progress.address_completed) return step;
-          break;
-        case 'review':
-          return step; // Review is accessible if all steps are complete
-      }
-    }
-    
-    return 'review'; // Default to review if all steps are complete
-  }, [progress]);
+  const normalizeBooleanFlag = (value: any) =>
+    value === true || value === 'true' || value === 1 || value === '1';
 
-  // Step management - will be initialized to first incomplete step by useEffect
-  const [currentStep, setCurrentStep] = useState<KYCStep>('liveness_verification');
+  // Use custom hooks for state management
+  const formState = useKYCFormState();
+  const navigation = useKYCNavigation();
+  const liveness = useKYCLiveness(navigation.currentStep);
+  const datePicker = useKYCDatePicker(formState.dateOfBirth);
   
-  // Identity verification
-  const [selectedIdentityType, setSelectedIdentityType] = useState<IdentityType>('bvn');
+  // Refs for verification components
+  const bvnVerificationRef = useRef<BVNVerificationHandle>(null);
+  const ninVerificationRef = useRef<NINVerificationHandle>(null);
+  const documentVerificationRef = useRef<DocumentVerificationHandle>(null);
   
-  // Loading states
+  // Local UI state
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [isResolvingBvn, setIsResolvingBvn] = useState(false);
-  const [isVerifyingDocuments, setIsVerifyingDocuments] = useState(false);
+  const [showLocationSearch, setShowLocationSearch] = useState(false);
+  const [showTier1CompletionModal, setShowTier1CompletionModal] = useState(false);
+  const [showTier2CompletionModal, setShowTier2CompletionModal] = useState(false);
+  const [showTier3CompletionModal, setShowTier3CompletionModal] = useState(false);
+  const [selectedIdentityType, setSelectedIdentityType] = useState<IdentityType>('nin');
+  const [validationResult, setValidationResult] = useState<any>(null);
+  const [processingExternalLiveness, setProcessingExternalLiveness] = useState(false);
+  const hasProcessedSelfieParamRef = useRef(false);
   
-  // Date picker modal
-  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [showYearPicker, setShowYearPicker] = useState(false);
-  
-  // Verification status
+  // Verification status (for UI display)
   const [bvnVerified, setBvnVerified] = useState(false);
   const [documentsVerified, setDocumentsVerified] = useState(false);
   
-  // LivenessTestEnhanced integration
-  const [showLivenessTest, setShowLivenessTest] = useState(false);
-  const [livenessInitiated, setLivenessInitiated] = useState(false);
-  const [livenessManuallyClosed, setLivenessManuallyClosed] = useState(false);
-  const [livenessCompleted, setLivenessCompleted] = useState(false);
-  
-  // Camera permission modals
-  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
-  const { hasPermission, requestPermission } = useCameraPermission();
-  
-  // Personal information
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [middleName, setMiddleName] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [address, setAddress] = useState('');
-  
-  // Address details
-  const [houseUrl, setHouseUrl] = useState<string | null>(null);
-  const [lga, setLga] = useState('');
-  const [state, setState] = useState('');
-  const [utilityBill, setUtilityBill] = useState<string | null>(null);
-
-  // Utility bill validation
-  const [validationResult, setValidationResult] = useState<any>(null);
-  
-  // Location search
-  const [showLocationSearch, setShowLocationSearch] = useState(false);
-  const [addressLat, setAddressLat] = useState('');
-  const [addressLon, setAddressLon] = useState('');
-  const [addressPlaceId, setAddressPlaceId] = useState('');
-  
-  // Identity information
-  const [bvn, setBvn] = useState('');
-  const [bvnMatchedName, setBvnMatchedName] = useState('');
-  const [nin, setNin] = useState('');
-  const [passportNumber, setPassportNumber] = useState('');
-  
-  
-  // Document verification
-  const [documentFrontImage, setDocumentFrontImage] = useState<string | null>(null);
-  const [documentBackImage, setDocumentBackImage] = useState<string | null>(null);
-  const [selfieImage, setSelfieImage] = useState<string | null>(null);
-  
-  // Form validation
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  
-  // Flag to prevent automatic toasts during manual verification
-  const [isManualVerification, setIsManualVerification] = useState(false);
-  
-  
-  // Refs for auto-focus
-  const lastNameInputRef = useRef<TextInput>(null);
-  const middleNameInputRef = useRef<TextInput>(null);
-  const phoneInputRef = useRef<TextInput>(null);
-  const addressInputRef = useRef<TextInput>(null);
-  const bvnInputRef = useRef<TextInput>(null);
-  
-  // Add back the house number state
-  const [addressNo, setAddressNo] = useState('');
-  
-  // Pre-fill form with user data if available and load form data
+  // Check for route params to show CameraPermissionModal
   useEffect(() => {
-    if (session?.user?.user_metadata) {
-      const { first_name, last_name, phone } = session.user.user_metadata;
-      if (first_name) setFirstName(first_name);
-      if (last_name) setLastName(last_name);
-      if (phone) setPhoneNumber(phone);
+    if (params.showCameraPermission === 'true' && navigation.currentStep === 'bvn_verification' && !progress?.liveness_test_completed) {
+      console.log('[KYC] Route param detected, showing CameraPermissionModal');
+      liveness.setShowCameraPermissionModal(true);
+      liveness.setLivenessInitiated(true);
+      router.setParams({ showCameraPermission: undefined });
     }
-  }, [session]);
+  }, [params.showCameraPermission, navigation.currentStep, progress?.liveness_test_completed]);
 
-  // Show camera permission modal when on liveness_verification step
+  const selfieUrlParam = Array.isArray(params.selfieUrl) ? params.selfieUrl[0] : params.selfieUrl;
+
   useEffect(() => {
-    // Only check if we're on the liveness_verification step
-    if (currentStep !== 'liveness_verification') {
-      return;
-    }
+    const selfieUrl = typeof selfieUrlParam === 'string' ? selfieUrlParam : undefined;
+    if (!selfieUrl) {
+      hasProcessedSelfieParamRef.current = false;
+        return;
+      }
 
-    // Only check if we haven't already initiated liveness test and it's not manually closed
-    if (livenessInitiated || showLivenessTest || livenessManuallyClosed || showCameraPermissionModal) {
-      return;
-    }
+    if (hasProcessedSelfieParamRef.current) return;
+    hasProcessedSelfieParamRef.current = true;
+    let isMounted = true;
 
-    // Check if liveness test is completed in progress
-    if (progress?.liveness_test_completed) {
-      return; // Liveness already completed, move to next step
-    }
-
-    // Check if selfie exists in kyc_data table
-    const checkSelfie = async () => {
+    const processExternalLiveness = async () => {
       try {
-        const { data: kycData } = await supabase
-          .from('kyc_data')
-          .select('selfie_url')
-          .eq('user_id', session?.user?.id)
-          .maybeSingle();
-        
-        const hasSelfie = kycData?.selfie_url && kycData.selfie_url.trim() !== '';
-        
-        // If no selfie and liveness not completed, show camera permission modal
-        if (!hasSelfie && !progress?.liveness_test_completed) {
-          console.log('On liveness_verification step - showing camera permission modal');
-          setShowCameraPermissionModal(true);
+        console.log('[KYC] Processing external liveness selfieUrl param');
+        setProcessingExternalLiveness(true);
+        await handleLivenessCompleteWrapper(selfieUrl);
+        if (isMounted) {
+          router.setParams({ selfieUrl: undefined });
         }
       } catch (error) {
-        console.error('Error checking liveness test status:', error);
+        console.error('[KYC] Failed to process liveness selfieUrl param:', error);
+        showToast('Failed to process liveness verification. Please try again.', 'error');
+      } finally {
+        if (isMounted) {
+          setProcessingExternalLiveness(false);
+        }
       }
     };
 
-    if (progress && session?.user?.id) {
-      checkSelfie();
-    }
-  }, [currentStep, progress, session?.user?.id, livenessInitiated, showLivenessTest, livenessManuallyClosed, showCameraPermissionModal]);
+    processExternalLiveness();
 
-  // Handle selfie URL from navigation params (when coming from CameraPermissionModal)
-  useEffect(() => {
-    if (params.selfieUrl && !livenessCompleted && !progress?.liveness_test_completed) {
-      // Selfie URL passed from navigation - handle liveness completion
-      handleLivenessComplete(params.selfieUrl);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.selfieUrl]);
-
-  // Load form data and progress when they change
-  useEffect(() => {
-    const loadFormDataAndCheckSelfie = async () => {
-      if (formData) {
-        // Load personal information
-        if (formData.first_name) setFirstName(formData.first_name);
-        if (formData.last_name) setLastName(formData.last_name);
-        if (formData.middle_name) setMiddleName(formData.middle_name);
-        if (formData.date_of_birth) setDateOfBirth(formData.date_of_birth);
-        if (formData.phone_number) setPhoneNumber(formData.phone_number);
-        if (formData.address) setAddress(formData.address);
-        if (formData.house_url) setHouseUrl(formData.house_url);
-        if (formData.address_lat) setAddressLat(formData.address_lat);
-        if (formData.address_lon) setAddressLon(formData.address_lon);
-        if (formData.address_place_id) setAddressPlaceId(formData.address_place_id);
-        
-        // Load identity information
-        if (formData.bvn) setBvn(formData.bvn);
-        if (formData.nin) setNin(formData.nin);
-        
-        // Load document information based on document_type
-        if (formData.document_type) {
-          setSelectedIdentityType(formData.document_type as IdentityType);
-          if (formData.document_number) {
-            switch (formData.document_type) {
-              case 'nin':
-                setNin(formData.document_number);
-                break;
-              case 'passport':
-                setPassportNumber(formData.document_number);
-                break;
-            }
-          }
-        }
-        
-        // Load document images
-        if (formData.document_front_url) setDocumentFrontImage(formData.document_front_url);
-        if (formData.document_back_url) setDocumentBackImage(formData.document_back_url);
-        if (formData.selfie_url) setSelfieImage(formData.selfie_url);
-        
-        // Check if selfie exists but liveness is not marked as completed in progress
-        // This handles the case where liveness was completed but progress hasn't updated yet
-        if (formData.selfie_url && !progress?.liveness_test_completed) {
-          // Selfie exists but progress not updated - trigger handleLivenessComplete
-          handleLivenessComplete(formData.selfie_url);
-        }
-        
-        // Load address details
-        if (formData.lga) setLga(formData.lga);
-        if (formData.state) setState(formData.state);
-        if (formData.utility_bill_url) setUtilityBill(formData.utility_bill_url);
-        
-        // Add back the house number state
-        if (formData.address_no) setAddressNo(formData.address_no);
-      }
+    return () => {
+      isMounted = false;
     };
+  }, [selfieUrlParam]);
 
-    loadFormDataAndCheckSelfie();
-  }, [formData]);
-
-  // Helper function to get the next incomplete step
-  const getNextIncompleteStep = (current: KYCStep): KYCStep => {
-    // Define step order based on tiers:
-    // Tier 1: liveness_verification, bvn_verification, id_face_match
-    // Tier 2: personal, documents_verification
-    // Tier 3: address_details
-    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
-    const currentIndex = stepOrder.indexOf(current);
-    
-    // Find the next incomplete step
-    for (let i = currentIndex + 1; i < stepOrder.length; i++) {
-      const step = stepOrder[i];
-      switch (step) {
-        case 'liveness_verification':
-          if (!progress.liveness_test_completed) return step;
-          break;
-        case 'bvn_verification':
-          if (!progress.bvn_verified) return step;
-          break;
-        case 'id_face_match':
-          if (!progress.id_face_verified) return step;
-          break;
-        case 'personal':
-          if (!progress.personal_info_completed) return step;
-          break;
-        case 'documents_verification':
-          if (!progress.documents_verified) return step;
-          break;
-        case 'address_details':
-          if (!progress.address_completed) return step;
-          break;
-        case 'review':
-          return step; // Review is always accessible if all steps are complete
-      }
-    }
-    
-    return 'review'; // Default to review if all steps are complete
-  };
-
-  // Helper function to get the previous incomplete step (or first incomplete if going back from a completed step)
-  const getPreviousIncompleteStep = (current: KYCStep): KYCStep | null => {
-    // Define step order based on tiers:
-    // Tier 1: liveness_verification, bvn_verification, id_face_match
-    // Tier 2: personal, documents_verification
-    // Tier 3: address_details
-    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
-    const currentIndex = stepOrder.indexOf(current);
-    
-    // Find the last incomplete step before current
-    for (let i = currentIndex - 1; i >= 0; i--) {
-      const step = stepOrder[i];
-      switch (step) {
-        case 'liveness_verification':
-          if (!progress.liveness_test_completed) return step;
-          break;
-        case 'bvn_verification':
-          if (!progress.bvn_verified) return step;
-          break;
-        case 'id_face_match':
-          if (!progress.id_face_verified) return step;
-          break;
-        case 'personal':
-          if (!progress.personal_info_completed) return step;
-          break;
-        case 'documents_verification':
-          if (!progress.documents_verified) return step;
-          break;
-        case 'address_details':
-          if (!progress.address_completed) return step;
-          break;
-      }
-    }
-    
-    return null; // No previous incomplete step
-  };
-
-  // Update current step when progress changes, but skip to first incomplete step
+  // Update verification status when progress changes
   useEffect(() => {
-    if (progress && !progressLoading) {
-      setBvnVerified(progress.bvn_verified);
-      setDocumentsVerified(progress.documents_verified);
+    if (progress) {
+      setBvnVerified(normalizeBooleanFlag(progress.bvn_verified));
+      setDocumentsVerified(normalizeBooleanFlag(progress.documents_verified));
       
-      // Get the first incomplete step directly using the helper function
-      const targetStep = getFirstIncompleteStep();
-      setCurrentStep(targetStep);
+      // Load document type
+      if (formData?.document_type) {
+        setSelectedIdentityType(formData.document_type as IdentityType);
+      }
     }
-  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep]);
-
-  // Auto-focus BVN input when step changes to bvn_verification
-  useEffect(() => {
-    if (currentStep === 'bvn_verification' && !bvnVerified && bvnInputRef.current) {
-      // Small delay to ensure the component is fully rendered
-      const timer = setTimeout(() => {
-        bvnInputRef.current?.focus();
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [currentStep, bvnVerified]);
+  }, [progress, formData]);
   
 
   
   const validatePersonalInfo = () => {
     const newErrors: Record<string, string> = {};
     
-    if (!firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!dateOfBirth.trim()) newErrors.dateOfBirth = 'Date of birth is required';
-    if (!phoneNumber.trim()) newErrors.phoneNumber = 'Phone number is required';
-    if (!address.trim()) newErrors.address = 'Address is required';
+    if (!formState.firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!formState.lastName.trim()) newErrors.lastName = 'Last name is required';
+    if (!datePicker.dateOfBirth.trim()) newErrors.dateOfBirth = 'Date of birth is required';
+    if (!formState.phoneNumber.trim()) newErrors.phoneNumber = 'Phone number is required';
+    if (!formState.address.trim()) newErrors.address = 'Address is required';
     
     // Validate date format (DD/MM/YYYY)
-    if (dateOfBirth && !/^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/.test(dateOfBirth)) {
+    if (datePicker.dateOfBirth && !/^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/.test(datePicker.dateOfBirth)) {
       newErrors.dateOfBirth = 'Please enter a valid date (DD/MM/YYYY)';
     }
     
     // Validate phone number (Nigerian format)
-    if (phoneNumber && !/^0[789][01]\d{8}$/.test(phoneNumber)) {
+    if (formState.phoneNumber && !/^0[789][01]\d{8}$/.test(formState.phoneNumber)) {
       newErrors.phoneNumber = 'Please enter a valid Nigerian phone number';
     }
-    
-    setErrors(newErrors);
-    
-    if (Object.keys(newErrors).length > 0) {
-      const firstError = Object.values(newErrors)[0];
-      showToast(firstError, 'error');
-      return false;
-    }
-    
-    return true;
-  };
-  
-  const validateBvnVerification = () => {
-    const newErrors: Record<string, string> = {};
-    
-    if (!bvn.trim()) {
-      newErrors.bvn = 'BVN is required';
-    } else if (bvn.length !== 11 || !/^\d+$/.test(bvn)) {
-      newErrors.bvn = 'BVN must be 11 digits';
-    }
-    
-    setErrors(newErrors);
-    
-    if (Object.keys(newErrors).length > 0) {
-      const firstError = Object.values(newErrors)[0];
-      showToast(firstError, 'error');
-      return false;
-    }
-    
-    return true;
-  };
-  
-  const validateDocumentVerification = () => {
-    const newErrors: Record<string, string> = {};
-    
-    if (!documentFrontImage) {
-      newErrors.documentFront = 'Front of document is required';
-    }
-    
-    setErrors(newErrors);
-    
-    if (Object.keys(newErrors).length > 0) {
-      const firstError = Object.values(newErrors)[0];
-      showToast(firstError, 'error');
-      return false;
-    }
-    
-    return true;
-  };
-
-  const validateIdFaceMatch = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!nin.trim()) newErrors.nin = 'NIN is required';
-    else if (nin.length !== 11 || !/^\d+$/.test(nin)) newErrors.nin = 'NIN must be 11 digits';
-
-    // if (!selfieImage && !formData.selfie_url) {
-    //   newErrors.selfie = 'Selfie is required';
-    // }
 
     setErrors(newErrors);
 
@@ -480,10 +174,10 @@ export default function KYCUpgradeScreen() {
   const validateAddressDetails = () => {
     const newErrors: Record<string, string> = {};
     
-    if (!address.trim()) newErrors.address = 'Address is required';
-    if (!lga.trim()) newErrors.lga = 'Local Government Area is required';
-    if (!state.trim()) newErrors.state = 'State is required';
-    if (!houseUrl) newErrors.houseUrl = 'House photo is required';
+    if (!formState.address.trim()) newErrors.address = 'Address is required';
+    if (!formState.lga.trim()) newErrors.lga = 'Local Government Area is required';
+    if (!formState.state.trim()) newErrors.state = 'State is required';
+    if (!formState.houseUrl) newErrors.houseUrl = 'House photo is required';
     
     setErrors(newErrors);
     
@@ -503,7 +197,7 @@ export default function KYCUpgradeScreen() {
     }
 
     // Get user's address from KYC data for validation
-    const userAddress = addressNo || '';
+    const userAddress = formState.addressNo || '';
 
     const response = await fetch('/api/utility-bill-validation', {
       method: 'POST',
@@ -528,7 +222,7 @@ export default function KYCUpgradeScreen() {
 
   
   const uploadUtilityBill = async () => {
-    if (!utilityBill || !session?.user?.id) {
+    if (!formState.utilityBill || !session?.user?.id) {
       showToast('Please select a utility bill image first.', 'error');
       return;
     }
@@ -540,12 +234,12 @@ export default function KYCUpgradeScreen() {
       showToast('Uploading utility bill...', 'info');
       
       // Get file extension from URI
-      const fileExtension = utilityBill.split('.').pop() || 'jpg';
+      const fileExtension = formState.utilityBill.split('.').pop() || 'jpg';
       const fileName = `utility-bill.${fileExtension}`;
       const filePath = `${session.user.id}/${fileName}`;
 
       // Convert image to blob for upload
-      const response = await fetch(utilityBill);
+      const response = await fetch(formState.utilityBill);
       const blob = await response.blob();
 
       // Upload to Supabase storage
@@ -604,173 +298,133 @@ export default function KYCUpgradeScreen() {
   };
 
   const handleNextStep = async () => {
+    console.log('[KYC] handleNextStep called, currentStep:', navigation.currentStep);
     try {
-      switch (currentStep) {
-        case 'liveness_verification':
-          // Show camera permission modal instead of liveness test directly
-          if (!progress || !progress.liveness_test_completed) {
-            setShowCameraPermissionModal(true);
-          } else {
-            // If already completed, move to next step
-            const nextStep = getNextIncompleteStep('liveness_verification');
-            setCurrentStep(nextStep);
+            setIsLoading(true);
+            
+      switch (navigation.currentStep) {
+        case 'bvn_verification':
+          if (bvnVerificationRef.current) {
+            const success = await bvnVerificationRef.current.verify();
+            if (success) {
+              await navigation.goToNextStep('bvn_verification');
+            }
           }
           break;
+
+        case 'id_face_match':
+          if (ninVerificationRef.current) {
+            // Check if initialized - if not, initialize first
+            if (!ninVerificationRef.current.isValid()) {
+              const initialized = await ninVerificationRef.current.initialize();
+              if (!initialized) {
+              setIsLoading(false);
+                return; // Wait for OTP input
+              }
+            }
+            // Then verify
+            const success = await ninVerificationRef.current.verify();
+            if (success) {
+              await navigation.goToNextStep('id_face_match');
+              // Check for Tier 1 completion
+              const tierStatus = checkTierCompletion();
+              if (tierStatus.tier1) {
+                setTimeout(() => {
+                  setShowTier1CompletionModal(true);
+                }, 300);
+              }
+            }
+          }
+          break;
+            
         case 'personal':
           if (validatePersonalInfo()) {
-            setIsLoading(true);
+            const saveResult = await saveFormData({
+              first_name: formState.firstName,
+              last_name: formState.lastName,
+              middle_name: formState.middleName,
+              date_of_birth: datePicker.dateOfBirth,
+              phone_number: formState.phoneNumber,
+              address: formState.address,
+              house_url: formState.houseUrl || undefined,
+              address_lat: formState.addressLat,
+              address_lon: formState.addressLon,
+              address_place_id: formState.addressPlaceId,
+              address_no: formState.addressNo
+            });
             
-            try {
-              // Save personal info data
-              const saveResult = await saveFormData({
-                first_name: firstName,
-                last_name: lastName,
-                middle_name: middleName,
-                date_of_birth: dateOfBirth,
-                phone_number: phoneNumber,
-                address: address,
-                house_url: houseUrl || undefined,
-                address_lat: addressLat,
-                address_lon: addressLon,
-                address_place_id: addressPlaceId
-              });
-              
-              if (!saveResult) {
-                showToast('Failed to save personal information. Please try again.', 'error');
-                return;
-              }
-              
-              
-              // Update progress when personal info is completed
-              // After personal (Tier 2), move to documents_verification (still Tier 2)
-              const progressResult = await updateProgress({
-                current_step: 'documents_verification', // Move to documents verification (Tier 2) after personal info
-                personal_info_completed: true
-              });
-              
-              if (!progressResult) {
-                showToast('Failed to update progress. Please try again.', 'error');
-                return;
-              }
-              
-              // Proceed to next incomplete step (should be documents_verification if not completed)
-              const nextStep = getNextIncompleteStep('personal');
-              setCurrentStep(nextStep);
-              setTimeout(() => {
-                setIsManualVerification(false);
-              }, 1000);
-              
-            } catch (error) {
-              console.error('Error proceeding after personal info:', error);
-              showToast('An error occurred. Please try again.', 'error');
-            } finally {
+            if (!saveResult) {
+              showToast('Failed to save personal information. Please try again.', 'error');
               setIsLoading(false);
-            }
-          }
-          break;
-        case 'bvn_verification':
-          if (validateBvnVerification()) {
-            setIsLoading(true);
-            
-            // Save BVN data
-            const saveResult = await saveFormData({
-              bvn: bvn
-            });
-            
-            if (!saveResult) {
-              showToast('Failed to save BVN data. Please try again.', 'error');
               return;
             }
             
-            // Verify BVN with Dojah
-            await verifyBvn();
+            await updateProgress({
+              current_step: 'documents_verification',
+              personal_info_completed: true
+            });
+            
+            await navigation.goToNextStep('personal');
           }
           break;
+
         case 'documents_verification':
-          if (validateDocumentVerification()) {
-            setIsLoading(true);
-            // Do NOT save document data yet; first verify with Dojah, then persist
-            await verifyDocuments();
-          }
-          break;
-        case 'id_face_match':
-          if (validateIdFaceMatch()) {
-            setIsLoading(true);
-            
-            // Save identity data (NIN verification only)
-            const saveResult = await saveFormData({
-              nin: nin,
-              // selfie_url: formData.selfie_url || undefined
-            });
-            
-            if (!saveResult) {
-              showToast('Failed to save identity data. Please try again.', 'error');
-              return;
+          if (documentVerificationRef.current) {
+            const success = await documentVerificationRef.current.verify();
+            if (success) {
+              await navigation.goToNextStep('documents_verification');
+              const tierStatus = checkTierCompletion();
+              if (tierStatus.tier2) {
+                setTimeout(() => {
+                  setShowTier2CompletionModal(true);
+                }, 300);
+              }
             }
-            
-            // Verify NIN with Dojah (face matching)
-            await verifyNIN(process.env.EXPO_PUBLIC_DOJAH_APP_ID!, process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!);
           }
           break;
+
         case 'address_details':
           if (validateAddressDetails()) {
-            setIsLoading(true);
-            if (utilityBill) {
+            if (formState.utilityBill) {
               await uploadUtilityBill();
             }
             
-            // Save address details data
             const saveResult = await saveFormData({
-              address_no: addressNo,
-              lga: lga,
-              state: state,
-              house_url: houseUrl || undefined,
-              utility_bill_url: utilityBill || undefined,
+              address_no: formState.addressNo,
+              lga: formState.lga,
+              state: formState.state,
+              house_url: formState.houseUrl || undefined,
+              utility_bill_url: formState.utilityBill || undefined,
               utility_bill_validated: validationResult?.isValid || false,
               utility_bill_validation_result: validationResult || undefined,
             });
             
             if (!saveResult) {
               showToast('Failed to save address details. Please try again.', 'error');
+              setIsLoading(false);
               return;
             }
             
-            // Update progress when address is completed
-            // Also check if utility bill is validated and mark it as verified
-            const utilityBillVerified = utilityBill && validationResult?.isValid;
+            const utilityBillVerified = formState.utilityBill && validationResult?.isValid;
             
-            const progressResult = await updateProgress({
+            await updateProgress({
               current_step: 'review',
               address_completed: true,
               utility_bill_verified: utilityBillVerified || false
             });
             
-            // Check if Tier 3 is complete (Tier 2 + Address + Utility)
-            if (progressResult) {
-              await updateTier(); // Update tier after address/utility completion
+            await updateTier();
               const tierStatus = checkTierCompletion();
               if (tierStatus.tier3) {
-                console.log('Tier 3 completed! User has full verification.');
-                showToast('Tier 3 completed! You can now deposit up to ₦1,000,000 monthly.', 'success');
-              }
+              setTimeout(() => {
+                setShowTier3CompletionModal(true);
+              }, 300);
             }
             
-            if (!progressResult) {
-              showToast('Failed to update progress. Please try again.', 'error');
-              return;
-            }
-            
-            // Wait for toast to be visible before moving to next step
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            // Move to next incomplete step (should be review if address is completed)
-            const nextStep = getNextIncompleteStep('address_details');
-            setCurrentStep(nextStep);
-            setTimeout(() => {
-              setIsManualVerification(false);
-            }, 1000);
+            await navigation.goToNextStep('address_details');
           }
           break;
+
         case 'review':
           await handleSubmit();
           break;
@@ -784,1004 +438,217 @@ export default function KYCUpgradeScreen() {
   };
   
 
-  // Convert image URL to base64 for API calls
-  const convertImageToBase64 = async (imageUrl: string): Promise<string | null> => {
-    try {
-      // If already a data URI, extract base64
-      if (imageUrl.startsWith('data:image/')) {
-        const parts = imageUrl.split(',');
-        return parts.length > 1 ? parts[1] : null;
-      }
-
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64String = reader.result as string;
-          const base64Data = base64String.split(',')[1];
-          resolve(base64Data);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.error('Error converting image to base64:', error);
-      return null;
-    }
-  };
-
-  // Handle LivenessTestEnhanced completion
-  const handleLivenessComplete = async (selfieUrl: string) => {
-    try {
-      console.log('Liveness test completed, selfie URL received:', selfieUrl);
-      
-      // Mark liveness as completed immediately to prevent handleLivenessClose from navigating away
-      setLivenessCompleted(true);
-      
-      // Save the selfie URL to form data
-      await saveFormData({
-        selfie_url: selfieUrl
-      });
-      
-      // Mark liveness test as completed in KYC progress (current_step will be updated below)
-      
-      // Create audit log for liveness test completion
-      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
-        p_user_id: session?.user?.id,
-        p_operation_type: 'liveness_check',
-        p_verification_type: 'liveness',
-        p_verification_provider: 'internal',
-        p_request_data: {
-          action: 'liveness_test_completed',
-          source: 'kyc_upgrade_screen',
-          timestamp: new Date().toISOString()
-        },
-        p_response_data: {
-          selfie_url: selfieUrl,
-          completion_status: 'success',
-          next_step: 'bvn_verification'
-        },
-        p_status: 'success',
-        p_result_message: 'Liveness test completed successfully',
-        p_metadata: {
-          component: 'KYCUpgradeScreen',
-          action: 'liveness_completion',
-          step: 'id_face_match'
-        }
-      });
-
-      // Create audit event for liveness completion
-      if (auditLogId) {
-        await supabase
-          .from('kyc_audit_events')
-          .insert({
-            audit_log_id: auditLogId,
-            user_id: session?.user?.id,
-            event_type: 'verification_completed',
-            event_data: {
-              action: 'liveness_test_completed',
-              selfie_url: selfieUrl,
-              test_stages: ['blink', 'nod', 'look_left', 'look_right', 'smile']
-            },
-            severity: 'medium'
-          });
-
-        // Create audit attachment for selfie image
-        await supabase
-          .from('kyc_audit_attachments')
-          .insert({
-            audit_log_id: auditLogId,
-            file_name: `liveness-selfie-${Date.now()}.jpg`,
-            file_type: 'image/jpeg',
-            file_size: 0, // We don't have the actual file size here
-            file_hash: 'selfie-hash-placeholder', // Would need actual hash calculation
-            file_path: selfieUrl,
-            access_level: 'restricted',
-            description: 'Liveness test selfie image',
-            tags: ['liveness', 'selfie', 'kyc']
-          });
-      }
-      
-      // Show success message
-      showToast('Selfie captured and saved successfully', 'success');
-      
-      // Update current_step to next step after liveness completion
-      // Tier 1: After liveness, move to BVN verification
-      const progressResult = await updateProgress({
-        current_step: 'bvn_verification', // Move to BVN verification (Tier 1) after liveness
+  // Handle liveness completion - update progress and close modals
+  const handleLivenessCompleteWrapper = async (selfieUrl: string) => {
+    const success = await liveness.handleLivenessComplete(selfieUrl);
+    if (success) {
+      await updateProgress({
+        current_step: 'bvn_verification',
         liveness_test_completed: true
       });
-      
-      if (progressResult) {
-        // Proceed to next incomplete step (should be bvn_verification if not completed)
-        const nextStep = getNextIncompleteStep('liveness_verification');
-        setCurrentStep(nextStep);
-        
-        // Close the liveness test modal after processing is complete
-        setShowLivenessTest(false);
-        setLivenessInitiated(false);
-        setLivenessManuallyClosed(false); // Reset the manually closed flag
-        
-        setTimeout(() => {
-          setIsManualVerification(false);
-          // Reset completion flag after a delay
-          setTimeout(() => {
-            setLivenessCompleted(false);
-          }, 500);
-        }, 500);
-      } else {
-        // If progress update failed, still close the modal
-        setShowLivenessTest(false);
-        setLivenessInitiated(false);
-      }
-    } catch (error) {
-      console.error('Error handling liveness completion:', error);
-      showToast('Failed to process liveness completion. Please try again.', 'error');
-      setShowLivenessTest(false);
-      setLivenessInitiated(false);
-      setLivenessCompleted(false);
+      // Close modals after delay
+      setTimeout(() => {
+        liveness.setShowLivenessTest(false);
+        liveness.setShowCameraPermissionModal(false);
+      }, 800);
     }
   };
-  
-  const handleLivenessClose = async () => {
-    // Check if liveness test was completed successfully
-    // If it was completed, don't navigate away - let handleLivenessComplete handle the flow
-    if (livenessCompleted || progress?.liveness_test_completed) {
-      setShowLivenessTest(false);
-      setLivenessInitiated(false);
-      return; // Don't navigate away if completed
-    }
 
-    try {
-      // Create audit log for liveness test manual close
-      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
-        p_user_id: session?.user?.id,
-        p_operation_type: 'liveness_check',
-        p_verification_type: 'liveness',
-        p_verification_provider: 'internal',
-        p_request_data: {
-          action: 'liveness_test_manually_closed',
-          source: 'kyc_upgrade_screen',
-          timestamp: new Date().toISOString()
-        },
-        p_response_data: {
-          user_action: 'manually_closed_liveness_test',
-          completion_status: 'cancelled'
-        },
-        p_status: 'failed',
-        p_result_message: 'User manually closed liveness test',
-        p_metadata: {
-          component: 'KYCUpgradeScreen',
-          action: 'liveness_manual_close',
-          step: 'id_face_match'
-        }
-      });
+  // Handle Tier1CompletionModal actions
+  const handleTier1GoToDashboard = () => {
+    router.push({
+      pathname: '/(tabs)',
+      params: { showAccountInfo: 'true' }
+    });
+  };
 
-      // Create audit event for liveness test manual close
-      if (auditLogId) {
-        await supabase
-          .from('kyc_audit_events')
-          .insert({
-            audit_log_id: auditLogId,
-            user_id: session?.user?.id,
-            event_type: 'verification_cancelled',
-            event_data: {
-              action: 'liveness_test_manually_closed',
-              reason: 'user_cancelled',
-              step: 'id_face_match'
-            },
-            severity: 'low'
-          });
-      }
-    } catch (error) {
-      console.error('Error creating audit log for liveness close:', error);
-      // Continue with the action even if audit fails
-    }
+  const handleTier1UpgradeToTier2 = () => {
+    navigation.goToStep('personal');
+  };
 
-    setShowLivenessTest(false);
-    setLivenessInitiated(false);
-    setLivenessManuallyClosed(true);
-    // Only navigate to home when liveness test is manually closed (not completed)
+  // Handle Tier2CompletionModal actions
+  const handleTier2GoToDashboard = () => {
     router.push('/(tabs)');
   };
   
-  const verifyBvn = async () => {
+  const handleTier2UpgradeToTier3 = () => {
+    navigation.goToStep('address_details');
+  };
+
+  // Handle Tier3CompletionModal actions
+  const handleTier3GoToDashboard = () => {
+    router.push('/(tabs)');
+  };
+  
+  const handleLocationSelect = (location: any) => {
+    let detailedAddress = location.display_name;
+    
+    if (location.address) {
+      const addressParts = [];
+      
+      if (location.address.house_number) {
+        addressParts.push(location.address.house_number);
+      }
+      
+      if (location.address.road) {
+        addressParts.push(location.address.road);
+      }
+      
+      if (location.address.suburb) {
+        addressParts.push(location.address.suburb);
+      }
+      
+      if (location.address.city) {
+        addressParts.push(location.address.city);
+      }
+      
+      if (location.address.state) {
+        addressParts.push(location.address.state);
+      }
+      
+      if (addressParts.length > 0) {
+        detailedAddress = addressParts.join(', ');
+      }
+    }
+    
+    formState.setAddress(detailedAddress);
+    formState.setAddressLat(location.lat);
+    formState.setAddressLon(location.lon);
+    formState.setAddressPlaceId(location.place_id.toString());
+    
+    if (location.address) {
+      if (location.address.city) {
+        formState.setLga(location.address.city);
+      }
+      if (location.address.state) {
+        formState.setState(location.address.state);
+      }
+    }
+    
+    setErrors(prev => ({ ...prev, address: '' }));
+    
+    saveFormData({
+      address: detailedAddress,
+      address_lat: location.lat,
+      address_lon: location.lon,
+      address_place_id: location.place_id.toString(),
+      lga: location.address?.city || '',
+      state: location.address?.state || ''
+    });
+  };
+  
+  const pickImage = async (setImageFunction: React.Dispatch<React.SetStateAction<string | null>>, type: string) => {
     try {
-      // Create audit log for BVN verification start
-      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
-        p_user_id: session?.user?.id,
-        p_operation_type: 'bvn_verified',
-        p_verification_type: 'bvn',
-        p_verification_provider: 'dojah',
-        p_request_data: {
-          action: 'start_bvn_verification',
-          bvn: bvn,
-          source: 'kyc_upgrade_screen',
-          timestamp: new Date().toISOString()
-        },
-        p_response_data: {
-          user_action: 'initiated_bvn_verification',
-          verification_status: 'pending'
-        },
-        p_status: 'pending',
-        p_result_message: 'User initiated BVN verification process',
-        p_metadata: {
-          component: 'KYCUpgradeScreen',
-          action: 'bvn_verification_start',
-          step: 'bvn_verification'
-        }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+        base64: false,
       });
-
-      // Create audit event for BVN verification start
-      if (auditLogId) {
-        await supabase
-          .from('kyc_audit_events')
-          .insert({
-            audit_log_id: auditLogId,
-            user_id: session?.user?.id,
-            event_type: 'verification_started',
-            event_data: {
-              action: 'bvn_verification_initiated',
-              bvn: bvn,
-              provider: 'dojah'
-            },
-            severity: 'medium'
-          });
-      }
-
-      setIsManualVerification(true);
-      setIsResolvingBvn(true);
-      setErrors({});
       
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset.uri) {
+          const uploadedUrl = await uploadDocumentToStorage(asset.uri, type === 'documentFront' ? 'front' : type === 'documentBack' ? 'back' : type);
+          if (uploadedUrl) {
+            setImageFunction(uploadedUrl);
+            setErrors(prev => ({ ...prev, [type]: '' }));
+          } else {
+            showToast('Failed to upload image', 'error');
+          }
+        } else {
+          showToast('No image selected', 'error');
+        }
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      showToast('Failed to select image', 'error');
+    }
+  };
+
+  const uploadDocumentToStorage = async (uri: string, part: 'front' | 'back' | 'house' | 'utility' | string): Promise<string | null> => {
+    try {
       if (!session?.user?.id) {
-        throw new Error('Authentication required');
+        showToast('Authentication required', 'error');
+        return null;
       }
 
-      // Check if environment variables are available
-      const appId = process.env.EXPO_PUBLIC_DOJAH_APP_ID!;
-      const privateKey = process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!;
-      
-      if (!appId || !privateKey) {
-        console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
-        showToast('KYC service configuration error', 'error');
-        return;
+      const fileExtensionGuess = uri.split('.').pop()?.toLowerCase();
+      const ext = fileExtensionGuess && fileExtensionGuess.length <= 5 ? fileExtensionGuess : 'jpg';
+      const fileName = `${part}-document-${Date.now()}.${ext}`;
+      const filePath = `kyc-documents/${session.user.id}/${fileName}`;
+
+      const file: any = {
+        uri,
+        name: fileName,
+        type: 'image/jpeg',
+      };
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file, { contentType: 'image/jpeg', upsert: true });
+
+      if (uploadError) {
+        console.error('Supabase upload error:', uploadError);
+        showToast('Upload failed. Please try again.', 'error');
+        return null;
       }
-      
-      // Get selfie image for verification from saved form data
-      let selfieImage = null;
-      
-      if (formData.selfie_url) {
-        const base64Image = await convertImageToBase64(formData.selfie_url);
-        if (base64Image) {
-          selfieImage = `data:image/jpeg;base64,${base64Image}`;
-        }
-      }
-      
-      if (!selfieImage) {
-        throw new Error('Selfie image is required for BVN verification. Please complete the liveness test first.');
-      }
-      
-      // Make actual Dojah API call with selfie
-      const response = await fetch('https://api.dojah.io/api/v1/kyc/bvn/verify', {
-        method: 'POST',
-        headers: {
-          'AppId': appId,
-          'Authorization': privateKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          selfie_image: selfieImage,
-          bvn: parseInt(bvn)
-        })
+
+      const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
+      return urlData.publicUrl || null;
+    } catch (e) {
+      console.error('Upload exception:', e);
+      return null;
+    }
+  };
+  
+  const takePicture = async (type: 'front' | 'back' | 'house' | 'utility') => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (status !== 'granted') {
+      showToast('Permission to access camera is required', 'error');
+      return;
+    }
+    
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+        base64: true,
       });
       
-      if (!response.ok) {
-        throw new Error(`BVN verification failed: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      console.log('BVN verification response:', data);
-      
-      if (!data.entity) {
-        throw new Error('Invalid BVN or no data returned');
-      }
-      
-      const bvnData = data.entity;
-      
-      // Check selfie verification result
-      if (!bvnData.selfie_verification || !bvnData.selfie_verification.match) {
-        throw new Error('Selfie verification failed. Please ensure your face is clearly visible and matches your BVN photo.');
-      }
-      
-      console.log('Selfie verification confidence:', bvnData.selfie_verification.confidence_value);
-      
-      // Smart name matching function
-      const normalizeName = (name: string) => {
-        return name.toLowerCase().trim().replace(/\s+/g, ' ');
-      };
-      
-      const isNameMatch = (name1: string, name2: string) => {
-        const normalized1 = normalizeName(name1);
-        const normalized2 = normalizeName(name2);
-        
-        // Exact match
-        if (normalized1 === normalized2) return true;
-        
-        // Check if one name contains the other (for partial matches)
-        if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) return true;
-        
-        // Check for common misspellings or variations
-        const similarity = calculateSimilarity(normalized1, normalized2);
-        return similarity >= 0.7; // 70% similarity threshold
-      };
-      
-      // Simple similarity calculation (Levenshtein distance based)
-      const calculateSimilarity = (str1: string, str2: string) => {
-        const longer = str1.length > str2.length ? str1 : str2;
-        const shorter = str1.length > str2.length ? str2 : str1;
-        
-        if (longer.length === 0) return 1.0;
-        
-        const distance = levenshteinDistance(longer, shorter);
-        return (longer.length - distance) / longer.length;
-      };
-      
-      const levenshteinDistance = (str1: string, str2: string) => {
-        const matrix = [];
-        for (let i = 0; i <= str2.length; i++) {
-          matrix[i] = [i];
-        }
-        for (let j = 0; j <= str1.length; j++) {
-          matrix[0][j] = j;
-        }
-        for (let i = 1; i <= str2.length; i++) {
-          for (let j = 1; j <= str1.length; j++) {
-            if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-              matrix[i][j] = matrix[i - 1][j - 1];
-            } else {
-              matrix[i][j] = Math.min(
-                matrix[i - 1][j - 1] + 1,
-                matrix[i][j - 1] + 1,
-                matrix[i - 1][j] + 1
-              );
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset.base64) {
+          const imageData = `data:image/jpeg;base64,${asset.base64}`;
+          const uploadedUrl = await uploadDocumentToStorage(imageData, type);
+          if (uploadedUrl) {
+            switch (type) {
+              case 'front':
+                formState.setDocumentFrontImage(uploadedUrl);
+                setErrors(prev => ({ ...prev, documentFront: '' }));
+                break;
+              case 'back':
+                formState.setDocumentBackImage(uploadedUrl);
+                setErrors(prev => ({ ...prev, documentBack: '' }));
+                break;
+              case 'house':
+                formState.setHouseUrl(uploadedUrl);
+                setErrors(prev => ({ ...prev, houseUrl: '' }));
+                break;
+              case 'utility':
+                formState.setUtilityBill(uploadedUrl);
+                setErrors(prev => ({ ...prev, utilityBill: '' }));
+                break;
             }
           }
         }
-        return matrix[str2.length][str1.length];
-      };
-      
-      // Get names from BVN data
-      const bvnFirstName = bvnData.first_name || '';
-      const bvnLastName = bvnData.last_name || '';
-      const bvnMiddleName = bvnData.middle_name || '';
-      
-      // Get names from user's saved data
-      const userFirstName = firstName || '';
-      const userLastName = lastName || '';
-      const userMiddleName = middleName || '';
-      
-      console.log('Name comparison:', {
-        bvn: { firstName: bvnFirstName, lastName: bvnLastName, middleName: bvnMiddleName },
-        user: { firstName: userFirstName, lastName: lastName, middleName: userMiddleName }
-      });
-      
-      // Check if any name matches (considering possible swaps)
-      const allBvnNames = [bvnFirstName, bvnLastName, bvnMiddleName].filter(Boolean);
-      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
-      
-      let nameMatches = 0;
-      let totalNames = Math.max(allBvnNames.length, allUserNames.length);
-      
-      // Check for matches (including swapped positions)
-      for (const bvnName of allBvnNames) {
-        for (const userName of allUserNames) {
-          if (isNameMatch(bvnName, userName)) {
-            nameMatches++;
-            break;
-          }
-        }
       }
-      
-      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
-      console.log(`Name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
-      
-      // Consider it a match if at least 60% of names match
-      if (matchPercentage >= 60) {
-        setBvnVerified(true);
-        
-        // Create a display name from BVN data
-        const displayName = [bvnFirstName, bvnMiddleName, bvnLastName]
-          .filter(Boolean)
-          .join(' ');
-        
-        setBvnMatchedName(displayName);
-        
-        // Create audit log for BVN verification
-        await supabase.rpc('create_kyc_audit_log', {
-          p_user_id: session.user.id,
-          p_operation_type: 'bvn_verified',
-          p_verification_type: 'bvn',
-          p_verification_provider: 'dojah',
-          p_request_data: {
-            bvn: bvn,
-            selfie_verification: true,
-            name_matching: true
-          },
-          p_response_data: {
-            bvn_data: bvnData,
-            name_match_percentage: matchPercentage,
-            selfie_confidence: bvnData.selfie_verification?.confidence_value,
-            matched_name: displayName
-          },
-          p_status: 'success',
-          p_result_message: `BVN verified successfully. Name: ${displayName}`,
-          p_confidence_score: bvnData.selfie_verification?.confidence_value || 95.0,
-          p_metadata: {
-            component: 'kyc-upgrade',
-            verification_step: 'bvn_verification',
-            name_match_percentage: matchPercentage,
-            provider: 'dojah'
-          }
-        });
-        
-        // BVN verification successful with Dojah
-        showToast(`BVN verified! Name: ${displayName}`, 'success');
-        
-        // Update progress with BVN verified and check for Tier 1 completion
-        // After BVN (Tier 1), move to id_face_match (NIN verification, still Tier 1)
-        const progressResult = await updateProgress({
-          current_step: 'id_face_match', // Move to NIN verification (Tier 1) after BVN
-          bvn_verified: true
-        });
-        
-        // Check if Tier 1 is complete (Liveness + BVN + NIN)
-        if (progressResult) {
-          await updateTier(); // Update tier after BVN verification
-          const tierStatus = checkTierCompletion();
-          if (tierStatus.tier1) {
-            console.log('Tier 1 completed! User can now proceed to Tier 2.');
-            showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
-          }
-        }
-        
-        if (!progressResult) {
-          showToast('Failed to update progress. Please try again.', 'error');
-          return;
-        }
-        
-        // Wait for toast to be visible before moving to next step
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Move to next incomplete step (skip if already verified)
-        const nextStep = getNextIncompleteStep('bvn_verification');
-        setCurrentStep(nextStep);
-        setTimeout(() => {
-          setIsManualVerification(false);
-        }, 1000);
-      } else {
-        throw new Error('Name mismatch detected. Please verify your personal information.');
-      }
-      
     } catch (error) {
-      console.error('BVN verification error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'BVN verification failed';
-      showToast(errorMessage, 'error');
-      setErrors({ bvn: errorMessage });
-      // Reset manual verification flag on error
-      setIsManualVerification(false);
-    } finally {
-      setIsResolvingBvn(false);
-    }
-  };
-  
-  // Image validation function
-  const validateImage = (imageUri: string): { isValid: boolean; error?: string } => {
-    // Accept data URIs, file/content URIs, and http(s) URLs
-    const isDataUri = imageUri.startsWith('data:image/');
-    const isFileUri = imageUri.startsWith('file:');
-    const isContentUri = imageUri.startsWith('content:');
-    const isHttpUri = imageUri.startsWith('http://') || imageUri.startsWith('https://');
-    if (!isDataUri && !isFileUri && !isContentUri && !isHttpUri) {
-      return { isValid: false, error: 'Invalid image format. Please select a valid image.' };
-    }
-
-    // Only enforce size check for data URIs where we can read base64 length
-    if (isDataUri) {
-      const parts = imageUri.split(',');
-      if (parts.length > 1) {
-        const base64Data = parts[1];
-        const sizeInBytes = (base64Data.length * 3) / 4; // Approximate
-        const sizeInMB = sizeInBytes / (1024 * 1024);
-        if (sizeInMB > 5) {
-          return { isValid: false, error: 'Image size must be less than 5MB. Please select a smaller image.' };
-        }
-      }
-    }
-
-    return { isValid: true };
-  };
-
-
-
-  // Smart name matching function (same as BVN verification)
-  const isNameMatch = (name1: string, name2: string) => {
-    const normalizeName = (name: string) => {
-      return name.toLowerCase().trim().replace(/\s+/g, ' ');
-    };
-    
-    const normalized1 = normalizeName(name1);
-    const normalized2 = normalizeName(name2);
-    
-    // Exact match
-    if (normalized1 === normalized2) return true;
-    
-    // Check if one name contains the other (for partial matches)
-    if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) return true;
-    
-    // Check for common misspellings or variations
-    const similarity = calculateSimilarity(normalized1, normalized2);
-    return similarity >= 0.7; // 70% similarity threshold
-  };
-  
-  const calculateSimilarity = (str1: string, str2: string) => {
-    const longer = str1.length > str2.length ? str1 : str2;
-    const shorter = str1.length > str2.length ? str2 : str1;
-    
-    if (longer.length === 0) return 1.0;
-    
-    const distance = levenshteinDistance(longer, shorter);
-    return (longer.length - distance) / longer.length;
-  };
-  
-  const levenshteinDistance = (str1: string, str2: string) => {
-    const matrix = [];
-    for (let i = 0; i <= str2.length; i++) {
-      matrix[i] = [i];
-    }
-    for (let j = 0; j <= str1.length; j++) {
-      matrix[0][j] = j;
-    }
-    for (let i = 1; i <= str2.length; i++) {
-      for (let j = 1; j <= str1.length; j++) {
-        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-          matrix[i][j] = matrix[i - 1][j - 1];
-        } else {
-          matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1,
-            matrix[i][j - 1] + 1,
-            matrix[i - 1][j] + 1
-          );
-        }
-      }
-    }
-    return matrix[str2.length][str1.length];
-  };
-
-  const verifyDocuments = async () => {
-    try {
-      // Create audit log for document verification start
-      const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
-        p_user_id: session?.user?.id,
-        p_operation_type: 'document_uploaded',
-        p_verification_type: selectedIdentityType,
-        p_verification_provider: 'dojah',
-        p_request_data: {
-          action: 'start_document_verification',
-          document_type: selectedIdentityType,
-          source: 'kyc_upgrade_screen',
-          timestamp: new Date().toISOString()
-        },
-        p_response_data: {
-          user_action: 'initiated_document_verification',
-          verification_status: 'pending'
-        },
-        p_status: 'pending',
-        p_result_message: 'User initiated document verification process',
-        p_metadata: {
-          component: 'KYCUpgradeScreen',
-          action: 'document_verification_start',
-          step: 'documents_verification',
-          document_type: selectedIdentityType
-        }
-      });
-
-      // Create audit event for document verification start
-      if (auditLogId) {
-        await supabase
-          .from('kyc_audit_events')
-          .insert({
-            audit_log_id: auditLogId,
-            user_id: session?.user?.id,
-            event_type: 'document_uploaded',
-            event_data: {
-              action: 'document_verification_initiated',
-              document_type: selectedIdentityType,
-              provider: 'dojah'
-            },
-            severity: 'medium'
-          });
-      }
-
-      setIsManualVerification(true);
-      setIsVerifyingDocuments(true);
-      setErrors({});
-      
-      if (!session?.user?.id) {
-        throw new Error('Authentication required');
-      }
-
-      // Check if environment variables are available
-      const appId = process.env.EXPO_PUBLIC_DOJAH_APP_ID!;
-      const privateKey = process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!;
-      
-      if (!appId || !privateKey) {
-        console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
-        showToast('KYC service configuration error', 'error');
-        return;
-      }
-
-      // Validate required images
-      if (!documentFrontImage) {
-        throw new Error('Front of document is required');
-      }
-
-      // Validate image format for front (URLs or data URIs now allowed)
-      const frontImageValidation = validateImage(documentFrontImage);
-      if (!frontImageValidation.isValid) {
-        throw new Error(frontImageValidation.error);
-      }
-
-      // if (documentBackImage) {
-      //   const backImageValidation = validateImage(documentBackImage);
-      //   if (!backImageValidation.isValid) {
-      //     throw new Error(backImageValidation.error);
-      //   }
-      // }
-
-      // Ensure we have URLs (already uploaded to storage via pickImage). If still data URI, upload now.
-      let frontImageUrl = documentFrontImage;
-      let backImageUrl = documentBackImage;
-
-      if (frontImageUrl && frontImageUrl.startsWith('data:image/')) {
-        const uploaded = await uploadDocumentToStorage(frontImageUrl, 'front');
-        if (!uploaded) throw new Error('Failed to upload front document image');
-        frontImageUrl = uploaded;
-      }
-
-      if (backImageUrl && backImageUrl.startsWith('data:image/')) {
-        const uploadedBack = await uploadDocumentToStorage(backImageUrl, 'back');
-        if (!uploadedBack) throw new Error('Failed to upload back document image');
-        backImageUrl = uploadedBack;
-      }
-
-      // Call Dojah document analysis API directly
-      const payload: any = {
-        input_type: 'url',
-        imagefrontside: frontImageUrl
-      };
-
-      if (backImageUrl) {
-        payload.imagebackside = backImageUrl;
-      }
-
-      const analysisResponse = await fetch('https://api.dojah.io/api/v1/document/analysis', {
-        method: 'POST',
-        headers: {
-          'AppId': appId,
-          'Authorization': privateKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!analysisResponse.ok) {
-        const errorData = await analysisResponse.json().catch(() => ({}));
-        throw new Error(errorData.message || errorData.error || `Document analysis failed: ${analysisResponse.status} ${analysisResponse.statusText}`);
-      }
-
-      const analysisData = await analysisResponse.json();
-      console.log('Document analysis response:', {
-        overall_status: analysisData.entity?.status?.overall_status,
-        reason: analysisData.entity?.status?.reason,
-        document_type: analysisData.entity?.document_type?.document_name
-      });
-      
-      if (!analysisData.entity) {
-        throw new Error('Invalid response from document analysis service');
-      }
-
-      if (analysisData.entity?.status?.overall_status !== 1) {
-        throw new Error(`Document validation failed: ${analysisData.entity?.status?.reason || 'Invalid document'}`);
-      }
-
-      // Document analysis successful
-      showToast('Document verified successfully!', 'success');
-
-      // Persist document details AFTER successful verification
-      try {
-        const entity = analysisData.entity;
-        const details: any = entity?.details || entity?.data || {};
-        const extractedDocumentNumber = details.document_number || details.id_number || details.passport_number || details.number || null;
-
-        await saveFormData({
-          // Store full document_type object as JSON (column should be jsonb)
-          document_type: entity?.document_type || null,
-          document_number: extractedDocumentNumber || undefined,
-          document_front_url: documentFrontImage || undefined,
-          document_back_url: documentBackImage || undefined
-        });
-      } catch (persistError) {
-        console.error('Error saving verified document data:', persistError);
-        // Continue flow even if saving has issues; user can retry saving later
-      }
-      
-      // Update progress with documents verified
-      // After documents (Tier 2 complete), move to address (first step in Tier 3)
-      const progressResult = await updateProgress({
-        current_step: 'address_details', // Move to address details (Tier 3) after documents verification
-        documents_verified: true
-      });
-      
-      // Check if Tier 2 is complete (Tier 1 + Personal Info + Documents)
-      if (progressResult) {
-        await updateTier(); // Update tier after document verification
-        const tierStatus = checkTierCompletion();
-        if (tierStatus.tier2) {
-          console.log('Tier 2 completed! User can now proceed to Tier 3.');
-          showToast('Tier 2 completed! You can now deposit up to ₦100,000 monthly.', 'success');
-        }
-      }
-      
-      if (!progressResult) {
-        showToast('Failed to update progress. Please try again.', 'error');
-        return;
-      }
-      
-      // Wait for toast to be visible before moving to next step
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Move to next incomplete step (skip if already verified)
-      const nextStep = getNextIncompleteStep('documents_verification');
-      setCurrentStep(nextStep);
-      setTimeout(() => {
-        setIsManualVerification(false);
-      }, 1000);
-      
-    } catch (error) {
-      console.error('Document verification error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Document verification failed';
-      showToast(errorMessage, 'error');
-      setErrors({ documentVerification: errorMessage });
-      // Reset manual verification flag on error
-      setIsManualVerification(false);
-    } finally {
-      setIsVerifyingDocuments(false);
-    }
-  };
-
-  // const verifyDriversLicense = async (appId: string, privateKey: string) => {
-  //   // Disabled: Driver's license verification is not supported. Use NIN only.
-  // };
-
-  const verifyNIN = async (appId: string, privateKey: string) => {
-    try {
-      if (!nin.trim()) {
-        throw new Error('NIN is required');
-      }
-
-      if (!session?.user?.id) {
-        throw new Error('User session not found');
-      }
-
-      // Get selfie image for verification from saved form data
-      let selfieToUse = null;
-      
-      if (formData.selfie_url) {
-        // Use the selfie URL directly (SafeHaven service will handle conversion)
-        selfieToUse = formData.selfie_url;
-      }
-      
-      if (!selfieToUse) {
-        throw new Error('Selfie image is required for NIN verification. Please complete the liveness test first.');
-      }
-
-      // Get phone number and email for account creation
-      const userPhoneNumber = phoneNumber?.trim() || '';
-      const userEmail = session?.user?.email || '';
-      
-      if (!userPhoneNumber) {
-        throw new Error('Phone number is required for NIN verification. Please enter your phone number in the personal information section.');
-      }
-      
-      if (!userEmail) {
-        throw new Error('Email address is required for NIN verification. Please ensure your email is verified.');
-      }
-
-      setIsLoading(true);
-      setIsManualVerification(true);
-
-      // Use SafeHaven service for NIN verification
-      // Note: OTP is optional - if account creation fails with OTP error, we can handle it later
-      const result = await safeHavenService.verifyNINAndCreateAccount(
-        session.user.id,
-        nin.trim(),
-        userPhoneNumber,
-        userEmail,
-        selfieToUse
-      );
-
-      if (!result.success) {
-        throw new Error(result.error || 'NIN verification failed');
-      }
-
-      const verificationData = result.data;
-      
-      // Check if verification was successful
-      if (!verificationData || !verificationData.verified) {
-        throw new Error('NIN verification failed. Please check your NIN and try again.');
-      }
-
-      // Get names from SafeHaven verification data
-      const ninFirstName = verificationData.first_name || verificationData.firstName || '';
-      const ninLastName = verificationData.last_name || verificationData.lastName || '';
-      const ninMiddleName = verificationData.middle_name || verificationData.middleName || '';
-      
-      // Get names from user's saved data
-      const userFirstName = firstName || '';
-      const userLastName = lastName || '';
-      const userMiddleName = middleName || '';
-      
-      console.log('NIN name comparison:', {
-        nin: { firstName: ninFirstName, lastName: ninLastName, middleName: ninMiddleName },
-        user: { firstName: userFirstName, lastName: userLastName, middleName: userMiddleName }
-      });
-      
-      // Check if any name matches (considering possible swaps)
-      const allNinNames = [ninFirstName, ninLastName, ninMiddleName].filter(Boolean);
-      const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
-      
-      let nameMatches = 0;
-      let totalNames = Math.max(allNinNames.length, allUserNames.length);
-      
-      // Check for matches (including swapped positions)
-      for (const ninName of allNinNames) {
-        for (const userName of allUserNames) {
-          if (isNameMatch(ninName, userName)) {
-            nameMatches++;
-            break;
-          }
-        }
-      }
-      
-      const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
-      console.log(`NIN name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
-      
-      // Consider it a match if at least 60% of names match
-      if (matchPercentage >= 60) {
-        setDocumentsVerified(true);
-        
-        // Create a display name from NIN data
-        const displayName = [ninFirstName, ninMiddleName, ninLastName]
-          .filter(Boolean)
-          .join(' ');
-        
-        // Create audit event for NIN verification (additional to what SafeHaven service already logged)
-        if (result.auditLogId) {
-          await supabase
-            .from('kyc_audit_events')
-            .insert({
-              audit_log_id: result.auditLogId,
-              user_id: session.user.id,
-              event_type: 'verification_completed',
-              event_data: {
-                action: 'nin_verification_completed',
-                nin: nin.substring(0, 4) + '****', // Partial NIN for security
-                name_match_percentage: matchPercentage,
-                matched_name: displayName,
-                hasAccount: !!verificationData.account_number
-              },
-              severity: 'high'
-            });
-
-          // Create audit attachment for NIN document if available
-          if (documentFrontImage) {
-            await supabase
-              .from('kyc_audit_attachments')
-              .insert({
-                audit_log_id: result.auditLogId,
-                file_name: `nin-document-${Date.now()}.jpg`,
-                file_type: 'image/jpeg',
-                file_size: 0,
-                file_hash: 'document-hash-placeholder',
-                file_path: documentFrontImage,
-                access_level: 'restricted',
-                description: 'NIN document front image',
-                tags: ['nin', 'document', 'kyc', 'id_verification', 'safehaven']
-              });
-          }
-        }
-        
-        // Show success message
-        let successMessage = `NIN verified! Name: ${displayName}`;
-        if (verificationData.account_number) {
-          successMessage += ` • Account created: ${verificationData.account_number.substring(0, 5)}****`;
-        }
-        showToast(successMessage, 'success');
-        
-        // Update progress with NIN verified
-        // After NIN (Tier 1 complete), move to personal (first step in Tier 2)
-        const progressResult = await updateProgress({
-          current_step: 'personal', // Move to personal info (Tier 2) after NIN verification
-          id_face_verified: true,
-          nin_verified: true
-        });
-        
-        // Check if Tier 1 is complete (Liveness + BVN + NIN)
-        if (progressResult) {
-          await updateTier(); // Update tier after NIN verification
-          const tierStatus = checkTierCompletion();
-          if (tierStatus.tier1) {
-            console.log('Tier 1 completed! User can now proceed to Tier 2.');
-            showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
-          }
-        }
-        
-        if (!progressResult) {
-          showToast('Failed to update progress. Please try again.', 'error');
-          return;
-        }
-        
-        // Wait for toast to be visible before moving to next step
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Move to next incomplete step (skip if already verified)
-        const nextStep = getNextIncompleteStep('id_face_match');
-        setCurrentStep(nextStep);
-        setTimeout(() => {
-          setIsManualVerification(false);
-          setIsLoading(false);
-        }, 1000);
-      } else {
-        throw new Error('Name mismatch detected. Please verify your personal information.');
-      }
-      
-    } catch (error) {
-      console.error('NIN verification error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'NIN verification failed';
-      showToast(errorMessage, 'error');
-      setErrors({ documentVerification: errorMessage });
-      // Reset manual verification flag on error
-      setIsManualVerification(false);
-      setIsLoading(false);
-      throw error; // Re-throw to be handled by verifyDocuments
-    }
-  };
-  
-  const handlePreviousStep = async () => {
-    try {
-      // Get the previous incomplete step
-      const previousStep = getPreviousIncompleteStep(currentStep);
-      
-      if (previousStep === null) {
-        // No previous incomplete step, exit the flow
-        router.back();
-        return;
-      }
-      
-      // Update progress to the previous incomplete step
-      await updateProgress({ current_step: previousStep });
-      setCurrentStep(previousStep);
-    } catch (error) {
-      console.error('Error in handlePreviousStep:', error);
-      // Still allow navigation even if progress update fails
-      const previousStep = getPreviousIncompleteStep(currentStep);
-      if (previousStep) {
-        setCurrentStep(previousStep);
-      } else {
-        router.back();
-      }
+      console.error('Error taking picture:', error);
+      showToast('Failed to capture image', 'error');
     }
   };
   
@@ -1898,322 +765,16 @@ export default function KYCUpgradeScreen() {
     }
   };
   
-  // Date picker functions moved to DatePickerModal component
-
-  const formatDateForDisplay = (date: Date) => {
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
-
-  const parseDateFromString = (dateString: string): Date | null => {
-    if (!dateString) return null;
-    const parts = dateString.split('/');
-    if (parts.length === 3) {
-      const day = parseInt(parts[0]);
-      const month = parseInt(parts[1]) - 1;
-      const year = parseInt(parts[2]);
-      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-        return new Date(year, month, day);
-      }
-    }
-    return null;
-  };
-
-  const handleDatePickerOpen = () => {
-    // Parse existing date if available
-    const existingDate = parseDateFromString(dateOfBirth);
-    if (existingDate) {
-      setSelectedDate(existingDate);
-      setCurrentMonth(existingDate);
-    } else {
-      setSelectedDate(null);
-      setCurrentMonth(new Date());
-    }
-    setIsDatePickerVisible(true);
-  };
-
-  const handleDatePickerClose = () => {
-    setIsDatePickerVisible(false);
-    setShowYearPicker(false);
-  };
-
-  const handleDateSelect = (date: Date) => {
-    setSelectedDate(date);
-  };
-
-  const handleDateConfirm = () => {
-    if (selectedDate) {
-      const formattedDate = formatDateForDisplay(selectedDate);
-      setDateOfBirth(formattedDate);
-      setErrors(prev => ({ ...prev, dateOfBirth: '' }));
-    }
-    setIsDatePickerVisible(false);
-  };
-  
-  const handleLocationSelect = (location: any) => {
-    // Build a more detailed address with house number if available
-    let detailedAddress = location.display_name;
-    
-    if (location.address) {
-      const addressParts = [];
-      
-      // Extract house number if available
-      if (location.address.house_number) {
-        addressParts.push(location.address.house_number);
-      }
-      
-      // Add road/street name
-      if (location.address.road) {
-        addressParts.push(location.address.road);
-      }
-      
-      // Add suburb/neighborhood
-      if (location.address.suburb) {
-        addressParts.push(location.address.suburb);
-      }
-      
-      // Add city
-      if (location.address.city) {
-        addressParts.push(location.address.city);
-      }
-      
-      // Add state
-      if (location.address.state) {
-        addressParts.push(location.address.state);
-      }
-      
-      // If we have address parts, use them; otherwise use display_name
-      if (addressParts.length > 0) {
-        detailedAddress = addressParts.join(', ');
-      }
-    }
-    
-    setAddress(detailedAddress);
-    // Note: houseUrl will be set by photo capture, not from location
-    setAddressLat(location.lat);
-    setAddressLon(location.lon);
-    setAddressPlaceId(location.place_id.toString());
-    
-    // Extract LGA and State from the location data
-    if (location.address) {
-      if (location.address.city) {
-        setLga(location.address.city);
-      }
-      if (location.address.state) {
-        setState(location.address.state);
-      }
-    }
-    
-    setErrors(prev => ({ ...prev, address: '' }));
-    
-    // Save the location data
-    saveFormData({
-      address: detailedAddress,
-      address_lat: location.lat,
-      address_lon: location.lon,
-      address_place_id: location.place_id.toString(),
-      lga: location.address?.city || '',
-      state: location.address?.state || ''
-    });
-  };
-
-  const handlePrevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
-  };
-
-  const handlePrevYear = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear() - 1, currentMonth.getMonth()));
-  };
-
-  const handleNextYear = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth()));
-  };
-
-  const handleYearSelect = (year: number) => {
-    const newDate = new Date(year, currentMonth.getMonth(), 1);
-    setCurrentMonth(newDate);
-    setShowYearPicker(false);
-  };
-
-  const getAvailableYears = () => {
-    const today = new Date();
-    const minYear = today.getFullYear() - 100; // 100 years ago
-    const maxYear = today.getFullYear() - 18; // 18 years ago
-    const years = [];
-    for (let year = maxYear; year >= minYear; year--) {
-      years.push(year);
-    }
-    return years;
-  };
-
-  const isDateSelectable = (date: Date) => {
-    const today = new Date();
-    const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate()); // 100 years ago
-    const maxDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate()); // 18 years ago
-    return date >= minDate && date <= maxDate;
-  };
-
-  const formatDateInput = (text: string) => {
-    // Remove non-numeric characters
-    let cleaned = text.replace(/[^0-9]/g, '');
-    
-    // Add slashes automatically
-    if (cleaned.length > 4) {
-      cleaned = cleaned.slice(0, 4) + cleaned.slice(4);
-    }
-    if (cleaned.length > 2) {
-      cleaned = cleaned.slice(0, 2) + '/' + cleaned.slice(2);
-    }
-    if (cleaned.length > 5) {
-      cleaned = cleaned.slice(0, 5) + '/' + cleaned.slice(5);
-    }
-    
-    // Limit to DD/MM/YYYY format
-    if (cleaned.length > 10) {
-      cleaned = cleaned.slice(0, 10);
-    }
-    
-    return cleaned;
-  };
-  
-  const handleDateChange = (text: string) => {
-    const formattedDate = formatDateInput(text);
-    setDateOfBirth(formattedDate);
-    setErrors(prev => ({ ...prev, dateOfBirth: '' }));
-  };
-
-  
-
+  // Date picker functions are now provided by useKYCDatePicker hook
   
   const getStepTitle = () => {
-    switch (currentStep) {
-      case 'liveness_verification': return 'Liveness Verification';
+    switch (navigation.currentStep) {
       case 'personal': return 'Personal Information';
       case 'bvn_verification': return 'BVN Verification';
       case 'id_face_match': return 'ID & Face Verification';
       case 'documents_verification': return 'Document Verification';
       case 'address_details': return 'Address Details';
       case 'review': return 'Review & Submit';
-    }
-  };
-  
-  const pickImage = async (setImageFunction: React.Dispatch<React.SetStateAction<string | null>>, type: string) => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-        base64: false,
-      });
-      
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        if (asset.uri) {
-          const uploadedUrl = await uploadDocumentToStorage(asset.uri, type === 'documentFront' ? 'front' : type === 'documentBack' ? 'back' : type);
-          if (uploadedUrl) {
-            setImageFunction(uploadedUrl);
-            setErrors(prev => ({ ...prev, [type]: '' }));
-          } else {
-            showToast('Failed to upload image', 'error');
-          }
-        } else {
-          showToast('No image selected', 'error');
-        }
-      }
-    } catch (error) {
-      console.error('Error picking image:', error);
-      showToast('Failed to select image', 'error');
-    }
-  };
-
-  // Upload a selected/captured image to Supabase storage and return public URL
-  const uploadDocumentToStorage = async (uri: string, part: 'front' | 'back' | 'house' | 'utility' | string): Promise<string | null> => {
-    try {
-      if (!session?.user?.id) {
-        showToast('Authentication required', 'error');
-        return null;
-      }
-
-      const fileExtensionGuess = uri.split('.').pop()?.toLowerCase();
-      const ext = fileExtensionGuess && fileExtensionGuess.length <= 5 ? fileExtensionGuess : 'jpg';
-      const fileName = `${part}-document-${Date.now()}.${ext}`;
-      const filePath = `kyc-documents/${session.user.id}/${fileName}`;
-
-      const file: any = {
-        uri,
-        name: fileName,
-        type: 'image/jpeg',
-      };
-
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, file, { contentType: 'image/jpeg', upsert: true });
-
-      if (uploadError) {
-        console.error('Supabase upload error:', uploadError);
-        showToast('Upload failed. Please try again.', 'error');
-        return null;
-      }
-
-      const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
-      return urlData.publicUrl || null;
-    } catch (e) {
-      console.error('Upload exception:', e);
-      return null;
-    }
-  };
-  
-  const takePicture = async (type: 'front' | 'back' | 'house' | 'utility') => {
-    // Request permissions
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    
-    if (status !== 'granted') {
-      showToast('Permission to access camera is required', 'error');
-      return;
-    }
-    
-    try {
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-        base64: true,
-      });
-      
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        if (asset.base64) {
-          const imageData = `data:image/jpeg;base64,${asset.base64}`;
-          switch (type) {
-            case 'front':
-              setDocumentFrontImage(imageData);
-              setErrors(prev => ({ ...prev, documentFront: '' }));
-              break;
-            case 'back':
-              setDocumentBackImage(imageData);
-              setErrors(prev => ({ ...prev, documentBack: '' }));
-              break;
-            case 'house':
-              setHouseUrl(imageData);
-              setErrors(prev => ({ ...prev, houseUrl: '' }));
-              break;
-            case 'utility':
-              setUtilityBill(imageData);
-              setErrors(prev => ({ ...prev, utilityBill: '' }));
-              break;
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error taking picture:', error);
-      showToast('Failed to capture image', 'error');
     }
   };
 
@@ -2236,178 +797,341 @@ export default function KYCUpgradeScreen() {
   };
 
   
-  // Handle camera permission request
-  // Camera permission handling moved to CameraPermissionModal component
-  
   const renderCurrentStep = () => {
-    switch (currentStep) {
-      case 'liveness_verification':
-        // Skip rendering - modal will handle this step
-        return null;
+    switch (navigation.currentStep) {
       case 'personal':
-        return (
+    return (
           <PersonalInfoStep
-            firstName={firstName}
-            lastName={lastName}
-            middleName={middleName}
-            dateOfBirth={dateOfBirth}
-            phoneNumber={phoneNumber}
-            address={address}
-            addressNo={addressNo}
+            firstName={formState.firstName}
+            lastName={formState.lastName}
+            middleName={formState.middleName}
+            dateOfBirth={datePicker.dateOfBirth}
+            phoneNumber={formState.phoneNumber}
+            address={formState.address}
+            addressNo={formState.addressNo}
             errors={errors}
             onFirstNameChange={(text) => {
-              setFirstName(text);
-              setErrors(prev => ({ ...prev, firstName: '' }));
-            }}
+              formState.setFirstName(text);
+                setErrors(prev => ({ ...prev, firstName: '' }));
+              }}
             onLastNameChange={(text) => {
-              setLastName(text);
-              setErrors(prev => ({ ...prev, lastName: '' }));
-            }}
-            onMiddleNameChange={setMiddleName}
-            onDateOfBirthChange={(text) => {
-              setDateOfBirth(text);
-              setErrors(prev => ({ ...prev, dateOfBirth: '' }));
-            }}
+              formState.setLastName(text);
+                setErrors(prev => ({ ...prev, lastName: '' }));
+              }}
+            onMiddleNameChange={formState.setMiddleName}
+            onDateOfBirthChange={datePicker.setDateOfBirth}
             onPhoneNumberChange={(text) => {
-              setPhoneNumber(text);
-              setErrors(prev => ({ ...prev, phoneNumber: '' }));
-            }}
+              formState.setPhoneNumber(text);
+                setErrors(prev => ({ ...prev, phoneNumber: '' }));
+              }}
             onAddressChange={(text) => {
-              setAddress(text);
+              formState.setAddress(text);
               setErrors(prev => ({ ...prev, address: '' }));
             }}
             onAddressNoChange={(text) => {
-              setAddressNo(text);
-              setErrors(prev => ({ ...prev, addressNo: '' }));
-            }}
-            onDatePickerOpen={handleDatePickerOpen}
+              formState.setAddressNo(text);
+                setErrors(prev => ({ ...prev, addressNo: '' }));
+              }}
+            onDatePickerOpen={datePicker.handleDatePickerOpen}
             onLocationSearchOpen={() => setShowLocationSearch(true)}
-            lastNameInputRef={lastNameInputRef}
-            middleNameInputRef={middleNameInputRef}
-            phoneInputRef={phoneInputRef}
-            addressInputRef={addressInputRef}
+            lastNameInputRef={formState.lastNameInputRef}
+            middleNameInputRef={formState.middleNameInputRef}
+            phoneInputRef={formState.phoneInputRef}
+            addressInputRef={formState.addressInputRef}
+            hasKYCNameData={!!(formData?.first_name && formData?.last_name)}
           />
         );
       case 'bvn_verification':
-        return (
-          <BVNVerificationStep
-            bvn={bvn}
-            errors={errors}
-            bvnVerified={bvnVerified}
-            bvnMatchedName={bvnMatchedName}
-            isResolvingBvn={isResolvingBvn}
-            onBvnChange={(text) => {
-              setBvn(text);
-              setErrors(prev => ({ ...prev, bvn: '' }));
-            }}
-            handleNumericInput={handleNumericInput}
-            bvnInputRef={bvnInputRef}
+    return (
+          <BVNVerification
+            ref={bvnVerificationRef}
+            onComplete={() => navigation.goToNextStep('bvn_verification')}
+            onError={(msg) => showToast(msg, 'error')}
+            initialBvn={formState.bvn}
           />
         );
       case 'id_face_match':
-        return (
-          <IDFaceMatchStep
-            nin={nin}
-            errors={errors}
-            bvnVerified={bvnVerified}
-            isVerifyingDocuments={isVerifyingDocuments}
-            documentsVerified={documentsVerified}
-            onNinChange={(text) => {
-              setNin(text);
-              setErrors(prev => ({ ...prev, nin: '' }));
+    return (
+          <NINVerification
+            ref={ninVerificationRef}
+            onComplete={async () => {
+              navigation.goToNextStep('id_face_match');
+              // Reload progress to get the latest state before checking tier completion
+              await loadProgress();
+              // Small delay to ensure state is updated
+              setTimeout(() => {
+                const tierStatus = checkTierCompletion();
+                if (tierStatus.tier1) {
+                  setShowTier1CompletionModal(true);
+                }
+              }, 500);
             }}
+            onError={(msg) => showToast(msg, 'error')}
+            initialNin={formState.nin}
+            initialPhoneNumber={formState.phoneNumber}
+            bvnVerified={bvnVerified}
           />
         );
       case 'documents_verification':
         return (
-          <DocumentsVerificationStep
-            selectedIdentityType={selectedIdentityType}
-            documentFrontImage={documentFrontImage}
-            documentBackImage={documentBackImage}
-            errors={errors}
-            onIdentityTypeChange={setSelectedIdentityType}
-            onDocumentFrontImageChange={(uri) => {
-              setDocumentFrontImage(uri);
-              setErrors(prev => ({ ...prev, documentFront: '' }));
+          <DocumentVerification
+            ref={documentVerificationRef}
+            onComplete={() => {
+              navigation.goToNextStep('documents_verification');
             }}
-            onDocumentBackImageChange={(uri) => {
-              setDocumentBackImage(uri);
-              setErrors(prev => ({ ...prev, documentBack: '' }));
-            }}
-            onPickImage={async (setImageFunction, type) => {
-              await pickImage(setImageFunction as React.Dispatch<React.SetStateAction<string | null>>, type);
-            }}
-            onTakePicture={takePicture}
+            onError={(msg) => showToast(msg, 'error')}
+            initialDocumentType={selectedIdentityType}
+            initialFrontImage={formState.documentFrontImage}
+            initialBackImage={formState.documentBackImage}
           />
         );
       case 'address_details':
-        return (
+    return (
           <AddressDetailsStep
-            addressNo={addressNo}
-            address={address}
-            lga={lga}
-            state={state}
-            houseUrl={houseUrl}
-            utilityBill={utilityBill}
+            addressNo={formState.addressNo}
+            address={formState.address}
+            lga={formState.lga}
+            state={formState.state}
+            houseUrl={formState.houseUrl}
+            utilityBill={formState.utilityBill}
             errors={errors}
             onAddressNoChange={(text) => {
-              setAddressNo(text);
-              setErrors(prev => ({ ...prev, addressNo: '' }));
-            }}
+              formState.setAddressNo(text);
+                setErrors(prev => ({ ...prev, addressNo: '' }));
+              }}
             onAddressChange={(text) => {
-              setAddress(text);
-              setErrors(prev => ({ ...prev, address: '' }));
-            }}
+              formState.setAddress(text);
+                setErrors(prev => ({ ...prev, address: '' }));
+              }}
             onLgaChange={(text) => {
-              setLga(text);
-              setErrors(prev => ({ ...prev, lga: '' }));
-            }}
+              formState.setLga(text);
+                setErrors(prev => ({ ...prev, lga: '' }));
+              }}
             onStateChange={(text) => {
-              setState(text);
-              setErrors(prev => ({ ...prev, state: '' }));
-            }}
-            onHouseUrlChange={(uri) => {
-              setHouseUrl(uri);
-              setErrors(prev => ({ ...prev, houseUrl: '' }));
-            }}
-            onUtilityBillChange={(uri) => {
-              setUtilityBill(uri);
-              setErrors(prev => ({ ...prev, utilityBill: '' }));
-            }}
+              formState.setState(text);
+                setErrors(prev => ({ ...prev, state: '' }));
+              }}
+            onHouseUrlChange={formState.setHouseUrl}
+            onUtilityBillChange={formState.setUtilityBill}
             onLocationSearchOpen={() => setShowLocationSearch(true)}
-            onPickImage={async (setImageFunction, type) => {
-              await pickImage(setImageFunction as React.Dispatch<React.SetStateAction<string | null>>, type);
-            }}
+            onPickImage={pickImage}
             onTakePicture={takePicture}
-            addressInputRef={addressInputRef}
+            addressInputRef={formState.addressInputRef}
           />
         );
       case 'review':
-        return (
+    return (
           <ReviewStep
-            firstName={firstName}
-            lastName={lastName}
-            middleName={middleName}
-            dateOfBirth={dateOfBirth}
-            phoneNumber={phoneNumber}
-            addressNo={addressNo}
-            address={address}
-            lga={lga}
-            state={state}
-            bvn={bvn}
+            firstName={formState.firstName}
+            lastName={formState.lastName}
+            middleName={formState.middleName}
+            dateOfBirth={datePicker.dateOfBirth}
+            phoneNumber={formState.phoneNumber}
+            addressNo={formState.addressNo}
+            address={formState.address}
+            lga={formState.lga}
+            state={formState.state}
+            bvn={formState.bvn}
             bvnVerified={bvnVerified}
             selectedIdentityType={selectedIdentityType}
-            nin={nin}
-            passportNumber={passportNumber}
+            nin={formState.nin}
+            passportNumber={formState.passportNumber}
             documentsVerified={documentsVerified}
-            houseUrl={houseUrl}
-            utilityBill={utilityBill}
+            houseUrl={formState.houseUrl}
+            utilityBill={formState.utilityBill}
           />
         );
     }
   };
 
-  // Date picker modal moved to DatePickerModal component
+  const renderDatePickerModal = () => {
+    const daysInMonth = datePicker.getDaysInMonth(datePicker.currentMonth);
+    const firstDayOffset = datePicker.getFirstDayOfMonth(datePicker.currentMonth);
+
+    return (
+      <Modal
+        visible={datePicker.isDatePickerVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={datePicker.handleDatePickerClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.datePickerModal}>
+            <View style={styles.datePickerHeader}>
+              <Text style={styles.datePickerTitle}>Select Date of Birth</Text>
+              <Pressable onPress={datePicker.handleDatePickerClose} style={styles.datePickerCloseButton}>
+                <X size={20} color={colors.text} />
+              </Pressable>
+            </View>
+
+            <View style={styles.calendarHeader}>
+              {!datePicker.showYearPicker ? (
+                <>
+                  <Pressable onPress={datePicker.handlePrevMonth} style={styles.navigationButton}>
+                    <ChevronLeft size={20} color={colors.textSecondary} />
+                  </Pressable>
+                  <View style={styles.monthYearContainer}>
+                    <Pressable 
+                      onPress={() => datePicker.setShowYearPicker(true)}
+                      style={styles.monthYearPressable}
+                    >
+                      <Text style={styles.monthYearText}>
+                        {datePicker.MONTHS[datePicker.currentMonth.getMonth()]} {datePicker.currentMonth.getFullYear()}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Pressable onPress={datePicker.handleNextMonth} style={styles.navigationButton}>
+                    <ChevronRight size={20} color={colors.textSecondary} />
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Pressable onPress={datePicker.handlePrevYear} style={styles.navigationButton}>
+                    <ChevronLeft size={20} color={colors.textSecondary} />
+                  </Pressable>
+                  <View style={styles.monthYearContainer}>
+                    <Pressable 
+                      onPress={() => datePicker.setShowYearPicker(false)}
+                      style={styles.monthYearPressable}
+                    >
+                      <Text style={styles.monthYearText}>
+                        {datePicker.currentMonth.getFullYear()}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Pressable onPress={datePicker.handleNextYear} style={styles.navigationButton}>
+                    <ChevronRight size={20} color={colors.textSecondary} />
+                  </Pressable>
+                </>
+              )}
+            </View>
+
+            {datePicker.showYearPicker ? (
+              <ScrollView style={styles.yearPickerContainer} contentContainerStyle={styles.yearPickerContent}>
+                <View style={styles.yearPickerGrid}>
+                  {datePicker.getAvailableYears().map((year) => {
+                    const isSelected = year === datePicker.currentMonth.getFullYear();
+                    const isCurrentYear = year === new Date().getFullYear();
+                    return (
+                      <Pressable
+                        key={year}
+                        style={[
+                          styles.yearItem,
+                          isSelected && styles.yearItemSelected,
+                        ]}
+                        onPress={() => datePicker.handleYearSelect(year)}
+                      >
+                        <Text style={[
+                          styles.yearItemText,
+                          isSelected && styles.yearItemTextSelected,
+                          isCurrentYear && !isSelected && styles.yearItemTextCurrent,
+                        ]}>
+                          {year}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            ) : (
+              <>
+                <View style={styles.calendarContainer}>
+                  <View style={styles.weekDays}>
+                    {datePicker.DAYS.map(day => (
+                      <View key={day} style={styles.weekDay}>
+                        <Text style={styles.weekDayText}>{day}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <View style={styles.daysGridContainer}>
+                    {(() => {
+                      const totalCells = firstDayOffset + daysInMonth;
+                      const totalRows = Math.ceil(totalCells / 7);
+                      const weeks = [];
+                      
+                      // Build array of all cells (null for empty, number for day)
+                      const allCells = [];
+                      for (let i = 0; i < firstDayOffset; i++) {
+                        allCells.push(null);
+                      }
+                      for (let day = 1; day <= daysInMonth; day++) {
+                        allCells.push(day);
+                      }
+                      const remainingCells = totalRows * 7 - allCells.length;
+                      for (let i = 0; i < remainingCells; i++) {
+                        allCells.push(null);
+                      }
+                      
+                      // Split into weeks (rows of 7)
+                      for (let row = 0; row < totalRows; row++) {
+                        const week = allCells.slice(row * 7, (row + 1) * 7);
+                        weeks.push(week);
+                      }
+                      
+                      return weeks.map((week, weekIndex) => (
+                        <View key={`week-${weekIndex}`} style={styles.weekRow}>
+                          {week.map((day, dayIndex) => {
+                            if (day === null) {
+                              return <View key={`empty-${weekIndex}-${dayIndex}`} style={styles.dayCell} />;
+                            }
+                            
+                            const date = new Date(datePicker.currentMonth.getFullYear(), datePicker.currentMonth.getMonth(), day);
+                            const isSelectable = datePicker.isDateSelectable(date);
+                            const isSelected = datePicker.selectedDate && 
+                              date.getDate() === datePicker.selectedDate.getDate() &&
+                              date.getMonth() === datePicker.selectedDate.getMonth() &&
+                              date.getFullYear() === datePicker.selectedDate.getFullYear();
+
+                            return (
+                              <Pressable
+                                key={`day-${weekIndex}-${dayIndex}-${day}`}
+                                style={[
+                                  styles.dayCell,
+                                  isSelected && styles.selectedDay,
+                                  !isSelectable && styles.disabledDay,
+                                ]}
+                                onPress={() => isSelectable && datePicker.handleDateSelect(date)}
+                                disabled={!isSelectable}
+                              >
+                                <Text style={[
+                                  styles.dayText,
+                                  isSelected && styles.selectedDayText,
+                                  !isSelectable && styles.disabledDayText,
+                                ]}>
+                                  {day}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      ));
+                    })()}
+                  </View>
+                </View>
+              </>
+            )}
+
+            <View style={styles.datePickerActions}>
+              <Pressable 
+                style={[styles.datePickerButton, styles.cancelButton]}
+                onPress={datePicker.handleDatePickerClose}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.datePickerButton, styles.confirmButton]}
+                onPress={datePicker.handleDateConfirm}
+                disabled={!datePicker.selectedDate}
+              >
+                <Text style={styles.confirmButtonText}>Confirm</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
   
   // Calculate responsive sizes
   const headerPadding = isSmallScreen ? 12 : 16;
@@ -3001,14 +1725,14 @@ export default function KYCUpgradeScreen() {
       height: 55,
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 100,
+      borderRadius: 24,
     },
     confirmButton: {
       backgroundColor: colors.primary,
       height: 55,
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 100,
+      borderRadius: 24,
     },
     cancelButtonText: {
       fontSize: 14,
@@ -3086,112 +1810,17 @@ export default function KYCUpgradeScreen() {
       color: colors.textSecondary,
       fontWeight: '500',
     },
-    // Permission modal styles
-    permissionModal: {
-      width: '90%',
-      maxWidth: 400,
-      borderRadius: 16,
-      padding: 24,
-      alignSelf: 'center',
-    },
-    permissionModalHeader: {
-      alignItems: 'center',
-      marginBottom: 24,
-    },
-    permissionIconContainer: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    permissionDeniedIconContainer: {
-      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2',
-    },
-    permissionModalTitle: {
-      fontSize: isSmallScreen ? 20 : 24,
-      fontWeight: '600',
-      textAlign: 'center',
-    },
-    permissionModalContent: {
-      marginBottom: 24,
-    },
-    permissionModalText: {
-      fontSize: isSmallScreen ? 14 : 16,
-      lineHeight: isSmallScreen ? 20 : 24,
-      textAlign: 'center',
-      marginBottom: 20,
-    },
-    permissionModalSubtext: {
-      fontSize: isSmallScreen ? 13 : 14,
-      lineHeight: isSmallScreen ? 18 : 20,
-      textAlign: 'center',
-      marginTop: 16,
-    },
-    permissionInfoList: {
-      gap: 12,
-      marginTop: 8,
-    },
-    permissionInfoItem: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 12,
-    },
-    permissionInfoText: {
-      flex: 1,
-      fontSize: isSmallScreen ? 13 : 14,
-      lineHeight: isSmallScreen ? 18 : 20,
-    },
-    permissionWarningBox: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 12,
-      padding: 16,
-      borderRadius: 12,
-      borderWidth: 1,
-      marginTop: 16,
-    },
-    permissionWarningText: {
-      flex: 1,
-      fontSize: isSmallScreen ? 13 : 14,
-      lineHeight: isSmallScreen ? 18 : 20,
-      fontWeight: '500',
-    },
-    permissionModalActions: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-    permissionModalButton: {
-      flex: 1,
-      paddingVertical: 14,
-      paddingHorizontal: 24,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    permissionModalButtonPrimary: {
-      // backgroundColor set inline
-    },
-    permissionModalButtonSecondary: {
-      borderWidth: 1,
-      backgroundColor: 'transparent',
-    },
-    permissionModalButtonText: {
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    permissionModalButtonTextPrimary: {
-      color: '#FFFFFF',
-    },
   });
   
-  if ((formDataLoading || progressLoading) && !currentStep) {
+  if ((formDataLoading || progressLoading || processingExternalLiveness) && !navigation.currentStep) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={24} color={colors.text} />
+          <Pressable onPress={() => {
+            // Navigate to tabs and refresh the page
+            router.replace('/(tabs)');
+          }} style={styles.backButton}>
+            <ChevronLeft size={24} color={colors.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Account Verification</Text>
         </View>
@@ -3214,7 +1843,10 @@ export default function KYCUpgradeScreen() {
           <Text style={styles.headerTitle}>Account Verification</Text>
         </View>
         
-        <Pressable onPress={() => router.back()} style={styles.closeButton}>
+        <Pressable onPress={() => {
+          // Navigate to tabs and refresh the page
+          router.replace('/(tabs)');
+        }} style={styles.closeButton}>
           <X size={isSmallScreen ? 20 : 24} color={colors.text} />
         </Pressable>
       </View>
@@ -3224,38 +1856,22 @@ export default function KYCUpgradeScreen() {
         {renderCurrentStep()}
       </KeyboardAvoidingWrapper>
       
-      {!(currentStep === 'review' && progress?.overall_completed) && (
+      {!(navigation.currentStep === 'review' && progress?.overall_completed) && (
         <FloatingButton 
-          title={currentStep === 'review' ? "Submit Verification" : "Continue"}
+          title={navigation.currentStep === 'review' ? "Submit Verification" : "Continue"}
           onPress={handleNextStep}
           disabled={
             isLoading || 
             formDataLoading ||
-            (progressLoading && currentStep !== 'liveness_verification') || // Allow liveness step even if progress is loading
-            isResolvingBvn || 
-            isVerifyingDocuments || 
-            (currentStep === 'bvn_verification' && bvnVerified) ||
-            (currentStep === 'id_face_match' && documentsVerified)
+            progressLoading ||
+            (navigation.currentStep === 'bvn_verification' && bvnVerified) ||
+            (navigation.currentStep === 'id_face_match' && documentsVerified)
           }
-          loading={isLoading || formDataLoading || (progressLoading && currentStep !== 'liveness_verification') || isResolvingBvn || isVerifyingDocuments}
+          loading={isLoading || formDataLoading || progressLoading}
         />
       )}
       
-      <DatePickerModal
-        visible={isDatePickerVisible}
-        selectedDate={selectedDate}
-        currentMonth={currentMonth}
-        showYearPicker={showYearPicker}
-        onClose={handleDatePickerClose}
-        onDateSelect={handleDateSelect}
-        onDateConfirm={handleDateConfirm}
-        onPrevMonth={handlePrevMonth}
-        onNextMonth={handleNextMonth}
-        onPrevYear={handlePrevYear}
-        onNextYear={handleNextYear}
-        onYearSelect={handleYearSelect}
-        onShowYearPicker={setShowYearPicker}
-      />
+      {renderDatePickerModal()}
       
       <LocationSearchModal
         visible={showLocationSearch}
@@ -3264,22 +1880,39 @@ export default function KYCUpgradeScreen() {
         placeholder="Search for your address..."
       />
       
-      <LivenessTestEnhanced 
-        isVisible={showLivenessTest}
-        onClose={handleLivenessClose}
-        onComplete={handleLivenessComplete}
+      
+      {/* KYCVerificationModal is no longer needed - liveness is auto-triggered on BVN step */}
+      
+      <Tier1CompletionModal
+        isVisible={showTier1CompletionModal}
+        onClose={() => setShowTier1CompletionModal(false)}
+        onGoToDashboard={handleTier1GoToDashboard}
+        onUpgradeToTier2={handleTier1UpgradeToTier2}
+      />
+      
+      <Tier2CompletionModal
+        isVisible={showTier2CompletionModal}
+        onClose={() => setShowTier2CompletionModal(false)}
+        onGoToDashboard={handleTier2GoToDashboard}
+        onUpgradeToTier3={handleTier2UpgradeToTier3}
+      />
+      
+      <Tier3CompletionModal
+        isVisible={showTier3CompletionModal}
+        onClose={() => setShowTier3CompletionModal(false)}
+        onGoToDashboard={handleTier3GoToDashboard}
       />
       
       <CameraPermissionModal
-        isVisible={showCameraPermissionModal}
-        onClose={() => {
-          setShowCameraPermissionModal(false);
-          router.back();
-        }}
-        onComplete={(selfieUrl: string) => {
-          // Handle liveness completion if needed
-          handleLivenessComplete(selfieUrl);
-        }}
+        isVisible={liveness.showCameraPermissionModal}
+        onClose={liveness.handleCameraPermissionClose}
+        onComplete={liveness.handleCameraPermissionComplete}
+      />
+      
+      <LivenessTestEnhanced 
+        isVisible={liveness.showLivenessTest}
+        onClose={liveness.handleLivenessClose}
+        onComplete={handleLivenessCompleteWrapper}
       />
     </SafeAreaView>
   );

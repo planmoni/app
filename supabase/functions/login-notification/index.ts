@@ -19,19 +19,22 @@ Deno.serve(async (req: Request) => {
     const { userId, loginInfo } = await req.json();
 
     if (!userId) {
-      return new Response(
-        JSON.stringify({ error: "User ID is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "User ID is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    
+
     if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(
         JSON.stringify({ error: "Server configuration error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -42,11 +45,14 @@ Deno.serve(async (req: Request) => {
       .select("first_name, email, email_notifications")
       .eq("id", userId)
       .single();
-    
+
     if (profileError) {
       return new Response(
         JSON.stringify({ error: "Failed to retrieve user profile" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -54,14 +60,15 @@ Deno.serve(async (req: Request) => {
       login_alerts: true,
       payout_alerts: true,
       expiry_reminders: true,
-      wallet_summary: "weekly"
+      wallet_summary: "weekly",
     };
 
     if (!emailNotifications.login_alerts) {
       return new Response(
         JSON.stringify({
           success: true,
-          message: "Login notification skipped - user has disabled login alerts"
+          message:
+            "Login notification skipped - user has disabled login alerts",
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -72,7 +79,10 @@ Deno.serve(async (req: Request) => {
     if (userError || !userData?.user) {
       return new Response(
         JSON.stringify({ error: "Failed to retrieve user data" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -90,15 +100,18 @@ Deno.serve(async (req: Request) => {
       console.error("Resend API key not configured");
       return new Response(
         JSON.stringify({ error: "Email service not properly configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         from: "Planmoni <security@planmoni.com>",
@@ -109,21 +122,24 @@ Deno.serve(async (req: Request) => {
           device,
           location,
           time,
-          ip
-        })
-      })
+          ip,
+        }),
+      }),
     });
 
     const emailData = await emailResponse.json();
-    
+
     if (!emailResponse.ok) {
       console.error("Error sending email:", emailData);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: "Failed to send login notification email",
-          details: emailData
+          details: emailData,
         }),
-        { status: emailResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: emailResponse.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
     
@@ -131,7 +147,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         success: true,
         message: "Login notification email sent successfully",
-        data: emailData
+        data: emailData,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

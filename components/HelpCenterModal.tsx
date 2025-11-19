@@ -1,9 +1,8 @@
-import { Alert, Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions, Animated } from 'react-native';
-import { X, Search, CircleHelp as HelpCircle, MessageSquare, FileText, ExternalLink } from 'lucide-react-native';
-import { useState, useRef, useEffect } from 'react';
+import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions, Animated } from 'react-native';
+import { X, Search, MessageSquare, ExternalLink } from 'lucide-react-native';
+import { useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { PanGestureHandler } from 'react-native-gesture-handler';
-import { useIntercomOptimized } from '@/hooks/useIntercomOptimized';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import { useIntercom } from '@/hooks/useIntercom';
 
@@ -19,13 +18,9 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
   const { width, height } = useWindowDimensions();
   const { openChat, isLoading } = useIntercom();
   const translateY = useRef(new Animated.Value(0)).current;
-  const [dragging, setDragging] = useState(false);
   
   // Determine if we're on a small screen
   const isSmallScreen = width < 380 || height < 700;
-  
-  // State for search
-  const [searchQuery, setSearchQuery] = useState('');
   
   const styles = createStyles(colors, isDark, isSmallScreen);
   
@@ -59,7 +54,6 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
   );
 
   const handleGestureEnd = (event: any) => {
-    setDragging(false);
     if (event.nativeEvent.translationY > DRAG_DISMISS_THRESHOLD) {
       Animated.timing(translateY, {
         toValue: height,
@@ -81,7 +75,7 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
     if (isVisible) {
       translateY.setValue(0);
     }
-  }, [isVisible]);
+  }, [isVisible, translateY]);
 
   return (
     <Modal
@@ -95,7 +89,6 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
         <Pressable style={styles.backdrop} onPress={onClose} />
         <PanGestureHandler
           onGestureEvent={handleGestureEvent}
-          onBegan={() => setDragging(true)}
           onEnded={handleGestureEnd}
         >
           <Animated.View style={[styles.modalView, { transform: [{ translateY }] }]}> 
@@ -304,7 +297,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   closeButton2: {
     backgroundColor: colors.primary,
     padding: isSmallScreen ? 12 : 16,
-    borderRadius: 100,
+    borderRadius: 20,
     alignItems: 'center',
     height: 55,
   },

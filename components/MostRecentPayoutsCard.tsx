@@ -262,7 +262,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
                   styles.amount,
                   { 
                     color: currentTransaction.type === 'deposit' 
-                      ? '#22C55E' // Green for deposits
+                      ? colors.text // Green for deposits
                       : currentTransaction.type === 'withdrawal'
                       ? '#F97316' // Orange for withdrawals  
                       : colors.text // Default for payouts

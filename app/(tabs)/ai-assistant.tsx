@@ -1919,7 +1919,7 @@ export default function AIAssistantScreen() {
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.primary,
-      borderRadius: 100,
+      borderRadius: 20,
       paddingVertical: Platform.OS === 'ios' ? 10 : 8,
       paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
       gap: 8,

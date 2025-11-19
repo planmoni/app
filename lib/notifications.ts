@@ -51,6 +51,36 @@ export async function requestNotificationPermissions() {
   return true;
 }
 
+// Get FCM push token (optional - only needed for remote push notifications)
+// Local notifications work perfectly without this
+export async function getPushTokenAsync(): Promise<string | null> {
+  try {
+    // First ensure we have permissions
+    const hasPermission = await requestNotificationPermissions();
+    if (!hasPermission) {
+      console.warn('⚠️ Cannot get push token: permissions not granted');
+      return null;
+    }
+
+    // Try to get push token (requires FCM to be configured)
+    const tokenData = await Notifications.getDevicePushTokenAsync();
+    const token = tokenData.data;
+    console.log('✅ Push token obtained successfully:', token?.substring(0, 20) + '...');
+    return token;
+  } catch (error: any) {
+    // If Firebase isn't initialized, that's okay - local notifications still work
+    if (error?.message?.includes('FirebaseApp') || error?.message?.includes('FCM')) {
+      console.log('ℹ️ FCM not configured. Local notifications will still work.');
+      console.log('To enable remote push notifications, configure FCM: https://docs.expo.dev/push-notifications/fcm-credentials/');
+      return null;
+    }
+    // Log other errors
+    console.error("❌ Error getting push token:", error);
+    // Don't re-throw - return null so local notifications can still work
+    return null;
+  }
+}
+
 // Register for push notifications and get Expo push token
 // Following the admin push notifications integration guide
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
@@ -145,6 +175,33 @@ export async function savePushTokenToDatabase(expoPushToken: string, userId: str
       console.log('Push token saved to database');
     }
 
+    // Also store/update the token in user_fcm_tokens so server-side push function can find it
+    const platform =
+      Platform.OS === 'ios'
+        ? 'ios'
+        : Platform.OS === 'android'
+        ? 'android'
+        : 'web';
+
+    const { error: fcmError } = await supabase
+      .from('user_fcm_tokens')
+      .upsert(
+        {
+          user_id: userId,
+          fcm_token: expoPushToken,
+          platform,
+        },
+        {
+          onConflict: 'user_id,platform',
+        }
+      );
+
+    if (fcmError) {
+      console.error('Error saving token to user_fcm_tokens:', fcmError);
+    } else {
+      console.log('Push token synced to user_fcm_tokens');
+    }
+
     return true;
   } catch (error) {
     console.error('Error saving push token:', error);
@@ -191,6 +248,19 @@ export function setupNotificationListeners() {
     foregroundSubscription.remove();
     responseSubscription.remove();
   };
+}
+
+/**
+ * Check if notifications are enabled
+ */
+export async function areNotificationsEnabled(): Promise<boolean> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === 'granted';
+  } catch (error) {
+    console.error("❌ Error checking notification permissions:", error);
+    return false;
+  }
 }
 
 // Register push token for admin panel and Intercom

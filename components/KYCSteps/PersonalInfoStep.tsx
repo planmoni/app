@@ -27,6 +27,8 @@ interface PersonalInfoStepProps extends Partial<KYCStepProps> {
   middleNameInputRef?: React.RefObject<TextInput | null>;
   phoneInputRef?: React.RefObject<TextInput | null>;
   addressInputRef?: React.RefObject<TextInput | null>;
+  isNinVerified?: boolean;
+  hasKYCNameData?: boolean;
 }
 
 export default function PersonalInfoStep({
@@ -51,6 +53,8 @@ export default function PersonalInfoStep({
   middleNameInputRef,
   phoneInputRef,
   addressInputRef,
+  isNinVerified = false,
+  hasKYCNameData = false,
 }: PersonalInfoStepProps) {
   const { colors } = useTheme();
   const styles = useKYCStyles();
@@ -64,7 +68,7 @@ export default function PersonalInfoStep({
       
       <View style={styles.inputGroup}>
         <Text style={styles.label}>First Name</Text>
-        <View style={[styles.inputContainer, errors.firstName && styles.inputError]}>
+        <View style={[styles.inputContainer, errors.firstName && styles.inputError, (isNinVerified || hasKYCNameData) && { opacity: 0.6 }]}>
           <TextInput
             style={styles.input}
             placeholder="Enter your first name"
@@ -76,14 +80,14 @@ export default function PersonalInfoStep({
             autoCapitalize="words"
             returnKeyType="next"
             onSubmitEditing={() => lastNameInputRef?.current?.focus()}
+            editable={!isNinVerified && !hasKYCNameData}
           />
         </View>
-        {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
       </View>
       
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Last Name</Text>
-        <View style={[styles.inputContainer, errors.lastName && styles.inputError]}>
+        <View style={[styles.inputContainer, errors.lastName && styles.inputError, (isNinVerified || hasKYCNameData) && { opacity: 0.6 }]}>
           <TextInput
             ref={lastNameInputRef}
             style={styles.input}
@@ -96,6 +100,7 @@ export default function PersonalInfoStep({
             autoCapitalize="words"
             returnKeyType="next"
             onSubmitEditing={() => middleNameInputRef?.current?.focus()}
+            editable={!isNinVerified && !hasKYCNameData}
           />
         </View>
         {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
@@ -103,7 +108,7 @@ export default function PersonalInfoStep({
       
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Middle Name (Optional)</Text>
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, isNinVerified && { opacity: 0.6 }]}>
           <TextInput
             ref={middleNameInputRef}
             style={styles.input}
@@ -114,6 +119,7 @@ export default function PersonalInfoStep({
             autoCapitalize="words"
             returnKeyType="next"
             onSubmitEditing={() => phoneInputRef?.current?.focus()}
+            editable={!isNinVerified}
           />
         </View>
       </View>
@@ -193,6 +199,7 @@ export default function PersonalInfoStep({
             numberOfLines={3}
             textAlignVertical="top"
             editable={false}
+            onPress={onLocationSearchOpen}
           />
           <ChevronRight size={20} color={colors.textTertiary} />
         </Pressable>

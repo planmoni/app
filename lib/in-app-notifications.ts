@@ -177,8 +177,22 @@ class InAppNotificationService {
       }
 
       if (scheduleLocal) {
-        const prefs = await this.getNotificationPreferences(userId);
-        if (prefs?.local_notifications_enabled && this.shouldShowNotification(type, prefs)) {
+        try {
+          const prefs = await this.getNotificationPreferences(userId);
+          // Default to showing notifications if preferences can't be fetched
+          const shouldShow = prefs 
+            ? (prefs.local_notifications_enabled && this.shouldShowNotification(type, prefs))
+            : true; // Default to true if preferences unavailable
+          
+          if (shouldShow) {
+            await this.scheduleLocalNotification(title, message, { ...data, notificationId: notificationData.id, type });
+            console.log('✅ Local notification scheduled:', title);
+          } else {
+            console.log('⚠️ Local notification skipped due to preferences:', type);
+          }
+        } catch (error) {
+          console.error('Error checking notification preferences, defaulting to show:', error);
+          // Default to showing notification if there's an error
           await this.scheduleLocalNotification(title, message, { ...data, notificationId: notificationData.id, type });
         }
       }
@@ -312,20 +326,50 @@ class InAppNotificationService {
   async getNotificationPreferences(userId: string): Promise<NotificationPreferences | null> {
     try {
       const { data, error } = await supabase
-        .from('notification_preferences')
-        .select('*')
-        .eq('user_id', userId)
+        .from('profiles')
+        .select('notification_preferences, push_notifications')
+        .eq('id', userId)
         .single();
 
       if (error) {
         console.error('Error fetching preferences:', error);
-        return null;
+        // Return default preferences if error
+        return {
+          transaction_alerts: true,
+          payout_alerts: true,
+          security_alerts: true,
+          marketing_alerts: false,
+          system_alerts: true,
+          local_notifications_enabled: true,
+          notification_sound: true,
+        };
       }
 
-      return data;
+      // Try notification_preferences first, then push_notifications as fallback
+      const prefs = data?.notification_preferences || data?.push_notifications || {};
+      
+      // Map from database format to interface format
+      return {
+        transaction_alerts: prefs.deposits ?? prefs.deposit_alerts ?? true,
+        payout_alerts: prefs.payouts ?? prefs.payout_alerts ?? true,
+        security_alerts: prefs.security ?? prefs.security_alerts ?? true,
+        marketing_alerts: prefs.general ?? prefs.marketing_alerts ?? false,
+        system_alerts: prefs.general ?? prefs.system_alerts ?? true,
+        local_notifications_enabled: prefs.local_notifications_enabled ?? prefs.enabled !== false ?? true,
+        notification_sound: prefs.notification_sound ?? true,
+      };
     } catch (error) {
       console.error('Error in getNotificationPreferences:', error);
-      return null;
+      // Return default preferences on error
+      return {
+        transaction_alerts: true,
+        payout_alerts: true,
+        security_alerts: true,
+        marketing_alerts: false,
+        system_alerts: true,
+        local_notifications_enabled: true,
+        notification_sound: true,
+      };
     }
   }
 
@@ -334,13 +378,28 @@ class InAppNotificationService {
     preferences: Partial<NotificationPreferences>
   ): Promise<boolean> {
     try {
+      // Map from interface format to database format
+      const dbPreferences: any = {};
+      if (preferences.transaction_alerts !== undefined) {
+        dbPreferences.deposits = preferences.transaction_alerts;
+      }
+      if (preferences.payout_alerts !== undefined) {
+        dbPreferences.payouts = preferences.payout_alerts;
+      }
+      if (preferences.security_alerts !== undefined) {
+        dbPreferences.security = preferences.security_alerts;
+      }
+      if (preferences.marketing_alerts !== undefined || preferences.system_alerts !== undefined) {
+        dbPreferences.general = preferences.marketing_alerts ?? preferences.system_alerts ?? false;
+      }
+
       const { error } = await supabase
-        .from('notification_preferences')
-        .upsert({
-          user_id: userId,
-          ...preferences,
+        .from('profiles')
+        .update({
+          notification_preferences: dbPreferences,
           updated_at: new Date().toISOString(),
-        });
+        })
+        .eq('id', userId);
 
       if (error) {
         console.error('Error updating preferences:', error);

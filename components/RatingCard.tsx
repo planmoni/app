@@ -9,6 +9,10 @@ export default function RatingCard() {
 
   const styles = createStyles(colors, isDark);
 
+  // Store URLs
+  const iOSStoreURL = 'https://apps.apple.com/app/id6753706776';
+  const androidStoreURL = 'https://play.google.com/store/apps/details?id=com.planmoni'; // Update with actual Play Store URL when available
+
   return (
     <Card style={styles.feedbackCard}>
       <View style={styles.feedbackContent}>
@@ -19,17 +23,32 @@ export default function RatingCard() {
             <Star key={i} size={28} color={colors.text} fill={colors.backgroundTertiary} style={styles.starIcon} />
           ))}
         </View>
-        <Pressable
-          style={styles.feedbackButton}
-          onPress={() => {
-            // Replace with your app's store URL
-            Linking.openURL('https://get.planmoni.com');
-          }}
-        >
-          <Text style={styles.feedbackButtonText}>
-            {Platform.OS === 'ios' ? 'Rate it on App Store' : 'Rate it on Play Store'}
-          </Text>
-        </Pressable>
+        <View style={styles.buttonsRow}>
+          <Pressable
+            style={[styles.feedbackButton, Platform.OS === 'ios' && styles.feedbackButtonActive]}
+            onPress={() => {
+              Linking.openURL(iOSStoreURL).catch((err) => {
+                console.error('Failed to open iOS store URL:', err);
+              });
+            }}
+          >
+            <Text style={[styles.feedbackButtonText, Platform.OS === 'ios' && styles.feedbackButtonTextActive]}>
+              Rate on App Store
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.feedbackButton, Platform.OS === 'android' && styles.feedbackButtonActive]}
+            onPress={() => {
+              Linking.openURL(androidStoreURL).catch((err) => {
+                console.error('Failed to open Android store URL:', err);
+              });
+            }}
+          >
+            <Text style={[styles.feedbackButtonText, Platform.OS === 'android' && styles.feedbackButtonTextActive]}>
+              Rate on Play Store
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </Card>
   );
@@ -67,19 +86,36 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 10,
   },
+  buttonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    marginTop: 8,
+  },
   feedbackButton: {
+    flex: 1,
     backgroundColor: colors.backgroundTertiary,
-    paddingHorizontal: Platform.OS === 'ios' ? 24 : 16,
+    paddingHorizontal: Platform.OS === 'ios' ? 16 : 12,
     paddingVertical: Platform.OS === 'ios' ? 10 : 8,
-    borderRadius: 100,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 55,
+    minHeight: 50,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  feedbackButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   feedbackButtonText: {
     color: colors.text,
     fontWeight: '600',
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: Platform.OS === 'ios' ? 13 : 11,
+    textAlign: 'center',
+  },
+  feedbackButtonTextActive: {
+    color: '#FFFFFF',
   },
   starsRow: {
     flexDirection: 'row',

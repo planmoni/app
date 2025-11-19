@@ -226,6 +226,9 @@ class AccountCreationHandler {
    */
   async verifyProfileCreation(userId) {
     try {
+      // Wait a bit for the trigger to complete
+      await this.delay(1000);
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('id, first_name, last_name, email')
@@ -233,10 +236,85 @@ class AccountCreationHandler {
         .single();
 
       if (error) {
-        return { success: false, error: error.message };
+        // If profile doesn't exist, try to create it manually
+        if (error.code === 'PGRST116') {
+          console.warn('Profile not found after signup, attempting to create manually...');
+          const createResult = await this.createProfileManually(userId);
+          if (!createResult.success) {
+            return { success: false, error: 'Database error saving new user: Profile creation failed' };
+          }
+          return { success: true, profile: createResult.profile };
+        }
+        return { success: false, error: `Database error saving new user: ${error.message}` };
       }
 
       return { success: true, profile: data };
+    } catch (error) {
+      return { success: false, error: `Database error saving new user: ${error.message}` };
+    }
+  }
+
+  /**
+   * Manually create profile if trigger failed
+   */
+  async createProfileManually(userId) {
+    try {
+      // Get user data from auth
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        return { success: false, error: 'Could not retrieve user data' };
+      }
+
+      // Generate referral code in JavaScript
+      const generateReferralCode = (str) => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+          const char = str.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash; // Convert to 32bit integer
+        }
+        return Math.abs(hash).toString(36).toUpperCase().substring(0, 8).padStart(8, '0');
+      };
+
+      const referralCode = generateReferralCode(userId + user.email + Date.now());
+
+      // Create profile manually
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          email: user.email,
+          first_name: user.user_metadata?.first_name || '',
+          last_name: user.user_metadata?.last_name || '',
+          referral_code: referralCode,
+          email_verified: !!user.email_confirmed_at,
+          app_lock_enabled: false,
+          two_factor_enabled: false,
+          account_verified: false,
+          kyc_tier: 1,
+        })
+        .select()
+        .single();
+
+      if (profileError) {
+        return { success: false, error: profileError.message };
+      }
+
+      // Create wallet
+      const { error: walletError } = await supabase
+        .from('wallets')
+        .insert({
+          user_id: userId,
+          balance: 0,
+          locked_balance: 0,
+        });
+
+      if (walletError && walletError.code !== '23505') { // Ignore duplicate key errors
+        console.warn('Wallet creation failed:', walletError);
+      }
+
+      return { success: true, profile };
     } catch (error) {
       return { success: false, error: error.message };
     }

@@ -158,11 +158,11 @@ export default function InsightsScreen() {
                     <Text style={styles.metricTitle}>{metric.title}</Text>
                     <View style={[
                       styles.metricIcon,
-                      { backgroundColor: metric.positive ? '#DCFCE7' : '#FEE2E2' }
+                      { backgroundColor: metric.positive ? colors.accent : '#FEE2E2' }
                     ]}>
                       <IconComponent
                         size={20}
-                        color={metric.positive ? '#22C55E' : '#EF4444'}
+                        color={metric.positive ? colors.primary : '#EF4444'}
                       />
                     </View>
                   </View>
@@ -214,11 +214,11 @@ export default function InsightsScreen() {
                   </View>
                   <View style={[
                     styles.trendValue,
-                    { backgroundColor: trend.positive ? '#F0FDF4' : '#FEF2F2' }
+                    { backgroundColor: trend.positive ? colors.accent : '#FEF2F2' }
                   ]}>
                     <Text style={[
                       styles.trendValueText,
-                      { color: trend.positive ? '#22C55E' : '#EF4444' }
+                      { color: trend.positive ? colors.text : colors.error }
                     ]}>
                       {trend.value}
                     </Text>
@@ -508,7 +508,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
   },
   progressBar: {
-    height: Platform.OS === 'ios' ? 4 : 3,
+    height: 2,
     backgroundColor: colors.border,
     borderRadius: 2,
   },

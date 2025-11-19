@@ -335,7 +335,6 @@ export default function SettingsScreen() {
                 </View>
                 {!isLoading2FA && twoFactorEnabled && (
                   <View style={styles.twoFactorBadge}>
-                    <Shield size={12} color="#22C55E" />
                     <Text style={styles.twoFactorText}>2FA</Text>
                   </View>
                 )}
@@ -460,13 +459,14 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleViewLinkedAccounts}
             >
-              <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}>
+              <View style={[styles.settingIcon, { backgroundColor: '#F0F9FF' }]}> 
                 <Building2 size={20} color="#0EA5E9" />
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Linked Bank Accounts</Text>
                 <Text style={styles.settingDescription}>Manage accounts for deposits</Text>
               </View>
+             <View style={styles.comingSoonTag}><Text style={styles.comingSoonText}>Coming Soon</Text></View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
             
@@ -973,14 +973,14 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   verifiedBadge: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colors.primary,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,
   },
   verifiedText: {
     fontSize: Platform.OS === 'ios' ? 12 : 10,
-    color: '#22C55E',
+    color: colors.accent,
     fontWeight: '500',
   },
   twoFactorBadge: {
@@ -1097,7 +1097,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: '#FEF2F2',
     paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 100,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: '#FECACA',
     width: '100%',
@@ -1118,5 +1118,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textTertiary,
     marginLeft: 8,
+  },
+  disabledSettingItem: {
+    opacity: 0.5,
+  },
+  comingSoonTag: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginRight: 8,
+    alignSelf: 'center',
+  },
+  comingSoonText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
 });

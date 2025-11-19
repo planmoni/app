@@ -1,11 +1,18 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable, Dimensions, Image } from 'react-native';
 import { Building2, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useKYCData } from '@/hooks/useKYCData';
+import { useKYCProgress } from '@/hooks/useKYCProgress';
 import Button from '@/components/Button';
 import { router } from 'expo-router';
 import { getBankIconLogo } from '@/lib/bankIcons';
+import { safeHavenService } from '@/lib/safehaven-service';
+import SafeHavenOTPModal from '@/components/SafeHavenOTPModal';
+import { supabase } from '@/lib/supabase';
 
 interface ClaimAccountModalProps {
   isVisible: boolean;
@@ -28,21 +35,251 @@ export default function ClaimAccountModal({
 }: ClaimAccountModalProps) {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
+  const { showToast } = useToast();
+  const { session } = useAuth();
+  const { formData } = useKYCData();
+  const { checkTierCompletion, progress } = useKYCProgress();
   const styles = createStyles(colors, isDark);
+  
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [identityId, setIdentityId] = useState<string | null>(null);
+  const [nin, setNin] = useState<string>('');
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [isCheckingAccount, setIsCheckingAccount] = useState(false);
+  const [existingAccount, setExistingAccount] = useState<{ account_number: string; account_name?: string; status?: string } | null>(null);
+
+  // Get NIN and phone number from KYC data when modal opens
+  useEffect(() => {
+    if (isVisible && formData) {
+      setNin(formData.nin || '');
+      setPhoneNumber(formData.phone_number || session?.user?.user_metadata?.phone_number || '');
+    }
+  }, [isVisible, formData, session]);
+
+  // Check for existing account when modal opens, but only if Tier 1 is not complete
+  useEffect(() => {
+    if (isVisible && session?.user?.id) {
+      const tierCompletion = checkTierCompletion();
+      // If Tier 1 is complete, close the modal immediately
+      if (tierCompletion.tier1) {
+        onClose();
+        return;
+      }
+      checkExistingAccount();
+    }
+  }, [isVisible, session?.user?.id, checkTierCompletion, onClose]);
+
+  const checkExistingAccount = async () => {
+    if (!session?.user?.id) return;
+    
+    setIsCheckingAccount(true);
+    try {
+      // Check if account exists in database
+      const { data, error } = await supabase
+        .from('safehaven_accounts')
+        .select('id, account_number, account_name, status, is_deleted')
+        .eq('user_id', session.user.id)
+        .eq('is_deleted', false)
+        .not('account_number', 'ilike', 'PENDING_%')
+        .maybeSingle();
+
+      if (error) {
+        console.error('[ClaimAccountModal] Error checking existing account:', error);
+        setExistingAccount(null);
+        return;
+      }
+
+      // Store account data if it exists and is valid
+      if (data && data.account_number && !data.account_number.startsWith('PENDING_')) {
+        console.log('[ClaimAccountModal] Existing account found:', data.account_number.substring(0, 5) + '****');
+        setExistingAccount({
+          account_number: data.account_number,
+          account_name: data.account_name,
+          status: data.status
+        });
+        
+        showToast('Your account is already available!', 'success');
+        
+        // Close modal and navigate
+        setTimeout(() => {
+          onClose();
+          if (onClaim) {
+            onClaim();
+          } else {
+            router.push('/add-funds');
+          }
+        }, 500);
+      } else {
+        setExistingAccount(null);
+      }
+    } catch (error) {
+      console.error('[ClaimAccountModal] Error checking account:', error);
+      setExistingAccount(null);
+    } finally {
+      setIsCheckingAccount(false);
+    }
+  };
 
   const handleClose = () => {
+    if (isCreatingAccount) return; // Prevent closing while creating account
     haptics.lightImpact();
+    setShowOTPModal(false);
+    setIdentityId(null);
     onClose();
   };
 
-  const handleClaim = () => {
-    haptics.mediumImpact();
-    if (onClaim) {
-      onClaim();
-    } else {
-      router.push('/add-funds');
+  const initializeNINVerification = async () => {
+    if (!nin || !phoneNumber || !session?.user?.id) {
+      showToast('NIN and phone number are required to create account', 'error');
+      return;
     }
+
+    try {
+      setIsCreatingAccount(true);
+      // Call verifyNINAndCreateAccount without OTP to initialize and get identityId
+      const result = await safeHavenService.verifyNINAndCreateAccount(
+        session.user.id,
+        nin.trim(),
+        phoneNumber.trim(),
+        session.user.email || '',
+        undefined  // otp - not provided for initialization
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to initialize NIN verification');
+      }
+
+      const identityId = result.data?.identityId;
+      
+      if (!identityId) {
+        throw new Error('Identity ID not found in response');
+      }
+
+      setIdentityId(identityId);
+      setShowOTPModal(true);
+      showToast('OTP sent to phone number linked to your NIN', 'success');
+    } catch (error) {
+      console.error('Error initializing NIN verification:', error);
+      showToast(error instanceof Error ? error.message : 'Failed to initialize account creation', 'error');
+      setIsCreatingAccount(false);
+    }
+  };
+
+  const handleOTPVerify = async (otp: string) => {
+    if (!nin || !phoneNumber || !session?.user?.id || !identityId) {
+      showToast('Missing required information for account creation', 'error');
+      return;
+    }
+
+    try {
+      setIsCreatingAccount(true);
+      const result = await safeHavenService.verifyNINAndCreateAccount(
+        session.user.id,
+        nin.trim(),
+        phoneNumber.trim(),
+        session.user.email || '',
+        otp,
+        identityId
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Account creation failed');
+      }
+
+      // Check if verification was successful
+      // Account number might not be immediately available if account is created asynchronously
+      if (result.data?.verified || result.data?.status === 'PENDING') {
+        const accountNumber = result.data?.account_number;
+        const status = result.data?.status || 'PENDING';
+        const newIdentityId = result.data?.identityId || identityId;
+        
+        if (accountNumber) {
+          showToast('Account created successfully!', 'success');
+        } else if (status === 'PENDING') {
+          showToast('Account creation is in progress. Your account will be available shortly.', 'info');
+          
+          // Don't start polling immediately - let the realtime subscription handle updates
+          // Polling will be triggered by the realtime subscription if needed
+        } else {
+          showToast('Account creation initiated. Your account will be available shortly.', 'success');
+        }
+        
+        // Close OTP modal first
+        setShowOTPModal(false);
+        
+        // Wait a bit for modal to close before navigating
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        setIsCreatingAccount(false);
+        onClose();
+        
+        // Navigate to add-funds page after modal is fully closed
+        setTimeout(() => {
+          try {
+            if (onClaim) {
+              onClaim();
+            } else {
+              router.push('/add-funds');
+            }
+          } catch (error) {
+            console.error('Navigation error:', error);
+          }
+        }, 500);
+      } else {
+        throw new Error('Account verification failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating account:', error);
+      showToast(error instanceof Error ? error.message : 'Failed to create account', 'error');
+      setIsCreatingAccount(false);
+      // Don't close OTP modal on error - let user retry
+    }
+  };
+
+  const handleOTPResend = async () => {
+    await initializeNINVerification();
+  };
+
+  const handleClaim = async () => {
+    haptics.mediumImpact();
+    
+    // Check if Tier 1 is complete
+    const tierCompletion = checkTierCompletion();
+    
+    // If Tier 1 is not complete, navigate to KYC upgrade
+    if (!tierCompletion.tier1) {
+      onClose();
+      router.push('/kyc-upgrade');
+      return;
+    }
+    
+    // First check if account already exists
+    if (existingAccount?.account_number && !existingAccount.account_number.startsWith('PENDING_')) {
+      showToast('Your account is already available!', 'success');
+      onClose();
+      if (onClaim) {
+        onClaim();
+      } else {
+        router.push('/add-funds');
+      }
+      return;
+    }
+
+    // Check if we have required data
+    if (!nin || !phoneNumber) {
+      showToast('NIN and phone number are required. Please complete your KYC first.', 'error');
+      return;
+    }
+
+    // Start the account creation process only if no account exists
+    await initializeNINVerification();
+  };
+
+  const handleStartKYC = () => {
+    haptics.mediumImpact();
     onClose();
+    router.push('/kyc-upgrade');
   };
 
   return (
@@ -113,16 +350,76 @@ export default function ClaimAccountModal({
               </View>
             </View>
 
-            {/* Claim Button */}
+            {/* Check Tier 1 completion */}
+            {(() => {
+              const tierCompletion = checkTierCompletion();
+              const isTier1Complete = tierCompletion.tier1;
+              
+              // If Tier 1 is not complete, show KYC buttons
+              if (!isTier1Complete) {
+                return (
+                  <>
+                    <Button
+                      title="Complete Tier 1 Verification"
+                      onPress={handleStartKYC}
+                      hapticType="medium"
+                      variant="primary"
+                      disabled={false}
+                    />
+                    <Text style={styles.warningText}>
+                      You need to complete Tier 1 verification (Liveness, BVN, and NIN) to create your account.
+                    </Text>
+                  </>
+                );
+              }
+              
+              // If Tier 1 is complete, show normal claim button
+              return (
+                <>
             <Button
-              title="Claim bank account"
+              title={
+                isCheckingAccount 
+                  ? 'Checking account...' 
+                  : isCreatingAccount 
+                    ? 'Creating account...' 
+                    : existingAccount?.account_number && !existingAccount.account_number.startsWith('PENDING_')
+                      ? 'View Account'
+                      : 'Claim bank account'
+              }
               onPress={handleClaim}
               hapticType="medium"
               variant="primary"
+              disabled={
+                isCreatingAccount || 
+                isCheckingAccount || 
+                (!existingAccount?.account_number && (!nin || !phoneNumber))
+              }
+              isLoading={(isCreatingAccount && !showOTPModal) || isCheckingAccount}
             />
+            
+            {!existingAccount?.account_number && (!nin || !phoneNumber) && (
+              <Text style={styles.warningText}>
+                Please complete Tier 1 verification (NIN and phone number) to create your account.
+              </Text>
+            )}
+                </>
+              );
+            })()}
           </View>
         </Pressable>
       </Pressable>
+
+      {/* OTP Modal for account creation */}
+      <SafeHavenOTPModal
+        isVisible={showOTPModal}
+        onClose={() => {
+          setShowOTPModal(false);
+          setIsCreatingAccount(false);
+        }}
+        onVerify={handleOTPVerify}
+        phoneNumber={phoneNumber}
+        onResend={handleOTPResend}
+      />
     </Modal>
   );
 }
@@ -204,6 +501,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: '#1E3A8A',
     borderRadius: 12,
     paddingVertical: 16,
+  },
+  warningText: {
+    fontSize: 12,
+    color: isDark ? colors.textSecondary : '#F59E0B',
+    textAlign: 'center',
+    marginTop: 12,
+    paddingHorizontal: 16,
   },
 });
 
