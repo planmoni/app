@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import TransactionModal from '@/components/TransactionModal';
 import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
 import ClaimAccountModal from '@/components/ClaimAccountModal';
+import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
@@ -98,6 +99,7 @@ export default function HomeScreen() {
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
   const [hasShownTier1ClaimModal, setHasShownTier1ClaimModal] = useState(false);
+  const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
 
@@ -123,7 +125,7 @@ export default function HomeScreen() {
       // This prevents going back to welcome page (index route) or any previous screen
       const action = e.data.action;
       
-      // Block all back navigation types
+      // Only block back navigation types, not forward navigation
       if (action.type === 'GO_BACK' || action.type === 'POP') {
         e.preventDefault();
         return;
@@ -134,6 +136,16 @@ export default function HomeScreen() {
         const targetRoute = (action.payload as any)?.name;
         if (targetRoute === 'index') {
           e.preventDefault();
+          return;
+        }
+      }
+      
+      // Allow PUSH actions (forward navigation) to proceed
+      if (action.type === 'PUSH' || action.type === 'NAVIGATE') {
+        // Check if it's navigating away from tabs (forward navigation)
+        const targetRoute = (action.payload as any)?.name;
+        if (targetRoute && targetRoute !== 'index' && !targetRoute.includes('(tabs)')) {
+          // Allow forward navigation to proceed
           return;
         }
       }
@@ -170,23 +182,8 @@ export default function HomeScreen() {
     }
   }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
 
-  // Show ClaimAccountModal immediately after Tier 1 completion
-  useEffect(() => {
-    if (!session?.user?.id || kycProgressLoading) return;
-    
-    const tierCompletion = checkTierCompletion();
-    
-    // Show modal if Tier 1 is complete and we haven't shown it yet
-    if (tierCompletion.tier1 && !hasShownTier1ClaimModal && !showClaimAccountModal) {
-      // Add a small delay to ensure smooth user experience
-      const timer = setTimeout(() => {
-        setShowClaimAccountModal(true);
-        setHasShownTier1ClaimModal(true);
-      }, 1500);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [checkTierCompletion, kycProgressLoading, hasShownTier1ClaimModal, showClaimAccountModal, session?.user?.id]);
+  // Don't show ClaimAccountModal after Tier 1 completion - user can navigate directly to add funds
+  // Removed the useEffect that automatically shows ClaimAccountModal after Tier 1 completion
 
   
   // Log screen view for analytics
@@ -340,16 +337,62 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
+    // Check if user has completed Tier 1
+    const tierCompletion = checkTierCompletion();
+    
+    // Check if user has an account
+    let hasAccount = false;
+    if (session?.user?.id) {
+      try {
+        const { data } = await supabase
+          .from('safehaven_accounts')
+          .select('id, account_number')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .not('account_number', 'ilike', 'PENDING_%')
+          .maybeSingle();
+        
+        hasAccount = !!(data && data.account_number && !data.account_number.startsWith('PENDING_'));
+      } catch (error) {
+        console.error('Error checking account:', error);
+      }
+    }
+    
+    // If Tier 1 is complete, navigate directly to add funds page
+    if (tierCompletion.tier1) {
+      router.push('/add-funds');
+      logAnalyticsEvent('add_funds_click');
+      return;
+    }
+    
+    // If Tier 1 not complete or no account, show ClaimAccountModal
+    if (!hasAccount || !tierCompletion.tier1) {
+      setShowClaimAccountModal(true);
+      logAnalyticsEvent('add_funds_click_claim_modal');
+    } else {
     // Navigate directly to add funds page
     router.push('/add-funds');
     logAnalyticsEvent('add_funds_click');
+    }
   };
 
   const handleCreatePayout = () => {
     // Trigger medium impact haptic feedback
     impact();
+    
+    // Check if balance is ₦0 and no payout plans exist
+    const hasNoBalance = balance === 0 && availableBalance === 0;
+    const hasNoPlans = payoutPlans.length === 0;
+    
+    // If no balance and no plans, show info modal
+    if (hasNoBalance && hasNoPlans) {
+      setShowNewPlanInfoModal(true);
+      logAnalyticsEvent('create_payout_click_no_balance_modal');
+    } else {
+      // Navigate directly to create payout
     router.push('/create-payout/amount');
     logAnalyticsEvent('create_payout_click');
+    }
   };
 
   const handleAISuggestionPress = (suggestion: any) => {
@@ -655,7 +698,7 @@ export default function HomeScreen() {
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
-                <CalendarCheck size={22} color={colors.accent} />
+                <CalendarCheck size={22} color={'#fff'} />
                 <Text style={styles.createButtonText}>New plan</Text>
               </Pressable>
               
@@ -710,7 +753,10 @@ export default function HomeScreen() {
         <NextPayoutCard nextPayout={nextPayout} />
 
         {/* Payout Plans Section */}
-        <PayoutPlansSection activePlans={activePlans} />
+        <PayoutPlansSection 
+          activePlans={activePlans} 
+          onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}
+        />
 
         <View style={styles.bottomPadding} />
 
@@ -741,7 +787,7 @@ export default function HomeScreen() {
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <CalendarCheck size={22} color={colors.accent} />
+          <CalendarCheck size={22} color={'#fff'} />
           <Text style={styles.createButtonText}>New plan</Text>
         </Pressable>
         
@@ -778,6 +824,15 @@ export default function HomeScreen() {
         onClaim={() => {
           router.push('/add-funds');
           logAnalyticsEvent('claim_account_click');
+        }}
+      />
+
+      <NewPlanInfoModal
+        isVisible={showNewPlanInfoModal}
+        onClose={() => setShowNewPlanInfoModal(false)}
+        onAddFundsAfterClose={() => {
+          // Navigate after modal is fully closed
+          handleAddFunds();
         }}
       />
 
@@ -948,7 +1003,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 5,
   },
   createButtonText: {
-    color: colors.accent,
+    color: '#fff',
     fontSize: Platform.OS === 'ios' ? 17 : 15,
     fontWeight: '600',
   },

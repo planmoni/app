@@ -5,11 +5,13 @@ import { CheckCircle,BadgeCheck, ChevronDown, ChevronUp, X } from 'lucide-react-
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { router } from 'expo-router';
+import CameraPermissionModal from './CameraPermissionModal';
 
 interface KYCVerificationModalProps {
   isVisible: boolean;
   onClose: () => void;
   onStartVerification?: () => void;
+  onComplete?: (selfieUrl: string) => void;
 }
 
 const { width } = Dimensions.get('window');
@@ -46,12 +48,14 @@ const faqs: FAQItem[] = [
 export default function KYCVerificationModal({
   isVisible,
   onClose,
-  onStartVerification
+  onStartVerification,
+  onComplete
 }: KYCVerificationModalProps) {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [modalVisible, setModalVisible] = useState(false);
+  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const styles = createStyles(colors, isDark);
@@ -110,14 +114,29 @@ export default function KYCVerificationModal({
 
   const handleStartVerification = () => {
     haptics.mediumImpact();
-    // Call onStartVerification first - it will handle closing the modal
-    if (onStartVerification) {
+    // Close KYCVerificationModal and show CameraPermissionModal
+    onClose();
+    // Wait for modal animation to complete before showing camera permission modal
+    setTimeout(() => {
+      setShowCameraPermissionModal(true);
+    }, 400);
+  };
+
+  const handleCameraPermissionComplete = (selfieUrl: string) => {
+    setShowCameraPermissionModal(false);
+    if (onComplete) {
+      onComplete(selfieUrl);
+    } else if (onStartVerification) {
+      // Fallback to onStartVerification if onComplete is not provided
       onStartVerification();
     } else {
-      // If no callback, close modal and navigate
-      onClose();
+      // Navigate to kyc-upgrade as final fallback
       router.push('/kyc-upgrade');
     }
+  };
+
+  const handleCameraPermissionClose = () => {
+    setShowCameraPermissionModal(false);
   };
 
   const toggleItem = (id: string) => {
@@ -134,103 +153,112 @@ export default function KYCVerificationModal({
   };
 
   return (
-    <Modal
-      visible={modalVisible}
-      transparent={true}
-      onRequestClose={onClose}
-      statusBarTranslucent={true}
-      animationType="none"
-    >
-      <Animated.View 
-        style={[
-          styles.overlay,
-          {
-            opacity: fadeAnim,
-          }
-        ]}
-        pointerEvents={isVisible && modalVisible ? 'auto' : 'none'}
+    <>
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        onRequestClose={onClose}
+        statusBarTranslucent={true}
+        animationType="none"
       >
-        {isVisible && modalVisible && (
-          <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
-        )}
-        <Animated.View
+        <Animated.View 
           style={[
-            styles.modalContainer,
+            styles.overlay,
             {
-              transform: [{ translateY: slideAnim }],
+              opacity: fadeAnim,
             }
           ]}
           pointerEvents={isVisible && modalVisible ? 'auto' : 'none'}
         >
-          {/* Close Button */}
-          <Pressable 
-            style={styles.closeButton}
-            onPress={handleClose}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          {isVisible && modalVisible && (
+            <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
+          )}
+          <Animated.View
+            style={[
+              styles.modalContainer,
+              {
+                transform: [{ translateY: slideAnim }],
+              }
+            ]}
+            pointerEvents={isVisible && modalVisible ? 'auto' : 'none'}
           >
-            <X size={24} color={colors.textSecondary} />
-          </Pressable>
-
-          <ScrollView 
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            bounces={true}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Header Section */}
-            <View style={styles.header}>
-              <View style={styles.iconContainer}>
-                <BadgeCheck size={40} color={colors.primary} />
-              </View>
-              <Text style={styles.title}>Verify your identity</Text>
-              <Text style={styles.description}>
-                Complete your account verification to access all that Planmoni has to offer
-              </Text>
-            </View>
-
-            {/* Q&A Sections */}
-            <View style={styles.faqContainer}>
-              {faqs.map((faq) => {
-                const isExpanded = expandedItems.has(faq.id);
-                return (
-                  <View key={faq.id} style={styles.faqItem}>
-                    <Pressable 
-                      style={styles.faqQuestionContainer}
-                      onPress={() => toggleItem(faq.id)}
-                    >
-                      <Text style={styles.faqQuestion}>{faq.question}</Text>
-                      {isExpanded ? (
-                        <ChevronUp size={20} color={colors.text} />
-                      ) : (
-                        <ChevronDown size={20} color={colors.text} />
-                      )}
-                    </Pressable>
-                    {isExpanded && (
-                      <View style={styles.faqAnswerContainer}>
-                        <Text style={styles.faqAnswer}>{faq.answer}</Text>
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          </ScrollView>
-
-          {/* Sticky Button Container with SafeArea */}
-          <SafeAreaView edges={['bottom']} style={styles.stickyButtonContainer}>
+            {/* Close Button */}
             <Pressable 
-              style={styles.startButton}
-              onPress={handleStartVerification}
+              style={styles.closeButton}
+              onPress={handleClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Text style={styles.startButtonText}>Start verification</Text>
+              <X size={24} color={colors.textSecondary} />
             </Pressable>
-            {/* Footer */}
-            <Text style={styles.footer}>Powered by Dojah</Text>
-          </SafeAreaView>
+
+            <ScrollView 
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              bounces={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Header Section */}
+              <View style={styles.header}>
+                <View style={styles.iconContainer}>
+                  <BadgeCheck size={40} color={colors.primary} />
+                </View>
+                <Text style={styles.title}>Verify your identity</Text>
+                <Text style={styles.description}>
+                  Complete your account verification to access all that Planmoni has to offer
+                </Text>
+              </View>
+
+              {/* Q&A Sections */}
+              <View style={styles.faqContainer}>
+                {faqs.map((faq) => {
+                  const isExpanded = expandedItems.has(faq.id);
+                  return (
+                    <View key={faq.id} style={styles.faqItem}>
+                      <Pressable 
+                        style={styles.faqQuestionContainer}
+                        onPress={() => toggleItem(faq.id)}
+                      >
+                        <Text style={styles.faqQuestion}>{faq.question}</Text>
+                        {isExpanded ? (
+                          <ChevronUp size={20} color={colors.text} />
+                        ) : (
+                          <ChevronDown size={20} color={colors.text} />
+                        )}
+                      </Pressable>
+                      {isExpanded && (
+                        <View style={styles.faqAnswerContainer}>
+                          <Text style={styles.faqAnswer}>{faq.answer}</Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            {/* Sticky Button Container with SafeArea */}
+            <SafeAreaView edges={['bottom']} style={styles.stickyButtonContainer}>
+              <Pressable 
+                style={styles.startButton}
+                onPress={handleStartVerification}
+              >
+                <Text style={styles.startButtonText}>Start verification</Text>
+              </Pressable>
+              {/* Footer */}
+              <Text style={styles.footer}>We use SafeHaven & Dojah for verification</Text>
+            </SafeAreaView>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
-    </Modal>
+      </Modal>
+      
+      {/* Render CameraPermissionModal outside of the main modal to avoid nesting issues */}
+      <CameraPermissionModal
+        isVisible={showCameraPermissionModal}
+        onClose={handleCameraPermissionClose}
+        onComplete={handleCameraPermissionComplete}
+      />
+    </>
   );
 }
 
@@ -346,18 +374,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexShrink: 0,
   },
   startButton: {
-    backgroundColor: '#1E3A8A',
+    backgroundColor: colors.primary,
     borderRadius: 20,
     paddingVertical: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    height: 55,
+    height: 60,
     width: '100%',
   },
   startButtonText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#fff',
   },
   footer: {
     fontSize: 12,

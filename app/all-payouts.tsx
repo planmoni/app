@@ -36,6 +36,7 @@ import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
+import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 
 type TabType = 'all' | 'active' | 'cancelled' | 'completed';
 
@@ -43,16 +44,33 @@ type TabType = 'all' | 'active' | 'cancelled' | 'completed';
 export default function AllPayoutsScreen() {
   const { colors, isDark } = useTheme();
   const { payoutPlans, isLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
-  const { showBalances } = useBalance();
+  const { showBalances, balance, availableBalance } = useBalance();
   const haptics = useHaptics();
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
 
   const handleCreatePayout = () => {
     haptics.mediumImpact();
+    
+    // Check if balance is ₦0 and no plans exist
+    const hasNoBalance = balance === 0 && availableBalance === 0;
+    const hasNoPlans = payoutPlans.length === 0;
+    
+    // If no balance and no plans, show info modal
+    if (hasNoBalance && hasNoPlans) {
+      setShowNewPlanInfoModal(true);
+    } else {
+      // Navigate directly to create payout
     router.push('/create-payout/amount');
+    }
+  };
+
+  const handleAddFunds = () => {
+    haptics.mediumImpact();
+    router.push('/add-funds');
   };
 
   const handleViewPayout = (planId: string) => {
@@ -491,6 +509,15 @@ export default function AllPayoutsScreen() {
       </ScrollView>
       
       <SafeFooter />
+
+      <NewPlanInfoModal
+        isVisible={showNewPlanInfoModal}
+        onClose={() => setShowNewPlanInfoModal(false)}
+        onAddFundsAfterClose={() => {
+          // Navigate after modal is fully closed
+          handleAddFunds();
+        }}
+      />
     </SafeAreaView>
   );
 }

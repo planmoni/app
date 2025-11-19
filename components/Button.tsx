@@ -1,6 +1,7 @@
 import { Pressable, Text, StyleSheet, ActivityIndicator, PressableProps, View } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '@/contexts/ThemeContext';
 
 type ButtonProps = PressableProps & {
   title?: string;
@@ -28,7 +29,8 @@ export default function Button({
   ...props
 }: ButtonProps) {
   const haptics = useHaptics();
-
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const getVariantStyle = () => {
     switch (variant) {
       case 'primary':
@@ -176,12 +178,12 @@ export default function Button({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   button: {
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    height: 55,
+    height: 60,
   },
   content: {
     flexDirection: 'row',
@@ -190,20 +192,23 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginRight: 8,
+    color: colors.primary,
   },
   text: {
     fontWeight: '600',
+    fontSize: 18,
     textAlign: 'center',
   },
   // Variants
   primaryButton: {
-    backgroundColor: '#1E3A8A',
-    height: 55,
+    backgroundColor: colors.primary,
+    height: 65,
     borderRadius: 20,
     width: '100%',
   },
   primaryText: {
-    color: '#FFFFFF',
+    color:'#FFFFFF',
+    fontSize: 17,
   },
   secondaryButton: {
     backgroundColor: '#CBD5E1',
@@ -213,17 +218,19 @@ const styles = StyleSheet.create({
   },
   secondaryText: {
     color: '#1E293B',
+    fontSize: 18,
   },
   outlineButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#1E3A8A',
-    height: 55,
+    borderColor: colors.primary,
+    height: 60,
     borderRadius: 20,
     width: '100%',
   },
   outlineText: {
-    color: '#1E3A8A',
+    color: colors.primary,
+    fontSize: 18,
   },
   // Sizes
   smallButton: {
@@ -251,10 +258,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   mediumText: {
-    fontSize: 14,
+    fontSize: 17,
   },
   largeText: {
-    fontSize: 16,
+    fontSize: 18,
   },
   // States
   disabledButton: {

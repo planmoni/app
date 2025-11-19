@@ -10,7 +10,6 @@ import { usePin } from '@/contexts/PinContext';
 import { useOnlineStatus } from './OnlineStatusProvider';
 import OfflineNotice from './OfflineNotice';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
-import KYCVerificationModal from './KYCVerificationModal';
 import Tier1Icon from '@/assets/kyc/1.svg';
 import Tier2Icon from '@/assets/kyc/2.svg';
 import Tier3Icon from '@/assets/kyc/3.svg';
@@ -39,8 +38,6 @@ export default function PendingActionsCard() {
   const { isOnline } = useOnlineStatus();
   const { progress, currentTier = 0, getTierInfo } = useKYCProgress();
   const [tierInfo, setTierInfo] = useState<any>(null);
-  const [showKYCVerificationModal, setShowKYCVerificationModal] = useState(false);
-  const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
 
   // Load profile data and tier info from database on mount
   useEffect(() => {
@@ -95,7 +92,7 @@ export default function PendingActionsCard() {
         actions.push({
           id: 'tier-1-verification',
           title: 'Tier 1: Basic Verification',
-          // description: `${description}. Unlock up to ₦20,000 monthly deposits.`,
+          description: 'Increase single transaction limit to ₦50,000',
           icon: Tier1Icon,
           iconBg: '#EFEDED',
           iconColor: '#F59E0B',
@@ -135,9 +132,9 @@ export default function PendingActionsCard() {
       actions.push({
         id: 'tier-2-verification',
         title: 'Tier 2: Enhanced Verification',
-        // description: tier1Complete 
-        //   ? `${description}. Unlock up to ₦100,000 monthly deposits.`
-        //   : 'Complete Tier 1 first to unlock Tier 2 verification',
+        description: tier1Complete 
+          ? 'Increase single transaction limit to ₦200,000'
+          : 'Complete Tier 1 first to unlock Tier 2 verification',
         icon: Tier2Icon,
         iconBg: tier1Complete ? '#EFF6FF' : '#F3F4F6',
         iconColor: tier1Complete ? '#1E3A8A' : '#9CA3AF',
@@ -179,9 +176,9 @@ export default function PendingActionsCard() {
       actions.push({
         id: 'tier-3-verification',
         title: 'Tier 3: Full Verification',
-        // description: tier2Complete
-        //   ? `${description}. Unlock up to ₦1,000,000 monthly deposits.`
-        //   : 'Complete Tier 2 first to unlock Tier 3 verification',
+        description: tier2Complete
+          ? 'Increase single transaction limit to ₦5,000,000'
+          : 'Complete Tier 2 first to unlock Tier 3 verification',
         icon: Tier3Icon,
         iconBg: tier2Complete ? '#F0FDF4' : '#F3F4F6',
         iconColor: tier2Complete ? '#22C55E' : '#9CA3AF',
@@ -299,38 +296,16 @@ export default function PendingActionsCard() {
   const handleActionPress = (action: PendingAction) => {
     haptics.mediumImpact();
     
-    // Check if this is a Tier 1 action and liveness test is not completed
-    if (action.id === 'tier-1-verification' && progress && !progress.liveness_test_completed) {
-      setSelectedActionId(action.id);
-      // Show KYCVerificationModal first
-      setShowKYCVerificationModal(true);
+    // Simplified flow: Go directly to kyc-upgrade page for Tier 1 verification
+    // The page will automatically show the camera permission modal when on liveness step
+    if (action.id === 'tier-1-verification') {
+      router.push('/kyc-upgrade');
       return;
     }
     
     router.push(action.route);
   };
 
-  const handleStartVerification = () => {
-    // Close KYCVerificationModal first
-    setShowKYCVerificationModal(false);
-    
-    // Navigate directly to kyc-upgrade page
-    // The page will automatically show the first incomplete step (personal info if not completed)
-    // This ensures the correct order: Personal Info → Liveness → BVN → NIN
-    setTimeout(() => {
-      setSelectedActionId(null);
-      router.push('/kyc-upgrade');
-    }, 350); // Wait for the slide-out animation to complete
-  };
-
-  const handleLivenessComplete = (selfieUrl: string) => {
-    // After liveness test is completed, navigate to kyc-upgrade with selfie URL
-    setSelectedActionId(null);
-    router.push({
-      pathname: '/kyc-upgrade',
-      params: { selfieUrl }
-    });
-  };
 
   // Filter out completed actions
   const filteredActions = pendingActions.filter(action => !isActionCompleted(action.id));
@@ -372,19 +347,7 @@ export default function PendingActionsCard() {
     <View>
       <View style={styles.titleContainer}>
         <Text style={styles.sectionTitle}>Pending Actions</Text>
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <View 
-              style={[
-                styles.progressFill, 
-                { width: `${((pendingActions.length - filteredActions.length) / pendingActions.length) * 100}%` }
-              ]} 
-            />
-          </View>
-          <Text style={styles.progressText}>
-            {Math.round(((pendingActions.length - filteredActions.length) / pendingActions.length) * 100)}%
-          </Text>
-        </View>
+       
       </View>
       <View style={styles.container}>
         <ScrollView 
@@ -451,14 +414,6 @@ export default function PendingActionsCard() {
           ))}
         </ScrollView>
       </View>
-      <KYCVerificationModal
-        isVisible={showKYCVerificationModal}
-        onClose={() => {
-          setShowKYCVerificationModal(false);
-          setSelectedActionId(null);
-        }}
-        onStartVerification={handleStartVerification}
-      />
     </View>
   );
 }
@@ -476,7 +431,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 12,
   },
   actionCard: {
-    width: Platform.OS === 'ios' ? 280 : 240,
+    width: Platform.OS === 'ios' ? 300 : 240,
     backgroundColor: colors.card,
     borderRadius: 12,
     height: 110,

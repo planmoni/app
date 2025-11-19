@@ -56,6 +56,10 @@ export const useKYCStyles = () => {
     inputError: {
       borderColor: colors.error || '#DC2626',
     },
+    resolvedInput: {
+      borderColor: colors.success,
+      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
+    },
     input: {
       flex: 1,
       fontSize: 18,
@@ -373,6 +377,23 @@ export const useKYCStyles = () => {
       fontSize: 14,
       color: colors.textSecondary,
       lineHeight: 20,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 16,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    buttonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#FFFFFF',
     },
   });
 };

@@ -6,6 +6,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useKYCData } from '@/hooks/useKYCData';
+import { useKYCProgress } from '@/hooks/useKYCProgress';
 import Button from '@/components/Button';
 import { router } from 'expo-router';
 import { getBankIconLogo } from '@/lib/bankIcons';
@@ -37,6 +38,7 @@ export default function ClaimAccountModal({
   const { showToast } = useToast();
   const { session } = useAuth();
   const { formData } = useKYCData();
+  const { checkTierCompletion, progress } = useKYCProgress();
   const styles = createStyles(colors, isDark);
   
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
@@ -55,12 +57,18 @@ export default function ClaimAccountModal({
     }
   }, [isVisible, formData, session]);
 
-  // Check for existing account when modal opens
+  // Check for existing account when modal opens, but only if Tier 1 is not complete
   useEffect(() => {
     if (isVisible && session?.user?.id) {
+      const tierCompletion = checkTierCompletion();
+      // If Tier 1 is complete, close the modal immediately
+      if (tierCompletion.tier1) {
+        onClose();
+        return;
+      }
       checkExistingAccount();
     }
-  }, [isVisible, session?.user?.id]);
+  }, [isVisible, session?.user?.id, checkTierCompletion, onClose]);
 
   const checkExistingAccount = async () => {
     if (!session?.user?.id) return;
@@ -236,6 +244,16 @@ export default function ClaimAccountModal({
   const handleClaim = async () => {
     haptics.mediumImpact();
     
+    // Check if Tier 1 is complete
+    const tierCompletion = checkTierCompletion();
+    
+    // If Tier 1 is not complete, navigate to KYC upgrade
+    if (!tierCompletion.tier1) {
+      onClose();
+      router.push('/kyc-upgrade');
+      return;
+    }
+    
     // First check if account already exists
     if (existingAccount?.account_number && !existingAccount.account_number.startsWith('PENDING_')) {
       showToast('Your account is already available!', 'success');
@@ -256,6 +274,12 @@ export default function ClaimAccountModal({
 
     // Start the account creation process only if no account exists
     await initializeNINVerification();
+  };
+
+  const handleStartKYC = () => {
+    haptics.mediumImpact();
+    onClose();
+    router.push('/kyc-upgrade');
   };
 
   return (
@@ -326,7 +350,32 @@ export default function ClaimAccountModal({
               </View>
             </View>
 
-            {/* Claim Button */}
+            {/* Check Tier 1 completion */}
+            {(() => {
+              const tierCompletion = checkTierCompletion();
+              const isTier1Complete = tierCompletion.tier1;
+              
+              // If Tier 1 is not complete, show KYC buttons
+              if (!isTier1Complete) {
+                return (
+                  <>
+                    <Button
+                      title="Complete Tier 1 Verification"
+                      onPress={handleStartKYC}
+                      hapticType="medium"
+                      variant="primary"
+                      disabled={false}
+                    />
+                    <Text style={styles.warningText}>
+                      You need to complete Tier 1 verification (Liveness, BVN, and NIN) to create your account.
+                    </Text>
+                  </>
+                );
+              }
+              
+              // If Tier 1 is complete, show normal claim button
+              return (
+                <>
             <Button
               title={
                 isCheckingAccount 
@@ -353,6 +402,9 @@ export default function ClaimAccountModal({
                 Please complete Tier 1 verification (NIN and phone number) to create your account.
               </Text>
             )}
+                </>
+              );
+            })()}
           </View>
         </Pressable>
       </Pressable>

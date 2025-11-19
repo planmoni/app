@@ -57,6 +57,7 @@ export default function LivenessTestEnhanced({
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
+  const styles = createStyles(colors, isDark);
   
   console.log('[LivenessTest] Permissions check:', { hasPermission, hasSession: !!session });
 
@@ -69,6 +70,7 @@ export default function LivenessTestEnhanced({
   const [positionValid, setPositionValid] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadComplete, setUploadComplete] = useState(false);
   const [faceTooClose, setFaceTooClose] = useState(false);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
 
@@ -93,6 +95,7 @@ export default function LivenessTestEnhanced({
     setPositionValid(false);
     setCapturedImage(null);
     setFaceTooClose(false);
+    setUploadComplete(false);
     progressValue.value = 0;
     pitchAngles.current = [];
     nodBaseline.current = null;
@@ -393,19 +396,25 @@ export default function LivenessTestEnhanced({
         }
       }
 
+      // Mark upload as complete
+      setIsSubmitting(false);
+      setUploadComplete(true);
+      
       // Call the onComplete callback with the storage URL
+      // Let the parent component handle closing and transitioning to BVN step
       if (onComplete && storageUrl) {
         console.log('[LivenessTest] Calling onComplete callback with URL:', storageUrl);
-        onComplete(storageUrl);
+        // Small delay to show success state, then let parent handle transition
+        setTimeout(() => {
+          onComplete(storageUrl);
+        }, 600);
       } else {
         console.log('[LivenessTest] No onComplete callback or storageUrl');
+        // If no callback, close after showing success
+        setTimeout(() => {
+          onClose();
+        }, 1500);
       }
-
-      setTimeout(() => {
-        console.log('[LivenessTest] Closing modal after submission');
-        setIsSubmitting(false);
-        onClose();
-      }, 1000);
     } catch (error) {
       console.error('[LivenessTest] Error uploading liveness photo:', error);
       setIsSubmitting(false);
@@ -430,10 +439,10 @@ export default function LivenessTestEnhanced({
       case "look_right": return "Turn your head right";
       case "look_left": return "Turn your head left";
       case "smile": return "Smile at the camera";
-      case "photo_capture": return "Photo captured! Submit to complete";
+      case "photo_capture": return uploadComplete ? "Verifying..." : "Liveness test complete!";
       default: return "Position your face in the circle";
     }
-  }, [hasPermission, isRequestingPermission, livenessStage]);
+  }, [hasPermission, isRequestingPermission, livenessStage, uploadComplete]);
 
   const getWarningText = () => {
     if (faceTooClose) return "Please move the phone away from your face";
@@ -699,23 +708,35 @@ export default function LivenessTestEnhanced({
         </View>
 
         {/* Submit Button */}
-        {livenessStage === "photo_capture" && capturedImage && (
+        {livenessStage === "photo_capture" && capturedImage && !uploadComplete && (
           <Pressable
             style={[styles.submitButton, { backgroundColor: colors.primary }]}
             onPress={handleSubmit}
             disabled={isSubmitting}
           >
             <Text style={styles.submitText}>
-              {isSubmitting ? "Uploading..." : "Continue"}
+              {isSubmitting ? "Confirming..." : "Continue"}
             </Text>
           </Pressable>
+        )}
+        
+        {/* Success State */}
+        {uploadComplete && (
+          <View style={styles.successContainer}>
+            <Text style={[styles.successText, { color: '#fff' }]}>
+              ✓ Upload Complete
+            </Text>
+            <Text style={[styles.successSubtext, { color: colors.textSecondary }]}>
+              Proceeding to BVN verification...
+            </Text>
+          </View>
         )}
       </View>
     </Modal>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "center",
@@ -803,8 +824,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   submitText: {
-    color: "#FFF",
-    fontSize: 16,
+    color: '#fff',
+    fontSize: 17,
     fontWeight: "600",
   },
   permissionPlaceholder: {
@@ -828,5 +849,23 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  successContainer: {
+    position: "absolute",
+    bottom: 50,
+    left: 20,
+    right: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+  },
+  successText: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  successSubtext: {
+    fontSize: 14,
+    fontWeight: "500",
   },
 });

@@ -825,6 +825,25 @@ async function updateUserBalance(userId: string, transferData: SafeHavenTransfer
                 } else {
                   transactionId = newTransaction?.id || null;
                   console.log('Transaction record created:', transactionId);
+                  
+                  // Send push notification for successful deposit
+                  try {
+                    await supabase.rpc('send_push_notification', {
+                      p_user_id: userId,
+                      p_title: 'Funds Received',
+                      p_body: `₦${walletAmount.toLocaleString()} has been added to your wallet`,
+                      p_data: {
+                        type: 'deposit_successful',
+                        transaction_reference: paymentRef,
+                        amount: walletAmount,
+                        source: 'SafeHaven'
+                      }
+                    });
+                    console.log('Push notification sent for deposit');
+                  } catch (pushError) {
+                    console.warn('Error sending push notification:', pushError);
+                    // Don't fail the deposit if notification fails
+                  }
                 }
               } else {
                 transactionId = existingTransaction.id;

@@ -103,7 +103,7 @@ export default function FloatingButton({
             icon={icon}
             variant={variant}
             hapticType={hapticType}
-            textColor={colors.accent}
+            textColor={'#fff'}
             textStyle={styles.buttonText}
           />
         </View>

@@ -119,6 +119,33 @@ async function savePushTokenToDatabase(expoPushToken: string, userId: string): P
     } else {
       console.log('Push token saved to database successfully');
     }
+
+    // Also store/update the token in user_fcm_tokens so server-side push function can find it
+    const platform =
+      Platform.OS === 'ios'
+        ? 'ios'
+        : Platform.OS === 'android'
+        ? 'android'
+        : 'web';
+
+    const { error: fcmError } = await supabase
+      .from('user_fcm_tokens')
+      .upsert(
+        {
+          user_id: userId,
+          fcm_token: expoPushToken,
+          platform,
+        },
+        {
+          onConflict: 'user_id,platform',
+        }
+      );
+
+    if (fcmError) {
+      console.error('Error saving token to user_fcm_tokens:', fcmError);
+    } else {
+      console.log('Push token synced to user_fcm_tokens');
+    }
   } catch (error) {
     console.error('Error in savePushTokenToDatabase:', error);
   }
