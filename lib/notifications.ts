@@ -57,24 +57,26 @@ export async function getPushTokenAsync(): Promise<string | null> {
     // First ensure we have permissions
     const hasPermission = await requestNotificationPermissions();
     if (!hasPermission) {
+      console.warn('⚠️ Cannot get push token: permissions not granted');
       return null;
     }
 
     // Try to get push token (requires FCM to be configured)
-    const token = (await Notifications.getDevicePushTokenAsync()).data;
-    console.log('Push token obtained successfully');
+    const tokenData = await Notifications.getDevicePushTokenAsync();
+    const token = tokenData.data;
+    console.log('✅ Push token obtained successfully:', token?.substring(0, 20) + '...');
     return token;
   } catch (error: any) {
     // If Firebase isn't initialized, that's okay - local notifications still work
     if (error?.message?.includes('FirebaseApp') || error?.message?.includes('FCM')) {
-      console.log('FCM not configured. Local notifications will still work.');
+      console.log('ℹ️ FCM not configured. Local notifications will still work.');
       console.log('To enable remote push notifications, configure FCM: https://docs.expo.dev/push-notifications/fcm-credentials/');
       return null;
     }
     // Log other errors
     console.error("❌ Error getting push token:", error);
-    // Re-throw other errors
-    throw error;
+    // Don't re-throw - return null so local notifications can still work
+    return null;
   }
 }
 
