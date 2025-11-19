@@ -257,7 +257,6 @@ function RootLayoutNav() {
               options={{ 
                 headerShown: false, 
                 gestureEnabled: false,
-                animationEnabled: false, // Disable animations that might allow gestures
               }} 
             />
             <Stack.Screen 
