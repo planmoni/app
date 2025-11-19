@@ -25,7 +25,7 @@ import { SplashScreen, Stack , usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Text, View, StyleSheet, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { initializeNotifications } from '@/lib/notifications';
+import { initializeNotifications, setupTokenRefresh } from '@/lib/notifications';
 import * as SystemUI from 'expo-system-ui';
 // import { intercomInstant } from '@/lib/IntercomInstant';
 import { 
@@ -154,19 +154,66 @@ function RootLayoutNav() {
   // Initialize notifications when user is authenticated
   useEffect(() => {
     if (session?.user?.id) {
-      try {
-        initializeNotifications(session.user.id).then(cleanup => {
+      let tokenRefreshCleanup: (() => void) | null = null;
+      
+      const setupNotifications = async () => {
+        try {
+          const cleanup = await initializeNotifications(session.user.id);
+          
+          // Set up periodic token refresh (every 60 minutes)
+          tokenRefreshCleanup = setupTokenRefresh(session.user.id, 60);
+          
           return () => {
             if (cleanup) cleanup();
+            if (tokenRefreshCleanup) tokenRefreshCleanup();
           };
-        }).catch(error => {
+        } catch (error) {
           console.warn('Failed to initialize notifications:', error);
-        });
-      } catch (error) {
-        console.error('Error setting up notification initialization:', error);
-      }
+          return null;
+        }
+      };
+      
+      setupNotifications().catch(error => {
+        console.warn('Failed to setup notifications:', error);
+      });
+      
+      return () => {
+        if (tokenRefreshCleanup) tokenRefreshCleanup();
+      };
     }
   }, [session?.user?.id]);
+
+  // Handle notifications when app is opened from background/closed state
+  useEffect(() => {
+    const checkInitialNotification = async () => {
+      try {
+        const { getLastNotificationResponseAsync } = await import('expo-notifications');
+        const response = await getLastNotificationResponseAsync();
+        if (response) {
+          const data = response.notification.request.content.data;
+          if (data?.intercom) {
+            console.log('📬 App opened from Intercom notification');
+            // Open Intercom when app is ready
+            setTimeout(() => {
+              const { intercomInstant } = require('@/lib/IntercomInstant');
+              intercomInstant.open().catch((error: any) => {
+                console.error('Failed to open Intercom from notification:', error);
+              });
+            }, 1000);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to check initial notification:', error);
+      }
+    };
+
+    // Check for initial notification after a short delay to ensure app is ready
+    const timer = setTimeout(() => {
+      checkInitialNotification();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // Initialize IntercomInstant for instant access
   // useEffect(() => {

@@ -8,6 +8,10 @@
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "notification": {
+      "icon": "./assets/images/AppIcon.png",
+      "color": "#1E3A8A"
+    },
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
@@ -17,6 +21,7 @@
       "package": "com.planmoni",
       "versionCode": 1,
       "softwareKeyboardLayoutMode": "resize",
+      "useNextNotificationsApi": true,
      "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",

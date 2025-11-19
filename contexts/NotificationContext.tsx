@@ -99,8 +99,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [user?.id]);
 
-  const handleNotificationNavigation = (data: any) => {
+  const handleNotificationNavigation = async (data: any) => {
     if (!data) return;
+
+    // Handle Intercom notifications
+    if (data.intercom) {
+      console.log('📬 Intercom notification tapped, opening Intercom...');
+      try {
+        const { intercomInstant } = await import('@/lib/IntercomInstant');
+        await intercomInstant.open();
+      } catch (error) {
+        console.error('Failed to open Intercom:', error);
+      }
+      return;
+    }
 
     // If route is specified in data, use it
     if (data.route) {
