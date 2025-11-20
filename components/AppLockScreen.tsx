@@ -371,14 +371,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+ 
   },
   forgotPinButtonPressed: {
     backgroundColor: colors.backgroundSecondary,
