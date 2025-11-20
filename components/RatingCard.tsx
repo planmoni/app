@@ -25,32 +25,32 @@ export default function RatingCard() {
         </View>
         <View style={styles.buttonsRow}>
           {Platform.OS === 'ios' && (
-            <Pressable
+          <Pressable
               style={[styles.feedbackButton, styles.feedbackButtonActive]}
-              onPress={() => {
-                Linking.openURL(iOSStoreURL).catch((err) => {
-                  console.error('Failed to open iOS store URL:', err);
-                });
-              }}
-            >
+            onPress={() => {
+              Linking.openURL(iOSStoreURL).catch((err) => {
+                console.error('Failed to open iOS store URL:', err);
+              });
+            }}
+          >
               <Text style={[styles.feedbackButtonText, styles.feedbackButtonTextActive]}>
-                Rate on App Store
-              </Text>
-            </Pressable>
+              Rate on App Store
+            </Text>
+          </Pressable>
           )}
           {Platform.OS === 'android' && (
-            <Pressable
+          <Pressable
               style={[styles.feedbackButton, styles.feedbackButtonActive]}
-              onPress={() => {
-                Linking.openURL(androidStoreURL).catch((err) => {
-                  console.error('Failed to open Android store URL:', err);
-                });
-              }}
-            >
+            onPress={() => {
+              Linking.openURL(androidStoreURL).catch((err) => {
+                console.error('Failed to open Android store URL:', err);
+              });
+            }}
+          >
               <Text style={[styles.feedbackButtonText, styles.feedbackButtonTextActive]}>
-                Rate on Play Store
-              </Text>
-            </Pressable>
+              Rate on Play Store
+            </Text>
+          </Pressable>
           )}
         </View>
       </View>
