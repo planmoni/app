@@ -4,7 +4,9 @@ import SafeFooter from '@/components/SafeFooter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTextSize } from '@/contexts/TextSizeContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { getScaledFontSize } from '@/lib/textSize';
 import { supabase } from '@/lib/supabase';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -44,6 +46,7 @@ import NotificationSettingsModal from '@/components/NotificationSettingsModal';
 import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
+import TextSizeModal from '@/components/TextSizeModal';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import React from 'react';
 import { useEmailNotifications } from '@/hooks/useEmailNotifications';
@@ -53,6 +56,7 @@ import { Download, Info } from 'lucide-react-native';
 
 export default function SettingsScreen() {
   const { colors, theme, setTheme } = useTheme();
+  const { textSizeMultiplier, setTextSizeMultiplier } = useTextSize();
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
   const haptics = useHaptics();
@@ -80,6 +84,7 @@ export default function SettingsScreen() {
   const [showSupport, setShowSupport] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [showTextSize, setShowTextSize] = useState(false);
 
   // Log screen view for analytics
   useEffect(() => {
@@ -309,7 +314,7 @@ export default function SettingsScreen() {
     );
   };
 
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, textSizeMultiplier);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -324,7 +329,7 @@ export default function SettingsScreen() {
               firstName={firstName} 
               lastName={lastName} 
               size={60}
-              fontSize={24}
+              fontSize={getScaledFontSize(24, textSizeMultiplier)}
             />
             <View style={styles.profileInfo}>
               <Text style={styles.profileName}>{firstName} {lastName}</Text>
@@ -408,6 +413,30 @@ export default function SettingsScreen() {
                 </Pressable>
               </View>
             </View>
+
+            <View style={styles.divider} />
+
+            <Pressable
+              style={styles.settingItem}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                }
+                setShowTextSize(true);
+                logAnalyticsEvent('open_text_size_settings');
+              }}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Sliders size={20} color={colors.textSecondary} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Text Size</Text>
+                <Text style={styles.settingDescription}>
+                  {Math.round(textSizeMultiplier * 100)}% • Tap to adjust
+                </Text>
+              </View>
+              <ChevronRight size={20} color={colors.textSecondary} />
+            </Pressable>
           </View>
         </View>
 
@@ -906,13 +935,23 @@ export default function SettingsScreen() {
           setShowTerms(false);
         }}
       />
+
+      <TextSizeModal
+        isVisible={showTextSize}
+        onClose={() => {
+          if (Platform.OS !== 'web') {
+            haptics.lightImpact();
+          }
+          setShowTextSize(false);
+        }}
+      />
       
       
     </SafeAreaView>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, textSizeMultiplier: number) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -925,7 +964,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: Platform.OS === 'ios' ? 24 : 20,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 24 : 20, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
   },
@@ -957,13 +996,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   profileName: {
-    fontSize: Platform.OS === 'ios' ? 18 : 16,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   profileEmail: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
     marginBottom: Platform.OS === 'ios' ? 6 : 4,
   },
@@ -979,7 +1018,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 12,
   },
   verifiedText: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.accent,
     fontWeight: '500',
   },
@@ -993,7 +1032,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 4,
   },
   twoFactorText: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     color: '#1E3A8A',
     fontWeight: '500',
   },
@@ -1001,7 +1040,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   sectionTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     marginBottom: 12,
@@ -1037,7 +1076,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 2,
   },
   settingLabel: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
     flex: 1,
@@ -1049,11 +1088,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginLeft: 8,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     fontWeight: '600',
   },
   settingDescription: {
-    fontSize: Platform.OS === 'ios' ? 13 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
     color: colors.textSecondary,
   },
   divider: {
@@ -1078,7 +1117,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   themeOptionText: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
   },
@@ -1103,7 +1142,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: '100%',
   },
   signOutText: {
-    fontSize: 16,
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     fontWeight: '600',
     color: '#EF4444',
     marginLeft: 12,
@@ -1115,7 +1154,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 12,
   },
   deleteAccountText: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textTertiary,
     marginLeft: 8,
   },
@@ -1131,7 +1170,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignSelf: 'center',
   },
   comingSoonText: {
-    fontSize: 11,
+    fontSize: getScaledFontSize(11, textSizeMultiplier),
     color: colors.textSecondary,
     fontWeight: '600',
   },

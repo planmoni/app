@@ -20,6 +20,8 @@ import {
 import { useHaptics } from '@/hooks/useHaptics';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 
 const { width: screenWidth } = Dimensions.get('window');
 const CARD_WIDTH = 200; // Smaller cards
@@ -49,6 +51,7 @@ export default function AISuggestionCard({
 }: AISuggestionCardProps) {
   const { colors, isDark } = useTheme();
   const { impact } = useHaptics();
+  const { textSizeMultiplier } = useTextSize();
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const { payoutPlans } = useRealtimePayoutPlans();
@@ -308,6 +311,8 @@ export default function AISuggestionCard({
 
   console.log('✅ AISuggestionCard - Rendering', suggestions.length, 'suggestions');
 
+  const styles = createStyles(textSizeMultiplier);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -376,7 +381,7 @@ export default function AISuggestionCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (textSizeMultiplier: number) => StyleSheet.create({
   container: {
     marginTop: 5,
     marginBottom: 15,
@@ -391,11 +396,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
   },
   subtitle: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     fontWeight: '400',
   },
   scrollContent: {
@@ -424,13 +429,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   amount: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '700',
     marginBottom: 4,
     textAlign: 'left',
   },
   frequency: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     fontWeight: '500',
     textAlign: 'left',
   },

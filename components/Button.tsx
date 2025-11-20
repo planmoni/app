@@ -2,6 +2,8 @@ import { Pressable, Text, StyleSheet, ActivityIndicator, PressableProps, View } 
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 
 type ButtonProps = PressableProps & {
   title?: string;
@@ -30,7 +32,8 @@ export default function Button({
 }: ButtonProps) {
   const haptics = useHaptics();
   const { colors } = useTheme();
-  const styles = createStyles(colors);
+  const { textSizeMultiplier } = useTextSize();
+  const styles = createStyles(colors, textSizeMultiplier);
   const getVariantStyle = () => {
     switch (variant) {
       case 'primary':
@@ -178,7 +181,7 @@ export default function Button({
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, textSizeMultiplier: number) => StyleSheet.create({
   button: {
     borderRadius: 20,
     justifyContent: 'center',
@@ -196,7 +199,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   text: {
     fontWeight: '600',
-    fontSize: 18,
+    fontSize: getScaledFontSize(18, textSizeMultiplier),
     textAlign: 'center',
   },
   // Variants
@@ -208,7 +211,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   primaryText: {
     color:'#FFFFFF',
-    fontSize: 17,
+    fontSize: getScaledFontSize(17, textSizeMultiplier),
   },
   secondaryButton: {
     backgroundColor: '#CBD5E1',
@@ -218,7 +221,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   secondaryText: {
     color: '#1E293B',
-    fontSize: 18,
+    fontSize: getScaledFontSize(18, textSizeMultiplier),
   },
   outlineButton: {
     backgroundColor: 'transparent',
@@ -230,7 +233,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   outlineText: {
     color: colors.primary,
-    fontSize: 18,
+    fontSize: getScaledFontSize(18, textSizeMultiplier),
   },
   // Sizes
   smallButton: {
@@ -255,13 +258,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: '100%',
   },
   smallText: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
   },
   mediumText: {
-    fontSize: 17,
+    fontSize: getScaledFontSize(17, textSizeMultiplier),
   },
   largeText: {
-    fontSize: 18,
+    fontSize: getScaledFontSize(18, textSizeMultiplier),
   },
   // States
   disabledButton: {

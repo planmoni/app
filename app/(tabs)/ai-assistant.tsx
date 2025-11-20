@@ -32,6 +32,8 @@ import { useCreatePayout } from '@/hooks/useCreatePayout';
 import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 import { useBanks } from '@/hooks/useBanks';
 import { getBankIconLogo } from '@/lib/bankIcons';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 
 // Define message types
 type MessageType = 'text' | 'plan' | 'insight';
@@ -107,6 +109,7 @@ function wordsToNumber(words: string): number | null {
 
 export default function AIAssistantScreen() {
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
   const { session } = useAuth();
   const { balance, lockedBalance } = useBalance();
   const availableBalance = balance - (lockedBalance || 0);
@@ -1572,10 +1575,10 @@ export default function AIAssistantScreen() {
                 style={{ marginTop: 12, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, alignSelf: 'flex-start' }}
                 onPress={handleAddFunds}
               >
-                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 20 }}>Add Funds</Text>
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: getScaledFontSize(20, textSizeMultiplier) }}>Add Funds</Text>
               </TouchableOpacity>
               <View style={styles.aiBadgeContainer}>
-                <Sparkles size={14} color={colors.primary} />
+                <Sparkles size={getScaledFontSize(14, textSizeMultiplier)} color={colors.primary} />
                 <Text style={styles.aiBadgeText}>Planmoni AI</Text>
               </View>
             </Animated.View>
@@ -1631,12 +1634,12 @@ export default function AIAssistantScreen() {
                         ₦{plan.amount.toLocaleString()}
                       </Text>
                     </View>
-                    {plan.frequency === 'daily' && <Clock size={20} color={colors.primary} />}
-                    {plan.frequency === 'weekly' && <Clock size={20} color={colors.primary} />}
-                    {plan.frequency === 'biweekly' && <Clock size={20} color={colors.primary} />}
-                    {plan.frequency === 'monthly' && <Clock size={20} color={colors.primary} />}
-                    {plan.frequency === 'end_of_month' && <Clock size={20} color={colors.primary} />}
-                    {plan.frequency === 'first_of_month' && <Clock size={20} color={colors.primary} />}
+                    {plan.frequency === 'daily' && <Clock size={getScaledFontSize(20, textSizeMultiplier)} color={colors.primary} />}
+                    {plan.frequency === 'weekly' && <Clock size={getScaledFontSize(20, textSizeMultiplier)} color={colors.primary} />}
+                    {plan.frequency === 'biweekly' && <Clock size={getScaledFontSize(20, textSizeMultiplier)} color={colors.primary} />}
+                    {plan.frequency === 'monthly' && <Clock size={getScaledFontSize(20, textSizeMultiplier)} color={colors.primary} />}
+                    {plan.frequency === 'end_of_month' && <Clock size={getScaledFontSize(20, textSizeMultiplier)} color={colors.primary} />}
+                    {plan.frequency === 'first_of_month' && <Clock size={getScaledFontSize(20, textSizeMultiplier)} color={colors.primary} />}
                   </View>
                   
                   <Text style={[styles.planDescription, { color: colors.textSecondary }]}>
@@ -1648,7 +1651,7 @@ export default function AIAssistantScreen() {
                     onPress={() => handleCreatePlan({...plan, metadata: message.metadata})}
                   >
                     <Text style={styles.planButtonText}>Create Plan</Text>
-                    <ArrowRight size={16} color="#FFFFFF" />
+                    <ArrowRight size={getScaledFontSize(16, textSizeMultiplier)} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -1714,398 +1717,13 @@ export default function AIAssistantScreen() {
     }
   };
 
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: Platform.OS === 'ios' ? 16 : 14,
-      paddingVertical: Platform.OS === 'ios' ? 16 : 14,
-      backgroundColor: colors.background,
-      borderBottomWidth: 0.4,
-      borderBottomColor: colors.border,
-    },
-    headerTitle: {
-      fontSize: Platform.OS === 'ios' ? 25 : 20,
-      fontWeight: '800',
-      color: colors.text,
-      textAlign: 'left',
-    },
-    headerTitleGradientWrapper: {
-      alignSelf: 'flex-start',
-    },
-    headerTitleGradient: {
-      ...StyleSheet.absoluteFillObject,
-    },
-    headerSubtitle: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      color: colors.textSecondary,
-    },
-    aiIconContainer: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.primary,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    messagesContainer: {
-      flex: 1,
-      padding: Platform.OS === 'ios' ? 16 : 10,
-    },
-    messageRow: {
-      marginBottom: 16,
-      maxWidth: '80%',
-    },
-    userMessageRow: {
-      alignSelf: 'flex-end',
-    },
-    aiMessageRow: {
-      alignSelf: 'flex-start',
-    },
-    messageBubble: {
-      borderRadius: 20,
-      padding: Platform.OS === 'ios' ? 16 : 10,
-      marginBottom: 8,
-      maxWidth: '80%',
-    },
-    userBubble: {
-      alignSelf: 'flex-end',
-      borderBottomRightRadius: 4,
-    },
-    aiBubble: {
-      alignSelf: 'flex-start',
-      borderBottomLeftRadius: 4,
-    },
-    planBubble: {
-      width: '95%',
-    },
-    insightBubble: {
-      width: '95%',
-    },
-    messageText: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      lineHeight: 24,
-      flexWrap: 'wrap',
-    },
-    userText: {
-      color: '#FFFFFF',
-    },
-    aiText: {
-      color: colors.text,
-    },
-    typingIndicator: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      alignSelf: 'flex-start',
-      marginBottom: 16,
-      backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary,
-      borderRadius: 20,
-      padding: Platform.OS === 'ios' ? 12 : 10,
-      paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
-    },
-    typingDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: colors.primary,
-      marginRight: 4,
-    },
-    typingText: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      color: colors.textSecondary,
-      marginLeft: 8,
-    },
-    inputContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: Platform.OS === 'ios' ? 12 : 10,
-      backgroundColor: colors.surface,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-    },
-    input: {
-      flex: 1,
-      backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary,
-      borderRadius: 12,
-      paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
-      paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      color: colors.text,
-      marginRight: 8,
-      maxHeight: 120,
-    },
-    sendButton: {
-      width: 48,
-      height: 48,
-      borderRadius: 12,
-      backgroundColor: colors.primary,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    sendButtonDisabled: {
-      backgroundColor: colors.border,
-    },
-    suggestionsContainer: {
-      padding: Platform.OS === 'ios' ? 16 : 10,
-      backgroundColor: colors.surface,
-    },
-    suggestionsTitle: {
-      fontSize: Platform.OS === 'ios' ? 16 : 14,
-      fontWeight: '500',
-      color: colors.textSecondary,
-      marginBottom: 12,
-    },
-    suggestionsScroll: {
-      flexDirection: 'row',
-    },
-    suggestionBubble: {
-      backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary,
-      borderRadius: 16,
-      paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
-      paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-      marginRight: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    suggestionText: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      color: colors.text,
-    },
-    planOptions: {
-      marginTop: 16,
-      gap: 12,
-    },
-    planOption: {
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: Platform.OS === 'ios' ? 16 : 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    planHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 8,
-    },
-    planTitleContainer: {
-      flex: 1,
-      marginRight: 8,
-    },
-    planTitle: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      fontWeight: '600',
-      marginBottom: 4,
-      flexWrap: 'wrap',
-    },
-    planAmount: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      fontWeight: '700',
-      flexShrink: 1,
-      textAlign: 'right',
-    },
-    planDescription: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      marginBottom: 16,
-      flexWrap: 'wrap',
-    },
-    planButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.primary,
-      borderRadius: 20,
-      paddingVertical: Platform.OS === 'ios' ? 10 : 8,
-      paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
-      gap: 8,
-    },
-    planButtonText: {
-      color: '#FFFFFF',
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      fontWeight: '600',
-    },
-    insightsContainer: {
-      marginTop: 16,
-      gap: 12,
-    },
-    insightCard: {
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: Platform.OS === 'ios' ? 16 : 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    insightHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    insightTitle: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      fontWeight: '600',
-      flex: 1,
-      marginRight: 8,
-    },
-    insightValue: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      fontWeight: '700',
-      flexShrink: 1,
-      textAlign: 'right',
-    },
-    insightDescription: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      flexWrap: 'wrap',
-    },
-    recommendationsContainer: {
-      marginTop: 16,
-      backgroundColor: isDark ? colors.backgroundSecondary : colors.card,
-      borderRadius: 12,
-      padding: Platform.OS === 'ios' ? 16 : 10 ,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    recommendationsTitle: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      fontWeight: '600',
-      marginBottom: 12,
-    },
-    recommendationItem: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      marginBottom: 8,
-    },
-    recommendationBullet: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      marginTop: 6,
-      marginRight: 8,
-    },
-    recommendationText: {
-      flex: 1,
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      lineHeight: 20,
-      flexWrap: 'wrap',
-    },
-    emptyContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 24,
-    },
-    emptyImage: {
-      width: 120,
-      height: 120,
-      marginBottom: 24,
-    },
-    emptyTitle: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      fontWeight: '600',
-      color: colors.text,
-      marginBottom: 8,
-      textAlign: 'center',
-    },
-    emptyText: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      marginBottom: 24,
-      lineHeight: 24,
-    },
-    aiBadgeContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 8,
-      gap: 4,
-    },
-    aiBadgeText: {
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      color: '#888',
-      marginLeft: 4,
-    },
-    errorBubble: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#FFF3F3',
-      borderRadius: 16,
-      padding: 12,
-      marginTop: 8,
-      marginBottom: 8,
-      borderWidth: 1,
-      borderColor: '#E57373',
-      gap: 8,
-    },
-    errorText: {
-      color: '#E57373',
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-      flex: 1,
-    },
-    retryButton: {
-      marginLeft: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      backgroundColor: '#E57373',
-      borderRadius: 8,
-    },
-    retryText: {
-      color: '#FFF',
-      fontWeight: '600',
-      fontSize: Platform.OS === 'ios' ? 18 : 16,
-    },
-    debugButton: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 8,
-      marginLeft: 8,
-    },
-    debugButtonText: {
-      color: '#FFFFFF',
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    closeButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginLeft: 8,
-      marginBottom: -10,
-    },
-    headerRightContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    promptCounter: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
-      minWidth: 50,
-      alignItems: 'center',
-    },
-    promptCounterText: {
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    debugButtonsContainer: {
-      flexDirection: 'row',
-      gap: 8,
-      marginLeft: 8,
-    },
-  });
-
   // Add this function to handle navigation to Add Funds
   const handleAddFunds = () => {
     // Replace with your navigation logic
     if (router) router.push('/add-funds');
   };
+
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -2155,7 +1773,7 @@ export default function AIAssistantScreen() {
               style={[styles.closeButton, { backgroundColor: colors.border }]}
               onPress={closeInput}
             >
-              <X size={20} color={colors.text} />
+              <X size={getScaledFontSize(20, textSizeMultiplier)} color={colors.text} />
             </TouchableOpacity>
           )}
         </View>
@@ -2214,14 +1832,14 @@ export default function AIAssistantScreen() {
             entering={FadeIn.duration(300)} 
             style={styles.errorBubble}
           >
-            <AlertTriangle size={16} color="#E57373" />
+            <AlertTriangle size={getScaledFontSize(16, textSizeMultiplier)} color="#E57373" />
             <Text style={styles.errorText}>{createPayoutError}</Text>
           </Animated.View>
         )}
         {/* Plan creation destination selection UI */}
         {planCreationStep === 'awaiting_destination' && !payoutAccountsLoading && (
           <View style={{ marginVertical: 12 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text }}>Your payout accounts:</Text>
+            <Text style={{ fontSize: getScaledFontSize(16, textSizeMultiplier), fontWeight: '600', marginBottom: 8, color: colors.text }}>Your payout accounts:</Text>
             {payoutAccounts.length === 0 && (
               <Text style={{ marginBottom: 8, color: colors.text }}>No payout accounts found.</Text>
             )}
@@ -2264,7 +1882,7 @@ export default function AIAssistantScreen() {
                         justifyContent: 'center',
                         alignItems: 'center'
                       }}>
-                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+                        <Text style={{ color: '#fff', fontSize: getScaledFontSize(12, textSizeMultiplier), fontWeight: '600' }}>
                           {account.bank_name.charAt(0).toUpperCase()}
                         </Text>
                       </View>
@@ -2273,14 +1891,14 @@ export default function AIAssistantScreen() {
                   
                   {/* Account Details */}
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.textSecondary, fontSize: 16, fontWeight: '500' }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: getScaledFontSize(16, textSizeMultiplier), fontWeight: '500' }}>
                       {account.bank_name} ••••{account.account_number.slice(-4)}
                     </Text>
-                    <Text style={{ color: colors.text, fontSize: 16, marginTop: 2 }}>
+                    <Text style={{ color: colors.text, fontSize: getScaledFontSize(16, textSizeMultiplier), marginTop: 2 }}>
                       {account.account_name}
                     </Text>
                     {account.is_default && (
-                      <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600', marginTop: 2 }}>
+                      <Text style={{ color: colors.primary, fontSize: getScaledFontSize(14, textSizeMultiplier), fontWeight: '600', marginTop: 2 }}>
                         Default
                       </Text>
                     )}
@@ -2294,7 +1912,7 @@ export default function AIAssistantScreen() {
         {/* Day of week selection UI */}
         {planCreationStep === 'awaiting_day_of_week' && (
           <View style={{ marginVertical: 12 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text}}>Choose a day of the week:</Text>
+            <Text style={{ fontSize: getScaledFontSize(16, textSizeMultiplier), fontWeight: '600', marginBottom: 8, color: colors.text}}>Choose a day of the week:</Text>
             <TextInput
               style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 8, marginBottom: 8, color: colors.text}}
               placeholder="Sunday, Monday, Tuesday, etc."
@@ -2307,9 +1925,9 @@ export default function AIAssistantScreen() {
         {/* Emergency withdrawal input UI */}
         {planCreationStep === 'awaiting_emergency' && (
           <View style={{ marginVertical: 12 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text}}>Reply "yes" or "no" below:</Text>
+            <Text style={{ fontSize: getScaledFontSize(16, textSizeMultiplier), fontWeight: '600', marginBottom: 8, color: colors.text}}>Reply "yes" or "no" below:</Text>
             <TextInput
-              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, marginBottom: 10, color: colors.text, fontSize: 16}}
+              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, marginBottom: 10, color: colors.text, fontSize: getScaledFontSize(16, textSizeMultiplier)}}
               placeholder="yes or no"
               onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
               returnKeyType="done"
@@ -2319,9 +1937,9 @@ export default function AIAssistantScreen() {
         {/* Plan confirmation input UI */}
         {planCreationStep === 'confirming' && (
           <View style={{ marginVertical: 12 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: colors.text,}}>Type "confirm" to create the plan or "cancel" to abort:</Text>
+            <Text style={{ fontSize: getScaledFontSize(16, textSizeMultiplier), fontWeight: '600', marginBottom: 8, color: colors.text,}}>Type "confirm" to create the plan or "cancel" to abort:</Text>
             <TextInput
-              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, marginBottom: 10, color: colors.text, fontSize: 16}}
+              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 8, marginBottom: 10, color: colors.text, fontSize: getScaledFontSize(16, textSizeMultiplier)}}
               placeholder="confirm or cancel"
               onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
               returnKeyType="done"
@@ -2396,7 +2014,7 @@ export default function AIAssistantScreen() {
               {isCreatingPayout ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Send size={20} color="#FFFFFF" />
+                <Send size={getScaledFontSize(20, textSizeMultiplier)} color="#FFFFFF" />
               )}
             </TouchableOpacity>
           </View>
@@ -2405,3 +2023,390 @@ export default function AIAssistantScreen() {
     </SafeAreaView>
   );
 }
+
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(14, textSizeMultiplier),
+    paddingVertical: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(14, textSizeMultiplier),
+    backgroundColor: colors.background,
+    borderBottomWidth: getScaledFontSize(0.4, textSizeMultiplier),
+    borderBottomColor: colors.border,
+  },
+  headerTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 25 : 20, textSizeMultiplier),
+    fontWeight: '800',
+    color: colors.text,
+    textAlign: 'left',
+  },
+  headerTitleGradientWrapper: {
+    alignSelf: 'flex-start',
+  },
+  headerTitleGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  headerSubtitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    color: colors.textSecondary,
+  },
+  aiIconContainer: {
+    width: getScaledFontSize(40, textSizeMultiplier),
+    height: getScaledFontSize(40, textSizeMultiplier),
+    borderRadius: getScaledFontSize(20, textSizeMultiplier),
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  messagesContainer: {
+    flex: 1,
+    padding: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+  },
+  messageRow: {
+    marginBottom: getScaledFontSize(16, textSizeMultiplier),
+    maxWidth: '80%',
+  },
+  userMessageRow: {
+    alignSelf: 'flex-end',
+  },
+  aiMessageRow: {
+    alignSelf: 'flex-start',
+  },
+  messageBubble: {
+    borderRadius: getScaledFontSize(20, textSizeMultiplier),
+    padding: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    marginBottom: getScaledFontSize(8, textSizeMultiplier),
+    maxWidth: '80%',
+  },
+  userBubble: {
+    alignSelf: 'flex-end',
+    borderBottomRightRadius: getScaledFontSize(4, textSizeMultiplier),
+  },
+  aiBubble: {
+    alignSelf: 'flex-start',
+    borderBottomLeftRadius: getScaledFontSize(4, textSizeMultiplier),
+  },
+  planBubble: {
+    width: '95%',
+  },
+  insightBubble: {
+    width: '95%',
+  },
+  messageText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    lineHeight: getScaledFontSize(24, textSizeMultiplier),
+    flexWrap: 'wrap',
+  },
+  userText: {
+    color: '#FFFFFF',
+  },
+  aiText: {
+    color: colors.text,
+  },
+  typingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginBottom: getScaledFontSize(16, textSizeMultiplier),
+    backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary,
+    borderRadius: getScaledFontSize(20, textSizeMultiplier),
+    padding: Platform.OS === 'ios' ? getScaledFontSize(12, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    paddingHorizontal: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+  },
+  typingDot: {
+    width: getScaledFontSize(8, textSizeMultiplier),
+    height: getScaledFontSize(8, textSizeMultiplier),
+    borderRadius: getScaledFontSize(4, textSizeMultiplier),
+    backgroundColor: colors.primary,
+    marginRight: getScaledFontSize(4, textSizeMultiplier),
+  },
+  typingText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    color: colors.textSecondary,
+    marginLeft: getScaledFontSize(8, textSizeMultiplier),
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Platform.OS === 'ios' ? getScaledFontSize(12, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    backgroundColor: colors.surface,
+    borderTopWidth: getScaledFontSize(1, textSizeMultiplier),
+    borderTopColor: colors.border,
+  },
+  input: {
+    flex: 1,
+    backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary,
+    borderRadius: getScaledFontSize(12, textSizeMultiplier),
+    paddingHorizontal: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    paddingVertical: Platform.OS === 'ios' ? getScaledFontSize(12, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    color: colors.text,
+    marginRight: getScaledFontSize(8, textSizeMultiplier),
+    maxHeight: getScaledFontSize(120, textSizeMultiplier),
+  },
+  sendButton: {
+    width: getScaledFontSize(48, textSizeMultiplier),
+    height: getScaledFontSize(48, textSizeMultiplier),
+    borderRadius: getScaledFontSize(12, textSizeMultiplier),
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: colors.border,
+  },
+  suggestionsContainer: {
+    padding: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    backgroundColor: colors.surface,
+  },
+  suggestionsTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginBottom: getScaledFontSize(12, textSizeMultiplier),
+  },
+  suggestionsScroll: {
+    flexDirection: 'row',
+  },
+  suggestionBubble: {
+    backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary,
+    borderRadius: getScaledFontSize(16, textSizeMultiplier),
+    paddingHorizontal: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    paddingVertical: Platform.OS === 'ios' ? getScaledFontSize(12, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    marginRight: getScaledFontSize(8, textSizeMultiplier),
+    borderWidth: getScaledFontSize(1, textSizeMultiplier),
+    borderColor: colors.border,
+  },
+  suggestionText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    color: colors.text,
+  },
+  planOptions: {
+    marginTop: getScaledFontSize(16, textSizeMultiplier),
+    gap: getScaledFontSize(12, textSizeMultiplier),
+  },
+  planOption: {
+    backgroundColor: colors.card,
+    borderRadius: getScaledFontSize(12, textSizeMultiplier),
+    padding: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    borderWidth: getScaledFontSize(1, textSizeMultiplier),
+    borderColor: colors.border,
+  },
+  planHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: getScaledFontSize(8, textSizeMultiplier),
+  },
+  planTitleContainer: {
+    flex: 1,
+    marginRight: getScaledFontSize(8, textSizeMultiplier),
+  },
+  planTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    fontWeight: '600',
+    marginBottom: getScaledFontSize(4, textSizeMultiplier),
+    flexWrap: 'wrap',
+  },
+  planAmount: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    fontWeight: '700',
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  planDescription: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    marginBottom: getScaledFontSize(16, textSizeMultiplier),
+    flexWrap: 'wrap',
+  },
+  planButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: getScaledFontSize(20, textSizeMultiplier),
+    paddingVertical: Platform.OS === 'ios' ? getScaledFontSize(10, textSizeMultiplier) : getScaledFontSize(8, textSizeMultiplier),
+    paddingHorizontal: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    gap: getScaledFontSize(8, textSizeMultiplier),
+  },
+  planButtonText: {
+    color: '#FFFFFF',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    fontWeight: '600',
+  },
+  insightsContainer: {
+    marginTop: getScaledFontSize(16, textSizeMultiplier),
+    gap: getScaledFontSize(12, textSizeMultiplier),
+  },
+  insightCard: {
+    backgroundColor: colors.card,
+    borderRadius: getScaledFontSize(12, textSizeMultiplier),
+    padding: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    borderWidth: getScaledFontSize(1, textSizeMultiplier),
+    borderColor: colors.border,
+  },
+  insightHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: getScaledFontSize(8, textSizeMultiplier),
+  },
+  insightTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    fontWeight: '600',
+    flex: 1,
+    marginRight: getScaledFontSize(8, textSizeMultiplier),
+  },
+  insightValue: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    fontWeight: '700',
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  insightDescription: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    flexWrap: 'wrap',
+  },
+  recommendationsContainer: {
+    marginTop: getScaledFontSize(16, textSizeMultiplier),
+    backgroundColor: isDark ? colors.backgroundSecondary : colors.card,
+    borderRadius: getScaledFontSize(12, textSizeMultiplier),
+    padding: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    borderWidth: getScaledFontSize(1, textSizeMultiplier),
+    borderColor: colors.border,
+  },
+  recommendationsTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    fontWeight: '600',
+    marginBottom: getScaledFontSize(12, textSizeMultiplier),
+  },
+  recommendationItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: getScaledFontSize(8, textSizeMultiplier),
+  },
+  recommendationBullet: {
+    width: getScaledFontSize(8, textSizeMultiplier),
+    height: getScaledFontSize(8, textSizeMultiplier),
+    borderRadius: getScaledFontSize(4, textSizeMultiplier),
+    marginTop: getScaledFontSize(6, textSizeMultiplier),
+    marginRight: getScaledFontSize(8, textSizeMultiplier),
+  },
+  recommendationText: {
+    flex: 1,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    lineHeight: getScaledFontSize(20, textSizeMultiplier),
+    flexWrap: 'wrap',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: getScaledFontSize(24, textSizeMultiplier),
+  },
+  emptyImage: {
+    width: getScaledFontSize(120, textSizeMultiplier),
+    height: getScaledFontSize(120, textSizeMultiplier),
+    marginBottom: getScaledFontSize(24, textSizeMultiplier),
+  },
+  emptyTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: getScaledFontSize(8, textSizeMultiplier),
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: getScaledFontSize(24, textSizeMultiplier),
+    lineHeight: getScaledFontSize(24, textSizeMultiplier),
+  },
+  aiBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: getScaledFontSize(8, textSizeMultiplier),
+    gap: getScaledFontSize(4, textSizeMultiplier),
+  },
+  aiBadgeText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    color: '#888',
+    marginLeft: getScaledFontSize(4, textSizeMultiplier),
+  },
+  errorBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3F3',
+    borderRadius: getScaledFontSize(16, textSizeMultiplier),
+    padding: getScaledFontSize(12, textSizeMultiplier),
+    marginTop: getScaledFontSize(8, textSizeMultiplier),
+    marginBottom: getScaledFontSize(8, textSizeMultiplier),
+    borderWidth: getScaledFontSize(1, textSizeMultiplier),
+    borderColor: '#E57373',
+    gap: getScaledFontSize(8, textSizeMultiplier),
+  },
+  errorText: {
+    color: '#E57373',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    flex: 1,
+  },
+  retryButton: {
+    marginLeft: getScaledFontSize(8, textSizeMultiplier),
+    paddingHorizontal: getScaledFontSize(10, textSizeMultiplier),
+    paddingVertical: getScaledFontSize(4, textSizeMultiplier),
+    backgroundColor: '#E57373',
+    borderRadius: getScaledFontSize(8, textSizeMultiplier),
+  },
+  retryText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+  },
+  debugButton: {
+    paddingHorizontal: getScaledFontSize(12, textSizeMultiplier),
+    paddingVertical: getScaledFontSize(6, textSizeMultiplier),
+    borderRadius: getScaledFontSize(8, textSizeMultiplier),
+    marginLeft: getScaledFontSize(8, textSizeMultiplier),
+  },
+  debugButtonText: {
+    color: '#FFFFFF',
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    fontWeight: '600',
+  },
+  closeButton: {
+    width: getScaledFontSize(40, textSizeMultiplier),
+    height: getScaledFontSize(40, textSizeMultiplier),
+    borderRadius: getScaledFontSize(20, textSizeMultiplier),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: getScaledFontSize(8, textSizeMultiplier),
+    marginBottom: getScaledFontSize(-10, textSizeMultiplier),
+  },
+  headerRightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: getScaledFontSize(8, textSizeMultiplier),
+  },
+  promptCounter: {
+    paddingHorizontal: getScaledFontSize(8, textSizeMultiplier),
+    paddingVertical: getScaledFontSize(4, textSizeMultiplier),
+    borderRadius: getScaledFontSize(12, textSizeMultiplier),
+    minWidth: getScaledFontSize(50, textSizeMultiplier),
+    alignItems: 'center',
+  },
+  promptCounterText: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    fontWeight: '600',
+  },
+  debugButtonsContainer: {
+    flexDirection: 'row',
+    gap: getScaledFontSize(8, textSizeMultiplier),
+    marginLeft: getScaledFontSize(8, textSizeMultiplier),
+  },
+});

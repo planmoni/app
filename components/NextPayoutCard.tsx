@@ -128,11 +128,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.card,
     borderWidth: 0.5,
     borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: .4,
     overflow: 'hidden',
   },
   payoutCardContent: {

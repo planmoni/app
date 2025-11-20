@@ -6,6 +6,8 @@ import { useBalance } from '@/contexts/BalanceContext';
 import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
 import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 
 interface PayoutPlansSectionProps {
   activePlans: any[];
@@ -14,6 +16,7 @@ interface PayoutPlansSectionProps {
 
 export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: PayoutPlansSectionProps) {
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
   const { showBalances, balance, availableBalance } = useBalance();
 
   const formatBalance = (amount: number) => {
@@ -49,7 +52,7 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
     }
   };
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
     <View style={styles.section}>
@@ -140,7 +143,7 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   section: {
     marginBottom: 10,
   },
@@ -151,7 +154,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   sectionTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -159,7 +162,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical: 4,
   },
   viewAllText: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.text,
     fontWeight: '600',
   },
@@ -175,11 +178,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.card,
     borderWidth: 0.5,
     borderColor: colors.border,
-    shadowColor: '#000000',
-    shadowOffset: { width: 1, height: 6},
-    shadowOpacity: 0.02,
-    shadowRadius: 6,
-    elevation: 6,
   },
   planHeader: {
     flexDirection: 'row',
@@ -188,7 +186,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   planType: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
     maxWidth: '75%',
   },
@@ -199,12 +197,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: Platform.OS === 'ios' ? 20 : 16,
   },
   activeTagText: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.primary,
     fontWeight: '600',
   },
   planAmount: {
-    fontSize: Platform.OS === 'ios' ? 22 : 20,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 22 : 20, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
@@ -216,15 +214,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   planFrequency: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
   },
   planDot: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     color: colors.textSecondary,
   },
   planValue: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
   },
   progressBar: {
@@ -244,15 +242,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   progressText: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
   },
   progressCount: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
   },
   nextPayoutDate: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
@@ -268,14 +266,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
   },
   addPayoutText: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.primary,
     marginTop: 12,
     marginBottom: 4,
   },
   addPayoutDescription: {
-    fontSize: 16,
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     color: colors.textSecondary,
     textAlign: 'center',
   },
@@ -288,7 +286,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
   emptyPayoutsText: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textSecondary,
     marginBottom: 10,
   },
@@ -304,7 +302,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   createFirstPayoutText: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '600',
   },
 }); 

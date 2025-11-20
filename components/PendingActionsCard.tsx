@@ -14,6 +14,8 @@ import Tier1Icon from '@/assets/kyc/1.svg';
 import Tier2Icon from '@/assets/kyc/2.svg';
 import Tier3Icon from '@/assets/kyc/3.svg';
 import React from 'react';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 
 type PendingAction = {
   id: string;
@@ -30,6 +32,7 @@ type PendingAction = {
 
 export default function PendingActionsCard() {
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
   const [profileData, setProfileData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { session } = useAuth();
@@ -311,7 +314,7 @@ export default function PendingActionsCard() {
   const filteredActions = pendingActions.filter(action => !isActionCompleted(action.id));
 
   // Create styles before any conditional returns
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   // Don't render if there are no pending actions and data is loaded
   if (!isLoading && filteredActions.length === 0) {
@@ -418,7 +421,7 @@ export default function PendingActionsCard() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
     marginTop: 20,
     marginBottom: 10,
@@ -431,18 +434,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 12,
   },
   actionCard: {
-    width: Platform.OS === 'ios' ? 300 : 240,
+    width: Platform.OS === 'ios' ? 300 : 320,
     backgroundColor: colors.card,
     borderRadius: 12,
     height: 110,
     padding: 16,
     borderWidth: 0.5,
     borderColor: colors.border,
-    shadowColor: '#000000',
-    shadowOffset: { width: 1, height: 6},
-    shadowOpacity: 0.02,
-    shadowRadius: 5,
-    elevation: 9,
+   
   
     flexDirection: 'row',
     alignItems: 'center',
@@ -462,15 +461,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginRight: 8,
   },
   actionTitle: {
-    fontSize: Platform.OS === 'ios' ? 15 : 13,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 13, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     marginTop: 10,
   },
   actionDescription: {
-    fontSize: Platform.OS === 'ios' ? 13 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
     color: colors.textSecondary,
-    lineHeight: 16,
+    lineHeight: getScaledFontSize(16, textSizeMultiplier),
   },
   actionButtons: {
     flexDirection: 'column',
@@ -495,7 +494,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   sectionTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: -20,
@@ -526,7 +525,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   progressText: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     fontWeight: '600',
     color: colors.textSecondary,
     minWidth: 25,
@@ -537,7 +536,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
   },
   loadingText: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textSecondary,
     fontWeight: '500',
   },

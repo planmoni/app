@@ -1,7 +1,30 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert, Platform } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
-import Intercom, { Visibility } from '@intercom/intercom-react-native';
+
+// The Intercom native module is not available in Expo Go / web / tests.
+// Importing it unconditionally causes runtime crashes because the module's
+// initialization tries to access constants on a null native proxy.
+// To keep the app stable we resolve the module lazily and guard every usage.
+type IntercomModule = typeof import('@intercom/intercom-react-native');
+
+let intercomModule: IntercomModule | null = null;
+let Intercom: IntercomModule['default'] | null = null;
+let Visibility: IntercomModule['Visibility'] | { VISIBLE: string; GONE: string } = {
+  VISIBLE: 'VISIBLE',
+  GONE: 'GONE',
+};
+
+if (Platform.OS === 'ios' || Platform.OS === 'android') {
+  try {
+    intercomModule = require('@intercom/intercom-react-native');
+    Intercom = intercomModule.default;
+    Visibility = intercomModule.Visibility;
+  } catch (error) {
+    console.warn('[Intercom] Native module unavailable, continuing without it.', error);
+    Intercom = null;
+  }
+}
 
 // Global state to track authentication across app
 let globalAuthState = {
@@ -17,10 +40,15 @@ export function useIntercom() {
   const isAuthenticatedRef = useRef(false);
 
   // Check if Intercom is supported on this platform
-  const isSupported = Platform.OS !== 'web';
+  const isSupported = Platform.OS !== 'web' && !!Intercom;
 
   // Authenticate user with Intercom
   const authenticateUser = useCallback(async () => {
+    if (!Intercom) {
+      console.log('[Intercom] Module unavailable, skipping authentication');
+      return;
+    }
+
     if (!session?.user?.id) {
       return;
     }
@@ -191,7 +219,7 @@ export function useIntercom() {
       // Logout when user session is lost
       console.log('🔄 User logged out, clearing Intercom authentication');
       try {
-        Intercom.logout();
+        Intercom?.logout();
       } catch (error) {
         console.warn('Failed to logout from Intercom:', error);
       }

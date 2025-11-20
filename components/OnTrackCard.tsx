@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Lightbulb, Target, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PayoutPlan } from '@/hooks/useRealtimePayoutPlans';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 
 interface OnTrackCardProps {
   payoutPlans: PayoutPlan[];
@@ -16,6 +18,7 @@ const ON_TRACK_CARD_DISMISSED_KEY = 'on_track_card_dismissed';
 export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
   const { colors, isDark } = useTheme();
   const { lightImpact } = useHaptics();
+  const { textSizeMultiplier } = useTextSize();
   const [isDismissed, setIsDismissed] = useState(false);
   const [shouldShow, setShouldShow] = useState(false);
 
@@ -184,7 +187,7 @@ export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     return null;
   }
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
     <View style={styles.container}>
@@ -210,7 +213,7 @@ export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
     marginBottom: 15,
     paddingHorizontal: 4,
@@ -243,8 +246,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignSelf: 'flex-start',
   },
   message: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 14, textSizeMultiplier),
+    lineHeight: getScaledFontSize(Platform.OS === 'ios' ? 17 : 14, textSizeMultiplier),
     color: colors.text,
     maxWidth: '90%',
   },

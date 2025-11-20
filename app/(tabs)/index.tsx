@@ -41,7 +41,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTextSize } from '@/contexts/TextSizeContext';
 import { useAppLock } from '@/contexts/AppLockContext';
+import { getScaledFontSize } from '@/lib/textSize';
 import { usePin } from '@/contexts/PinContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
@@ -77,6 +79,7 @@ export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
   const { updateLastActiveOnInteraction } = useAppLock();
   const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
@@ -111,6 +114,7 @@ export default function HomeScreen() {
   const [lastDepositAmount, setLastDepositAmount] = useState<number | null>(null);
   const [lastShownDepositId, setLastShownDepositId] = useState<string | null>(null);
   const [shownDepositIds, setShownDepositIds] = useState<Set<string>>(new Set());
+  const [hasDismissedDepositModal, setHasDismissedDepositModal] = useState(false);
   const [showAppLockModal, setShowAppLockModal] = useState(false);
   const [hasShownAppLockModal, setHasShownAppLockModal] = useState(false);
   const { hasAppLockPin } = usePin();
@@ -220,30 +224,37 @@ export default function HomeScreen() {
     }
   }, [params.showAccountInfo, session?.user?.id, hasShownAccountInfoModal]);
 
-  // Load shown deposit IDs from storage on mount
+  // Load shown deposit IDs and dismissed modal flag from storage on mount
   useEffect(() => {
     if (!session?.user?.id) return;
 
-    const loadShownDepositIds = async () => {
+    const loadDepositModalState = async () => {
       try {
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const key = `shown_deposit_ids_${session.user.id}`;
+        const dismissedKey = `deposit_modal_dismissed_${session.user.id}`;
+        
         const stored = await AsyncStorage.getItem(key);
         if (stored) {
           const ids = JSON.parse(stored) as string[];
           setShownDepositIds(new Set(ids));
         }
+        
+        const dismissed = await AsyncStorage.getItem(dismissedKey);
+        if (dismissed === 'true') {
+          setHasDismissedDepositModal(true);
+        }
       } catch (error) {
-        console.error('Error loading shown deposit IDs:', error);
+        console.error('Error loading deposit modal state:', error);
       }
     };
 
-    loadShownDepositIds();
+    loadDepositModalState();
   }, [session?.user?.id]);
 
   // Detect new deposits and show PlanCreationModal
   useEffect(() => {
-    if (!session?.user?.id || transactions.length === 0) return;
+    if (!session?.user?.id || transactions.length === 0 || hasDismissedDepositModal) return;
 
     const depositTransactions = transactions.filter(
       t => t.type === 'deposit' && t.status === 'completed'
@@ -279,7 +290,7 @@ export default function HomeScreen() {
         return () => clearTimeout(timer);
       }
     }
-  }, [transactions, session?.user?.id, shownDepositIds]);
+  }, [transactions, session?.user?.id, shownDepositIds, hasDismissedDepositModal]);
 
   // Show AppLockModal if no PIN is set up AND user just created their first plan
   useEffect(() => {
@@ -676,7 +687,7 @@ export default function HomeScreen() {
     logAnalyticsEvent('view_transaction_history', { source: 'balance_card' });
   };
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   // Show loader if any data is loading
   if (payoutPlansLoading || transactionsLoading) {
@@ -733,7 +744,7 @@ export default function HomeScreen() {
                 firstName={firstName} 
                 lastName={lastName} 
                 size={48}
-                fontSize={18}
+                fontSize={getScaledFontSize(18, textSizeMultiplier)}
               />
             </Pressable>
             <View style={styles.headerActions}>
@@ -961,7 +972,21 @@ export default function HomeScreen() {
 
       <PlanCreationModal
         isVisible={showPlanCreationModal}
-        onClose={() => setShowPlanCreationModal(false)}
+        onClose={async () => {
+          setShowPlanCreationModal(false);
+          setHasDismissedDepositModal(true);
+          
+          // Persist the dismissed state to AsyncStorage
+          try {
+            if (session?.user?.id) {
+              const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+              const dismissedKey = `deposit_modal_dismissed_${session.user.id}`;
+              await AsyncStorage.setItem(dismissedKey, 'true');
+            }
+          } catch (error) {
+            console.error('Error saving dismissed modal state:', error);
+          }
+        }}
         depositAmount={lastDepositAmount || 0}
       />
 
@@ -985,7 +1010,7 @@ export default function HomeScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -1032,14 +1057,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginLeft: 0,
   },
   greeting: {
-    fontSize: Platform.OS === 'ios' ? 20 : 18,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 19, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     marginTop: Platform.OS === 'ios' ? 5 : 5,
     marginBottom: Platform.OS === 'ios' ? 5 : 5,
   },
   subGreeting: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
     fontWeight: '400',
     color: colors.textSecondary,
     lineHeight: 18,
@@ -1060,7 +1085,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   livenessTestButtonText: {
     color: '#FFFFFF',
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
     letterSpacing: 0.5,
   },
@@ -1072,8 +1097,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   balanceCardContent: {
-    paddingVertical: Platform.OS === 'ios' ? 16 : 10,
-    paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 15,
+    paddingHorizontal: Platform.OS === 'ios' ? 16 : 15,
   },
   balanceLabelContainer: {
     flexDirection: 'row',
@@ -1087,7 +1112,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   balanceLabel: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -1098,7 +1123,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 4,
   },
   balanceAmount: {
-    fontSize: Platform.OS === 'ios' ? 35 : 24,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 35 : 34, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: Platform.OS === 'ios' ? 5 : 0,
@@ -1116,11 +1141,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   lockedLabel: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
     color: colors.textSecondary,
   },
   lockedAmount: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -1134,14 +1159,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
     padding: Platform.OS === 'ios' ? 14 : 10,
     borderRadius: 20,
-    height: Platform.OS === 'ios' ? 55 : 45,
+    height: Platform.OS === 'ios' ? 55 : 55,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
   createButtonText: {
     color: '#fff',
-    fontSize: Platform.OS === 'ios' ? 17 : 15,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
     fontWeight: '600',
   },
   addFundsButton: {
@@ -1152,16 +1177,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderWidth: 2, 
     borderColor: isDark ? '#fff' : colors.primary,
     borderRadius: 20,
-    height: Platform.OS === 'ios' ? 55 : 45,
+    height: Platform.OS === 'ios' ? 55 : 55,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   addFundsText: {
     color: colors.primary,
-    fontSize: Platform.OS === 'ios' ? 17 : 15,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
     fontWeight: '600',
     textAlign: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   summaryCard: {
     marginBottom: 20,
@@ -1183,7 +1210,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingTop: 16,
   },
   summaryTitle: {
-    fontSize: 16,
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -1205,11 +1232,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   summaryLabel: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textSecondary,
   },
   summaryValue: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -1224,7 +1251,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginTop: 16,
   },
   seeMoreText: {
-    fontSize: 16,
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     color: colors.textSecondary,
     fontWeight: '600',
   },
@@ -1246,7 +1273,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   payoutTitle: {
-    fontSize: 16,
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -1257,7 +1284,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 20,
   },
   activeTagText: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     color: '#22C55E',
     fontWeight: '600',
   },
@@ -1268,12 +1295,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   payoutName: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '400',
     color: colors.text,
   },
   payoutAmount: {
-    fontSize: 24,
+    fontSize: getScaledFontSize(24, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: 10,
@@ -1285,7 +1312,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   payoutAccountLabel: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textSecondary,
     fontWeight: '500',
   },

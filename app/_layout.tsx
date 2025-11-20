@@ -7,6 +7,7 @@ import { BottomNavProvider } from '@/contexts/BottomNavContext';
 // import BiometricsLock from '@/components/BiometricsLock';
 // import SimplePinLock from '@/components/SimplePinLock'; // Changed from LockScreen
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { TextSizeProvider } from '@/contexts/TextSizeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { PinProvider } from '@/contexts/PinContext';
 import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
@@ -426,29 +427,31 @@ export default function RootLayout() {
   return (
     <AppErrorProvider>
       <ThemeProvider>
-        <ToastProvider>
-          <AuthProvider>
-            <AppVersionProvider>
-              <PinProvider>
-                <AppLockProvider>
-                  <NotificationProvider>
-                    <BalanceProvider>
-                      <BottomNavProvider>
-                        <AppBlur>
-                          <UserActivityTracker>
-                            <RootLayoutNav />
-                          </UserActivityTracker>
-                        </AppBlur>
-                      </BottomNavProvider>
-                    </BalanceProvider>
-                  </NotificationProvider>
-              </AppLockProvider>
-            </PinProvider>
-          </AppVersionProvider>
-        </AuthProvider>
-      </ToastProvider>
-    </ThemeProvider>
-  </AppErrorProvider>
+        <TextSizeProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <AppVersionProvider>
+                <PinProvider>
+                  <AppLockProvider>
+                    <NotificationProvider>
+                      <BalanceProvider>
+                        <BottomNavProvider>
+                          <AppBlur>
+                            <UserActivityTracker>
+                              <RootLayoutNav />
+                            </UserActivityTracker>
+                          </AppBlur>
+                        </BottomNavProvider>
+                      </BalanceProvider>
+                    </NotificationProvider>
+                  </AppLockProvider>
+                </PinProvider>
+              </AppVersionProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </TextSizeProvider>
+      </ThemeProvider>
+    </AppErrorProvider>
   );
 }
 

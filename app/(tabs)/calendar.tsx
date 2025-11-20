@@ -7,6 +7,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions , Pl
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCalendarEvents, CalendarEvent } from '@/hooks/useCalendarEvents';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 
 type ViewType = 'month' | 'week' | 'list';
 
@@ -16,6 +18,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 export default function CalendarScreen() {
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
   const { events, isLoading, error, refreshEvents } = useCalendarEvents();
   const [activeView, setActiveView] = useState<ViewType>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -191,7 +194,7 @@ export default function CalendarScreen() {
     return weekDates;
   };
 
-  const styles = createStyles(colors, isDark, cellSize, weekCellSize);
+  const styles = createStyles(colors, isDark, cellSize, weekCellSize, textSizeMultiplier);
 
   if (isLoading) {
     return (
@@ -702,7 +705,7 @@ export default function CalendarScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSize: number) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSize: number, textSizeMultiplier: number) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -718,7 +721,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: Platform.OS === 'ios' ? 24 : 20,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 24 : 20, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
   },
@@ -734,7 +737,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     backgroundColor: colors.backgroundTertiary,
   },
   todayButtonText: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
   },
@@ -753,7 +756,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     gap: 16,
   },
   loadingText: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     color: colors.textSecondary,
   },
   errorContainer: {
@@ -764,7 +767,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     padding: 24,
   },
   errorText: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     color: colors.error,
     textAlign: 'center',
   },
@@ -776,7 +779,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
   },
   retryButtonText: {
     color: '#FFFFFF',
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     fontWeight: '600',
   },
   viewSelector: {
@@ -797,7 +800,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     backgroundColor: colors.primary,
   },
   viewOptionText: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
   },
@@ -821,7 +824,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     paddingHorizontal: 2,
   },
   weekDay: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
   },
@@ -846,7 +849,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     backgroundColor: colors.backgroundTertiary,
   },
   dayNumber: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.text,
     fontWeight: '500',
   },
@@ -870,7 +873,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     padding: 16,
   },
   monthTitle: {
-    fontSize: Platform.OS === 'ios' ? 18 : 16,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     flex: 1,
@@ -891,7 +894,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     padding: 16,
   },
   weekTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     flex: 1,
@@ -913,12 +916,12 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     position: 'relative',
   },
   weekDayName: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.textSecondary,
     marginBottom: 4,
   },
   weekDayNumber: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
   },
@@ -939,7 +942,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     gap: 8,
   },
   selectedDateTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     flex: 1,
@@ -952,7 +955,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     borderRadius: 12,
   },
   eventCountText: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: isDark ? colors.textSecondary : '#0284C7',
     fontWeight: '500',
   },
@@ -968,7 +971,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     gap: 8,
   },
   dateTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     flex: 1,
@@ -999,13 +1002,13 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     marginRight: 12,
   },
   eventTitle: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     fontWeight: '600',
     marginBottom: 4,
   },
   eventDescription: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
-    lineHeight: 16,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
+    lineHeight: getScaledFontSize(16, textSizeMultiplier),
   },
   legend: {
     padding: Platform.OS === 'ios' ? 16 : 10,
@@ -1015,7 +1018,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     marginTop: 16,
   },
   legendTitle: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
     marginBottom: 12,
@@ -1037,7 +1040,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
     borderRadius: 4,
   },
   legendText: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.textSecondary,
     flex: 1,
   },
