@@ -17,6 +17,16 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { 
+  generatePayoutSuccessEmailHtml, 
+  generatePayoutFailedEmailHtml, 
+  generatePayoutReversedEmailHtml,
+  generateEmergencyWithdrawalSuccessEmailHtml,
+  generateEmergencyWithdrawalFailedEmailHtml,
+  generateEmergencyWithdrawalReversedEmailHtml,
+  generateDepositSuccessEmailHtml,
+  generateDepositFailedEmailHtml
+} from './email-templates.ts';
 
 // Initialize Supabase client with service role key (bypasses RLS)
 // This is safe because webhooks are authenticated via signature verification
@@ -832,6 +842,23 @@ async function updateUserBalance(userId: string, transferData: SafeHavenTransfer
                 } else {
                   transactionId = newTransaction?.id || null;
                   console.log('Transaction record created:', transactionId);
+                  
+                  // Send deposit success email notification
+                  try {
+                    await sendDepositSuccessEmailNotification(
+                      userId,
+                      walletAmount,
+                      newAvailableBalance,
+                      paymentRef,
+                      transactionId,
+                      senderName,
+                      transferData.debitAccountNumber,
+                      transferData.provider || transferData.destinationInstitutionCode,
+                      narration
+                    );
+                  } catch (emailError) {
+                    console.error('❌ Error sending deposit success email notification:', emailError);
+                  }
                 }
               } else {
                 transactionId = existingTransaction.id;
@@ -1005,16 +1032,59 @@ async function handleTransferReversed(transferData: SafeHavenTransferData, userI
 // Handle emergency withdrawal success
 async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal: any, transferData: SafeHavenTransferData): Promise<void> {
   try {
-    // Update emergency withdrawal status
+    const paymentRef = transferData.paymentReference || transferData.sessionId || emergencyWithdrawal.reference;
+    
+    // Use withdrawal_amount from emergency_withdrawals table (this is the total including withdrawal fee)
+    // withdrawal_amount = 50 (total), net_amount = 44 (sent to user), fee_amount = 6 (withdrawal fee)
+    // transferData.amount = 44 (net sent), transferData.fees = 10 (SafeHaven transaction fee on main account, NOT withdrawal fee)
+    const totalAmount = emergencyWithdrawal.withdrawal_amount;
+    
+    // Console log amounts for debugging
+    console.log('💰 Emergency Withdrawal Amounts:', {
+      withdrawal_amount_from_table: emergencyWithdrawal.withdrawal_amount,
+      net_amount_from_table: emergencyWithdrawal.net_amount,
+      fee_amount_from_table: emergencyWithdrawal.fee_amount,
+      transfer_amount_from_webhook: transferData.amount,
+      transfer_fees_from_webhook: transferData.fees || 0,
+      note: 'transfer_fees is SafeHaven transaction fee on main account, NOT withdrawal fee',
+      total_amount_to_debit: totalAmount,
+      source: 'emergency_withdrawals.withdrawal_amount',
+      will_deduct_from_safehaven_account: totalAmount,
+      will_deduct_from_wallet_locked: emergencyWithdrawal.withdrawal_amount
+    });
+
+    // 1. Create audit log FIRST
+    await createAuditLog(
+      emergencyWithdrawal.user_id,
+      'emergency_withdrawal_success',
+      {
+        emergency_withdrawal_id: emergencyWithdrawal.id,
+        transfer_id: transferData._id,
+        payment_reference: paymentRef,
+        withdrawal_amount: emergencyWithdrawal.withdrawal_amount,
+        net_amount: emergencyWithdrawal.net_amount,
+        fee_amount: emergencyWithdrawal.fee_amount,
+        transfer_amount: transferData.amount,
+        transfer_fees: transferData.fees || 0,
+        total_amount: totalAmount
+      },
+      {
+        status: 'processing',
+        step: 'webhook_received'
+      },
+      'success'
+    );
+
+    // 2. Update emergency withdrawal status
     const { error: updateError } = await supabase
       .from('emergency_withdrawals')
       .update({
         status: 'completed',
         transferred_at: new Date().toISOString(),
-        transfer_code: transferData.paymentReference || transferData.sessionId,
+        transfer_code: paymentRef,
         metadata: {
           safehaven_transfer_id: transferData._id,
-          safehaven_reference: transferData.paymentReference,
+          safehaven_reference: paymentRef,
           transfer_success: true,
           safehaven_transfer_data: transferData
         }
@@ -1023,12 +1093,19 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal: any, transf
 
     if (updateError) {
       console.error(`❌ Error updating emergency withdrawal status:`, updateError);
+      await createAuditLog(
+        emergencyWithdrawal.user_id,
+        'emergency_withdrawal_success_error',
+        { emergency_withdrawal_id: emergencyWithdrawal.id, error: updateError.message },
+        { status: 'error' },
+        'error'
+      );
       return;
     }
 
     console.log(`✅ Emergency withdrawal ${emergencyWithdrawal.id} marked as completed`);
 
-    // Update the payout plan status to cancelled (since emergency withdrawal cancels the plan)
+    // 3. Update the payout plan status to cancelled (since emergency withdrawal cancels the plan)
     const { error: planUpdateError } = await supabase
       .from('payout_plans')
       .update({
@@ -1043,21 +1120,97 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal: any, transf
       console.log(`✅ Payout plan ${emergencyWithdrawal.payout_plan_id} marked as cancelled`);
     }
 
-    // Create transaction record
-    await createTransactionRecord({
+    // 4. Update SafeHaven account balance (subtract amount + fees)
+    // Get user's safehaven_account by user_id (not by account_number since 0117753301 is the main account)
+    const { data: currentAccount } = await supabase
+      .from('safehaven_accounts')
+      .select('id, account_balance, book_balance, metadata, account_number')
+      .eq('user_id', emergencyWithdrawal.user_id)
+      .eq('is_deleted', false)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!currentAccount) {
+      console.error(`❌ SafeHaven account not found for user ${emergencyWithdrawal.user_id}`);
+      await createAuditLog(
+        emergencyWithdrawal.user_id,
+        'emergency_withdrawal_success_error',
+        { emergency_withdrawal_id: emergencyWithdrawal.id, error: 'Account not found' },
+        { status: 'error' },
+        'error'
+      );
+      return;
+    }
+
+    const balanceChange = -totalAmount;
+    const newAccountBalance = (currentAccount.account_balance || 0) + balanceChange;
+    const newBookBalance = (currentAccount.book_balance || 0) + balanceChange;
+    
+    console.log('💸 SafeHaven Account Balance Update:', {
+      current_balance: currentAccount.account_balance,
+      balance_change: balanceChange,
+      new_balance: newAccountBalance,
+      amount_being_debited: totalAmount
+    });
+
+    // Update safehaven_accounts balance
+    const { error: accountUpdateError } = await supabase
+      .from('safehaven_accounts')
+      .update({
+        account_balance: newAccountBalance,
+        book_balance: newBookBalance,
+        updated_at: new Date().toISOString(),
+        synced_at: new Date().toISOString(),
+        metadata: {
+          ...(currentAccount.metadata || {}),
+          payment_reference: paymentRef,
+          transfer_reference: paymentRef,
+          transfer_status: 'Completed',
+          emergency_withdrawal_id: emergencyWithdrawal.id,
+          balance_change: balanceChange,
+          updated_by: 'webhook_emergency_withdrawal'
+        }
+      })
+      .eq('id', currentAccount.id);
+
+    if (accountUpdateError) {
+      console.error(`❌ Error updating SafeHaven account balance:`, accountUpdateError);
+      await createAuditLog(
+        emergencyWithdrawal.user_id,
+        'emergency_withdrawal_success_error',
+        { emergency_withdrawal_id: emergencyWithdrawal.id, error: accountUpdateError.message },
+        { status: 'error' },
+        'error'
+      );
+      return;
+    }
+
+    console.log(`✅ Updated SafeHaven account balance: ${currentAccount.account_balance} -> ${newAccountBalance}`);
+
+    // Audit log for account balance update
+    await createAuditLog(
+      emergencyWithdrawal.user_id,
+      'safehaven_account_balance_updated',
+      {
+        account_number: currentAccount.account_number,
+        balance_change: balanceChange,
+        old_balance: currentAccount.account_balance,
+        new_balance: newAccountBalance
+      },
+      { status: 'success' },
+      'success'
+    );
+
+    // 5. Update wallet balance - reduce both balance and locked_balance since money is being withdrawn from the system
+    // Use withdrawal_amount (total 50) not net_amount (44) - we need to deduct the full amount including fees
+    console.log('💳 Wallet Balance Update:', {
       user_id: emergencyWithdrawal.user_id,
-      amount: emergencyWithdrawal.net_amount,
-      reference: emergencyWithdrawal.reference,
-      payout_plan_id: emergencyWithdrawal.payout_plan_id
-    }, transferData, 'completed', 'withdrawal');
-
-    // Update SafeHaven account balance (debit the account)
-    // For Outwards transfers, we need to subtract amount + fees from the account
-    const debitAccountNumber = transferData.debitAccountNumber || '0117753301';
-    await updateUserBalance(emergencyWithdrawal.user_id, transferData, debitAccountNumber);
-    console.log(`✅ Updated SafeHaven account balance for emergency withdrawal`);
-
-    // Update wallet balance - reduce both balance and locked_balance since money is being withdrawn from the system
+      amount_to_deduct_from_locked: emergencyWithdrawal.withdrawal_amount,
+      note: 'Deducting full withdrawal_amount (not net_amount) from locked_balance'
+    });
+    
     const { error: reduceError } = await supabase.rpc("transfer_funds", {
       arg_user_id: emergencyWithdrawal.user_id,
       arg_amount: emergencyWithdrawal.withdrawal_amount
@@ -1065,9 +1218,54 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal: any, transf
 
     if (reduceError) {
       console.error(`❌ Error reducing wallet balance for emergency withdrawal:`, reduceError);
-    } else {
-      console.log(`✅ Successfully reduced ₦${emergencyWithdrawal.withdrawal_amount} from wallet for user ${emergencyWithdrawal.user_id}`);
+      await createAuditLog(
+        emergencyWithdrawal.user_id,
+        'emergency_withdrawal_success_error',
+        { emergency_withdrawal_id: emergencyWithdrawal.id, error: reduceError.message },
+        { status: 'error' },
+        'error'
+      );
+      return;
     }
+
+    console.log(`✅ Successfully reduced ₦${emergencyWithdrawal.withdrawal_amount} from wallet for user ${emergencyWithdrawal.user_id}`);
+
+    // Audit log for wallet update
+    await createAuditLog(
+      emergencyWithdrawal.user_id,
+      'wallet_balance_updated',
+      {
+        amount_deducted: emergencyWithdrawal.withdrawal_amount,
+        operation: 'transfer_funds'
+      },
+      { status: 'success' },
+      'success'
+    );
+
+    // 6. Update transaction record (not create) with status completed and source safehaven_payout_plan
+    await updateTransactionStatus(
+      {
+        user_id: emergencyWithdrawal.user_id,
+        reference: emergencyWithdrawal.reference,
+        payout_plan_id: emergencyWithdrawal.payout_plan_id
+      },
+      transferData,
+      'completed',
+      'safehaven_payout_plan'
+    );
+
+    // Audit log for transaction update
+    await createAuditLog(
+      emergencyWithdrawal.user_id,
+      'transaction_updated',
+      {
+        transaction_reference: paymentRef,
+        status: 'completed',
+        source: 'safehaven_payout_plan'
+      },
+      { status: 'success' },
+      'success'
+    );
 
     // Send push notification
     await supabase.rpc('send_push_notification', {
@@ -1081,10 +1279,88 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal: any, transf
       }
     });
 
-    // Send email notification (if email function exists)
-    // await sendEmergencyWithdrawalSuccessEmailNotification(...);
+    // Final audit log
+    await createAuditLog(
+      emergencyWithdrawal.user_id,
+      'emergency_withdrawal_success_completed',
+      {
+        emergency_withdrawal_id: emergencyWithdrawal.id,
+        transfer_id: transferData._id,
+        payment_reference: paymentRef
+      },
+      { status: 'completed' },
+      'success'
+    );
+
+    // Send email notification
+    try {
+      // Get payout plan details for email
+      let planName: string | undefined;
+      let accountName: string | undefined;
+      let bankName: string | undefined;
+      let accountNumber: string | undefined;
+      
+      if (emergencyWithdrawal.payout_plan_id) {
+        const { data: payoutPlan } = await supabase
+          .from('payout_plans')
+          .select('name, payout_account_id, bank_account_id')
+          .eq('id', emergencyWithdrawal.payout_plan_id)
+          .single();
+        
+        if (payoutPlan) {
+          planName = payoutPlan.name;
+          
+          // Get account details
+          if (payoutPlan.payout_account_id) {
+            const { data } = await supabase
+              .from('payout_accounts')
+              .select('account_name, bank_name, account_number')
+              .eq('id', payoutPlan.payout_account_id)
+              .single();
+            if (data) {
+              accountName = data.account_name;
+              bankName = data.bank_name;
+              accountNumber = data.account_number;
+            }
+          } else if (payoutPlan.bank_account_id) {
+            const { data } = await supabase
+              .from('bank_accounts')
+              .select('account_name, bank_name, account_number')
+              .eq('id', payoutPlan.bank_account_id)
+              .single();
+            if (data) {
+              accountName = data.account_name;
+              bankName = data.bank_name;
+              accountNumber = data.account_number;
+            }
+          }
+        }
+      }
+
+      await sendEmergencyWithdrawalSuccessEmailNotification(
+        emergencyWithdrawal.user_id,
+        emergencyWithdrawal.withdrawal_amount,
+        emergencyWithdrawal.net_amount,
+        emergencyWithdrawal.fee_amount,
+        paymentRef,
+        emergencyWithdrawal.id,
+        planName,
+        accountName || transferData.creditAccountName,
+        bankName || 'Your Bank',
+        accountNumber || transferData.creditAccountNumber
+      );
+    } catch (emailError) {
+      console.error('❌ Error sending emergency withdrawal success email notification:', emailError);
+    }
   } catch (error) {
     console.error('❌ Error handling emergency withdrawal success:', error);
+    await createAuditLog(
+      emergencyWithdrawal.user_id,
+      'emergency_withdrawal_success_error',
+      { emergency_withdrawal_id: emergencyWithdrawal.id, error: error.message },
+      { status: 'error' },
+      'error'
+    );
     throw error;
   }
 }
@@ -1092,13 +1368,35 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal: any, transf
 // Handle automated payout success
 async function handleAutomatedPayoutSuccess(automatedPayout: any, transferData: SafeHavenTransferData): Promise<void> {
   try {
-    // Update automated payout status
+    const paymentRef = transferData.paymentReference || transferData.sessionId || automatedPayout.payment_reference || automatedPayout.transfer_reference;
+    const totalAmount = transferData.amount + (transferData.fees || 0);
+
+    // 1. Create audit log FIRST
+    await createAuditLog(
+      automatedPayout.user_id,
+      'automated_payout_success',
+      {
+        automated_payout_id: automatedPayout.id,
+        transfer_id: transferData._id,
+        payment_reference: paymentRef,
+        amount: transferData.amount,
+        fees: transferData.fees || 0,
+        total_amount: totalAmount
+      },
+      {
+        status: 'processing',
+        step: 'webhook_received'
+      },
+      'success'
+    );
+
+    // 2. Update automated payout status
     const { error: updateError } = await supabase
       .from('automated_payouts')
       .update({
         status: 'completed',
         completed_at: new Date().toISOString(),
-        transfer_code: transferData.paymentReference || transferData.sessionId,
+        transfer_code: paymentRef,
         transferred_at: transferData.updatedAt || new Date().toISOString(),
         metadata: {
           ...automatedPayout.metadata,
@@ -1110,58 +1408,118 @@ async function handleAutomatedPayoutSuccess(automatedPayout: any, transferData: 
 
     if (updateError) {
       console.error(`❌ Error updating automated payout status:`, updateError);
+      await createAuditLog(
+        automatedPayout.user_id,
+        'automated_payout_success_error',
+        { automated_payout_id: automatedPayout.id, error: updateError.message },
+        { status: 'error' },
+        'error'
+      );
       return;
     }
 
     console.log(`✅ Automated payout ${automatedPayout.id} marked as completed`);
 
-    // Update SafeHaven account balance (debit the account)
-    // The trigger will automatically handle wallet and transaction updates
-    // For Outwards transfers, we need to subtract amount + fees from the account
-    const debitAccountNumber = transferData.debitAccountNumber || '0117753301';
-    
-    // Get current account to update with metadata
+    // 3. Update SafeHaven account balance (subtract amount + fees)
+    // Get user's safehaven_account by user_id (not by account_number since 0117753301 is the main account)
     const { data: currentAccount } = await supabase
       .from('safehaven_accounts')
-      .select('account_balance, book_balance, metadata')
+      .select('id, account_balance, book_balance, metadata, account_number')
       .eq('user_id', automatedPayout.user_id)
-      .eq('account_number', debitAccountNumber)
+      .eq('is_deleted', false)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
-    if (currentAccount) {
-      const balanceChange = -(transferData.amount + (transferData.fees || 0));
-      const newAccountBalance = (currentAccount.account_balance || 0) + balanceChange;
-      const newBookBalance = (currentAccount.book_balance || 0) + balanceChange;
-      const paymentRef = transferData.paymentReference || transferData.sessionId || automatedPayout.payment_reference || automatedPayout.transfer_reference;
-
-      // Update account balance with metadata containing payment reference and status
-      // The trigger will automatically handle transaction and wallet updates
-      await supabase
-        .from('safehaven_accounts')
-        .update({
-          account_balance: newAccountBalance,
-          book_balance: newBookBalance,
-          updated_at: new Date().toISOString(),
-          synced_at: new Date().toISOString(),
-          metadata: {
-            ...(currentAccount.metadata || {}),
-            payment_reference: paymentRef,
-            transfer_reference: paymentRef,
-            transfer_status: 'Completed',
-            automated_payout_id: automatedPayout.id,
-            balance_change: balanceChange,
-            updated_by: 'webhook_success'
-          }
-        })
-        .eq('user_id', automatedPayout.user_id)
-        .eq('account_number', debitAccountNumber);
-      
-      console.log(`✅ Updated SafeHaven account balance for automated payout (trigger will handle wallet/transaction updates)`);
-    } else {
-      // Fallback to old method if account not found
-      await updateUserBalance(automatedPayout.user_id, transferData, debitAccountNumber);
-      await updateWalletBalance(automatedPayout.user_id, transferData.amount);
+    if (!currentAccount) {
+      console.error(`❌ SafeHaven account not found for user ${automatedPayout.user_id}`);
+      await createAuditLog(
+        automatedPayout.user_id,
+        'automated_payout_success_error',
+        { automated_payout_id: automatedPayout.id, error: 'Account not found' },
+        { status: 'error' },
+        'error'
+      );
+      return;
     }
+
+    const balanceChange = -totalAmount;
+    const newAccountBalance = (currentAccount.account_balance || 0) + balanceChange;
+    const newBookBalance = (currentAccount.book_balance || 0) + balanceChange;
+
+    // Update safehaven_accounts balance
+    const { error: accountUpdateError } = await supabase
+      .from('safehaven_accounts')
+      .update({
+        account_balance: newAccountBalance,
+        book_balance: newBookBalance,
+        updated_at: new Date().toISOString(),
+        synced_at: new Date().toISOString(),
+        metadata: {
+          ...(currentAccount.metadata || {}),
+          payment_reference: paymentRef,
+          transfer_reference: paymentRef,
+          transfer_status: 'Completed',
+          automated_payout_id: automatedPayout.id,
+          balance_change: balanceChange,
+          updated_by: 'webhook_success'
+        }
+      })
+      .eq('id', currentAccount.id);
+
+    if (accountUpdateError) {
+      console.error(`❌ Error updating SafeHaven account balance:`, accountUpdateError);
+      await createAuditLog(
+        automatedPayout.user_id,
+        'automated_payout_success_error',
+        { automated_payout_id: automatedPayout.id, error: accountUpdateError.message },
+        { status: 'error' },
+        'error'
+      );
+      return;
+    }
+
+    console.log(`✅ Updated SafeHaven account balance: ${currentAccount.account_balance} -> ${newAccountBalance}`);
+
+    // Audit log for account balance update
+    await createAuditLog(
+      automatedPayout.user_id,
+      'safehaven_account_balance_updated',
+      {
+        account_number: currentAccount.account_number,
+        balance_change: balanceChange,
+        old_balance: currentAccount.account_balance,
+        new_balance: newAccountBalance
+      },
+      { status: 'success' },
+      'success'
+    );
+
+    // NOTE: The trigger handle_safehaven_account_balance_update() will automatically:
+    // 1. Update transaction status to 'completed' (if status is 'pending')
+    // 2. Set transaction source to 'safehaven_payout_plan'
+    // 3. Update wallet balance (deduct_locked_funds)
+    // 4. Create audit logs
+    // We update the transaction source as a fallback in case trigger didn't find it
+    // (e.g., if transaction wasn't pending or trigger didn't match)
+
+    // 4. Update transaction record source field to 'safehaven_payout_plan' (fallback)
+    // The trigger should have already done this, but we do it here as a safety measure
+    await updateTransactionStatus(automatedPayout, transferData, 'completed', 'safehaven_payout_plan');
+
+    // Audit log for transaction update
+    await createAuditLog(
+      automatedPayout.user_id,
+      'transaction_updated',
+      {
+        transaction_reference: paymentRef,
+        status: 'completed',
+        source: 'safehaven_payout_plan'
+      },
+      { status: 'success' },
+      'success'
+    );
 
     // Send push notification
     await supabase.rpc('send_push_notification', {
@@ -1175,10 +1533,70 @@ async function handleAutomatedPayoutSuccess(automatedPayout: any, transferData: 
       }
     });
 
-    // Send email notification (if email function exists)
-    // await sendPayoutSuccessEmailNotification(...);
+    // Final audit log
+    await createAuditLog(
+      automatedPayout.user_id,
+      'automated_payout_success_completed',
+      {
+        automated_payout_id: automatedPayout.id,
+        transfer_id: transferData._id,
+        payment_reference: paymentRef
+      },
+      { status: 'completed' },
+      'success'
+    );
+
+    // Send email notification
+    try {
+      // Get payout plan and account details for email
+      let planName = 'Your Payout Plan';
+      let planType: string | undefined;
+      let planCreatedDate: string | undefined;
+      
+      if (automatedPayout.payout_plan_id) {
+        const { data: payoutPlan } = await supabase
+          .from('payout_plans')
+          .select('name, type, created_at')
+          .eq('id', automatedPayout.payout_plan_id)
+          .single();
+        
+        if (payoutPlan) {
+          planName = payoutPlan.name;
+          planType = payoutPlan.type;
+          if (payoutPlan.created_at) {
+            planCreatedDate = new Date(payoutPlan.created_at).toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric'
+            });
+          }
+        }
+      }
+
+      await sendPayoutSuccessEmailNotification(
+        automatedPayout.user_id,
+        transferData.amount,
+        paymentRef,
+        automatedPayout.id,
+        planName,
+        '', // accountName - not needed for new template
+        '', // bankName - not needed for new template
+        '', // accountNumber - not needed for new template
+        planType,
+        planCreatedDate
+      );
+    } catch (emailError) {
+      console.error('❌ Error sending payout success email notification:', emailError);
+    }
   } catch (error) {
     console.error('❌ Error handling automated payout success:', error);
+    await createAuditLog(
+      automatedPayout.user_id,
+      'automated_payout_success_error',
+      { automated_payout_id: automatedPayout.id, error: error.message },
+      { status: 'error' },
+      'error'
+    );
     throw error;
   }
 }
@@ -1210,13 +1628,17 @@ async function handleEmergencyWithdrawalFailed(emergencyWithdrawal: any, transfe
 
     console.log(`❌ Emergency withdrawal ${emergencyWithdrawal.id} marked as failed`);
 
-    // Create transaction record
-    await createTransactionRecord({
-      user_id: emergencyWithdrawal.user_id,
-      amount: emergencyWithdrawal.net_amount,
-      reference: emergencyWithdrawal.reference,
-      payout_plan_id: emergencyWithdrawal.payout_plan_id
-    }, transferData, 'failed', 'withdrawal');
+    // Update transaction record (not create) with status failed and source safehaven_payout_plan
+    await updateTransactionStatus(
+      {
+        user_id: emergencyWithdrawal.user_id,
+        reference: emergencyWithdrawal.reference,
+        payout_plan_id: emergencyWithdrawal.payout_plan_id
+      },
+      transferData,
+      'failed',
+      'safehaven_payout_plan'
+    );
 
     // Send push notification
     await supabase.rpc('send_push_notification', {
@@ -1230,8 +1652,18 @@ async function handleEmergencyWithdrawalFailed(emergencyWithdrawal: any, transfe
       }
     });
 
-    // Send email notification (if email function exists)
-    // await sendEmergencyWithdrawalFailedEmailNotification(...);
+    // Send email notification
+    try {
+      await sendEmergencyWithdrawalFailedEmailNotification(
+        emergencyWithdrawal.user_id,
+        emergencyWithdrawal.withdrawal_amount,
+        emergencyWithdrawal.reference,
+        emergencyWithdrawal.id,
+        transferData.responseMessage || 'Transfer failed - Bank processing error'
+      );
+    } catch (emailError) {
+      console.error('❌ Error sending emergency withdrawal failed email notification:', emailError);
+    }
   } catch (error) {
     console.error('❌ Error handling emergency withdrawal failed:', error);
     throw error;
@@ -1241,14 +1673,35 @@ async function handleEmergencyWithdrawalFailed(emergencyWithdrawal: any, transfe
 // Handle automated payout failed
 async function handleAutomatedPayoutFailed(automatedPayout: any, transferData: SafeHavenTransferData): Promise<void> {
   try {
-    // Update automated payout status
+    const paymentRef = transferData.paymentReference || transferData.sessionId || automatedPayout.payment_reference || automatedPayout.transfer_reference;
+    const failureReason = transferData.responseMessage || 'Transfer failed - Bank processing error';
+
+    // 1. Create audit log FIRST
+    await createAuditLog(
+      automatedPayout.user_id,
+      'automated_payout_failed',
+      {
+        automated_payout_id: automatedPayout.id,
+        transfer_id: transferData._id,
+        payment_reference: paymentRef,
+        amount: transferData.amount,
+        failure_reason: failureReason
+      },
+      {
+        status: 'processing',
+        step: 'webhook_received'
+      },
+      'error'
+    );
+
+    // 2. Update automated payout status
     const { error: updateError } = await supabase
       .from('automated_payouts')
       .update({
         status: 'failed',
         failed_at: new Date().toISOString(),
-        failure_reason: transferData.responseMessage || 'Transfer failed - Bank processing error',
-        transfer_code: transferData.paymentReference || transferData.sessionId,
+        failure_reason: failureReason,
+        transfer_code: paymentRef,
         metadata: {
           ...automatedPayout.metadata,
           transfer_failed: true,
@@ -1259,27 +1712,32 @@ async function handleAutomatedPayoutFailed(automatedPayout: any, transferData: S
 
     if (updateError) {
       console.error(`❌ Error updating automated payout status:`, updateError);
+      await createAuditLog(
+        automatedPayout.user_id,
+        'automated_payout_failed_error',
+        { automated_payout_id: automatedPayout.id, error: updateError.message },
+        { status: 'error' },
+        'error'
+      );
       return;
     }
 
     console.log(`❌ Automated payout ${automatedPayout.id} marked as failed`);
 
-    // Update SafeHaven account balance with failure status in metadata
-    // The trigger will automatically update transaction status (but NOT wallet on failure)
-    const debitAccountNumber = transferData.debitAccountNumber || '0117753301';
-    const paymentRef = transferData.paymentReference || transferData.sessionId || automatedPayout.payment_reference || automatedPayout.transfer_reference;
-
-    // Get current account to update with metadata
+    // 3. Update SafeHaven account metadata (balance doesn't change on failure, but we log it)
+    // Get user's safehaven_account by user_id (not by account_number since 0117753301 is the main account)
     const { data: currentAccount } = await supabase
       .from('safehaven_accounts')
-      .select('account_balance, book_balance, metadata')
+      .select('id, account_balance, book_balance, metadata, account_number')
       .eq('user_id', automatedPayout.user_id)
-      .eq('account_number', debitAccountNumber)
+      .eq('is_deleted', false)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
     if (currentAccount && paymentRef) {
-      // Update account with failure metadata (balance doesn't change on failure, but we log it)
-      await supabase
+      const { error: accountUpdateError } = await supabase
         .from('safehaven_accounts')
         .update({
           updated_at: new Date().toISOString(),
@@ -1290,22 +1748,58 @@ async function handleAutomatedPayoutFailed(automatedPayout: any, transferData: S
             transfer_reference: paymentRef,
             transfer_status: 'Failed',
             automated_payout_id: automatedPayout.id,
-            failure_reason: transferData.responseMessage || 'Transfer failed',
+            failure_reason: failureReason,
             updated_by: 'webhook_failed'
           }
         })
-        .eq('user_id', automatedPayout.user_id)
-        .eq('account_number', debitAccountNumber);
-      
-      // Manually update transaction since balance didn't change (trigger won't fire)
-      await updateTransactionStatus(automatedPayout, transferData, 'failed');
-      
-      console.log(`✅ Updated SafeHaven account metadata for failed payout (trigger will handle transaction update)`);
-    } else {
-      // Fallback: manually update transaction
-      await updateTransactionStatus(automatedPayout, transferData, 'failed');
+        .eq('id', currentAccount.id);
+
+      if (accountUpdateError) {
+        console.error(`❌ Error updating SafeHaven account metadata:`, accountUpdateError);
+        await createAuditLog(
+          automatedPayout.user_id,
+          'automated_payout_failed_error',
+          { automated_payout_id: automatedPayout.id, error: accountUpdateError.message },
+          { status: 'error' },
+          'error'
+        );
+      } else {
+        console.log(`✅ Updated SafeHaven account metadata for failed payout`);
+        
+        // Audit log for account metadata update
+        await createAuditLog(
+          automatedPayout.user_id,
+          'safehaven_account_metadata_updated',
+          {
+            account_number: currentAccount.account_number,
+            transfer_status: 'Failed',
+            failure_reason: failureReason
+          },
+          { status: 'success' },
+          'success'
+        );
+      }
     }
-    
+
+    // 4. Update transaction record (not create) with status failed and source safehaven_payout_plan
+    // NOTE: The trigger won't update wallet on failure (which is correct)
+    // But it will update the transaction status if it finds a pending one
+    // We need to ensure the source field is set correctly
+    await updateTransactionStatus(automatedPayout, transferData, 'failed', 'safehaven_payout_plan');
+
+    // Audit log for transaction update
+    await createAuditLog(
+      automatedPayout.user_id,
+      'transaction_updated',
+      {
+        transaction_reference: paymentRef,
+        status: 'failed',
+        source: 'safehaven_payout_plan'
+      },
+      { status: 'success' },
+      'success'
+    );
+
     // Note: Do not update wallets or automated payouts balance on failure
 
     // Send push notification
@@ -1320,10 +1814,55 @@ async function handleAutomatedPayoutFailed(automatedPayout: any, transferData: S
       }
     });
 
-    // Send email notification (if email function exists)
-    // await sendPayoutFailedEmailNotification(...);
+    // Final audit log
+    await createAuditLog(
+      automatedPayout.user_id,
+      'automated_payout_failed_completed',
+      {
+        automated_payout_id: automatedPayout.id,
+        transfer_id: transferData._id,
+        payment_reference: paymentRef
+      },
+      { status: 'completed' },
+      'error'
+    );
+
+    // Send email notification
+    try {
+      // Get payout plan name for email
+      let planName = 'Your Payout Plan';
+      if (automatedPayout.payout_plan_id) {
+        const { data: payoutPlan } = await supabase
+          .from('payout_plans')
+          .select('name')
+          .eq('id', automatedPayout.payout_plan_id)
+          .single();
+        
+        if (payoutPlan) {
+          planName = payoutPlan.name;
+        }
+      }
+
+      await sendPayoutFailedEmailNotification(
+        automatedPayout.user_id,
+        transferData.amount,
+        paymentRef,
+        automatedPayout.id,
+        failureReason,
+        planName
+      );
+    } catch (emailError) {
+      console.error('❌ Error sending payout failed email notification:', emailError);
+    }
   } catch (error) {
     console.error('❌ Error handling automated payout failed:', error);
+    await createAuditLog(
+      automatedPayout.user_id,
+      'automated_payout_failed_error',
+      { automated_payout_id: automatedPayout.id, error: error.message },
+      { status: 'error' },
+      'error'
+    );
     throw error;
   }
 }
@@ -1355,13 +1894,17 @@ async function handleEmergencyWithdrawalReversed(emergencyWithdrawal: any, trans
 
     console.log(`🔄 Emergency withdrawal ${emergencyWithdrawal.id} marked as reversed`);
 
-    // Create transaction record
-    await createTransactionRecord({
-      user_id: emergencyWithdrawal.user_id,
-      amount: emergencyWithdrawal.net_amount,
-      reference: emergencyWithdrawal.reference,
-      payout_plan_id: emergencyWithdrawal.payout_plan_id
-    }, transferData, 'reversed', 'withdrawal');
+    // Update transaction record (not create) with status reversed and source safehaven_payout_plan
+    await updateTransactionStatus(
+      {
+        user_id: emergencyWithdrawal.user_id,
+        reference: emergencyWithdrawal.reference,
+        payout_plan_id: emergencyWithdrawal.payout_plan_id
+      },
+      transferData,
+      'reversed',
+      'safehaven_payout_plan'
+    );
 
     // Update wallet balance - add funds back to both balance and locked_balance (since reversal means money goes back to the plan)
     // First add to total balance
@@ -1409,14 +1952,35 @@ async function handleEmergencyWithdrawalReversed(emergencyWithdrawal: any, trans
 // Handle automated payout reversed
 async function handleAutomatedPayoutReversed(automatedPayout: any, transferData: SafeHavenTransferData): Promise<void> {
   try {
-    // Update automated payout status to reversed
+    const paymentRef = transferData.paymentReference || transferData.sessionId || automatedPayout.payment_reference || automatedPayout.transfer_reference;
+    const reversalReason = transferData.responseMessage || 'Transfer was reversed';
+
+    // 1. Create audit log FIRST
+    await createAuditLog(
+      automatedPayout.user_id,
+      'automated_payout_reversed',
+      {
+        automated_payout_id: automatedPayout.id,
+        transfer_id: transferData._id,
+        payment_reference: paymentRef,
+        amount: transferData.amount,
+        reversal_reason: reversalReason
+      },
+      {
+        status: 'processing',
+        step: 'webhook_received'
+      },
+      'warning'
+    );
+
+    // 2. Update automated payout status to reversed
     const { error: updateError } = await supabase
       .from('automated_payouts')
       .update({
         status: 'reversed',
         reversed_at: new Date().toISOString(),
-        reversal_reason: transferData.responseMessage || 'Transfer was reversed',
-        transfer_code: transferData.paymentReference || transferData.sessionId,
+        reversal_reason: reversalReason,
+        transfer_code: paymentRef,
         metadata: {
           ...automatedPayout.metadata,
           transfer_reversed: true,
@@ -1427,13 +1991,33 @@ async function handleAutomatedPayoutReversed(automatedPayout: any, transferData:
 
     if (updateError) {
       console.error(`❌ Error updating automated payout status:`, updateError);
+      await createAuditLog(
+        automatedPayout.user_id,
+        'automated_payout_reversed_error',
+        { automated_payout_id: automatedPayout.id, error: updateError.message },
+        { status: 'error' },
+        'error'
+      );
       return;
     }
 
     console.log(`🔄 Automated payout ${automatedPayout.id} marked as reversed`);
 
-    // Create transaction record
-    await createTransactionRecord(automatedPayout, transferData, 'reversed');
+    // 3. Update transaction record (not create) with status reversed and source safehaven_payout_plan
+    await updateTransactionStatus(automatedPayout, transferData, 'reversed', 'safehaven_payout_plan');
+
+    // Audit log for transaction update
+    await createAuditLog(
+      automatedPayout.user_id,
+      'transaction_updated',
+      {
+        transaction_reference: paymentRef,
+        status: 'reversed',
+        source: 'safehaven_payout_plan'
+      },
+      { status: 'success' },
+      'success'
+    );
 
     // Send push notification
     await supabase.rpc('send_push_notification', {
@@ -1447,16 +2031,36 @@ async function handleAutomatedPayoutReversed(automatedPayout: any, transferData:
       }
     });
 
+    // Final audit log
+    await createAuditLog(
+      automatedPayout.user_id,
+      'automated_payout_reversed_completed',
+      {
+        automated_payout_id: automatedPayout.id,
+        transfer_id: transferData._id,
+        payment_reference: paymentRef
+      },
+      { status: 'completed' },
+      'warning'
+    );
+
     // Send email notification (if email function exists)
     // await sendPayoutReversedEmailNotification(...);
   } catch (error) {
     console.error('❌ Error handling automated payout reversed:', error);
+    await createAuditLog(
+      automatedPayout.user_id,
+      'automated_payout_reversed_error',
+      { automated_payout_id: automatedPayout.id, error: error.message },
+      { status: 'error' },
+      'error'
+    );
     throw error;
   }
 }
 
 // Update existing transaction record status
-async function updateTransactionStatus(payoutData: any, transferData: SafeHavenTransferData, status: string): Promise<void> {
+async function updateTransactionStatus(payoutData: any, transferData: SafeHavenTransferData, status: string, source?: string): Promise<void> {
   try {
     const paymentRef = transferData.paymentReference || transferData.sessionId || payoutData.reference || payoutData.payment_reference || payoutData.transfer_reference;
     console.log(`📑 Updating transaction status to '${status}' for reference: ${paymentRef}`);
@@ -1467,38 +2071,56 @@ async function updateTransactionStatus(payoutData: any, transferData: SafeHavenT
     }
 
     // Find the existing transaction by reference
+    // Handle both 'payout' and 'withdrawal' types
+    const transactionType = payoutData.type || 'payout';
     const { data: existingTransaction, error: findError } = await supabase
       .from('transactions')
-      .select('id, status')
+      .select('id, status, source')
       .eq('reference', paymentRef)
       .eq('user_id', payoutData.user_id)
-      .eq('type', 'payout')
+      .in('type', ['payout', 'withdrawal'])
       .single();
 
     if (findError || !existingTransaction) {
       console.warn(`⚠️ Transaction not found for reference ${paymentRef}, attempting to create new one`);
       // Fallback: create new transaction if not found
-      await createTransactionRecord(payoutData, transferData, status);
+      // Determine type: if payout_plan_id exists but no automated_payout_id, it might be a withdrawal
+      const fallbackType = payoutData.type || (payoutData.payout_plan_id && !payoutData.id ? 'withdrawal' : 'payout');
+      await createTransactionRecord(payoutData, transferData, status, fallbackType, source);
       return;
     }
 
     // Update the existing transaction
+    const updateMetadata: any = {
+      ...(existingTransaction.metadata || {}),
+      safehaven_transfer_id: transferData._id,
+      safehaven_transfer_code: transferData.paymentReference || transferData.sessionId,
+      payout_plan_id: payoutData.payout_plan_id,
+      webhook_updated_at: new Date().toISOString()
+    };
+
+    // Only add automated_payout_id if it exists (for automated payouts, not emergency withdrawals)
+    if (payoutData.id) {
+      updateMetadata.automated_payout_id = payoutData.id;
+    }
+
+    // Add emergency_withdrawal_id if it exists
+    if (payoutData.emergency_withdrawal_id) {
+      updateMetadata.emergency_withdrawal_id = payoutData.emergency_withdrawal_id;
+    }
+
+    const updateData: any = {
+      status: status,
+      updated_at: new Date().toISOString(),
+      ...(status === 'completed' && { completed_at: new Date().toISOString() }),
+      ...(status === 'failed' && { failed_at: new Date().toISOString() }),
+      ...(source && { source: source }),
+      metadata: updateMetadata
+    };
+
     const { error: updateError } = await supabase
       .from('transactions')
-      .update({
-        status: status,
-        updated_at: new Date().toISOString(),
-        ...(status === 'completed' && { completed_at: new Date().toISOString() }),
-        ...(status === 'failed' && { failed_at: new Date().toISOString() }),
-        metadata: {
-          ...(existingTransaction.metadata || {}),
-          safehaven_transfer_id: transferData._id,
-          safehaven_transfer_code: transferData.paymentReference || transferData.sessionId,
-          automated_payout_id: payoutData.id,
-          payout_plan_id: payoutData.payout_plan_id,
-          webhook_updated_at: new Date().toISOString()
-        }
-      })
+      .update(updateData)
       .eq('id', existingTransaction.id);
 
     if (updateError) {
@@ -1506,23 +2128,33 @@ async function updateTransactionStatus(payoutData: any, transferData: SafeHavenT
       return;
     }
 
-    console.log(`✅ Transaction ${existingTransaction.id} status updated to '${status}'`);
+    console.log(`✅ Transaction ${existingTransaction.id} status updated to '${status}'${source ? `, source updated to '${source}'` : ''}`);
   } catch (error) {
     console.error('❌ Error updating transaction status:', error);
   }
 }
 
 // Create transaction record function
-async function createTransactionRecord(payoutData: any, transferData: SafeHavenTransferData, status: string, type: string = 'payout'): Promise<void> {
+async function createTransactionRecord(payoutData: any, transferData: SafeHavenTransferData, status: string, type: string = 'payout', source?: string): Promise<void> {
   try {
     console.log(`📑 Creating transaction record for ${type}: ${payoutData.reference || transferData.paymentReference}`);
+    
+    // Determine source based on parameter or default logic
+    let transactionSource: string;
+    if (source) {
+      transactionSource = source;
+    } else if (type === 'deposit') {
+      transactionSource = 'Virtual Account';
+    } else {
+      transactionSource = 'Wallet';
+    }
     
     const transactionData = {
       p_user_id: payoutData.user_id,
       p_type: type,
       p_amount: payoutData.amount || transferData.amount,
       p_status: status,
-      p_source: type === 'deposit' ? 'Virtual Account' : 'Wallet',
+      p_source: transactionSource,
       p_destination: type === 'deposit' ? 'Wallet' : 'Bank Transfer',
       p_reference: transferData.paymentReference || transferData.sessionId || payoutData.reference,
       p_payout_plan_id: type === 'deposit' ? null : payoutData.payout_plan_id,
@@ -2230,27 +2862,29 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
       }
     }
 
-    // Create audit log for account debit
-    await createAuditLog(
-      userId,
-      'account_debit_webhook_processed',
-      { 
-        reference: paymentRef,
-        accountId: debitData.account,
-        debitAccountNumber: accountNumber,
-        provider: debitData.provider || 'NIBSS',
-        providerChannel: debitData.providerChannel || 'NIP'
-      },
-      { 
-        amount: debitData.amount || 0,
-        fees: debitData.fees || 0,
-        vat: debitData.vat || 0,
-        stampDuty: debitData.stampDuty || 0,
-        narration: debitData.narration || 'Account debit',
-        totalDebit: (debitData.amount || 0) + (debitData.fees || 0) + (debitData.vat || 0) + (debitData.stampDuty || 0)
-      },
-      'success'
-    );
+    // Create audit log for account debit (only if userId is available)
+    if (userId) {
+      await createAuditLog(
+        userId,
+        'account_debit_webhook_processed',
+        { 
+          reference: paymentRef,
+          accountId: debitData.account,
+          debitAccountNumber: accountNumber,
+          provider: debitData.provider || 'NIBSS',
+          providerChannel: debitData.providerChannel || 'NIP'
+        },
+        { 
+          amount: debitData.amount || 0,
+          fees: debitData.fees || 0,
+          vat: debitData.vat || 0,
+          stampDuty: debitData.stampDuty || 0,
+          narration: debitData.narration || 'Account debit',
+          totalDebit: (debitData.amount || 0) + (debitData.fees || 0) + (debitData.vat || 0) + (debitData.stampDuty || 0)
+        },
+        'success'
+      );
+    }
 
     console.log('Account debit webhook processed successfully:', paymentRef);
     return { 
@@ -2484,184 +3118,8 @@ Deno.serve(async (req) => {
   }
 });
 
-// Email template functions
-function generatePayoutSuccessEmailHtml(data: {
-  firstName: string;
-  amount: string;
-  date: string;
-  reference: string;
-  payoutId: string | null;
-  planName?: string;
-  accountName?: string;
-  bankName?: string;
-  accountNumber?: string;
-}) {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Payout Successful - Planmoni</title>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-        .amount { font-size: 32px; font-weight: bold; color: #22C55E; text-align: center; margin: 20px 0; }
-        .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
-        .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
-        .detail-row:last-child { border-bottom: none; }
-        .label { font-weight: 600; color: #6b7280; }
-        .value { color: #111827; }
-        .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
-        .button { display: inline-block; background: #1E3A8A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
-        .success-icon { font-size: 48px; text-align: center; margin: 20px 0; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <div class="success-icon">✅</div>
-          <h1>Payout Successful!</h1>
-          <p>Hello ${data.firstName}, your payout has been processed</p>
-        </div>
-        
-        <div class="content">
-          <div class="amount">${data.amount}</div>
-          
-          <div class="details">
-            ${data.planName ? `<div class="detail-row">
-              <span class="label">Plan Name:</span>
-              <span class="value">${data.planName}</span>
-            </div>` : ''}
-            ${data.accountName ? `<div class="detail-row">
-              <span class="label">Account Name:</span>
-              <span class="value">${data.accountName}</span>
-            </div>` : ''}
-            ${data.bankName ? `<div class="detail-row">
-              <span class="label">Bank:</span>
-              <span class="value">${data.bankName}</span>
-            </div>` : ''}
-            ${data.accountNumber ? `<div class="detail-row">
-              <span class="label">Account Number:</span>
-              <span class="value">${data.accountNumber}</span>
-            </div>` : ''}
-            <div class="detail-row">
-              <span class="label">Date & Time:</span>
-              <span class="value">${data.date}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">Reference:</span>
-              <span class="value">${data.reference}</span>
-            </div>
-          </div>
-          
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="https://planmoni.com/transactions" class="button">View Transaction Details</a>
-          </p>
-          
-          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-            Your funds have been successfully transferred to your bank account. 
-            The transaction may take a few minutes to reflect in your account depending on your bank.
-          </p>
-        </div>
-        
-        <div class="footer">
-          <p>This is an automated message, please do not reply directly to this email.</p>
-          <p>&copy; ${new Date().getFullYear()} Planmoni. All rights reserved.</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-}
-
-function generatePayoutFailedEmailHtml(data: {
-  firstName: string;
-  amount: string;
-  date: string;
-  reference: string;
-  payoutId: string | null;
-  failureReason: string;
-  planName?: string;
-}) {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Payout Failed - Planmoni</title>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-        .amount { font-size: 32px; font-weight: bold; color: #EF4444; text-align: center; margin: 20px 0; }
-        .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
-        .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
-        .detail-row:last-child { border-bottom: none; }
-        .label { font-weight: 600; color: #6b7280; }
-        .value { color: #111827; }
-        .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
-        .button { display: inline-block; background: #1E3A8A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
-        .error-icon { font-size: 48px; text-align: center; margin: 20px 0; }
-        .alert { background-color: #FEF2F2; border-left: 4px solid #EF4444; padding: 15px; margin: 20px 0; border-radius: 4px; }
-        .alert p { margin: 5px 0; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <div class="error-icon">⚠️</div>
-          <h1>Payout Failed</h1>
-          <p>Hello ${data.firstName}, we encountered an issue processing your payout</p>
-        </div>
-        
-        <div class="content">
-          <div class="amount">${data.amount}</div>
-          
-          <div class="alert">
-            <p><strong>Reason:</strong> ${data.failureReason}</p>
-            <p>We're sorry for the inconvenience. Please try again or contact support if the issue persists.</p>
-          </div>
-          
-          <div class="details">
-            ${data.planName ? `<div class="detail-row">
-              <span class="label">Plan Name:</span>
-              <span class="value">${data.planName}</span>
-            </div>` : ''}
-            <div class="detail-row">
-              <span class="label">Date & Time:</span>
-              <span class="value">${data.date}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">Reference:</span>
-              <span class="value">${data.reference}</span>
-            </div>
-          </div>
-          
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="https://planmoni.com/support" class="button">Contact Support</a>
-          </p>
-          
-          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-            Your funds remain safe in your wallet. You can retry the payout or contact our support team for assistance.
-          </p>
-        </div>
-        
-        <div class="footer">
-          <p>This is an automated message, please do not reply directly to this email.</p>
-          <p>&copy; ${new Date().getFullYear()} Planmoni. All rights reserved.</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-}
-
 // Email notification functions
+// Note: Email templates are imported from './email-templates.ts'
 async function sendPayoutSuccessEmailNotification(
   userId: string,
   amount: number,
@@ -2670,7 +3128,9 @@ async function sendPayoutSuccessEmailNotification(
   planName: string,
   accountName: string,
   bankName: string,
-  accountNumber: string
+  accountNumber: string,
+  planType?: string,
+  planCreatedDate?: string
 ) {
   try {
     const { data: userProfile } = await supabase
@@ -2684,9 +3144,19 @@ async function sendPayoutSuccessEmailNotification(
       return
     }
 
+    // Get wallet balance for availableBalance
+    const { data: wallet } = await supabase
+      .from('wallets')
+      .select('balance')
+      .eq('user_id', userId)
+      .single()
+
+    const availableBalance = wallet?.balance || 0
+
     const emailData = {
       firstName: userProfile.first_name || 'User',
       amount: `₦${amount.toLocaleString()}`,
+      availableBalance: `₦${availableBalance.toLocaleString()}`,
       date: new Date().toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
@@ -2697,14 +3167,13 @@ async function sendPayoutSuccessEmailNotification(
       reference,
       payoutId,
       planName,
-      accountName,
-      bankName,
-      accountNumber
+      planType,
+      planCreatedDate
     }
 
     await sendEmail(
       userProfile.email,
-      "Payout Successful - Planmoni",
+      "Your plan has been paid out - Planmoni",
       generatePayoutSuccessEmailHtml(emailData)
     )
   } catch (error) {
@@ -2750,11 +3219,213 @@ async function sendPayoutFailedEmailNotification(
 
     await sendEmail(
       userProfile.email,
-      "Payout Failed - Planmoni",
+      "Failed transaction - Planmoni",
       generatePayoutFailedEmailHtml(emailData)
     )
   } catch (error) {
     console.error('❌ Error sending payout failed email notification:', error)
+  }
+}
+
+// Emergency Withdrawal Email Notification Functions
+async function sendEmergencyWithdrawalSuccessEmailNotification(
+  userId: string,
+  withdrawalAmount: number,
+  netAmount: number,
+  feeAmount: number,
+  reference: string,
+  withdrawalId: string | null,
+  planName?: string,
+  accountName?: string,
+  bankName?: string,
+  accountNumber?: string
+) {
+  try {
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name')
+      .eq('id', userId)
+      .single()
+
+    if (!userProfile?.email) {
+      console.log('No email found for user')
+      return
+    }
+
+    const emailData = {
+      firstName: userProfile.first_name || 'User',
+      amount: `₦${withdrawalAmount.toLocaleString()}`,
+      netAmount: `₦${netAmount.toLocaleString()}`,
+      feeAmount: `₦${feeAmount.toLocaleString()}`,
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      reference,
+      withdrawalId,
+      planName,
+      accountName,
+      bankName,
+      accountNumber
+    }
+
+    await sendEmail(
+      userProfile.email,
+      "Emergency Withdrawal Successful - Planmoni",
+      generateEmergencyWithdrawalSuccessEmailHtml(emailData)
+    )
+  } catch (error) {
+    console.error('❌ Error sending emergency withdrawal success email notification:', error)
+  }
+}
+
+async function sendEmergencyWithdrawalFailedEmailNotification(
+  userId: string,
+  amount: number,
+  reference: string,
+  withdrawalId: string | null,
+  failureReason: string
+) {
+  try {
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name')
+      .eq('id', userId)
+      .single()
+
+    if (!userProfile?.email) {
+      console.log('No email found for user')
+      return
+    }
+
+    const emailData = {
+      firstName: userProfile.first_name || 'User',
+      amount: `₦${amount.toLocaleString()}`,
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      reference,
+      withdrawalId,
+      failureReason: failureReason || 'Transfer failed'
+    }
+
+    await sendEmail(
+      userProfile.email,
+      "Failed transaction - Planmoni",
+      generateEmergencyWithdrawalFailedEmailHtml(emailData)
+    )
+  } catch (error) {
+    console.error('❌ Error sending emergency withdrawal failed email notification:', error)
+  }
+}
+
+// Deposit Email Notification Functions
+async function sendDepositSuccessEmailNotification(
+  userId: string,
+  amount: number,
+  availableBalance: number,
+  reference: string,
+  transactionId: string | null,
+  senderName?: string,
+  senderAccount?: string,
+  senderBank?: string,
+  narration?: string
+) {
+  try {
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name')
+      .eq('id', userId)
+      .single()
+
+    if (!userProfile?.email) {
+      console.log('No email found for user')
+      return
+    }
+
+    const emailData = {
+      firstName: userProfile.first_name || 'User',
+      amount: `₦${amount.toLocaleString()}`,
+      availableBalance: `₦${availableBalance.toLocaleString()}`,
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      reference,
+      transactionId,
+      senderName,
+      senderAccount,
+      senderBank,
+      narration
+    }
+
+    await sendEmail(
+      userProfile.email,
+      "Deposit Successful - Planmoni",
+      generateDepositSuccessEmailHtml(emailData)
+    )
+  } catch (error) {
+    console.error('❌ Error sending deposit success email notification:', error)
+  }
+}
+
+async function sendDepositFailedEmailNotification(
+  userId: string,
+  amount: number,
+  reference: string,
+  transactionId: string | null,
+  failureReason: string,
+  senderName?: string,
+  senderAccount?: string,
+  senderBank?: string
+) {
+  try {
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name')
+      .eq('id', userId)
+      .single()
+
+    if (!userProfile?.email) {
+      console.log('No email found for user')
+      return
+    }
+
+    const emailData = {
+      firstName: userProfile.first_name || 'User',
+      amount: `₦${amount.toLocaleString()}`,
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      reference,
+      transactionId,
+      failureReason: failureReason || 'Deposit failed',
+      senderName,
+      senderAccount,
+      senderBank
+    }
+
+    await sendEmail(
+      userProfile.email,
+      "Failed transaction - Planmoni",
+      generateDepositFailedEmailHtml(emailData)
+    )
+  } catch (error) {
+    console.error('❌ Error sending deposit failed email notification:', error)
   }
 }
 

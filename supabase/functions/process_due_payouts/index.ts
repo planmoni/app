@@ -304,8 +304,9 @@ const safeHavenApiUrl = "https://api.safehavenmfb.com";
   for (const bank of safeHavenBanks) {
     const bankNameNormalized = bank.name?.toUpperCase().trim();
     if (bankNameNormalized === normalizedBankName) {
-      console.log(`✅ Found exact bank match: ${bank.name} -> ${bank.bankCode}`);
-      return bank.bankCode;
+      const bankCode = bank.routingKey || bank.bankCode;
+      console.log(`✅ Found exact bank match: ${bank.name} -> ${bankCode}`);
+      return bankCode;
     }
   }
 
@@ -315,28 +316,50 @@ const safeHavenApiUrl = "https://api.safehavenmfb.com";
       for (const alias of bank.alias) {
         const aliasNormalized = alias.toUpperCase().trim();
         if (aliasNormalized === normalizedBankName) {
-          console.log(`✅ Found bank match via alias: ${bank.name} (${alias}) -> ${bank.bankCode}`);
-          return bank.bankCode;
+          const bankCode = bank.routingKey || bank.bankCode;
+          console.log(`✅ Found bank match via alias: ${bank.name} (${alias}) -> ${bankCode}`);
+          return bankCode;
         }
       }
     }
   }
 
-  // Finally, try partial match (contains)
+  // Finally, try partial match (contains) - check both directions
   for (const bank of safeHavenBanks) {
     const bankNameNormalized = bank.name?.toUpperCase().trim();
-    if (bankNameNormalized && normalizedBankName.includes(bankNameNormalized)) {
-      console.log(`✅ Found partial bank match: ${bank.name} -> ${bank.bankCode}`);
-      return bank.bankCode;
+    if (bankNameNormalized) {
+      // Check if either name contains the other (bidirectional matching)
+      if (normalizedBankName.includes(bankNameNormalized) || bankNameNormalized.includes(normalizedBankName)) {
+        const bankCode = bank.routingKey || bank.bankCode;
+        console.log(`✅ Found partial bank match: ${bank.name} -> ${bankCode}`);
+        return bankCode;
+      }
     }
     
-    // Check aliases for partial match
+    // Check aliases for partial match (bidirectional)
     if (bank.alias && Array.isArray(bank.alias)) {
       for (const alias of bank.alias) {
         const aliasNormalized = alias.toUpperCase().trim();
         if (normalizedBankName.includes(aliasNormalized) || aliasNormalized.includes(normalizedBankName)) {
-          console.log(`✅ Found partial bank match via alias: ${bank.name} (${alias}) -> ${bank.bankCode}`);
-          return bank.bankCode;
+          const bankCode = bank.routingKey || bank.bankCode;
+          console.log(`✅ Found partial bank match via alias: ${bank.name} (${alias}) -> ${bankCode}`);
+          return bankCode;
+        }
+      }
+    }
+  }
+
+  // Additional fuzzy matching: extract key words (e.g., "KUDA" from "KUDA BANK" or "KUDA MICROFINANCE BANK")
+  const keyWords = normalizedBankName.split(/\s+/).filter(word => word.length > 2);
+  for (const bank of safeHavenBanks) {
+    const bankNameNormalized = bank.name?.toUpperCase().trim();
+    if (bankNameNormalized) {
+      // Check if any key word from the stored name appears in the SafeHaven bank name
+      for (const word of keyWords) {
+        if (bankNameNormalized.includes(word) && word.length >= 4) {
+          const bankCode = bank.routingKey || bank.bankCode;
+          console.log(`✅ Found fuzzy bank match via keyword "${word}": ${bank.name} -> ${bankCode}`);
+          return bankCode;
         }
       }
     }
