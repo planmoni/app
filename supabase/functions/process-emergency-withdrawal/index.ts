@@ -675,6 +675,12 @@ function findSafeHavenBankCode(bankName: string, safeHavenBanks: any[]): string 
   // Normalize bank name for comparison
   const normalizedBankName = bankName.toUpperCase().trim().replace(/\s+/g, " ");
 
+  // Special case: Kuda Bank - use routingKey 090267
+  if (normalizedBankName.includes('KUDA') || normalizedBankName === 'KUDA BANK') {
+    console.log(`✅ Using Kuda Bank code: 090267`);
+    return '090267';
+  }
+
   // First, try exact match
   for (const bank of safeHavenBanks) {
     const bankNameNormalized = bank.name?.toUpperCase().trim();

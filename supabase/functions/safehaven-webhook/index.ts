@@ -1170,7 +1170,8 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal: any, transf
           transfer_status: 'Completed',
           emergency_withdrawal_id: emergencyWithdrawal.id,
           balance_change: balanceChange,
-          updated_by: 'webhook_emergency_withdrawal'
+          operation_type: 'emergency_withdrawal',
+          updated_by: 'webhook_success'
         }
       })
       .eq('id', currentAccount.id);
@@ -1203,44 +1204,13 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal: any, transf
       'success'
     );
 
-    // 5. Update wallet balance - reduce both balance and locked_balance since money is being withdrawn from the system
-    // Use withdrawal_amount (total 50) not net_amount (44) - we need to deduct the full amount including fees
-    console.log('💳 Wallet Balance Update:', {
-      user_id: emergencyWithdrawal.user_id,
-      amount_to_deduct_from_locked: emergencyWithdrawal.withdrawal_amount,
-      note: 'Deducting full withdrawal_amount (not net_amount) from locked_balance'
-    });
-    
-    const { error: reduceError } = await supabase.rpc("transfer_funds", {
-      arg_user_id: emergencyWithdrawal.user_id,
-      arg_amount: emergencyWithdrawal.withdrawal_amount
-    });
-
-    if (reduceError) {
-      console.error(`❌ Error reducing wallet balance for emergency withdrawal:`, reduceError);
-      await createAuditLog(
-        emergencyWithdrawal.user_id,
-        'emergency_withdrawal_success_error',
-        { emergency_withdrawal_id: emergencyWithdrawal.id, error: reduceError.message },
-        { status: 'error' },
-        'error'
-      );
-      return;
-    }
-
-    console.log(`✅ Successfully reduced ₦${emergencyWithdrawal.withdrawal_amount} from wallet for user ${emergencyWithdrawal.user_id}`);
-
-    // Audit log for wallet update
-    await createAuditLog(
-      emergencyWithdrawal.user_id,
-      'wallet_balance_updated',
-      {
-        amount_deducted: emergencyWithdrawal.withdrawal_amount,
-        operation: 'transfer_funds'
-      },
-      { status: 'success' },
-      'success'
-    );
+    // NOTE: The trigger handle_safehaven_account_balance_update() will automatically:
+    // 1. Update transaction status to 'completed' (if status is 'pending')
+    // 2. Set transaction source to 'safehaven_payout_plan'
+    // 3. Update wallet balance using transfer_funds (reduces both balance and locked_balance)
+    // 4. Create audit logs
+    // We update the transaction source as a fallback in case trigger didn't find it
+    // (e.g., if transaction wasn't pending or trigger didn't match)
 
     // 6. Update transaction record (not create) with status completed and source safehaven_payout_plan
     await updateTransactionStatus(
@@ -1337,11 +1307,14 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal: any, transf
         }
       }
 
+      // Calculate fee amount if not provided
+      const feeAmount = emergencyWithdrawal.fee_amount || (emergencyWithdrawal.withdrawal_amount - emergencyWithdrawal.net_amount) || 0;
+      
       await sendEmergencyWithdrawalSuccessEmailNotification(
         emergencyWithdrawal.user_id,
         emergencyWithdrawal.withdrawal_amount,
         emergencyWithdrawal.net_amount,
-        emergencyWithdrawal.fee_amount,
+        feeAmount,
         paymentRef,
         emergencyWithdrawal.id,
         planName,
@@ -3252,11 +3225,14 @@ async function sendEmergencyWithdrawalSuccessEmailNotification(
       return
     }
 
+    // Calculate fee amount if not provided
+    const calculatedFeeAmount = feeAmount || (withdrawalAmount - netAmount) || 0;
+
     const emailData = {
       firstName: userProfile.first_name || 'User',
       amount: `₦${withdrawalAmount.toLocaleString()}`,
       netAmount: `₦${netAmount.toLocaleString()}`,
-      feeAmount: `₦${feeAmount.toLocaleString()}`,
+      feeAmount: `₦${calculatedFeeAmount.toLocaleString()}`,
       date: new Date().toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
