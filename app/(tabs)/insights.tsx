@@ -22,6 +22,7 @@ export default function InsightsScreen() {
   const { metrics, trends, vaultStats, isLoading, error, refreshInsights } = useInsightsData();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
   const [customPayoutDates, setCustomPayoutDates] = useState<Record<string, string[]>>({});
+  const [vaultStatsLimit, setVaultStatsLimit] = useState(5);
   const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
 
   // Handle help button press
@@ -387,53 +388,62 @@ export default function InsightsScreen() {
                 </Text>
               </Card>
             ) : (
-              vaultStats.map((vault, index) => (
-                <Card key={index} style={styles.vaultCard}>
-                  <View style={styles.vaultHeader}>
-                    <Text style={styles.vaultTitle}>{vault.title}</Text>
-                    <View style={[
-                      styles.vaultStatus,
-                      { 
-                        backgroundColor: vault.status === 'Active' ? '#DCFCE7' : 
-                                        vault.status === 'Paused' ? '#FEE2E2' : 
-                                        vault.status === 'Completed' ? '#EFF6FF' : '#FEF3C7' 
-                      }
-                    ]}>
-                      <Text style={[
-                        styles.vaultStatusText,
+              <>
+                {vaultStats.slice(0, vaultStatsLimit).map((vault, index) => (
+                  <Card key={index} style={styles.vaultCard}>
+                    <View style={styles.vaultHeader}>
+                      <Text style={styles.vaultTitle}>{vault.title}</Text>
+                      <View style={[
+                        styles.vaultStatus,
                         { 
-                          color: vault.status === 'Active' ? '#22C55E' : 
-                                vault.status === 'Paused' ? '#EF4444' : 
-                                vault.status === 'Completed' ? '#1E3A8A' : '#D97706' 
+                          backgroundColor: vault.status === 'Active' ? '#DCFCE7' : 
+                                          vault.status === 'Paused' ? '#FEE2E2' : 
+                                          vault.status === 'Completed' ? '#EFF6FF' : '#FEF3C7' 
                         }
-                      ]}>{vault.status}</Text>
+                      ]}>
+                        <Text style={[
+                          styles.vaultStatusText,
+                          { 
+                            color: vault.status === 'Active' ? '#22C55E' : 
+                                  vault.status === 'Paused' ? '#EF4444' : 
+                                  vault.status === 'Completed' ? '#1E3A8A' : '#D97706' 
+                          }
+                        ]}>{vault.status}</Text>
+                      </View>
                     </View>
-                  </View>
-                  
-                  <View style={styles.vaultStats}>
-                    <View style={styles.vaultStat}>
-                      <Text style={styles.vaultStatLabel}>Total</Text>
-                      <Text style={styles.vaultStatValue}>{vault.total}</Text>
+                    
+                    <View style={styles.vaultStats}>
+                      <View style={styles.vaultStat}>
+                        <Text style={styles.vaultStatLabel}>Total</Text>
+                        <Text style={styles.vaultStatValue}>{vault.total}</Text>
+                      </View>
+                      <View style={styles.vaultStat}>
+                        <Text style={styles.vaultStatLabel}>Progress</Text>
+                        <Text style={styles.vaultStatValue}>{vault.progress}</Text>
+                      </View>
+                      <View style={styles.vaultStat}>
+                        <Text style={styles.vaultStatLabel}>Next Payout</Text>
+                        <Text style={styles.vaultStatValue}>{vault.nextPayout}</Text>
+                      </View>
                     </View>
-                    <View style={styles.vaultStat}>
-                      <Text style={styles.vaultStatLabel}>Progress</Text>
-                      <Text style={styles.vaultStatValue}>{vault.progress}</Text>
+                    <View style={styles.progressBar}>
+                      <View 
+                        style={[
+                          styles.progressFill,
+                          { width: parseFloat(vault.progress) }
+                        ]} 
+                      />
                     </View>
-                    <View style={styles.vaultStat}>
-                      <Text style={styles.vaultStatLabel}>Next Payout</Text>
-                      <Text style={styles.vaultStatValue}>{vault.nextPayout}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.progressBar}>
-                    <View 
-                      style={[
-                        styles.progressFill,
-                        { width: parseFloat(vault.progress) }
-                      ]} 
-                    />
-                  </View>
-                </Card>
-              ))
+                  </Card>
+                ))}
+                {vaultStats.length > vaultStatsLimit && (
+                  <Button
+                    title={`Load More (${vaultStats.length - vaultStatsLimit} remaining)`}
+                    onPress={() => setVaultStatsLimit(prev => prev + 5)}
+                    style={styles.loadMoreButton}
+                  />
+                )}
+              </>
             )}
           </View>
         </View>
@@ -675,5 +685,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     height: '100%',
     backgroundColor: '#1E3A8A',
     borderRadius: 2,
+  },
+  loadMoreButton: {
+    marginTop: Platform.OS === 'ios' ? 12 : 10,
+    backgroundColor: colors.primary,
   },
 });

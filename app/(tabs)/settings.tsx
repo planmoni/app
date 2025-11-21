@@ -498,8 +498,8 @@ export default function SettingsScreen() {
                 <Terms size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
-                <Text style={styles.settingLabel}>Generate Account Statement</Text>
-                <Text style={styles.settingDescription}>PDF/CSV export, custom range</Text>
+                <Text style={styles.settingLabel}>Account Statement</Text>
+                <Text style={styles.settingDescription}>Get a detailed statement of your account activity</Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
