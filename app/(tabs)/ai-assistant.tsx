@@ -20,7 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
-import { Send, Sparkles, ArrowRight, Wallet, TrendingUp, Calendar, Clock, X, AlertTriangle } from 'lucide-react-native';
+import { Send, Sparkles, ArrowRight, Wallet, TrendingUp, Calendar, Clock, X, AlertTriangle, HelpCircle as HelpCircleIcon } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { getOpenAIChatCompletion, testOpenAIConnection } from '../../lib/openai';
@@ -34,6 +34,9 @@ import { useBanks } from '@/hooks/useBanks';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
+import { useIntercom } from '@/hooks/useIntercom';
+import { logAnalyticsEvent } from '@/lib/firebase';
+import { Alert } from 'react-native';
 
 // Define message types
 type MessageType = 'text' | 'plan' | 'insight';
@@ -142,6 +145,7 @@ export default function AIAssistantScreen() {
   const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<number | null>(null);
   const { createPayout, isLoading: isCreatingPayout, error: createPayoutError } = useCreatePayout();
   const { banks } = useBanks();
+  const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
 
   // Add frequency options
   const frequencyOptions = [
@@ -1723,6 +1727,34 @@ export default function AIAssistantScreen() {
     if (router) router.push('/add-funds');
   };
 
+  // Handle help button press
+  const handleHelpPress = async () => {
+    if (!isIntercomSupported) {
+      return;
+    }
+    try {
+      console.log('🎯 Help button pressed - opening Intercom instantly');
+      await openChat();
+      logAnalyticsEvent('help_click');
+    } catch (error) {
+      console.error('❌ Failed to open Intercom:', error);
+      Alert.alert(
+        'Support Chat Unavailable',
+        'Unable to open support chat at the moment. This might be due to network connectivity issues. Would you like to try again?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Retry', 
+            onPress: () => {
+              console.log('🔄 Retrying Intercom...');
+              handleHelpPress();
+            }
+          }
+        ]
+      );
+    }
+  };
+
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
@@ -1775,6 +1807,16 @@ export default function AIAssistantScreen() {
             >
               <X size={getScaledFontSize(20, textSizeMultiplier)} color={colors.text} />
             </TouchableOpacity>
+          )}
+          {/* Help icon */}
+          {isIntercomSupported && (
+            <Pressable 
+              onPress={handleHelpPress} 
+              style={styles.helpButton}
+              disabled={isHelpLoading}
+            >
+              <HelpCircleIcon size={24} color={colors.text} />
+            </Pressable>
           )}
         </View>
         {/* {__DEV__ && (
@@ -2387,6 +2429,14 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     alignItems: 'center',
     marginLeft: getScaledFontSize(8, textSizeMultiplier),
     marginBottom: getScaledFontSize(-10, textSizeMultiplier),
+  },
+  helpButton: {
+    width: getScaledFontSize(40, textSizeMultiplier),
+    height: getScaledFontSize(40, textSizeMultiplier),
+    borderRadius: getScaledFontSize(20, textSizeMultiplier),
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerRightContainer: {
     flexDirection: 'row',

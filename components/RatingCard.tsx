@@ -14,7 +14,7 @@ export default function RatingCard() {
 
   // Store URLs
   const iOSStoreURL = 'https://apps.apple.com/app/id6753706776?action=write-review';
-  const androidStoreURL = 'https://play.google.com/store/apps/details?id=com.planmoni'; // Update with actual Play Store URL when available
+  const androidStoreURL = 'https://play.google.com/store/apps/details?id=com.planmoni.app'; // Update with actual Play Store URL when available
 
   return (
     <Card style={styles.feedbackCard}>

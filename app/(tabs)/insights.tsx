@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
-import { TrendingUp, TrendingDown, Users, ArrowUpRight, ArrowDownRight, Wallet, Clock, Calendar, Send } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Alert } from 'react-native';
+import { TrendingUp, TrendingDown, Users, ArrowUpRight, ArrowDownRight, Wallet, Clock, Calendar, Send, HelpCircle as HelpCircleIcon } from 'lucide-react-native';
 import Card from '@/components/Card';
 import { useMemo, useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,8 @@ import SummaryCard from '@/components/SummaryCard';
 import { supabase } from '@/lib/supabase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
+import { useIntercom } from '@/hooks/useIntercom';
+import { logAnalyticsEvent } from '@/lib/firebase';
 
 
 export default function InsightsScreen() {
@@ -20,6 +22,35 @@ export default function InsightsScreen() {
   const { metrics, trends, vaultStats, isLoading, error, refreshInsights } = useInsightsData();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
   const [customPayoutDates, setCustomPayoutDates] = useState<Record<string, string[]>>({});
+  const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
+
+  // Handle help button press
+  const handleHelpPress = async () => {
+    if (!isIntercomSupported) {
+      return;
+    }
+    try {
+      console.log('🎯 Help button pressed - opening Intercom instantly');
+      await openChat();
+      logAnalyticsEvent('help_click');
+    } catch (error) {
+      console.error('❌ Failed to open Intercom:', error);
+      Alert.alert(
+        'Support Chat Unavailable',
+        'Unable to open support chat at the moment. This might be due to network connectivity issues. Would you like to try again?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Retry', 
+            onPress: () => {
+              console.log('🔄 Retrying Intercom...');
+              handleHelpPress();
+            }
+          }
+        ]
+      );
+    }
+  };
 
   // Map icon names to components
   const getIconComponent = (iconName: string) => {
@@ -201,6 +232,15 @@ export default function InsightsScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Insights</Text>
+          {isIntercomSupported && (
+            <Pressable 
+              onPress={handleHelpPress} 
+              style={styles.helpButton}
+              disabled={isHelpLoading}
+            >
+              <HelpCircleIcon size={24} color={colors.text} />
+            </Pressable>
+          )}
         </View>
         <View style={styles.loadingContainer}>
           <PlanmoniLoader size="medium" description="Loading insights data..." />
@@ -214,6 +254,15 @@ export default function InsightsScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Insights</Text>
+          {isIntercomSupported && (
+            <Pressable 
+              onPress={handleHelpPress} 
+              style={styles.helpButton}
+              disabled={isHelpLoading}
+            >
+              <HelpCircleIcon size={24} color={colors.text} />
+            </Pressable>
+          )}
         </View>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
@@ -231,6 +280,15 @@ export default function InsightsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Insights</Text>
+        {isIntercomSupported && (
+          <Pressable 
+            onPress={handleHelpPress} 
+            style={styles.helpButton}
+            disabled={isHelpLoading}
+          >
+            <HelpCircleIcon size={24} color={colors.text} />
+          </Pressable>
+        )}
       </View>
       
       <ScrollView style={styles.content}>
@@ -390,6 +448,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     backgroundColor: colors.backgroundSecondary,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: colors.surface,
@@ -400,6 +461,14 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 24 : 20, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
+  },
+  helpButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,

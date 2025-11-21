@@ -21,7 +21,8 @@ import {
   FileText as Terms, 
   Fingerprint, 
   Gift, 
-  CircleHelp as HelpCircle, 
+  CircleHelp as HelpCircle,
+  CircleHelp as HelpCircleIcon, 
   Languages, 
   Lock, 
   LogOut, 
@@ -53,6 +54,7 @@ import { useEmailNotifications } from '@/hooks/useEmailNotifications';
 import { useAppVersion } from '@/contexts/AppVersionContext';
 import Constants from 'expo-constants';
 import { Download, Info } from 'lucide-react-native';
+import { useIntercom } from '@/hooks/useIntercom';
 
 export default function SettingsScreen() {
   const { colors, theme, setTheme } = useTheme();
@@ -62,6 +64,7 @@ export default function SettingsScreen() {
   const haptics = useHaptics();
   const { settings: emailSettings, updateSettings: updateEmailSettings } = useEmailNotifications();
   const { needsUpdate, checkForUpdates, currentVersion, currentBuild, isChecking } = useAppVersion();
+  const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
   
   const firstName = session?.user?.user_metadata?.first_name || '';
   const lastName = session?.user?.user_metadata?.last_name || '';
@@ -314,12 +317,49 @@ export default function SettingsScreen() {
     );
   };
 
+  // Handle help button press
+  const handleHelpPress = async () => {
+    if (!isIntercomSupported) {
+      return;
+    }
+    try {
+      console.log('🎯 Help button pressed - opening Intercom instantly');
+      await openChat();
+      logAnalyticsEvent('help_click');
+    } catch (error) {
+      console.error('❌ Failed to open Intercom:', error);
+      Alert.alert(
+        'Support Chat Unavailable',
+        'Unable to open support chat at the moment. This might be due to network connectivity issues. Would you like to try again?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Retry', 
+            onPress: () => {
+              console.log('🔄 Retrying Intercom...');
+              handleHelpPress();
+            }
+          }
+        ]
+      );
+    }
+  };
+
   const styles = createStyles(colors, textSizeMultiplier);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Settings</Text>
+        {isIntercomSupported && (
+          <Pressable 
+            onPress={handleHelpPress} 
+            style={styles.helpButton}
+            disabled={isHelpLoading}
+          >
+            <HelpCircleIcon size={24} color={colors.text} />
+          </Pressable>
+        )}
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -957,6 +997,9 @@ const createStyles = (colors: any, textSizeMultiplier: number) => StyleSheet.cre
     backgroundColor: colors.backgroundSecondary,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: colors.surface,
@@ -967,6 +1010,14 @@ const createStyles = (colors: any, textSizeMultiplier: number) => StyleSheet.cre
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 24 : 20, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
+  },
+  helpButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
