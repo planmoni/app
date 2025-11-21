@@ -1144,6 +1144,22 @@ export default function AIAssistantScreen() {
         const targetAmount = planDraft.metadata?.targetAmount || plan.amount || 0;
         const timeframe = planDraft.metadata?.timeframe || 1;
         
+        // Validate minimum amount
+        if (targetAmount < 5000) {
+          setMessages(prev => [
+            ...prev,
+            {
+              id: `plan-error-${Date.now()}`,
+              content: 'The minimum amount for creating a payout plan is ₦5,000. Please adjust your plan amount.',
+              sender: 'ai',
+              type: 'text',
+              timestamp: new Date(),
+              metadata: { step: 'error' }
+            }
+          ]);
+          return;
+        }
+        
         // Calculate payout amount and duration
         const payoutAmount = Math.ceil(targetAmount / timeframe);
         let duration = timeframe;

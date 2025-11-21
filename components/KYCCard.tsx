@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -12,11 +12,14 @@ import Tier1Icon from '@/assets/kyc/tier-1.svg';
 import Tier2Icon from '@/assets/kyc/tier-2.svg';
 import Tier3Icon from '@/assets/kyc/tier-3.svg';
 import {BadgeCheck} from 'lucide-react-native';
+import { getScaledFontSize } from '@/lib/textSize';
+import { useTextSize } from '@/contexts/TextSizeContext';
 
 type KYCStatus = 'starting' | 'continuing' | 'pending';
 
 export default function KYCCard() {
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const { session } = useAuth();
   const { progress, loading: progressLoading, currentTier = 0, checkTierCompletion } = useKYCProgress();
@@ -24,7 +27,7 @@ export default function KYCCard() {
   const [isLoading, setIsLoading] = useState(true);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [latestProgress, setLatestProgress] = useState<any>(null);
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   // Fetch latest progress directly from Supabase to ensure we have the most up-to-date data
   const fetchLatestProgress = React.useCallback(async () => {
@@ -521,7 +524,7 @@ export default function KYCCard() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   card: {
     backgroundColor: colors.accentBackground,
     borderRadius: 12,
@@ -557,14 +560,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     minWidth: 0, // Allow text to shrink properly in flex layout
   },
   cardText: {
-    fontSize: 17,
+    fontSize: getScaledFontSize(17, textSizeMultiplier),
     fontWeight: '500',
     color: isDark ? colors.text : '#374151',
     marginBottom: 2,
     flexShrink: 1,
   },
   cardSubtext: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '400',
     color: isDark ? colors.textSecondary : '#6B7280',
     marginTop: 2,
@@ -581,7 +584,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexShrink: 0,
   },
   actionButtonText: {
-    fontSize: 16,
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     fontWeight: '600',
     color: '#065F46',
   },
@@ -596,7 +599,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexShrink: 0,
   },
   statusIndicatorText: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '600',
     color: isDark ? colors.textSecondary : '#6B7280',
   },

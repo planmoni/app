@@ -408,7 +408,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flex: 1,
   },
   paymentLabel: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 13, textSizeMultiplier),
+    fontSize: getScaledFontSize(15, textSizeMultiplier),
     color: colors.textSecondary,
   },
   bankInfo: {
@@ -426,20 +426,20 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flexShrink: 0, // Prevent logo from shrinking
   },
   bankName: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
     marginRight: 1, // Add small margin between name and account number
     flexShrink: 1, // Allow name to shrink if needed
   },
   accountNumber: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
     flexShrink: 0, // Prevent account number from shrinking
   },
   bankInitials: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
   },
@@ -450,7 +450,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     alignItems: 'flex-start',
   },
   dateTime: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
     marginTop: 5,
     color: colors.textSecondary,
     fontWeight: '400',

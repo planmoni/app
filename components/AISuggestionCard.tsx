@@ -132,7 +132,7 @@ export default function AISuggestionCard({
     console.log('🔍 AISuggestionCard - availableBalance:', availableBalance);
     
     // Only show suggestions if balance is more than 1,000 (lowered threshold)
-    if (availableBalance < 1000) {
+    if (availableBalance < 10000) {
       console.log('⚠️ AISuggestionCard - Balance too low, hiding suggestions');
       return [];
     }
