@@ -1,4 +1,5 @@
 import { Modal, View, Text, StyleSheet, Pressable, Platform, Linking } from 'react-native';
+import { useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAppVersion } from '@/contexts/AppVersionContext';
 import { Download, X, AlertCircle } from 'lucide-react-native';
@@ -10,6 +11,19 @@ export default function UpdateAppModal() {
   const { colors } = useTheme();
   const { needsUpdate, updateData, dismissUpdate, currentVersion, currentBuild } = useAppVersion();
   const haptics = useHaptics();
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔔 UpdateAppModal render check:', {
+      needsUpdate,
+      hasUpdateData: !!updateData,
+      currentVersion,
+      currentBuild,
+      serverVersion: updateData?.ios_version || updateData?.android_version,
+      serverBuild: updateData?.ios_build || updateData?.android_build,
+      forceUpdate: updateData?.force_update
+    });
+  }, [needsUpdate, updateData, currentVersion, currentBuild]);
 
   if (!needsUpdate || !updateData) {
     return null;
@@ -154,6 +168,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    zIndex: 9999,
+    elevation: 9999,
   },
   modalContainer: {
     backgroundColor: colors.surface,

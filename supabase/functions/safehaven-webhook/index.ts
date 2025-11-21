@@ -1001,8 +1001,25 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
           if (newCompletedPayouts < payoutPlan.duration) {
             const startDate = new Date(payoutPlan.start_date);
             let nextDate = new Date(startDate);
+            
+            // Extract payout time from current next_payout_date if available, otherwise default to 9:00 AM
+            let payoutTime = { hours: 9, minutes: 0 };
+            if (payoutPlan.next_payout_date) {
+              const currentNextDate = new Date(payoutPlan.next_payout_date);
+              if (!isNaN(currentNextDate.getTime())) {
+                const hours = currentNextDate.getHours();
+                const minutes = currentNextDate.getMinutes();
+                // Only use the time if it's not midnight (likely a real time, not just a date)
+                if (hours !== 0 || minutes !== 0) {
+                  payoutTime = { hours, minutes };
+                }
+              }
+            }
 
             switch (payoutPlan.frequency) {
+              case 'daily':
+                nextDate.setDate(startDate.getDate() + newCompletedPayouts);
+                break;
               case 'weekly':
                 nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7));
                 break;
@@ -1013,8 +1030,11 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
                 nextDate.setMonth(startDate.getMonth() + newCompletedPayouts);
                 break;
             }
-
-            nextPayoutDate = nextDate.toISOString().split('T')[0];
+            
+            // Set the payout time on the calculated date
+            nextDate.setHours(payoutTime.hours, payoutTime.minutes, 0, 0);
+            // Return as ISO string to preserve time component
+            nextPayoutDate = nextDate.toISOString();
           }
 
           const planUpdates: any = {

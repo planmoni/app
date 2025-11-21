@@ -81,11 +81,27 @@ export function formatCurrency(amount: number, showCurrency: boolean = true): st
 /**
  * Formats a payout date and time for display
  * 
- * @param dateString Date string in any valid format
- * @returns Formatted date and time string (e.g., "Oct 5, 2025 at 3:00PM")
+ * @param dateString Date string in any valid format (ISO string, date, or timestamptz)
+ * @returns Formatted date and time string (e.g., "Nov 22, 2020 at 6:00 AM")
  */
 export function formatPayoutDateTime(dateString: string): string {
-  const date = new Date(dateString);
+  // Handle both date strings and timestamptz strings
+  let date: Date;
+  
+  // If the string is just a date (YYYY-MM-DD), it will default to midnight
+  // Check if it's a full ISO timestamp string
+  if (dateString.includes('T') || dateString.includes(' ')) {
+    // It's a timestamp string with time
+    date = new Date(dateString);
+  } else {
+    // It's just a date string, create date at midnight
+    date = new Date(dateString + 'T00:00:00');
+  }
+  
+  // Check if date is valid
+  if (isNaN(date.getTime())) {
+    return 'Invalid date';
+  }
   
   // Format date
   const dateFormatted = date.toLocaleDateString('en-US', {
@@ -94,7 +110,7 @@ export function formatPayoutDateTime(dateString: string): string {
     year: 'numeric'
   });
   
-  // Format time
+  // Format time - always show time even if it's midnight
   const timeFormatted = date.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',

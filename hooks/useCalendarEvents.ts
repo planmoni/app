@@ -44,7 +44,8 @@ export function useCalendarEvents() {
           next_payout_date,
           created_at,
           completed_payouts,
-          duration
+          duration,
+          frequency
         `)
         .eq('user_id', session?.user?.id);
 
@@ -99,8 +100,9 @@ export function useCalendarEvents() {
         });
       });
 
-      // Process payout plan creation dates
-      payoutPlans?.forEach((plan: any) => {
+      // Process payout plan creation dates and scheduled payouts
+      if (payoutPlans) {
+        for (const plan of payoutPlans) {
         const createdDate = new Date(plan.created_at);
         const formattedCreatedDate = createdDate.toLocaleDateString('en-US', {
           month: 'long',
@@ -124,22 +126,99 @@ export function useCalendarEvents() {
           payout_plan_id: plan.id,
         });
 
-        // Process scheduled payouts
-        if (plan.next_payout_date && plan.status === 'active') {
-          const nextPayoutDate = new Date(plan.next_payout_date);
-          const formattedNextDate = nextPayoutDate.toLocaleDateString('en-US', {
+          // Process scheduled payouts - calculate all future scheduled payouts
+          if (plan.status === 'active' && plan.start_date) {
+            const startDate = new Date(plan.start_date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // Extract payout time from next_payout_date (if it exists and is a timestamptz)
+            // Default to 9:00 AM if not available or if time is midnight (likely just a date)
+            let payoutTime: { hours: number; minutes: number } = { hours: 9, minutes: 0 };
+            if (plan.next_payout_date) {
+              const nextPayoutDateTime = new Date(plan.next_payout_date);
+              // Check if it's a valid date and has meaningful time information (not midnight)
+              if (!isNaN(nextPayoutDateTime.getTime())) {
+                const hours = nextPayoutDateTime.getHours();
+                const minutes = nextPayoutDateTime.getMinutes();
+                // Only use the time if it's not midnight (likely a real time, not just a date)
+                if (hours !== 0 || minutes !== 0) {
+                  payoutTime = { hours, minutes };
+                }
+              }
+            }
+            
+            // Calculate all future scheduled payouts
+            const scheduledDates: Date[] = [];
+            
+            if (plan.frequency === 'custom') {
+              // For custom frequency, fetch custom payout dates
+              const { data: customDates } = await supabase
+                .from('custom_payout_dates')
+                .select('payout_date')
+                .eq('payout_plan_id', plan.id)
+                .gte('payout_date', today.toISOString().split('T')[0])
+                .order('payout_date', { ascending: true });
+              
+              if (customDates) {
+                for (const customDate of customDates) {
+                  const date = new Date(customDate.payout_date);
+                  // Apply the payout time
+                  date.setHours(payoutTime.hours, payoutTime.minutes, 0, 0);
+                  scheduledDates.push(date);
+                }
+              }
+            } else {
+              // Calculate scheduled dates based on frequency
+              const remainingPayouts = plan.duration - plan.completed_payouts;
+              
+              for (let i = 0; i < remainingPayouts; i++) {
+                const payoutIndex = plan.completed_payouts + i;
+                const scheduledDate = new Date(startDate);
+                
+                switch (plan.frequency) {
+                  case 'daily':
+                    scheduledDate.setDate(startDate.getDate() + payoutIndex);
+                    break;
+                  case 'weekly':
+                    scheduledDate.setDate(startDate.getDate() + (payoutIndex * 7));
+                    break;
+                  case 'biweekly':
+                    scheduledDate.setDate(startDate.getDate() + (payoutIndex * 14));
+                    break;
+                  case 'monthly':
+                    scheduledDate.setMonth(startDate.getMonth() + payoutIndex);
+                    break;
+                }
+                
+                // Apply the payout time
+                scheduledDate.setHours(payoutTime.hours, payoutTime.minutes, 0, 0);
+                
+                // Only include future dates (or today)
+                const scheduledDateOnly = new Date(scheduledDate);
+                scheduledDateOnly.setHours(0, 0, 0, 0);
+                if (scheduledDateOnly >= today) {
+                  scheduledDates.push(scheduledDate);
+                }
+              }
+            }
+            
+            // Create calendar events for each scheduled payout
+            for (let index = 0; index < scheduledDates.length; index++) {
+              const scheduledDate = scheduledDates[index];
+              const formattedDate = scheduledDate.toLocaleDateString('en-US', {
             month: 'long',
             day: 'numeric',
             year: 'numeric'
           });
 
           // Calculate days until payout
-          const daysUntilPayout = Math.ceil((nextPayoutDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+              const daysUntilPayout = Math.ceil((scheduledDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
           
           // Determine event type and title based on timing
           let eventType: 'scheduled' | 'failed' = 'scheduled';
           let eventTitle = 'Scheduled payout';
-          let eventDescription = `Next payout from "${plan.name}"`;
+              let eventDescription = `Payout from "${plan.name}"`;
           
           // If payout is overdue (more than 1 day past due), mark as failed
           if (daysUntilPayout < -1) {
@@ -148,13 +227,14 @@ export function useCalendarEvents() {
             eventDescription = `Overdue payout from "${plan.name}" (${Math.abs(daysUntilPayout)} days late)`;
           }
           
-          // Show all scheduled payouts (upcoming, today, or recently overdue)
-          if (daysUntilPayout >= -7) { // Show payouts up to 7 days overdue
+              // Show all future scheduled payouts, or overdue payouts up to 7 days
+              // This ensures all scheduled payouts in a plan are visible in the calendar
+              if (daysUntilPayout >= 0 || (daysUntilPayout < 0 && daysUntilPayout >= -7)) {
             calendarEvents.push({
-              id: `plan-scheduled-${plan.id}`,
+                  id: `plan-scheduled-${plan.id}-${index}`,
               title: eventTitle,
               amount: `₦${plan.payout_amount.toLocaleString()}`,
-              time: nextPayoutDate.toLocaleTimeString('en-US', {
+                  time: scheduledDate.toLocaleTimeString('en-US', {
                 hour: 'numeric',
                 minute: '2-digit',
                 hour12: true
@@ -162,9 +242,10 @@ export function useCalendarEvents() {
               type: eventType,
               description: eventDescription,
               vault: plan.name,
-              date: formattedNextDate,
+                  date: formattedDate,
               payout_plan_id: plan.id,
             });
+              }
           }
         }
 
@@ -193,7 +274,8 @@ export function useCalendarEvents() {
             payout_plan_id: plan.id,
           });
         }
-      });
+        }
+      }
 
       // Sort events by date
       calendarEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());

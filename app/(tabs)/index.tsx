@@ -670,9 +670,15 @@ export default function HomeScreen() {
       // Only include active plans with a valid next payout date
       if (plan.status !== 'active' || !plan.next_payout_date) return false;
       
+      // Check if the plan has remaining payouts
+      if (plan.completed_payouts >= plan.duration) return false;
+      
       // Check if the next payout date is in the future (not expired)
+      // Allow a small buffer (1 minute) to account for processing delays
       const nextPayoutDate = new Date(plan.next_payout_date);
-      return nextPayoutDate > new Date();
+      const now = new Date();
+      const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
+      return nextPayoutDate > oneMinuteAgo;
     })
     .sort((a, b) => {
       const dateA = new Date(a.next_payout_date!);

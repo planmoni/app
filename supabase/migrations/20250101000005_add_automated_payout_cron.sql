@@ -14,7 +14,7 @@ SELECT cron.schedule(
   '* * * * *', -- Every minute for immediate processing
   $$
   SELECT net.http_post(
-    url := 'https://your-project-ref.supabase.co/functions/v1/process-automated-payouts',
+    url := 'https://rqmpnoaavyizlwzfngpr.supabase.co/functions/v1/process-automated-payouts',
     headers := json_build_object(
       'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
     )
@@ -28,7 +28,7 @@ SELECT cron.schedule(
   '0 0 * * *', -- Daily at midnight
   $$
   SELECT net.http_post(
-    url := 'https://your-project-ref.supabase.co/functions/v1/schedule-automated-payouts',
+    url := 'https://rqmpnoaavyizlwzfngpr.supabase.co/functions/v1/schedule-automated-payouts',
     headers := json_build_object(
       'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
     )

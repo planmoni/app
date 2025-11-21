@@ -22,12 +22,51 @@ serve(async (req) => {
 
     console.log("Starting automated payout processing...")
 
+    // Helper function to log payout processing attempts
+    const logProcessing = async (
+      planId: string,
+      automatedPayoutId: string | null,
+      triggerType: string,
+      action: string,
+      message: string | null = null,
+      errorMessage: string | null = null,
+      metadata: any = {}
+    ) => {
+      try {
+        await supabase.rpc("log_payout_processing", {
+          p_payout_plan_id: planId,
+          p_trigger_type: triggerType,
+          p_action: action,
+          p_automated_payout_id: automatedPayoutId,
+          p_message: message,
+          p_error_message: errorMessage,
+          p_metadata: metadata
+        })
+      } catch (error) {
+        console.error("Failed to log payout processing:", error)
+        // Don't fail the entire process if logging fails
+      }
+    }
+
     // Get all active payout plans that are due for payout (including past due)
     const now = new Date()
-    const todayString = now.toISOString().split('T')[0] // YYYY-MM-DD format
+    const nowISOString = now.toISOString() // Full timestamp for proper comparison
+    const todayString = now.toISOString().split('T')[0] // YYYY-MM-DD format for scheduled_date
     
-    // Check for payouts due today or overdue (past due dates)
-    console.log("Checking for payouts due on or before:", todayString)
+    // Check for payouts due now or overdue (past due timestamps)
+    // next_payout_date is timestamptz, so we need to compare with full timestamp
+    console.log("Checking for payouts due on or before:", nowISOString)
+    
+    // Log that we're starting the check
+    await logProcessing(
+      "00000000-0000-0000-0000-000000000000", // Dummy ID for batch operations
+      null,
+      "cron_job",
+      "detected",
+      `Starting payout processing check. Checking for payouts due on or before ${nowISOString}`,
+      null,
+      { check_time: nowISOString, today: todayString }
+    )
 
     const { data: duePlans, error: plansError } = await supabase
       .from("payout_plans")
@@ -51,7 +90,7 @@ serve(async (req) => {
         )
       `)
       .eq("status", "active")
-      .lte("next_payout_date", todayString)
+      .lte("next_payout_date", nowISOString) // Compare timestamptz with timestamptz
       .not("next_payout_date", "is", null)
       .order("next_payout_date", { ascending: true }) // Process overdue payouts first
 
@@ -64,8 +103,30 @@ serve(async (req) => {
     }
 
     console.log(`Found ${duePlans?.length || 0} payout plans due for processing`)
+    
+    // Log the number of due plans found
+    if (duePlans && duePlans.length > 0) {
+      await logProcessing(
+        "00000000-0000-0000-0000-000000000000",
+        null,
+        "cron_job",
+        "detected",
+        `Found ${duePlans.length} payout plans due for processing`,
+        null,
+        { count: duePlans.length }
+      )
+    }
 
     if (!duePlans || duePlans.length === 0) {
+      await logProcessing(
+        "00000000-0000-0000-0000-000000000000",
+        null,
+        "cron_job",
+        "skipped",
+        "No payouts due for processing",
+        null,
+        {}
+      )
       return new Response(
         JSON.stringify({
           success: true,
@@ -88,6 +149,17 @@ serve(async (req) => {
       
       try {
         console.log(`Processing payout for plan: ${plan.name} (${plan.id})`)
+        
+        // Log that we're starting to process this plan
+        await logProcessing(
+          plan.id,
+          null,
+          "cron_job",
+          "processing",
+          `Starting to process payout for plan: ${plan.name}`,
+          null,
+          { plan_name: plan.name, expected_date: plan.next_payout_date }
+        )
 
         // Check if there's already a pending automated payout for today
         const { data: existingPayout, error: existingError } = await supabase
@@ -99,11 +171,29 @@ serve(async (req) => {
 
         if (existingError && existingError.code !== "PGRST116") { // PGRST116 = no rows found
           console.error("Error checking existing payout:", existingError)
+          await logProcessing(
+            plan.id,
+            null,
+            "cron_job",
+            "failed",
+            "Error checking for existing payout",
+            existingError.message,
+            { error_code: existingError.code }
+          )
           continue
         }
 
         if (existingPayout) {
           console.log(`Payout already exists for plan ${plan.id} on ${todayString} with status: ${existingPayout.status}`)
+          await logProcessing(
+            plan.id,
+            existingPayout.id,
+            "cron_job",
+            "skipped",
+            `Payout already exists with status: ${existingPayout.status}`,
+            null,
+            { existing_status: existingPayout.status, scheduled_date: todayString }
+          )
           continue
         }
 
@@ -358,18 +448,9 @@ serve(async (req) => {
             }
           })
 
-        // Unlock the payout amount from locked balance
-        const { error: unlockError } = await supabase.rpc("unlock_funds", {
-          arg_user_id: plan.user_id,
-          arg_amount: plan.payout_amount
-        })
-
-        if (unlockError) {
-          console.error("Error unlocking funds:", unlockError)
-          // Don't fail the entire process, just log the error
-        }
-
         // Update payout plan - increment completed payouts and calculate next payout date
+        // Note: locked_balance will be automatically recalculated by trigger when completed_payouts changes
+        // The trigger only reduces locked_balance (not balance), which is what we want
         const newCompletedPayouts = plan.completed_payouts + 1
         let nextPayoutDate = null
 
@@ -377,11 +458,28 @@ serve(async (req) => {
         if (newCompletedPayouts < plan.duration) {
           const startDate = new Date(plan.start_date)
           let nextDate = new Date(startDate)
+          
+          // Extract payout time from current next_payout_date if available, otherwise default to 9:00 AM
+          let payoutTime = { hours: 9, minutes: 0 }
+          if (plan.next_payout_date) {
+            const currentNextDate = new Date(plan.next_payout_date)
+            if (!isNaN(currentNextDate.getTime())) {
+              const hours = currentNextDate.getHours()
+              const minutes = currentNextDate.getMinutes()
+              // Only use the time if it's not midnight (likely a real time, not just a date)
+              if (hours !== 0 || minutes !== 0) {
+                payoutTime = { hours, minutes }
+              }
+            }
+          }
 
           // Calculate the next payout date based on start_date and completed_payouts count
           // This ensures the first payout happens on start_date, and subsequent payouts
           // are calculated from the start_date + (completed_payouts * frequency_interval)
           switch (plan.frequency) {
+            case "daily":
+              nextDate.setDate(startDate.getDate() + newCompletedPayouts)
+              break
             case "weekly":
               nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
               break
@@ -409,7 +507,10 @@ serve(async (req) => {
           }
 
           if (plan.frequency !== "custom") {
-            nextPayoutDate = nextDate.toISOString().split('T')[0]
+            // Set the payout time on the calculated date
+            nextDate.setHours(payoutTime.hours, payoutTime.minutes, 0, 0)
+            // Return as ISO string to preserve time component
+            nextPayoutDate = nextDate.toISOString()
           }
         }
 
@@ -464,6 +565,24 @@ serve(async (req) => {
 
         console.log(`Successfully initiated SafeHaven transfer for plan ${plan.id}`)
         
+        // Log successful processing
+        await logProcessing(
+          plan.id,
+          automatedPayout.id,
+          "cron_job",
+          transferResult.status === "Completed" ? "completed" : "processing",
+          transferResult.status === "Completed" 
+            ? "Transfer completed successfully" 
+            : "Transfer initiated, awaiting completion",
+          null,
+          {
+            transfer_id: transferId,
+            transfer_code: paymentReference,
+            transfer_status: transferResult.status,
+            amount: plan.payout_amount
+          }
+        )
+        
         results.push({
           planId: plan.id,
           planName: plan.name,
@@ -487,6 +606,21 @@ serve(async (req) => {
 
       } catch (error: any) {
         console.error(`Error processing payout for plan ${plan.id}:`, error)
+        
+        // Log the failure
+        await logProcessing(
+          plan.id,
+          automatedPayout?.id || null,
+          "cron_job",
+          "failed",
+          `Failed to process payout: ${error.message || 'Unknown error'}`,
+          error.message || 'Unknown error',
+          {
+            error_type: error.constructor?.name || 'Error',
+            error_stack: error.stack || null,
+            scheduled_date: todayString
+          }
+        )
         
         // Update automated payout to failed if it was created
         try {

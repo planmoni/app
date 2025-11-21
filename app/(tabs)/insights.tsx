@@ -308,7 +308,7 @@ export default function InsightsScreen() {
                   ]}>
                     <Text style={[
                       styles.trendValueText,
-                      { color: trend.positive ? colors.text : colors.error }
+                      { color: trend.positive ? colors.primary : colors.error }
                     ]}>
                       {trend.value}
                     </Text>

@@ -113,7 +113,7 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
                 
                 {plan.next_payout_date && (
                   <Text style={styles.nextPayoutDate}>
-                    Payday: {formatPayoutDateTime(plan.next_payout_date)}
+                    Next Payday: {formatPayoutDateTime(plan.next_payout_date)}
                   </Text>
                 )}
               </Pressable>

@@ -28,6 +28,7 @@ type AppVersionContextType = {
 const AppVersionContext = createContext<AppVersionContextType | undefined>(undefined);
 
 const DISMISSED_VERSION_KEY = 'dismissed_update_version';
+const DISMISSED_BUILD_KEY = 'dismissed_update_build';
 
 export function AppVersionProvider({ children }: { children: React.ReactNode }) {
   const [needsUpdate, setNeedsUpdate] = useState(false);
@@ -74,12 +75,22 @@ export function AppVersionProvider({ children }: { children: React.ReactNode }) 
         .single();
 
       if (error) {
-        console.error('❌ Error fetching app version:', error);
+        console.error('❌ Error fetching app version:', {
+          error,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        setNeedsUpdate(false);
+        setUpdateData(null);
         return;
       }
 
       if (!data) {
         console.log('ℹ️ No active version found in database');
+        setNeedsUpdate(false);
+        setUpdateData(null);
         return;
       }
 
@@ -105,25 +116,69 @@ export function AppVersionProvider({ children }: { children: React.ReactNode }) 
       });
 
       if (buildNeedsUpdate || versionNeedsUpdate) {
-        // Check if user has dismissed this version
+        // Check if user has dismissed this version/build
+        // Handle backward compatibility: old code stored build number in DISMISSED_VERSION_KEY
         const dismissedVersion = await getItem(DISMISSED_VERSION_KEY);
-        const dismissedBuild = dismissedVersion ? parseInt(dismissedVersion) : 0;
+        const dismissedBuildStr = await getItem(DISMISSED_BUILD_KEY);
+        
+        // Check if dismissedVersion is actually a build number (old format)
+        let dismissedBuild = 0;
+        let actualDismissedVersion: string | null = null;
+        
+        if (dismissedVersion) {
+          const parsedBuild = parseInt(dismissedVersion);
+          // If it's a valid number and looks like a build number (typically small numbers)
+          if (!isNaN(parsedBuild) && parsedBuild < 1000) {
+            // This is the old format - it's a build number
+            dismissedBuild = parsedBuild;
+            actualDismissedVersion = null; // No version was stored in old format
+          } else {
+            // This is the new format - it's a version string
+            actualDismissedVersion = dismissedVersion;
+          }
+        }
+        
+        // Use the new build key if available, otherwise use the parsed value
+        if (dismissedBuildStr) {
+          dismissedBuild = parseInt(dismissedBuildStr);
+        }
 
         console.log('🚫 Dismissed version check:', {
+          dismissedVersion,
+          actualDismissedVersion,
           dismissedBuild,
+          currentVersion,
+          serverVersion,
+          currentBuild,
           serverBuild,
-          forceUpdate: data.force_update
+          forceUpdate: data.force_update,
+          versionNeedsUpdate,
+          buildNeedsUpdate
         });
+
+        // Determine if this is a new version (different from dismissed)
+        const isNewVersion = !actualDismissedVersion || actualDismissedVersion !== serverVersion;
+        const isNewBuild = dismissedBuild < serverBuild;
 
         // Show update if:
         // 1. It's a force update, OR
-        // 2. User hasn't dismissed this specific version
-        if (data.force_update || dismissedBuild < serverBuild) {
-          console.log('✅ Update available! Showing update prompt');
+        // 2. It's a new version (user hasn't dismissed this version), OR
+        // 3. It's a new build (user hasn't dismissed this build)
+        const shouldShowUpdate = data.force_update || isNewVersion || isNewBuild;
+
+        if (shouldShowUpdate) {
+          console.log('✅ Update available! Showing update prompt', {
+            reason: data.force_update ? 'force_update' : isNewVersion ? 'new_version' : 'new_build'
+          });
           setUpdateData(data);
           setNeedsUpdate(true);
         } else {
-          console.log('ℹ️ Update available but user dismissed it');
+          console.log('ℹ️ Update available but user dismissed it', {
+            dismissedVersion,
+            serverVersion,
+            dismissedBuild,
+            serverBuild
+          });
           setNeedsUpdate(false);
         }
       } else {
@@ -142,13 +197,17 @@ export function AppVersionProvider({ children }: { children: React.ReactNode }) 
     if (!updateData) return;
 
     try {
-      // Save the dismissed version build number
+      // Save both the dismissed version and build number
+      const dismissedVersion = Platform.OS === 'android'
+        ? updateData.android_version
+        : updateData.ios_version;
       const dismissedBuild = Platform.OS === 'android'
         ? updateData.android_build
         : updateData.ios_build;
 
-      console.log('🚫 Dismissing update for build:', dismissedBuild);
-      await saveItem(DISMISSED_VERSION_KEY, dismissedBuild.toString());
+      console.log('🚫 Dismissing update:', { version: dismissedVersion, build: dismissedBuild });
+      await saveItem(DISMISSED_VERSION_KEY, dismissedVersion);
+      await saveItem(DISMISSED_BUILD_KEY, dismissedBuild.toString());
 
       setNeedsUpdate(false);
     } catch (error) {

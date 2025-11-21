@@ -430,9 +430,9 @@ export default function SettingsScreen() {
                 <Sliders size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
-                <Text style={styles.settingLabel}>Text Size</Text>
-                <Text style={styles.settingDescription}>
-                  {Math.round(textSizeMultiplier * 100)}% • Tap to adjust
+                <Text style={styles.settingLabel}>Display</Text>
+                <Text style={styles.settingDescription}>Current text size: 
+                  {Math.round(textSizeMultiplier * 100)}% 
                 </Text>
               </View>
               <ChevronRight size={20} color={colors.textSecondary} />
