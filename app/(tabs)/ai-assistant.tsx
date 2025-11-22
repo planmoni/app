@@ -145,6 +145,7 @@ export default function AIAssistantScreen() {
   const { createPayout, isLoading: isCreatingPayout, error: createPayoutError } = useCreatePayout();
   const { banks } = useBanks();
   const { requireAuth, isAuthenticated } = useRequireAuth();
+  const isInitialMount = useRef(true);
 
   // Add frequency options
   const frequencyOptions = [
@@ -262,10 +263,19 @@ export default function AIAssistantScreen() {
     setMessages([welcomeMessage]);
   }, [session?.user?.user_metadata?.first_name, isAuthenticated]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change (but not on initial mount)
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    // Skip scrolling on initial mount to prevent auto-scroll to top
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    
+    // Only scroll if there are messages and user is authenticated
+    if (messages.length > 0 && isAuthenticated) {
+      scrollToBottom();
+    }
+  }, [messages, isAuthenticated]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
