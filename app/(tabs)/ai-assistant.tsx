@@ -20,7 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
-import { Send, Sparkles, ArrowRight, Wallet, TrendingUp, Calendar, Clock, X, AlertTriangle, HelpCircle as HelpCircleIcon } from 'lucide-react-native';
+import { Send, Sparkles, ArrowRight, Wallet, TrendingUp, Calendar, Clock, X, AlertTriangle } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { getOpenAIChatCompletion, testOpenAIConnection } from '../../lib/openai';
@@ -34,9 +34,8 @@ import { useBanks } from '@/hooks/useBanks';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
-import { useIntercom } from '@/hooks/useIntercom';
 import { logAnalyticsEvent } from '@/lib/firebase';
-import { Alert } from 'react-native';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 // Define message types
 type MessageType = 'text' | 'plan' | 'insight';
@@ -145,7 +144,7 @@ export default function AIAssistantScreen() {
   const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<number | null>(null);
   const { createPayout, isLoading: isCreatingPayout, error: createPayoutError } = useCreatePayout();
   const { banks } = useBanks();
-  const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
 
   // Add frequency options
   const frequencyOptions = [
@@ -272,6 +271,21 @@ export default function AIAssistantScreen() {
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
 
+    // Check authentication first
+    if (!isAuthenticated) {
+      const loginMessage: Message = {
+        id: `login-required-${Date.now()}`,
+        content: 'Please login to use the AI assistant. Click the login button to get started!',
+        sender: 'ai',
+        type: 'text',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, loginMessage]);
+      setInputText('');
+      requireAuth(() => {}, '/(tabs)/ai-assistant');
+      return;
+    }
+
     // Check rate limiting first
     const rateLimitCheck = checkRateLimit();
     if (!rateLimitCheck.canProceed) {
@@ -352,6 +366,12 @@ export default function AIAssistantScreen() {
   };
 
   const handleSuggestionPress = (suggestion: string) => {
+    // Redirect to login if user is not authenticated
+    if (!isAuthenticated) {
+      router.push('/(auth)/login');
+      return;
+    }
+    
     setInputText(suggestion);
     setShowSuggestions(false);
     setInputFocused(true);
@@ -1123,6 +1143,23 @@ export default function AIAssistantScreen() {
   const handlePlanConfirmation = async (response: string) => {
     const normalized = response.trim().toLowerCase();
     if (normalized === 'confirm') {
+      // Check authentication first
+      if (!isAuthenticated) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `plan-auth-error-${Date.now()}`,
+            content: 'Please login to create a payout plan.',
+            sender: 'ai',
+            type: 'text',
+            timestamp: new Date(),
+            metadata: { step: 'error' }
+          }
+        ]);
+        requireAuth(() => {}, '/(tabs)/ai-assistant');
+        return;
+      }
+      
       if (!planDraft || !selectedAccount) {
         setMessages(prev => [
           ...prev,
@@ -1743,34 +1780,6 @@ export default function AIAssistantScreen() {
     if (router) router.push('/add-funds');
   };
 
-  // Handle help button press
-  const handleHelpPress = async () => {
-    if (!isIntercomSupported) {
-      return;
-    }
-    try {
-      console.log('🎯 Help button pressed - opening Intercom instantly');
-      await openChat();
-      logAnalyticsEvent('help_click');
-    } catch (error) {
-      console.error('❌ Failed to open Intercom:', error);
-      Alert.alert(
-        'Support Chat Unavailable',
-        'Unable to open support chat at the moment. This might be due to network connectivity issues. Would you like to try again?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Retry', 
-            onPress: () => {
-              console.log('🔄 Retrying Intercom...');
-              handleHelpPress();
-            }
-          }
-        ]
-      );
-    }
-  };
-
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
@@ -1824,14 +1833,13 @@ export default function AIAssistantScreen() {
               <X size={getScaledFontSize(20, textSizeMultiplier)} color={colors.text} />
             </TouchableOpacity>
           )}
-          {/* Help icon */}
-          {isIntercomSupported && (
+          {/* Login button - only show when not authenticated */}
+          {!isAuthenticated && (
             <Pressable 
-              onPress={handleHelpPress} 
-              style={styles.helpButton}
-              disabled={isHelpLoading}
+              onPress={() => requireAuth(() => {}, '/(tabs)/ai-assistant')} 
+              style={[styles.loginButton, { borderColor: colors.primary }]}
             >
-              <HelpCircleIcon size={24} color={colors.text} />
+              <Text style={[styles.loginButtonText, { color: colors.primary }]}>Login</Text>
             </Pressable>
           )}
         </View>
@@ -1859,6 +1867,22 @@ export default function AIAssistantScreen() {
         contentContainerStyle={{ paddingBottom: 16 }}
         keyboardShouldPersistTaps="handled"
       >
+        {!isAuthenticated && messages.length === 0 && (
+          <View style={styles.emptyStateContainer}>
+            <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
+              Welcome to Planmoni AI!
+            </Text>
+            <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
+              Login to start chatting with your AI financial assistant and create payout plans.
+            </Text>
+            <Pressable
+              style={[styles.loginPromptButton, { backgroundColor: colors.primary }]}
+              onPress={() => requireAuth(() => {}, '/(tabs)/ai-assistant')}
+            >
+              <Text style={styles.loginPromptButtonText}>Login to Continue</Text>
+            </Pressable>
+          </View>
+        )}
         {messages.map((message, index) => renderMessage(message, index))}
         
         {isTyping && (
@@ -2039,7 +2063,7 @@ export default function AIAssistantScreen() {
         }}
       />
 
-      {planCreationStep === 'idle' && (
+      {planCreationStep === 'idle' && isAuthenticated && (
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
@@ -2386,6 +2410,35 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginBottom: getScaledFontSize(24, textSizeMultiplier),
     lineHeight: getScaledFontSize(24, textSizeMultiplier),
   },
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: getScaledFontSize(32, textSizeMultiplier),
+    minHeight: 300,
+  },
+  emptyStateTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 24 : 22, textSizeMultiplier),
+    fontWeight: '700',
+    marginBottom: getScaledFontSize(12, textSizeMultiplier),
+    textAlign: 'center',
+  },
+  emptyStateText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    textAlign: 'center',
+    marginBottom: getScaledFontSize(24, textSizeMultiplier),
+    lineHeight: getScaledFontSize(22, textSizeMultiplier),
+  },
+  loginPromptButton: {
+    paddingHorizontal: getScaledFontSize(24, textSizeMultiplier),
+    paddingVertical: getScaledFontSize(12, textSizeMultiplier),
+    borderRadius: getScaledFontSize(12, textSizeMultiplier),
+  },
+  loginPromptButtonText: {
+    color: '#FFFFFF',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
+  },
   aiBadgeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2446,13 +2499,18 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginLeft: getScaledFontSize(8, textSizeMultiplier),
     marginBottom: getScaledFontSize(-10, textSizeMultiplier),
   },
-  helpButton: {
-    width: getScaledFontSize(40, textSizeMultiplier),
-    height: getScaledFontSize(40, textSizeMultiplier),
+  loginButton: {
+    paddingHorizontal: getScaledFontSize(20, textSizeMultiplier),
+    paddingVertical: getScaledFontSize(10, textSizeMultiplier),
     borderRadius: getScaledFontSize(20, textSizeMultiplier),
-    backgroundColor: colors.backgroundTertiary,
+    borderWidth: 1.5,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loginButtonText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
   },
   headerRightContainer: {
     flexDirection: 'row',

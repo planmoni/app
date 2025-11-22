@@ -6,13 +6,13 @@ import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 import AccountInformationModal from '@/components/AccountInformationModal';
 import PlanCreationModal from '@/components/PlanCreationModal';
 import AppLockModal from '@/components/AppLockModal';
+import WelcomeModal from '@/components/WelcomeModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import KYCCard from '@/components/KYCCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
-// import { IntercomButton } from '@/components/IntercomButton';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -22,6 +22,7 @@ import {
   Plus,
   CalendarCheck,
   Clock,
+  MoreHorizontal,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -62,6 +63,7 @@ import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 // import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 
 interface Banner {
@@ -85,6 +87,7 @@ export default function HomeScreen() {
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress } = useKYCProgress();
   const navigation = useNavigation();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   
   // Debug: Track payoutPlans changes
   useEffect(() => {
@@ -104,6 +107,7 @@ export default function HomeScreen() {
   const [imagesReady, setImagesReady] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
+  const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
   const [hasShownTier1ClaimModal, setHasShownTier1ClaimModal] = useState(false);
   const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
@@ -457,6 +461,13 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
+    // For unauthenticated users, show ClaimAccountModal
+    if (!isAuthenticated) {
+      setShowClaimAccountModal(true);
+      logAnalyticsEvent('add_funds_click_unauthenticated_modal');
+      return;
+    }
+    
     // Check if user has completed Tier 1
     const tierCompletion = checkTierCompletion();
     
@@ -500,22 +511,17 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // Check if balance is ₦0 and no payout plans exist
-    const hasNoBalance = balance === 0 && availableBalance === 0;
-    const hasNoPlans = payoutPlans.length === 0;
-    
-    // If no balance and no plans, show info modal
-    if (hasNoBalance && hasNoPlans) {
-      setShowNewPlanInfoModal(true);
-      logAnalyticsEvent('create_payout_click_no_balance_modal');
-    } else {
-      // Navigate directly to create payout
-    router.push('/create-payout/amount');
-    logAnalyticsEvent('create_payout_click');
-    }
+    // Always show the new plan info modal for these buttons
+    setShowNewPlanInfoModal(true);
+    logAnalyticsEvent('create_payout_click_modal');
   };
 
   const handleAISuggestionPress = (suggestion: any) => {
+    // Check authentication first
+    if (!requireAuth(() => {}, '/create-payout/schedule')) {
+      return;
+    }
+    
     // Trigger haptic feedback
     impact();
     // Navigate directly to schedule page with full balance and suggested frequency
@@ -745,14 +751,22 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
-              <InitialsAvatar 
-                firstName={firstName} 
-                lastName={lastName} 
-                size={48}
-                fontSize={getScaledFontSize(18, textSizeMultiplier)}
-              />
-            </Pressable>
+            {isAuthenticated ? (
+              <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
+                <InitialsAvatar 
+                  firstName={firstName} 
+                  lastName={lastName} 
+                  size={48}
+                  fontSize={getScaledFontSize(18, textSizeMultiplier)}
+                />
+              </Pressable>
+            ) : (
+              <Pressable style={styles.avatarButton}>
+                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
+                  <MoreHorizontal size={24} color={'#fff'} />
+                </View>
+              </Pressable>
+            )}
             <View style={styles.headerActions}>
               <NotificationIcon />
               <Pressable 
@@ -769,7 +783,19 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={styles.greetingContainer}>
-            <Text style={styles.greeting}>{getGreeting()}, {firstName}.</Text>
+            <View style={styles.greetingRow}>
+              <Text style={styles.greeting}>
+                {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
+              </Text>
+              {!isAuthenticated && (
+                <Pressable 
+                  onPress={() => router.push('/(auth)/login')} 
+                  style={[styles.loginButton, { borderColor: colors.primary }]}
+                >
+                  <Text style={[styles.loginButtonText, { color: colors.primary }]}>Login</Text>
+                </Pressable>
+              )}
+            </View>
             {/* <Text style={styles.subGreeting}>It's time to plan some payouts</Text> */}
           </View>
         </View>
@@ -835,11 +861,13 @@ export default function HomeScreen() {
         {/* On Track Card */}
         <OnTrackCard payoutPlans={payoutPlans} />
         
-        {/* AI Suggestion Section */}
-        <AISuggestionCard 
-          availableBalance={availableBalance}
-          onSuggestionPress={handleAISuggestionPress}
-        />
+        {/* AI Suggestion Section - Only show for authenticated users */}
+        {isAuthenticated && (
+          <AISuggestionCard 
+            availableBalance={availableBalance}
+            onSuggestionPress={handleAISuggestionPress}
+          />
+        )}
         {/* <IntercomButton /> */}
 
         {/* KYC Tiers Test Buttons */}
@@ -868,7 +896,7 @@ export default function HomeScreen() {
         </View> */}
 
         <ImageCarousel images={carouselImages} />
-        {!checkTierCompletion().tier1 && <KYCCard />}
+        {isAuthenticated && !checkTierCompletion().tier1 && <KYCCard />}
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
@@ -882,6 +910,7 @@ export default function HomeScreen() {
         <PayoutPlansSection 
           activePlans={activePlans} 
           onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}
+          onShowHowItWorks={() => setShowHowItWorksModal(true)}
         />
 
         <View style={styles.bottomPadding} />
@@ -928,19 +957,17 @@ export default function HomeScreen() {
         />
       )}
       
-      <AccountCreationSuccessModal
-        isVisible={showWelcomeModal}
-        onClose={() => {
-          setShowWelcomeModal(false);
-          setHasShownWelcomeModal(true);
+      {/* NewPlanInfoModal - available for both authenticated and unauthenticated users */}
+      <NewPlanInfoModal
+        isVisible={showNewPlanInfoModal}
+        onClose={() => setShowNewPlanInfoModal(false)}
+        onAddFundsAfterClose={() => {
+          // Navigate after modal is fully closed
+          handleAddFunds();
         }}
-        firstName={firstName}
-        lastName={lastName}
-        email={email}
-        onStartVerification={handleStartVerification}
-        onGoToDashboard={handleGoToDashboard}
       />
-
+      
+      {/* ClaimAccountModal - available for both authenticated and unauthenticated users */}
       <ClaimAccountModal
         isVisible={showClaimAccountModal}
         onClose={() => setShowClaimAccountModal(false)}
@@ -952,65 +979,77 @@ export default function HomeScreen() {
           logAnalyticsEvent('claim_account_click');
         }}
       />
+      
+      {isAuthenticated && (
+        <>
+          <AccountCreationSuccessModal
+            isVisible={showWelcomeModal}
+            onClose={() => {
+              setShowWelcomeModal(false);
+              setHasShownWelcomeModal(true);
+            }}
+            firstName={firstName}
+            lastName={lastName}
+            email={email}
+            onStartVerification={handleStartVerification}
+            onGoToDashboard={handleGoToDashboard}
+          />
 
-      <NewPlanInfoModal
-        isVisible={showNewPlanInfoModal}
-        onClose={() => setShowNewPlanInfoModal(false)}
-        onAddFundsAfterClose={() => {
-          // Navigate after modal is fully closed
-          handleAddFunds();
-        }}
-      />
+          <AccountInformationModal
+            isVisible={showAccountInfoModal}
+            onClose={() => {
+              setShowAccountInfoModal(false);
+              setHasShownAccountInfoModal(true);
+            }}
+            onDone={async () => {
+              setShowAccountInfoModal(false);
+              setHasShownAccountInfoModal(true);
+              // Refresh the app to clear any blocking state
+              await handleRefresh();
+            }}
+          />
 
-      <AccountInformationModal
-        isVisible={showAccountInfoModal}
-        onClose={() => {
-          setShowAccountInfoModal(false);
-          setHasShownAccountInfoModal(true);
-        }}
-        onDone={async () => {
-          setShowAccountInfoModal(false);
-          setHasShownAccountInfoModal(true);
-          // Refresh the app to clear any blocking state
-          await handleRefresh();
-        }}
-      />
+          <PlanCreationModal
+            isVisible={showPlanCreationModal}
+            onClose={async () => {
+              setShowPlanCreationModal(false);
+              setHasDismissedDepositModal(true);
+              
+              // Persist the dismissed state to AsyncStorage
+              try {
+                if (session?.user?.id) {
+                  const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+                  const dismissedKey = `deposit_modal_dismissed_${session.user.id}`;
+                  await AsyncStorage.setItem(dismissedKey, 'true');
+                }
+              } catch (error) {
+                console.error('Error saving dismissed modal state:', error);
+              }
+            }}
+            depositAmount={lastDepositAmount || 0}
+          />
 
-      <PlanCreationModal
-        isVisible={showPlanCreationModal}
-        onClose={async () => {
-          setShowPlanCreationModal(false);
-          setHasDismissedDepositModal(true);
-          
-          // Persist the dismissed state to AsyncStorage
-          try {
-            if (session?.user?.id) {
-              const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-              const dismissedKey = `deposit_modal_dismissed_${session.user.id}`;
-              await AsyncStorage.setItem(dismissedKey, 'true');
-            }
-          } catch (error) {
-            console.error('Error saving dismissed modal state:', error);
-          }
-        }}
-        depositAmount={lastDepositAmount || 0}
-      />
-
-      <AppLockModal
-        isVisible={showAppLockModal}
-        onClose={() => {
-          setShowAppLockModal(false);
-          setHasShownAppLockModal(true);
-        }}
-      />
+          <AppLockModal
+            isVisible={showAppLockModal}
+            onClose={() => {
+              setShowAppLockModal(false);
+              setHasShownAppLockModal(true);
+            }}
+          />
+        </>
+      )}
 
       {/* <LivenessTestEnhanced 
         isVisible={showLivenessTest}
         onClose={() => setShowLivenessTest(false)}
       /> */}
-      
-      {/* Floating Intercom Support Button */}
-      {/* <IntercomButton variant="floating" /> */}
+
+      {/* How it Works Modal */}
+      <WelcomeModal
+        isVisible={showHowItWorksModal}
+        onClose={() => setShowHowItWorksModal(false)}
+        showButtons={false}
+      />
       
     </SafeAreaView>
   );
@@ -1051,6 +1090,24 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderRadius: 24,
     overflow: 'hidden',
   },
+  avatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loginButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    backgroundColor: 'transparent',
+  },
+  loginButtonText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
+  },
   helpButton: {
     width: 40,
     height: 40,
@@ -1062,12 +1119,20 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   greetingContainer: {
     marginLeft: 0,
   },
+  greetingRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
   greeting: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 19, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     marginTop: Platform.OS === 'ios' ? 5 : 5,
     marginBottom: Platform.OS === 'ios' ? 5 : 5,
+    flex: 1,
   },
   subGreeting: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),

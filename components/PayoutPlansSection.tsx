@@ -8,15 +8,18 @@ import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface PayoutPlansSectionProps {
   activePlans: any[];
   onShowNewPlanInfo?: () => void;
+  onShowHowItWorks?: () => void;
 }
 
-export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: PayoutPlansSectionProps) {
+export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks }: PayoutPlansSectionProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const { showBalances, balance, availableBalance } = useBalance();
 
   const formatBalance = (amount: number) => {
@@ -37,18 +40,10 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
   };
 
   const handleCreatePayout = () => {
-    // Check if balance is ₦0 and no plans exist
-    const hasNoBalance = balance === 0 && availableBalance === 0;
-    const hasNoPlans = activePlans.length === 0;
-    
-    // If no balance and no plans, show info modal
-    if (hasNoBalance && hasNoPlans && onShowNewPlanInfo) {
+    // Always show the new plan info modal for these buttons
+    if (onShowNewPlanInfo) {
       onShowNewPlanInfo();
-      logAnalyticsEvent('create_payout_click_no_balance_modal');
-    } else {
-      // Navigate directly to create payout
-    router.push('/create-payout/amount');
-    logAnalyticsEvent('create_payout_click');
+      logAnalyticsEvent('create_payout_click_modal');
     }
   };
 
@@ -137,6 +132,14 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
             <Plus size={20} color={colors.text} />
             <Text style={styles.createFirstPayoutText}>Create Your First Plan</Text>
           </Pressable>
+          {/* {!isAuthenticated && onShowHowItWorks && (
+            <Pressable 
+              style={[styles.howItWorksButton, { borderColor: colors.primary }]} 
+              onPress={onShowHowItWorks}
+            >
+              <Text style={[styles.howItWorksButtonText, { color: colors.text }]}>How it works?</Text>
+            </Pressable>
+          )} */}
         </View>
       )}
     </View>
@@ -304,5 +307,16 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: colors.text,
     fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '600',
+  },
+  howItWorksButton: {
+    marginTop: 5,
+    paddingHorizontal: 60,
+    paddingVertical: 3,
+    backgroundColor: 'transparent',
+    borderRadius: 13,
+  },
+  howItWorksButtonText: {
+    fontSize: getScaledFontSize(15, textSizeMultiplier),
+    fontWeight: '400',
   },
 }); 

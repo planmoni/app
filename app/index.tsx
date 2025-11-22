@@ -67,12 +67,11 @@ export default function WelcomeScreen() {
   const scrollViewRef = useRef<Animated.ScrollView>(null);
   const autoSlideTimerRef = useRef<number | NodeJS.Timeout | null>(null);
 
-  // Redirect to tabs if user is already authenticated
+  // Redirect to tabs for both authenticated and unauthenticated users
   useEffect(() => {
-    if (session) {
-      router.replace('/(tabs)');
-    }
-  }, [session]);
+    // Always redirect to tabs - it handles authentication state internally
+    router.replace('/(tabs)');
+  }, []);
 
   // Auto-slide functionality
   useEffect(() => {

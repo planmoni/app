@@ -72,7 +72,9 @@ export function useRealtimePayoutPlans() {
 
   useEffect(() => {
     if (!session?.user?.id) {
+      setPayoutPlans([]);
       setIsLoading(false);
+      setError(null);
       return;
     }
 

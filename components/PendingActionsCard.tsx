@@ -10,6 +10,7 @@ import { usePin } from '@/contexts/PinContext';
 import { useOnlineStatus } from './OnlineStatusProvider';
 import OfflineNotice from './OfflineNotice';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import Tier1Icon from '@/assets/kyc/1.svg';
 import Tier2Icon from '@/assets/kyc/2.svg';
 import Tier3Icon from '@/assets/kyc/3.svg';
@@ -36,6 +37,7 @@ export default function PendingActionsCard() {
   const [profileData, setProfileData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { session } = useAuth();
+  const { isAuthenticated } = useRequireAuth();
   const { hasAppLockPin } = usePin();
   const haptics = useHaptics();
   const { isOnline } = useOnlineStatus();
@@ -315,6 +317,11 @@ export default function PendingActionsCard() {
 
   // Create styles before any conditional returns
   const styles = createStyles(colors, isDark, textSizeMultiplier);
+
+  // Don't render if user is not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   // Don't render if there are no pending actions and data is loaded
   if (!isLoading && filteredActions.length === 0) {

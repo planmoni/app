@@ -9,16 +9,49 @@ import { useAuth } from '@/contexts/AuthContext';
 import CustomAppLayout from '../components/CustomAppLayout';
 import { useRouteTracking } from '@/hooks/useRouteTracking';
 import { useBottomNav } from '@/contexts/BottomNavContext';
+import WelcomeModal from '@/components/WelcomeModal';
 
 export default function TabLayout() {
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
   const { isBottomNavVisible } = useBottomNav();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const channelRef = useRef<any>(null);
+  const welcomeModalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track route changes for persistence
   useRouteTracking();
+
+  // Show WelcomeModal 5 seconds after mount when unauthenticated
+  useEffect(() => {
+    if (!session?.user?.id) {
+      // Clear any existing timer
+      if (welcomeModalTimerRef.current) {
+        clearTimeout(welcomeModalTimerRef.current);
+        welcomeModalTimerRef.current = null;
+      }
+
+      // Set timer to show modal after 5 seconds
+      welcomeModalTimerRef.current = setTimeout(() => {
+        setShowWelcomeModal(true);
+      }, 5000);
+
+      return () => {
+        if (welcomeModalTimerRef.current) {
+          clearTimeout(welcomeModalTimerRef.current);
+          welcomeModalTimerRef.current = null;
+        }
+      };
+    } else {
+      // If user becomes authenticated, hide the modal and clear timer
+      setShowWelcomeModal(false);
+      if (welcomeModalTimerRef.current) {
+        clearTimeout(welcomeModalTimerRef.current);
+        welcomeModalTimerRef.current = null;
+      }
+    }
+  }, [session?.user?.id]);
 
   useEffect(() => {
     // Check if Supabase is properly configured
@@ -189,52 +222,58 @@ export default function TabLayout() {
   };
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: isDark ? colors.text : colors.primary,
-        tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: isBottomNavVisible ? [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }] : { display: 'none' },
-        // tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
-        tabBarLabelStyle: styles.tabBarLabel,
-        headerShown: false,
-        gestureEnabled: false, // Disable swipe gestures in tabs
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
-        }}
+    <>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: isDark ? colors.text : colors.primary,
+          tabBarInactiveTintColor: colors.textTertiary,
+          tabBarStyle: isBottomNavVisible ? [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }] : { display: 'none' },
+          // tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
+          tabBarLabelStyle: styles.tabBarLabel,
+          headerShown: false,
+          gestureEnabled: false, // Disable swipe gestures in tabs
+        }}>
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="ai-assistant"
+          options={{
+            title: 'AI',
+            tabBarIcon: ({ color, size }) => <Sparkles size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="calendar"
+          options={{
+            title: 'Calendar',
+            tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="insights"
+          options={{
+            title: 'Insights',
+            tabBarIcon: ({ color, size }) => <PieChart size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: 'Settings',
+            tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
+          }}
+        />
+      </Tabs>
+      <WelcomeModal
+        isVisible={showWelcomeModal}
+        onClose={() => setShowWelcomeModal(false)}
       />
-      <Tabs.Screen
-        name="ai-assistant"
-        options={{
-          title: 'AI',
-          tabBarIcon: ({ color, size }) => <Sparkles size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: 'Calendar',
-          tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="insights"
-        options={{
-          title: 'Insights',
-          tabBarIcon: ({ color, size }) => <PieChart size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
-        }}
-      />
-    </Tabs>
+    </>
   );
 }
 

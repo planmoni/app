@@ -24,6 +24,10 @@ export function useCalendarEvents() {
   useEffect(() => {
     if (session?.user?.id) {
       fetchCalendarEvents();
+    } else {
+      setEvents([]);
+      setIsLoading(false);
+      setError(null);
     }
   }, [session?.user?.id]);
 

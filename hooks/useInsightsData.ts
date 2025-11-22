@@ -39,6 +39,46 @@ export function useInsightsData() {
   useEffect(() => {
     if (session?.user?.id) {
       fetchInsightsData();
+    } else {
+      // Return empty/mock data for unauthenticated users
+      setMetrics([
+        {
+          title: 'Payouts',
+          value: '₦0',
+          change: '+0%',
+          positive: true,
+          icon: 'Send',
+          description: 'Total payouts this month',
+        },
+        {
+          title: 'Deposits',
+          value: '₦0',
+          change: '+0%',
+          positive: true,
+          icon: 'Wallet',
+          description: 'Total deposits this month',
+        },
+        {
+          title: 'Active',
+          value: '0',
+          change: '+0',
+          positive: false,
+          icon: 'Clock',
+          description: 'Currently active payouts',
+        },
+        {
+          title: 'Txns',
+          value: '0',
+          change: '+0%',
+          positive: false,
+          icon: 'TrendingUp',
+          description: 'Total payout transactions',
+        },
+      ]);
+      setTrends([]);
+      setVaultStats([]);
+      setIsLoading(false);
+      setError(null);
     }
   }, [session?.user?.id]);
 

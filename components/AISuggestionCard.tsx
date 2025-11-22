@@ -22,6 +22,8 @@ import { logAnalyticsEvent } from '@/lib/firebase';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { router } from 'expo-router';
 
 const { width: screenWidth } = Dimensions.get('window');
 const CARD_WIDTH = 200; // Smaller cards
@@ -52,6 +54,7 @@ export default function AISuggestionCard({
   const { colors, isDark } = useTheme();
   const { impact } = useHaptics();
   const { textSizeMultiplier } = useTextSize();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const { payoutPlans } = useRealtimePayoutPlans();
@@ -304,14 +307,39 @@ export default function AISuggestionCard({
     return duration;
   };
 
+  const styles = createStyles(textSizeMultiplier);
+
+  // Show login prompt if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.titleContainer}>
+            <Sparkles size={20} color="#1E3A8A" />
+            <Text style={styles.title}>AI Suggestions</Text>
+          </View>
+        </View>
+        <View style={styles.loginPromptCard}>
+          <Text style={styles.loginPromptText}>
+            Login to get personalized payout plan suggestions powered by AI
+          </Text>
+          <Pressable
+            style={styles.loginPromptButton}
+            onPress={() => requireAuth(() => {}, '/(tabs)/index')}
+          >
+            <Text style={styles.loginPromptButtonText}>Login to Continue</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   if (suggestions.length === 0) {
     console.log('⚠️ AISuggestionCard - No suggestions generated, returning null');
     return null;
   }
 
   console.log('✅ AISuggestionCard - Rendering', suggestions.length, 'suggestions');
-
-  const styles = createStyles(textSizeMultiplier);
 
   return (
     <View style={styles.container}>

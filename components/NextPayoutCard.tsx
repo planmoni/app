@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface NextPayoutCardProps {
   nextPayout: any;
@@ -17,6 +18,7 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
   const { colors, isDark } = useTheme();
   const { showBalances } = useBalance();
   const { textSizeMultiplier } = useTextSize();
+  const { isAuthenticated } = useRequireAuth();
   const formatBalance = (amount: number) => {
     return showBalances ? `₦${amount.toLocaleString()}` : '*********';
   };
@@ -29,7 +31,8 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
     logAnalyticsEvent('view_payout', { payout_id: id });
   };
 
-  if (!nextPayout) return null;
+  // Don't render if user is not authenticated or no next payout
+  if (!isAuthenticated || !nextPayout) return null;
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 

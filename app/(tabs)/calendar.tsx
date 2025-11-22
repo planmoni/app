@@ -9,6 +9,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useCalendarEvents, CalendarEvent } from '@/hooks/useCalendarEvents';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 type ViewType = 'month' | 'week' | 'list';
 
@@ -19,6 +21,8 @@ export default function CalendarScreen() {
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
+  const { session } = useAuth();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const { events, isLoading, error, refreshEvents } = useCalendarEvents();
   const [activeView, setActiveView] = useState<ViewType>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -30,7 +34,7 @@ export default function CalendarScreen() {
     const numCells = 7;
     const availableWidth = width - padding;
     const cellWidth = (availableWidth - (gap * (numCells - 1))) / numCells;
-    return Math.max(Platform.OS === 'ios' ? 42 : 32, Math.min(cellWidth, Platform.OS === 'ios' ? 56 : 46));
+    return Math.max(Platform.OS === 'ios' ? 42 : 42, Math.min(cellWidth, Platform.OS === 'ios' ? 56 : 56));
   }, [width]);
 
   const weekCellSize = useMemo(() => {
@@ -43,6 +47,9 @@ export default function CalendarScreen() {
   }, [width]); 
 
   const handleCreatePayout = () => {
+    if (!requireAuth(() => {}, '/create-payout/amount')) {
+      return;
+    }
     router.push('/create-payout/amount');
   };
 
@@ -831,7 +838,7 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
+    gap: Platform.OS === 'ios' ? 4 : 6,
     justifyContent: 'flex-start',
   },
   dayCell: {
@@ -1047,5 +1054,39 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
   listViewContainer: {
     flex: 1,
     paddingTop: 16,
+  },
+  loginPromptContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loginPromptCard: {
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    maxWidth: 400,
+  },
+  loginPromptTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 18, textSizeMultiplier),
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loginPromptText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  loginPromptButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  loginPromptButtonText: {
+    color: '#FFFFFF',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
   },
 });

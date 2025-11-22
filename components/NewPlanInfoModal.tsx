@@ -6,6 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface NewPlanInfoModalProps {
   isVisible: boolean;
@@ -53,6 +54,7 @@ export default function NewPlanInfoModal({
 }: NewPlanInfoModalProps) {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [modalVisible, setModalVisible] = useState(false);
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
@@ -108,6 +110,16 @@ export default function NewPlanInfoModal({
 
   const handleAddFunds = () => {
     haptics.mediumImpact();
+    
+    // For unauthenticated users, redirect to login
+    if (!isAuthenticated) {
+      onClose();
+      setTimeout(() => {
+        requireAuth(() => {}, '/(tabs)/index');
+      }, 400);
+      return;
+    }
+    
     // If onAddFundsAfterClose is provided, use it (will be called after modal closes)
     // Otherwise, close modal and navigate after animation
     if (onAddFundsAfterClose) {
@@ -229,7 +241,7 @@ export default function NewPlanInfoModal({
           {/* Sticky Button Container with SafeArea */}
           <SafeAreaView edges={['bottom']} style={styles.stickyButtonContainer}>
             <Button
-              title="Add Funds to Create Plan"
+              title={isAuthenticated ? "Add Funds to Create Plan" : "Login to Create Plans"}
               onPress={handleAddFunds}
               hapticType="medium"
               variant="primary"

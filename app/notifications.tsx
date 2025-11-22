@@ -34,6 +34,8 @@ export default function NotificationsScreen() {
   useEffect(() => {
     if (session?.user?.id) {
       fetchNotifications();
+    } else {
+      setIsLoading(false);
     }
   }, [session?.user?.id]);
 
@@ -360,11 +362,18 @@ export default function NotificationsScreen() {
             <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>
         </View>
+      ) : !session?.user?.id ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No activities</Text>
+          <Text style={styles.emptySubtext}>
+            Login to see activities
+          </Text>
+        </View>
       ) : notifications.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No activities</Text>
           <Text style={styles.emptySubtext}>
-            You don't have any activity yet
+            Login to see activities
           </Text>
         </View>
       ) : (

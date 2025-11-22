@@ -25,7 +25,12 @@ export function useRealtimeTransactions() {
   const { session } = useAuth();
 
   useEffect(() => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      setTransactions([]);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
 
     let channel: RealtimeChannel;
 

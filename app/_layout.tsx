@@ -294,18 +294,20 @@ function RootLayoutNav() {
         </View>
       )}
       <Stack screenOptions={{ headerShown: false }}>
+        {/* Tabs are accessible to both authenticated and unauthenticated users */}
+        <Stack.Screen 
+          name="(tabs)" 
+          options={{ 
+            headerShown: false, 
+            gestureEnabled: false,
+          }} 
+        />
+        
         {session?.user?.id ? (
           <React.Fragment key="authenticated-screens">
             <Stack.Screen 
               name="login-success" 
               options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="(tabs)" 
-              options={{ 
-                headerShown: false, 
-                gestureEnabled: false,
-              }} 
             />
             <Stack.Screen 
               name="profile" 
