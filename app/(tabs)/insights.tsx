@@ -254,9 +254,9 @@ export default function InsightsScreen() {
         {!isAuthenticated && (
           <Pressable 
             onPress={() => requireAuth(() => {}, '/(tabs)/insights')} 
-            style={[styles.loginButton, { borderColor: colors.primary }]}
+            style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
           >
-            <Text style={[styles.loginButtonText, { color: colors.primary }]}>Login</Text>
+            <Text style={[styles.loginButtonText, { color: isDark ? '#fff' : colors.primary }]}>Login</Text>
           </Pressable>
         )}
       </View>

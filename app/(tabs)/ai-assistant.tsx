@@ -1843,9 +1843,9 @@ export default function AIAssistantScreen() {
           {!isAuthenticated && (
             <Pressable 
               onPress={() => requireAuth(() => {}, '/(tabs)/ai-assistant')} 
-              style={[styles.loginButton, { borderColor: colors.primary }]}
+              style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
             >
-              <Text style={[styles.loginButtonText, { color: colors.primary }]}>Login</Text>
+              <Text style={[styles.loginButtonText, { color: isDark ? '#fff' : colors.primary }]}>Login</Text>
             </Pressable>
           )}
         </View>

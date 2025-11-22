@@ -58,7 +58,7 @@ import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 export default function SettingsScreen() {
-  const { colors, theme, setTheme } = useTheme();
+  const { colors, theme, setTheme, isDark } = useTheme();
   const { textSizeMultiplier, setTextSizeMultiplier } = useTextSize();
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
@@ -353,6 +353,13 @@ export default function SettingsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Settings</Text>
+        <Pressable
+          style={styles.helpButton}
+          onPress={handleHelpPress}
+          disabled={!isIntercomSupported || isHelpLoading}
+        >
+          <HelpCircleIcon size={20} color={colors.textSecondary} />
+        </Pressable>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -372,10 +379,10 @@ export default function SettingsScreen() {
                 <Text style={styles.signUpButtonText}>Sign Up</Text>
               </Pressable>
               <Pressable
-                style={[styles.loginPromptButton, { borderColor: colors.primary }]}
+                style={[styles.loginPromptButton, { borderColor: isDark ? '#fff' : colors.primary }]}
                 onPress={() => requireAuth(() => {}, '/(tabs)/settings')}
               >
-                <Text style={[styles.loginPromptButtonText, { color: colors.primary }]}>Login</Text>
+                <Text style={[styles.loginPromptButtonText, { color: isDark ? '#fff' : colors.primary }]}>Login</Text>
               </Pressable>
             </View>
           </View>

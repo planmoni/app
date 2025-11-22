@@ -120,25 +120,11 @@ export default function NewPlanInfoModal({
       return;
     }
     
-    // If onAddFundsAfterClose is provided, use it (will be called after modal closes)
-    // Otherwise, close modal and navigate after animation
-    if (onAddFundsAfterClose) {
-      onClose();
-      // Wait for modal animation to complete before navigating
-      setTimeout(() => {
-        onAddFundsAfterClose();
-      }, 400); // Wait for slide-out animation (350ms) + small buffer
-    } else if (onAddFunds) {
-      // Call onAddFunds immediately (parent handles navigation)
-      onAddFunds();
-      onClose();
-    } else {
-      // Fallback: close modal and navigate after animation
-      onClose();
-      setTimeout(() => {
-        router.push('/add-funds');
-      }, 400);
-    }
+    // Close modal and navigate to create payout amount screen
+    onClose();
+    setTimeout(() => {
+      router.push('/create-payout/amount');
+    }, 400);
   };
 
   const toggleItem = (id: string) => {
@@ -241,7 +227,7 @@ export default function NewPlanInfoModal({
           {/* Sticky Button Container with SafeArea */}
           <SafeAreaView edges={['bottom']} style={styles.stickyButtonContainer}>
             <Button
-              title={isAuthenticated ? "Add Funds to Create Plan" : "Login to Create Plans"}
+              title={isAuthenticated ? "Create Plan" : "Login to Create Plans"}
               onPress={handleAddFunds}
               hapticType="medium"
               variant="primary"

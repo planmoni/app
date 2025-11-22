@@ -478,7 +478,7 @@ export default function HomeScreen() {
   });
 
   const formatBalance = (amount: number) => {
-    return showBalances ? `₦${amount.toLocaleString()}` : '*********';
+    return showBalances ? `₦${amount.toLocaleString()}` : '******';
   };
 
   const handleAddFunds = async () => {
@@ -808,13 +808,13 @@ export default function HomeScreen() {
               {!isAuthenticated && (
                 <Pressable 
                   onPress={() => router.push('/(auth)/login')} 
-                  style={[styles.loginButton, { borderColor: colors.primary }]}
+                  style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
                 >
-                  <Text style={[styles.loginButtonText, { color: colors.primary }]}>Login</Text>
+                  <Text style={[styles.loginButtonText, {color: isDark ? '#fff' : colors.primary }]}>Login</Text>
                 </Pressable>
               )}
             </View>
-            {/* <Text style={styles.subGreeting}>It's time to plan some payouts</Text> */}
+            <Text style={styles.subGreeting}>It's time to plan your finances</Text>
           </View>
         </View>
 
@@ -1157,7 +1157,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flex: 1,
   },
   subGreeting: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
     fontWeight: '400',
     color: colors.textSecondary,
     lineHeight: 18,

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useMemo, useCallback } 
 import { Appearance, ColorSchemeName } from 'react-native';
 import { getItem, saveItem, deleteItem } from '@/lib/secure-storage';
 
+
 export type Theme = 'light' | 'dark' | 'system';
 
 type ThemeContextType = {

@@ -160,10 +160,8 @@ function PaginationDot({
         animatedDotStyle,
         {
           backgroundColor: index === currentIndex 
-            ? (currentIndex === slides.length - 1 
-                ? colors.primary 
-                : slides[currentIndex]?.accentColor || colors.primary)
-            : colors.border
+            ? colors.primary
+            : colors.borderSecondary
         }
       ]}
     />
@@ -490,14 +488,15 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     paddingHorizontal: responsive.verticalPadding,
   },
   paginationDot: {
-    width: 8,
-    height: 8,
+    width: 10,
+    height: 10,
     borderRadius: 4,
-    marginHorizontal: 4,
+    marginHorizontal: 1,
+    marginBottom: 20,
   },
   footer: {
     paddingTop: responsive.verticalPadding,
-    paddingBottom: responsive.verticalPadding * 1.5,
+    paddingBottom: responsive.verticalPadding * 3.5,
     paddingHorizontal: responsive.verticalPadding,
   },
   footerContent: {
