@@ -2660,9 +2660,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: getScaledFontSize(24, textSizeMultiplier),
-    paddingVertical: getScaledFontSize(16, textSizeMultiplier),
-    borderRadius: getScaledFontSize(12, textSizeMultiplier),
+    borderRadius: 20,
+    height: 55,
   },
   ctaButtonText: {
     color: '#FFFFFF',
@@ -2671,8 +2670,10 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   secondaryButton: {
     paddingVertical: getScaledFontSize(12, textSizeMultiplier),
-    borderRadius: getScaledFontSize(8, textSizeMultiplier),
+    borderRadius: 20,
     borderWidth: 1,
+    height: 55,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   secondaryButtonText: {
@@ -2712,7 +2713,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     paddingHorizontal: getScaledFontSize(10, textSizeMultiplier),
     paddingVertical: getScaledFontSize(4, textSizeMultiplier),
     backgroundColor: '#E57373',
-    borderRadius: getScaledFontSize(8, textSizeMultiplier),
+    borderRadius: 20,
   },
   retryText: {
     color: '#FFF',
@@ -2722,7 +2723,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   debugButton: {
     paddingHorizontal: getScaledFontSize(12, textSizeMultiplier),
     paddingVertical: getScaledFontSize(6, textSizeMultiplier),
-    borderRadius: getScaledFontSize(8, textSizeMultiplier),
+    borderRadius: 20,
     marginLeft: getScaledFontSize(8, textSizeMultiplier),
   },
   debugButtonText: {
