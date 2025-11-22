@@ -314,38 +314,38 @@ export default function InsightsScreen() {
           />
 
           {isAuthenticated && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Performance Trends</Text>
-              {trends.map((trend, index) => (
-                <Card key={index} style={styles.trendCard}>
-                  <View style={styles.trendContent}>
-                    <View>
-                      <Text style={styles.trendTitle}>{trend.title}</Text>
-                      <Text style={styles.trendDescription}>{trend.description}</Text>
-                      <View style={styles.trendDetails}>
-                        {trend.details.map((detail, i) => (
-                          <View key={i} style={styles.detailItem}>
-                            <Text style={styles.detailLabel}>{detail.label}</Text>
-                            <Text style={styles.detailValue}>{detail.value}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                    <View style={[
-                      styles.trendValue,
-                      { backgroundColor: trend.positive ? colors.accent : '#FEF2F2' }
-                    ]}>
-                      <Text style={[
-                        styles.trendValueText,
-                        { color: trend.positive ? colors.primary : colors.error }
-                      ]}>
-                        {trend.value}
-                      </Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Performance Trends</Text>
+            {trends.map((trend, index) => (
+              <Card key={index} style={styles.trendCard}>
+                <View style={styles.trendContent}>
+                  <View>
+                    <Text style={styles.trendTitle}>{trend.title}</Text>
+                    <Text style={styles.trendDescription}>{trend.description}</Text>
+                    <View style={styles.trendDetails}>
+                      {trend.details.map((detail, i) => (
+                        <View key={i} style={styles.detailItem}>
+                          <Text style={styles.detailLabel}>{detail.label}</Text>
+                          <Text style={styles.detailValue}>{detail.value}</Text>
+                        </View>
+                      ))}
                     </View>
                   </View>
-                </Card>
-              ))}
-            </View>
+                  <View style={[
+                    styles.trendValue,
+                    { backgroundColor: trend.positive ? colors.accent : '#FEF2F2' }
+                  ]}>
+                    <Text style={[
+                      styles.trendValueText,
+                      { color: trend.positive ? colors.primary : colors.error }
+                    ]}>
+                      {trend.value}
+                    </Text>
+                  </View>
+                </View>
+              </Card>
+            ))}
+          </View>
           )}
           
 

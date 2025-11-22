@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { Appearance, ColorSchemeName } from 'react-native';
 import { getItem, saveItem, deleteItem } from '@/lib/secure-storage';
 
@@ -330,13 +330,27 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     });
   }, [theme, systemColorScheme, isDark]);
 
+  // Memoize setTheme to prevent re-renders
+  const memoizedSetTheme = useCallback(async (newTheme: Theme) => {
+    await setTheme(newTheme);
+  }, [theme]);
+
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
+    theme,
+    isDark,
+    setTheme: memoizedSetTheme,
+    colors,
+    debugTheme,
+  }), [theme, isDark, memoizedSetTheme, colors]);
+
   // Don't render until theme is loaded to prevent flash
   if (isLoading) {
     return null;
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, setTheme, colors, debugTheme }}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );

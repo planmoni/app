@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -47,7 +47,7 @@ interface AISuggestionCardProps {
   onSuggestionPress: (suggestion: Suggestion) => void;
 }
 
-export default function AISuggestionCard({ 
+function AISuggestionCard({ 
   availableBalance, 
   onSuggestionPress 
 }: AISuggestionCardProps) {
@@ -60,7 +60,7 @@ export default function AISuggestionCard({
   const { payoutPlans } = useRealtimePayoutPlans();
 
   // Analyze user's payout patterns to make intelligent suggestions
-  const analyzeUserPatterns = () => {
+  const analyzeUserPatterns = useCallback(() => {
     if (payoutPlans.length === 0) {
       return {
         mostCommonFrequency: 'weekly',
@@ -89,7 +89,7 @@ export default function AISuggestionCard({
       averageAmount,
       totalPlans: payoutPlans.length
     };
-  };
+  }, [payoutPlans, availableBalance]);
 
   // Get duration options based on frequency (matching the schedule page logic)
   const getDurationOptions = (frequency: string) => {
@@ -130,7 +130,7 @@ export default function AISuggestionCard({
   };
 
   // Generate AI suggestions based on available balance and user patterns
-  const generateSuggestions = (): Suggestion[] => {
+  const generateSuggestions = useCallback((): Suggestion[] => {
     // Debug: Log available balance
     console.log('🔍 AISuggestionCard - availableBalance:', availableBalance);
     
@@ -264,19 +264,19 @@ export default function AISuggestionCard({
       // Finally sort by amount (highest first)
       return b.amount - a.amount;
     });
-  };
+  }, [availableBalance, analyzeUserPatterns]);
 
-  const suggestions = generateSuggestions();
+  const suggestions = useMemo(() => generateSuggestions(), [generateSuggestions]);
 
-  const handleScroll = (event: any) => {
+  const handleScroll = useCallback((event: any) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
     const index = Math.round(contentOffsetX / (CARD_WIDTH + CARD_SPACING));
     if (index !== currentIndex && index >= 0 && index < suggestions.length) {
       setCurrentIndex(index);
     }
-  };
+  }, [currentIndex, suggestions.length]);
 
-  const handleSuggestionPress = (suggestion: Suggestion) => {
+  const handleSuggestionPress = useCallback((suggestion: Suggestion) => {
     impact();
     logAnalyticsEvent('ai_suggestion_clicked', {
       suggestion_id: suggestion.id,
@@ -285,13 +285,13 @@ export default function AISuggestionCard({
       user_balance: availableBalance,
     });
     onSuggestionPress(suggestion);
-  };
+  }, [availableBalance, impact, onSuggestionPress]);
 
-  const formatAmount = (amount: number) => {
+  const formatAmount = useCallback((amount: number) => {
     return `₦${amount.toLocaleString()}`;
-  };
+  }, []);
 
-  const getFrequencyText = (frequency: string) => {
+  const getFrequencyText = useCallback((frequency: string) => {
     switch (frequency) {
       case 'daily': return 'Daily';
       case 'weekly': return 'Weekly';
@@ -300,12 +300,12 @@ export default function AISuggestionCard({
       case 'end_of_month': return 'Month-end';
       default: return frequency;
     }
-  };
+  }, []);
 
-  const getPayoutCount = (frequency: string, duration: number) => {
+  const getPayoutCount = useCallback((frequency: string, duration: number) => {
     // Return the actual number of payouts based on duration
     return duration;
-  };
+  }, []);
 
   const styles = createStyles(textSizeMultiplier);
 
@@ -479,4 +479,30 @@ const createStyles = (textSizeMultiplier: number) => StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
+  loginPromptCard: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  loginPromptText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  loginPromptButton: {
+    backgroundColor: '#1E3A8A',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  loginPromptButtonText: {
+    color: '#FFFFFF',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    fontWeight: '600',
+  },
 });
+
+export default React.memo(AISuggestionCard);

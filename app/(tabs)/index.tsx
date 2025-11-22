@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import TransactionModal from '@/components/TransactionModal';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
-import ClaimAccountModal from '@/components/ClaimAccountModal';
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 import AccountInformationModal from '@/components/AccountInformationModal';
 import PlanCreationModal from '@/components/PlanCreationModal';
 import AppLockModal from '@/components/AppLockModal';
-import WelcomeModal from '@/components/WelcomeModal';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
@@ -37,6 +34,7 @@ import {
   Image,
   Platform,
   BackHandler,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -88,14 +86,6 @@ export default function HomeScreen() {
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress } = useKYCProgress();
   const navigation = useNavigation();
   const { requireAuth, isAuthenticated } = useRequireAuth();
-  
-  // Debug: Track payoutPlans changes
-  useEffect(() => {
-    console.log('📊 Dashboard: payoutPlans updated', {
-      count: payoutPlans.length,
-      plans: payoutPlans.map(p => ({ id: p.id, name: p.name, status: p.status }))
-    });
-  }, [payoutPlans]);
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
@@ -124,6 +114,38 @@ export default function HomeScreen() {
   const { hasAppLockPin } = usePin();
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
+
+  // Lazy load heavy modals
+  const [TransactionModalComponent, setTransactionModalComponent] = useState<React.ComponentType<any> | null>(null);
+  const [ClaimAccountModalComponent, setClaimAccountModalComponent] = useState<React.ComponentType<any> | null>(null);
+  const [WelcomeModalComponent, setWelcomeModalComponent] = useState<React.ComponentType<any> | null>(null);
+
+  // Load TransactionModal when needed
+  useEffect(() => {
+    if (isTransactionModalVisible && !TransactionModalComponent) {
+      import('@/components/TransactionModal').then(module => {
+        setTransactionModalComponent(() => module.default);
+      });
+    }
+  }, [isTransactionModalVisible, TransactionModalComponent]);
+
+  // Load ClaimAccountModal when needed
+  useEffect(() => {
+    if (showClaimAccountModal && !ClaimAccountModalComponent) {
+      import('@/components/ClaimAccountModal').then(module => {
+        setClaimAccountModalComponent(() => module.default);
+      });
+    }
+  }, [showClaimAccountModal, ClaimAccountModalComponent]);
+
+  // Load WelcomeModal when needed
+  useEffect(() => {
+    if (showHowItWorksModal && !WelcomeModalComponent) {
+      import('@/components/WelcomeModal').then(module => {
+        setWelcomeModalComponent(() => module.default);
+      });
+    }
+  }, [showHowItWorksModal, WelcomeModalComponent]);
 
   // Prevent navigation back to welcome page when authenticated
   useEffect(() => {
@@ -319,7 +341,7 @@ export default function HomeScreen() {
   }, []);
 
   // Fetch carousel images from Supabase
-  const fetchCarouselImages = async () => {
+  const fetchCarouselImages = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('banners')
@@ -356,20 +378,25 @@ export default function HomeScreen() {
       }
     } catch (error) {
     }
-  };
+  }, []);
 
   // Fetch images on component mount
   useEffect(() => {
     fetchCarouselImages();
-  }, []);
+  }, [fetchCarouselImages]);
 
-  const handleProfilePress = () => {
+  // Memoize computed values
+  const activePlans = useMemo(() => {
+    return payoutPlans.filter(plan => plan.status === 'active');
+  }, [payoutPlans]);
+
+  const handleProfilePress = useCallback(() => {
     router.push('/profile');
     logAnalyticsEvent('profile_click');
-  };
+  }, []);
 
   // Handle pull-to-refresh - refresh all page data
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
       // Refresh all data in parallel for better performance
@@ -393,12 +420,9 @@ export default function HomeScreen() {
     } finally {
       setIsRefreshing(false);
     }
-  };
-  // Intercom not supported on web
-  if (!isSupported) {
-    return null; // Don't render on web
-  }
-  const handleHelpPress = async () => {
+  }, [refreshWallet, fetchPayoutPlans, fetchTransactions, loadProgress, impact, fetchCarouselImages]);
+
+  const handleHelpPress = useCallback(async () => {
     try {
       // setIsHelpLoading(true);
       console.log('🎯 Help button pressed - opening Intercom instantly');
@@ -425,7 +449,7 @@ export default function HomeScreen() {
         ]
       );
     }
-  };
+  }, [openChat]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -618,7 +642,7 @@ export default function HomeScreen() {
   };
 
   // Handle transaction press from MostRecentPayoutsCard
-  const handleTransactionPress = (transaction: any) => {
+  const handleTransactionPress = useCallback((transaction: any) => {
     // Find the payout plan to get bank information
     const plan = payoutPlans.find(p => p.id === transaction.payout_plan_id);
     
@@ -657,21 +681,13 @@ export default function HomeScreen() {
     setSelectedTransaction(formattedTransaction);
     setIsTransactionModalVisible(true);
     logAnalyticsEvent('view_transaction', { transaction_id: transaction.id, transaction_type: transaction.type });
-  };
+  }, [payoutPlans]);
 
   // Get active payout plans for display
-  const activePlans = payoutPlans.filter(plan => plan.status === 'active').slice(0, 3);
-  
-  // Debug: Track activePlans changes
-  useEffect(() => {
-    console.log('🎯 Dashboard: activePlans updated', {
-      count: activePlans.length,
-      plans: activePlans.map(p => ({ id: p.id, name: p.name }))
-    });
-  }, [activePlans]);
+  const activePlansForDisplay = useMemo(() => activePlans.slice(0, 3), [activePlans]);
   
   // Find the next payout - the one with the earliest next_payout_date that hasn't expired
-  const nextPayout = payoutPlans
+  const nextPayout = useMemo(() => payoutPlans
     .filter(plan => {
       // Only include active plans with a valid next payout date
       if (plan.status !== 'active' || !plan.next_payout_date) return false;
@@ -690,16 +706,34 @@ export default function HomeScreen() {
       const dateA = new Date(a.next_payout_date!);
       const dateB = new Date(b.next_payout_date!);
       return dateA.getTime() - dateB.getTime();
-    })[0]; // Get the first one (earliest date)
+    })[0], [payoutPlans]); // Get the first one (earliest date)
 
-  const recentTransactions = transactions.slice(0, 5);
+  const recentTransactions = useMemo(() => transactions.slice(0, 5), [transactions]);
 
-  const handleViewHistory = () => {
+  const handleViewHistory = useCallback(() => {
     router.push('/transactions');
     logAnalyticsEvent('view_transaction_history', { source: 'balance_card' });
-  };
+  }, []);
+
+  // Calculate the next payout date across all active plans
+  const nextPayoutDate = useMemo(() => {
+    if (activePlans.length === 0) return null;
+    
+    const nextPayoutDates = activePlans
+      .map(plan => plan.next_payout_date)
+      .filter((date): date is string => date !== null && date !== undefined)
+      .map(date => new Date(date))
+      .sort((a, b) => a.getTime() - b.getTime());
+    
+    return nextPayoutDates.length > 0 ? nextPayoutDates[0] : null;
+  }, [activePlans]);
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
+
+  // Intercom not supported on web - check after all hooks
+  if (!isSupported) {
+    return null; // Don't render on web
+  }
 
   // Show loader if any data is loading
   if (payoutPlansLoading || transactionsLoading) {
@@ -713,22 +747,6 @@ export default function HomeScreen() {
       </SafeAreaView>
     );
   }
-
-  // Calculate the next payout date across all active plans
-  const getNextPayoutDate = () => {
-    const activePlans = payoutPlans.filter(plan => plan.status === 'active');
-    if (activePlans.length === 0) return null;
-    
-    const nextPayoutDates = activePlans
-      .map(plan => plan.next_payout_date)
-      .filter((date): date is string => date !== null && date !== undefined)
-      .map(date => new Date(date))
-      .sort((a, b) => a.getTime() - b.getTime());
-    
-    return nextPayoutDates.length > 0 ? nextPayoutDates[0] : null;
-  };
-
-  const nextPayoutDate = getNextPayoutDate();
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -948,9 +966,9 @@ export default function HomeScreen() {
         
       </Animated.View>
 
-      {/* Transaction Modal - Rendered at the top level */}
-      {selectedTransaction && (
-        <TransactionModal
+      {/* Transaction Modal - Lazy loaded */}
+      {selectedTransaction && isTransactionModalVisible && TransactionModalComponent && (
+        <TransactionModalComponent
           isVisible={isTransactionModalVisible}
           onClose={() => setIsTransactionModalVisible(false)}
           transaction={selectedTransaction}
@@ -967,18 +985,20 @@ export default function HomeScreen() {
         }}
       />
       
-      {/* ClaimAccountModal - available for both authenticated and unauthenticated users */}
-      <ClaimAccountModal
-        isVisible={showClaimAccountModal}
-        onClose={() => setShowClaimAccountModal(false)}
-        accountNumber="01177 XXXXX"
-        bankName="SAFEHAVEN MFB"
-        accountName={`PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
+      {/* ClaimAccountModal - Lazy loaded */}
+      {showClaimAccountModal && ClaimAccountModalComponent && (
+        <ClaimAccountModalComponent
+          isVisible={showClaimAccountModal}
+          onClose={() => setShowClaimAccountModal(false)}
+          accountNumber="01177 XXXXX"
+          bankName="SAFEHAVEN MFB"
+          accountName={`PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
         onClaim={() => {
           router.push('/add-funds');
           logAnalyticsEvent('claim_account_click');
         }}
-      />
+        />
+      )}
       
       {isAuthenticated && (
         <>
@@ -1044,12 +1064,14 @@ export default function HomeScreen() {
         onClose={() => setShowLivenessTest(false)}
       /> */}
 
-      {/* How it Works Modal */}
-      <WelcomeModal
-        isVisible={showHowItWorksModal}
-        onClose={() => setShowHowItWorksModal(false)}
-        showButtons={false}
-      />
+      {/* How it Works Modal - Lazy loaded */}
+      {showHowItWorksModal && WelcomeModalComponent && (
+        <WelcomeModalComponent
+          isVisible={showHowItWorksModal}
+          onClose={() => setShowHowItWorksModal(false)}
+          showButtons={false}
+        />
+      )}
       
     </SafeAreaView>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -15,7 +15,7 @@ interface OnTrackCardProps {
 const ON_TRACK_CALCULATION_KEY = 'on_track_calculation_hash';
 const ON_TRACK_CARD_DISMISSED_KEY = 'on_track_card_dismissed';
 
-export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
+function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
   const { colors, isDark } = useTheme();
   const { lightImpact } = useHaptics();
   const { textSizeMultiplier } = useTextSize();
@@ -88,8 +88,11 @@ export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
 
     // Calculate time until last payout in days
     const now = new Date();
+    // TypeScript narrowing: lastPayoutDate is guaranteed to be Date here
+    const finalLastPayoutDate: Date = lastPayoutDate;
+    const lastPayoutTime: number = finalLastPayoutDate.getTime();
     const daysDiff = Math.ceil(
-      (lastPayoutDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      (lastPayoutTime - now.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     // Convert to the most appropriate unit (weeks, months, or years)
@@ -118,7 +121,7 @@ export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
       totalPayout,
       timeValue,
       timeUnit,
-      calculationHash: `${totalPayout}-${lastPayoutDate.getTime()}`,
+      calculationHash: `${totalPayout}-${lastPayoutTime}`,
     };
   }, [payoutPlans]);
 
@@ -160,7 +163,7 @@ export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     checkShouldShow();
   }, [calculation, isDismissed]);
 
-  const handleClose = async () => {
+  const handleClose = useCallback(async () => {
     lightImpact();
     setIsDismissed(true);
     setShouldShow(false);
@@ -172,16 +175,16 @@ export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
         console.error('Error saving dismissed state:', error);
       }
     }
-  };
+  }, [calculation, lightImpact]);
 
-  const formatAmount = (amount: number) => {
+  const formatAmount = useCallback((amount: number) => {
     if (amount >= 1000000) {
       return `₦${(amount / 1000000).toFixed(1)}M`;
     } else if (amount >= 1000) {
       return `₦${(amount / 1000).toFixed(1)}K`;
     }
     return `₦${amount.toLocaleString()}`;
-  };
+  }, []);
 
   if (!calculation || !shouldShow) {
     return null;
@@ -256,4 +259,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: colors.text,
   },
 });
+
+export default React.memo(OnTrackCard);
 

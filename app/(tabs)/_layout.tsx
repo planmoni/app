@@ -3,13 +3,13 @@ import { Bell, Calendar, Home as Home, ChartPie as PieChart, Settings, Sparkles 
 // import CustomAppLayout from '@/components/CustomAppLayout'; //Do not change the Home to Chrome
 import { StyleSheet, View, Platform} from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import CustomAppLayout from '../components/CustomAppLayout';
 import { useRouteTracking } from '@/hooks/useRouteTracking';
 import { useBottomNav } from '@/contexts/BottomNavContext';
-import WelcomeModal from '@/components/WelcomeModal';
+// WelcomeModal will be lazy loaded when needed
 
 export default function TabLayout() {
   const { colors, isDark } = useTheme();
@@ -17,8 +17,18 @@ export default function TabLayout() {
   const { isBottomNavVisible } = useBottomNav();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [WelcomeModalComponent, setWelcomeModalComponent] = useState<React.ComponentType<any> | null>(null);
   const channelRef = useRef<any>(null);
   const welcomeModalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Lazy load WelcomeModal when needed
+  useEffect(() => {
+    if (showWelcomeModal && !WelcomeModalComponent) {
+      import('@/components/WelcomeModal').then(module => {
+        setWelcomeModalComponent(() => module.default);
+      });
+    }
+  }, [showWelcomeModal, WelcomeModalComponent]);
 
   // Track route changes for persistence
   useRouteTracking();
@@ -223,56 +233,57 @@ export default function TabLayout() {
 
   return (
     <>
-      <Tabs
-        screenOptions={{
-          tabBarActiveTintColor: isDark ? colors.text : colors.primary,
-          tabBarInactiveTintColor: colors.textTertiary,
-          tabBarStyle: isBottomNavVisible ? [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }] : { display: 'none' },
-          // tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
-          tabBarLabelStyle: styles.tabBarLabel,
-          headerShown: false,
-          gestureEnabled: false, // Disable swipe gestures in tabs
-        }}>
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: 'Home',
-            tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="ai-assistant"
-          options={{
-            title: 'AI',
-            tabBarIcon: ({ color, size }) => <Sparkles size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="calendar"
-          options={{
-            title: 'Calendar',
-            tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="insights"
-          options={{
-            title: 'Insights',
-            tabBarIcon: ({ color, size }) => <PieChart size={size} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="settings"
-          options={{
-            title: 'Settings',
-            tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
-          }}
-        />
-      </Tabs>
-      <WelcomeModal
-        isVisible={showWelcomeModal}
-        onClose={() => setShowWelcomeModal(false)}
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: isDark ? colors.text : colors.primary,
+        tabBarInactiveTintColor: colors.textTertiary,
+        tabBarStyle: isBottomNavVisible ? [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }] : { display: 'none' },
+        // tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
+        tabBarLabelStyle: styles.tabBarLabel,
+        headerShown: false,
+      }}>
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+        }}
       />
+      <Tabs.Screen
+        name="ai-assistant"
+        options={{
+          title: 'AI',
+          tabBarIcon: ({ color, size }) => <Sparkles size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: 'Calendar',
+          tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="insights"
+        options={{
+          title: 'Insights',
+          tabBarIcon: ({ color, size }) => <PieChart size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
+        }}
+      />
+    </Tabs>
+      {showWelcomeModal && WelcomeModalComponent && (
+        <WelcomeModalComponent
+          isVisible={showWelcomeModal}
+          onClose={() => setShowWelcomeModal(false)}
+        />
+      )}
     </>
   );
 }

@@ -81,11 +81,14 @@ export function useRealtimePayoutPlans() {
     let channel: RealtimeChannel | null = null;
     let retryCount = 0;
     const maxRetries = 3;
+    let isMounted = true;
 
     const setupRealtimeSubscription = async () => {
       try {
         // Initial fetch
         await fetchPayoutPlans();
+
+        if (!isMounted) return;
 
         // Set up real-time subscription with improved error handling
         const channelName = `payout-plans-changes-${session.user.id}`;
@@ -102,6 +105,7 @@ export function useRealtimePayoutPlans() {
               filter: `user_id=eq.${session.user.id}`,
             },
             (payload: any) => {
+              if (!isMounted) return;
               console.log('📡 Payout plan change received:', {
                 event: payload.event,
                 table: payload.table,
@@ -160,8 +164,13 @@ export function useRealtimePayoutPlans() {
     setupRealtimeSubscription();
 
     return () => {
+      isMounted = false;
       if (channel) {
-        supabase.removeChannel(channel);
+        try {
+          supabase.removeChannel(channel);
+        } catch (err) {
+          console.error('Error removing payout plans channel:', err);
+        }
       }
     };
   }, [session?.user?.id, fetchPayoutPlans]);
