@@ -244,8 +244,14 @@ export default function AIAssistantScreen() {
     }
   }, [dailyPromptCount, lastResetDate, lastPromptTime]);
 
-  // Add welcome message when component mounts
+  // Add welcome message when component mounts (only for authenticated users)
   useEffect(() => {
+    if (!isAuthenticated) {
+      // Don't show welcome message for unauthenticated users - they see the feature showcase instead
+      setMessages([]);
+      return;
+    }
+    
     const welcomeMessage: Message = {
       id: 'welcome',
       content: `Hi ${session?.user?.user_metadata?.first_name || 'there'}! I'm your financial assistant. I can help you create payout plans, analyze your spending, and provide personalized financial advice. How can I help you today?`,
@@ -254,7 +260,7 @@ export default function AIAssistantScreen() {
       timestamp: new Date(),
     };
     setMessages([welcomeMessage]);
-  }, [session?.user?.user_metadata?.first_name]);
+  }, [session?.user?.user_metadata?.first_name, isAuthenticated]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -1868,19 +1874,149 @@ export default function AIAssistantScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {!isAuthenticated && messages.length === 0 && (
-          <View style={styles.emptyStateContainer}>
-            <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
-              Welcome to Planmoni AI!
-            </Text>
-            <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
-              Login to start chatting with your AI financial assistant and create payout plans.
-            </Text>
-            <Pressable
-              style={[styles.loginPromptButton, { backgroundColor: colors.primary }]}
-              onPress={() => requireAuth(() => {}, '/(tabs)/ai-assistant')}
-            >
-              <Text style={styles.loginPromptButtonText}>Login to Continue</Text>
-            </Pressable>
+          <View style={styles.unauthenticatedContainer}>
+            <View style={styles.featureHeader}>
+              <View style={[styles.iconContainer, { backgroundColor: colors.primary + '20' }]}>
+                <Sparkles size={48} color={colors.primary} />
+              </View>
+              <Text style={[styles.featureTitle, { color: colors.text }]}>
+                Welcome to Planmoni AI
+              </Text>
+              <Text style={[styles.featureSubtitle, { color: colors.textSecondary }]}>
+                Your intelligent financial assistant powered by AI
+              </Text>
+            </View>
+
+            <View style={styles.featuresList}>
+              <View style={styles.featureCard}>
+                <View style={styles.featureContent}>
+                  <Text style={[styles.featureCardTitle, { color: colors.text }]}>
+                    Smart Payout Planning
+                  </Text>
+                  <View style={styles.bulletPoints}>
+                    <View style={styles.bulletPoint}>
+                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
+                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
+                        Create personalized payout schedules in natural language
+                      </Text>
+                    </View>
+                    <View style={styles.bulletPoint}>
+                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
+                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
+                        Get AI-powered suggestions based on your balance and goals
+                      </Text>
+                    </View>
+                    <View style={styles.bulletPoint}>
+                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
+                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
+                        Flexible scheduling: daily, weekly, bi-weekly, or monthly
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.featureCard}>
+                <View style={styles.featureContent}>
+                  <Text style={[styles.featureCardTitle, { color: colors.text }]}>
+                    Conversational Interface
+                  </Text>
+                  <View style={styles.bulletPoints}>
+                    <View style={styles.bulletPoint}>
+                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
+                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
+                        Chat naturally - no complex forms or confusing menus
+                      </Text>
+                    </View>
+                    <View style={styles.bulletPoint}>
+                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
+                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
+                        Ask questions like "Help me plan 50k for 2 months"
+                      </Text>
+                    </View>
+                    <View style={styles.bulletPoint}>
+                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
+                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
+                        AI guides you through plan creation step-by-step
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.featureCard}>
+                <View style={styles.featureContent}>
+                  <Text style={[styles.featureCardTitle, { color: colors.text }]}>
+                    Intelligent Insights
+                  </Text>
+                  <View style={styles.bulletPoints}>
+                    <View style={styles.bulletPoint}>
+                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
+                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
+                        Analyze your spending patterns and payout history
+                      </Text>
+                    </View>
+                    <View style={styles.bulletPoint}>
+                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
+                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
+                        Get personalized recommendations for better money management
+                      </Text>
+                    </View>
+                    <View style={styles.bulletPoint}>
+                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
+                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
+                        Track your progress and stay on top of your financial goals
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.featureCard}>
+                <View style={styles.featureContent}>
+                  <Text style={[styles.featureCardTitle, { color: colors.text }]}>
+                    Automated Execution
+                  </Text>
+                  <View style={styles.bulletPoints}>
+                    <View style={styles.bulletPoint}>
+                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
+                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
+                        Set it and forget it - plans execute automatically
+                      </Text>
+                    </View>
+                    <View style={styles.bulletPoint}>
+                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
+                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
+                        Emergency withdrawal options for unexpected needs
+                      </Text>
+                    </View>
+                    <View style={styles.bulletPoint}>
+                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
+                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
+                        Real-time notifications for all payout activities
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.ctaContainer}>
+              <Pressable
+                style={[styles.ctaButton, { backgroundColor: colors.primary }]}
+                onPress={() => requireAuth(() => {}, '/(tabs)/ai-assistant')}
+              >
+                <Text style={styles.ctaButtonText}>Get Started with Planmoni AI</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.secondaryButton, { borderColor: colors.border }]}
+                onPress={() => router.push('/(auth)/login')}
+              >
+                <Text style={[styles.secondaryButtonText, { color: colors.text }]}>
+                  Already have an account? Login
+                </Text>
+              </Pressable>
+            </View>
           </View>
         )}
         {messages.map((message, index) => renderMessage(message, index))}
@@ -2030,7 +2166,7 @@ export default function AIAssistantScreen() {
         )}
       </ScrollView>
 
-      {showSuggestions && !inputText.trim() && !keyboardVisible && (
+      {showSuggestions && !inputText.trim() && !keyboardVisible && isAuthenticated && (
         <View style={styles.suggestionsContainer}>
           <Text style={styles.suggestionsTitle}>Try asking about:</Text>
           <ScrollView 
@@ -2438,6 +2574,110 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: '#FFFFFF',
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
+  },
+  unauthenticatedContainer: {
+    flex: 1,
+    paddingHorizontal: getScaledFontSize(20, textSizeMultiplier),
+    paddingTop: getScaledFontSize(20, textSizeMultiplier),
+    paddingBottom: getScaledFontSize(40, textSizeMultiplier),
+  },
+  featureHeader: {
+    alignItems: 'center',
+    marginBottom: getScaledFontSize(32, textSizeMultiplier),
+  },
+  iconContainer: {
+    width: getScaledFontSize(96, textSizeMultiplier),
+    height: getScaledFontSize(96, textSizeMultiplier),
+    borderRadius: getScaledFontSize(48, textSizeMultiplier),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: getScaledFontSize(16, textSizeMultiplier),
+  },
+  featureTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 28 : 26, textSizeMultiplier),
+    fontWeight: '700',
+    marginBottom: getScaledFontSize(8, textSizeMultiplier),
+    textAlign: 'center',
+  },
+  featureSubtitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    textAlign: 'center',
+    lineHeight: getScaledFontSize(22, textSizeMultiplier),
+  },
+  featuresList: {
+    gap: getScaledFontSize(16, textSizeMultiplier),
+    marginBottom: getScaledFontSize(32, textSizeMultiplier),
+  },
+  featureCard: {
+    flexDirection: 'row',
+    backgroundColor: 'transparent',
+    borderRadius: getScaledFontSize(16, textSizeMultiplier),
+    padding: getScaledFontSize(16, textSizeMultiplier),
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  featureIconWrapper: {
+    width: getScaledFontSize(48, textSizeMultiplier),
+    height: getScaledFontSize(48, textSizeMultiplier),
+    borderRadius: getScaledFontSize(24, textSizeMultiplier),
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: getScaledFontSize(16, textSizeMultiplier),
+  },
+  featureContent: {
+    flex: 1,
+  },
+  featureCardTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    fontWeight: '600',
+    marginBottom: getScaledFontSize(12, textSizeMultiplier),
+  },
+  bulletPoints: {
+    gap: getScaledFontSize(8, textSizeMultiplier),
+  },
+  bulletPoint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: getScaledFontSize(4, textSizeMultiplier),
+  },
+  bullet: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    fontWeight: '700',
+    marginRight: getScaledFontSize(8, textSizeMultiplier),
+    lineHeight: getScaledFontSize(22, textSizeMultiplier),
+  },
+  bulletText: {
+    flex: 1,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 13, textSizeMultiplier),
+    lineHeight: getScaledFontSize(20, textSizeMultiplier),
+  },
+  ctaContainer: {
+    marginTop: getScaledFontSize(24, textSizeMultiplier),
+    gap: getScaledFontSize(12, textSizeMultiplier),
+  },
+  ctaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: getScaledFontSize(24, textSizeMultiplier),
+    paddingVertical: getScaledFontSize(16, textSizeMultiplier),
+    borderRadius: getScaledFontSize(12, textSizeMultiplier),
+  },
+  ctaButtonText: {
+    color: '#FFFFFF',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    paddingVertical: getScaledFontSize(12, textSizeMultiplier),
+    borderRadius: getScaledFontSize(8, textSizeMultiplier),
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  secondaryButtonText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    fontWeight: '500',
   },
   aiBadgeContainer: {
     flexDirection: 'row',

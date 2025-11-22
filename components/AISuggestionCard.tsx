@@ -131,12 +131,8 @@ function AISuggestionCard({
 
   // Generate AI suggestions based on available balance and user patterns
   const generateSuggestions = useCallback((): Suggestion[] => {
-    // Debug: Log available balance
-    console.log('🔍 AISuggestionCard - availableBalance:', availableBalance);
-    
     // Only show suggestions if balance is more than 1,000 (lowered threshold)
     if (availableBalance < 10000) {
-      console.log('⚠️ AISuggestionCard - Balance too low, hiding suggestions');
       return [];
     }
 
@@ -335,11 +331,8 @@ function AISuggestionCard({
   }
 
   if (suggestions.length === 0) {
-    console.log('⚠️ AISuggestionCard - No suggestions generated, returning null');
     return null;
   }
-
-  console.log('✅ AISuggestionCard - Rendering', suggestions.length, 'suggestions');
 
   return (
     <View style={styles.container}>

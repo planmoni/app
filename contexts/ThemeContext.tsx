@@ -133,7 +133,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [systemColorScheme, setSystemColorScheme] = useState<ColorSchemeName>(() => {
     // Initialize immediately from Appearance API
     const scheme = Appearance.getColorScheme();
-    console.log('🎨 Initial system color scheme:', scheme);
     return scheme || 'light';
   });
 
@@ -141,43 +140,33 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadThemePreference = async () => {
       try {
-        console.log('🎨 Loading theme preference...');
-        
         // Get current system scheme and update state immediately
         const currentSystemScheme = Appearance.getColorScheme();
         const normalizedSystemScheme = currentSystemScheme || 'light';
-        console.log('🎨 Current system scheme:', currentSystemScheme, '→ normalized:', normalizedSystemScheme);
         
         // Update system color scheme state immediately
         setSystemColorScheme(normalizedSystemScheme);
         
         // Load saved theme preference - only 'light' or 'dark' should be saved
         const savedTheme = await getItem(THEME_PREFERENCE_KEY);
-        console.log('🎨 Saved theme preference:', savedTheme);
         
         // Only load 'light' or 'dark' from storage - 'system' is never saved
         if (savedTheme === 'light' || savedTheme === 'dark') {
-          console.log('🎨 Setting theme from storage:', savedTheme);
           setThemeState(savedTheme as Theme);
         } else {
           // No saved preference or invalid value - default to system (Auto)
-          console.log('🎨 No saved theme preference, defaulting to system (Auto)');
           setThemeState('system');
           
           // Clean up if 'system' was accidentally saved (shouldn't happen, but just in case)
           if (savedTheme === 'system') {
-            console.log('🎨 Cleaning up: removing system from storage');
             try {
               await deleteItem(THEME_PREFERENCE_KEY);
             } catch (deleteError) {
-              console.error('❌ Error removing system from storage:', deleteError);
+              // Error removing system from storage - silently continue
             }
           }
         }
-        
-        console.log('🎨 Theme initialization complete');
       } catch (error) {
-        console.error('❌ Error loading theme preference:', error);
         const currentSystemScheme = Appearance.getColorScheme() || 'light';
         setSystemColorScheme(currentSystemScheme);
         setThemeState('system');
@@ -191,23 +180,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Listen to system appearance changes - CRITICAL for Auto theme
   useEffect(() => {
-    console.log('🎨 Setting up appearance change listener');
-    
     const subscription = Appearance.addChangeListener(({ colorScheme }) => {
       const newScheme = colorScheme || 'light';
-      console.log('🎨 System appearance changed:', {
-        from: systemColorScheme,
-        to: newScheme,
-        currentTheme: theme,
-        willApplyDark: theme === 'dark' || (theme === 'system' && newScheme === 'dark')
-      });
       
       // Always update system color scheme when device theme changes
       setSystemColorScheme(newScheme);
     });
 
     return () => {
-      console.log('🎨 Removing appearance change listener');
       subscription.remove();
     };
   }, [theme, systemColorScheme]);
@@ -219,10 +199,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const normalizedScheme = currentScheme || 'light';
       
       if (normalizedScheme !== systemColorScheme) {
-        console.log('🎨 Updating system color scheme:', {
-          from: systemColorScheme,
-          to: normalizedScheme
-        });
         setSystemColorScheme(normalizedScheme);
       }
     };
@@ -240,31 +216,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Only save 'light' or 'dark' - never save 'system' (Auto mode)
   const setTheme = async (newTheme: Theme) => {
     try {
-      console.log('🎨 Setting theme:', {
-        from: theme,
-        to: newTheme,
-        currentSystemScheme: systemColorScheme,
-        liveSystemScheme: Appearance.getColorScheme()
-      });
-      
       setThemeState(newTheme);
       
       // Only save 'light' or 'dark' to storage - never save 'system'
       if (newTheme === 'light' || newTheme === 'dark') {
         await saveItem(THEME_PREFERENCE_KEY, newTheme);
-        console.log('✅ Theme saved to storage:', newTheme);
       } else if (newTheme === 'system') {
         // Auto mode selected - remove any saved preference to always follow system
         try {
           await deleteItem(THEME_PREFERENCE_KEY);
-          console.log('✅ Auto mode selected - removed saved theme preference');
         } catch (deleteError) {
-          console.error('❌ Error removing saved theme:', deleteError);
           // Not critical - continue anyway
         }
       }
     } catch (error) {
-      console.error('❌ Error saving theme:', error);
       // Still update state even if save fails
       setThemeState(newTheme);
     }
@@ -283,13 +248,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const effectiveScheme = liveSystemScheme || systemColorScheme || 'light';
       const shouldBeDark = effectiveScheme === 'dark';
       
-      console.log('🎨 Auto theme calculation:', {
-        liveSystemScheme,
-        systemColorSchemeState: systemColorScheme,
-        effectiveScheme,
-        shouldBeDark
-      });
-      
       return shouldBeDark;
     }
     
@@ -303,52 +261,34 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Debug function
   const debugTheme = () => {
-    const liveSystemScheme = Appearance.getColorScheme();
-    console.log('🔍 THEME DEBUG INFO:');
-    console.log('   - Theme setting:', theme);
-    console.log('   - System color scheme (state):', systemColorScheme);
-    console.log('   - System color scheme (live):', liveSystemScheme);
-    console.log('   - Is dark mode:', isDark);
-    console.log('   - Calculation:', {
-      'theme === "dark"': theme === 'dark',
-      'theme === "system"': theme === 'system',
-      'theme === "light"': theme === 'light',
-      'liveSystemScheme === "dark"': liveSystemScheme === 'dark',
-      'systemColorScheme === "dark"': systemColorScheme === 'dark',
-      'final isDark': isDark
-    });
+    // Debug function - no console logs
   };
 
-  // Log theme changes for debugging
-  useEffect(() => {
-    console.log('🎨 Theme state:', {
-      theme,
-      systemColorScheme,
-      liveSystemScheme: Appearance.getColorScheme(),
-      isDark,
-      colors: isDark ? 'dark' : 'light'
-    });
-  }, [theme, systemColorScheme, isDark]);
 
   // Memoize setTheme to prevent re-renders
   const memoizedSetTheme = useCallback(async (newTheme: Theme) => {
     await setTheme(newTheme);
   }, [theme]);
 
+  // Calculate isDark and colors even during loading to provide a valid context
+  const loadingIsDark = useMemo(() => {
+    return systemColorScheme === 'dark';
+  }, [systemColorScheme]);
+
+  const loadingColors = useMemo(() => {
+    return loadingIsDark ? darkColors : lightColors;
+  }, [loadingIsDark]);
+
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => ({
     theme,
-    isDark,
+    isDark: isLoading ? loadingIsDark : isDark,
     setTheme: memoizedSetTheme,
-    colors,
+    colors: isLoading ? loadingColors : colors,
     debugTheme,
-  }), [theme, isDark, memoizedSetTheme, colors]);
+  }), [theme, isDark, isLoading, loadingIsDark, loadingColors, memoizedSetTheme, colors]);
 
-  // Don't render until theme is loaded to prevent flash
-  if (isLoading) {
-    return null;
-  }
-
+  // Always render the provider to ensure context is available
   return (
     <ThemeContext.Provider value={contextValue}>
       {children}

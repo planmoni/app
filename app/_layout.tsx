@@ -303,102 +303,95 @@ function RootLayoutNav() {
           }} 
         />
         
-        {session?.user?.id ? (
-          <React.Fragment key="authenticated-screens">
-            <Stack.Screen 
-              name="login-success" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="profile" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="add-funds" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="all-payouts" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen
-              name="change-password"
-              options={{ headerShown: false, gestureEnabled: false }}
-            />
-            <Stack.Screen
-              name="create-payout"
-              options={{ headerShown: false, gestureEnabled: false }}
-            />
-            <Stack.Screen
-              name="deposit-flow"
-              options={{ headerShown: false, gestureEnabled: false }}
-            />
-            <Stack.Screen
-              name="linked-accounts"
-              options={{ headerShown: false, gestureEnabled: false }}
-            />
-            <Stack.Screen
-              name="pause-confirmation"
-              options={{ headerShown: false, gestureEnabled: false }}
-            />
-            <Stack.Screen 
-              name="referral" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="transaction-limits" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="transactions" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="account-statement" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="two-factor-auth" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="two-factor-setup" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="two-factor-settings" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="view-backup-codes" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="view-payout" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="app-lock-setup" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-            <Stack.Screen 
-              name="logging-out" 
-              options={{ headerShown: false, gestureEnabled: false }} 
-            />
-          </React.Fragment>
-        ) : (
-          <React.Fragment key="unauthenticated-screens">
-            <Stack.Screen 
-              name="index" 
-              options={{ 
-                headerShown: false,
-                gestureEnabled: true, // Allow gestures only when not authenticated
-              }} 
-            />
-            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="logging-out" options={{ headerShown: false }} />
-          </React.Fragment>
-        )}
+        {/* Declare all screens - Expo Router requires all screens to be declared */}
+        <Stack.Screen 
+          name="index" 
+          options={{ 
+            headerShown: false,
+            gestureEnabled: true,
+          }} 
+        />
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen 
+          name="login-success" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="profile" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="add-funds" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="all-payouts" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen
+          name="change-password"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="create-payout"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="deposit-flow"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="linked-accounts"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="pause-confirmation"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen 
+          name="referral" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="transaction-limits" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="transactions" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="account-statement" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="two-factor-auth" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="two-factor-setup" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="two-factor-settings" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="view-backup-codes" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="view-payout" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="app-lock-setup" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="logging-out" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
         <Stack.Screen name="+not-found" options={{ title: "Page Not Found" }} />
       </Stack>
       
