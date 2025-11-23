@@ -475,8 +475,8 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   slideDescription: {
     color: colors.text,
     textAlign: 'center',
-    fontSize: Platform.OS === 'ios' ? responsive.descriptionSize : responsive.descriptionSize * 1.5,
-    lineHeight: Platform.OS === 'ios' ? responsive.descriptionSize * 1.5 : responsive.descriptionSize * 2,
+    fontSize: Platform.OS === 'ios' ? responsive.descriptionSize * 1.2: responsive.descriptionSize * 1.6,
+    lineHeight: Platform.OS === 'ios' ? responsive.descriptionSize * 1.6 : responsive.descriptionSize * 2.2,
     maxWidth: '90%',
   },
   pagination: {
