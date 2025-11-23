@@ -2,7 +2,7 @@
   "expo": {
     "name": "Planmoni",
     "slug": "planmoni",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/AppIcon.png",
     "scheme": "myapp",
@@ -31,7 +31,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.planmoni",
-      "buildNumber": "2",
+      "buildNumber": "4",
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"],
         "ITSAppUsesNonExemptEncryption": false,
