@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Platform, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePin } from '@/contexts/PinContext';
 import PinKeypad from '@/components/PinKeypad';
@@ -10,13 +11,17 @@ export default function UpdatePin() {
   const router = useRouter();
   const { isDark, colors } = useTheme();
   const { verifyAppLockPin, updateAppLockPin } = usePin();
+  const { height } = useWindowDimensions();
   
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [step, setStep] = useState<'current' | 'new' | 'confirm'>('current');
   
-  const styles = getStyles(isDark, colors);
+  // Determine if we're on a small screen
+  const isSmallScreen = height < 700;
+  
+  const styles = getStyles(isDark, colors, isSmallScreen);
 
   const handlePinEnter = (digit: string) => {
     if (step === 'current') {
@@ -291,13 +296,13 @@ export default function UpdatePin() {
   const stepInfo = getStepInfo();
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton} 
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#333'} />
+          <Ionicons name="arrow-back" size={isSmallScreen ? 20 : 24} color={isDark ? '#fff' : '#333'} />                                                                             
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Update PIN</Text>
         <TouchableOpacity 
@@ -310,7 +315,7 @@ export default function UpdatePin() {
 
       <View style={styles.content}>
         <View style={styles.infoCard}>
-          <Ionicons name={stepInfo.icon as any} size={32} color={colors.primary} />
+          <Ionicons name={stepInfo.icon as any} size={isSmallScreen ? 24 : 32} color={colors.primary} />                                                                             
           <Text style={styles.infoTitle}>{stepInfo.title}</Text>
           <Text style={styles.infoText}>{stepInfo.subtitle}</Text>
         </View>
@@ -326,21 +331,17 @@ export default function UpdatePin() {
           </Text>
         </View>
 
-
-
-
-
         <PinKeypad
           onKeyPress={handlePinEnter}
           onDelete={handleDelete}
           disabled={false}
         />
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
-const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
+const getStyles = (isDark: boolean, colors: any, isSmallScreen: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: isDark ? '#000' : '#f5f5f5',
@@ -349,8 +350,9 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 20,
-    paddingTop: 60,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
+    paddingVertical: isSmallScreen ? 12 : 16,
+    paddingTop: Platform.OS === 'ios' ? (isSmallScreen ? 12 : 16) : (isSmallScreen ? 12 : 16),
     backgroundColor: isDark ? '#111' : '#fff',
     borderBottomWidth: 1,
     borderBottomColor: isDark ? '#333' : '#e0e0e0',
@@ -359,7 +361,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     padding: 8,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: isDark ? '#fff' : '#333',
   },
@@ -368,68 +370,70 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
+    paddingTop: isSmallScreen ? 16 : 20,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 16,
   },
   infoCard: {
     alignItems: 'center',
     backgroundColor: isDark ? '#1a1a1a' : '#fff',
-    padding: 24,
-    borderRadius: 16,
-    marginBottom: 24,
+    padding: isSmallScreen ? 16 : 20,
+    borderRadius: 12,
+    marginBottom: isSmallScreen ? 16 : 20,
     borderWidth: 1,
     borderColor: isDark ? '#333' : '#e0e0e0',
   },
   infoTitle: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: isDark ? '#fff' : '#333',
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: isSmallScreen ? 12 : 16,
+    marginBottom: isSmallScreen ? 6 : 8,
     textAlign: 'center',
   },
   infoText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     color: isDark ? '#ccc' : '#666',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: isSmallScreen ? 18 : 20,
   },
   stepIndicator: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 32,
+    marginBottom: isSmallScreen ? 20 : 24,
   },
   step: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: isSmallScreen ? 10 : 12,
+    height: isSmallScreen ? 10 : 12,
+    borderRadius: isSmallScreen ? 5 : 6,
     backgroundColor: isDark ? '#333' : '#e0e0e0',
-    marginHorizontal: 6,
+    marginHorizontal: isSmallScreen ? 5 : 6,
   },
   stepActive: {
     backgroundColor: colors.primary,
   },
   pinSection: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: isSmallScreen ? 20 : 24,
   },
   pinDisplay: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: isSmallScreen ? 12 : 16,
   },
   pinDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: isSmallScreen ? 16 : 20,
+    height: isSmallScreen ? 16 : 20,
+    borderRadius: isSmallScreen ? 8 : 10,
     borderWidth: 2,
     borderColor: isDark ? '#666' : '#999',
-    marginHorizontal: 8,
+    marginHorizontal: isSmallScreen ? 6 : 8,
   },
   pinDotFilled: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
   pinLabel: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     color: isDark ? '#ccc' : '#666',
     textAlign: 'center',
   },
@@ -464,7 +468,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     padding: 8,
   },
   forgotPinText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     color: colors.primary,
     fontWeight: '500',
   },

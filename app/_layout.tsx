@@ -9,7 +9,7 @@ import { BottomNavProvider } from '@/contexts/BottomNavContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { TextSizeProvider } from '@/contexts/TextSizeContext';
 import { ToastProvider } from '@/contexts/ToastContext';
-import { PinProvider } from '@/contexts/PinContext';
+import { PinProvider, usePin } from '@/contexts/PinContext';
 import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
 import { AppVersionProvider } from '@/contexts/AppVersionContext';
 import UpdateAppModal from '@/components/UpdateAppModal';
@@ -51,7 +51,10 @@ function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
   const { isDark } = useTheme();
   const { isAppLocked, isPinResetMode } = useAppLock();
+  const { isLoading: isPinLoading } = usePin();
   const [showSplash, setShowSplash] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const hasInitializedRef = useRef(false);
   
   // Track previous session state to detect transitions
   const previousSessionRef = useRef<typeof session>(null);
@@ -237,18 +240,45 @@ function RootLayoutNav() {
     }
   }, [fontError]);
 
+  // Track app initialization - keep splash visible until everything is ready
   useEffect(() => {
-    // Hide splash screen even if fonts fail to load (after a short delay)
-    if (!isLoading) {
+    // Hide native splash screen when we show our custom splash screen
+    // This ensures smooth transition from native to custom splash
+    if ((!fontsLoaded && !fontError) || isLoading) {
+      // Hide native splash to show our custom one
+      SplashScreen.hideAsync().catch((e) =>
+        console.warn("Failed to hide native splash screen:", e)
+      );
+    } else if (fontsLoaded && !isLoading) {
+      // Hide native splash when app is ready
+      SplashScreen.hideAsync().catch((e) =>
+        console.warn("Failed to hide splash screen:", e)
+      );
+    }
+  }, [fontsLoaded, isLoading, fontError]);
+
+  // Initialize app - wait for fonts, auth, and PIN context to be ready, then add a small delay
+  useEffect(() => {
+    // Only run once on initial load
+    if (hasInitializedRef.current) return;
+
+    // Wait for fonts to load (or error), auth to finish loading, and PIN context to be ready
+    const fontsReady = fontsLoaded || fontError;
+    const authReady = !isLoading;
+    const pinReady = !isPinLoading;
+
+    if (fontsReady && authReady && pinReady) {
+      // Add a delay to ensure everything is settled before hiding splash
+      // This prevents the welcome screen from flashing before auth redirects to dashboard
       const timer = setTimeout(() => {
-        SplashScreen.hideAsync().catch((e) =>
-          console.warn("Failed to hide splash screen:", e)
-        );
-      }, fontsLoaded ? 0 : 1000); // Wait 1s if fonts didn't load, otherwise hide immediately
-      
+        console.log('✅ App initialization complete - fonts, auth, and PIN context ready');
+        setIsInitializing(false);
+        hasInitializedRef.current = true;
+      }, 800); // 800ms delay to ensure smooth transition and prevent glitching
+
       return () => clearTimeout(timer);
     }
-  }, [fontsLoaded, isLoading]);
+  }, [fontsLoaded, fontError, isLoading, isPinLoading]);
 
   // Show error screen if there's a critical fatal error during startup
   // Non-fatal errors should not unmount the app; they are handled via the
@@ -257,8 +287,8 @@ function RootLayoutNav() {
   const { appError, clearError } = useAppError();
 
   if (appError && !fontsLoaded && !fontError) {
-    // Keep splash screen visible when fonts are not yet loaded (but not if there's a font error)
-    return null;
+    // Show splash screen while fonts are loading (even if there's a non-fatal error)
+    return <CustomSplashScreen />;
   }
 
   if (appError?.fatal) {
@@ -274,9 +304,10 @@ function RootLayoutNav() {
     );
   }
 
-  // Allow app to continue even if fonts fail to load (use system fonts as fallback)
-  if ((!fontsLoaded && !fontError) || isLoading) {
-    return null; // Keep native splash screen visible
+  // Show custom splash screen during initialization (fonts loading, auth loading, PIN loading, etc.)
+  // Keep it visible until everything is ready to prevent glitching
+  if (isInitializing || (!fontsLoaded && !fontError) || isLoading || isPinLoading) {
+    return <CustomSplashScreen />;
   }
 
   // Show our custom splash screen during initial load or auth transitions

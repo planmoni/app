@@ -812,7 +812,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: .2,
   },
   heroHeader: {
     flexDirection: 'row',
@@ -870,7 +869,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
-    elevation: 4,
   },
   progressHeader: {
     flexDirection: 'row',
@@ -942,7 +940,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
-    elevation: .4,
   },
   sectionTitle: {
     fontSize: 18,
@@ -1047,7 +1044,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
-    elevation: .4,
   },
   warningHeader: {
     flexDirection: 'row',

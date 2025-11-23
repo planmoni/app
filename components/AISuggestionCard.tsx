@@ -416,7 +416,6 @@ const createStyles = (textSizeMultiplier: number) => StyleSheet.create({
     shadowOffset: { width: 1, height: 1},
     shadowOpacity: 0.03,
     shadowRadius: 6,
-    elevation: 6,
   
     position: 'relative',
   },

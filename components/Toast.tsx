@@ -226,7 +226,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.15,
     shadowRadius: 16,
-    elevation: 8,
   },
   content: {
     flexDirection: 'row',
@@ -248,7 +247,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
   },
   textContainer: {
     flex: 1,

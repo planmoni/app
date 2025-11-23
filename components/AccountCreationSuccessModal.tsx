@@ -115,7 +115,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     },
     shadowOpacity: 0.25,
     shadowRadius: 10,
-    elevation: 10,
     position: 'relative',
   },
   closeButton: {

@@ -105,7 +105,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
   },
   title: {
     fontSize: 28,

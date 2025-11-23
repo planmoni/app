@@ -134,7 +134,6 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     },
     shadowOpacity: isDark ? 0.3 : 0.1,
     shadowRadius: 8,
-    elevation: 8,
   },
   successIcon: {
     marginBottom: 24,
@@ -196,7 +195,6 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
   },
   continueButtonText: {
     color: '#fff',

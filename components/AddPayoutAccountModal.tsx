@@ -615,7 +615,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
         shadowRadius: 5,
       },
       android: {
-        elevation: 5,
       },
     }),
   },
@@ -813,7 +812,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
         shadowRadius: 5,
       },
       android: {
-        elevation: 5,
       },
     }),
   },

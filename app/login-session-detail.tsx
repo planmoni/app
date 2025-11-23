@@ -649,7 +649,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
-    elevation: 2
   },
   heroIconContainer: {
     width: 64,
@@ -764,7 +763,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
-    elevation: 1
   },
   infoRow: {
     flexDirection: 'row',
