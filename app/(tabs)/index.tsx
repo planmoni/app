@@ -535,9 +535,25 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // Always show the new plan info modal for these buttons
-    setShowNewPlanInfoModal(true);
-    logAnalyticsEvent('create_payout_click_modal');
+    // For authenticated users, only show modal if there are no active payout plans (or total is ₦0)
+    if (isAuthenticated) {
+      const activePlansTotal = activePlans.reduce((sum, plan) => sum + Number(plan.total_amount || 0), 0);
+      const hasActivePlansWithBalance = activePlans.length > 0 && activePlansTotal > 0;
+      
+      if (hasActivePlansWithBalance) {
+        // User has active plans with balance - navigate directly to create payout
+        router.push('/create-payout/amount');
+        logAnalyticsEvent('create_payout_click_direct');
+      } else {
+        // No active plans or total is ₦0 - show info modal
+        setShowNewPlanInfoModal(true);
+        logAnalyticsEvent('create_payout_click_modal');
+      }
+    } else {
+      // Unauthenticated users - show modal
+      setShowNewPlanInfoModal(true);
+      logAnalyticsEvent('create_payout_click_modal');
+    }
   };
 
   const handleAISuggestionPress = (suggestion: any) => {
