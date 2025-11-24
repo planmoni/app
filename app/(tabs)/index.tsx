@@ -1085,7 +1085,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     shadowOffset: { width: 1, height: 6},
     shadowOpacity: 0.09,
     shadowRadius: 9,
-    elevation: 6,
   },
   scrollView: {
     flex: 1,
@@ -1174,7 +1173,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
   },
   livenessTestButtonText: {
     color: '#FFFFFF',
@@ -1292,7 +1290,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     shadowOffset: { width: 1, height: 6},
     shadowOpacity: 0.04,
     shadowRadius: 9,
-    elevation: 6,
   },
   summaryHeader: {
     flexDirection: 'row',

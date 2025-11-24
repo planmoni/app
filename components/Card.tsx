@@ -49,14 +49,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.1,
       shadowRadius: 2,
-      elevation: 2,
     } : {
       // Light mode: Use subtle shadow without border
       shadowColor: '#000000',
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.05,
       shadowRadius: 2,
-      elevation: 2,
     }),
   },
   cardHeader: {

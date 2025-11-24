@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Platform, Animated } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Platform, Animated, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -20,6 +20,10 @@ export default function AppLockScreen() {
   const router = useRouter();
   const haptics = useHaptics();
   const { showError } = useToast();
+  const { height } = useWindowDimensions();
+  
+  // Determine if we're on a small screen
+  const isSmallScreen = height < 700;
   
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -225,7 +229,7 @@ export default function AppLockScreen() {
     return 'shield-checkmark-outline';
   };
 
-  const styles = getStyles(isDark, colors);
+  const styles = getStyles(isDark, colors, isSmallScreen, showBiometricOption);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -260,45 +264,49 @@ export default function AppLockScreen() {
           disabled={isVerifying}
         />
 
-        {showBiometricOption && (
+        {/* Buttons Row - Biometric and Forgot PIN in same row */}
+        <View style={[styles.buttonsRow, !showBiometricOption && styles.buttonsRowSingle]}>
+          {showBiometricOption && (
+            <Pressable 
+              style={styles.biometricButton}
+              onPress={handleBiometricUnlock}
+              disabled={isVerifying}
+            >
+              <Text style={styles.biometricText}>{getBiometricText()}</Text>
+            </Pressable>
+          )}
+
+          {/* Forgot Pin Button */}
           <Pressable 
-            style={styles.biometricButton}
-            onPress={handleBiometricUnlock}
+            style={({ pressed }) => [
+              styles.forgotPinButton,
+              !showBiometricOption && styles.forgotPinButtonSingle,
+              pressed && styles.forgotPinButtonPressed,
+              isVerifying && styles.forgotPinButtonDisabled
+            ]}
+            onPress={() => {
+              haptics.lightImpact();
+              // Enable pin reset mode to hide the lock screen
+              setPinResetMode(true);
+              // Navigate to forgot PIN flow
+              router.push('/forgot-pin');
+            }}
             disabled={isVerifying}
           >
-            <Text style={styles.biometricText}>{getBiometricText()}</Text>
+            <Text style={[
+              styles.forgotPinButtonText,
+              isVerifying && styles.forgotPinButtonTextDisabled
+            ]}>
+              Forgot Pin?
+            </Text>
           </Pressable>
-        )}
-
-        {/* Forgot Pin Button */}
-        <Pressable 
-          style={({ pressed }) => [
-            styles.forgotPinButton,
-            pressed && styles.forgotPinButtonPressed,
-            isVerifying && styles.forgotPinButtonDisabled
-          ]}
-          onPress={() => {
-            haptics.lightImpact();
-            // Enable pin reset mode to hide the lock screen
-            setPinResetMode(true);
-            // Navigate to forgot PIN flow
-            router.push('/forgot-pin');
-          }}
-          disabled={isVerifying}
-        >
-          <Text style={[
-            styles.forgotPinButtonText,
-            isVerifying && styles.forgotPinButtonTextDisabled
-          ]}>
-            Forgot Pin?
-          </Text>
-        </Pressable>
+        </View>
       </View>
     </SafeAreaView>
   );
 }
 
-const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
+const getStyles = (isDark: boolean, colors: any, isSmallScreen: boolean, showBiometricOption: boolean) => StyleSheet.create({
   container: {
     position: 'absolute',
     top: 0,
@@ -310,75 +318,96 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     paddingHorizontal: 24,
+    paddingTop: isSmallScreen ? Platform.OS === 'ios' ? 60 : 40 : Platform.OS === 'ios' ? 80 : 60,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 16,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: isSmallScreen ? 20 : 24,
   },
   greeting: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 14 : 16,
     color: colors.textSecondary,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   userName: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 18 : 22,
     fontWeight: '600',
     color: colors.text,
   },
   lockIcon: {
-    marginBottom: 32,
+    marginBottom: isSmallScreen ? 16 : 20,
   },
   lockIconText: {
-    fontSize: 48,
+    fontSize: isSmallScreen ? 32 : 36,
   },
   instruction: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 13 : 15,
     color: colors.textSecondary,
-    marginBottom: 32,
+    marginBottom: isSmallScreen ? 16 : 20,
     textAlign: 'center',
   },
   errorContainer: {
-    marginBottom: 16,
+    marginBottom: isSmallScreen ? 12 : 16,
+    marginTop: isSmallScreen ? -8 : -4,
   },
   errorText: {
     color: colors.error,
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     textAlign: 'center',
   },
+  buttonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: isSmallScreen ? 12 : 16,
+    gap: isSmallScreen ? 10 : 12,
+    width: '100%',
+    paddingHorizontal: 0,
+  },
+  buttonsRowSingle: {
+    justifyContent: 'center',
+  },
   biometricButton: {
-    marginTop: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 100,
+    flex: 1,
+    paddingVertical: isSmallScreen ? 10 : 12,
+    paddingHorizontal: isSmallScreen ? 12 : 16,
+    borderRadius: 9999,
     backgroundColor: colors.primary + '20',
     borderWidth: 1,
     borderColor: colors.primary,
+    maxWidth: '48%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: isSmallScreen ? 40 : 44,
   },
   biometricText: {
     color: colors.primary,
-    fontSize: 16,
+    fontSize: isSmallScreen ? 11 : 13,
     fontWeight: '500',
     textAlign: 'center',
+    lineHeight: isSmallScreen ? 11 : 13,
+    includeFontPadding: false,
   },
   forgotPinButton: {
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 100,
+    flex: 1,
+    paddingVertical: isSmallScreen ? 10 : 12,
+    paddingHorizontal: isSmallScreen ? 12 : 16,
+    borderRadius: 9999,
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    maxWidth: '48%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: isSmallScreen ? 40 : 44,
+  },
+  forgotPinButtonSingle: {
+    flex: 0,
+    minWidth: isSmallScreen ? 140 : 160,
   },
   forgotPinButtonPressed: {
     backgroundColor: colors.backgroundSecondary,
@@ -391,9 +420,11 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   forgotPinButtonText: {
     color: colors.textSecondary,
-    fontSize: 16,
+    fontSize: isSmallScreen ? 12 : 14,
     fontWeight: '600',
     textAlign: 'center',
+    lineHeight: isSmallScreen ? 12 : 14,
+    includeFontPadding: false,
   },
   forgotPinButtonTextDisabled: {
     color: colors.textTertiary,

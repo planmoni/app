@@ -4104,7 +4104,6 @@ export default function KYCUpgradeScreen() {
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.1,
       shadowRadius: 2,
-      elevation: 1,
       borderRadius: 12,
       backgroundColor: colors.surface,
       paddingHorizontal: 14,

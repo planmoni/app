@@ -575,7 +575,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
   },
   // statsContainer: {
   //   marginBottom: 4,
@@ -593,7 +592,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   //   shadowOffset: { width: 0, height: 1 },
   //   shadowOpacity: 0.05,
   //   shadowRadius: 2,
-  //   elevation: 2,
   // },
   // statIconContainer: {
   //   width: 24,
@@ -747,7 +745,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
   },
   createFirstButtonText: {
     color: '#FFFFFF',
@@ -763,7 +760,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: .1,
   },
   payoutContent: {
     padding: 20,

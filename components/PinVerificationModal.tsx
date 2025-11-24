@@ -417,7 +417,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
         shadowRadius: 5,
       },
       android: {
-        elevation: 5,
       },
     }),
   },

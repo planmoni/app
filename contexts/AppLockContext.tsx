@@ -42,6 +42,7 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const appState = useRef(AppState.currentState);
   const lastActiveRef = useRef<number>(Date.now());
   const unlockTimestampRef = useRef<number | null>(null);
+  const hasCheckedLaunchLockRef = useRef(false);
 
   // Load saved settings on mount
   useEffect(() => {
@@ -302,6 +303,37 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription?.remove();
   }, [handleAppStateChange]);
+
+  // Lock app on launch if PIN is set and auto-lock is not 'never'
+  useEffect(() => {
+    // Only check once on app launch
+    if (hasCheckedLaunchLockRef.current) {
+      return;
+    }
+
+    // Wait a bit for PIN status and auto-lock duration to be loaded
+    const checkLaunchLock = setTimeout(() => {
+      const currentHasAppLockPin = hasAppLockPinRef.current;
+      const currentAutoLockDuration = autoLockDurationRef.current;
+      const currentIsAppLocked = isAppLockedRef.current;
+
+      console.log('🚀 AppLock - Checking launch lock', {
+        hasAppLockPin: currentHasAppLockPin,
+        autoLockDuration: currentAutoLockDuration,
+        isAppLocked: currentIsAppLocked,
+      });
+
+      // Lock on launch if PIN is set and auto-lock is not 'never'
+      if (currentHasAppLockPin && currentAutoLockDuration !== 'never' && !currentIsAppLocked) {
+        console.log('🔒 AppLock - Locking app on launch');
+        lockApp();
+      }
+
+      hasCheckedLaunchLockRef.current = true;
+    }, 800); // Delay to ensure PIN and auto-lock duration are loaded
+
+    return () => clearTimeout(checkLaunchLock);
+  }, [hasAppLockPin, autoLockDuration]);
 
   // Periodic check for 5 mins and 60 mins auto-lock while app is active
   useEffect(() => {
