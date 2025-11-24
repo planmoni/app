@@ -62,53 +62,25 @@ export default function PendingActionsCard() {
     }
   };
 
-  // Get tier-specific pending actions - show all incomplete tiers
+  // Get tier-specific pending actions - only show Tier 2 and 3 when Tier 1 is complete
   const getTierPendingActions = (): PendingAction[] => {
     if (!progress) return [];
 
     const actions: PendingAction[] = [];
     const tier = currentTier || 0;
 
-    // Tier 1 requirements: Liveness + BVN + NIN
-    // Show if tier < 1 (user hasn't completed Tier 1)
-    if (tier < 1) {
-      const missingSteps: string[] = [];
-      
-      if (!progress.liveness_test_completed) {
-        missingSteps.push('Liveness Test');
-      }
-      if (!progress.bvn_verified) {
-        missingSteps.push('BVN');
-      }
-      if (!progress.id_face_verified) {
-        missingSteps.push('NIN');
-      }
+    // Hide Tier 1 card - it's handled by KYCCard
+    // Only show Tier 2 and Tier 3 when Tier 1 is complete (KYCCard is hidden)
+    // Tier 1 is complete when currentTier >= 1
+    const isTier1Complete = tier >= 1;
 
-      if (missingSteps.length > 0) {
-        let description = '';
-        if (missingSteps.length === 1) {
-          description = `Complete ${missingSteps[0]} verification`;
-        } else if (missingSteps.length === 2) {
-          description = `Complete ${missingSteps[0]} and ${missingSteps[1]} verification`;
-        } else {
-          description = `Complete ${missingSteps.slice(0, -1).join(', ')}, and ${missingSteps[missingSteps.length - 1]} verification`;
-        }
-
-        actions.push({
-          id: 'tier-1-verification',
-          title: 'Tier 1: Basic Verification',
-          description: 'Increase single transaction limit to ₦50,000',
-          icon: Tier1Icon,
-          iconBg: '#EFEDED',
-          iconColor: '#F59E0B',
-          route: '/kyc-upgrade',
-          priority: 'high',
-        });
-      }
+    // Don't show any tier cards if Tier 1 is not complete
+    if (!isTier1Complete) {
+      return [];
     }
 
     // Tier 2 requirements: Tier 1 + Personal Info + Documents
-    // Always show if tier < 2 (user hasn't completed Tier 2)
+    // Only show if Tier 1 is complete and tier < 2 (user hasn't completed Tier 2)
     if (tier < 2) {
       const missingSteps: string[] = [];
       
