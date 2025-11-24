@@ -1106,6 +1106,27 @@ class SafeHavenService {
             withholding_tax_balance: accountData?.data?.withHoldingTaxBalance || accountData?.withHoldingTaxBalance || 0
           });
           console.log("safehaven account saved successfully to database");
+
+          // Send account creation email notification
+          try {
+            const { sendAccountCreationEmail } = await import('@/lib/email-service');
+            const emailResult = await sendAccountCreationEmail(
+              userId,
+              verificationData.account_number,
+              accountName || `${verificationData.first_name} ${verificationData.last_name}`.trim() || 'NIN Account',
+              'SafeHaven Microfinance Bank'
+            );
+            
+            if (emailResult.success) {
+              console.log("Account creation email sent successfully");
+            } else {
+              console.warn("Failed to send account creation email:", emailResult.error);
+              // Don't throw - email failure shouldn't break account creation
+            }
+          } catch (emailError) {
+            console.error("Error sending account creation email:", emailError);
+            // Don't throw - email failure shouldn't break account creation
+          }
         } catch (storeError) {
           console.error("safehaven error storing account:", storeError);
           // Don't throw - log the error but continue with verification
@@ -1550,6 +1571,27 @@ class SafeHavenService {
             bvn: bvn
           });
           console.log("safehaven bvn account saved successfully to database");
+
+          // Send account creation email notification
+          try {
+            const { sendAccountCreationEmail } = await import('@/lib/email-service');
+            const emailResult = await sendAccountCreationEmail(
+              userId,
+              verificationData.account_number,
+              accountName || `${verificationData.first_name} ${verificationData.last_name}`.trim() || 'BVN Account',
+              'SafeHaven Microfinance Bank'
+            );
+            
+            if (emailResult.success) {
+              console.log("Account creation email sent successfully");
+            } else {
+              console.warn("Failed to send account creation email:", emailResult.error);
+              // Don't throw - email failure shouldn't break account creation
+            }
+          } catch (emailError) {
+            console.error("Error sending account creation email:", emailError);
+            // Don't throw - email failure shouldn't break account creation
+          }
         } catch (storeError) {
           console.error("safehaven bvn error storing account:", storeError);
           // Don't throw - log the error but continue with verification

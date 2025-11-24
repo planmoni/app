@@ -62,111 +62,10 @@ export default function PendingActionsCard() {
     }
   };
 
-  // Get tier-specific pending actions - only show Tier 2 and 3 when Tier 1 is complete
+  // Get tier-specific pending actions - permanently hidden
   const getTierPendingActions = (): PendingAction[] => {
-    if (!progress) return [];
-
-    const actions: PendingAction[] = [];
-    const tier = currentTier || 0;
-
-    // Hide Tier 1 card - it's handled by KYCCard
-    // Only show Tier 2 and Tier 3 when Tier 1 is complete (KYCCard is hidden)
-    // Tier 1 is complete when currentTier >= 1
-    const isTier1Complete = tier >= 1;
-
-    // Don't show any tier cards if Tier 1 is not complete
-    if (!isTier1Complete) {
-      return [];
-    }
-
-    // Tier 2 requirements: Tier 1 + Personal Info + Documents
-    // Only show if Tier 1 is complete and tier < 2 (user hasn't completed Tier 2)
-    if (tier < 2) {
-      const missingSteps: string[] = [];
-      
-      if (!progress.personal_info_completed) {
-        missingSteps.push('Personal Information');
-      }
-      if (!progress.documents_verified) {
-        missingSteps.push('Document Verification');
-      }
-
-      // Check if Tier 1 is complete (prerequisite for Tier 2)
-      const tier1Complete = tier >= 1 || 
-        (progress.liveness_test_completed && progress.bvn_verified && progress.id_face_verified);
-
-      // Show Tier 2 action even if all steps are missing (user can see what's needed)
-      let description = '';
-      if (missingSteps.length === 0) {
-        // All Tier 2 steps are complete, but tier might not be updated yet
-        // description = 'Complete personal information and document verification';
-      } else if (missingSteps.length === 1) {
-        description = `Complete ${missingSteps[0]}`;
-      } else {
-        description = `Complete ${missingSteps[0]} and ${missingSteps[1]}`;
-      }
-
-      actions.push({
-        id: 'tier-2-verification',
-        title: 'Tier 2: Enhanced Verification',
-        description: tier1Complete 
-          ? 'Increase single transaction limit to ₦200,000'
-          : 'Complete Tier 1 first to unlock Tier 2 verification',
-        icon: Tier2Icon,
-        iconBg: tier1Complete ? '#EFF6FF' : '#F3F4F6',
-        iconColor: tier1Complete ? '#1E3A8A' : '#9CA3AF',
-        route: '/kyc-upgrade',
-        priority: tier1Complete ? 'high' : 'medium',
-        disabled: !tier1Complete,
-        disabledReason: 'Complete Tier 1 first',
-      });
-    }
-
-    // Tier 3 requirements: Tier 2 + Address + Utility
-    // Always show if tier < 3 (user hasn't completed Tier 3)
-    if (tier < 3) {
-      const missingSteps: string[] = [];
-      
-      if (!progress.address_completed) {
-        missingSteps.push('Address Details');
-      }
-      if (!progress.utility_bill_verified) {
-        missingSteps.push('Utility Bill');
-      }
-
-      // Check if Tier 2 is complete (prerequisite for Tier 3)
-      const tier2Complete = tier >= 2 || 
-        (progress.personal_info_completed && progress.documents_verified && 
-         progress.liveness_test_completed && progress.bvn_verified && progress.id_face_verified);
-
-      // Show Tier 3 action even if all steps are missing (user can see what's needed)
-      let description = '';
-      if (missingSteps.length === 0) {
-        // All Tier 3 steps are complete, but tier might not be updated yet
-        // description = 'Complete address details and utility bill verification';
-      } else if (missingSteps.length === 1) {
-        description = `Complete ${missingSteps[0]}`;
-      } else {
-        description = `Complete ${missingSteps[0]} and ${missingSteps[1]}`;
-      }
-
-      actions.push({
-        id: 'tier-3-verification',
-        title: 'Tier 3: Full Verification',
-        description: tier2Complete
-          ? 'Increase single transaction limit to ₦5,000,000'
-          : 'Complete Tier 2 first to unlock Tier 3 verification',
-        icon: Tier3Icon,
-        iconBg: tier2Complete ? '#F0FDF4' : '#F3F4F6',
-        iconColor: tier2Complete ? '#22C55E' : '#9CA3AF',
-        route: '/kyc-upgrade',
-        priority: tier2Complete ? 'high' : 'medium',
-        disabled: !tier2Complete,
-        disabledReason: 'Complete Tier 2 first',
-      });
-    }
-
-    return actions;
+    // KYC Tiers are permanently hidden from PendingActionsCard
+    return [];
   };
 
   const fetchProfileData = async () => {
@@ -223,18 +122,19 @@ export default function PendingActionsCard() {
       });
     }
 
-    if (!profileData?.two_factor_enabled) {
-      actions.push({
-        id: 'setup-2fa',
-        title: 'Setup 2FA',
-        description: 'Enable two-factor authentication',
-        icon: Fingerprint,
-        iconBg: colors.backgroundTertiary,
-        iconColor: colors.text,
-        route: '/two-factor-auth',
-        priority: 'medium',
-      });
-    }
+    // Setup 2FA is permanently hidden from PendingActionsCard
+    // if (!profileData?.two_factor_enabled) {
+    //   actions.push({
+    //     id: 'setup-2fa',
+    //     title: 'Setup 2FA',
+    //     description: 'Enable two-factor authentication',
+    //     icon: Fingerprint,
+    //     iconBg: colors.backgroundTertiary,
+    //     iconColor: colors.text,
+    //     route: '/two-factor-auth',
+    //     priority: 'medium',
+    //   });
+    // }
 
     return actions;
   };

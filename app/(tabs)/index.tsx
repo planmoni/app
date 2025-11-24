@@ -83,7 +83,7 @@ export default function HomeScreen() {
   const { updateLastActiveOnInteraction } = useAppLock();
   const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
-  const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress } = useKYCProgress();
+  const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress, currentTier } = useKYCProgress();
   const navigation = useNavigation();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
@@ -792,6 +792,7 @@ export default function HomeScreen() {
                   lastName={lastName} 
                   size={48}
                   fontSize={getScaledFontSize(18, textSizeMultiplier)}
+                  kycTier={currentTier}
                 />
               </Pressable>
             ) : (
@@ -1125,7 +1126,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   avatarButton: {
     borderRadius: 24,
-    overflow: 'hidden',
+    overflow: 'visible', // Changed to visible to allow badge to show
   },
   avatarPlaceholder: {
     width: 48,
