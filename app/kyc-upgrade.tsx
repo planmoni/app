@@ -3116,7 +3116,7 @@ export default function KYCUpgradeScreen() {
                     <TextInput
                       ref={phoneInputRef}
                       style={styles.input}
-                      placeholder="Enter your phone number (e.g., 08012345678)"
+                      placeholder="Enter your phone number"
                       placeholderTextColor={colors.textTertiary}
                       value={phoneNumber}
                       onChangeText={(text) => {
@@ -3140,6 +3140,9 @@ export default function KYCUpgradeScreen() {
                       autoCapitalize="none"
                     />
                   </View>
+                  <Text style={styles.helperText}>
+                    Use the same phone number you registered your NIN with. One-Time Passwords can only be sent to that line.
+                  </Text>
                   {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
                 </View>
                 
@@ -3212,7 +3215,7 @@ export default function KYCUpgradeScreen() {
                     <TextInput
                       ref={phoneInputRef}
                       style={styles.input}
-                      placeholder="Enter your phone number (e.g., 08012345678)"
+                      placeholder="Enter your phone number"
                       placeholderTextColor={colors.textTertiary}
                       value={phoneNumber}
                       onChangeText={(text) => {
@@ -3236,6 +3239,9 @@ export default function KYCUpgradeScreen() {
                       autoCapitalize="none"
                     />
                   </View>
+                  <Text style={styles.helperText}>
+                    Use the same phone number you registered your BVN with. One-Time Passwords can only be sent to that line.
+                  </Text>
                   {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
                 </View>
                 
