@@ -6,6 +6,9 @@ import CountdownTimer from '@/components/CountdownTimer';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface NextPayoutCardProps {
   nextPayout: any;
@@ -14,7 +17,8 @@ interface NextPayoutCardProps {
 export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
   const { colors, isDark } = useTheme();
   const { showBalances } = useBalance();
-
+  const { textSizeMultiplier } = useTextSize();
+  const { isAuthenticated } = useRequireAuth();
   const formatBalance = (amount: number) => {
     return showBalances ? `₦${amount.toLocaleString()}` : '*********';
   };
@@ -27,9 +31,10 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
     logAnalyticsEvent('view_payout', { payout_id: id });
   };
 
-  if (!nextPayout) return null;
+  // Don't render if user is not authenticated or no next payout
+  if (!isAuthenticated || !nextPayout) return null;
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
     <View style={styles.section}>
@@ -106,7 +111,7 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number ) => StyleSheet.create({
   section: {
     marginBottom: 20,
   },
@@ -118,7 +123,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   sectionTitle: {
     marginTop: 15,
-    fontSize: 16,
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
   },
@@ -128,11 +133,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.card,
     borderWidth: 0.5,
     borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: .4,
     overflow: 'hidden',
   },
   payoutCardContent: {
@@ -145,7 +145,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   payoutName: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '400',
     color: colors.text,
     maxWidth: '72%',
@@ -157,7 +157,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 20,
   },
   activeTagText: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     color: colors.primary,
     fontWeight: '600',
   },
@@ -168,7 +168,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   payoutAmount: {
-    fontSize: 24,
+    fontSize: getScaledFontSize(24, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: 10,
@@ -180,7 +180,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   payoutAccountLabel: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textSecondary,
     fontWeight: '500',
   },
@@ -204,7 +204,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 6,
   },
   payoutAccountText: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textSecondary,
     fontWeight: '500',
     flex: 1,

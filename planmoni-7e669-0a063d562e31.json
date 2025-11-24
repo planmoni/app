@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "planmoni-7e669",
+  "private_key_id": "0a063d562e31e45a4576f8bdbbf01184e5a66b47",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQC8Wv45aE7/BtpT\nak2qu5hG1hQAAaim7uviqdOA9UzLrsfYOqYIxkJADxnfmakThu2lWInA8FfKd+di\nBQu2FebK/kN3CgmBk0RbzA0NxjeDF7V5pQNCckazvCWkmD8uqHShwuJRvhTr3Qbc\nKsxALXf4sfEVcn/z/iDKUaJzB1VEZ44Wp1foix0AvC2/Z+takmjgwZAFZzhxJy+K\nnWr+o361pV8kVDJb03wB+qaefuDXmgDQS3IbwlkERjFbOZrhBh91rJREgeYE+ZcE\nn1j4juFsKujXX2dcimlJD3iXd97/oqqL6DZQM46et46DTNk2PJdVH0I/13drDGfB\nMu+LUi13AgMBAAECggEAFThtLtuNFtdXTpGJ6YPUDpr8ytlk/lWplrJKZVt9iO8K\njdZhsVhgy2XIJPRjY5NOf9PfRTDuux1SIK1v2dZS16jYwfcMBiCo0WzGRbiAtZC8\nvdU07k4AoCxA02/homiRJ05VAB+ZrM8MgE6ED3Dv9MFbZ26scrk9SX3z/uCjHx8X\nkL5NE/nWkOGG1WSH0UjiVJG3KZnXg/+kez4/+lgZ/DqjU9fqhxSQOPt45218NbdM\nDMn3rC1BCB+DmmYbzrPYjK7rI0nELHVxoGUjawFh1Vy07kUQHozTzBloPtugldqn\nY6pCNo98EN9+Cm66Ai/TDjfHXV0Xvkx172p2sEsHLQKBgQD+xMqK8h57egQ5maaR\n8iLWm8TFx3Tso3KuIOW+RuhFm0K8mvr402iVPBYTucFPeGpW//1cp7R4HGBPqvQG\n/EoePXeItg0tVIjmHdYX4Gg2Yq/EcakWwUouSdbatt/3+WttfRWXKYdSL9mTwYw4\nME9MIKcghsShN5PhyG98ogBSSwKBgQC9RAh1cOxPDTC50JakvTOeobLTqWlxKwTg\nLNw6gVQQDrJTiYfhWFMSRHBFVgAHdRTM/EBEtMWZBJZe/u9b3shol8Oa2SjuE35m\nmu6jFujn3ER4xa8osfZ9FYrzVZkeMBvFGXHN+1N4u4HgaKda79jCdR7rBehyVRhw\nerwPZOZ2BQKBgQCtY8uhUvUx/jH/7bWy4IObYbpDDONj5j23isYxgNq1/NwntqaW\nUHN+Fb3EwQhyiLZ+7YxG0hB+KnnV3rhkRLJA8H54+cXwEvd0/dtmtqDWWsXbQavd\nw8Ezzac/hXTatNLLWnUmQupJIi3HZNOErkRZwGNePLp4KnYoFRzjSvJDDwKBgQCw\nMqn9S4dzgMAf/MSB0XJA+CBXVJxJMtdzK9BK1yO/Xy88/gh2DZgopXYv1oRobONU\ngnIChJiAf/jNr2B+ksTYOpFrk0e7fIJsW0hWpHlngXRtSvxqUmM6x9d3+fR2WitA\nLxP3w0ZOW6HpnQRQcIHHZunFutZPulDqRhjV7AVxUQKBgQDoC3/7KCqWn99u46nR\nZowLdkG5/TDNkNcroRWVUDfOobZX1A2pMcttf9DhJPRXnbgKhpR3eX+s6wFgpJdy\nST7LlC19vLNWtoQJ+MnBzGXdxtz8Unl02m2pZEylj0LWtJiWDQ9I/ej2eypw5ms3\nO6u2q6VHKgOeN4KXErBJkWgI0A==\n-----END PRIVATE KEY-----\n",
+  "client_email": "planmoni@planmoni-7e669.iam.gserviceaccount.com",
+  "client_id": "112664758180180964667",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/planmoni%40planmoni-7e669.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

@@ -1,17 +1,20 @@
 import { StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTextSize } from '@/contexts/TextSizeContext';
 import { useWindowDimensions } from 'react-native';
+import { getScaledFontSize } from '@/lib/textSize';
 
 export const useKYCStyles = () => {
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
   const { width, height } = useWindowDimensions();
   const isSmallScreen = width < 380 || height < 700;
   
   const headerPadding = isSmallScreen ? 12 : 16;
   const contentPadding = isSmallScreen ? 16 : 24;
-  const titleSize = isSmallScreen ? 20 : 24;
-  const subtitleSize = isSmallScreen ? 14 : 16;
-  const labelSize = isSmallScreen ? 13 : 14;
+  const titleSize = getScaledFontSize(isSmallScreen ? 20 : 24, textSizeMultiplier);
+  const subtitleSize = getScaledFontSize(isSmallScreen ? 14 : 16, textSizeMultiplier);
+  const labelSize = getScaledFontSize(isSmallScreen ? 13 : 14, textSizeMultiplier);
   const inputHeight = isSmallScreen ? 50 : 60;
 
   return StyleSheet.create({
@@ -62,7 +65,7 @@ export const useKYCStyles = () => {
     },
     input: {
       flex: 1,
-      fontSize: 18,
+      fontSize: getScaledFontSize(18, textSizeMultiplier),
       color: colors.text,
       marginLeft: 12,
     },
@@ -72,7 +75,7 @@ export const useKYCStyles = () => {
       paddingTop: 16,
     },
     errorText: {
-      fontSize: 12,
+      fontSize: getScaledFontSize(12, textSizeMultiplier),
       color: colors.error,
       marginTop: 4,
     },
@@ -87,7 +90,7 @@ export const useKYCStyles = () => {
     },
     infoText: {
       flex: 1,
-      fontSize: isSmallScreen ? 13 : 14,
+      fontSize: getScaledFontSize(isSmallScreen ? 13 : 14, textSizeMultiplier),
       color: colors.textSecondary,
       lineHeight: isSmallScreen ? 18 : 20,
     },
@@ -102,7 +105,7 @@ export const useKYCStyles = () => {
     },
     warningText: {
       flex: 1,
-      fontSize: isSmallScreen ? 13 : 14,
+      fontSize: getScaledFontSize(isSmallScreen ? 13 : 14, textSizeMultiplier),
       color: colors.warning,
       lineHeight: isSmallScreen ? 18 : 20,
     },
@@ -112,7 +115,7 @@ export const useKYCStyles = () => {
       flex: 1,
     },
     dateInputText: {
-      fontSize: 18,
+      fontSize: getScaledFontSize(18, textSizeMultiplier),
       color: colors.text,
       marginLeft: 12,
     },
@@ -120,7 +123,7 @@ export const useKYCStyles = () => {
       color: colors.textTertiary,
     },
     locationInfo: {
-      fontSize: 12,
+      fontSize: getScaledFontSize(12, textSizeMultiplier),
       color: colors.success,
       marginTop: 4,
       fontStyle: 'italic',
@@ -146,7 +149,7 @@ export const useKYCStyles = () => {
       marginTop: 12,
     },
     matchedNameText: {
-      fontSize: 14,
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
       color: colors.success,
       fontWeight: '500',
     },
@@ -173,7 +176,7 @@ export const useKYCStyles = () => {
       backgroundColor: colors.backgroundTertiary,
     },
     idOptionText: {
-      fontSize: 14,
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
       color: colors.text,
       fontWeight: '500',
     },
@@ -200,7 +203,7 @@ export const useKYCStyles = () => {
       backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
     },
     identityTypeText: {
-      fontSize: 14,
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
       fontWeight: '500',
       color: colors.text,
     },
@@ -223,7 +226,7 @@ export const useKYCStyles = () => {
       marginBottom: 8,
     },
     documentName: {
-      fontSize: 14,
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
       fontWeight: '500',
       color: colors.text,
     },
@@ -234,7 +237,7 @@ export const useKYCStyles = () => {
       borderRadius: 12,
     },
     documentStatusText: {
-      fontSize: 12,
+      fontSize: getScaledFontSize(12, textSizeMultiplier),
       color: colors.primary,
       fontWeight: '500',
     },
@@ -251,7 +254,7 @@ export const useKYCStyles = () => {
       color: colors.textSecondary,
     },
     documentDescription: {
-      fontSize: 14,
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
       color: colors.textSecondary,
       marginBottom: 16,
       lineHeight: 20,
@@ -275,7 +278,7 @@ export const useKYCStyles = () => {
       paddingHorizontal: 16,
     },
     documentButtonText: {
-      fontSize: 14,
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
       color: colors.primary,
       fontWeight: '500',
     },
@@ -301,7 +304,7 @@ export const useKYCStyles = () => {
       gap: 8,
     },
     uploadText: {
-      fontSize: 14,
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
       color: colors.textSecondary,
       fontWeight: '500',
     },
@@ -327,7 +330,7 @@ export const useKYCStyles = () => {
     },
     retakeButtonText: {
       color: '#FFFFFF',
-      fontSize: 12,
+      fontSize: getScaledFontSize(12, textSizeMultiplier),
       fontWeight: '500',
     },
     reviewSection: {
@@ -342,7 +345,7 @@ export const useKYCStyles = () => {
       borderColor: colors.border,
     },
     reviewSectionTitle: {
-      fontSize: 16,
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
       fontWeight: '600',
       color: colors.text,
       marginBottom: 16,
@@ -351,12 +354,12 @@ export const useKYCStyles = () => {
       marginBottom: 12,
     },
     reviewLabel: {
-      fontSize: 14,
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
       color: colors.textSecondary,
       marginBottom: 4,
     },
     reviewValue: {
-      fontSize: 16,
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
       color: colors.text,
       flexDirection: 'row',
       alignItems: 'center',
@@ -374,7 +377,7 @@ export const useKYCStyles = () => {
       marginBottom: 24,
     },
     termsText: {
-      fontSize: 14,
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
       color: colors.textSecondary,
       lineHeight: 20,
     },
@@ -391,7 +394,7 @@ export const useKYCStyles = () => {
       opacity: 0.6,
     },
     buttonText: {
-      fontSize: 16,
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
       fontWeight: '600',
       color: '#FFFFFF',
     },

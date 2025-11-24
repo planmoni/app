@@ -105,7 +105,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     },
     shadowOpacity: 0.25,
     shadowRadius: 8,
-    elevation: 10,
   },
   iconContainer: {
     width: isSmallScreen ? 80 : 96,
@@ -146,7 +145,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 4,
   },
   buttonIcon: {
     marginRight: 8,

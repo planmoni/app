@@ -4,7 +4,9 @@ import SafeFooter from '@/components/SafeFooter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTextSize } from '@/contexts/TextSizeContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { getScaledFontSize } from '@/lib/textSize';
 import { supabase } from '@/lib/supabase';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -19,7 +21,8 @@ import {
   FileText as Terms, 
   Fingerprint, 
   Gift, 
-  CircleHelp as HelpCircle, 
+  CircleHelp as HelpCircle,
+  CircleHelp as HelpCircleIcon, 
   Languages, 
   Lock, 
   LogOut, 
@@ -44,20 +47,26 @@ import NotificationSettingsModal from '@/components/NotificationSettingsModal';
 import SecurityModal from '@/components/SecurityModal';
 import SupportModal from '@/components/SupportModal';
 import TermsModal from '@/components/TermsModal';
+import TextSizeModal from '@/components/TextSizeModal';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import React from 'react';
 import { useEmailNotifications } from '@/hooks/useEmailNotifications';
 import { useAppVersion } from '@/contexts/AppVersionContext';
 import Constants from 'expo-constants';
 import { Download, Info } from 'lucide-react-native';
+import { useIntercom } from '@/hooks/useIntercom';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 export default function SettingsScreen() {
-  const { colors, theme, setTheme } = useTheme();
+  const { colors, theme, setTheme, isDark } = useTheme();
+  const { textSizeMultiplier, setTextSizeMultiplier } = useTextSize();
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
   const haptics = useHaptics();
   const { settings: emailSettings, updateSettings: updateEmailSettings } = useEmailNotifications();
   const { needsUpdate, checkForUpdates, currentVersion, currentBuild, isChecking } = useAppVersion();
+  const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   
   const firstName = session?.user?.user_metadata?.first_name || '';
   const lastName = session?.user?.user_metadata?.last_name || '';
@@ -80,6 +89,7 @@ export default function SettingsScreen() {
   const [showSupport, setShowSupport] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [showTextSize, setShowTextSize] = useState(false);
 
   // Log screen view for analytics
   useEffect(() => {
@@ -309,40 +319,102 @@ export default function SettingsScreen() {
     );
   };
 
-  const styles = createStyles(colors);
+  // Handle help button press
+  const handleHelpPress = async () => {
+    if (!isIntercomSupported) {
+      return;
+    }
+    try {
+      console.log('🎯 Help button pressed - opening Intercom instantly');
+      await openChat();
+      logAnalyticsEvent('help_click');
+    } catch (error) {
+      console.error('❌ Failed to open Intercom:', error);
+      Alert.alert(
+        'Support Chat Unavailable',
+        'Unable to open support chat at the moment. This might be due to network connectivity issues. Would you like to try again?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Retry', 
+            onPress: () => {
+              console.log('🔄 Retrying Intercom...');
+              handleHelpPress();
+            }
+          }
+        ]
+      );
+    }
+  };
+
+  const styles = createStyles(colors, textSizeMultiplier);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Settings</Text>
+        <Pressable
+          style={styles.helpButton}
+          onPress={handleHelpPress}
+          disabled={!isIntercomSupported || isHelpLoading}
+        >
+          <HelpCircleIcon size={20} color={colors.textSecondary} />
+        </Pressable>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Pressable style={styles.profileCard} onPress={handleViewProfile}>
-          <View style={styles.profileContent}>
-            <InitialsAvatar 
-              firstName={firstName} 
-              lastName={lastName} 
-              size={60}
-              fontSize={24}
-            />
-            <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{firstName} {lastName}</Text>
-              <Text style={styles.profileEmail}>{email}</Text>
-              <View style={styles.badgeContainer}>
-                <View style={styles.verifiedBadge}>
-                  <Text style={styles.verifiedText}>Verified</Text>
-                </View>
-                {!isLoading2FA && twoFactorEnabled && (
-                  <View style={styles.twoFactorBadge}>
-                    <Text style={styles.twoFactorText}>2FA</Text>
-                  </View>
-                )}
-              </View>
+        {!isAuthenticated && (
+          <View style={styles.loginPromptCard}>
+            <Text style={[styles.loginPromptTitle, { color: colors.text }]}>
+              Login Required
+            </Text>
+            <Text style={[styles.loginPromptText, { color: colors.textSecondary }]}>
+              Login to access all settings and manage your account preferences.
+            </Text>
+            <View style={styles.authButtonsContainer}>
+              <Pressable
+                style={[styles.signUpButton, { backgroundColor: colors.primary }]}
+                onPress={() => router.push('/(auth)/onboarding/first-name')}
+              >
+                <Text style={styles.signUpButtonText}>Sign Up</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.loginPromptButton, { borderColor: isDark ? '#fff' : colors.primary }]}
+                onPress={() => requireAuth(() => {}, '/(tabs)/settings')}
+              >
+                <Text style={[styles.loginPromptButtonText, { color: isDark ? '#fff' : colors.primary }]}>Login</Text>
+              </Pressable>
             </View>
           </View>
-          <ChevronRight size={20} color={colors.textSecondary} />
-        </Pressable>
+        )}
+        
+        {isAuthenticated && (
+          <Pressable style={styles.profileCard} onPress={handleViewProfile}>
+            <View style={styles.profileContent}>
+              <InitialsAvatar 
+                firstName={firstName} 
+                lastName={lastName} 
+                size={60}
+                fontSize={getScaledFontSize(24, textSizeMultiplier)}
+              />
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileName}>{firstName} {lastName}</Text>
+                <Text style={styles.profileEmail}>{email}</Text>
+                <View style={styles.badgeContainer}>
+                  <View style={styles.verifiedBadge}>
+                    <Text style={styles.verifiedText}>Verified</Text>
+                  </View>
+                  {!isLoading2FA && twoFactorEnabled && (
+                    <View style={styles.twoFactorBadge}>
+                      <Text style={styles.twoFactorText}>2FA</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+            <ChevronRight size={20} color={colors.textSecondary} />
+          </Pressable>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Preferences</Text>
@@ -408,13 +480,38 @@ export default function SettingsScreen() {
                 </Pressable>
               </View>
             </View>
+
+            <View style={styles.divider} />
+
+            <Pressable
+              style={styles.settingItem}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                }
+                setShowTextSize(true);
+                logAnalyticsEvent('open_text_size_settings');
+              }}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Sliders size={20} color={colors.textSecondary} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Display</Text>
+                <Text style={styles.settingDescription}>Current text size: 
+                  {Math.round(textSizeMultiplier * 100)}% 
+                </Text>
+              </View>
+              <ChevronRight size={20} color={colors.textSecondary} />
+            </Pressable>
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          
-          <View style={styles.card}>
+        {isAuthenticated && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Account</Text>
+            
+            <View style={styles.card}>
             <Pressable 
               style={styles.settingItem}
               onPress={() => {
@@ -429,8 +526,8 @@ export default function SettingsScreen() {
                 <Terms size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
-                <Text style={styles.settingLabel}>Generate Account Statement</Text>
-                <Text style={styles.settingDescription}>PDF/CSV export, custom range</Text>
+                <Text style={styles.settingLabel}>Account Statement</Text>
+                <Text style={styles.settingDescription}>Get a detailed statement of your account activity</Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
             </Pressable>
@@ -519,11 +616,13 @@ export default function SettingsScreen() {
             </Pressable> */}
           </View>
         </View>
+        )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Security</Text>
-          
-          <View style={styles.card}>
+        {isAuthenticated && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Security</Text>
+            
+            <View style={styles.card}>
             <Pressable 
               style={styles.settingItem}
               onPress={() => {
@@ -618,11 +717,13 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
         </View>
+        )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
-          
-          <View style={styles.card}>
+        {isAuthenticated && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Notifications</Text>
+            
+            <View style={styles.card}>
             <View style={styles.settingItem}>
               <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
                 <Bell size={20} color={colors.textSecondary} />
@@ -698,6 +799,7 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
         </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Support & Legal</Text>
@@ -825,24 +927,25 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.accountActions}>
-
-          <Pressable 
-            style={styles.signOutButton}
-            onPress={handleSignOut}
-          >
-            <LogOut size={20} color="#EF4444" />
-            <Text style={styles.signOutText}>Sign Out</Text>
-          </Pressable>
-          
-          <Pressable 
-            style={styles.deleteAccountButton}
-            onPress={handleDeleteAccount}
-          >
-            <Trash2 size={20} color={colors.textTertiary} />
-            <Text style={styles.deleteAccountText}>Close your account</Text>
-          </Pressable>
-        </View>
+        {isAuthenticated && (
+          <View style={styles.accountActions}>
+            <Pressable 
+              style={styles.signOutButton}
+              onPress={handleSignOut}
+            >
+              <LogOut size={20} color="#EF4444" />
+              <Text style={styles.signOutText}>Sign Out</Text>
+            </Pressable>
+            
+            <Pressable 
+              style={styles.deleteAccountButton}
+              onPress={handleDeleteAccount}
+            >
+              <Trash2 size={20} color={colors.textTertiary} />
+              <Text style={styles.deleteAccountText}>Close your account</Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
 
      
@@ -906,18 +1009,31 @@ export default function SettingsScreen() {
           setShowTerms(false);
         }}
       />
+
+      <TextSizeModal
+        isVisible={showTextSize}
+        onClose={() => {
+          if (Platform.OS !== 'web') {
+            haptics.lightImpact();
+          }
+          setShowTextSize(false);
+        }}
+      />
       
       
     </SafeAreaView>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, textSizeMultiplier: number) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: colors.surface,
@@ -925,9 +1041,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: Platform.OS === 'ios' ? 24 : 20,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 24 : 20, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
+  },
+  helpButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
@@ -957,13 +1081,13 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   profileName: {
-    fontSize: Platform.OS === 'ios' ? 18 : 16,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   profileEmail: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
     marginBottom: Platform.OS === 'ios' ? 6 : 4,
   },
@@ -979,7 +1103,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 12,
   },
   verifiedText: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.accent,
     fontWeight: '500',
   },
@@ -993,7 +1117,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 4,
   },
   twoFactorText: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     color: '#1E3A8A',
     fontWeight: '500',
   },
@@ -1001,7 +1125,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   sectionTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     marginBottom: 12,
@@ -1037,7 +1161,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 2,
   },
   settingLabel: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
     flex: 1,
@@ -1049,11 +1173,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginLeft: 8,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     fontWeight: '600',
   },
   settingDescription: {
-    fontSize: Platform.OS === 'ios' ? 13 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
     color: colors.textSecondary,
   },
   divider: {
@@ -1078,7 +1202,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   themeOptionText: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
   },
@@ -1103,7 +1227,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     width: '100%',
   },
   signOutText: {
-    fontSize: 16,
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     fontWeight: '600',
     color: '#EF4444',
     marginLeft: 12,
@@ -1115,12 +1239,71 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 12,
   },
   deleteAccountText: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textTertiary,
     marginLeft: 8,
   },
+  loginPromptCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 24,
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  loginPromptTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 18, textSizeMultiplier),
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loginPromptText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  authButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  signUpButton: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signUpButtonText: {
+    color: '#FFFFFF',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
+  },
+  loginPromptButton: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginPromptButtonText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
+  },
   disabledSettingItem: {
     opacity: 0.5,
+  },
+  updateBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   comingSoonTag: {
     backgroundColor: colors.backgroundTertiary,
@@ -1131,7 +1314,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignSelf: 'center',
   },
   comingSoonText: {
-    fontSize: 11,
+    fontSize: getScaledFontSize(11, textSizeMultiplier),
     color: colors.textSecondary,
     fontWeight: '600',
   },

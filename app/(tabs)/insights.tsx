@@ -1,7 +1,7 @@
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable } from 'react-native';
 import { TrendingUp, TrendingDown, Users, ArrowUpRight, ArrowDownRight, Wallet, Clock, Calendar, Send } from 'lucide-react-native';
 import Card from '@/components/Card';
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useInsightsData } from '@/hooks/useInsightsData';
@@ -9,12 +9,21 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import Button from '@/components/Button';
 import SummaryCard from '@/components/SummaryCard';
+import { supabase } from '@/lib/supabase';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
+import { logAnalyticsEvent } from '@/lib/firebase';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 
 export default function InsightsScreen() {
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const { metrics, trends, vaultStats, isLoading, error, refreshInsights } = useInsightsData();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
+  const [customPayoutDates, setCustomPayoutDates] = useState<Record<string, string[]>>({});
+  const [vaultStatsLimit, setVaultStatsLimit] = useState(5);
 
   // Map icon names to components
   const getIconComponent = (iconName: string) => {
@@ -30,8 +39,9 @@ export default function InsightsScreen() {
   };
 
   // Calculate summary stats from actual data
+  // Total amount of plans created = sum of all plan total_amounts
   const totalPaidOut = payoutPlans.reduce((sum, plan) => 
-    sum + (plan.completed_payouts * plan.payout_amount), 0
+    sum + plan.total_amount, 0
   );
   
   const pendingPayouts = payoutPlans
@@ -40,77 +50,169 @@ export default function InsightsScreen() {
       sum + ((plan.duration - plan.completed_payouts) * plan.payout_amount), 0
     );
 
+  // Completion rate = average completion percentage across all plans
   const completionRate = payoutPlans.length > 0 
-    ? Math.round((payoutPlans.filter(plan => plan.status === 'completed').length / payoutPlans.length) * 100)
+    ? Math.round(
+        payoutPlans.reduce((sum, plan) => {
+          const planCompletion = (plan.completed_payouts / plan.duration) * 100;
+          return sum + planCompletion;
+        }, 0) / payoutPlans.length
+      )
     : 0;
 
   // Get active payout plans for display
   const activePlans = payoutPlans.filter(plan => plan.status === 'active');
 
-  // Find the last payout date - the most recent completed payout
+  // Fetch custom payout dates for custom frequency plans
+  useEffect(() => {
+    const fetchCustomDates = async () => {
+      const customPlans = payoutPlans.filter(plan => plan.frequency === 'custom' && plan.status === 'active');
+      if (customPlans.length === 0) return;
+
+      try {
+        const planIds = customPlans.map(plan => plan.id);
+        const { data, error } = await supabase
+          .from('custom_payout_dates')
+          .select('payout_plan_id, payout_date')
+          .in('payout_plan_id', planIds)
+          .order('payout_date', { ascending: true });
+
+        if (error) throw error;
+
+        // Group dates by plan_id
+        const datesByPlan: Record<string, string[]> = {};
+        data?.forEach(item => {
+          if (!datesByPlan[item.payout_plan_id]) {
+            datesByPlan[item.payout_plan_id] = [];
+          }
+          datesByPlan[item.payout_plan_id].push(item.payout_date);
+        });
+
+        setCustomPayoutDates(datesByPlan);
+      } catch (error) {
+        console.error('Error fetching custom payout dates:', error);
+      }
+    };
+
+    fetchCustomDates();
+  }, [payoutPlans]);
+
+  // Calculate the final payout date for a single plan
+  const calculatePlanFinalDate = (plan: any): Date | null => {
+    if (!plan.start_date) return null;
+
+    const startDate = new Date(plan.start_date);
+    let finalDate = new Date(startDate);
+
+    // Calculate final payout date
+    // If duration is N, the last payout is at index N-1 (0-indexed)
+    // First payout: start_date (index 0)
+    // Last payout: start_date + (duration - 1) * frequency_interval
+    const lastPayoutIndex = plan.duration - 1;
+
+    if (plan.frequency === 'daily') {
+      // Daily: add (duration - 1) days
+      finalDate.setDate(startDate.getDate() + lastPayoutIndex);
+    } else if (plan.frequency === 'weekly') {
+      // Weekly: add (duration - 1) * 7 days
+      finalDate.setDate(startDate.getDate() + (lastPayoutIndex * 7));
+    } else if (plan.frequency === 'biweekly') {
+      // Biweekly: add (duration - 1) * 14 days
+      finalDate.setDate(startDate.getDate() + (lastPayoutIndex * 14));
+    } else if (plan.frequency === 'monthly') {
+      // Monthly: add (duration - 1) months
+      finalDate.setMonth(startDate.getMonth() + lastPayoutIndex);
+    } else if (plan.frequency === 'custom') {
+      // For custom, get the last date from custom_payout_dates
+      const dates = customPayoutDates[plan.id];
+      if (dates && dates.length > 0) {
+        // Get the last (latest) date from the sorted array
+        const lastDate = dates[dates.length - 1];
+        finalDate = new Date(lastDate);
+      } else {
+        // Fallback: estimate based on next_payout_date and remaining payouts
+        if (plan.next_payout_date) {
+          const remainingPayouts = plan.duration - plan.completed_payouts;
+          if (remainingPayouts > 0) {
+            const nextDate = new Date(plan.next_payout_date);
+            finalDate = new Date(nextDate);
+            // Estimate: assume similar interval between payouts
+            // Use the interval from start to next_payout_date
+            const daysDiff = Math.round(
+              (nextDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+            );
+            if (daysDiff > 0) {
+              finalDate.setDate(nextDate.getDate() + (daysDiff * (remainingPayouts - 1)));
+            } else {
+              // Fallback to monthly estimate
+              finalDate.setMonth(nextDate.getMonth() + (remainingPayouts - 1));
+            }
+          }
+        } else {
+          return null;
+        }
+      }
+    }
+
+    return finalDate;
+  };
+
+  // Find the final payout date - the latest final payout date across all active plans
   const getLastPayoutDate = () => {
-    // Sort all plans by their completed_payouts and find the most recent one
-    const completedPayouts = payoutPlans.filter(plan => plan.completed_payouts > 0);
+    // Priority: Check active plans first (these are the ones with future payouts)
+    const activePlans = payoutPlans.filter(plan => plan.status === 'active');
     
-    if (completedPayouts.length === 0) {
+    let latestFinalDate: Date | null = null;
+
+    if (activePlans.length > 0) {
+      // Calculate final payout date for each active plan and find the latest
+      activePlans.forEach(plan => {
+        const planFinalDate = calculatePlanFinalDate(plan);
+        if (planFinalDate && (!latestFinalDate || planFinalDate > latestFinalDate)) {
+          latestFinalDate = planFinalDate;
+        }
+      });
+    }
+
+    // If no active plans, check completed plans to show the most recent final payout
+    if (!latestFinalDate) {
+      const completedPlans = payoutPlans.filter(plan => plan.status === 'completed');
+      if (completedPlans.length > 0) {
+        completedPlans.forEach(plan => {
+          const planFinalDate = calculatePlanFinalDate(plan);
+          if (planFinalDate && (!latestFinalDate || planFinalDate > latestFinalDate)) {
+            latestFinalDate = planFinalDate;
+          }
+        });
+      }
+    }
+
+    if (!latestFinalDate) {
       return 'No payouts yet';
     }
-    
-    // For simplicity, we'll use the start_date and completed_payouts to estimate the last payout date
-    // In a real app, you would track actual payout dates in transactions
-    const mostRecentPlan = completedPayouts.reduce((latest, current) => {
-      const latestDate = new Date(latest.start_date);
-      const currentDate = new Date(current.start_date);
-      
-      // Add time based on frequency and completed payouts
-      let latestPayoutDate = new Date(latestDate);
-      let currentPayoutDate = new Date(currentDate);
-      
-      if (latest.frequency === 'weekly') {
-        latestPayoutDate.setDate(latestDate.getDate() + (7 * (latest.completed_payouts - 1)));
-      } else if (latest.frequency === 'biweekly') {
-        latestPayoutDate.setDate(latestDate.getDate() + (14 * (latest.completed_payouts - 1)));
-      } else if (latest.frequency === 'monthly') {
-        latestPayoutDate.setMonth(latestDate.getMonth() + (latest.completed_payouts - 1));
-      }
-      
-      if (current.frequency === 'weekly') {
-        currentPayoutDate.setDate(currentDate.getDate() + (7 * (current.completed_payouts - 1)));
-      } else if (current.frequency === 'biweekly') {
-        currentPayoutDate.setDate(currentDate.getDate() + (14 * (current.completed_payouts - 1)));
-      } else if (current.frequency === 'monthly') {
-        currentPayoutDate.setMonth(currentDate.getMonth() + (current.completed_payouts - 1));
-      }
-      
-      return currentPayoutDate > latestPayoutDate ? current : latest;
-    });
-    
-    // Calculate the estimated last payout date
-    const startDate = new Date(mostRecentPlan.start_date);
-    let lastPayoutDate = new Date(startDate);
-    
-    if (mostRecentPlan.frequency === 'weekly') {
-      lastPayoutDate.setDate(startDate.getDate() + (7 * (mostRecentPlan.completed_payouts - 1)));
-    } else if (mostRecentPlan.frequency === 'biweekly') {
-      lastPayoutDate.setDate(startDate.getDate() + (14 * (mostRecentPlan.completed_payouts - 1)));
-    } else if (mostRecentPlan.frequency === 'monthly') {
-      lastPayoutDate.setMonth(startDate.getMonth() + (mostRecentPlan.completed_payouts - 1));
-    }
-    
-    return lastPayoutDate.toLocaleDateString('en-US', {
+
+    return latestFinalDate.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
   };
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   if (isLoading || payoutPlansLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Insights</Text>
+          {!isAuthenticated && (
+            <Pressable 
+              onPress={() => requireAuth(() => {}, '/(tabs)/insights')} 
+              style={styles.loginButton}
+            >
+              <Text style={styles.loginButtonText}>Login</Text>
+            </Pressable>
+          )}
         </View>
         <View style={styles.loadingContainer}>
           <PlanmoniLoader size="medium" description="Loading insights data..." />
@@ -124,6 +226,14 @@ export default function InsightsScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Insights</Text>
+          {!isAuthenticated && (
+            <Pressable 
+              onPress={() => requireAuth(() => {}, '/(tabs)/insights')} 
+              style={styles.loginButton}
+            >
+              <Text style={styles.loginButtonText}>Login</Text>
+            </Pressable>
+          )}
         </View>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
@@ -141,6 +251,14 @@ export default function InsightsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Insights</Text>
+        {!isAuthenticated && (
+          <Pressable 
+            onPress={() => requireAuth(() => {}, '/(tabs)/insights')} 
+            style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
+          >
+            <Text style={[styles.loginButtonText, { color: isDark ? '#fff' : colors.primary }]}>Login</Text>
+          </Pressable>
+        )}
       </View>
       
       <ScrollView style={styles.content}>
@@ -195,6 +313,7 @@ export default function InsightsScreen() {
             getLastPayoutDate={getLastPayoutDate}
           />
 
+          {isAuthenticated && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Performance Trends</Text>
             {trends.map((trend, index) => (
@@ -218,7 +337,7 @@ export default function InsightsScreen() {
                   ]}>
                     <Text style={[
                       styles.trendValueText,
-                      { color: trend.positive ? colors.text : colors.error }
+                      { color: trend.positive ? colors.primary : colors.error }
                     ]}>
                       {trend.value}
                     </Text>
@@ -227,6 +346,7 @@ export default function InsightsScreen() {
               </Card>
             ))}
           </View>
+          )}
           
 
           <View style={styles.section}>
@@ -239,53 +359,62 @@ export default function InsightsScreen() {
                 </Text>
               </Card>
             ) : (
-              vaultStats.map((vault, index) => (
-                <Card key={index} style={styles.vaultCard}>
-                  <View style={styles.vaultHeader}>
-                    <Text style={styles.vaultTitle}>{vault.title}</Text>
-                    <View style={[
-                      styles.vaultStatus,
-                      { 
-                        backgroundColor: vault.status === 'Active' ? '#DCFCE7' : 
-                                        vault.status === 'Paused' ? '#FEE2E2' : 
-                                        vault.status === 'Completed' ? '#EFF6FF' : '#FEF3C7' 
-                      }
-                    ]}>
-                      <Text style={[
-                        styles.vaultStatusText,
+              <>
+                {vaultStats.slice(0, vaultStatsLimit).map((vault, index) => (
+                  <Card key={index} style={styles.vaultCard}>
+                    <View style={styles.vaultHeader}>
+                      <Text style={styles.vaultTitle}>{vault.title}</Text>
+                      <View style={[
+                        styles.vaultStatus,
                         { 
-                          color: vault.status === 'Active' ? '#22C55E' : 
-                                vault.status === 'Paused' ? '#EF4444' : 
-                                vault.status === 'Completed' ? '#1E3A8A' : '#D97706' 
+                          backgroundColor: vault.status === 'Active' ? '#DCFCE7' : 
+                                          vault.status === 'Paused' ? '#FEE2E2' : 
+                                          vault.status === 'Completed' ? '#EFF6FF' : '#FEF3C7' 
                         }
-                      ]}>{vault.status}</Text>
+                      ]}>
+                        <Text style={[
+                          styles.vaultStatusText,
+                          { 
+                            color: vault.status === 'Active' ? '#22C55E' : 
+                                  vault.status === 'Paused' ? '#EF4444' : 
+                                  vault.status === 'Completed' ? '#1E3A8A' : '#D97706' 
+                          }
+                        ]}>{vault.status}</Text>
+                      </View>
                     </View>
-                  </View>
-                  
-                  <View style={styles.vaultStats}>
-                    <View style={styles.vaultStat}>
-                      <Text style={styles.vaultStatLabel}>Total</Text>
-                      <Text style={styles.vaultStatValue}>{vault.total}</Text>
+                    
+                    <View style={styles.vaultStats}>
+                      <View style={styles.vaultStat}>
+                        <Text style={styles.vaultStatLabel}>Total</Text>
+                        <Text style={styles.vaultStatValue}>{vault.total}</Text>
+                      </View>
+                      <View style={styles.vaultStat}>
+                        <Text style={styles.vaultStatLabel}>Progress</Text>
+                        <Text style={styles.vaultStatValue}>{vault.progress}</Text>
+                      </View>
+                      <View style={styles.vaultStat}>
+                        <Text style={styles.vaultStatLabel}>Next Payout</Text>
+                        <Text style={styles.vaultStatValue}>{vault.nextPayout}</Text>
+                      </View>
                     </View>
-                    <View style={styles.vaultStat}>
-                      <Text style={styles.vaultStatLabel}>Progress</Text>
-                      <Text style={styles.vaultStatValue}>{vault.progress}</Text>
+                    <View style={styles.progressBar}>
+                      <View 
+                        style={[
+                          styles.progressFill,
+                          { width: parseFloat(vault.progress) }
+                        ]} 
+                      />
                     </View>
-                    <View style={styles.vaultStat}>
-                      <Text style={styles.vaultStatLabel}>Next Payout</Text>
-                      <Text style={styles.vaultStatValue}>{vault.nextPayout}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.progressBar}>
-                    <View 
-                      style={[
-                        styles.progressFill,
-                        { width: parseFloat(vault.progress) }
-                      ]} 
-                    />
-                  </View>
-                </Card>
-              ))
+                  </Card>
+                ))}
+                {vaultStats.length > vaultStatsLimit && (
+                  <Button
+                    title={`Load More (${vaultStats.length - vaultStatsLimit} remaining)`}
+                    onPress={() => setVaultStatsLimit(prev => prev + 5)}
+                    style={styles.loadMoreButton}
+                  />
+                )}
+              </>
             )}
           </View>
         </View>
@@ -294,12 +423,15 @@ export default function InsightsScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: colors.surface,
@@ -307,9 +439,22 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerTitle: {
-    fontSize: Platform.OS === 'ios' ? 24 : 20,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 24 : 20, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
+  },
+  loginButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loginButtonText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
   },
   content: {
     flex: 1,
@@ -325,7 +470,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 16,
   },
   loadingText: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     color: colors.textSecondary,
   },
   errorContainer: {
@@ -335,7 +480,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 24,
   },
   errorText: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     color: colors.error,
     textAlign: 'center',
     marginBottom: 16,
@@ -345,7 +490,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   sectionTitle: {
-    fontSize: Platform.OS === 'ios' ? 18 : 16,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     marginBottom: 16,
@@ -368,7 +513,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 12,
   },
   metricTitle: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
   },
   metricIcon: {
@@ -379,7 +524,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   metricValue: {
-    fontSize: Platform.OS === 'ios' ? 24 : 20,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 24 : 20, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -391,11 +536,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 8,
   },
   metricChangeText: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     fontWeight: '500',
   },
   metricDescription: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.textSecondary,
   },
   section: {
@@ -411,13 +556,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: Platform.OS === 'ios' ? 16 : 10,
   },
   trendTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
     marginBottom: 4,
   },
   trendDescription: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
     marginBottom: 12,
   },
@@ -430,11 +575,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   detailLabel: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.textSecondary,
   },
   detailValue: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
   },
@@ -444,7 +589,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 16,
   },
   trendValueText: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
   },
   vaultCard: {
@@ -457,14 +602,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
   },
   emptyVaultText: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
     marginBottom: 8,
     textAlign: 'center',
   },
   emptyVaultSubtext: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
     textAlign: 'center',
   },
@@ -475,7 +620,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 16,
   },
   vaultTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
     maxWidth: '80%',
@@ -486,7 +631,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 12,
   },
   vaultStatusText: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     fontWeight: '500',
   },
   vaultStats: {
@@ -498,12 +643,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   vaultStatLabel: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.textSecondary,
     marginBottom: 4,
   },
   vaultStatValue: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -516,5 +661,43 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     height: '100%',
     backgroundColor: '#1E3A8A',
     borderRadius: 2,
+  },
+  loadMoreButton: {
+    marginTop: Platform.OS === 'ios' ? 12 : 10,
+    backgroundColor: colors.primary,
+  },
+  loginPromptContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loginPromptCard: {
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    maxWidth: 400,
+  },
+  loginPromptTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 18, textSizeMultiplier),
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loginPromptText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  loginPromptButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  loginPromptButtonText: {
+    color: '#FFFFFF',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
   },
 });

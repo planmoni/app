@@ -1,7 +1,30 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert, Platform } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
-import Intercom, { Visibility } from '@intercom/intercom-react-native';
+
+// The Intercom native module is not available in Expo Go / web / tests.
+// Importing it unconditionally causes runtime crashes because the module's
+// initialization tries to access constants on a null native proxy.
+// To keep the app stable we resolve the module lazily and guard every usage.
+type IntercomModule = typeof import('@intercom/intercom-react-native');
+
+let intercomModule: IntercomModule | null = null;
+let Intercom: IntercomModule['default'] | null = null;
+let Visibility: IntercomModule['Visibility'] | { VISIBLE: string; GONE: string } = {
+  VISIBLE: 'VISIBLE',
+  GONE: 'GONE',
+};
+
+if (Platform.OS === 'ios' || Platform.OS === 'android') {
+  try {
+    intercomModule = require('@intercom/intercom-react-native');
+    Intercom = intercomModule.default;
+    Visibility = intercomModule.Visibility;
+  } catch (error) {
+    console.warn('[Intercom] Native module unavailable, continuing without it.', error);
+    Intercom = null;
+  }
+}
 
 // Global state to track authentication across app
 let globalAuthState = {
@@ -17,12 +40,73 @@ export function useIntercom() {
   const isAuthenticatedRef = useRef(false);
 
   // Check if Intercom is supported on this platform
-  const isSupported = Platform.OS !== 'web';
+  const isSupported = Platform.OS !== 'web' && !!Intercom;
 
-  // Authenticate user with Intercom
+  // Authenticate user with Intercom (or login as unidentified if no session)
   const authenticateUser = useCallback(async () => {
-    if (!session?.user?.id) {
+    if (!Intercom) {
+      console.log('[Intercom] Module unavailable, skipping authentication');
       return;
+    }
+
+    // If no session, login as unidentified user
+    if (!session?.user?.id) {
+      // Check if already logged in as unidentified
+      if (globalAuthState.isAuthenticated && globalAuthState.currentUserId === 'unidentified') {
+        console.log('✅ Already logged in as unidentified user');
+        return;
+      }
+
+      // If authentication is in progress, wait for it
+      if (globalAuthState.isAuthenticating && globalAuthState.authPromise) {
+        console.log('⏳ Intercom authentication in progress, waiting...');
+        await globalAuthState.authPromise;
+        return;
+      }
+
+      // Start unidentified user login
+      globalAuthState.isAuthenticating = true;
+      globalAuthState.authPromise = (async () => {
+        try {
+          console.log('👤 Logging in as unidentified user...');
+          
+          // Logout any existing user first
+          try {
+            await Intercom.logout();
+            await new Promise(resolve => setTimeout(resolve, 100));
+          } catch (logoutError) {
+            console.log('ℹ️ No existing Intercom session to logout');
+          }
+          
+          // Login as unidentified user
+          await Intercom.loginUnidentifiedUser();
+          
+          // Hide the Intercom floating button
+          try {
+            await Intercom.setLauncherVisibility(Visibility.GONE);
+            console.log('✅ Intercom floating button hidden');
+          } catch (visibilityError) {
+            console.warn('⚠️ Failed to hide Intercom launcher:', visibilityError);
+          }
+          
+          // Update global state
+          globalAuthState.isAuthenticated = true;
+          globalAuthState.currentUserId = 'unidentified';
+          isAuthenticatedRef.current = true;
+          
+          console.log('✅ Unidentified user logged in successfully');
+        } catch (error) {
+          console.error('❌ Failed to login as unidentified user:', error);
+          globalAuthState.isAuthenticated = false;
+          globalAuthState.currentUserId = null;
+          isAuthenticatedRef.current = false;
+        } finally {
+          globalAuthState.isAuthenticating = false;
+          globalAuthState.authPromise = null;
+        }
+      })();
+
+      return globalAuthState.authPromise;
     }
 
     // If already authenticated for this user, return immediately
@@ -176,7 +260,7 @@ export function useIntercom() {
     return globalAuthState.authPromise;
   }, [session]);
 
-  // Authenticate when user session is available
+  // Authenticate when user session is available, or login as unidentified if no session
   useEffect(() => {
     if (session?.user?.id) {
       // Add a small delay to ensure Intercom is ready
@@ -187,21 +271,21 @@ export function useIntercom() {
       }, 500); // 500ms delay to ensure native module is ready
       
       return () => clearTimeout(timer);
-    } else if (!session?.user?.id && globalAuthState.isAuthenticated) {
-      // Logout when user session is lost
-      console.log('🔄 User logged out, clearing Intercom authentication');
-      try {
-        Intercom.logout();
-      } catch (error) {
-        console.warn('Failed to logout from Intercom:', error);
+    } else if (!session?.user?.id) {
+      // If no session, login as unidentified user (but only if not already unidentified)
+      if (!globalAuthState.isAuthenticated || globalAuthState.currentUserId !== 'unidentified') {
+        const timer = setTimeout(() => {
+          authenticateUser().catch(error => {
+            console.warn('Background Intercom unidentified login failed:', error);
+          });
+        }, 500);
+        
+        return () => clearTimeout(timer);
       }
-      globalAuthState.isAuthenticated = false;
-      globalAuthState.currentUserId = null;
-      isAuthenticatedRef.current = false;
     }
   }, [session, authenticateUser]);
 
-  // Open Intercom chat
+  // Open Intercom chat (works for both authenticated and unauthenticated users)
   const openChat = useCallback(async () => {
     if (!isSupported) {
       Alert.alert('Not Supported', 'Intercom is not supported on web platform');
@@ -212,7 +296,8 @@ export function useIntercom() {
       setIsLoading(true);
       console.log('🎯 Opening Intercom chat...');
 
-      // Ensure user is authenticated (this will be instant if already authenticated)
+      // Ensure user is authenticated or logged in as unidentified
+      // This will authenticate logged-in users or login as unidentified for guests
       await authenticateUser();
 
       // Add a small delay to ensure Intercom is ready
@@ -225,15 +310,19 @@ export function useIntercom() {
 
     } catch (error) {
       console.error('❌ Failed to open Intercom chat:', error);
-      Alert.alert(
-        'Support Chat Unavailable',
-        'Unable to open support chat at the moment. Please try again later.',
-        [{ text: 'OK' }]
-      );
+      // Don't show alert for unauthenticated users - let them try again
+      // The error might be transient
+      if (session?.user?.id) {
+        Alert.alert(
+          'Support Chat Unavailable',
+          'Unable to open support chat at the moment. Please try again later.',
+          [{ text: 'OK' }]
+        );
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [isSupported, authenticateUser]);
+  }, [isSupported, authenticateUser, session]);
 
   return {
     openChat,

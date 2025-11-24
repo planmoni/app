@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
@@ -135,7 +135,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [session, error]);
 
-  const refreshBiometricSettings = async () => {
+  const refreshBiometricSettings = useCallback(async () => {
     try {
       if (Platform.OS === 'web') {
         setBiometricSettings(defaultBiometricSettings);
@@ -150,10 +150,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Failed to check biometric support:', error);
       setBiometricSettings(defaultBiometricSettings);
     }
-  };
+  }, []);
 
-
-  const setBiometricEnabled = async (enabled: boolean): Promise<boolean> => {
+  const setBiometricEnabled = useCallback(async (enabled: boolean): Promise<boolean> => {
     try {
       if (Platform.OS === 'web') {
         return false;
@@ -168,10 +167,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Failed to set biometric enabled:', error);
       return false;
     }
-  };
+  }, [refreshBiometricSettings]);
 
   // Enhanced signIn function that sends login notification and tracks login sessions
-  const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const signIn = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const result = await supabaseSignIn(email, password);
 
@@ -235,10 +234,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Sign-in error:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Sign-in failed' };
     }
-  };
+  }, [supabaseSignIn]);
 
   // Enhanced signOut function that clears profile snapshots and PIN data
-  const signOut = async (): Promise<void> => {
+  const signOut = useCallback(async (): Promise<void> => {
     try {
       const userId = session?.user?.id;
       
@@ -263,13 +262,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Sign-out error:', error);
       throw error;
     }
-  };
+  }, [session?.user?.id, supabaseSignOut]);
 
-
-  const handleSessionExpiredModalClose = () => {
+  const handleSessionExpiredModalClose = useCallback(() => {
     setShowSessionExpiredModal(false);
-  };
-  const value: AuthContextType = {
+  }, []);
+
+  // Memoize context value to prevent unnecessary re-renders
+  const value: AuthContextType = useMemo(() => ({
     session,
     user,
     isLoading,
@@ -281,7 +281,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     biometricSettings,
     setBiometricEnabled,
     refreshBiometricSettings,
-  };
+  }), [
+    session,
+    user,
+    isLoading,
+    error,
+    signIn,
+    signUp,
+    resetPassword,
+    signOut,
+    biometricSettings,
+    setBiometricEnabled,
+    refreshBiometricSettings,
+  ]);
 
   return (
     <AuthContext.Provider value={value}>

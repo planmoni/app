@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { Plus } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -6,50 +6,65 @@ import { useBalance } from '@/contexts/BalanceContext';
 import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
 import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface PayoutPlansSectionProps {
   activePlans: any[];
   onShowNewPlanInfo?: () => void;
+  onShowHowItWorks?: () => void;
 }
 
-export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: PayoutPlansSectionProps) {
+function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks }: PayoutPlansSectionProps) {
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const { showBalances, balance, availableBalance } = useBalance();
 
-  const formatBalance = (amount: number) => {
+  const formatBalance = useCallback((amount: number) => {
     return showBalances ? `₦${amount.toLocaleString()}` : '*********';
-  };
+  }, [showBalances]);
 
-  const handleViewPayout = (id: string) => {
+  const handleViewPayout = useCallback((id: string) => {
     router.push({
       pathname: '/view-payout',
       params: { id }
     });
     logAnalyticsEvent('view_payout', { payout_id: id });
-  };
+  }, []);
 
-  const handleViewAllPayouts = () => {
+  const handleViewAllPayouts = useCallback(() => {
     router.push('/all-payouts');
     logAnalyticsEvent('view_all_payouts');
-  };
+  }, []);
 
-  const handleCreatePayout = () => {
-    // Check if balance is ₦0 and no plans exist
-    const hasNoBalance = balance === 0 && availableBalance === 0;
-    const hasNoPlans = activePlans.length === 0;
-    
-    // If no balance and no plans, show info modal
-    if (hasNoBalance && hasNoPlans && onShowNewPlanInfo) {
+  const handleCreatePayout = useCallback(() => {
+    // Always show the new plan info modal for these buttons
+    if (onShowNewPlanInfo) {
       onShowNewPlanInfo();
-      logAnalyticsEvent('create_payout_click_no_balance_modal');
-    } else {
-      // Navigate directly to create payout
-    router.push('/create-payout/amount');
-    logAnalyticsEvent('create_payout_click');
+      logAnalyticsEvent('create_payout_click_modal');
     }
-  };
+  }, [onShowNewPlanInfo]);
 
-  const styles = createStyles(colors, isDark);
+  const memoizedPlans = useMemo(() => {
+    return activePlans.map((plan) => {
+      const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
+      const completedAmount = plan.completed_payouts * plan.payout_amount;
+      const dayOfWeek = (plan as any).metadata?.dayOfWeek;
+      const originalFrequency = (plan as any).metadata?.originalFrequency || plan.frequency;
+      
+      return {
+        ...plan,
+        progress,
+        completedAmount,
+        dayOfWeek,
+        originalFrequency,
+      };
+    });
+  }, [activePlans]);
+
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
     <View style={styles.section}>
@@ -66,15 +81,7 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.payoutPlansContainer}
         >
-          {activePlans.map((plan) => {
-            const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
-            const completedAmount = plan.completed_payouts * plan.payout_amount;
-            
-            // Get the day of week from metadata if available
-            const dayOfWeek = (plan as any).metadata?.dayOfWeek;
-            const originalFrequency = (plan as any).metadata?.originalFrequency || plan.frequency;
-            
-            return (
+          {memoizedPlans.map((plan) => (
               <Pressable
                 key={plan.id}
                 style={styles.payoutPlanCard}
@@ -91,17 +98,17 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
                 <Text style={styles.planAmount}>{formatBalance(plan.total_amount)}</Text>
                 <View style={styles.planDetails}>
                   <Text style={styles.planFrequency}>
-                    {formatPayoutFrequency(originalFrequency, dayOfWeek)}
+                    {formatPayoutFrequency(plan.originalFrequency, plan.dayOfWeek)}
                   </Text>
                   <Text style={styles.planDot}>•</Text>
                   <Text style={styles.planValue}>{formatBalance(plan.payout_amount)}</Text>
                 </View>
                 <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: `${progress}%` }]} />
+                  <View style={[styles.progressFill, { width: `${plan.progress}%` }]} />
                 </View>
                 <View style={styles.planProgress}>
                   <Text style={styles.progressText}>
-                    {formatBalance(completedAmount)}/{formatBalance(plan.total_amount)}
+                    {formatBalance(plan.completedAmount)}/{formatBalance(plan.total_amount)}
                   </Text>
                   <Text style={styles.progressCount}>
                     {plan.completed_payouts}/{plan.duration}
@@ -110,12 +117,11 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
                 
                 {plan.next_payout_date && (
                   <Text style={styles.nextPayoutDate}>
-                    Payday: {formatPayoutDateTime(plan.next_payout_date)}
+                    Next Payday: {formatPayoutDateTime(plan.next_payout_date)}
                   </Text>
                 )}
               </Pressable>
-            );
-          })}
+            ))}
           <Pressable 
             style={styles.addPayoutCard}
             onPress={handleCreatePayout}
@@ -134,13 +140,21 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
             <Plus size={20} color={colors.text} />
             <Text style={styles.createFirstPayoutText}>Create Your First Plan</Text>
           </Pressable>
+          {/* {!isAuthenticated && onShowHowItWorks && (
+            <Pressable 
+              style={[styles.howItWorksButton, { borderColor: colors.primary }]} 
+              onPress={onShowHowItWorks}
+            >
+              <Text style={[styles.howItWorksButtonText, { color: colors.text }]}>How it works?</Text>
+            </Pressable>
+          )} */}
         </View>
       )}
     </View>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   section: {
     marginBottom: 10,
   },
@@ -151,7 +165,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   sectionTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -159,7 +173,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical: 4,
   },
   viewAllText: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.text,
     fontWeight: '600',
   },
@@ -175,11 +189,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.card,
     borderWidth: 0.5,
     borderColor: colors.border,
-    shadowColor: '#000000',
-    shadowOffset: { width: 1, height: 6},
-    shadowOpacity: 0.02,
-    shadowRadius: 6,
-    elevation: 6,
   },
   planHeader: {
     flexDirection: 'row',
@@ -188,7 +197,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   planType: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
     maxWidth: '75%',
   },
@@ -199,12 +208,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: Platform.OS === 'ios' ? 20 : 16,
   },
   activeTagText: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.primary,
     fontWeight: '600',
   },
   planAmount: {
-    fontSize: Platform.OS === 'ios' ? 22 : 20,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 22 : 20, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
@@ -216,15 +225,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   planFrequency: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
   },
   planDot: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     color: colors.textSecondary,
   },
   planValue: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
   },
   progressBar: {
@@ -244,15 +253,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   progressText: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
   },
   progressCount: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
   },
   nextPayoutDate: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
@@ -268,14 +277,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
   },
   addPayoutText: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.primary,
     marginTop: 12,
     marginBottom: 4,
   },
   addPayoutDescription: {
-    fontSize: 16,
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     color: colors.textSecondary,
     textAlign: 'center',
   },
@@ -288,7 +297,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
   emptyPayoutsText: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textSecondary,
     marginBottom: 10,
   },
@@ -304,7 +313,20 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   createFirstPayoutText: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '600',
   },
-}); 
+  howItWorksButton: {
+    marginTop: 5,
+    paddingHorizontal: 60,
+    paddingVertical: 3,
+    backgroundColor: 'transparent',
+    borderRadius: 13,
+  },
+  howItWorksButtonText: {
+    fontSize: getScaledFontSize(15, textSizeMultiplier),
+    fontWeight: '400',
+  },
+});
+
+export default React.memo(PayoutPlansSection); 

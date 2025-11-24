@@ -2,6 +2,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useCountdown } from '@/hooks/useCountdown';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Clock } from 'lucide-react-native';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 
 type CountdownTimerProps = {
   targetDate: Date | string | null;
@@ -20,7 +22,7 @@ export default function CountdownTimer({
 }: CountdownTimerProps) {
   const { colors, isDark } = useTheme();
   const { days, hours, minutes, seconds, totalSeconds } = useCountdown(targetDate);
-  
+  const { textSizeMultiplier } = useTextSize();
   // Format the countdown text
   const getCountdownText = () => {
     if (totalSeconds <= 0) {
@@ -64,7 +66,7 @@ export default function CountdownTimer({
     return text + ' left';
   };
   
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
   
   return (
     <View style={[styles.container, style]}>
@@ -76,7 +78,7 @@ export default function CountdownTimer({
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -88,7 +90,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignSelf: 'flex-start',
   },
   countdownText: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textSecondary,
     fontWeight: '500',
   },

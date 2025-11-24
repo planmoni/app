@@ -168,15 +168,13 @@ async function processSinglePayout(plan: PayoutPlan) {
   await updateAutomatedPayout(payoutId, transferResult);
 
   // 7. Update payout plan progress
+  // Note: This updates completed_payouts, which triggers automatic locked_balance recalculation
   await updatePayoutPlanProgress(plan.plan_id);
 
   // 8. Create transaction record
   await createTransactionRecord(plan, transferResult);
 
-  // 9. Update wallet balance
-  await updateWalletBalance(plan.user_id, plan.payout_amount);
-
-  // 10. Create notification
+  // 9. Create notification
   await createNotification(plan.user_id, plan, transferResult);
 }
 

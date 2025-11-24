@@ -3,15 +3,18 @@ import { View, Text, StyleSheet, Pressable, Platform, Linking } from 'react-nati
 import { Star } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import Card from '@/components/Card';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 
 export default function RatingCard() {
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   // Store URLs
   const iOSStoreURL = 'https://apps.apple.com/app/id6753706776?action=write-review';
-  const androidStoreURL = 'https://play.google.com/store/apps/details?id=com.planmoni'; // Update with actual Play Store URL when available
+  const androidStoreURL = 'https://play.google.com/store/apps/details?id=com.planmoni.app'; // Update with actual Play Store URL when available
 
   return (
     <Card style={styles.feedbackCard}>
@@ -25,32 +28,32 @@ export default function RatingCard() {
         </View>
         <View style={styles.buttonsRow}>
           {Platform.OS === 'ios' && (
-            <Pressable
+          <Pressable
               style={[styles.feedbackButton, styles.feedbackButtonActive]}
-              onPress={() => {
-                Linking.openURL(iOSStoreURL).catch((err) => {
-                  console.error('Failed to open iOS store URL:', err);
-                });
-              }}
-            >
+            onPress={() => {
+              Linking.openURL(iOSStoreURL).catch((err) => {
+                console.error('Failed to open iOS store URL:', err);
+              });
+            }}
+          >
               <Text style={[styles.feedbackButtonText, styles.feedbackButtonTextActive]}>
-                Rate on App Store
-              </Text>
-            </Pressable>
+              Rate on App Store
+            </Text>
+          </Pressable>
           )}
           {Platform.OS === 'android' && (
-            <Pressable
+          <Pressable
               style={[styles.feedbackButton, styles.feedbackButtonActive]}
-              onPress={() => {
-                Linking.openURL(androidStoreURL).catch((err) => {
-                  console.error('Failed to open Android store URL:', err);
-                });
-              }}
-            >
+            onPress={() => {
+              Linking.openURL(androidStoreURL).catch((err) => {
+                console.error('Failed to open Android store URL:', err);
+              });
+            }}
+          >
               <Text style={[styles.feedbackButtonText, styles.feedbackButtonTextActive]}>
-                Rate on Play Store
-              </Text>
-            </Pressable>
+              Rate on Play Store
+            </Text>
+          </Pressable>
           )}
         </View>
       </View>
@@ -58,7 +61,7 @@ export default function RatingCard() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   feedbackCard: {
     marginBottom: Platform.OS === 'ios' ? 20 : 10,
     borderRadius: 16,
@@ -66,11 +69,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.card,
     borderWidth: 0.5,
     borderColor: colors.border,
-    shadowColor: '#000000',
-    shadowOffset: { width: 1, height: 6},
-    shadowOpacity: 0.09,
-    shadowRadius: 9,
-    elevation: 7,
     alignItems: 'center',
     padding: Platform.OS === 'ios' ? 24 : 16  ,
   },
@@ -79,13 +77,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   feedbackTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   feedbackSubtitle: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     textAlign: 'center',
     color: colors.textSecondary,
     marginBottom: 10,
@@ -115,7 +113,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   feedbackButtonText: {
     color: colors.text,
     fontWeight: '600',
-    fontSize: Platform.OS === 'ios' ? 13 : 11,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 11, textSizeMultiplier),
     textAlign: 'center',
   },
   feedbackButtonTextActive: {

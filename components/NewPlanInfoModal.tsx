@@ -6,6 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { router } from 'expo-router';
 import Button from '@/components/Button';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface NewPlanInfoModalProps {
   isVisible: boolean;
@@ -53,6 +54,7 @@ export default function NewPlanInfoModal({
 }: NewPlanInfoModalProps) {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [modalVisible, setModalVisible] = useState(false);
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
@@ -108,25 +110,21 @@ export default function NewPlanInfoModal({
 
   const handleAddFunds = () => {
     haptics.mediumImpact();
-    // If onAddFundsAfterClose is provided, use it (will be called after modal closes)
-    // Otherwise, close modal and navigate after animation
-    if (onAddFundsAfterClose) {
-      onClose();
-      // Wait for modal animation to complete before navigating
-      setTimeout(() => {
-        onAddFundsAfterClose();
-      }, 400); // Wait for slide-out animation (350ms) + small buffer
-    } else if (onAddFunds) {
-      // Call onAddFunds immediately (parent handles navigation)
-      onAddFunds();
-      onClose();
-    } else {
-      // Fallback: close modal and navigate after animation
+    
+    // For unauthenticated users, redirect to login
+    if (!isAuthenticated) {
       onClose();
       setTimeout(() => {
-        router.push('/add-funds');
+        requireAuth(() => {}, '/(tabs)/index');
       }, 400);
+      return;
     }
+    
+    // Close modal and navigate to create payout amount screen
+    onClose();
+    setTimeout(() => {
+      router.push('/create-payout/amount');
+    }, 400);
   };
 
   const toggleItem = (id: string) => {
@@ -229,7 +227,7 @@ export default function NewPlanInfoModal({
           {/* Sticky Button Container with SafeArea */}
           <SafeAreaView edges={['bottom']} style={styles.stickyButtonContainer}>
             <Button
-              title="Add Funds to Create Plan"
+              title={isAuthenticated ? "Create Plan" : "Login to Create Plans"}
               onPress={handleAddFunds}
               hapticType="medium"
               variant="primary"
@@ -350,7 +348,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 8,
     alignItems: 'center',
     flexShrink: 0,
   },

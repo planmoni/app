@@ -628,7 +628,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     },
     shadowOpacity: 0.25,
     shadowRadius: 20,
-    elevation: 10,
   },
   modalHeader: {
     alignItems: 'center',

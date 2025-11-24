@@ -13,6 +13,7 @@ import { getBankIconLogo } from '@/lib/bankIcons';
 import { safeHavenService } from '@/lib/safehaven-service';
 import SafeHavenOTPModal from '@/components/SafeHavenOTPModal';
 import { supabase } from '@/lib/supabase';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface ClaimAccountModalProps {
   isVisible: boolean;
@@ -37,6 +38,7 @@ export default function ClaimAccountModal({
   const haptics = useHaptics();
   const { showToast } = useToast();
   const { session } = useAuth();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const { formData } = useKYCData();
   const { checkTierCompletion, progress } = useKYCProgress();
   const styles = createStyles(colors, isDark);
@@ -58,8 +60,9 @@ export default function ClaimAccountModal({
   }, [isVisible, formData, session]);
 
   // Check for existing account when modal opens, but only if Tier 1 is not complete
+  // Skip this check for unauthenticated users
   useEffect(() => {
-    if (isVisible && session?.user?.id) {
+    if (isVisible && session?.user?.id && isAuthenticated) {
       const tierCompletion = checkTierCompletion();
       // If Tier 1 is complete, close the modal immediately
       if (tierCompletion.tier1) {
@@ -68,7 +71,7 @@ export default function ClaimAccountModal({
       }
       checkExistingAccount();
     }
-  }, [isVisible, session?.user?.id, checkTierCompletion, onClose]);
+  }, [isVisible, session?.user?.id, isAuthenticated, checkTierCompletion, onClose]);
 
   const checkExistingAccount = async () => {
     if (!session?.user?.id) return;
@@ -350,8 +353,27 @@ export default function ClaimAccountModal({
               </View>
             </View>
 
-            {/* Check Tier 1 completion */}
+            {/* Check authentication and Tier 1 completion */}
             {(() => {
+              // For unauthenticated users, show login button
+              if (!isAuthenticated) {
+                return (
+                  <Button
+                    title="Login to Claim your bank account"
+                    onPress={() => {
+                      haptics.mediumImpact();
+                      onClose();
+                      setTimeout(() => {
+                        requireAuth(() => {}, '/(tabs)/index');
+                      }, 300);
+                    }}
+                    hapticType="medium"
+                    variant="primary"
+                    disabled={false}
+                  />
+                );
+              }
+              
               const tierCompletion = checkTierCompletion();
               const isTier1Complete = tierCompletion.tier1;
               

@@ -11,14 +11,16 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  -- Check if the payout date has arrived
-  IF NEW.next_payout_date <= CURRENT_DATE AND NEW.status = 'active' THEN
+  -- Check if the payout datetime has arrived (now includes time)
+  IF NEW.next_payout_date <= now() AND NEW.status = 'active' THEN
     -- Trigger the automated payout processing function
     PERFORM net.http_post(
-      url := 'https://your-project-ref.supabase.co/functions/v1/process-automated-payouts',
+      url := 'https://rqmpnoaavyizlwzfngpr.supabase.co/functions/v1/process-automated-payouts',
       headers := json_build_object(
-        'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
-      )
+        'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true),
+        'Content-Type', 'application/json'
+      ),
+      body := json_build_object('plan_id', NEW.id)::text
     );
   END IF;
   

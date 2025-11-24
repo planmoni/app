@@ -41,6 +41,12 @@ export default function AmountScreen() {
       return;
     }
 
+    if (numericAmount < 5000) {
+      setError('Minimum amount is ₦5,000');
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
     if (numericAmount > availableBalance) {
       setError('Amount exceeds your available balance');
       haptics.notification(Haptics.NotificationFeedbackType.Error);
@@ -82,6 +88,7 @@ export default function AmountScreen() {
   const handleAmountChange = (value: string) => {
     const formattedValue = formatAmount(value);
     setAmount(formattedValue);
+    // Clear error while typing - validation only happens on continue
     setError(null);
   };
 
@@ -133,9 +140,9 @@ export default function AmountScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Text style={styles.title}>What is the total amount for this payout?</Text>
+          <Text style={styles.title}>How much do you want to set aside?</Text>
           <Text style={styles.description}>
-            You won't be able to spend from this until your payout date.
+            Enter an amount that you want to create a plan for.
           </Text>
 
           {error && (

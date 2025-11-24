@@ -8,6 +8,9 @@ import { formatCurrency } from '@/lib/formatters';
 import TransactionModal from '@/components/TransactionModal';
 import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface RecentTransaction {
   id: string;
@@ -27,6 +30,8 @@ interface MostRecentPayoutsCardProps {
 
 export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecentPayoutsCardProps) {
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
+  const { isAuthenticated } = useRequireAuth();
   const { transactions } = useRealtimeTransactions();
   const { payoutPlans } = useRealtimePayoutPlans();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -221,12 +226,17 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
     logAnalyticsEvent('view_all_transactions', { source: 'most_recent_card' });
   };
 
+  // Don't render if user is not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
+
   // Don't render if no recent payouts
   if (recentTransactions.length === 0) {
     return null;
   }
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
   const currentTransaction = recentTransactions[currentIndex];
 
   return (
@@ -326,7 +336,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
     marginTop: Platform.OS === 'ios' ? 20 : 1,
     marginBottom: Platform.OS === 'ios' ? 10 : 8,
@@ -338,7 +348,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
   },
@@ -346,7 +356,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical: 4,
   },
   viewAllText: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.text,
     fontWeight: '600',
   },
@@ -360,11 +370,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical:15,
     borderWidth: 0.5,
     borderColor: colors.border,
-    shadowColor: '#000000',
-    shadowOffset: { width: 1, height: 6},
-    shadowOpacity: 0.07,
-    shadowRadius: 9,
-    elevation: 6,
+  
   
     overflow: 'hidden', // Hide content that slides outside the card
   },
@@ -378,7 +384,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 5,
   },
   planName: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
     flex: 1,
@@ -386,7 +392,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     maxWidth: '60%',
   },
   amount: {
-    fontSize: Platform.OS === 'ios' ? 25 : 20,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 25 : 20, textSizeMultiplier),
     fontWeight: '700',
     textAlign: 'left',
     flex: 0,
@@ -409,7 +415,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
   },
   paymentLabel: {
-    fontSize: Platform.OS === 'ios' ? 15 : 13,
+    fontSize: getScaledFontSize(15, textSizeMultiplier),
     color: colors.textSecondary,
   },
   bankInfo: {
@@ -427,20 +433,20 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexShrink: 0, // Prevent logo from shrinking
   },
   bankName: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
     marginRight: 1, // Add small margin between name and account number
     flexShrink: 1, // Allow name to shrink if needed
   },
   accountNumber: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
     flexShrink: 0, // Prevent account number from shrinking
   },
   bankInitials: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
   },
@@ -451,7 +457,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'flex-start',
   },
   dateTime: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
     marginTop: 5,
     color: colors.textSecondary,
     fontWeight: '400',

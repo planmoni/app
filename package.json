@@ -1,7 +1,7 @@
 {
   "name": "planmoni",
   "main": "expo-router/entry",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "scripts": {
     "start": "expo start --dev-client",
     "dev": "npx expo start",
@@ -22,8 +22,8 @@
     "@notifee/react-native": "^9.1.8",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/cli-server-api": "^14.1.0",
-    "@react-native-community/masked-view": "^0.1.11",
     "@react-native-community/netinfo": "^11.4.1",
+    "@react-native-community/slider": "^5.1.1",
     "@react-native-firebase/app": "^22.4.0",
     "@react-native-firebase/messaging": "^22.4.0",
     "@react-native-masked-view/masked-view": "0.3.2",

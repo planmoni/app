@@ -720,7 +720,6 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
         shadowRadius: 5,
       },
       android: {
-        elevation: 5,
       },
     }),
   },
@@ -902,7 +901,6 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
     },
     shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 5,
   },
   formatModalHeader: {
     flexDirection: 'row',

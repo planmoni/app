@@ -71,12 +71,12 @@ export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: Pi
     container: {
       width: keypadWidth,
       alignSelf: 'center',
-      marginTop: isSmallScreen ? 16 : 24,
+      marginTop: isSmallScreen ? 12 : 16,
     },
     row: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: isSmallScreen ? 12 : 16,
+      marginBottom: isSmallScreen ? 10 : 12,
     },
     keyButton: {
       justifyContent: 'center',

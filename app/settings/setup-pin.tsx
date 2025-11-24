@@ -179,18 +179,7 @@ export default function SetupPin() {
       </View>
 
       <View style={styles.content}>
-        <View style={styles.infoCard}>
-          <Ionicons name="lock-closed" size={32} color={colors.primary} />
-          <Text style={styles.infoTitle}>
-            {step === 'setup' ? 'Create Your PIN' : 'Confirm Your PIN'}
-          </Text>
-          <Text style={styles.infoText}>
-            {step === 'setup' 
-              ? 'Create a 4-digit PIN to secure your app. Choose something memorable but secure.'
-              : 'Enter the same PIN again to confirm it.'
-            }
-          </Text>
-        </View>
+        
 
         {renderStepIndicator()}
 
@@ -198,7 +187,7 @@ export default function SetupPin() {
                   {renderPinDisplay()}
         
         <Text style={styles.pinLabel}>
-          {step === 'setup' ? 'Enter your PIN' : 'Confirm your PIN'}
+          {step === 'setup' ? 'Enter PIN' : 'Confirm your PIN'}
         </Text>
 
 

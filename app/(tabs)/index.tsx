@@ -1,7 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import TransactionModal from '@/components/TransactionModal';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
-import ClaimAccountModal from '@/components/ClaimAccountModal';
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 import AccountInformationModal from '@/components/AccountInformationModal';
 import PlanCreationModal from '@/components/PlanCreationModal';
@@ -12,7 +10,6 @@ import PendingActionsCard from '@/components/PendingActionsCard';
 import KYCCard from '@/components/KYCCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
-// import { IntercomButton } from '@/components/IntercomButton';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -22,6 +19,7 @@ import {
   Plus,
   CalendarCheck,
   Clock,
+  MoreHorizontal,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -36,12 +34,15 @@ import {
   Image,
   Platform,
   BackHandler,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTextSize } from '@/contexts/TextSizeContext';
 import { useAppLock } from '@/contexts/AppLockContext';
+import { getScaledFontSize } from '@/lib/textSize';
 import { usePin } from '@/contexts/PinContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
@@ -60,6 +61,7 @@ import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 // import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 
 interface Banner {
@@ -77,19 +79,13 @@ export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
   const { session } = useAuth();
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
   const { updateLastActiveOnInteraction } = useAppLock();
   const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress } = useKYCProgress();
   const navigation = useNavigation();
-  
-  // Debug: Track payoutPlans changes
-  useEffect(() => {
-    console.log('📊 Dashboard: payoutPlans updated', {
-      count: payoutPlans.length,
-      plans: payoutPlans.map(p => ({ id: p.id, name: p.name, status: p.status }))
-    });
-  }, [payoutPlans]);
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
@@ -101,6 +97,7 @@ export default function HomeScreen() {
   const [imagesReady, setImagesReady] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
+  const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
   const [hasShownTier1ClaimModal, setHasShownTier1ClaimModal] = useState(false);
   const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
@@ -111,11 +108,44 @@ export default function HomeScreen() {
   const [lastDepositAmount, setLastDepositAmount] = useState<number | null>(null);
   const [lastShownDepositId, setLastShownDepositId] = useState<string | null>(null);
   const [shownDepositIds, setShownDepositIds] = useState<Set<string>>(new Set());
+  const [hasDismissedDepositModal, setHasDismissedDepositModal] = useState(false);
   const [showAppLockModal, setShowAppLockModal] = useState(false);
   const [hasShownAppLockModal, setHasShownAppLockModal] = useState(false);
   const { hasAppLockPin } = usePin();
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
+
+  // Lazy load heavy modals
+  const [TransactionModalComponent, setTransactionModalComponent] = useState<React.ComponentType<any> | null>(null);
+  const [ClaimAccountModalComponent, setClaimAccountModalComponent] = useState<React.ComponentType<any> | null>(null);
+  const [WelcomeModalComponent, setWelcomeModalComponent] = useState<React.ComponentType<any> | null>(null);
+
+  // Load TransactionModal when needed
+  useEffect(() => {
+    if (isTransactionModalVisible && !TransactionModalComponent) {
+      import('@/components/TransactionModal').then(module => {
+        setTransactionModalComponent(() => module.default);
+      });
+    }
+  }, [isTransactionModalVisible, TransactionModalComponent]);
+
+  // Load ClaimAccountModal when needed
+  useEffect(() => {
+    if (showClaimAccountModal && !ClaimAccountModalComponent) {
+      import('@/components/ClaimAccountModal').then(module => {
+        setClaimAccountModalComponent(() => module.default);
+      });
+    }
+  }, [showClaimAccountModal, ClaimAccountModalComponent]);
+
+  // Load WelcomeModal when needed
+  useEffect(() => {
+    if (showHowItWorksModal && !WelcomeModalComponent) {
+      import('@/components/WelcomeModal').then(module => {
+        setWelcomeModalComponent(() => module.default);
+      });
+    }
+  }, [showHowItWorksModal, WelcomeModalComponent]);
 
   // Prevent navigation back to welcome page when authenticated
   useEffect(() => {
@@ -220,30 +250,37 @@ export default function HomeScreen() {
     }
   }, [params.showAccountInfo, session?.user?.id, hasShownAccountInfoModal]);
 
-  // Load shown deposit IDs from storage on mount
+  // Load shown deposit IDs and dismissed modal flag from storage on mount
   useEffect(() => {
     if (!session?.user?.id) return;
 
-    const loadShownDepositIds = async () => {
+    const loadDepositModalState = async () => {
       try {
         const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
         const key = `shown_deposit_ids_${session.user.id}`;
+        const dismissedKey = `deposit_modal_dismissed_${session.user.id}`;
+        
         const stored = await AsyncStorage.getItem(key);
         if (stored) {
           const ids = JSON.parse(stored) as string[];
           setShownDepositIds(new Set(ids));
         }
+        
+        const dismissed = await AsyncStorage.getItem(dismissedKey);
+        if (dismissed === 'true') {
+          setHasDismissedDepositModal(true);
+        }
       } catch (error) {
-        console.error('Error loading shown deposit IDs:', error);
+        console.error('Error loading deposit modal state:', error);
       }
     };
 
-    loadShownDepositIds();
+    loadDepositModalState();
   }, [session?.user?.id]);
 
   // Detect new deposits and show PlanCreationModal
   useEffect(() => {
-    if (!session?.user?.id || transactions.length === 0) return;
+    if (!session?.user?.id || transactions.length === 0 || hasDismissedDepositModal) return;
 
     const depositTransactions = transactions.filter(
       t => t.type === 'deposit' && t.status === 'completed'
@@ -279,7 +316,7 @@ export default function HomeScreen() {
         return () => clearTimeout(timer);
       }
     }
-  }, [transactions, session?.user?.id, shownDepositIds]);
+  }, [transactions, session?.user?.id, shownDepositIds, hasDismissedDepositModal]);
 
   // Show AppLockModal if no PIN is set up AND user just created their first plan
   useEffect(() => {
@@ -304,7 +341,7 @@ export default function HomeScreen() {
   }, []);
 
   // Fetch carousel images from Supabase
-  const fetchCarouselImages = async () => {
+  const fetchCarouselImages = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('banners')
@@ -341,20 +378,25 @@ export default function HomeScreen() {
       }
     } catch (error) {
     }
-  };
+  }, []);
 
   // Fetch images on component mount
   useEffect(() => {
     fetchCarouselImages();
-  }, []);
+  }, [fetchCarouselImages]);
 
-  const handleProfilePress = () => {
+  // Memoize computed values
+  const activePlans = useMemo(() => {
+    return payoutPlans.filter(plan => plan.status === 'active');
+  }, [payoutPlans]);
+
+  const handleProfilePress = useCallback(() => {
     router.push('/profile');
     logAnalyticsEvent('profile_click');
-  };
+  }, []);
 
   // Handle pull-to-refresh - refresh all page data
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
       // Refresh all data in parallel for better performance
@@ -378,12 +420,9 @@ export default function HomeScreen() {
     } finally {
       setIsRefreshing(false);
     }
-  };
-  // Intercom not supported on web
-  if (!isSupported) {
-    return null; // Don't render on web
-  }
-  const handleHelpPress = async () => {
+  }, [refreshWallet, fetchPayoutPlans, fetchTransactions, loadProgress, impact, fetchCarouselImages]);
+
+  const handleHelpPress = useCallback(async () => {
     try {
       // setIsHelpLoading(true);
       console.log('🎯 Help button pressed - opening Intercom instantly');
@@ -410,7 +449,7 @@ export default function HomeScreen() {
         ]
       );
     }
-  };
+  }, [openChat]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -439,12 +478,19 @@ export default function HomeScreen() {
   });
 
   const formatBalance = (amount: number) => {
-    return showBalances ? `₦${amount.toLocaleString()}` : '*********';
+    return showBalances ? `₦${amount.toLocaleString()}` : '******';
   };
 
   const handleAddFunds = async () => {
     // Trigger medium impact haptic feedback
     impact();
+    
+    // For unauthenticated users, show ClaimAccountModal
+    if (!isAuthenticated) {
+      setShowClaimAccountModal(true);
+      logAnalyticsEvent('add_funds_click_unauthenticated_modal');
+      return;
+    }
     
     // Check if user has completed Tier 1
     const tierCompletion = checkTierCompletion();
@@ -489,22 +535,17 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // Check if balance is ₦0 and no payout plans exist
-    const hasNoBalance = balance === 0 && availableBalance === 0;
-    const hasNoPlans = payoutPlans.length === 0;
-    
-    // If no balance and no plans, show info modal
-    if (hasNoBalance && hasNoPlans) {
-      setShowNewPlanInfoModal(true);
-      logAnalyticsEvent('create_payout_click_no_balance_modal');
-    } else {
-      // Navigate directly to create payout
-    router.push('/create-payout/amount');
-    logAnalyticsEvent('create_payout_click');
-    }
+    // Always show the new plan info modal for these buttons
+    setShowNewPlanInfoModal(true);
+    logAnalyticsEvent('create_payout_click_modal');
   };
 
   const handleAISuggestionPress = (suggestion: any) => {
+    // Check authentication first
+    if (!requireAuth(() => {}, '/create-payout/schedule')) {
+      return;
+    }
+    
     // Trigger haptic feedback
     impact();
     // Navigate directly to schedule page with full balance and suggested frequency
@@ -601,7 +642,7 @@ export default function HomeScreen() {
   };
 
   // Handle transaction press from MostRecentPayoutsCard
-  const handleTransactionPress = (transaction: any) => {
+  const handleTransactionPress = useCallback((transaction: any) => {
     // Find the payout plan to get bank information
     const plan = payoutPlans.find(p => p.id === transaction.payout_plan_id);
     
@@ -640,43 +681,59 @@ export default function HomeScreen() {
     setSelectedTransaction(formattedTransaction);
     setIsTransactionModalVisible(true);
     logAnalyticsEvent('view_transaction', { transaction_id: transaction.id, transaction_type: transaction.type });
-  };
+  }, [payoutPlans]);
 
   // Get active payout plans for display
-  const activePlans = payoutPlans.filter(plan => plan.status === 'active').slice(0, 3);
-  
-  // Debug: Track activePlans changes
-  useEffect(() => {
-    console.log('🎯 Dashboard: activePlans updated', {
-      count: activePlans.length,
-      plans: activePlans.map(p => ({ id: p.id, name: p.name }))
-    });
-  }, [activePlans]);
+  const activePlansForDisplay = useMemo(() => activePlans.slice(0, 3), [activePlans]);
   
   // Find the next payout - the one with the earliest next_payout_date that hasn't expired
-  const nextPayout = payoutPlans
+  const nextPayout = useMemo(() => payoutPlans
     .filter(plan => {
       // Only include active plans with a valid next payout date
       if (plan.status !== 'active' || !plan.next_payout_date) return false;
       
+      // Check if the plan has remaining payouts
+      if (plan.completed_payouts >= plan.duration) return false;
+      
       // Check if the next payout date is in the future (not expired)
+      // Allow a small buffer (1 minute) to account for processing delays
       const nextPayoutDate = new Date(plan.next_payout_date);
-      return nextPayoutDate > new Date();
+      const now = new Date();
+      const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
+      return nextPayoutDate > oneMinuteAgo;
     })
     .sort((a, b) => {
       const dateA = new Date(a.next_payout_date!);
       const dateB = new Date(b.next_payout_date!);
       return dateA.getTime() - dateB.getTime();
-    })[0]; // Get the first one (earliest date)
+    })[0], [payoutPlans]); // Get the first one (earliest date)
 
-  const recentTransactions = transactions.slice(0, 5);
+  const recentTransactions = useMemo(() => transactions.slice(0, 5), [transactions]);
 
-  const handleViewHistory = () => {
+  const handleViewHistory = useCallback(() => {
     router.push('/transactions');
     logAnalyticsEvent('view_transaction_history', { source: 'balance_card' });
-  };
+  }, []);
 
-  const styles = createStyles(colors, isDark);
+  // Calculate the next payout date across all active plans
+  const nextPayoutDate = useMemo(() => {
+    if (activePlans.length === 0) return null;
+    
+    const nextPayoutDates = activePlans
+      .map(plan => plan.next_payout_date)
+      .filter((date): date is string => date !== null && date !== undefined)
+      .map(date => new Date(date))
+      .sort((a, b) => a.getTime() - b.getTime());
+    
+    return nextPayoutDates.length > 0 ? nextPayoutDates[0] : null;
+  }, [activePlans]);
+
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
+
+  // Intercom not supported on web - check after all hooks
+  if (!isSupported) {
+    return null; // Don't render on web
+  }
 
   // Show loader if any data is loading
   if (payoutPlansLoading || transactionsLoading) {
@@ -690,22 +747,6 @@ export default function HomeScreen() {
       </SafeAreaView>
     );
   }
-
-  // Calculate the next payout date across all active plans
-  const getNextPayoutDate = () => {
-    const activePlans = payoutPlans.filter(plan => plan.status === 'active');
-    if (activePlans.length === 0) return null;
-    
-    const nextPayoutDates = activePlans
-      .map(plan => plan.next_payout_date)
-      .filter((date): date is string => date !== null && date !== undefined)
-      .map(date => new Date(date))
-      .sort((a, b) => a.getTime() - b.getTime());
-    
-    return nextPayoutDates.length > 0 ? nextPayoutDates[0] : null;
-  };
-
-  const nextPayoutDate = getNextPayoutDate();
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -728,14 +769,22 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
-              <InitialsAvatar 
-                firstName={firstName} 
-                lastName={lastName} 
-                size={48}
-                fontSize={18}
-              />
-            </Pressable>
+            {isAuthenticated ? (
+              <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
+                <InitialsAvatar 
+                  firstName={firstName} 
+                  lastName={lastName} 
+                  size={48}
+                  fontSize={getScaledFontSize(18, textSizeMultiplier)}
+                />
+              </Pressable>
+            ) : (
+              <Pressable style={styles.avatarButton}>
+                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
+                  <MoreHorizontal size={24} color={'#fff'} />
+                </View>
+              </Pressable>
+            )}
             <View style={styles.headerActions}>
               <NotificationIcon />
               <Pressable 
@@ -752,8 +801,20 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={styles.greetingContainer}>
-            <Text style={styles.greeting}>{getGreeting()}, {firstName}.</Text>
-            {/* <Text style={styles.subGreeting}>It's time to plan some payouts</Text> */}
+            <View style={styles.greetingRow}>
+              <Text style={styles.greeting}>
+                {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
+              </Text>
+              {!isAuthenticated && (
+                <Pressable 
+                  onPress={() => router.push('/(auth)/login')} 
+                  style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
+                >
+                  <Text style={[styles.loginButtonText, {color: isDark ? '#fff' : colors.primary }]}>Login</Text>
+                </Pressable>
+              )}
+            </View>
+            <Text style={styles.subGreeting}>It's time to plan your finances</Text>
           </View>
         </View>
 
@@ -818,11 +879,13 @@ export default function HomeScreen() {
         {/* On Track Card */}
         <OnTrackCard payoutPlans={payoutPlans} />
         
-        {/* AI Suggestion Section */}
-        <AISuggestionCard 
-          availableBalance={availableBalance}
-          onSuggestionPress={handleAISuggestionPress}
-        />
+        {/* AI Suggestion Section - Only show for authenticated users */}
+        {isAuthenticated && (
+          <AISuggestionCard 
+            availableBalance={availableBalance}
+            onSuggestionPress={handleAISuggestionPress}
+          />
+        )}
         {/* <IntercomButton /> */}
 
         {/* KYC Tiers Test Buttons */}
@@ -851,7 +914,7 @@ export default function HomeScreen() {
         </View> */}
 
         <ImageCarousel images={carouselImages} />
-        {!checkTierCompletion().tier1 && <KYCCard />}
+        {isAuthenticated && !checkTierCompletion().tier1 && <KYCCard />}
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
@@ -865,6 +928,7 @@ export default function HomeScreen() {
         <PayoutPlansSection 
           activePlans={activePlans} 
           onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}
+          onShowHowItWorks={() => setShowHowItWorksModal(true)}
         />
 
         <View style={styles.bottomPadding} />
@@ -902,40 +966,16 @@ export default function HomeScreen() {
         
       </Animated.View>
 
-      {/* Transaction Modal - Rendered at the top level */}
-      {selectedTransaction && (
-        <TransactionModal
+      {/* Transaction Modal - Lazy loaded */}
+      {selectedTransaction && isTransactionModalVisible && TransactionModalComponent && (
+        <TransactionModalComponent
           isVisible={isTransactionModalVisible}
           onClose={() => setIsTransactionModalVisible(false)}
           transaction={selectedTransaction}
         />
       )}
       
-      <AccountCreationSuccessModal
-        isVisible={showWelcomeModal}
-        onClose={() => {
-          setShowWelcomeModal(false);
-          setHasShownWelcomeModal(true);
-        }}
-        firstName={firstName}
-        lastName={lastName}
-        email={email}
-        onStartVerification={handleStartVerification}
-        onGoToDashboard={handleGoToDashboard}
-      />
-
-      <ClaimAccountModal
-        isVisible={showClaimAccountModal}
-        onClose={() => setShowClaimAccountModal(false)}
-        accountNumber="01177 XXXXX"
-        bankName="SAFEHAVEN MFB"
-        accountName={`PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
-        onClaim={() => {
-          router.push('/add-funds');
-          logAnalyticsEvent('claim_account_click');
-        }}
-      />
-
+      {/* NewPlanInfoModal - available for both authenticated and unauthenticated users */}
       <NewPlanInfoModal
         isVisible={showNewPlanInfoModal}
         onClose={() => setShowNewPlanInfoModal(false)}
@@ -944,48 +984,100 @@ export default function HomeScreen() {
           handleAddFunds();
         }}
       />
-
-      <AccountInformationModal
-        isVisible={showAccountInfoModal}
-        onClose={() => {
-          setShowAccountInfoModal(false);
-          setHasShownAccountInfoModal(true);
+      
+      {/* ClaimAccountModal - Lazy loaded */}
+      {showClaimAccountModal && ClaimAccountModalComponent && (
+        <ClaimAccountModalComponent
+          isVisible={showClaimAccountModal}
+          onClose={() => setShowClaimAccountModal(false)}
+          accountNumber="01177 XXXXX"
+          bankName="SAFEHAVEN MFB"
+          accountName={`PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
+        onClaim={() => {
+          router.push('/add-funds');
+          logAnalyticsEvent('claim_account_click');
         }}
-        onDone={async () => {
-          setShowAccountInfoModal(false);
-          setHasShownAccountInfoModal(true);
-          // Refresh the app to clear any blocking state
-          await handleRefresh();
-        }}
-      />
+        />
+      )}
+      
+      {isAuthenticated && (
+        <>
+          <AccountCreationSuccessModal
+            isVisible={showWelcomeModal}
+            onClose={() => {
+              setShowWelcomeModal(false);
+              setHasShownWelcomeModal(true);
+            }}
+            firstName={firstName}
+            lastName={lastName}
+            email={email}
+            onStartVerification={handleStartVerification}
+            onGoToDashboard={handleGoToDashboard}
+          />
 
-      <PlanCreationModal
-        isVisible={showPlanCreationModal}
-        onClose={() => setShowPlanCreationModal(false)}
-        depositAmount={lastDepositAmount || 0}
-      />
+          <AccountInformationModal
+            isVisible={showAccountInfoModal}
+            onClose={() => {
+              setShowAccountInfoModal(false);
+              setHasShownAccountInfoModal(true);
+            }}
+            onDone={async () => {
+              setShowAccountInfoModal(false);
+              setHasShownAccountInfoModal(true);
+              // Refresh the app to clear any blocking state
+              await handleRefresh();
+            }}
+          />
 
-      <AppLockModal
-        isVisible={showAppLockModal}
-        onClose={() => {
-          setShowAppLockModal(false);
-          setHasShownAppLockModal(true);
-        }}
-      />
+          <PlanCreationModal
+            isVisible={showPlanCreationModal}
+            onClose={async () => {
+              setShowPlanCreationModal(false);
+              setHasDismissedDepositModal(true);
+              
+              // Persist the dismissed state to AsyncStorage
+              try {
+                if (session?.user?.id) {
+                  const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+                  const dismissedKey = `deposit_modal_dismissed_${session.user.id}`;
+                  await AsyncStorage.setItem(dismissedKey, 'true');
+                }
+              } catch (error) {
+                console.error('Error saving dismissed modal state:', error);
+              }
+            }}
+            depositAmount={lastDepositAmount || 0}
+          />
+
+          <AppLockModal
+            isVisible={showAppLockModal}
+            onClose={() => {
+              setShowAppLockModal(false);
+              setHasShownAppLockModal(true);
+            }}
+          />
+        </>
+      )}
 
       {/* <LivenessTestEnhanced 
         isVisible={showLivenessTest}
         onClose={() => setShowLivenessTest(false)}
       /> */}
-      
-      {/* Floating Intercom Support Button */}
-      {/* <IntercomButton variant="floating" /> */}
+
+      {/* How it Works Modal - Lazy loaded */}
+      {showHowItWorksModal && WelcomeModalComponent && (
+        <WelcomeModalComponent
+          isVisible={showHowItWorksModal}
+          onClose={() => setShowHowItWorksModal(false)}
+          showButtons={false}
+        />
+      )}
       
     </SafeAreaView>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -993,7 +1085,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 1, height: 6},
     shadowOpacity: 0.09,
     shadowRadius: 9,
-    elevation: 6,
   },
   scrollView: {
     flex: 1,
@@ -1020,6 +1111,24 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
   },
+  avatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loginButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    backgroundColor: 'transparent',
+  },
+  loginButtonText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
+  },
   helpButton: {
     width: 40,
     height: 40,
@@ -1031,15 +1140,23 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   greetingContainer: {
     marginLeft: 0,
   },
+  greetingRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
   greeting: {
-    fontSize: Platform.OS === 'ios' ? 20 : 18,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 19, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     marginTop: Platform.OS === 'ios' ? 5 : 5,
     marginBottom: Platform.OS === 'ios' ? 5 : 5,
+    flex: 1,
   },
   subGreeting: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
     fontWeight: '400',
     color: colors.textSecondary,
     lineHeight: 18,
@@ -1056,11 +1173,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
   },
   livenessTestButtonText: {
     color: '#FFFFFF',
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
     letterSpacing: 0.5,
   },
@@ -1072,8 +1188,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   balanceCardContent: {
-    paddingVertical: Platform.OS === 'ios' ? 16 : 10,
-    paddingHorizontal: Platform.OS === 'ios' ? 16 : 10,
+    paddingVertical: Platform.OS === 'ios' ? 16 : 15,
+    paddingHorizontal: Platform.OS === 'ios' ? 16 : 15,
   },
   balanceLabelContainer: {
     flexDirection: 'row',
@@ -1087,7 +1203,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   balanceLabel: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -1098,7 +1214,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 4,
   },
   balanceAmount: {
-    fontSize: Platform.OS === 'ios' ? 35 : 24,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 35 : 34, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: Platform.OS === 'ios' ? 5 : 0,
@@ -1116,11 +1232,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   lockedLabel: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
     color: colors.textSecondary,
   },
   lockedAmount: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -1134,14 +1250,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
     padding: Platform.OS === 'ios' ? 14 : 10,
     borderRadius: 20,
-    height: Platform.OS === 'ios' ? 55 : 45,
+    height: Platform.OS === 'ios' ? 55 : 55,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
   createButtonText: {
     color: '#fff',
-    fontSize: Platform.OS === 'ios' ? 17 : 15,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
     fontWeight: '600',
   },
   addFundsButton: {
@@ -1152,16 +1268,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderWidth: 2, 
     borderColor: isDark ? '#fff' : colors.primary,
     borderRadius: 20,
-    height: Platform.OS === 'ios' ? 55 : 45,
+    height: Platform.OS === 'ios' ? 55 : 55,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   addFundsText: {
     color: colors.primary,
-    fontSize: Platform.OS === 'ios' ? 17 : 15,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
     fontWeight: '600',
     textAlign: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   summaryCard: {
     marginBottom: 20,
@@ -1172,7 +1290,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 1, height: 6},
     shadowOpacity: 0.04,
     shadowRadius: 9,
-    elevation: 6,
   },
   summaryHeader: {
     flexDirection: 'row',
@@ -1183,7 +1300,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingTop: 16,
   },
   summaryTitle: {
-    fontSize: 16,
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -1205,11 +1322,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   summaryLabel: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textSecondary,
   },
   summaryValue: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -1224,7 +1341,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginTop: 16,
   },
   seeMoreText: {
-    fontSize: 16,
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     color: colors.textSecondary,
     fontWeight: '600',
   },
@@ -1246,7 +1363,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   payoutTitle: {
-    fontSize: 16,
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -1257,7 +1374,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 20,
   },
   activeTagText: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     color: '#22C55E',
     fontWeight: '600',
   },
@@ -1268,12 +1385,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   payoutName: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '400',
     color: colors.text,
   },
   payoutAmount: {
-    fontSize: 24,
+    fontSize: getScaledFontSize(24, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: 10,
@@ -1285,7 +1402,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   payoutAccountLabel: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textSecondary,
     fontWeight: '500',
   },

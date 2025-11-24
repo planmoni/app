@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Lightbulb, Target, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PayoutPlan } from '@/hooks/useRealtimePayoutPlans';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 
 interface OnTrackCardProps {
   payoutPlans: PayoutPlan[];
@@ -13,9 +15,10 @@ interface OnTrackCardProps {
 const ON_TRACK_CALCULATION_KEY = 'on_track_calculation_hash';
 const ON_TRACK_CARD_DISMISSED_KEY = 'on_track_card_dismissed';
 
-export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
+function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
   const { colors, isDark } = useTheme();
   const { lightImpact } = useHaptics();
+  const { textSizeMultiplier } = useTextSize();
   const [isDismissed, setIsDismissed] = useState(false);
   const [shouldShow, setShouldShow] = useState(false);
 
@@ -85,8 +88,11 @@ export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
 
     // Calculate time until last payout in days
     const now = new Date();
+    // TypeScript narrowing: lastPayoutDate is guaranteed to be Date here
+    const finalLastPayoutDate: Date = lastPayoutDate;
+    const lastPayoutTime: number = finalLastPayoutDate.getTime();
     const daysDiff = Math.ceil(
-      (lastPayoutDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      (lastPayoutTime - now.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     // Convert to the most appropriate unit (weeks, months, or years)
@@ -115,7 +121,7 @@ export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
       totalPayout,
       timeValue,
       timeUnit,
-      calculationHash: `${totalPayout}-${lastPayoutDate.getTime()}`,
+      calculationHash: `${totalPayout}-${lastPayoutTime}`,
     };
   }, [payoutPlans]);
 
@@ -157,7 +163,7 @@ export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     checkShouldShow();
   }, [calculation, isDismissed]);
 
-  const handleClose = async () => {
+  const handleClose = useCallback(async () => {
     lightImpact();
     setIsDismissed(true);
     setShouldShow(false);
@@ -169,22 +175,22 @@ export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
         console.error('Error saving dismissed state:', error);
       }
     }
-  };
+  }, [calculation, lightImpact]);
 
-  const formatAmount = (amount: number) => {
+  const formatAmount = useCallback((amount: number) => {
     if (amount >= 1000000) {
       return `₦${(amount / 1000000).toFixed(1)}M`;
     } else if (amount >= 1000) {
       return `₦${(amount / 1000).toFixed(1)}K`;
     }
     return `₦${amount.toLocaleString()}`;
-  };
+  }, []);
 
   if (!calculation || !shouldShow) {
     return null;
   }
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
     <View style={styles.container}>
@@ -210,7 +216,7 @@ export default function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
     marginBottom: 15,
     paddingHorizontal: 4,
@@ -243,8 +249,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignSelf: 'flex-start',
   },
   message: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 14, textSizeMultiplier),
+    lineHeight: getScaledFontSize(Platform.OS === 'ios' ? 17 : 14, textSizeMultiplier),
     color: colors.text,
     maxWidth: '90%',
   },
@@ -253,4 +259,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.text,
   },
 });
+
+export default React.memo(OnTrackCard);
 
