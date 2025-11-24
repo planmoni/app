@@ -26,6 +26,7 @@ import DocumentsVerificationStep from '@/components/KYCSteps/DocumentsVerificati
 import AddressDetailsStep from '@/components/KYCSteps/AddressDetailsStep';
 import ReviewStep from '@/components/KYCSteps/ReviewStep';
 import { IdentityType } from '@/components/KYCSteps/types';
+import Tier1CompletionModal from '@/components/Tier1CompletionModal';
 
 export default function KYCUpgradeScreen() {
   const { colors, isDark } = useTheme();
@@ -48,6 +49,15 @@ export default function KYCUpgradeScreen() {
   // Helper function to get the first incomplete step from scratch
   const getFirstIncompleteStep = useCallback((): KYCStep => {
     if (!progress) return 'liveness_verification';
+    
+    // Check if Tier 1 is complete
+    const tierStatus = checkTierCompletion();
+    
+    // If Tier 1 is complete but current_step is still 'id_face_match', 
+    // keep user on id_face_match until they explicitly choose to upgrade via modal
+    if (tierStatus.tier1 && progress.current_step === 'id_face_match') {
+      return 'id_face_match';
+    }
     
     const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
     
@@ -78,7 +88,7 @@ export default function KYCUpgradeScreen() {
     }
     
     return 'review'; // Default to review if all steps are complete
-  }, [progress]);
+  }, [progress, checkTierCompletion]);
 
   // Step management - will be initialized to first incomplete step by useEffect
   const [currentStep, setCurrentStep] = useState<KYCStep>('liveness_verification');
@@ -106,6 +116,9 @@ export default function KYCUpgradeScreen() {
   const [livenessInitiated, setLivenessInitiated] = useState(false);
   const [livenessManuallyClosed, setLivenessManuallyClosed] = useState(false);
   const [livenessCompleted, setLivenessCompleted] = useState(false);
+  
+  // Tier 1 completion modal
+  const [showTier1CompletionModal, setShowTier1CompletionModal] = useState(false);
   
   // Personal information
   const [firstName, setFirstName] = useState('');
@@ -356,7 +369,7 @@ export default function KYCUpgradeScreen() {
 
   // Update current step when progress changes, but skip to first incomplete step
   useEffect(() => {
-    if (progress && !progressLoading) {
+    if (progress && !progressLoading && !showTier1CompletionModal) {
       setBvnVerified(progress.bvn_verified);
       setDocumentsVerified(progress.documents_verified);
       
@@ -371,7 +384,7 @@ export default function KYCUpgradeScreen() {
         setShowBvnOption(true);
       }
     }
-  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep, bvn, formData?.bvn]);
+  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep, bvn, formData?.bvn, showTier1CompletionModal]);
 
   // Auto-focus BVN input when step changes to bvn_verification
   useEffect(() => {
@@ -1941,8 +1954,9 @@ export default function KYCUpgradeScreen() {
       }
       
       // Update progress with NIN verified (using id_face_verified)
+      // Don't update current_step to 'personal' yet - wait for user to choose via modal
       const progressResult = await updateProgress({
-        current_step: 'personal', // Move to personal info (Tier 2) after NIN verification
+        current_step: 'id_face_match', // Keep on id_face_match until user chooses to upgrade
         id_face_verified: true
       });
       
@@ -1950,9 +1964,16 @@ export default function KYCUpgradeScreen() {
       if (progressResult) {
         await updateTier(); // Update tier after NIN verification
         const tierStatus = checkTierCompletion();
-        if (tierStatus.tier1) {
-          console.log('Tier 1 completed! User can now proceed to Tier 2.');
-          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+        if (tierStatus.tier1 && accountNumber) {
+          console.log('Tier 1 completed! Showing completion modal.');
+          // Show Tier 1 completion modal instead of automatically proceeding
+          setShowTier1CompletionModal(true);
+          setIsManualVerification(false);
+          setIsLoading(false);
+          return; // Don't proceed automatically - let user choose from modal
+        } else if (tierStatus.tier1) {
+          console.log('Tier 1 completed but account number not yet available.');
+          showToast('Tier 1 completed! Account creation in progress.', 'success');
         }
       }
       
@@ -1961,16 +1982,20 @@ export default function KYCUpgradeScreen() {
         return;
       }
       
-      // Wait for toast to be visible before moving to next step
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Move to next incomplete step
-      const nextStep = getNextIncompleteStep('id_face_match');
-      setCurrentStep(nextStep);
-      setTimeout(() => {
-        setIsManualVerification(false);
-        setIsLoading(false);
-      }, 1000);
+      // Only proceed to next step if Tier 1 is not complete or account number not available
+      const tierStatus = checkTierCompletion();
+      if (!tierStatus.tier1 || !accountNumber) {
+        // Wait for toast to be visible before moving to next step
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Move to next incomplete step
+        const nextStep = getNextIncompleteStep('id_face_match');
+        setCurrentStep(nextStep);
+        setTimeout(() => {
+          setIsManualVerification(false);
+          setIsLoading(false);
+        }, 1000);
+      }
       
       // } else {
       //   throw new Error('Name mismatch detected. Please verify your personal information.');
@@ -2138,8 +2163,9 @@ export default function KYCUpgradeScreen() {
       }
       
       // Update progress with BVN verified (using id_face_verified)
+      // Don't update current_step to 'personal' yet - wait for user to choose via modal
       const progressResult = await updateProgress({
-        current_step: 'personal', // Move to personal info (Tier 2) after BVN verification
+        current_step: 'id_face_match', // Keep on id_face_match until user chooses to upgrade
         id_face_verified: true
       });
       
@@ -2147,9 +2173,16 @@ export default function KYCUpgradeScreen() {
       if (progressResult) {
         await updateTier(); // Update tier after BVN verification
         const tierStatus = checkTierCompletion();
-        if (tierStatus.tier1) {
-          console.log('Tier 1 completed! User can now proceed to Tier 2.');
-          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+        if (tierStatus.tier1 && accountNumber) {
+          console.log('Tier 1 completed! Showing completion modal.');
+          // Show Tier 1 completion modal instead of automatically proceeding
+          setShowTier1CompletionModal(true);
+          setIsManualVerification(false);
+          setIsLoading(false);
+          return; // Don't proceed automatically - let user choose from modal
+        } else if (tierStatus.tier1) {
+          console.log('Tier 1 completed but account number not yet available.');
+          showToast('Tier 1 completed! Account creation in progress.', 'success');
         }
       }
       
@@ -2158,16 +2191,20 @@ export default function KYCUpgradeScreen() {
         return;
       }
       
-      // Wait for toast to be visible before moving to next step
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Move to next incomplete step
-      const nextStep = getNextIncompleteStep('id_face_match');
-      setCurrentStep(nextStep);
-      setTimeout(() => {
-        setIsManualVerification(false);
-        setIsLoading(false);
-      }, 1000);
+      // Only proceed to next step if Tier 1 is not complete or account number not available
+      const tierStatus = checkTierCompletion();
+      if (!tierStatus.tier1 || !accountNumber) {
+        // Wait for toast to be visible before moving to next step
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Move to next incomplete step
+        const nextStep = getNextIncompleteStep('id_face_match');
+        setCurrentStep(nextStep);
+        setTimeout(() => {
+          setIsManualVerification(false);
+          setIsLoading(false);
+        }, 1000);
+      }
       
     } catch (error) {
       console.error('BVN verification error:', error);
@@ -3827,6 +3864,21 @@ export default function KYCUpgradeScreen() {
         isVisible={showLivenessTest}
         onClose={handleLivenessClose}
         onComplete={handleLivenessComplete}
+      />
+      
+      <Tier1CompletionModal
+        isVisible={showTier1CompletionModal}
+        onClose={() => setShowTier1CompletionModal(false)}
+        onGoToDashboard={() => {
+          router.push('/(tabs)');
+        }}
+        onUpgradeToTier2={async () => {
+          // Update progress to personal step when user explicitly chooses to upgrade
+          await updateProgress({
+            current_step: 'personal'
+          });
+          setCurrentStep('personal');
+        }}
       />
     </SafeAreaView>
   );

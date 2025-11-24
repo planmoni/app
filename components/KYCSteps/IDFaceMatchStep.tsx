@@ -100,137 +100,137 @@ export default function IDFaceMatchStep({
         </View>
       )}
       
-      <View style={styles.idTypeSelector}>
-        <Text style={styles.label}>Select ID Type</Text>
-        <View style={styles.idOptions}>
-          <Pressable
-            style={[
-              styles.idOption,
-              selectedIdentityType === 'nin' && styles.selectedIdOption,
-              (selectedIdentityType === 'bvn' || bvnIdentityId) && styles.disabledOption
-            ]}
-            onPress={() => {
-              onIdentityTypeChange('nin');
-              // Clear errors when switching
-              // errors will be cleared by parent component
-            }}
-            disabled={isVerifyingDocuments || documentsVerified || selectedIdentityType === 'bvn' || !!bvnIdentityId}
-          >
-            <Text style={[
-              styles.idOptionText,
-              selectedIdentityType === 'nin' && styles.selectedIdOptionText,
-              (selectedIdentityType === 'bvn' || bvnIdentityId) && styles.disabledOptionText
-            ]}>NIN</Text>
-          </Pressable>
-          
-          {showBvnOption && (
-            <Pressable
-              style={[
-                styles.idOption,
-                selectedIdentityType === 'bvn' && styles.selectedIdOption,
-                (selectedIdentityType === 'nin' || ninIdentityId) && styles.disabledOption
-              ]}
-              onPress={() => {
-                onIdentityTypeChange('bvn');
-              }}
-              disabled={isVerifyingDocuments || documentsVerified || selectedIdentityType === 'nin' || !!ninIdentityId}
-            >
-              <Text style={[
-                styles.idOptionText,
-                selectedIdentityType === 'bvn' && styles.selectedIdOptionText,
-                (selectedIdentityType === 'nin' || ninIdentityId) && styles.disabledOptionText
-              ]}>BVN</Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
-      
-      {selectedIdentityType === 'bvn' && (
+      {!bvnIdentityId && (
         <>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Bank Verification Number (BVN)</Text>
-            <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your 11-digit BVN"
-                placeholderTextColor={colors.textTertiary}
-                value={bvn || formDataBvn || ''}
-                editable={false}
-                keyboardType="numeric"
-                maxLength={11}
-              />
+          <View style={styles.idTypeSelector}>
+            <Text style={styles.label}>Select ID Type</Text>
+            <View style={styles.idOptions}>
+              <Pressable
+                style={[
+                  styles.idOption,
+                  (selectedIdentityType as string) === 'nin' && styles.selectedIdOption,
+                  ((selectedIdentityType as string) === 'bvn' || bvnIdentityId) && styles.disabledOption
+                ]}
+                onPress={() => {
+                  onIdentityTypeChange('nin');
+                  // Clear errors when switching
+                  // errors will be cleared by parent component
+                }}
+                disabled={isVerifyingDocuments || documentsVerified || (selectedIdentityType as string) === 'bvn' || !!bvnIdentityId}
+              >
+                <Text style={[
+                  styles.idOptionText,
+                  (selectedIdentityType as string) === 'nin' && styles.selectedIdOptionText,
+                  ((selectedIdentityType as string) === 'bvn' || bvnIdentityId) && styles.disabledOptionText
+                ]}>NIN</Text>
+              </Pressable>
+              
+              {showBvnOption && (
+                <Pressable
+                  style={[
+                    styles.idOption,
+                    selectedIdentityType === 'bvn' && styles.selectedIdOption,
+                    ((selectedIdentityType as string) === 'nin' || ninIdentityId) && styles.disabledOption
+                  ]}
+                  onPress={() => {
+                    onIdentityTypeChange('bvn');
+                  }}
+                  disabled={isVerifyingDocuments || documentsVerified || (selectedIdentityType as string) === 'nin' || !!ninIdentityId}
+                >
+                  <Text style={[
+                    styles.idOptionText,
+                    selectedIdentityType === 'bvn' && styles.selectedIdOptionText,
+                    ((selectedIdentityType as string) === 'nin' || ninIdentityId) && styles.disabledOptionText
+                  ]}>BVN</Text>
+                </Pressable>
+              )}
             </View>
-            {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
           </View>
           
-          {bvnIdentityId && (
-            <>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Phone Number *</Text>
-                <Text style={styles.sectionDescription}>
-                  {otpMessage || 'Enter the phone number linked to your BVN. This is required for BVN verification.'}
-                </Text>
-                <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
-                  <TextInput
-                    ref={phoneInputRef}
-                    style={styles.input}
-                    placeholder="Enter your phone number"
-                    placeholderTextColor={colors.textTertiary}
-                    value={phoneNumber}
-                    onChangeText={(text) => {
-                      // Only allow numbers
-                      const numericText = text.replace(/[^0-9]/g, '');
-                      if (numericText.length <= 11) {
-                        onPhoneNumberChange(numericText);
-                        // Save to kyc_data when phone number is entered
-                        if (numericText.length >= 10 && onSaveFormData) {
-                          onSaveFormData({ phone_number: numericText }).catch(err => {
-                            console.error('[KYC] Error saving phone number:', err);
-                          });
-                        }
-                      }
-                    }}
-                    keyboardType="phone-pad"
-                    maxLength={11}
-                    editable={!isVerifyingDocuments && !documentsVerified}
-                    autoCorrect={false}
-                    autoCapitalize="none"
-                  />
-                </View>
-                <Text style={styles.helperText}>
-                  Use the same phone number you registered your BVN with. One-Time Passwords can only be sent to that line.
-                </Text>
-                {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
+          {selectedIdentityType === 'bvn' && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Bank Verification Number (BVN)</Text>
+              <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your 11-digit BVN"
+                  placeholderTextColor={colors.textTertiary}
+                  value={bvn || formDataBvn || ''}
+                  editable={false}
+                  keyboardType="numeric"
+                  maxLength={11}
+                />
               </View>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Enter OTP</Text>
-                <Text style={styles.sectionDescription}>
-                  Enter the 6-digit OTP code sent to your phone number.
-                </Text>
-                <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter 6-digit OTP"
-                    placeholderTextColor={colors.textTertiary}
-                    value={otp}
-                    onChangeText={(text) => {
-                      // Only allow numbers and limit to 6 digits
-                      const numericText = text.replace(/[^0-9]/g, '');
-                      if (numericText.length <= 6) {
-                        onOtpChange(numericText);
-                      }
-                    }}
-                    keyboardType="numeric"
-                    maxLength={6}
-                    editable={!isLoading && !documentsVerified}
-                    autoFocus={true}
-                  />
-                </View>
-                {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
-              </View>
-            </>
+              {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
+            </View>
           )}
+        </>
+      )}
+      
+      {bvnIdentityId && (
+        <>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Enter OTP</Text>
+            
+            <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter 6-digit OTP"
+                placeholderTextColor={colors.textTertiary}
+                value={otp}
+                onChangeText={(text) => {
+                  // Only allow numbers and limit to 6 digits
+                  const numericText = text.replace(/[^0-9]/g, '');
+                  if (numericText.length <= 6) {
+                    onOtpChange(numericText);
+                  }
+                }}
+                keyboardType="numeric"
+                maxLength={6}
+                editable={!isLoading && !documentsVerified}
+                autoFocus={true}
+              />
+            </View>
+            <Text style={styles.sectionDescription}>
+              {otpMessage || 'Enter the phone number linked to your BVN. This is required for BVN verification.'}
+            </Text>
+            {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Phone Number *</Text>
+            <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
+              <TextInput
+                ref={phoneInputRef}
+                style={styles.input}
+                placeholder="Enter your phone number (e.g., 08012345678)"
+                placeholderTextColor={colors.textTertiary}
+                value={phoneNumber}
+                onChangeText={(text) => {
+                  // Only allow numbers
+                  const numericText = text.replace(/[^0-9]/g, '');
+                  if (numericText.length <= 11) {
+                    onPhoneNumberChange(numericText);
+                    // Save to kyc_data when phone number is entered
+                    if (numericText.length >= 10 && onSaveFormData) {
+                      onSaveFormData({ phone_number: numericText }).catch(err => {
+                        console.error('[KYC] Error saving phone number:', err);
+                      });
+                    }
+                  }
+                }}
+                keyboardType="phone-pad"
+                maxLength={11}
+                editable={!isVerifyingDocuments && !documentsVerified}
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+            </View>
+            {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
+            <Text style={styles.helperText}>
+              Confirm the phone number linked to your BVN. This is required for account creation.
+            </Text>
+          </View>
         </>
       )}
       
