@@ -564,8 +564,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   },
   doneButton: {
     width: '100%',
-    height: 55,
-    borderRadius: 100,
+    height: 60,
+    borderRadius: 24,
     backgroundColor: colors.primary,
   },
   bankSelectionButton: {
@@ -601,7 +601,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   },
   createAccountButton: {
     backgroundColor: colors.primary,
-    borderRadius: 100,
+    borderRadius: 24,
     height: 55,
   },
   createAccountButtonDisabled: {
@@ -717,7 +717,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     backgroundColor: colors.backgroundSecondary,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 100,
+    borderRadius: 24,
     padding: 16,
     alignItems: 'center',
   },

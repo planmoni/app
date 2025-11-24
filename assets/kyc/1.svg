@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="498.693" height="538.91" viewBox="0 0 498.693 538.91">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #d2d5cf;
+      }
+
+      .cls-2 {
+        fill: #909090;
+        stroke: #000;
+        stroke-width: 0.2px;
+        font-size: 259px;
+        font-family: SFProText-Bold, SF Pro Text;
+        font-weight: 700;
+      }
+    </style>
+  </defs>
+  <g id="Group_16568" data-name="Group 16568" transform="translate(-90.152 -20.545)">
+    <g id="Group_16562" data-name="Group 16562">
+      <g id="shield-solid-badged" transform="translate(68.832 15.215)">
+        <path id="Path_22288" data-name="Path 22288" class="cls-1" d="M439.579,201.038A120.169,120.169,0,0,1,322.627,50.947a669.392,669.392,0,0,1-67.4-37.482l-8.687-5.47-8.687,5.63a723.9,723.9,0,0,1-97.808,51.639A704.44,704.44,0,0,1,33.385,102.907L21.32,105.964V240.129c0,215.4,217.655,296,219.747,296.8l5.47,1.93,5.47-1.93c2.252,0,219.747-81.239,219.747-296.8v-43.6A120.49,120.49,0,0,1,439.579,201.038Z" transform="translate(0 5.378)"/>
+        <circle id="Ellipse_149" data-name="Ellipse 149" class="cls-1" cx="80.434" cy="80.434" r="80.434" transform="translate(359.144 5.33)"/>
+      </g>
+      <text id="_1" data-name="1" class="cls-2" transform="translate(236.5 407.5)"><tspan x="0" y="0">1</tspan></text>
+    </g>
+  </g>
+</svg>

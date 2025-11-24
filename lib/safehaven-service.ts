@@ -1196,7 +1196,7 @@ class SafeHavenService {
         charge_stamp_duty: verificationData.charge_stamp_duty !== false,
         notification_settings: verificationData.notification_settings || null,
         is_sub_account: verificationData.is_sub_account !== false,
-        is_deleted: verificationData.is_deleted !== false,
+        is_deleted: verificationData.is_deleted === true,
         synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };

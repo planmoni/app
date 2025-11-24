@@ -1,6 +1,9 @@
 import { Pressable, Text, StyleSheet, ActivityIndicator, PressableProps, View } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 
 type ButtonProps = PressableProps & {
   title?: string;
@@ -10,6 +13,8 @@ type ButtonProps = PressableProps & {
   disabled?: boolean;
   icon?: React.ComponentType<any>;
   hapticType?: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' | 'selection' | 'none';
+  textColor?: string;
+  textStyle?: any;
 };
 
 export default function Button({
@@ -21,10 +26,14 @@ export default function Button({
   style,
   icon: Icon,
   hapticType = 'light',
+  textColor,
+  textStyle,
   ...props
 }: ButtonProps) {
   const haptics = useHaptics();
-
+  const { colors } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
+  const styles = createStyles(colors, textSizeMultiplier);
   const getVariantStyle = () => {
     switch (variant) {
       case 'primary':
@@ -39,16 +48,25 @@ export default function Button({
   };
 
   const getTextStyle = () => {
-    switch (variant) {
-      case 'primary':
-        return styles.primaryText;
-      case 'secondary':
-        return styles.secondaryText;
-      case 'outline':
-        return styles.outlineText;
-      default:
-        return styles.primaryText;
+    const baseStyle = (() => {
+      switch (variant) {
+        case 'primary':
+          return styles.primaryText;
+        case 'secondary':
+          return styles.secondaryText;
+        case 'outline':
+          return styles.outlineText;
+        default:
+          return styles.primaryText;
+      }
+    })();
+    
+    // Override text color if provided
+    if (textColor) {
+      return [baseStyle, { color: textColor }];
     }
+    
+    return baseStyle;
   };
 
   const getSizeStyle = () => {
@@ -131,13 +149,13 @@ export default function Button({
         {isLoading ? (
           <ActivityIndicator 
             size="small" 
-            color={variant === 'outline' ? '#1E3A8A' : '#FFFFFF'} 
+            color={textColor || (variant === 'outline' ? '#1E3A8A' : '#FFFFFF')} 
           />
         ) : (
           <>
             {Icon && (
               <Icon 
-                color={variant === 'outline' ? '#1E3A8A' : '#FFFFFF'} 
+                color={textColor || (variant === 'outline' ? '#1E3A8A' : '#FFFFFF')} 
                 size={24} 
                 style={styles.icon} 
               />
@@ -150,6 +168,7 @@ export default function Button({
                   getTextStyle(),
                   getTextSizeStyle(),
                   disabled && styles.disabledText,
+                  textStyle,
                 ]}
               >
                 {title || ''}
@@ -162,12 +181,12 @@ export default function Button({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any, textSizeMultiplier: number) => StyleSheet.create({
   button: {
-    borderRadius: 100,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    height: 55,
+    height: 60,
   },
   content: {
     flexDirection: 'row',
@@ -176,78 +195,83 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginRight: 8,
+    color: colors.primary,
   },
   text: {
     fontWeight: '600',
+    fontSize: getScaledFontSize(18, textSizeMultiplier),
     textAlign: 'center',
   },
   // Variants
   primaryButton: {
-    backgroundColor: '#1E3A8A',
-    height: 55,
-    borderRadius: 100,
+    backgroundColor: colors.primary,
+    height: 65,
+    borderRadius: 20,
     width: '100%',
   },
   primaryText: {
-    color: '#FFFFFF',
+    color:'#FFFFFF',
+    fontSize: getScaledFontSize(17, textSizeMultiplier),
   },
   secondaryButton: {
     backgroundColor: '#CBD5E1',
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
   },
   secondaryText: {
     color: '#1E293B',
+    fontSize: getScaledFontSize(18, textSizeMultiplier),
   },
   outlineButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#1E3A8A',
-    height: 55,
-    borderRadius: 100,
+    borderColor: colors.primary,
+    height: 60,
+    borderRadius: 20,
     width: '100%',
   },
   outlineText: {
-    color: '#1E3A8A',
+    color: colors.primary,
+    fontSize: getScaledFontSize(18, textSizeMultiplier),
   },
   // Sizes
   smallButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
   },
   mediumButton: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
   },
   largeButton: {
     paddingVertical: 16,
     paddingHorizontal: 24,
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
   },
   smallText: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
   },
   mediumText: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(17, textSizeMultiplier),
   },
   largeText: {
-    fontSize: 16,
+    fontSize: getScaledFontSize(18, textSizeMultiplier),
   },
   // States
   disabledButton: {
     backgroundColor: '#E2E8F0',
     borderColor: '#E2E8F0',
     height: 55,
-    borderRadius: 100,
+    borderRadius: 20,
     width: '100%',
   },
   disabledText: {

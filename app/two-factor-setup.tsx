@@ -14,6 +14,7 @@ import {
   ArrowLeft, 
   QrCode, 
   Shield, 
+  ShieldUser,
   Check, 
   Copy, 
   Download,
@@ -47,7 +48,7 @@ export default function TwoFactorSetupScreen() {
   const { colors } = useTheme();
   const { session } = useAuth();
   const { isOnline } = useOnlineStatus();
-  const { method } = useLocalSearchParams<{ method: string }>();
+  const { method, action } = useLocalSearchParams<{ method: string; action?: string }>();
   
   const [currentStep, setCurrentStep] = useState<SetupStep>('loading');
   const [totpSecret, setTotpSecret] = useState<TOTPSecret | null>(null);
@@ -61,7 +62,6 @@ export default function TwoFactorSetupScreen() {
   useEffect(() => {
     if (session?.user?.id && isOnline) {
       if (method === 'authenticator') {
-        const { action } = useLocalSearchParams<{ action?: string }>();
         if (action === 'regenerate-backup-codes') {
           handleRegenerateBackupCodes();
         } else {
@@ -71,7 +71,7 @@ export default function TwoFactorSetupScreen() {
         initializeEmail2FA();
       }
     }
-  }, [method, session?.user?.id, isOnline]);
+  }, [method, action, session?.user?.id, isOnline]);
 
   const initializeTOTPSetup = async () => {
     try {
@@ -246,7 +246,7 @@ export default function TwoFactorSetupScreen() {
     <View style={styles.stepContainer}>
       <View style={styles.heroSection}>
         <View style={styles.shieldIcon}>
-          <Shield size={32} color="#22C55E" />
+          <ShieldUser size={32} color={colors.backgroundSecondary} />
         </View>
         <Text style={styles.heroTitle}>Verify Setup</Text>
         <Text style={styles.heroDescription}>
@@ -293,7 +293,6 @@ export default function TwoFactorSetupScreen() {
     <View style={styles.stepContainer}>
       <View style={styles.heroSection}>
         <View style={styles.shieldIcon}>
-          <Shield size={32} color="#22C55E" />
         </View>
         <Text style={styles.heroTitle}>Save Backup Codes</Text>
         <Text style={styles.heroDescription}>

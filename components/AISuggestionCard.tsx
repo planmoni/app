@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,10 @@ import {
 import { useHaptics } from '@/hooks/useHaptics';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { router } from 'expo-router';
 
 const { width: screenWidth } = Dimensions.get('window');
 const CARD_WIDTH = 200; // Smaller cards
@@ -43,18 +47,20 @@ interface AISuggestionCardProps {
   onSuggestionPress: (suggestion: Suggestion) => void;
 }
 
-export default function AISuggestionCard({ 
+function AISuggestionCard({ 
   availableBalance, 
   onSuggestionPress 
 }: AISuggestionCardProps) {
   const { colors, isDark } = useTheme();
   const { impact } = useHaptics();
+  const { textSizeMultiplier } = useTextSize();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const { payoutPlans } = useRealtimePayoutPlans();
 
   // Analyze user's payout patterns to make intelligent suggestions
-  const analyzeUserPatterns = () => {
+  const analyzeUserPatterns = useCallback(() => {
     if (payoutPlans.length === 0) {
       return {
         mostCommonFrequency: 'weekly',
@@ -83,7 +89,7 @@ export default function AISuggestionCard({
       averageAmount,
       totalPlans: payoutPlans.length
     };
-  };
+  }, [payoutPlans, availableBalance]);
 
   // Get duration options based on frequency (matching the schedule page logic)
   const getDurationOptions = (frequency: string) => {
@@ -124,13 +130,9 @@ export default function AISuggestionCard({
   };
 
   // Generate AI suggestions based on available balance and user patterns
-  const generateSuggestions = (): Suggestion[] => {
-    // Debug: Log available balance
-    console.log('🔍 AISuggestionCard - availableBalance:', availableBalance);
-    
+  const generateSuggestions = useCallback((): Suggestion[] => {
     // Only show suggestions if balance is more than 1,000 (lowered threshold)
-    if (availableBalance < 1000) {
-      console.log('⚠️ AISuggestionCard - Balance too low, hiding suggestions');
+    if (availableBalance < 10000) {
       return [];
     }
 
@@ -258,19 +260,19 @@ export default function AISuggestionCard({
       // Finally sort by amount (highest first)
       return b.amount - a.amount;
     });
-  };
+  }, [availableBalance, analyzeUserPatterns]);
 
-  const suggestions = generateSuggestions();
+  const suggestions = useMemo(() => generateSuggestions(), [generateSuggestions]);
 
-  const handleScroll = (event: any) => {
+  const handleScroll = useCallback((event: any) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
     const index = Math.round(contentOffsetX / (CARD_WIDTH + CARD_SPACING));
     if (index !== currentIndex && index >= 0 && index < suggestions.length) {
       setCurrentIndex(index);
     }
-  };
+  }, [currentIndex, suggestions.length]);
 
-  const handleSuggestionPress = (suggestion: Suggestion) => {
+  const handleSuggestionPress = useCallback((suggestion: Suggestion) => {
     impact();
     logAnalyticsEvent('ai_suggestion_clicked', {
       suggestion_id: suggestion.id,
@@ -279,13 +281,13 @@ export default function AISuggestionCard({
       user_balance: availableBalance,
     });
     onSuggestionPress(suggestion);
-  };
+  }, [availableBalance, impact, onSuggestionPress]);
 
-  const formatAmount = (amount: number) => {
+  const formatAmount = useCallback((amount: number) => {
     return `₦${amount.toLocaleString()}`;
-  };
+  }, []);
 
-  const getFrequencyText = (frequency: string) => {
+  const getFrequencyText = useCallback((frequency: string) => {
     switch (frequency) {
       case 'daily': return 'Daily';
       case 'weekly': return 'Weekly';
@@ -294,19 +296,43 @@ export default function AISuggestionCard({
       case 'end_of_month': return 'Month-end';
       default: return frequency;
     }
-  };
+  }, []);
 
-  const getPayoutCount = (frequency: string, duration: number) => {
+  const getPayoutCount = useCallback((frequency: string, duration: number) => {
     // Return the actual number of payouts based on duration
     return duration;
-  };
+  }, []);
 
-  if (suggestions.length === 0) {
-    console.log('⚠️ AISuggestionCard - No suggestions generated, returning null');
-    return null;
+  const styles = createStyles(textSizeMultiplier);
+
+  // Show login prompt if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.titleContainer}>
+            <Sparkles size={20} color="#1E3A8A" />
+            <Text style={styles.title}>AI Suggestions</Text>
+          </View>
+        </View>
+        <View style={styles.loginPromptCard}>
+          <Text style={styles.loginPromptText}>
+            Login to get personalized payout plan suggestions powered by AI
+          </Text>
+          <Pressable
+            style={styles.loginPromptButton}
+            onPress={() => requireAuth(() => {}, '/(tabs)/index')}
+          >
+            <Text style={styles.loginPromptButtonText}>Login to Continue</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
   }
 
-  console.log('✅ AISuggestionCard - Rendering', suggestions.length, 'suggestions');
+  if (suggestions.length === 0) {
+    return null;
+  }
 
   return (
     <View style={styles.container}>
@@ -376,7 +402,7 @@ export default function AISuggestionCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (textSizeMultiplier: number) => StyleSheet.create({
   container: {
     marginTop: 5,
     marginBottom: 15,
@@ -391,11 +417,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
   },
   subtitle: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     fontWeight: '400',
   },
   scrollContent: {
@@ -424,13 +450,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   amount: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '700',
     marginBottom: 4,
     textAlign: 'left',
   },
   frequency: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     fontWeight: '500',
     textAlign: 'left',
   },
@@ -446,4 +472,30 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
+  loginPromptCard: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  loginPromptText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  loginPromptButton: {
+    backgroundColor: '#1E3A8A',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  loginPromptButtonText: {
+    color: '#FFFFFF',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    fontWeight: '600',
+  },
 });
+
+export default React.memo(AISuggestionCard);

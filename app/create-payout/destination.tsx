@@ -240,7 +240,7 @@ export default function DestinationScreen() {
             >
               <Text style={[
                 styles.accountTypeText,
-                accountType === 'linked' && styles.activeAccountTypeText
+                styles.disabledAccountTypeText
               ]}>
                 Linked Accounts
               </Text>
@@ -461,7 +461,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     backgroundColor: colors.surface,
   },
   progressBar: {
-    height: 4,
+    height: 2,
     backgroundColor: colors.border,
     borderRadius: 2,
     marginBottom: 8,
@@ -665,5 +665,27 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     fontSize: isSmallScreen ? 13 : 14,
     color: colors.text,
     lineHeight: 20,
+  },
+  disabledAccountTypeOption: {
+    opacity: 0.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disabledAccountTypeText: {
+    color: colors.textSecondary,
+  },
+  comingSoonTag: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 8,
+    alignSelf: 'center',
+  },
+  comingSoonText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
 });

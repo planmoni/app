@@ -1,19 +1,36 @@
 // import { ExpoConfig, ConfigContext } from 'expo/config';
 
 // app.config.js
-export default {
+module.exports = {
   expo: {
-    name: 'Planmoni',
+    name: "Planmoni",
     owner: "planmoni", // 👈 Add this line
     slug: "planmoni",
-    version: "1.0.0",
+    version: "1.0.4",
     scheme: "myapp",
     userInterfaceStyle: "automatic", // Allow system to control theme
     updates: {
       url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83"
     },
-    runtimeVersion: "1.0.0",
+    runtimeVersion: "1.0.4",
     android: {
+      package: "com.planmoni.app", // ← choose your unique package name
+      permissions: [
+        "android.permission.CAMERA",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+      ],
+      googleServicesFile: "./google-services.json",
+    },
+    ios: {
+      googleServicesFile: "./GoogleService-Info.plist",
+      bundleIdentifier: "com.planmoni.app",
+      infoPlist: {
+        UIBackgroundModes: ["remote-notification"],
+      },
       package: "com.planmoni", // ← choose your unique package name
       "userInterfaceStyle": "automatic",
       "permissions": [
@@ -33,9 +50,6 @@ export default {
       },
       "entitlements": {
         "aps-environment": "development", // ✅ Required for push notification, change to "production" for Testflight and App Store builds
-        "com.apple.security.application-groups": [
-          "group.${ios.bundleIdentifier}.onesignal" // // ✅ Required for confirmed delivery
-        ],
         "keychain-access-groups": ["$(AppIdentifierPrefix)com.planmoni"]
       }
     },
@@ -45,12 +59,6 @@ export default {
         {
           "photosPermission": "Planmoni needs access to your photos to upload document images.",
           "cameraPermission": "Planmoni needs access to your camera to take document photos."
-        }
-      ],
-      [
-        "onesignal-expo-plugin",
-        {
-          "mode": "development"
         }
       ],
       [
@@ -72,7 +80,7 @@ export default {
             "buildToolsVersion": "35.0.0"
           },
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "16.0"
           }
         }
        
@@ -87,15 +95,29 @@ export default {
       ]
     ],
     extra: {
-      "eas": {
-        "projectId": "05caad20-9b74-4ba8-8280-dc5939b7ca83"
+      eas: {
+        projectId: "05caad20-9b74-4ba8-8280-dc5939b7ca83",
       },
-      EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
-      EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-      EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY: process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-      EXPO_PUBLIC_MONO_PUBLIC_KEY: process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || '',
-      EXPO_PUBLIC_MONO_SECRET_KEY: process.env.EXPO_PUBLIC_MONO_SECRET_KEY || '',
+      EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL || "",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY:
+        process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
+      EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY:
+        process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY || "",
+      EXPO_PUBLIC_MONO_PUBLIC_KEY:
+        process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || "",
+      EXPO_PUBLIC_MONO_SECRET_KEY:
+        process.env.EXPO_PUBLIC_MONO_SECRET_KEY || "",
       // Use platform-specific API URL handling
+      EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL || "",
+      PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY || "",
+      EXPO_PUBLIC_PAYSTACK_SECRET_KEY:
+        process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY || "",
+      EXPO_PUBLIC_DOJAH_APP_ID: process.env.EXPO_PUBLIC_DOJAH_APP_ID || "",
+      EXPO_PUBLIC_DOJAH_PRIVATE_KEY:
+        process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY || "",
+      EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY:
+        process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY || "",
+      EXPO_PUBLIC_OPENAI_API_KEY: process.env.EXPO_PUBLIC_OPENAI_API_KEY || "",
       EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL || '',
       PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY || '',
       EXPO_PUBLIC_PAYSTACK_SECRET_KEY: process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY || '',

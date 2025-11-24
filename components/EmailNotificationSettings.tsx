@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Switch, Pressable, ActivityIndicator , Platform } from 'react-native';
+import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import { Bell, Calendar, Wallet, Mail } from 'lucide-react-native';
+import { Bell, Calendar, Wallet, Mail, ChevronRight } from 'lucide-react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useEmailNotifications } from '@/hooks/useEmailNotifications';
 
@@ -13,7 +14,7 @@ export default function EmailNotificationSettings() {
   const { showToast } = useToast();
   const haptics = useHaptics();
   const { settings, isLoading, error, updateSettings } = useEmailNotifications();
-  
+
   const [localSettings, setLocalSettings] = useState(settings);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -47,20 +48,20 @@ export default function EmailNotificationSettings() {
     if (Platform.OS !== 'web') {
       haptics.mediumImpact();
     }
-    
+
     setIsSaving(true);
     try {
       const success = await updateSettings(localSettings);
-      
+
       if (success) {
         showToast('Notification settings saved successfully', 'success');
-        
+
         if (Platform.OS !== 'web') {
           haptics.success();
         }
       } else {
         showToast('Failed to save notification settings', 'error');
-        
+
         if (Platform.OS !== 'web') {
           haptics.error();
         }
@@ -68,13 +69,20 @@ export default function EmailNotificationSettings() {
     } catch (error) {
       console.error('Error saving settings:', error);
       showToast('Failed to save notification settings', 'error');
-      
+
       if (Platform.OS !== 'web') {
         haptics.error();
       }
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleMarketingPress = () => {
+    if (Platform.OS !== 'web') {
+      haptics.lightImpact();
+    }
+    router.push('/marketing-preferences');
   };
 
   const styles = StyleSheet.create({
@@ -121,6 +129,17 @@ export default function EmailNotificationSettings() {
       paddingVertical: 16,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
+    },
+    navigationItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      paddingVertical: 16,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     settingInfo: {
       flexDirection: 'row',
@@ -362,13 +381,37 @@ export default function EmailNotificationSettings() {
         </View>
       </View>
       
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Marketing & Updates</Text>
+        <Text style={styles.sectionDescription}>
+          Manage your marketing email preferences
+        </Text>
+
+        <Pressable
+          style={styles.navigationItem}
+          onPress={handleMarketingPress}
+          disabled={isSaving}
+        >
+          <View style={styles.settingInfo}>
+            <View style={[styles.settingIcon, { backgroundColor: '#EFF6FF' }]}>
+              <Mail size={20} color="#1E3A8A" />
+            </View>
+            <View>
+              <Text style={styles.settingTitle}>Marketing Email Preferences</Text>
+              <Text style={styles.settingDescription}>Choose which marketing emails you want to receive</Text>
+            </View>
+          </View>
+          <ChevronRight size={20} color={colors.textSecondary} />
+        </Pressable>
+      </View>
+
       <View style={styles.infoContainer}>
         <Mail size={16} color={colors.primary} />
         <Text style={styles.infoText}>
           Email notifications help you stay informed about important account activities and updates.
         </Text>
       </View>
-      
+
       <Pressable
         style={[styles.saveButton, isSaving && styles.savingButton]}
         onPress={handleSaveChanges}

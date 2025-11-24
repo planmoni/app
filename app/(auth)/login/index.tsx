@@ -73,7 +73,11 @@ export default function LoginEmailScreen() {
               </View>
             )}
             
-            <View style={styles.inputContainer}>
+            <View style={[
+              styles.inputContainer,
+              email.trim() !== '' && styles.inputContainerFilled,
+              error && styles.inputContainerError,
+            ]}>
               <TextInput
                 ref={emailInputRef}
                 style={styles.input}
@@ -90,6 +94,13 @@ export default function LoginEmailScreen() {
                 returnKeyType="next"
                 onSubmitEditing={handleContinue}
               />
+            </View>
+
+            <View style={styles.signUpLinkContainer}>
+              <Text style={styles.signUpLinkText}>Don't have a Planmoni account yet?</Text>
+              <Pressable onPress={() => router.push('/(auth)/onboarding/first-name')}>
+                <Text style={styles.signUpLinkButton}>Click here to Set One Up</Text>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -182,18 +193,19 @@ const createStyles = (colors: any) => StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 0.5,
+    borderWidth: 2,
     borderColor: colors.border,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
     borderRadius: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     paddingHorizontal: 16,
     height: 56,
-    marginBottom: 24,
+  },
+  inputContainerFilled: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentBackground || colors.background,
+  },
+  inputContainerError: {
+    borderColor: colors.error || '#DC2626',
   },
   inputIcon: {
     marginRight: 12,
@@ -203,5 +215,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 18,
     color: colors.text,
     height: '100%',
+  },
+  signUpLinkContainer: {
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  signUpLinkText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  signUpLinkButton: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'center',
   },
 });

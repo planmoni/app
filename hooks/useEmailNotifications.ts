@@ -12,6 +12,13 @@ export type EmailNotificationSettings = {
   deposit_alerts: boolean;
 };
 
+export type MarketingEmailSettings = {
+  promotional: boolean;
+  product_updates: boolean;
+  educational: boolean;
+  newsletters: boolean;
+};
+
 export function useEmailNotifications() {
   const [settings, setSettings] = useState<EmailNotificationSettings>({
     login_alerts: true,
@@ -19,6 +26,12 @@ export function useEmailNotifications() {
     expiry_reminders: true,
     wallet_summary: 'weekly',
     deposit_alerts: true
+  });
+  const [marketingSettings, setMarketingSettings] = useState<MarketingEmailSettings>({
+    promotional: true,
+    product_updates: true,
+    educational: true,
+    newsletters: true
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,15 +55,20 @@ export function useEmailNotifications() {
       if (!userId) throw new Error('No user ID available');
       const { data, error: fetchError } = await supabase
         .from('profiles')
-        .select('email_notifications')
+        .select('email_notifications, marketing_email_preferences')
         .eq('id', userId)
         .single();
       if (fetchError) throw fetchError;
       if (data?.email_notifications) {
         setSettings(data.email_notifications);
-        return data.email_notifications;
       }
-      return null;
+      if (data?.marketing_email_preferences) {
+        setMarketingSettings(data.marketing_email_preferences);
+      }
+      return {
+        notifications: data?.email_notifications,
+        marketing: data?.marketing_email_preferences
+      };
     } catch (err) {
       console.error('Error fetching notification settings:', err);
       setError(err instanceof Error ? err.message : 'Failed to load notification settings');
@@ -78,6 +96,30 @@ export function useEmailNotifications() {
       console.error('Error updating notification settings:', err);
       setError(err instanceof Error ? err.message : 'Failed to update notification settings');
       showToast?.('Failed to update notification settings', 'error');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Update marketing settings
+  const updateMarketingSettings = async (newSettings: MarketingEmailSettings): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      if (!userId) throw new Error('No user ID available');
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ marketing_email_preferences: newSettings })
+        .eq('id', userId);
+      if (updateError) throw updateError;
+      setMarketingSettings(newSettings);
+      showToast?.('Marketing email preferences updated successfully', 'success');
+      return true;
+    } catch (err) {
+      console.error('Error updating marketing settings:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update marketing settings');
+      showToast?.('Failed to update marketing settings', 'error');
       return false;
     } finally {
       setIsLoading(false);
@@ -133,10 +175,12 @@ export function useEmailNotifications() {
 
   return {
     settings,
+    marketingSettings,
     isLoading,
     error,
     fetchSettings,
     updateSettings,
+    updateMarketingSettings,
     sendNotification
   };
 }

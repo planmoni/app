@@ -1,50 +1,94 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { ArrowLeft, Shield, ChevronRight, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import { router } from 'expo-router';
 import SafeFooter from '@/components/SafeFooter';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { useState, useEffect } from 'react';
+import { formatCurrency } from '@/lib/formatters';
 
-type KYCTier = 1 | 2 | 3;
+type KYCTier = 0 | 1 | 2 | 3;
 
-interface TierLimit {
-  deposit: string;
-  singlePayout: string;
-  dailyPayout: string;
+interface TierLimitData {
+  tier_number: number;
+  tier_name: string;
+  max_daily_deposit: number;
+  max_weekly_deposit: number;
+  max_monthly_deposit: number;
+  max_single_deposit: number;
+  max_account_balance: number;
 }
-
-const TIER_LIMITS: Record<KYCTier, TierLimit> = {
-  1: {
-    deposit: '500,000',
-    singlePayout: '100,000',
-    dailyPayout: '200,000',
-  },
-  2: {
-    deposit: '2,000,000',
-    singlePayout: '1,000,000',
-    dailyPayout: '5,000,000',
-  },
-  3: {
-    deposit: 'Unlimited',
-    singlePayout: '10,000,000',
-    dailyPayout: '50,000,000',
-  },
-};
 
 export default function TransactionLimitsScreen() {
   const { colors } = useTheme();
-  // Current tier is 1
-  const currentTier: KYCTier = 1;
+  const { session } = useAuth();
+  const [currentTier, setCurrentTier] = useState<KYCTier>(0);
+  const [tierLimits, setTierLimits] = useState<Record<number, TierLimitData>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTierData();
+  }, [session?.user?.id]);
+
+  const fetchTierData = async () => {
+    if (!session?.user?.id) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Get current tier
+      const { data: tier, error: tierError } = await supabase.rpc('calculate_user_kyc_tier', {
+        p_user_id: session.user.id
+      });
+
+      if (tierError) throw tierError;
+      setCurrentTier((tier || 0) as KYCTier);
+
+      // Fetch limits for all tiers (1, 2, 3)
+      const tierNumbers = [1, 2, 3];
+      const limitsPromises = tierNumbers.map(async (tierNum) => {
+        const { data, error } = await supabase.rpc('get_tier_deposit_limits', {
+          p_tier_number: tierNum
+        });
+        if (error) throw error;
+        return data && data[0] ? { tierNum, data: data[0] } : null;
+      });
+
+      const limitsResults = await Promise.all(limitsPromises);
+      const limitsMap: Record<number, TierLimitData> = {};
+      
+      limitsResults.forEach((result) => {
+        if (result) {
+          limitsMap[result.tierNum] = result.data;
+        }
+      });
+
+      setTierLimits(limitsMap);
+    } catch (error) {
+      console.error('Error fetching tier data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleUpgrade = () => {
     // Navigate to KYC upgrade flow
     router.push('/kyc-upgrade');
   };
 
-  // Filter out current tier from available tiers
-  const availableTiers = Object.entries(TIER_LIMITS).filter(
-    ([tier]) => parseInt(tier) > currentTier
-  );
+  // Filter out current tier and lower tiers from available tiers
+  const availableTiers = Object.entries(tierLimits)
+    .filter(([tier]) => parseInt(tier) > currentTier)
+    .sort(([a], [b]) => parseInt(a) - parseInt(b));
+
+  const formatAmount = (amount: number): string => {
+    return formatCurrency(amount);
+  };
+
+  const currentTierLimits = tierLimits[currentTier] || tierLimits[1]; // Fallback to tier 1 if current tier not found
 
   const styles = createStyles(colors);
 
@@ -58,69 +102,121 @@ export default function TransactionLimitsScreen() {
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.currentTierCard}>
-          <View style={styles.tierBadge}>
-            <Shield size={20} color="#1E3A8A" />
-            <Text style={styles.tierText}>Tier {currentTier}</Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Loading limits...</Text>
           </View>
-          <Text style={styles.tierTitle}>Current Limits</Text>
-          <View style={styles.limitsContainer}>
-            <View style={styles.limitItem}>
-              <Text style={styles.limitLabel}>Deposit Limit</Text>
-              <Text style={styles.limitValue}>₦{TIER_LIMITS[currentTier].deposit}</Text>
-            </View>
-            <View style={styles.limitItem}>
-              <Text style={styles.limitLabel}>Single Payout Limit</Text>
-              <Text style={styles.limitValue}>₦{TIER_LIMITS[currentTier].singlePayout}</Text>
-            </View>
-            <View style={styles.limitItem}>
-              <Text style={styles.limitLabel}>Daily Payout Limit</Text>
-              <Text style={styles.limitValue}>₦{TIER_LIMITS[currentTier].dailyPayout}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Available Upgrades</Text>
-          
-          {availableTiers.map(([tier, limits]) => (
-            <View 
-              key={tier} 
-              style={styles.tierCard}
-            >
-              <View style={styles.tierHeader}>
-                <View style={styles.tierInfo}>
-                  <Text style={styles.tierName}>Tier {tier}</Text>
-                  <View style={styles.upgradeTag}>
-                    <Text style={styles.upgradeTagText}>Available</Text>
+        ) : (
+          <>
+            <View style={styles.currentTierCard}>
+              <View style={styles.tierBadge}>
+                <Text style={styles.tierText}>
+                  {currentTier === 0 ? 'Unverified' : `Tier ${currentTier}`}
+                </Text>
+              </View>
+              <Text style={styles.tierTitle}>Current Limits</Text>
+              {currentTierLimits ? (
+                <View style={styles.limitsContainer}>
+                  <View style={styles.limitItem}>
+                    <Text style={styles.limitLabel}>Daily Deposit Limit</Text>
+                    <Text style={styles.limitValue}>
+                      {formatAmount(currentTierLimits.max_daily_deposit / 100)}
+                    </Text>
+                  </View>
+                  <View style={styles.limitItem}>
+                    <Text style={styles.limitLabel}>Weekly Deposit Limit</Text>
+                    <Text style={styles.limitValue}>
+                      {formatAmount(currentTierLimits.max_weekly_deposit / 100)}
+                    </Text>
+                  </View>
+                  <View style={styles.limitItem}>
+                    <Text style={styles.limitLabel}>Monthly Deposit Limit</Text>
+                    <Text style={styles.limitValue}>
+                      {formatAmount(currentTierLimits.max_monthly_deposit / 100)}
+                    </Text>
+                  </View>
+                  <View style={styles.limitItem}>
+                    <Text style={styles.limitLabel}>Single Transaction Limit</Text>
+                    <Text style={styles.limitValue}>
+                      {formatAmount(currentTierLimits.max_single_deposit / 100)}
+                    </Text>
+                  </View>
+                  <View style={styles.limitItem}>
+                    <Text style={styles.limitLabel}>Maximum Account Balance</Text>
+                    <Text style={styles.limitValue}>
+                      {formatAmount(currentTierLimits.max_account_balance / 100)}
+                    </Text>
                   </View>
                 </View>
-                <Pressable 
-                  style={styles.upgradeButton}
-                  onPress={handleUpgrade}
-                >
-                  <Text style={styles.upgradeButtonText}>Upgrade</Text>
-                  <ChevronRight size={16} color="#1E3A8A" />
-                </Pressable>
-              </View>
-
-              <View style={styles.tierLimits}>
-                <View style={styles.tierLimit}>
-                  <Text style={styles.limitType}>Deposit Limit:</Text>
-                  <Text style={styles.limitAmount}>₦{limits.deposit}</Text>
-                </View>
-                <View style={styles.tierLimit}>
-                  <Text style={styles.limitType}>Single Payout:</Text>
-                  <Text style={styles.limitAmount}>₦{limits.singlePayout}</Text>
-                </View>
-                <View style={styles.tierLimit}>
-                  <Text style={styles.limitType}>Daily Payout:</Text>
-                  <Text style={styles.limitAmount}>₦{limits.dailyPayout}</Text>
-                </View>
-              </View>
+              ) : (
+                <Text style={styles.errorText}>Unable to load limits</Text>
+              )}
             </View>
-          ))}
-        </View>
+
+            {availableTiers.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Available Upgrades</Text>
+                
+                {availableTiers.map(([tier, limits]) => (
+                  <View 
+                    key={tier} 
+                    style={styles.tierCard}
+                  >
+                    <View style={styles.tierHeader}>
+                      <View style={styles.tierInfo}>
+                        <Text style={styles.tierName}>Tier {tier}</Text>
+                        <View style={styles.upgradeTag}>
+                          <Text style={styles.upgradeTagText}>Available</Text>
+                        </View>
+                      </View>
+                      <Pressable 
+                        style={styles.upgradeButton}
+                        onPress={handleUpgrade}
+                      >
+                        <Text style={styles.upgradeButtonText}>Upgrade</Text>
+                        <ChevronRight size={16} color="#1E3A8A" />
+                      </Pressable>
+                    </View>
+
+                    <View style={styles.tierLimits}>
+                      <View style={styles.tierLimit}>
+                        <Text style={styles.limitType}>Daily Deposit:</Text>
+                        <Text style={styles.limitAmount}>
+                          {formatAmount(limits.max_daily_deposit / 100)}
+                        </Text>
+                      </View>
+                      <View style={styles.tierLimit}>
+                        <Text style={styles.limitType}>Weekly Deposit:</Text>
+                        <Text style={styles.limitAmount}>
+                          {formatAmount(limits.max_weekly_deposit / 100)}
+                        </Text>
+                      </View>
+                      <View style={styles.tierLimit}>
+                        <Text style={styles.limitType}>Monthly Deposit:</Text>
+                        <Text style={styles.limitAmount}>
+                          {formatAmount(limits.max_monthly_deposit / 100)}
+                        </Text>
+                      </View>
+                      <View style={styles.tierLimit}>
+                        <Text style={styles.limitType}>Single Transaction:</Text>
+                        <Text style={styles.limitAmount}>
+                          {formatAmount(limits.max_single_deposit / 100)}
+                        </Text>
+                      </View>
+                      <View style={styles.tierLimit}>
+                        <Text style={styles.limitType}>Max Balance:</Text>
+                        <Text style={styles.limitAmount}>
+                          {formatAmount(limits.max_account_balance / 100)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        )}
 
         <View style={styles.infoSection}>
           <View style={styles.infoCard}>
@@ -334,5 +430,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 12,
+  },
+  errorText: {
+    fontSize: 14,
+    color: colors.error || '#EF4444',
+    textAlign: 'center',
+    marginTop: 16,
   },
 });

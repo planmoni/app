@@ -41,6 +41,12 @@ export default function AmountScreen() {
       return;
     }
 
+    if (numericAmount < 5000) {
+      setError('Minimum amount is ₦5,000');
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
     if (numericAmount > availableBalance) {
       setError('Amount exceeds your available balance');
       haptics.notification(Haptics.NotificationFeedbackType.Error);
@@ -82,6 +88,7 @@ export default function AmountScreen() {
   const handleAmountChange = (value: string) => {
     const formattedValue = formatAmount(value);
     setAmount(formattedValue);
+    // Clear error while typing - validation only happens on continue
     setError(null);
   };
 
@@ -133,9 +140,9 @@ export default function AmountScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Text style={styles.title}>What is the total amount for this payout?</Text>
+          <Text style={styles.title}>How much do you want to set aside?</Text>
           <Text style={styles.description}>
-            You won't be able to spend from this until your payout date.
+            Enter an amount that you want to create a plan for.
           </Text>
 
           {error && (
@@ -150,7 +157,11 @@ export default function AmountScreen() {
             </View>
           )}
 
-          <View style={styles.amountContainer}>
+          <View style={[
+            styles.amountContainer,
+            amount.trim() !== '' && styles.amountContainerFilled,
+            error && styles.amountContainerError,
+          ]}>
             <Text style={styles.currencySymbol}>₦</Text>
             <TextInput
               ref={amountInputRef}
@@ -228,7 +239,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
   },
   progressBar: {
-    height: 4,
+    height: 2,
     backgroundColor: colors.border,
     borderRadius: 2,
     marginBottom: 8,
@@ -295,25 +306,35 @@ const createStyles = (colors: any) => StyleSheet.create({
   amountContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: colors.background,
     borderRadius: 12,
-    paddingLeft: 10,
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingVertical: 4,
     marginBottom: 16,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
+    minHeight: 64,
+  },
+  amountContainerFilled: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentBackground || colors.background,
+  },
+  amountContainerError: {
+    borderColor: colors.error || '#DC2626',
   },
   currencySymbol: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '600',
-    color: colors.textSecondary,
-    marginRight: 3,
+    color: colors.text,
+    marginRight: 8,
   },
   amountInput: {
     flex: 1,
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '600',
     color: colors.text,
-    height: 56,
+    paddingVertical: 12,
   },
   balanceContainer: {
     marginBottom: 24,

@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { Calendar, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTextSize } from '@/contexts/TextSizeContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import Card from '@/components/Card';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { getScaledFontSize } from '@/lib/textSize';
 
 interface SummaryCardProps {
   totalPaidOut: number;
@@ -24,6 +26,7 @@ export default function SummaryCard({
   getLastPayoutDate 
 }: SummaryCardProps) {
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
   const { showBalances } = useBalance();
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
 
@@ -31,7 +34,7 @@ export default function SummaryCard({
     return showBalances ? `₦${amount.toLocaleString()}` : '*********';
   };
 
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
     <View style={styles.section}>
@@ -93,7 +96,7 @@ export default function SummaryCard({
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   section: {
     marginBottom: 20,
   },
@@ -104,7 +107,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
   },
@@ -112,11 +115,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: colors.card,
-    shadowColor: '#000000',
-    shadowOffset: { width: 1, height: 6},
-    shadowOpacity: 0.04,
-    shadowRadius: 9,
-    elevation: 6,
   },
   summaryItems: {
     paddingHorizontal: 1,
@@ -137,11 +135,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   summaryLabel: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
   },
   summaryValue: {
-    fontSize: Platform.OS === 'ios' ? 14 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
   },
@@ -156,7 +154,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginTop: Platform.OS === 'ios' ? 16 : 10,
   },
   seeMoreText: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     color: colors.textSecondary,
     fontWeight: '600',
   },

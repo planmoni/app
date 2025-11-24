@@ -17,6 +17,16 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { 
+  generatePayoutSuccessEmailHtml, 
+  generatePayoutFailedEmailHtml, 
+  generatePayoutReversedEmailHtml,
+  generateEmergencyWithdrawalSuccessEmailHtml,
+  generateEmergencyWithdrawalFailedEmailHtml,
+  generateEmergencyWithdrawalReversedEmailHtml,
+  generateDepositSuccessEmailHtml,
+  generateDepositFailedEmailHtml
+} from './email-templates.ts';
 
 // Initialize Supabase client with service role key (bypasses RLS)
 // This is safe because webhooks are authenticated via signature verification
@@ -147,6 +157,29 @@ interface SafeHavenAccountDebitData {
   _id?: string;
   client: string;
   account: string;
+  debitAccountName?: string;
+  debitAccountNumber?: string;
+  paymentReference?: string;
+  sessionId?: string;
+  debitMessage?: string;
+  reference?: string;
+  type?: 'Debit' | 'Outwards' | string;
+  provider?: string;
+  providerChannel?: string;
+  narration?: string;
+  amount?: number;
+  fees?: number;
+  vat?: number;
+  stampDuty?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  responseCode?: string | null;
+  responseMessage?: string | null;
+  status?: string;
+  // Transfer-specific fields that might be present
+  creditAccountName?: string;
+  creditAccountNumber?: string;
+  nameEnquiryReference?: string;
   debitAccountName?: string;
   debitAccountNumber?: string;
   paymentReference?: string;
@@ -347,7 +380,16 @@ async function processTransferWebhook(transferData: SafeHavenTransferData): Prom
 
     // Check if this transfer is related to an automated payout or emergency withdrawal
     // For Outwards transfers (payouts), check if we have an automated_payout or emergency_withdrawal record
+    // Check if this transfer is related to an automated payout or emergency withdrawal
+    // For Outwards transfers (payouts), check if we have an automated_payout or emergency_withdrawal record
     if (transferData.type === 'Outwards') {
+      if (transferData.status === 'Completed') {
+        await handleTransferSuccess(transferData, userId);
+      } else if (transferData.status === 'Failed') {
+        await handleTransferFailed(transferData, userId);
+      } else if (transferData.status === 'Reversed') {
+        await handleTransferReversed(transferData, userId);
+      }
       if (transferData.status === 'Completed') {
         await handleTransferSuccess(transferData, userId);
       } else if (transferData.status === 'Failed') {
@@ -832,6 +874,23 @@ async function updateUserBalance(userId: string, transferData: SafeHavenTransfer
                 } else {
                   transactionId = newTransaction?.id || null;
                   console.log('Transaction record created:', transactionId);
+                  
+                  // Send deposit success email notification
+                  try {
+                    await sendDepositSuccessEmailNotification(
+                      userId,
+                      walletAmount,
+                      newAvailableBalance,
+                      paymentRef,
+                      transactionId,
+                      senderName,
+                      transferData.debitAccountNumber,
+                      transferData.provider || transferData.destinationInstitutionCode,
+                      narration
+                    );
+                  } catch (emailError) {
+                    console.error('❌ Error sending deposit success email notification:', emailError);
+                  }
                 }
               } else {
                 transactionId = existingTransaction.id;
@@ -2077,8 +2136,21 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
   console.log('Processing account debit webhook:', paymentRef);
   console.log('Debit data: ', JSON.stringify(debitData, null, 2));
   console.log('User ID (client): ', debitData.client);
+  // Use paymentReference if available, otherwise fall back to reference
+  const paymentRef = debitData.paymentReference || debitData.reference || '';
+  console.log('Processing account debit webhook:', paymentRef);
+  console.log('Debit data: ', JSON.stringify(debitData, null, 2));
+  console.log('User ID (client): ', debitData.client);
 
   try {
+    let userId: string | null = null;
+
+    // Try to get user ID from payment reference (automated payout or emergency withdrawal)
+    // First, check if this is an emergency withdrawal
+    const { data: emergencyWithdrawal, error: emergencyError } = await supabase
+      .from('emergency_withdrawals')
+      .select('id, user_id, payout_plan_id, withdrawal_amount, net_amount, status, reference')
+      .eq('reference', paymentRef)
     let userId: string | null = null;
 
     // Try to get user ID from payment reference (automated payout or emergency withdrawal)
@@ -2182,8 +2254,105 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
           accountNumber: accountNumber
         };
       }
+    console.log('Emergency withdrawal: ', emergencyWithdrawal);
+    console.log('Emergency error: ', emergencyError);
+
+    if (!emergencyError && emergencyWithdrawal) {
+      userId = emergencyWithdrawal.user_id;
+      console.log(`🚨 Processing emergency withdrawal from account debit: ${paymentRef}`);
+      // Convert debit data to transfer-like format for handler
+      const transferLikeData: any = {
+        _id: debitData._id || paymentRef,
+        paymentReference: paymentRef,
+        sessionId: debitData.sessionId || paymentRef,
+        status: debitData.status === 'Created' ? 'Completed' : debitData.status,
+        amount: debitData.amount || 0,
+        type: 'Outwards', // Account debits are always Outwards transfers
+        fees: debitData.fees || 0,
+        debitAccountNumber: debitData.debitAccountNumber || '0117753301',
+        creditAccountNumber: debitData.creditAccountNumber,
+        responseMessage: debitData.responseMessage || debitData.debitMessage || 'Debit completed',
+        updatedAt: debitData.updatedAt || new Date().toISOString(),
+        ...debitData
+      };
+      await handleEmergencyWithdrawalSuccess(emergencyWithdrawal, transferLikeData);
+      return { success: true, type: 'emergency_withdrawal', reference: paymentRef };
     }
 
+    // If not emergency withdrawal, check for automated payout
+    const { data: automatedPayout, error: payoutError } = await supabase
+      .from('automated_payouts')
+      .select('id, payout_plan_id, user_id, amount, status, payment_reference, transfer_reference')
+      .or(`payment_reference.eq.${paymentRef},transfer_reference.eq.${paymentRef}`)
+      .single();
+
+    if (!payoutError && automatedPayout) {
+      userId = automatedPayout.user_id;
+      console.log(`📋 Processing automated payout from account debit: ${paymentRef}`);
+      // Convert debit data to transfer-like format for handler
+      const transferLikeData: any = {
+        _id: debitData._id || paymentRef,
+        paymentReference: paymentRef,
+        sessionId: debitData.sessionId || paymentRef,
+        status: debitData.status === 'Created' ? 'Completed' : debitData.status,
+        amount: debitData.amount || 0,
+        type: 'Outwards', // Account debits are always Outwards transfers
+        fees: debitData.fees || 0,
+        debitAccountNumber: debitData.debitAccountNumber || '0117753301',
+        creditAccountNumber: debitData.creditAccountNumber,
+        responseMessage: debitData.responseMessage || debitData.debitMessage || 'Debit completed',
+        updatedAt: debitData.updatedAt || new Date().toISOString(),
+        ...debitData
+      };
+      
+      // Check if debit was successful (Created status means successful)
+      const isSuccessful = debitData.status === 'Created' || debitData.status === 'Completed';
+      
+      if (isSuccessful) {
+        // Update safehaven_account table (this triggers safehaven_account_balance view update)
+        // Then handle success which updates transaction, wallets, etc.
+        await handleAutomatedPayoutSuccess(automatedPayout, transferLikeData);
+        return { success: true, type: 'automated_payout', reference: paymentRef, status: 'completed' };
+      } else {
+        // Handle failure - update transaction status but don't update wallets or automated payouts balance
+        await handleAutomatedPayoutFailed(automatedPayout, transferLikeData);
+        return { success: true, type: 'automated_payout', reference: paymentRef, status: 'failed' };
+      }
+    }
+
+    // If not related to payout/withdrawal, try to get user_id from account number
+    // This handles regular account debits (fees, charges, etc.)
+    const accountNumber = debitData.debitAccountNumber || '0117753301'; // Default to main account
+    
+    if (!userId) {
+      console.log(`Trying to find user by account number: ${accountNumber}`);
+      
+      const { data: accountData, error: accountError } = await supabase
+        .from('safehaven_accounts')
+        .select('user_id, account_number')
+        .eq('account_number', accountNumber)
+        .eq('is_deleted', false)
+        .single();
+
+      if (!accountError && accountData) {
+        userId = accountData.user_id;
+        console.log(`Found user ${userId} for account number ${accountNumber}`);
+      } else {
+        console.warn('Cannot process account debit: User ID not found for account number:', accountNumber);
+        return { 
+          success: false,
+          error: 'User not found',
+          note: 'Webhook received but user not found for account debit. Could not match by payment reference or account number.',
+          reference: paymentRef,
+          accountNumber: accountNumber
+        };
+      }
+    }
+
+    // Process regular account debit (fees, charges, etc.)
+    console.log('Processing regular account debit (not related to payout/withdrawal):', paymentRef);
+
+    // Find account by account number to update balance
     // Process regular account debit (fees, charges, etc.)
     console.log('Processing regular account debit (not related to payout/withdrawal):', paymentRef);
 
@@ -2193,14 +2362,19 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
       .select('id, account_balance, book_balance, metadata')
       .eq('account_number', accountNumber)
       .eq('user_id', userId)
+      .select('id, account_balance, book_balance, metadata')
+      .eq('account_number', accountNumber)
+      .eq('user_id', userId)
       .eq('is_deleted', false)
       .single();
 
     if (accountError || !accountData) {
       console.error('Could not find account for account number:', accountNumber);
+      console.error('Could not find account for account number:', accountNumber);
       // Still create audit log even if account not found
     } else {
       // Update account balance (subtract the debit amount + fees)
+      const totalDebit = (debitData.amount || 0) + (debitData.fees || 0) + (debitData.vat || 0) + (debitData.stampDuty || 0);
       const totalDebit = (debitData.amount || 0) + (debitData.fees || 0) + (debitData.vat || 0) + (debitData.stampDuty || 0);
       const newAccountBalance = (accountData.account_balance || 0) - totalDebit;
       const newBookBalance = (accountData.book_balance || 0) - totalDebit;
@@ -2211,6 +2385,15 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
           account_balance: newAccountBalance,
           book_balance: newBookBalance,
           updated_at: new Date().toISOString(),
+          synced_at: new Date().toISOString(),
+          metadata: {
+            ...(accountData.metadata || {}),
+            payment_reference: paymentRef,
+            transfer_reference: paymentRef,
+            transfer_status: 'Regular Debit',
+            updated_by: 'webhook_regular_debit',
+            debit_amount: totalDebit
+          }
           synced_at: new Date().toISOString(),
           metadata: {
             ...(accountData.metadata || {}),
@@ -2253,8 +2436,12 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
     );
 
     console.log('Account debit webhook processed successfully:', paymentRef);
+    console.log('Account debit webhook processed successfully:', paymentRef);
     return { 
       success: true, 
+      reference: paymentRef, 
+      amount: debitData.amount || 0,
+      userId: userId
       reference: paymentRef, 
       amount: debitData.amount || 0,
       userId: userId
@@ -2484,184 +2671,8 @@ Deno.serve(async (req) => {
   }
 });
 
-// Email template functions
-function generatePayoutSuccessEmailHtml(data: {
-  firstName: string;
-  amount: string;
-  date: string;
-  reference: string;
-  payoutId: string | null;
-  planName?: string;
-  accountName?: string;
-  bankName?: string;
-  accountNumber?: string;
-}) {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Payout Successful - Planmoni</title>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-        .amount { font-size: 32px; font-weight: bold; color: #22C55E; text-align: center; margin: 20px 0; }
-        .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
-        .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
-        .detail-row:last-child { border-bottom: none; }
-        .label { font-weight: 600; color: #6b7280; }
-        .value { color: #111827; }
-        .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
-        .button { display: inline-block; background: #1E3A8A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
-        .success-icon { font-size: 48px; text-align: center; margin: 20px 0; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <div class="success-icon">✅</div>
-          <h1>Payout Successful!</h1>
-          <p>Hello ${data.firstName}, your payout has been processed</p>
-        </div>
-        
-        <div class="content">
-          <div class="amount">${data.amount}</div>
-          
-          <div class="details">
-            ${data.planName ? `<div class="detail-row">
-              <span class="label">Plan Name:</span>
-              <span class="value">${data.planName}</span>
-            </div>` : ''}
-            ${data.accountName ? `<div class="detail-row">
-              <span class="label">Account Name:</span>
-              <span class="value">${data.accountName}</span>
-            </div>` : ''}
-            ${data.bankName ? `<div class="detail-row">
-              <span class="label">Bank:</span>
-              <span class="value">${data.bankName}</span>
-            </div>` : ''}
-            ${data.accountNumber ? `<div class="detail-row">
-              <span class="label">Account Number:</span>
-              <span class="value">${data.accountNumber}</span>
-            </div>` : ''}
-            <div class="detail-row">
-              <span class="label">Date & Time:</span>
-              <span class="value">${data.date}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">Reference:</span>
-              <span class="value">${data.reference}</span>
-            </div>
-          </div>
-          
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="https://planmoni.com/transactions" class="button">View Transaction Details</a>
-          </p>
-          
-          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-            Your funds have been successfully transferred to your bank account. 
-            The transaction may take a few minutes to reflect in your account depending on your bank.
-          </p>
-        </div>
-        
-        <div class="footer">
-          <p>This is an automated message, please do not reply directly to this email.</p>
-          <p>&copy; ${new Date().getFullYear()} Planmoni. All rights reserved.</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-}
-
-function generatePayoutFailedEmailHtml(data: {
-  firstName: string;
-  amount: string;
-  date: string;
-  reference: string;
-  payoutId: string | null;
-  failureReason: string;
-  planName?: string;
-}) {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Payout Failed - Planmoni</title>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-        .amount { font-size: 32px; font-weight: bold; color: #EF4444; text-align: center; margin: 20px 0; }
-        .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
-        .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
-        .detail-row:last-child { border-bottom: none; }
-        .label { font-weight: 600; color: #6b7280; }
-        .value { color: #111827; }
-        .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
-        .button { display: inline-block; background: #1E3A8A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
-        .error-icon { font-size: 48px; text-align: center; margin: 20px 0; }
-        .alert { background-color: #FEF2F2; border-left: 4px solid #EF4444; padding: 15px; margin: 20px 0; border-radius: 4px; }
-        .alert p { margin: 5px 0; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <div class="error-icon">⚠️</div>
-          <h1>Payout Failed</h1>
-          <p>Hello ${data.firstName}, we encountered an issue processing your payout</p>
-        </div>
-        
-        <div class="content">
-          <div class="amount">${data.amount}</div>
-          
-          <div class="alert">
-            <p><strong>Reason:</strong> ${data.failureReason}</p>
-            <p>We're sorry for the inconvenience. Please try again or contact support if the issue persists.</p>
-          </div>
-          
-          <div class="details">
-            ${data.planName ? `<div class="detail-row">
-              <span class="label">Plan Name:</span>
-              <span class="value">${data.planName}</span>
-            </div>` : ''}
-            <div class="detail-row">
-              <span class="label">Date & Time:</span>
-              <span class="value">${data.date}</span>
-            </div>
-            <div class="detail-row">
-              <span class="label">Reference:</span>
-              <span class="value">${data.reference}</span>
-            </div>
-          </div>
-          
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="https://planmoni.com/support" class="button">Contact Support</a>
-          </p>
-          
-          <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-            Your funds remain safe in your wallet. You can retry the payout or contact our support team for assistance.
-          </p>
-        </div>
-        
-        <div class="footer">
-          <p>This is an automated message, please do not reply directly to this email.</p>
-          <p>&copy; ${new Date().getFullYear()} Planmoni. All rights reserved.</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-}
-
 // Email notification functions
+// Note: Email templates are imported from './email-templates.ts'
 async function sendPayoutSuccessEmailNotification(
   userId: string,
   amount: number,
@@ -2670,7 +2681,9 @@ async function sendPayoutSuccessEmailNotification(
   planName: string,
   accountName: string,
   bankName: string,
-  accountNumber: string
+  accountNumber: string,
+  planType?: string,
+  planCreatedDate?: string
 ) {
   try {
     const { data: userProfile } = await supabase
@@ -2684,9 +2697,19 @@ async function sendPayoutSuccessEmailNotification(
       return
     }
 
+    // Get wallet balance for availableBalance
+    const { data: wallet } = await supabase
+      .from('wallets')
+      .select('balance')
+      .eq('user_id', userId)
+      .single()
+
+    const availableBalance = wallet?.balance || 0
+
     const emailData = {
       firstName: userProfile.first_name || 'User',
       amount: `₦${amount.toLocaleString()}`,
+      availableBalance: `₦${availableBalance.toLocaleString()}`,
       date: new Date().toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
@@ -2697,14 +2720,13 @@ async function sendPayoutSuccessEmailNotification(
       reference,
       payoutId,
       planName,
-      accountName,
-      bankName,
-      accountNumber
+      planType,
+      planCreatedDate
     }
 
     await sendEmail(
       userProfile.email,
-      "Payout Successful - Planmoni",
+      "Your plan has been paid out - Planmoni",
       generatePayoutSuccessEmailHtml(emailData)
     )
   } catch (error) {
@@ -2750,11 +2772,216 @@ async function sendPayoutFailedEmailNotification(
 
     await sendEmail(
       userProfile.email,
-      "Payout Failed - Planmoni",
+      "Failed transaction - Planmoni",
       generatePayoutFailedEmailHtml(emailData)
     )
   } catch (error) {
     console.error('❌ Error sending payout failed email notification:', error)
+  }
+}
+
+// Emergency Withdrawal Email Notification Functions
+async function sendEmergencyWithdrawalSuccessEmailNotification(
+  userId: string,
+  withdrawalAmount: number,
+  netAmount: number,
+  feeAmount: number,
+  reference: string,
+  withdrawalId: string | null,
+  planName?: string,
+  accountName?: string,
+  bankName?: string,
+  accountNumber?: string
+) {
+  try {
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name')
+      .eq('id', userId)
+      .single()
+
+    if (!userProfile?.email) {
+      console.log('No email found for user')
+      return
+    }
+
+    // Calculate fee amount if not provided
+    const calculatedFeeAmount = feeAmount || (withdrawalAmount - netAmount) || 0;
+
+    const emailData = {
+      firstName: userProfile.first_name || 'User',
+      amount: `₦${withdrawalAmount.toLocaleString()}`,
+      netAmount: `₦${netAmount.toLocaleString()}`,
+      feeAmount: `₦${calculatedFeeAmount.toLocaleString()}`,
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      reference,
+      withdrawalId,
+      planName,
+      accountName,
+      bankName,
+      accountNumber
+    }
+
+    await sendEmail(
+      userProfile.email,
+      "Emergency Withdrawal Successful - Planmoni",
+      generateEmergencyWithdrawalSuccessEmailHtml(emailData)
+    )
+  } catch (error) {
+    console.error('❌ Error sending emergency withdrawal success email notification:', error)
+  }
+}
+
+async function sendEmergencyWithdrawalFailedEmailNotification(
+  userId: string,
+  amount: number,
+  reference: string,
+  withdrawalId: string | null,
+  failureReason: string
+) {
+  try {
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name')
+      .eq('id', userId)
+      .single()
+
+    if (!userProfile?.email) {
+      console.log('No email found for user')
+      return
+    }
+
+    const emailData = {
+      firstName: userProfile.first_name || 'User',
+      amount: `₦${amount.toLocaleString()}`,
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      reference,
+      withdrawalId,
+      failureReason: failureReason || 'Transfer failed'
+    }
+
+    await sendEmail(
+      userProfile.email,
+      "Failed transaction - Planmoni",
+      generateEmergencyWithdrawalFailedEmailHtml(emailData)
+    )
+  } catch (error) {
+    console.error('❌ Error sending emergency withdrawal failed email notification:', error)
+  }
+}
+
+// Deposit Email Notification Functions
+async function sendDepositSuccessEmailNotification(
+  userId: string,
+  amount: number,
+  availableBalance: number,
+  reference: string,
+  transactionId: string | null,
+  senderName?: string,
+  senderAccount?: string,
+  senderBank?: string,
+  narration?: string
+) {
+  try {
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name')
+      .eq('id', userId)
+      .single()
+
+    if (!userProfile?.email) {
+      console.log('No email found for user')
+      return
+    }
+
+    const emailData = {
+      firstName: userProfile.first_name || 'User',
+      amount: `₦${amount.toLocaleString()}`,
+      availableBalance: `₦${availableBalance.toLocaleString()}`,
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      reference,
+      transactionId,
+      senderName,
+      senderAccount,
+      senderBank,
+      narration
+    }
+
+    await sendEmail(
+      userProfile.email,
+      "Deposit Successful - Planmoni",
+      generateDepositSuccessEmailHtml(emailData)
+    )
+  } catch (error) {
+    console.error('❌ Error sending deposit success email notification:', error)
+  }
+}
+
+async function sendDepositFailedEmailNotification(
+  userId: string,
+  amount: number,
+  reference: string,
+  transactionId: string | null,
+  failureReason: string,
+  senderName?: string,
+  senderAccount?: string,
+  senderBank?: string
+) {
+  try {
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('email, first_name')
+      .eq('id', userId)
+      .single()
+
+    if (!userProfile?.email) {
+      console.log('No email found for user')
+      return
+    }
+
+    const emailData = {
+      firstName: userProfile.first_name || 'User',
+      amount: `₦${amount.toLocaleString()}`,
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      reference,
+      transactionId,
+      failureReason: failureReason || 'Deposit failed',
+      senderName,
+      senderAccount,
+      senderBank
+    }
+
+    await sendEmail(
+      userProfile.email,
+      "Failed transaction - Planmoni",
+      generateDepositFailedEmailHtml(emailData)
+    )
+  } catch (error) {
+    console.error('❌ Error sending deposit failed email notification:', error)
   }
 }
 

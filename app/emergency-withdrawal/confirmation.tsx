@@ -313,13 +313,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     height: 55,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 100,
+    borderRadius: 20,
   },
   dashboardButton: {
     borderColor: colors.border,
     height: 55,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 100,
+    borderRadius: 20,
   },
 });

@@ -8,9 +8,11 @@ import UtilityBillUploadModal from '@/components/UtilityBillUploadModal';
 import { router } from 'expo-router';
 import { ArrowLeft, Mail, User, Shield, CircleCheck as CheckCircle, CircleAlert as AlertCircle, Clock, ChevronRight, LocationEdit as Edit3, Upload } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import { supabase } from '@/lib/supabase';
+import { formatCurrency } from '@/lib/formatters';
 
 type KYCLevel = 'unverified' | 'tier1' | 'tier2' | 'tier3';
 
@@ -23,10 +25,39 @@ export default function ProfileScreen() {
   
   // Utility bill upload modal
   const [showUtilityBillModal, setShowUtilityBillModal] = useState(false);
+  const [tierLimits, setTierLimits] = useState<{
+    max_daily_deposit: number;
+    max_weekly_deposit: number;
+    max_monthly_deposit: number;
+    max_single_deposit: number;
+    max_account_balance: number;
+  } | null>(null);
   
   const firstName = session?.user?.user_metadata?.first_name || '';
   const lastName = session?.user?.user_metadata?.last_name || '';
   const email = session?.user?.email || '';
+
+  // Fetch tier limits
+  useEffect(() => {
+    const fetchTierLimits = async () => {
+      if (!session?.user?.id) return;
+
+      try {
+        const { data, error } = await supabase.rpc('get_user_deposit_limits', {
+          p_user_id: session.user.id
+        });
+
+        if (error) throw error;
+        if (data && data[0]) {
+          setTierLimits(data[0]);
+        }
+      } catch (error) {
+        console.error('Error fetching tier limits:', error);
+      }
+    };
+
+    fetchTierLimits();
+  }, [session?.user?.id, progress]);
 
   // Determine KYC level based on actual progress data
   const getKYCLevel = (): KYCLevel => {
@@ -51,7 +82,7 @@ export default function ProfileScreen() {
   };
 
   const kycLevel = getKYCLevel();
-  const kycStatus = getKYCStatus(kycLevel, progress);
+  const kycStatus = getKYCStatus(kycLevel, progress, tierLimits);
 
   // Calculate responsive sizes based on screen width
   const avatarSize = Math.max(80, Math.min(width * 0.25, 140));
@@ -87,9 +118,7 @@ export default function ProfileScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Profile</Text>
-        <Pressable onPress={handleEditProfile} style={styles.editButton}>
-          <Edit3 size={20} color={colors.primary} />
-        </Pressable>
+        
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -117,7 +146,6 @@ export default function ProfileScreen() {
               <>
                 <View style={styles.kycHeader}>
                   <View style={styles.kycTitleContainer}>
-                    <Shield size={24} color={kycStatus.color} />
                     <Text style={styles.kycTitle}>Verification Status</Text>
                   </View>
                 </View>
@@ -126,18 +154,45 @@ export default function ProfileScreen() {
                 
                 <View style={styles.kycLimits}>
                   <Text style={styles.kycLimitsTitle}>Current Limits</Text>
-                  <View style={styles.limitRow}>
-                    <Text style={styles.limitLabel}>Daily Transaction</Text>
-                    <Text style={styles.limitValue}>{kycStatus.limits.daily}</Text>
-                  </View>
-                  <View style={styles.limitRow}>
-                    <Text style={styles.limitLabel}>Monthly Transaction</Text>
-                    <Text style={styles.limitValue}>{kycStatus.limits.monthly}</Text>
-                  </View>
-                  <View style={styles.limitRow}>
-                    <Text style={styles.limitLabel}>Single Transaction</Text>
-                    <Text style={styles.limitValue}>{kycStatus.limits.single}</Text>
-                  </View>
+                  {tierLimits ? (
+                    <>
+                      <View style={styles.limitRow}>
+                        <Text style={styles.limitLabel}>Daily Deposit</Text>
+                        <Text style={styles.limitValue}>
+                          {formatCurrency(tierLimits.max_daily_deposit / 100)}
+                        </Text>
+                      </View>
+                      <View style={styles.limitRow}>
+                        <Text style={styles.limitLabel}>Weekly Deposit</Text>
+                        <Text style={styles.limitValue}>
+                          {formatCurrency(tierLimits.max_weekly_deposit / 100)}
+                        </Text>
+                      </View>
+                      <View style={styles.limitRow}>
+                        <Text style={styles.limitLabel}>Monthly Deposit</Text>
+                        <Text style={styles.limitValue}>
+                          {formatCurrency(tierLimits.max_monthly_deposit / 100)}
+                        </Text>
+                      </View>
+                      <View style={styles.limitRow}>
+                        <Text style={styles.limitLabel}>Single Transaction</Text>
+                        <Text style={styles.limitValue}>
+                          {formatCurrency(tierLimits.max_single_deposit / 100)}
+                        </Text>
+                      </View>
+                      <View style={styles.limitRow}>
+                        <Text style={styles.limitLabel}>Maximum Balance</Text>
+                        <Text style={styles.limitValue}>
+                          {formatCurrency(tierLimits.max_account_balance / 100)}
+                        </Text>
+                      </View>
+                    </>
+                  ) : (
+                    <View style={styles.limitRow}>
+                      <Text style={styles.limitLabel}>Daily Transaction</Text>
+                      <Text style={styles.limitValue}>{kycStatus.limits.daily}</Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* Show upgrade message for different scenarios */}
@@ -228,45 +283,7 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Actions</Text>
-          
-          <View style={styles.actionsCard}>
-            <Pressable style={styles.actionItem} onPress={handleEditProfile}>
-              <View style={styles.actionLeft}>
-                <View style={[styles.actionIcon, { backgroundColor: '#EFF6FF' }]}>
-                  <Edit3 size={20} color="#1E3A8A" />
-                </View>
-                <Text style={styles.actionText}>Edit Profile</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
-
-            <View style={styles.divider} />
-
-            <Pressable style={styles.actionItem} onPress={() => router.push('/change-password')}>
-              <View style={styles.actionLeft}>
-                <View style={[styles.actionIcon, { backgroundColor: '#FEF3C7' }]}>
-                  <Shield size={20} color="#D97706" />
-                </View>
-                <Text style={styles.actionText}>Change Password</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
-
-            <View style={styles.divider} />
-
-            <Pressable style={styles.actionItem} onPress={() => router.push('/privacy-settings')}>
-              <View style={styles.actionLeft}>
-                <View style={[styles.actionIcon, { backgroundColor: '#F0FDF4' }]}>
-                  <Shield size={20} color="#22C55E" />
-                </View>
-                <Text style={styles.actionText}>Privacy Settings</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
-          </View>
-        </View>
+        
       </ScrollView>
 
       <View style={styles.footer}>
@@ -294,58 +311,81 @@ export default function ProfileScreen() {
   );
 }
 
-function getKYCStatus(level: KYCLevel, progress?: KYCProgress) {
+function getKYCStatus(
+  level: KYCLevel, 
+  progress?: KYCProgress,
+  tierLimits?: {
+    max_daily_deposit: number;
+    max_weekly_deposit: number;
+    max_monthly_deposit: number;
+    max_single_deposit: number;
+    max_account_balance: number;
+  } | null
+) {
+  // Use tier limits from database if available, otherwise use fallback values
+  const getLimit = (amount: number) => {
+    return tierLimits ? formatCurrency(amount / 100) : 'Loading...';
+  };
+
   switch (level) {
     case 'unverified':
       return {
         label: 'Unverified',
         description: 'Complete your BVN verification to unlock basic transaction limits and get a virtual account.',
-        color: '#EF4444',
-        backgroundColor: '#FEE2E2',
+        color: '#C8A2FF',
+        backgroundColor: '#2D005B',
         icon: AlertCircle,
         limits: {
-          daily: '₦50,000',
-          monthly: '₦200,000',
-          single: '₦10,000'
+          daily: tierLimits ? getLimit(tierLimits.max_daily_deposit) : '₦100,000',
+          weekly: tierLimits ? getLimit(tierLimits.max_weekly_deposit) : '₦500,000',
+          monthly: tierLimits ? getLimit(tierLimits.max_monthly_deposit) : '₦2,000,000',
+          single: tierLimits ? getLimit(tierLimits.max_single_deposit) : '₦50,000',
+          maxBalance: tierLimits ? getLimit(tierLimits.max_account_balance) : '₦5,000,000'
         }
       };
     case 'tier1':
       return {
-        label: 'Tier 1 Verified (BVN)',
-        description: 'BVN verification completed. You can now get a virtual account. Complete document verification and address details to unlock higher limits.',
+        label: 'Tier 1 Verified',
+        description: 'Liveness test, BVN verification, and NIN verification completed. Complete document verification and address details to unlock higher limits.',
         color: '#F59E0B',
         backgroundColor: '#FEF3C7',
         icon: Clock,
         limits: {
-          daily: '₦200,000',
-          monthly: '₦500,000',
-          single: '₦50,000'
+          daily: tierLimits ? getLimit(tierLimits.max_daily_deposit) : '₦100,000',
+          weekly: tierLimits ? getLimit(tierLimits.max_weekly_deposit) : '₦500,000',
+          monthly: tierLimits ? getLimit(tierLimits.max_monthly_deposit) : '₦2,000,000',
+          single: tierLimits ? getLimit(tierLimits.max_single_deposit) : '₦50,000',
+          maxBalance: tierLimits ? getLimit(tierLimits.max_account_balance) : '₦5,000,000'
         }
       };
     case 'tier2':
       return {
-        label: 'Tier 2 Verified (BVN + Documents + Address)',
-        description: 'Enhanced verification completed. Upload utility bill to unlock maximum transaction limits and complete final verification.',
+        label: 'Tier 2 Verified',
+        description: 'Complete personal information and document verification completed. Upload utility bill to unlock maximum transaction limits and complete final verification.',
         color: '#1E3A8A',
         backgroundColor: '#EFF6FF',
         icon: Shield,
         limits: {
-          daily: '₦1,000,000',
-          monthly: '₦5,000,000',
-          single: '₦500,000'
+          daily: tierLimits ? getLimit(tierLimits.max_daily_deposit) : '₦500,000',
+          weekly: tierLimits ? getLimit(tierLimits.max_weekly_deposit) : '₦2,000,000',
+          monthly: tierLimits ? getLimit(tierLimits.max_monthly_deposit) : '₦10,000,000',
+          single: tierLimits ? getLimit(tierLimits.max_single_deposit) : '₦200,000',
+          maxBalance: tierLimits ? getLimit(tierLimits.max_account_balance) : '₦50,000,000'
         }
       };
     case 'tier3':
       return {
-        label: 'Tier 3 Verified (Complete)',
-        description: 'Maximum verification level achieved. You have access to all features, highest limits, and virtual account.',
+        label: 'Tier 3 Verified',
+        description: 'Address details and utility bill verification completed. Maximum verification level achieved. You have access to all features, highest limits, and virtual account.',
         color: '#22C55E',
         backgroundColor: '#F0FDF4',
         icon: CheckCircle,
         limits: {
-          daily: 'Unlimited',
-          monthly: 'Unlimited',
-          single: '₦10,000,000'
+          daily: tierLimits ? getLimit(tierLimits.max_daily_deposit) : '₦5,000,000',
+          weekly: tierLimits ? getLimit(tierLimits.max_weekly_deposit) : '₦20,000,000',
+          monthly: tierLimits ? getLimit(tierLimits.max_monthly_deposit) : '₦100,000,000',
+          single: tierLimits ? getLimit(tierLimits.max_single_deposit) : '₦5,000,000',
+          maxBalance: tierLimits ? getLimit(tierLimits.max_account_balance) : '₦500,000,000'
         }
       };
   }
@@ -380,6 +420,8 @@ const createStyles = (colors: any, screenWidth: number) => {
     headerTitle: {
       fontSize: Math.max(16, Math.min(screenWidth * 0.045, 20)),
       fontWeight: '600',
+      textAlign: 'center',
+      flex: 1,
       color: colors.text,
     },
     editButton: {
@@ -503,7 +545,7 @@ const createStyles = (colors: any, screenWidth: number) => {
       borderColor: colors.primary,
       paddingVertical: 12,
       paddingHorizontal: 16,
-      borderRadius: 8,
+      borderRadius: 20,
     },
     upgradeButtonText: {
       fontSize: 14,
@@ -585,14 +627,14 @@ const createStyles = (colors: any, screenWidth: number) => {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      backgroundColor: '#F0FDF4',
+      backgroundColor: colors.primary,
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 16,
     },
     verifiedText: {
       fontSize: 12,
-      color: '#22C55E',
+      color: colors.accent,
       fontWeight: '600',
     },
     divider: {
@@ -644,7 +686,7 @@ const createStyles = (colors: any, screenWidth: number) => {
     signOutButton: {
       borderColor: '#EF4444',
       borderWidth: 1,
-      borderRadius: 100,
+      borderRadius: 20,
     },
   });
 };

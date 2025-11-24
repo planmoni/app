@@ -22,7 +22,7 @@ import { BlurView } from 'expo-blur';
 const SLIDES = [
   {
     id: '1',
-    title: 'Pace your spending like a pro',
+    title: 'Financial control at your fingertips',
     // subtitle: 'Smart Financial Planning',
     description: "Planmoni is your financial companion, equipped with advanced tools, insights & A.I capabilities to help pace your spending like a pro.",
     image: require('@/assets/images/StayInControl.png'),
@@ -31,7 +31,7 @@ const SLIDES = [
   },
   {
     id: '2',
-    title: 'Receive money just when you need it',
+    title: 'Choose when and how you get paid',
     // subtitle: 'Automated Scheduling',
     description: 'Split lump-sums into scheduled daily, weekly, bi-weekly or monthly payouts that work for your lifestyle.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
@@ -67,12 +67,11 @@ export default function WelcomeScreen() {
   const scrollViewRef = useRef<Animated.ScrollView>(null);
   const autoSlideTimerRef = useRef<number | NodeJS.Timeout | null>(null);
 
-  // Redirect to tabs if user is already authenticated
+  // Redirect to tabs for both authenticated and unauthenticated users
   useEffect(() => {
-    if (session) {
-      router.replace('/(tabs)');
-    }
-  }, [session]);
+    // Always redirect to tabs - it handles authentication state internally
+    router.replace('/(tabs)');
+  }, []);
 
   // Auto-slide functionality
   useEffect(() => {
@@ -199,7 +198,7 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      {isDark && <Animated.View style={[styles.backgroundGradient, backgroundStyle]} />}
+      {isDark && <Animated.View style={[styles.backgroundGradient, { backgroundColor: colors.background }]} />}
       
       <View style={styles.logoContainer}>
         <Image 
@@ -375,6 +374,7 @@ export default function WelcomeScreen() {
 const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.accentBackground,
   },
   backgroundGradient: {
     position: 'absolute',
@@ -508,7 +508,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     justifyContent: 'center',
     gap: 12,
     height: 60,
-    borderRadius: 100,
+    borderRadius: 20,
     paddingHorizontal: 24,
     flex: 1,
     shadowColor: '#000',
@@ -518,7 +518,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     elevation: 8,
   },
   getStartedButtonText: {
-    color: '#FFFFFF',
+    color: colors.accent,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -527,15 +527,15 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     alignItems: 'center',
     justifyContent: 'center',
     height: 60,
-    borderRadius: 100,
+    borderRadius: 20,
     paddingHorizontal: 24,
     flex: 1,
     borderWidth: 2,
-    borderColor: colors.buttonPrimary,
+    borderColor: isDark ? '#fff' : colors.primary,
   },
   signInButtonText: {
-    color: colors.buttonTextPrimary,
-    fontSize: 16,
+    color: isDark ? '#fff' : colors.primary,
+    fontSize: 18,
     fontWeight: '600',
   },
 });

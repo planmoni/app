@@ -48,6 +48,54 @@ Deno.serve(async (req) => {
     const { data: paystackAccounts, error: accountsError } = await supabase
       .from('paystack_accounts')
       .select('user_id, account_number, customer_code')
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-manual-trigger",
+};
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    // Initialize Supabase client with service role key for admin access
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const paystackSecretKey = Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || "";
+    const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
+
+    if (!supabaseUrl || !supabaseServiceKey || !paystackSecretKey) {
+      console.error("Missing required environment variables");
+      return new Response(
+        JSON.stringify({ error: "Server configuration error" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Check if this is a manual trigger or scheduled run
+    const isManualTrigger =
+      req.method === "POST" && req.headers.get("x-manual-trigger") === "true";
+    const isScheduledRun = req.method === "POST" && !isManualTrigger;
+
+    console.log(
+      `🔄 Starting transaction check... (${isManualTrigger ? "Manual" : "Scheduled"})`
+    );
+
+    // Get all users with Paystack accounts
+    const { data: paystackAccounts, error: accountsError } =
+      await supabase.from("paystack_accounts").select(`
+        user_id,
+        account_number,
+        customer_code
+      `);
 
     if (accountsError || !paystackAccounts) {
       console.error('❌ Error fetching Paystack accounts:', accountsError)

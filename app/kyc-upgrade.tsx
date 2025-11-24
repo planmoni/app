@@ -77,7 +77,7 @@ export default function KYCUpgradeScreen() {
   const [currentStep, setCurrentStep] = useState<KYCStep>('liveness_verification');
   
   // Identity verification
-  const [selectedIdentityType, setSelectedIdentityType] = useState<IdentityType>('bvn');
+  const [selectedIdentityType, setSelectedIdentityType] = useState<IdentityType>('nin');
   
   // Loading states
   const [isLoading, setIsLoading] = useState(false);
@@ -129,6 +129,8 @@ export default function KYCUpgradeScreen() {
   const [nin, setNin] = useState('');
   const [passportNumber, setPassportNumber] = useState('');
   const [ninIdentityId, setNinIdentityId] = useState<string | null>(null);
+  const [bvnIdentityId, setBvnIdentityId] = useState<string | null>(null);
+  const [showBvnOption, setShowBvnOption] = useState(false);
   const [otp, setOtp] = useState('');
   const [otpMessage, setOtpMessage] = useState<string | null>(null);
   
@@ -231,9 +233,16 @@ export default function KYCUpgradeScreen() {
         
         // Load document information based on document_type
         if (formData.document_type) {
-          setSelectedIdentityType(formData.document_type as IdentityType);
+          const docType = formData.document_type as IdentityType;
+          setSelectedIdentityType(docType);
+          
+          // If BVN was being used, show the BVN option
+          if (docType === 'bvn') {
+            setShowBvnOption(true);
+          }
+          
           if (formData.document_number) {
-            switch (formData.document_type) {
+            switch (docType) {
               case 'nin':
                 setNin(formData.document_number);
                 break;
@@ -263,7 +272,7 @@ export default function KYCUpgradeScreen() {
   }, [formData]);
 
   // Helper function to get the next incomplete step
-  const getNextIncompleteStep = (current: KYCStep): KYCStep => {
+  const getNextIncompleteStep = useCallback((current: KYCStep): KYCStep => {
     // Define step order based on tiers:
     // Tier 1: liveness_verification, bvn_verification, id_face_match
     // Tier 2: personal, documents_verification
@@ -299,10 +308,10 @@ export default function KYCUpgradeScreen() {
     }
     
     return 'review'; // Default to review if all steps are complete
-  };
+  }, [progress]);
 
   // Helper function to get the previous incomplete step (or first incomplete if going back from a completed step)
-  const getPreviousIncompleteStep = (current: KYCStep): KYCStep | null => {
+  const getPreviousIncompleteStep = useCallback((current: KYCStep): KYCStep | null => {
     // Define step order based on tiers:
     // Tier 1: liveness_verification, bvn_verification, id_face_match
     // Tier 2: personal, documents_verification
@@ -336,7 +345,7 @@ export default function KYCUpgradeScreen() {
     }
     
     return null; // No previous incomplete step
-  };
+  }, [progress]);
 
   // Update current step when progress changes, but skip to first incomplete step
   useEffect(() => {
@@ -347,8 +356,15 @@ export default function KYCUpgradeScreen() {
       // Get the first incomplete step directly using the helper function
       const targetStep = getFirstIncompleteStep();
       setCurrentStep(targetStep);
+      
+      // If we're on id_face_match step and BVN is verified, show BVN option
+      // This restores the state if user was using BVN and closed the screen
+      // But keep NIN as the default selection
+      if (targetStep === 'id_face_match' && progress.bvn_verified && (bvn || formData?.bvn)) {
+        setShowBvnOption(true);
+      }
     }
-  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep]);
+  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep, bvn, formData?.bvn]);
 
   // Auto-focus BVN input when step changes to bvn_verification
   useEffect(() => {
@@ -434,25 +450,39 @@ export default function KYCUpgradeScreen() {
   const validateIdFaceMatch = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!nin.trim()) newErrors.nin = 'NIN is required';
-    else if (nin.length !== 11 || !/^\d+$/.test(nin)) newErrors.nin = 'NIN must be 11 digits';
+    if (selectedIdentityType === 'nin') {
+      if (!nin.trim()) newErrors.nin = 'NIN is required';
+      else if (nin.length !== 11 || !/^\d+$/.test(nin)) newErrors.nin = 'NIN must be 11 digits';
 
-    // Phone number is required for NIN verification
-    if (!phoneNumber.trim()) {
-      newErrors.phoneNumber = 'Phone number is required for NIN verification';
-    } else if (phoneNumber.length < 10 || !/^\d+$/.test(phoneNumber)) {
-      newErrors.phoneNumber = 'Phone number must be at least 10 digits';
+      // If identityId exists (OTP sent), phone number and OTP are required
+      if (ninIdentityId) {
+        if (!phoneNumber.trim()) {
+          newErrors.phoneNumber = 'Phone number is required for NIN verification';
+        } else if (phoneNumber.length < 10 || !/^\d+$/.test(phoneNumber)) {
+          newErrors.phoneNumber = 'Phone number must be at least 10 digits';
+        }
+        
+        if (!otp.trim()) newErrors.otp = 'OTP is required';
+        else if (otp.length !== 6 || !/^\d+$/.test(otp)) newErrors.otp = 'OTP must be 6 digits';
+      }
+    } else if (selectedIdentityType === 'bvn') {
+      const bvnValue = (bvn || formData?.bvn || '').trim();
+      if (!bvnValue || bvnValue.length !== 11) {
+        newErrors.bvn = 'BVN is required';
+      }
+
+      // If identityId exists (OTP sent), phone number and OTP are required
+      if (bvnIdentityId) {
+        if (!phoneNumber.trim()) {
+          newErrors.phoneNumber = 'Phone number is required for BVN verification';
+        } else if (phoneNumber.length < 10 || !/^\d+$/.test(phoneNumber)) {
+          newErrors.phoneNumber = 'Phone number must be at least 10 digits';
+        }
+        
+        if (!otp.trim()) newErrors.otp = 'OTP is required';
+        else if (otp.length !== 6 || !/^\d+$/.test(otp)) newErrors.otp = 'OTP must be 6 digits';
+      }
     }
-
-    // If identityId exists, OTP is required
-    if (ninIdentityId) {
-      if (!otp.trim()) newErrors.otp = 'OTP is required';
-      else if (otp.length !== 6 || !/^\d+$/.test(otp)) newErrors.otp = 'OTP must be 6 digits';
-    }
-
-    // if (!selfieImage && !formData.selfie_url) {
-    //   newErrors.selfie = 'Selfie is required';
-    // }
 
     setErrors(newErrors);
 
@@ -698,28 +728,40 @@ export default function KYCUpgradeScreen() {
           if (validateIdFaceMatch()) {
             setIsLoading(true);
             
-            // If identityId exists, user has already initialized - proceed with verification
-            if (ninIdentityId && otp) {
-              // Verify NIN with OTP
-              await verifyNIN();
-              return;
+            if (selectedIdentityType === 'nin') {
+              // If identityId exists, user has already initialized - proceed with verification
+              if (ninIdentityId && otp && phoneNumber) {
+                // Verify NIN with OTP
+                await verifyNIN();
+                return;
+              }
+              
+              // Save identity data (NIN only - phone number will be saved after OTP is sent)
+              const saveResult = await saveFormData({
+                nin: nin,
+                // selfie_url: formData.selfie_url || undefined
+              });
+              
+              if (!saveResult) {
+                showToast('Failed to save identity data. Please try again.', 'error');
+                return;
+              }
+              
+              // Initialize NIN verification (sends OTP to phone number linked to NIN)
+              await initializeNINVerification();
+              // Note: After OTP is sent, user should enter phone number and OTP, then click Continue again to call verifyNIN
+            } else if (selectedIdentityType === 'bvn') {
+              // If identityId exists, user has already initialized - proceed with verification
+              if (bvnIdentityId && otp && phoneNumber) {
+                // Verify BVN with OTP
+                await verifyBVNWithOTP();
+                return;
+              }
+              
+              // Initialize BVN verification (sends OTP to phone number linked to BVN)
+              await initializeBVNVerification();
+              // Note: After OTP is sent, user should enter phone number and OTP, then click Continue again to call verifyBVNWithOTP
             }
-            
-            // Save identity data (NIN verification only)
-            const saveResult = await saveFormData({
-              nin: nin,
-              phone_number: phoneNumber,
-              // selfie_url: formData.selfie_url || undefined
-            });
-            
-            if (!saveResult) {
-              showToast('Failed to save identity data. Please try again.', 'error');
-              return;
-            }
-            
-            // Initialize NIN verification (sends OTP to phone number linked to NIN)
-            await initializeNINVerification();
-            // Note: After OTP is sent, user should enter OTP and click Continue again to call verifyNIN
           }
           break;
         case 'address_details':
@@ -1024,6 +1066,26 @@ export default function KYCUpgradeScreen() {
     console.log('[KYC] Navigating to home because liveness was manually closed');
     router.push('/(tabs)');
   };
+
+  const handleUseBvnInstead = useCallback(() => {
+    const bvnValue = (bvn || formData?.bvn || '').trim();
+    if (bvnValue.length !== 11) {
+      showToast('Please complete BVN verification first.', 'error');
+      return;
+    }
+
+    // Switch to BVN mode and show BVN option
+    setShowBvnOption(true);
+    setSelectedIdentityType('bvn');
+    setNinIdentityId(null);
+    setBvnIdentityId(null);
+    setOtp('');
+    setOtpMessage(null);
+    setPhoneNumber('');
+    setErrors({});
+    
+    showToast('Switched to BVN verification. Click Continue to proceed.', 'info');
+  }, [bvn, formData?.bvn, showToast]);
   
   const verifyBvn = async () => {
     try {
@@ -1622,11 +1684,11 @@ export default function KYCUpgradeScreen() {
       setIsManualVerification(true);
 
       // Use SafeHaven service to initialize NIN verification
-      // Call without OTP to initialize and get identityId
+      // Call without OTP and without phone number to initialize and get identityId
       const result = await safeHavenService.verifyNINAndCreateAccount(
         session.user.id,
         nin.trim(),
-        phoneNumber?.trim() || '',
+        '', // Phone number not needed for initialization
         session?.user?.email || '',
         undefined  // otp - not provided for initialization
       );
@@ -1638,6 +1700,7 @@ export default function KYCUpgradeScreen() {
       const identityId = result.data?.identityId;
       const message = result.data?.otpMessage;
       console.log("identityId", identityId)
+      console.log("otpMessage", message)
       
       if (!identityId) {
         throw new Error('Identity ID not found in response');
@@ -1648,7 +1711,11 @@ export default function KYCUpgradeScreen() {
       setOtpMessage(message || null);
 
       // OTP is sent to the phone number linked to the NIN
-      showToast('OTP sent to phone number linked to your NIN', 'success');
+      if (message) {
+        showToast(message, 'success');
+      } else {
+        showToast('OTP sent to phone number linked to your NIN', 'success');
+      }
       
       setIsLoading(false);
       
@@ -1905,6 +1972,199 @@ export default function KYCUpgradeScreen() {
     } catch (error) {
       console.error('NIN verification error:', error);
       const errorMessage = error instanceof Error ? error.message : 'NIN verification failed';
+      showToast(errorMessage, 'error');
+      setErrors({ documentVerification: errorMessage });
+      setIsManualVerification(false);
+      setIsLoading(false);
+      throw error;
+    }
+  };
+
+  // Initialize BVN verification - sends OTP to phone number linked to BVN
+  const initializeBVNVerification = async () => {
+    try {
+      const bvnValue = (bvn || formData?.bvn || '').trim();
+      if (!bvnValue || bvnValue.length !== 11) {
+        throw new Error('BVN is required');
+      }
+
+      if (!session?.user?.id) {
+        throw new Error('User session not found');
+      }
+
+      setIsLoading(true);
+      setIsManualVerification(true);
+
+      // Use SafeHaven service to initialize BVN verification
+      const result = await safeHavenService.initializeBVNVerification(
+        session.user.id,
+        bvnValue,
+        session?.user?.email || ''
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to initialize BVN verification');
+      }
+
+      const identityId = result.data?.identityId;
+      const message = result.data?.otpMessage;
+      console.log("BVN identityId", identityId)
+      console.log("BVN otpMessage", message)
+      
+      if (!identityId) {
+        throw new Error('Identity ID not found in response');
+      }
+
+      // Store identityId and OTP message for use in verifyBVN
+      setBvnIdentityId(identityId);
+      setOtpMessage(message || null);
+
+      // OTP is sent to the phone number linked to the BVN
+      if (message) {
+        showToast(message, 'success');
+      } else {
+        showToast('OTP sent to phone number linked to your BVN', 'success');
+      }
+      
+      setIsLoading(false);
+      
+      return {
+        success: true,
+        auditLogId: result.auditLogId,
+        requiresOtp: true,
+        identityId: identityId
+      };
+      
+    } catch (error) {
+      console.error('BVN verification initialization error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to initialize BVN verification';
+      showToast(errorMessage, 'error');
+      setErrors({ documentVerification: errorMessage });
+      setIsManualVerification(false);
+      setIsLoading(false);
+      throw error;
+    }
+  };
+
+  // Verify BVN with OTP and create SafeHaven account
+  const verifyBVNWithOTP = async (otpValue?: string, identityIdParam?: string) => {
+    try {
+      const bvnValue = (bvn || formData?.bvn || '').trim();
+      if (!bvnValue || bvnValue.length !== 11) {
+        throw new Error('BVN is required');
+      }
+
+      if (!session?.user?.id) {
+        throw new Error('User session not found');
+      }
+
+      // Use provided OTP or state OTP
+      const otpToUse = otpValue || otp;
+      if (!otpToUse || otpToUse.length !== 6) {
+        throw new Error('Valid 6-digit OTP is required');
+      }
+
+      // Use provided identityId or stored identityId
+      const identityIdToUse = identityIdParam || bvnIdentityId;
+      if (!identityIdToUse) {
+        throw new Error('Identity ID is required. Please initialize BVN verification first.');
+      }
+
+      // Get phone number and email for account creation
+      const userPhoneNumber = phoneNumber?.trim() || '';
+      const userEmail = session?.user?.email || '';
+      
+      if (!userPhoneNumber) {
+        throw new Error('Phone number is required for BVN verification.');
+      }
+      
+      if (!userEmail) {
+        throw new Error('Email address is required for BVN verification.');
+      }
+
+      setIsLoading(true);
+      setIsManualVerification(true);
+
+      // Use SafeHaven service to verify BVN and create account with OTP
+      const result = await safeHavenService.verifyBVNAndCreateAccount(
+        session.user.id,
+        bvnValue,
+        userPhoneNumber,
+        userEmail,
+        otpToUse,
+        identityIdToUse
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Account creation failed');
+      }
+
+      const verificationData = result.data;
+      
+      if (!verificationData || !verificationData.verified) {
+        throw new Error('BVN verification failed. Please check your BVN and try again.');
+      }
+
+      // Extract account information
+      const accountNumber = verificationData.account_number;
+      const accountName = verificationData.account_name || `${verificationData.first_name} ${verificationData.last_name}`.trim();
+      
+      // Extract names from account name
+      const names = accountName ? accountName.split(' ') : [];
+      const bvnFirstName = names[0] || '';
+      const bvnLastName = names[names.length - 1] || '';
+      const bvnMiddleName = names.length > 2 ? names.slice(1, -1).join(' ') : '';
+      
+      // Proceed with verification
+      setDocumentsVerified(true);
+      
+      // Create a display name from BVN data
+      const displayName = [bvnFirstName, bvnMiddleName, bvnLastName]
+        .filter(Boolean)
+        .join(' ');
+
+      // Show success message
+      if (accountNumber) {
+        showToast(`BVN verified! Name: ${displayName} • Account created: ${accountNumber.substring(0, 5)}****`, 'success');
+      } else {
+        showToast(`BVN verified! Name: ${displayName} • Account creation in progress`, 'success');
+      }
+      
+      // Update progress with BVN verified (using id_face_verified)
+      const progressResult = await updateProgress({
+        current_step: 'personal', // Move to personal info (Tier 2) after BVN verification
+        id_face_verified: true
+      });
+      
+      // Check if Tier 1 is complete (Liveness + BVN + NIN)
+      if (progressResult) {
+        await updateTier(); // Update tier after BVN verification
+        const tierStatus = checkTierCompletion();
+        if (tierStatus.tier1) {
+          console.log('Tier 1 completed! User can now proceed to Tier 2.');
+          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+        }
+      }
+      
+      if (!progressResult) {
+        showToast('Failed to update progress. Please try again.', 'error');
+        return;
+      }
+      
+      // Wait for toast to be visible before moving to next step
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Move to next incomplete step
+      const nextStep = getNextIncompleteStep('id_face_match');
+      setCurrentStep(nextStep);
+      setTimeout(() => {
+        setIsManualVerification(false);
+        setIsLoading(false);
+      }, 1000);
+      
+    } catch (error) {
+      console.error('BVN verification error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'BVN verification failed';
       showToast(errorMessage, 'error');
       setErrors({ documentVerification: errorMessage });
       setIsManualVerification(false);
@@ -2506,8 +2766,11 @@ export default function KYCUpgradeScreen() {
               returnKeyType="next"
               onSubmitEditing={() => addressInputRef.current?.focus()}
             />
-          </View>
-          {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
+            </View>
+            {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
+            <Text style={styles.helperText}>
+              Use the same phone number you registered your NIN with. One-Time Passwords can only be sent to that line.
+            </Text>
         </View>
         
         <View style={styles.inputGroup}>
@@ -2752,9 +3015,13 @@ export default function KYCUpgradeScreen() {
   const renderIDFaceMatchStep = () => {
     return (
       <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>NIN Verification</Text>
+        <Text style={styles.sectionTitle}>
+          {selectedIdentityType === 'bvn' ? 'BVN Verification' : 'NIN Verification'}
+        </Text>
         <Text style={styles.sectionDescription}>
-          Please provide a government-issued ID and take a selfie for verification.
+          {selectedIdentityType === 'bvn' 
+            ? 'Please verify your Bank Verification Number (BVN) to proceed.'
+            : 'Please provide a government-issued ID and take a selfie for verification.'}
         </Text>
         
         {!bvnVerified && (
@@ -2772,36 +3039,42 @@ export default function KYCUpgradeScreen() {
             <Pressable
               style={[
                 styles.idOption,
-                selectedIdentityType === 'nin' && styles.selectedIdOption
+                selectedIdentityType === 'nin' && styles.selectedIdOption,
+                (selectedIdentityType === 'bvn' || bvnIdentityId) && styles.disabledOption
               ]}
               onPress={() => {
                 setSelectedIdentityType('nin');
                 setErrors({});
               }}
-              disabled={isVerifyingDocuments || documentsVerified}
+              disabled={isVerifyingDocuments || documentsVerified || selectedIdentityType === 'bvn' || !!bvnIdentityId}
             >
               <Text style={[
                 styles.idOptionText,
-                selectedIdentityType === 'nin' && styles.selectedIdOptionText
+                selectedIdentityType === 'nin' && styles.selectedIdOptionText,
+                (selectedIdentityType === 'bvn' || bvnIdentityId) && styles.disabledOptionText
               ]}>NIN</Text>
             </Pressable>
             
-            {/* <Pressable
-              style={[
-                styles.idOption,
-                selectedIdentityType === 'passport' && styles.selectedIdOption
-              ]}
-              onPress={() => {
-                setSelectedIdentityType('passport');
-                setErrors({});
-              }}
-              disabled={isVerifyingDocuments || documentsVerified}
-            >
-              <Text style={[
-                styles.idOptionText,
-                selectedIdentityType === 'passport' && styles.selectedIdOptionText
-              ]}>Passport</Text>
-            </Pressable> */}
+            {showBvnOption && (
+              <Pressable
+                style={[
+                  styles.idOption,
+                  selectedIdentityType === 'bvn' && styles.selectedIdOption,
+                  (selectedIdentityType === 'nin' || ninIdentityId) && styles.disabledOption
+                ]}
+                onPress={() => {
+                  setSelectedIdentityType('bvn');
+                  setErrors({});
+                }}
+                disabled={isVerifyingDocuments || documentsVerified || selectedIdentityType === 'nin' || !!ninIdentityId}
+              >
+                <Text style={[
+                  styles.idOptionText,
+                  selectedIdentityType === 'bvn' && styles.selectedIdOptionText,
+                  (selectedIdentityType === 'nin' || ninIdentityId) && styles.disabledOptionText
+                ]}>BVN</Text>
+              </Pressable>
+            )}
             
           </View>
         </View>
@@ -2832,70 +3105,174 @@ export default function KYCUpgradeScreen() {
               {errors.nin && <Text style={styles.errorText}>{errors.nin}</Text>}
             </View>
             
+            {ninIdentityId && (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Phone Number *</Text>
+                  <Text style={styles.sectionDescription}>
+                    {otpMessage || 'Enter the phone number linked to your NIN. This is required for NIN verification.'}
+                  </Text>
+                  <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
+                    <TextInput
+                      ref={phoneInputRef}
+                      style={styles.input}
+                      placeholder="Enter your phone number"
+                      placeholderTextColor={colors.textTertiary}
+                      value={phoneNumber}
+                      onChangeText={(text) => {
+                        // Only allow numbers
+                        const numericText = text.replace(/[^0-9]/g, '');
+                        if (numericText.length <= 11) {
+                          setPhoneNumber(numericText);
+                          setErrors(prev => ({ ...prev, phoneNumber: '' }));
+                          // Save to kyc_data when phone number is entered
+                          if (numericText.length >= 10 && session?.user?.id) {
+                            saveFormData({ phone_number: numericText }).catch(err => {
+                              console.error('[KYC] Error saving phone number:', err);
+                            });
+                          }
+                        }
+                      }}
+                      keyboardType="phone-pad"
+                      maxLength={11}
+                      editable={!isVerifyingDocuments && !documentsVerified}
+                      autoCorrect={false}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  <Text style={styles.helperText}>
+                    Use the same phone number you registered your NIN with. One-Time Passwords can only be sent to that line.
+                  </Text>
+                  {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
+                </View>
+                
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Enter OTP</Text>
+                  <Text style={styles.sectionDescription}>
+                    Enter the 6-digit OTP code sent to your phone number.
+                  </Text>
+                  <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter 6-digit OTP"
+                      placeholderTextColor={colors.textTertiary}
+                      value={otp}
+                      onChangeText={(text) => {
+                        // Only allow numbers and limit to 6 digits
+                        const numericText = text.replace(/[^0-9]/g, '');
+                        if (numericText.length <= 6) {
+                          setOtp(numericText);
+                          setErrors(prev => ({ ...prev, otp: '' }));
+                        }
+                      }}
+                      keyboardType="numeric"
+                      maxLength={6}
+                      editable={!isLoading && !documentsVerified}
+                      autoFocus={true}
+                    />
+                  </View>
+                  {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
+                  <View style={styles.otpNoteContainer}>
+                    <Text style={styles.helperText}>
+                      Didn&apos;t receive the OTP? Confirm you&apos;re using the NIN registration number. If it still doesn&apos;t arrive, let&apos;s use your BVN instead.
+                    </Text>
+                    <Pressable onPress={handleUseBvnInstead} style={styles.linkButton}>
+                      <Text style={styles.linkButtonText}>Use BVN instead</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </>
+            )}
+          </>
+        )}
+
+        {selectedIdentityType === 'bvn' && (
+          <>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Phone Number *</Text>
-              <Text style={styles.sectionDescription}>
-                Enter the phone number linked to your NIN. This is required for NIN verification.
-              </Text>
-              <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
+              <Text style={styles.label}>Bank Verification Number (BVN)</Text>
+              <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
                 <TextInput
-                  ref={phoneInputRef}
                   style={styles.input}
-                  placeholder="Enter your phone number (e.g., 08012345678)"
+                  placeholder="Enter your 11-digit BVN"
                   placeholderTextColor={colors.textTertiary}
-                  value={phoneNumber}
-                  onChangeText={(text) => {
-                    // Only allow numbers
-                    const numericText = text.replace(/[^0-9]/g, '');
-                    if (numericText.length <= 11) {
-                      setPhoneNumber(numericText);
-                      setErrors(prev => ({ ...prev, phoneNumber: '' }));
-                      // Save to kyc_data when phone number is entered
-                      if (numericText.length >= 10 && session?.user?.id) {
-                        saveFormData({ phone_number: numericText }).catch(err => {
-                          console.error('[KYC] Error saving phone number:', err);
-                        });
-                      }
-                    }
-                  }}
-                  keyboardType="phone-pad"
+                  value={bvn || formData?.bvn || ''}
+                  editable={false}
+                  keyboardType="numeric"
                   maxLength={11}
-                  editable={!isVerifyingDocuments && !documentsVerified}
-                  autoCorrect={false}
-                  autoCapitalize="none"
                 />
               </View>
-              {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
+              {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
             </View>
             
-            {ninIdentityId && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Enter OTP</Text>
-                <Text style={styles.sectionDescription}>
-                  {otpMessage || 'An OTP has been sent to the phone number linked to your NIN. Please enter the 6-digit code.'}
-                </Text>
-                <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter 6-digit OTP"
-                    placeholderTextColor={colors.textTertiary}
-                    value={otp}
-                    onChangeText={(text) => {
-                      // Only allow numbers and limit to 6 digits
-                      const numericText = text.replace(/[^0-9]/g, '');
-                      if (numericText.length <= 6) {
-                        setOtp(numericText);
-                        setErrors(prev => ({ ...prev, otp: '' }));
-                      }
-                    }}
-                    keyboardType="numeric"
-                    maxLength={6}
-                    editable={!isLoading && !documentsVerified}
-                    autoFocus={true}
-                  />
+            {bvnIdentityId && (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Phone Number *</Text>
+                  <Text style={styles.sectionDescription}>
+                    {otpMessage || 'Enter the phone number linked to your BVN. This is required for BVN verification.'}
+                  </Text>
+                  <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
+                    <TextInput
+                      ref={phoneInputRef}
+                      style={styles.input}
+                      placeholder="Enter your phone number"
+                      placeholderTextColor={colors.textTertiary}
+                      value={phoneNumber}
+                      onChangeText={(text) => {
+                        // Only allow numbers
+                        const numericText = text.replace(/[^0-9]/g, '');
+                        if (numericText.length <= 11) {
+                          setPhoneNumber(numericText);
+                          setErrors(prev => ({ ...prev, phoneNumber: '' }));
+                          // Save to kyc_data when phone number is entered
+                          if (numericText.length >= 10 && session?.user?.id) {
+                            saveFormData({ phone_number: numericText }).catch(err => {
+                              console.error('[KYC] Error saving phone number:', err);
+                            });
+                          }
+                        }
+                      }}
+                      keyboardType="phone-pad"
+                      maxLength={11}
+                      editable={!isVerifyingDocuments && !documentsVerified}
+                      autoCorrect={false}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  <Text style={styles.helperText}>
+                    Use the same phone number you registered your BVN with. One-Time Passwords can only be sent to that line.
+                  </Text>
+                  {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
                 </View>
-                {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
-              </View>
+                
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Enter OTP</Text>
+                  <Text style={styles.sectionDescription}>
+                    Enter the 6-digit OTP code sent to your phone number.
+                  </Text>
+                  <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter 6-digit OTP"
+                      placeholderTextColor={colors.textTertiary}
+                      value={otp}
+                      onChangeText={(text) => {
+                        // Only allow numbers and limit to 6 digits
+                        const numericText = text.replace(/[^0-9]/g, '');
+                        if (numericText.length <= 6) {
+                          setOtp(numericText);
+                          setErrors(prev => ({ ...prev, otp: '' }));
+                        }
+                      }}
+                      keyboardType="numeric"
+                      maxLength={6}
+                      editable={!isLoading && !documentsVerified}
+                      autoFocus={true}
+                    />
+                  </View>
+                  {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
+                </View>
+              </>
             )}
           </>
         )}
@@ -3090,7 +3467,7 @@ export default function KYCUpgradeScreen() {
         <View style={styles.infoContainer}>
           <Shield size={20} color={colors.primary} />
           <Text style={styles.infoText}>
-            Your documents are securely encrypted and will only be used for verification purposes. They will be deleted after verification is complete.
+            Your documents are securely encrypted and will only be used for verification purposes.
           </Text>
         </View>
       </View>
@@ -3768,6 +4145,12 @@ export default function KYCUpgradeScreen() {
       textAlignVertical: 'top',
       paddingTop: 16,
     },
+    helperText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 6,
+      lineHeight: 16,
+    },
     errorText: {
       fontSize: 12,
       color: colors.error,
@@ -3836,6 +4219,22 @@ export default function KYCUpgradeScreen() {
       color: colors.success,
       fontWeight: '500',
     },
+    otpNoteContainer: {
+      marginTop: 12,
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF',
+      borderRadius: 8,
+      padding: 12,
+      gap: 8,
+    },
+    linkButton: {
+      paddingVertical: 4,
+      alignSelf: 'flex-start',
+    },
+    linkButtonText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.primary,
+    },
     idTypeSelector: {
       marginBottom: 20,
     },
@@ -3858,6 +4257,11 @@ export default function KYCUpgradeScreen() {
       borderColor: colors.primary,
       backgroundColor: colors.backgroundTertiary,
     },
+    disabledOption: {
+      opacity: 0.5,
+      backgroundColor: isDark ? 'rgba(148, 163, 184, 0.1)' : '#F1F5F9',
+      borderColor: colors.border,
+    },
     idOptionText: {
       fontSize: 14,
       color: colors.text,
@@ -3865,6 +4269,9 @@ export default function KYCUpgradeScreen() {
     },
     selectedIdOptionText: {
       color: colors.primary,
+    },
+    disabledOptionText: {
+      color: colors.textTertiary,
     },
     documentSection: {
       marginBottom: 20,
@@ -4365,7 +4772,8 @@ export default function KYCUpgradeScreen() {
             isVerifyingDocuments || 
             (currentStep === 'bvn_verification' && bvnVerified) ||
             (currentStep === 'id_face_match' && documentsVerified) ||
-            (currentStep === 'id_face_match' && !!ninIdentityId && !otp.trim())
+            (currentStep === 'id_face_match' && !!ninIdentityId && (!otp.trim() || !phoneNumber.trim())) ||
+            (currentStep === 'id_face_match' && !!bvnIdentityId && (!otp.trim() || !phoneNumber.trim()))
           }
           loading={isLoading || formDataLoading || progressLoading || isResolvingBvn || isVerifyingDocuments}
         />

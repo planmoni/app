@@ -1250,7 +1250,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     backgroundColor: colors.surface,
   },
   progressBar: {
-    height: 4,
+    height: 2,
     backgroundColor: colors.border,
     borderRadius: 2,
     marginBottom: 8,
@@ -1296,7 +1296,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     gap: 8,
     padding: isSmallScreen ? 10 : 12,
     backgroundColor: colors.backgroundTertiary,
-    borderRadius: 100,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.border,
     minWidth: 120,
@@ -1480,7 +1480,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     justifyContent: 'center',
     padding: 12,
     backgroundColor: '#F0F9FF',
-    borderRadius: 100,
+    borderRadius: 20,
     gap: 8,
     borderWidth: 1,
     borderColor: '#1E3A8A',
@@ -1591,12 +1591,12 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   },
   modalCancelButton: {
     flex: 1,
-    borderRadius: 100,
+    borderRadius: 20,
   },
   modalConfirmButton: {
     flex: 1,
     backgroundColor: '#1E3A8A',
-    borderRadius: 100,
+    borderRadius: 20,
   },
   amountHeader: {
     flexDirection: 'row',
@@ -1732,14 +1732,14 @@ const createTimePickerStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.backgroundTertiary,
     paddingVertical: 12,
-    borderRadius: 100,
+    borderRadius: 20,
     alignItems: 'center',
   },
   confirmButton: {
     flex: 1,
     backgroundColor: colors.primary,
     paddingVertical: 12,
-    borderRadius: 100,
+    borderRadius: 20,
     alignItems: 'center',
   },
   cancelButtonText: {
@@ -1866,11 +1866,11 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
   },
   cancelButton: {
     backgroundColor: colors.backgroundTertiary,
-    borderRadius: 100,
+    borderRadius: 20,
   },
   confirmButton: {
     backgroundColor: '#1E3A8A',
-    borderRadius: 100,
+    borderRadius: 20,
   },
   cancelButtonText: {
     fontSize: isSmallScreen ? 14 : 16,

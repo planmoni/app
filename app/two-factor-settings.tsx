@@ -320,7 +320,6 @@ export default function TwoFactorSettingsScreen() {
             <View style={styles.card}>
               <View style={styles.setupItem}>
                 <View style={[styles.setupIcon, { backgroundColor: '#F0FDF4' }]}>
-                  <Shield size={20} color="#22C55E" />
                 </View>
                 <View style={styles.setupContent}>
                   <Text style={styles.setupLabel}>Enable Two-Factor Authentication</Text>

@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
-import { ChevronRight, X, Mail, Lock, Shield, Fingerprint, CircleAlert as AlertCircle, CheckCircle, Clock } from 'lucide-react-native';
+import { ChevronRight, X, Mail, Lock, Fingerprint, CircleAlert as AlertCircle, Clock } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useState, useEffect } from 'react';
@@ -10,7 +10,13 @@ import { usePin } from '@/contexts/PinContext';
 import { useOnlineStatus } from './OnlineStatusProvider';
 import OfflineNotice from './OfflineNotice';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+import Tier1Icon from '@/assets/kyc/1.svg';
+import Tier2Icon from '@/assets/kyc/2.svg';
+import Tier3Icon from '@/assets/kyc/3.svg';
 import React from 'react';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 
 type PendingAction = {
   id: string;
@@ -27,9 +33,11 @@ type PendingAction = {
 
 export default function PendingActionsCard() {
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
   const [profileData, setProfileData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { session } = useAuth();
+  const { isAuthenticated } = useRequireAuth();
   const { hasAppLockPin } = usePin();
   const haptics = useHaptics();
   const { isOnline } = useOnlineStatus();
@@ -89,9 +97,9 @@ export default function PendingActionsCard() {
         actions.push({
           id: 'tier-1-verification',
           title: 'Tier 1: Basic Verification',
-          description: `${description}. Unlock up to ₦20,000 monthly deposits.`,
-          icon: Shield,
-          iconBg: '#FEF3C7',
+          description: 'Increase single transaction limit to ₦50,000',
+          icon: Tier1Icon,
+          iconBg: '#EFEDED',
           iconColor: '#F59E0B',
           route: '/kyc-upgrade',
           priority: 'high',
@@ -119,7 +127,7 @@ export default function PendingActionsCard() {
       let description = '';
       if (missingSteps.length === 0) {
         // All Tier 2 steps are complete, but tier might not be updated yet
-        description = 'Complete personal information and document verification';
+        // description = 'Complete personal information and document verification';
       } else if (missingSteps.length === 1) {
         description = `Complete ${missingSteps[0]}`;
       } else {
@@ -130,9 +138,9 @@ export default function PendingActionsCard() {
         id: 'tier-2-verification',
         title: 'Tier 2: Enhanced Verification',
         description: tier1Complete 
-          ? `${description}. Unlock up to ₦100,000 monthly deposits.`
+          ? 'Increase single transaction limit to ₦200,000'
           : 'Complete Tier 1 first to unlock Tier 2 verification',
-        icon: Fingerprint,
+        icon: Tier2Icon,
         iconBg: tier1Complete ? '#EFF6FF' : '#F3F4F6',
         iconColor: tier1Complete ? '#1E3A8A' : '#9CA3AF',
         route: '/kyc-upgrade',
@@ -163,7 +171,7 @@ export default function PendingActionsCard() {
       let description = '';
       if (missingSteps.length === 0) {
         // All Tier 3 steps are complete, but tier might not be updated yet
-        description = 'Complete address details and utility bill verification';
+        // description = 'Complete address details and utility bill verification';
       } else if (missingSteps.length === 1) {
         description = `Complete ${missingSteps[0]}`;
       } else {
@@ -174,9 +182,9 @@ export default function PendingActionsCard() {
         id: 'tier-3-verification',
         title: 'Tier 3: Full Verification',
         description: tier2Complete
-          ? `${description}. Unlock up to ₦1,000,000 monthly deposits.`
+          ? 'Increase single transaction limit to ₦5,000,000'
           : 'Complete Tier 2 first to unlock Tier 3 verification',
-        icon: CheckCircle,
+        icon: Tier3Icon,
         iconBg: tier2Complete ? '#F0FDF4' : '#F3F4F6',
         iconColor: tier2Complete ? '#22C55E' : '#9CA3AF',
         route: '/kyc-upgrade',
@@ -292,14 +300,28 @@ export default function PendingActionsCard() {
   // Handle navigation to action route
   const handleActionPress = (action: PendingAction) => {
     haptics.mediumImpact();
+    
+    // Simplified flow: Go directly to kyc-upgrade page for Tier 1 verification
+    // The page will automatically show the camera permission modal when on liveness step
+    if (action.id === 'tier-1-verification') {
+      router.push('/kyc-upgrade');
+      return;
+    }
+    
     router.push(action.route);
   };
+
 
   // Filter out completed actions
   const filteredActions = pendingActions.filter(action => !isActionCompleted(action.id));
 
   // Create styles before any conditional returns
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
+
+  // Don't render if user is not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   // Don't render if there are no pending actions and data is loaded
   if (!isLoading && filteredActions.length === 0) {
@@ -335,19 +357,7 @@ export default function PendingActionsCard() {
     <View>
       <View style={styles.titleContainer}>
         <Text style={styles.sectionTitle}>Pending Actions</Text>
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <View 
-              style={[
-                styles.progressFill, 
-                { width: `${((pendingActions.length - filteredActions.length) / pendingActions.length) * 100}%` }
-              ]} 
-            />
-          </View>
-          <Text style={styles.progressText}>
-            {Math.round(((pendingActions.length - filteredActions.length) / pendingActions.length) * 100)}%
-          </Text>
-        </View>
+       
       </View>
       <View style={styles.container}>
         <ScrollView 
@@ -370,7 +380,11 @@ export default function PendingActionsCard() {
                 { backgroundColor: action.iconBg },
                 action.disabled && styles.iconContainerDisabled
               ]}>
-                <action.icon size={24} color={action.iconColor} />
+                {action.id.startsWith('tier-') ? (
+                  <action.icon width={24} height={24} />
+                ) : (
+                  <action.icon size={24} color={action.iconColor} />
+                )}
               </View>
               <View style={styles.actionContent}>
                 <Text style={[
@@ -414,7 +428,7 @@ export default function PendingActionsCard() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
     marginTop: 20,
     marginBottom: 10,
@@ -427,18 +441,14 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 12,
   },
   actionCard: {
-    width: Platform.OS === 'ios' ? 280 : 240,
+    width: Platform.OS === 'ios' ? 300 : 320,
     backgroundColor: colors.card,
     borderRadius: 12,
     height: 110,
     padding: 16,
     borderWidth: 0.5,
     borderColor: colors.border,
-    shadowColor: '#000000',
-    shadowOffset: { width: 1, height: 6},
-    shadowOpacity: 0.05,
-    shadowRadius: 9,
-    elevation: 9,
+   
   
     flexDirection: 'row',
     alignItems: 'center',
@@ -458,15 +468,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginRight: 8,
   },
   actionTitle: {
-    fontSize: Platform.OS === 'ios' ? 15 : 13,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 13, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     marginTop: 10,
   },
   actionDescription: {
-    fontSize: Platform.OS === 'ios' ? 13 : 12,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
     color: colors.textSecondary,
-    lineHeight: 16,
+    lineHeight: getScaledFontSize(16, textSizeMultiplier),
   },
   actionButtons: {
     flexDirection: 'column',
@@ -491,7 +501,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   sectionTitle: {
-    fontSize: Platform.OS === 'ios' ? 16 : 14,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: -20,
@@ -522,7 +532,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   progressText: {
-    fontSize: 12,
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     fontWeight: '600',
     color: colors.textSecondary,
     minWidth: 25,
@@ -533,7 +543,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
   },
   loadingText: {
-    fontSize: 14,
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     color: colors.textSecondary,
     fontWeight: '500',
   },
