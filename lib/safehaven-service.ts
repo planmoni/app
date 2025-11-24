@@ -1149,6 +1149,691 @@ class SafeHavenService {
   }
 
   /**
+   * Initializes BVN verification - sends OTP to phone number linked to BVN
+   * Similar to NIN verification initialization
+   */
+  async initializeBVNVerification(
+    userId: string,
+    bvn: string,
+    emailAddress: string
+  ): Promise<SafeHavenOperationResult> {
+    const startTime = Date.now();
+    let auditLogId: string | undefined = undefined;
+
+    try {
+      const token = await this.getValidToken(userId);
+      if (!token) {
+        return {
+          success: false,
+          error: 'Unable to get SafeHaven token. Please try again.'
+        };
+      }
+
+      const kycAuditLogId = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: userId,
+        p_operation_type: 'bvn_verification',
+        p_verification_type: 'bvn',
+        p_verification_provider: 'safehaven',
+        p_request_data: {
+          bvn: bvn.substring(0, 4) + '****',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: null,
+        p_status: 'pending',
+        p_result_message: 'BVN verification initiated',
+        p_metadata: {
+          service: 'safehaven-service',
+          operation: 'bvn_verification_init'
+        }
+      });
+
+      auditLogId = await this.logOperation(
+        userId,
+        'bvn_verification',
+        {
+          bvn: bvn.substring(0, 4) + '****',
+          step: 'identity_verification'
+        },
+        null,
+        'pending'
+      );
+
+      const identityPayload = {
+        type: 'BVN',
+        async: false,
+        debitAccountNumber: '0117753301',
+        number: bvn
+      };
+
+      const identityResponse = await fetch(`${this.API_URL}/identity/v2`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ClientID': this.CLIENT_ID,
+          'Authorization': `Bearer ${token.access_token}`
+        },
+        body: JSON.stringify(identityPayload)
+      });
+
+      if (!identityResponse.ok) {
+        const errorText = await identityResponse.text();
+        const errorData = {
+          status: identityResponse.status,
+          statusText: identityResponse.statusText,
+          error: errorText,
+          step: 'identity_verification'
+        };
+
+        const responseTime = Date.now() - startTime;
+
+        if (kycAuditLogId?.data) {
+          await supabase
+            .from('kyc_audit_logs')
+            .update({
+              status: 'failed',
+              response_data: errorData,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', kycAuditLogId.data);
+        }
+
+        await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
+
+        return {
+          success: false,
+          error: `BVN identity verification failed: ${identityResponse.status} ${identityResponse.statusText}`,
+          auditLogId,
+          responseTime
+        };
+      }
+
+      const identityData = await identityResponse.json();
+      const identityId = identityData?.data?._id || identityData?._id;
+
+      if (!identityId) {
+        throw new Error('Identity ID not found in BVN response');
+      }
+
+      const otpMessage = identityData?.message || null;
+
+      await this.updateAuditLog(
+        auditLogId,
+        'pending',
+        {
+          step: 'identity_verification_complete',
+          identityId,
+          response: identityData
+        },
+        null,
+        Date.now() - startTime
+      );
+
+      if (kycAuditLogId?.data) {
+        await supabase
+          .from('kyc_audit_logs')
+          .update({
+            status: 'success',
+            response_data: {
+              identityId,
+              otp_sent: true,
+              status: identityData?.data?.status || identityData?.status || 'PENDING',
+              otp_message: otpMessage
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', kycAuditLogId.data);
+      }
+
+      return {
+        success: true,
+        data: {
+          identityId,
+          requiresOtp: true,
+          status: identityData?.data?.status || identityData?.status || 'PENDING',
+          otpMessage: otpMessage
+        },
+        auditLogId,
+        responseTime: Date.now() - startTime
+      };
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+
+      if (auditLogId) {
+        await this.updateAuditLog(auditLogId, 'failed', null, { error: errorMessage }, responseTime);
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+        auditLogId: auditLogId || undefined,
+        responseTime
+      };
+    }
+  }
+
+  /**
+   * Verifies BVN with OTP and creates SafeHaven account
+   * Similar to NIN verification with OTP
+   */
+  async verifyBVNAndCreateAccount(
+    userId: string,
+    bvn: string,
+    phoneNumber: string,
+    emailAddress: string,
+    otp: string,
+    identityId: string
+  ): Promise<SafeHavenOperationResult> {
+    const startTime = Date.now();
+    let auditLogId: string | undefined = undefined;
+
+    try {
+      const token = await this.getValidToken(userId);
+      if (!token) {
+        return {
+          success: false,
+          error: 'Unable to get SafeHaven token. Please try again.'
+        };
+      }
+
+      const kycAuditLogId = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: userId,
+        p_operation_type: 'bvn_verification',
+        p_verification_type: 'bvn',
+        p_verification_provider: 'safehaven',
+        p_request_data: {
+          bvn: bvn.substring(0, 4) + '****',
+          has_otp: true,
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: null,
+        p_status: 'pending',
+        p_result_message: 'BVN verification with OTP initiated',
+        p_metadata: {
+          service: 'safehaven-service',
+          operation: 'bvn_verification_verify'
+        }
+      });
+
+      auditLogId = await this.logOperation(
+        userId,
+        'bvn_verification',
+        {
+          bvn: bvn.substring(0, 4) + '****',
+          step: 'account_creation'
+        },
+        null,
+        'pending'
+      );
+
+      const accountPayload = {
+        phoneNumber,
+        emailAddress,
+        identityType: 'BVN',
+        identityNumber: bvn,
+        identityId,
+        otp,
+        autoSweep: true,
+        autoSweepDetails: {
+          schedule: 'Instant',
+          accountNumber: '0117753301'
+        },
+        externalReference: `BVN_${userId.substring(0, 8)}`
+      };
+
+      const accountResponse = await fetch(`${this.API_URL}/accounts/v2/subaccount`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ClientID': this.CLIENT_ID,
+          'Authorization': `Bearer ${token.access_token}`
+        },
+        body: JSON.stringify(accountPayload)
+      });
+
+      const responseTime = Date.now() - startTime;
+
+      if (!accountResponse.ok) {
+        const errorText = await accountResponse.text();
+        const errorData = {
+          status: accountResponse.status,
+          statusText: accountResponse.statusText,
+          error: errorText,
+          step: 'account_creation',
+          identityId
+        };
+
+        if (kycAuditLogId?.data) {
+          await supabase
+            .from('kyc_audit_logs')
+            .update({
+              status: 'failed',
+              response_data: errorData,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', kycAuditLogId.data);
+        }
+
+        await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
+
+        return {
+          success: false,
+          error: `Account creation with BVN failed: ${accountResponse.status} ${accountResponse.statusText}`,
+          auditLogId,
+          responseTime
+        };
+      }
+
+      const accountData = await accountResponse.json();
+      const verificationData: any = {
+        verified: true,
+        identityId,
+        identityNumber: bvn,
+        status: accountData?.data?.status || accountData?.status || 'PENDING'
+      };
+
+      let accountNumber: string | null = null;
+      if (accountData?.data?.accountNumber) {
+        accountNumber = accountData.data.accountNumber;
+      } else if (accountData?.data?.account_number) {
+        accountNumber = accountData.data.account_number;
+      } else if (accountData?.accountNumber) {
+        accountNumber = accountData.accountNumber;
+      } else if (accountData?.account_number) {
+        accountNumber = accountData.account_number;
+      }
+      if (accountNumber) {
+        verificationData.account_number = accountNumber;
+      }
+
+      let accountName: string | null = null;
+      if (accountData?.data?.accountName) {
+        accountName = accountData.data.accountName;
+      } else if (accountData?.data?.account_name) {
+        accountName = accountData.data.account_name;
+      } else if (accountData?.accountName) {
+        accountName = accountData.accountName;
+      } else if (accountData?.account_name) {
+        accountName = accountData.account_name;
+      }
+
+      if (accountName) {
+        const names = accountName.split(' ');
+        verificationData.first_name = names[0] || '';
+        verificationData.last_name = names[names.length - 1] || '';
+        verificationData.middle_name = names.length > 2 ? names.slice(1, -1).join(' ') : '';
+        verificationData.account_name = accountName;
+      }
+
+      if (kycAuditLogId?.data) {
+        await supabase
+          .from('kyc_audit_logs')
+          .update({
+            status: 'success',
+            response_data: {
+              verified: true,
+              bvn: bvn.substring(0, 4) + '****',
+              hasAccount: !!verificationData.account_number,
+              identityId
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', kycAuditLogId.data);
+      }
+
+      await this.updateAuditLog(
+        auditLogId,
+        'success',
+        {
+          verified: true,
+          hasAccount: !!verificationData.account_number,
+          accountNumber: verificationData.account_number ? verificationData.account_number.substring(0, 5) + '****' : null,
+          identityId,
+          step: 'account_creation_complete',
+          responseData: accountData
+        },
+        null,
+        responseTime
+      );
+
+      if (verificationData.account_number) {
+        try {
+          await this.storeAccountFromNINVerification(userId, {
+            account_number: verificationData.account_number,
+            account_name: accountName || 'BVN Account',
+            account_type: accountData?.data?.accountType || accountData?.accountType || 'savings',
+            account_product: accountData?.data?.accountProduct || accountData?.accountProduct || 'Savings',
+            currency_code: accountData?.data?.currencyCode || accountData?.currencyCode || 'NGN',
+            status: accountData?.data?.status || accountData?.status || 'active',
+            account_id: accountData?.data?._id || accountData?.data?.id || accountData?._id || accountData?.id || null,
+            account_balance: accountData?.data?.accountBalance || accountData?.accountBalance || 0,
+            book_balance: accountData?.data?.bookBalance || accountData?.bookBalance || 0,
+            interest_balance: accountData?.data?.interestBalance || accountData?.interestBalance || 0,
+            withholding_tax_balance: accountData?.data?.withHoldingTaxBalance || accountData?.withHoldingTaxBalance || 0
+          });
+        } catch (storeError) {
+          console.error("safehaven error storing BVN account:", storeError);
+        }
+      }
+
+      await supabase
+        .from('kyc_progress')
+        .update({
+          bvn_verified: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
+
+      return {
+        success: true,
+        data: verificationData,
+        auditLogId,
+        responseTime
+      };
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+
+      if (auditLogId) {
+        await this.updateAuditLog(auditLogId, 'failed', null, { error: errorMessage }, responseTime);
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+        auditLogId: auditLogId || undefined,
+        responseTime
+      };
+    }
+  }
+
+  /**
+   * Creates a SafeHaven account using BVN when NIN OTP flow fails.
+   * This reuses the identity verification endpoint but skips OTP requirements.
+   */
+  async createAccountUsingBVN(
+    userId: string,
+    bvn: string,
+    phoneNumber: string,
+    emailAddress: string
+  ): Promise<SafeHavenOperationResult> {
+    const startTime = Date.now();
+    let auditLogId: string | undefined = undefined;
+
+    try {
+      const token = await this.getValidToken(userId);
+      if (!token) {
+        return {
+          success: false,
+          error: 'Unable to get SafeHaven token. Please try again.'
+        };
+      }
+
+      const kycAuditLogId = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: userId,
+        p_operation_type: 'bvn_account_creation',
+        p_verification_type: 'bvn',
+        p_verification_provider: 'safehaven',
+        p_request_data: {
+          bvn: bvn.substring(0, 4) + '****',
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: null,
+        p_status: 'pending',
+        p_result_message: 'BVN account creation initiated',
+        p_metadata: {
+          service: 'safehaven-service',
+          operation: 'bvn_account_creation'
+        }
+      });
+
+      auditLogId = await this.logOperation(
+        userId,
+        'bvn_account_creation',
+        {
+          bvn: bvn.substring(0, 4) + '****',
+          step: 'identity_verification'
+        },
+        null,
+        'pending'
+      );
+
+      const identityPayload = {
+        type: 'BVN',
+        async: false,
+        debitAccountNumber: '0117753301',
+        number: bvn
+      };
+
+      const identityResponse = await fetch(`${this.API_URL}/identity/v2`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ClientID': this.CLIENT_ID,
+          'Authorization': `Bearer ${token.access_token}`
+        },
+        body: JSON.stringify(identityPayload)
+      });
+
+      if (!identityResponse.ok) {
+        const errorText = await identityResponse.text();
+        const errorData = {
+          status: identityResponse.status,
+          statusText: identityResponse.statusText,
+          error: errorText,
+          step: 'identity_verification'
+        };
+
+        const responseTime = Date.now() - startTime;
+
+        if (kycAuditLogId?.data) {
+          await supabase
+            .from('kyc_audit_logs')
+            .update({
+              status: 'failed',
+              response_data: errorData,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', kycAuditLogId.data);
+        }
+
+        await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
+
+        return {
+          success: false,
+          error: `BVN identity verification failed: ${identityResponse.status} ${identityResponse.statusText}`,
+          auditLogId,
+          responseTime
+        };
+      }
+
+      const identityData = await identityResponse.json();
+      const identityId = identityData?.data?._id || identityData?._id;
+
+      if (!identityId) {
+        throw new Error('Identity ID not found in BVN response');
+      }
+
+      await this.updateAuditLog(
+        auditLogId,
+        'pending',
+        {
+          step: 'identity_verification_complete',
+          identityId,
+          response: identityData
+        },
+        null,
+        Date.now() - startTime
+      );
+
+      const accountPayload = {
+        phoneNumber,
+        emailAddress,
+        identityType: 'BVN',
+        identityNumber: bvn,
+        identityId,
+        autoSweep: true,
+        autoSweepDetails: {
+          schedule: 'Instant',
+          accountNumber: '0117753301'
+        },
+        externalReference: `BVN_${userId.substring(0, 8)}`
+      };
+
+      const accountResponse = await fetch(`${this.API_URL}/accounts/v2/subaccount`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ClientID': this.CLIENT_ID,
+          'Authorization': `Bearer ${token.access_token}`
+        },
+        body: JSON.stringify(accountPayload)
+      });
+
+      const responseTime = Date.now() - startTime;
+
+      if (!accountResponse.ok) {
+        const errorText = await accountResponse.text();
+        const errorData = {
+          status: accountResponse.status,
+          statusText: accountResponse.statusText,
+          error: errorText,
+          step: 'account_creation',
+          identityId
+        };
+
+        if (kycAuditLogId?.data) {
+          await supabase
+            .from('kyc_audit_logs')
+            .update({
+              status: 'failed',
+              response_data: errorData,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', kycAuditLogId.data);
+        }
+
+        await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
+
+        return {
+          success: false,
+          error: `Account creation with BVN failed: ${accountResponse.status} ${accountResponse.statusText}`,
+          auditLogId,
+          responseTime
+        };
+      }
+
+      const accountData = await accountResponse.json();
+      const verificationData: any = {
+        verified: true,
+        identityId,
+        identityNumber: bvn,
+        status: accountData?.data?.status || accountData?.status || 'PENDING'
+      };
+
+      let accountNumber: string | null = null;
+      if (accountData?.data?.accountNumber) {
+        accountNumber = accountData.data.accountNumber;
+      } else if (accountData?.data?.account_number) {
+        accountNumber = accountData.data.account_number;
+      } else if (accountData?.accountNumber) {
+        accountNumber = accountData.accountNumber;
+      } else if (accountData?.account_number) {
+        accountNumber = accountData.account_number;
+      }
+      if (accountNumber) {
+        verificationData.account_number = accountNumber;
+      }
+
+      let accountName: string | null = null;
+      if (accountData?.data?.accountName) {
+        accountName = accountData.data.accountName;
+      } else if (accountData?.data?.account_name) {
+        accountName = accountData.data.account_name;
+      } else if (accountData?.accountName) {
+        accountName = accountData.accountName;
+      } else if (accountData?.account_name) {
+        accountName = accountData.account_name;
+      }
+      if (accountName) {
+        verificationData.account_name = accountName;
+      }
+
+      if (kycAuditLogId?.data) {
+        await supabase
+          .from('kyc_audit_logs')
+          .update({
+            status: 'success',
+            response_data: {
+              verified: true,
+              bvn: bvn.substring(0, 4) + '****',
+              hasAccount: !!verificationData.account_number,
+              identityId
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', kycAuditLogId.data);
+      }
+
+      await this.updateAuditLog(
+        auditLogId,
+        'success',
+        {
+          verified: true,
+          hasAccount: !!verificationData.account_number,
+          accountNumber: verificationData.account_number ? verificationData.account_number.substring(0, 5) + '****' : null,
+          identityId,
+          step: 'account_creation_complete',
+          responseData: accountData
+        },
+        null,
+        responseTime
+      );
+
+      if (verificationData.account_number) {
+        try {
+          await this.storeAccountFromNINVerification(userId, {
+            ...verificationData,
+            account_product: accountData?.data?.accountProduct || accountData?.accountProduct || 'Savings',
+            account_type: accountData?.data?.accountType || accountData?.accountType || 'savings',
+            currency_code: accountData?.data?.currencyCode || accountData?.currencyCode || 'NGN',
+            status: accountData?.data?.status || accountData?.status || 'active',
+            account_id: accountData?.data?._id || accountData?.data?.id || accountData?._id || accountData?.id || null,
+            account_balance: accountData?.data?.accountBalance || accountData?.accountBalance || 0,
+            book_balance: accountData?.data?.bookBalance || accountData?.bookBalance || 0,
+            interest_balance: accountData?.data?.interestBalance || accountData?.interestBalance || 0,
+            withholding_tax_balance: accountData?.data?.withHoldingTaxBalance || accountData?.withHoldingTaxBalance || 0,
+            bvn
+          });
+        } catch (storeError) {
+          console.error('Error storing BVN-derived account:', storeError);
+        }
+      }
+
+      return {
+        success: true,
+        data: verificationData,
+        auditLogId,
+        responseTime
+      };
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unable to create account with BVN';
+
+      if (auditLogId) {
+        await this.updateAuditLog(auditLogId, 'failed', null, { error: errorMessage }, responseTime);
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+        auditLogId: auditLogId || undefined,
+        responseTime
+      };
+    }
+  }
+
+  /**
    * Stores account created from NIN verification
    */
   private async storeAccountFromNINVerification(userId: string, verificationData: any): Promise<void> {
