@@ -16,7 +16,7 @@ import {
   Button,
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -154,6 +154,7 @@ export default function AIAssistantScreen() {
   const { session } = useAuth();
   const { balance, lockedBalance } = useBalance();
   const availableBalance = balance - (lockedBalance || 0);
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -2451,7 +2452,7 @@ export default function AIAssistantScreen() {
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={Platform.OS === 'ios' ? ['top'] : ['top', 'bottom']}>
       <View style={styles.header}>
         <View>
           <MaskedView
@@ -2533,6 +2534,7 @@ export default function AIAssistantScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        enabled={Platform.OS === 'ios'}
       >
         <ScrollView
           ref={scrollViewRef}
@@ -2880,28 +2882,63 @@ export default function AIAssistantScreen() {
           </View>
         )}
         </ScrollView>
-      </KeyboardAvoidingView>
 
-      {showSuggestions && !inputText.trim() && !keyboardVisible && isAuthenticated && (
-        <View style={styles.suggestionsContainer}>
-          <Text style={styles.suggestionsTitle}>Try asking about:</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.suggestionsScroll}
-          >
-            {generateSuggestedPrompts(availableBalance).map((prompt, index) => (
-              <TouchableOpacity 
-                key={index} 
-                style={styles.suggestionBubble}
-                onPress={() => handleSuggestionPress(prompt)}
+        {showSuggestions && !inputText.trim() && !keyboardVisible && isAuthenticated && (
+          <View style={styles.suggestionsContainer}>
+            <Text style={styles.suggestionsTitle}>Try asking about:</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.suggestionsScroll}
+            >
+              {generateSuggestedPrompts(availableBalance).map((prompt, index) => (
+                <TouchableOpacity 
+                  key={index} 
+                  style={styles.suggestionBubble}
+                  onPress={() => handleSuggestionPress(prompt)}
+                >
+                  <Text style={styles.suggestionText}>{prompt}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {planCreationStep === 'idle' && isAuthenticated && (
+          <View style={styles.inputContainer}>
+              <TextInput
+                ref={inputRef}
+                style={styles.input}
+                placeholder="How can I help you today?"
+                placeholderTextColor={colors.textTertiary}
+                value={inputText}
+                onChangeText={setInputText}
+                multiline
+                onFocus={() => {
+                  setShowSuggestions(false);
+                  setInputFocused(true);
+                }}
+                onBlur={() => setInputFocused(false)}
+                maxLength={500}
+                editable={!isCreatingPayout}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  (!inputText.trim() || isCreatingPayout || isRateLimited || isDailyLimitReached) && styles.sendButtonDisabled
+                ]}
+                onPress={handleSendMessage}
+                disabled={!inputText.trim() || isTyping || isCreatingPayout || isRateLimited || isDailyLimitReached}
               >
-                <Text style={styles.suggestionText}>{prompt}</Text>
+                {isCreatingPayout ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Send size={getScaledFontSize(20, textSizeMultiplier)} color="#FFFFFF" />
+                )}
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
+            </View>
+        )}
+      </KeyboardAvoidingView>
 
       {/* Add payout account modal */}
       <AddPayoutAccountModal
@@ -2914,41 +2951,6 @@ export default function AIAssistantScreen() {
           }
         }}
       />
-
-      {planCreationStep === 'idle' && isAuthenticated && (
-        <View style={styles.inputContainer}>
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              placeholder="How can I help you today?"
-              placeholderTextColor={colors.textTertiary}
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-              onFocus={() => {
-                setShowSuggestions(false);
-                setInputFocused(true);
-              }}
-              onBlur={() => setInputFocused(false)}
-              maxLength={500}
-              editable={!isCreatingPayout}
-            />
-            <TouchableOpacity
-              style={[
-                styles.sendButton,
-                (!inputText.trim() || isCreatingPayout || isRateLimited || isDailyLimitReached) && styles.sendButtonDisabled
-              ]}
-              onPress={handleSendMessage}
-              disabled={!inputText.trim() || isTyping || isCreatingPayout || isRateLimited || isDailyLimitReached}
-            >
-              {isCreatingPayout ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Send size={getScaledFontSize(20, textSizeMultiplier)} color="#FFFFFF" />
-              )}
-            </TouchableOpacity>
-          </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -3062,10 +3064,16 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Platform.OS === 'ios' ? getScaledFontSize(12, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    paddingHorizontal: Platform.OS === 'ios' ? getScaledFontSize(12, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    paddingTop: Platform.OS === 'ios' ? getScaledFontSize(8, textSizeMultiplier) : getScaledFontSize(6, textSizeMultiplier),
+    paddingBottom: Platform.OS === 'ios' ? getScaledFontSize(8, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
     backgroundColor: colors.surface,
     borderTopWidth: getScaledFontSize(1, textSizeMultiplier),
     borderTopColor: colors.border,
+    ...(Platform.OS === 'android' && {
+      position: 'relative',
+      zIndex: 1000,
+    }),
   },
   input: {
     flex: 1,
@@ -3091,6 +3099,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   suggestionsContainer: {
     padding: Platform.OS === 'ios' ? getScaledFontSize(16, textSizeMultiplier) : getScaledFontSize(10, textSizeMultiplier),
+    paddingBottom: Platform.OS === 'ios' ? getScaledFontSize(8, textSizeMultiplier) : getScaledFontSize(6, textSizeMultiplier),
     backgroundColor: colors.surface,
   },
   suggestionsTitle: {
