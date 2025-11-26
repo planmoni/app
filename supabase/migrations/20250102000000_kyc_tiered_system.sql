@@ -50,7 +50,7 @@ INSERT INTO kyc_tiers (tier_number, tier_name, tier_description, requirements, m
     'Tier 1 - Basic Verification',
     'Liveness test, BVN verification, and NIN verification completed',
     '{"liveness_test": true, "bvn_verified": true, "nin_verified": true}',
-    100000,  -- ₦1,000 daily
+    10000000,  -- ₦100,000 daily
     500000,  -- ₦5,000 weekly
     2000000, -- ₦20,000 monthly
     50000,   -- ₦500 single transaction

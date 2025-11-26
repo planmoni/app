@@ -82,6 +82,11 @@ export function NotificationCenter({ onClose, onNotificationPress }: Notificatio
       setNotifications(prev =>
         prev.map(n => (n.id === notificationId ? { ...n, is_read: true } : n))
       );
+      // Refresh badge count after marking as read
+      if (user?.id) {
+        const count = await inAppNotificationService.getUnreadCount(user.id);
+        await inAppNotificationService.setBadgeCount(count);
+      }
     }
   };
 
@@ -90,6 +95,8 @@ export function NotificationCenter({ onClose, onNotificationPress }: Notificatio
     const success = await inAppNotificationService.markAllAsRead(user.id);
     if (success) {
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      // Clear badge count after marking all as read
+      await inAppNotificationService.clearBadge();
     }
   };
 

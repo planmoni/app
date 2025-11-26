@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { TriangleAlert as AlertTriangle, Calendar, Check, Download, Shield, Smartphone, Wallet, ArrowLeft, Bell, ShieldUser } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
+import { useHaptics } from '@/hooks/useHaptics';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
+import * as Notifications from 'expo-notifications';
 
 type Notification = {
   id: string;
@@ -27,8 +30,11 @@ type Notification = {
 export default function NotificationsScreen() {
   const { colors } = useTheme();
   const { session } = useAuth();
+  const { showToast } = useToast();
+  const haptics = useHaptics();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMarkingAllAsRead, setIsMarkingAllAsRead] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -118,24 +124,59 @@ export default function NotificationsScreen() {
   };
 
   const handleMarkAllAsRead = async () => {
+    if (!session?.user?.id) {
+      showToast('Please login to mark notifications as read', 'error');
+      return;
+    }
+
+    // Check if there are any unread notifications
+    const hasUnreadNotifications = notifications.some(n => n.status === 'unread');
+    if (!hasUnreadNotifications) {
+      showToast('All notifications are already read', 'info');
+      return;
+    }
+
     try {
+      setIsMarkingAllAsRead(true);
+      haptics.mediumImpact();
+      
+      // Count unread notifications before updating
+      const unreadCount = notifications.filter(n => n.status === 'unread').length;
+      
       const { error } = await supabase
         .from('events')
         .update({ status: 'read' })
-        .eq('user_id', session?.user?.id)
+        .eq('user_id', session.user.id)
         .eq('status', 'unread');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error marking notifications as read:', error);
+        throw error;
+      }
       
       // Update local state
       setNotifications(prev => 
         prev.map(notification => ({
           ...notification,
-          status: 'read'
+          status: 'read' as const
         }))
+      );
+      
+      // Clear app badge count after marking all as read
+      await Notifications.setBadgeCountAsync(0);
+      
+      // Show success message
+      showToast(
+        unreadCount > 0 
+          ? `Marked ${unreadCount} notification${unreadCount > 1 ? 's' : ''} as read` 
+          : 'All notifications marked as read',
+        'success'
       );
     } catch (error) {
       console.error('Error marking notifications as read:', error);
+      showToast('Failed to mark notifications as read', 'error');
+    } finally {
+      setIsMarkingAllAsRead(false);
     }
   };
 
@@ -156,6 +197,17 @@ export default function NotificationsScreen() {
             : notification
         )
       );
+      
+      // Update badge count after marking as read
+      if (session?.user?.id) {
+        const { count } = await supabase
+          .from('events')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', session.user.id)
+          .eq('status', 'unread');
+        
+        await Notifications.setBadgeCountAsync(count || 0);
+      }
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -196,6 +248,13 @@ export default function NotificationsScreen() {
     markAllButton: {
       paddingVertical: 6,
       paddingHorizontal: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      opacity: 1,
+    },
+    markAllButtonDisabled: {
+      opacity: 0.5,
     },
     markAllText: {
       fontSize: 14,
@@ -329,8 +388,22 @@ export default function NotificationsScreen() {
               <ArrowLeft size={24} color={colors.text} />
             </Pressable>
             <Text style={styles.headerTitle}>Activities</Text>
-            <Pressable style={styles.markAllButton} onPress={handleMarkAllAsRead}>
-              <Text style={styles.markAllText}>Mark all as read</Text>
+            <Pressable 
+              style={[
+                styles.markAllButton,
+                (isMarkingAllAsRead || !notifications.some(n => n.status === 'unread')) && styles.markAllButtonDisabled
+              ]} 
+              onPress={handleMarkAllAsRead}
+              disabled={isMarkingAllAsRead || !notifications.some(n => n.status === 'unread')}
+            >
+              {isMarkingAllAsRead ? (
+                <>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.markAllText}>Marking...</Text>
+                </>
+              ) : (
+                <Text style={styles.markAllText}>Mark all as read</Text>
+              )}
             </Pressable>
           </View>
         </View>
@@ -349,8 +422,22 @@ export default function NotificationsScreen() {
             <ArrowLeft size={24} color={colors.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Activities</Text>
-          <Pressable style={styles.markAllButton} onPress={handleMarkAllAsRead}>
-            <Text style={styles.markAllText}>Mark all as read</Text>
+          <Pressable 
+            style={[
+              styles.markAllButton,
+              (isMarkingAllAsRead || !notifications.some(n => n.status === 'unread')) && styles.markAllButtonDisabled
+            ]} 
+            onPress={handleMarkAllAsRead}
+            disabled={isMarkingAllAsRead || !notifications.some(n => n.status === 'unread')}
+          >
+            {isMarkingAllAsRead ? (
+              <>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.markAllText}>Marking...</Text>
+              </>
+            ) : (
+              <Text style={styles.markAllText}>Mark all as read</Text>
+            )}
           </Pressable>
         </View>
       </View>

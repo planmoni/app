@@ -138,7 +138,6 @@ const DAYS_OF_WEEK: DayOfWeekOption[] = [
 function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerProps) {
   const { colors } = useTheme();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 380;
 
@@ -177,13 +176,9 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
   };
 
   const handleDateSelect = (date: Date) => {
-    setSelectedDate(date);
-  };
-
-  const handleConfirm = () => {
-    if (selectedDate) {
-      onSelect(formatDate(selectedDate));
-    }
+    const dateString = formatDate(date);
+    // Toggle date selection - parent will handle add/remove
+    onSelect(dateString);
   };
 
   const isDateSelected = (date: Date) => {
@@ -215,7 +210,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.calendarHeader}>
-            <Text style={styles.calendarTitle}>Select Date</Text>
+            <Text style={styles.calendarTitle}>Select Dates</Text>
             <View style={styles.monthNavigation}>
               <Pressable style={styles.navigationButton} onPress={handlePrevMonth}>
                 <ChevronLeft size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
@@ -250,29 +245,23 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
                 const isDisabled = isPastDate(date);
                 const isDateAlreadySelected = isDateSelected(date);
                 const isTodayDate = isToday(date);
-                const isCurrentlySelected = selectedDate && 
-                  date.getDate() === selectedDate.getDate() &&
-                  date.getMonth() === selectedDate.getMonth() &&
-                  date.getFullYear() === selectedDate.getFullYear();
 
                 return (
                   <Pressable
                     key={`day-${index}`}
                     style={[
                       styles.dayCell,
-                      isCurrentlySelected && styles.selectedDay,
-                      isTodayDate && styles.todayDay,
-                      isDateAlreadySelected && styles.alreadySelectedDay,
+                      isDateAlreadySelected && styles.selectedDay,
+                      isTodayDate && !isDateAlreadySelected && styles.todayDay,
                       isDisabled && styles.disabledDay,
                     ]}
-                    onPress={() => !isDisabled && !isDateAlreadySelected && handleDateSelect(date)}
-                    disabled={isDisabled || isDateAlreadySelected}
+                    onPress={() => !isDisabled && handleDateSelect(date)}
+                    disabled={isDisabled}
                   >
                     <Text style={[
                       styles.dayText,
-                      isCurrentlySelected && styles.selectedDayText,
-                      isTodayDate && styles.todayDayText,
-                      isDateAlreadySelected && styles.alreadySelectedDayText,
+                      isDateAlreadySelected && styles.selectedDayText,
+                      isTodayDate && !isDateAlreadySelected && styles.todayDayText,
                       isDisabled && styles.disabledDayText,
                     ]}>
                       {index + 1}
@@ -285,17 +274,10 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
 
           <View style={styles.modalActions}>
             <Pressable 
-              style={[styles.modalButton, styles.cancelButton]}
+              style={[styles.modalButton, styles.doneButton]}
               onPress={onClose}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </Pressable>
-            <Pressable 
-              style={[styles.modalButton, styles.confirmButton]}
-              onPress={handleConfirm}
-              disabled={!selectedDate}
-            >
-              <Text style={styles.confirmButtonText}>Confirm</Text>
+              <Text style={styles.doneButtonText}>Done</Text>
             </Pressable>
           </View>
         </View>
@@ -693,13 +675,21 @@ export default function ScheduleScreen() {
   };
 
   const handleDateSelect = (date: string) => {
-    const newDates = [...customDates, date].sort((a, b) => {
-      return new Date(a).getTime() - new Date(b).getTime();
-    });
+    // Toggle date selection - add if not present, remove if present
+    let newDates: string[];
+    if (customDates.includes(date)) {
+      // Remove the date
+      newDates = customDates.filter(d => d !== date);
+    } else {
+      // Add the date and sort
+      newDates = [...customDates, date].sort((a, b) => {
+        return new Date(a).getTime() - new Date(b).getTime();
+      });
+    }
     setCustomDates(newDates);
-    setNumberOfPayouts(newDates.length);
-    calculatePayoutAmount(totalAmount, newDates.length);
-    setShowDatePicker(false);
+    setNumberOfPayouts(newDates.length || 1);
+    calculatePayoutAmount(totalAmount, newDates.length || 1);
+    // Keep the picker open for multiple selections
   };
 
   const handleRemoveDate = (index: number) => {
@@ -1093,22 +1083,6 @@ export default function ScheduleScreen() {
 
           {selectedSchedule === 'custom' && (
             <View style={styles.customDatesSection}>
-              <View style={styles.timeSection}>
-                <Text style={styles.timeTitle}>Select time of the day</Text>
-                <Pressable 
-                  style={styles.timeSelector}
-                  onPress={() => {
-                    if (Platform.OS !== 'web') {
-                      haptics.selection();
-                    }
-                    setShowTimePicker(true);
-                  }}
-                >
-                  <Text style={styles.timeText}>{getTimeDisplay()}</Text>
-                  <ChevronDown size={20} color={colors.textSecondary} />
-                </Pressable>
-              </View>
-
               <Text style={styles.customDatesTitle}>Selected Dates</Text>
               
               {customDates.map((date, index) => (
@@ -1627,6 +1601,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   },
   customDatesSection: {
     marginBottom: 24,
+    marginTop: 24,
   },
   customDatesTitle: {
     fontSize: 14,
@@ -1999,6 +1974,7 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
     fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: colors.text,
+    marginTop: 12,
     marginBottom: 12,
   },
   monthNavigation: {
@@ -2109,5 +2085,15 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
     fontSize: isSmallScreen ? 14 : 16,
     color: '#FFFFFF',
     fontWeight: '500',
+  },
+  doneButton: {
+    backgroundColor: '#1E3A8A',
+    borderRadius: 20,
+    flex: 1,
+  },
+  doneButtonText: {
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });

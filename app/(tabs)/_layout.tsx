@@ -231,12 +231,21 @@ export default function TabLayout() {
     }
   };
 
+  // Use darker color for inactive icons on Android in light mode for better visibility
+  const getInactiveTintColor = () => {
+    if (Platform.OS === 'android' && !isDark) {
+      // Use textSecondary instead of textTertiary for better contrast on white background
+      return colors.textSecondary;
+    }
+    return colors.textTertiary;
+  };
+
   return (
     <>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: isDark ? colors.text : colors.primary,
-        tabBarInactiveTintColor: colors.textTertiary,
+        tabBarInactiveTintColor: getInactiveTintColor(),
         tabBarStyle: isBottomNavVisible ? [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }] : { display: 'none' },
         // tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
         tabBarLabelStyle: styles.tabBarLabel,

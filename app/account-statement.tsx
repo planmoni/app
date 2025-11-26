@@ -30,7 +30,7 @@ export default function AccountStatementScreen() {
     }).format(date);
   };
 
-  const handleDateRangeSelect = (start: Date, end: Date) => {
+  const handleDateRangeSelect = (start: Date | null, end: Date | null) => {
     setStartDate(start);
     setEndDate(end);
     setIsDateRangeModalVisible(false);

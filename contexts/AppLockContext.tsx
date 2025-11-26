@@ -347,13 +347,13 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return;
     }
 
-    // Check every 30 seconds if we should lock
+    // Check every 10 seconds if we should lock (more precise for 5-minute timeout)
     const interval = setInterval(() => {
       // Only check if app is still active
       if (appState.current === 'active' && !isAppLockedRef.current) {
         checkIfShouldLock();
       }
-    }, 30000); // Check every 30 seconds
+    }, 10000); // Check every 10 seconds for more precise inactivity detection
 
     return () => clearInterval(interval);
   }, [autoLockDuration, hasAppLockPin, isAppLocked]);

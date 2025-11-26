@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Animated, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, Info } from 'lucide-react-native';
+import { ArrowLeft, Copy, Info, Shield, ChevronRight } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -11,6 +11,8 @@ import Button from '@/components/Button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
+import { useKYCProgress } from '@/hooks/useKYCProgress';
+import { formatCurrency } from '@/lib/formatters';
 type VirtualAccount = {
   account_number: string;
   bank_name: string;
@@ -25,8 +27,12 @@ export default function AddFundsScreen() {
   const haptics = useHaptics();
   
   const { session } = useAuth();
+  const { getTierInfo } = useKYCProgress();
   const [safehavenAccount, setSafehavenAccount] = useState<any>(null);
   const [safehavenAccountLoading, setSafehavenAccountLoading] = useState(true);
+  const [tierInfo, setTierInfo] = useState<any>(null);
+  const [tierInfoLoading, setTierInfoLoading] = useState(true);
+  const [todayDepositAmount, setTodayDepositAmount] = useState<number>(0);
 
   // const styles = createStyles(colors);
   const [virtualAccount, setVirtualAccount] = useState< VirtualAccount | null>(null);
@@ -72,6 +78,94 @@ export default function AddFundsScreen() {
     };
 
     fetchSafehavenAccount();
+  }, [session?.user?.id]);
+
+  // Fetch tier information
+  useEffect(() => {
+    const fetchTierInfo = async () => {
+      if (!session?.user?.id) {
+        setTierInfoLoading(false);
+        return;
+      }
+
+      try {
+        setTierInfoLoading(true);
+        const info = await getTierInfo();
+        
+        // Ensure we have tier limits, if not fetch directly from database
+        if (info && (!info.tier_limits || !info.tier_limits.max_daily_deposit)) {
+          const currentTier = info.current_tier || 0;
+          const tierToFetch = currentTier === 0 ? 1 : currentTier;
+          
+          // Fetch tier limits directly from database
+          const { data: limits, error: limitsError } = await supabase.rpc('get_tier_deposit_limits', {
+            p_tier_number: tierToFetch
+          });
+          
+          if (!limitsError && limits && limits[0]) {
+            info.tier_limits = {
+              tier_number: limits[0].tier_number,
+              tier_name: limits[0].tier_name,
+              tier_description: '',
+              max_daily_deposit: limits[0].max_daily_deposit,
+              max_weekly_deposit: limits[0].max_weekly_deposit,
+              max_monthly_deposit: limits[0].max_monthly_deposit,
+              max_single_deposit: limits[0].max_single_deposit,
+              max_account_balance: limits[0].max_account_balance,
+              requirements: {}
+            };
+          }
+        }
+        
+        setTierInfo(info);
+      } catch (err) {
+        console.error('Error fetching tier info:', err);
+      } finally {
+        setTierInfoLoading(false);
+      }
+    };
+
+    fetchTierInfo();
+  }, [session?.user?.id, getTierInfo]);
+
+  // Fetch today's deposit amount
+  useEffect(() => {
+    const fetchTodayDeposits = async () => {
+      if (!session?.user?.id) {
+        return;
+      }
+
+      try {
+        // Get start and end of today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // Query today's completed deposits
+        const { data: transactions, error } = await supabase
+          .from('transactions')
+          .select('amount')
+          .eq('user_id', session.user.id)
+          .eq('type', 'deposit')
+          .eq('status', 'completed')
+          .gte('created_at', today.toISOString())
+          .lt('created_at', tomorrow.toISOString());
+
+        if (error) {
+          console.error('Error fetching today\'s deposits:', error);
+          return;
+        }
+
+        // Sum up today's deposits (amount is stored in kobo, convert to naira)
+        const totalToday = (transactions || []).reduce((sum: number, tx: { amount: number }) => sum + (tx.amount / 100), 0);
+        setTodayDepositAmount(totalToday);
+      } catch (err) {
+        console.error('Error calculating today\'s deposits:', err);
+      }
+    };
+
+    fetchTodayDeposits();
   }, [session?.user?.id]);
 
   // Update virtual account state when safehaven account changes
@@ -168,6 +262,12 @@ export default function AddFundsScreen() {
     });
   };
 
+  // Handle upgrade button press
+  const handleUpgrade = () => {
+    haptics.mediumImpact();
+    router.push('/kyc-upgrade');
+  };
+
   const styles = createStyles(colors, isDark, isSmallScreen);
 
   // Calculate footer height including safe area
@@ -213,49 +313,92 @@ export default function AddFundsScreen() {
                 <PlanmoniLoader size="medium" description="Loading account details..." />
               </View>
             ) : virtualAccount ? (
-              <View style={styles.accountDetailsCard}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardTitle}>Your {virtualAccount.bank_name} Account Details</Text>
-                  <Text style={styles.description}>
-                    Transfer money to the account details below and it will automatically appear on your available balance.
-                  </Text>
-                </View>
-
-                <View style={styles.fieldsContainer}>
-                  <View style={styles.field}>
-                    <Text style={styles.fieldLabel}>Account Number</Text>
-                    <View style={styles.accountNumberContainer}>
-                      <Text style={styles.accountNumber}>{virtualAccount.account_number}</Text>
-                      <Pressable onPress={handleCopyPress} style={styles.copyButton}>
-                        <Copy size={20} color={colors.primary} />
-                      </Pressable>
-                    </View>
-                  </View>
-
-                  <View style={styles.field}>
-                    <Text style={styles.fieldLabel}>Bank Name</Text>
-                    <View style={styles.fieldValueContainer}>
-                      <Text style={styles.fieldValue}>{virtualAccount.bank_name}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.field}>
-                    <Text style={styles.fieldLabel}>Account Name</Text>
-                    <View style={styles.fieldValueContainer}>
-                      <Text style={styles.fieldValue}>{virtualAccount.account_name}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* {safehavenAccount && safehavenAccount.status !== 'Active' && (
-                  <View style={styles.pendingNotice}>
-                    <Info size={16} color="#F59E0B" />
-                    <Text style={styles.pendingNoticeText}>
-                      Your account is being activated. You'll be able to receive funds once it's active.
+              <>
+                <View style={styles.accountDetailsCard}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle}>Your {virtualAccount.bank_name} Account Details</Text>
+                    <Text style={styles.description}>
+                      Transfer money to the account details below and it will automatically appear on your available balance.
                     </Text>
                   </View>
-                )} */}
-              </View>
+
+                  <View style={styles.fieldsContainer}>
+                    <View style={styles.field}>
+                      <Text style={styles.fieldLabel}>Account Number</Text>
+                      <View style={styles.accountNumberContainer}>
+                        <Text style={styles.accountNumber}>{virtualAccount.account_number}</Text>
+                        <Pressable onPress={handleCopyPress} style={styles.copyButton}>
+                          <Copy size={20} color={colors.primary} />
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    <View style={styles.field}>
+                      <Text style={styles.fieldLabel}>Bank Name</Text>
+                      <View style={styles.fieldValueContainer}>
+                        <Text style={styles.fieldValue}>{virtualAccount.bank_name}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.field}>
+                      <Text style={styles.fieldLabel}>Account Name</Text>
+                      <View style={styles.fieldValueContainer}>
+                        <Text style={styles.fieldValue}>{virtualAccount.account_name}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* {safehavenAccount && safehavenAccount.status !== 'Active' && (
+                    <View style={styles.pendingNotice}>
+                      <Info size={16} color="#F59E0B" />
+                      <Text style={styles.pendingNoticeText}>
+                        Your account is being activated. You'll be able to receive funds once it's active.
+                      </Text>
+                    </View>
+                  )} */}
+                </View>
+
+                {/* Tier Limit Reminder */}
+                {!tierInfoLoading && tierInfo?.tier_limits && (
+                  <View style={styles.tierReminderCard}>
+                    <View style={styles.tierReminderHeader}>
+                      <View style={styles.tierReminderTextContainer}>
+                        <Text style={styles.tierReminderTitle}>
+                          {tierInfo.current_tier === 0 ? 'Unverified' : `Tier ${tierInfo.current_tier}`} Limits
+                        </Text>
+                        <Text style={styles.tierReminderSubtitle}>
+                          Single transaction: {formatCurrency((tierInfo.tier_limits.max_single_deposit || 0) / 100)}
+                        </Text>
+                        {tierInfo.tier_limits.max_daily_deposit && (
+                          <Text style={styles.tierReminderDailyRemaining}>
+                            Daily limit remaining: {formatCurrency(Math.max(0, ((tierInfo.tier_limits.max_daily_deposit || 0) / 100) - todayDepositAmount))}
+                          </Text>
+                        )}
+                      </View>
+                      {tierInfo.current_tier !== undefined && tierInfo.current_tier !== null && tierInfo.current_tier < 3 && (
+                        <Pressable 
+                          style={styles.upgradeTextButton}
+                          onPress={handleUpgrade}
+                        >
+                          <Text style={styles.upgradeTextButtonText}>
+                            Upgrade to Tier {tierInfo.current_tier + 1}
+                          </Text>
+                        </Pressable>
+                      )}
+                    </View>
+                    
+                    {tierInfo.can_upgrade && (
+                      <Pressable 
+                        style={styles.upgradeButton}
+                        onPress={handleUpgrade}
+                      >
+                        <Text style={styles.upgradeButtonText}>Upgrade Tier</Text>
+                        <ChevronRight size={18} color={colors.primary} />
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+              </>
             ) : (
               <View style={{ marginTop: 40, marginBottom: 24, alignItems: 'center' }}>
                 <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>
@@ -799,5 +942,77 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontSize: 11,
     color: colors.textSecondary,
     fontWeight: '600',
+  },
+  tierReminderCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: isSmallScreen ? 16 : 20,
+    marginTop: 16,
+    marginBottom: isSmallScreen ? 20 : 24,
+  },
+  tierReminderHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  tierReminderIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  tierReminderTextContainer: {
+    flex: 1,
+  },
+  tierReminderTitle: {
+    fontSize: isSmallScreen ? 15 : 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  tierReminderSubtitle: {
+    fontSize: isSmallScreen ? 13 : 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  tierReminderDailyRemaining: {
+    fontSize: isSmallScreen ? 13 : 14,
+    color: colors.primary,
+    fontWeight: '600',
+    marginTop: 4,
+    lineHeight: 20,
+  },
+  upgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  upgradeButtonText: {
+    fontSize: isSmallScreen ? 14 : 15,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  upgradeTextButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    alignSelf: 'flex-start',
+  },
+  upgradeTextButtonText: {
+    fontSize: isSmallScreen ? 12 : 13,
+    fontWeight: '600',
+    color: colors.primary,
   },
 });

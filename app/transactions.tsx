@@ -53,8 +53,12 @@ export default function TransactionsScreen() {
     }, 1000);
   };
 
-  const handleDateRangeSelect = (startDate: Date, endDate: Date) => {
+  const handleDateRangeSelect = (startDate: Date | null, endDate: Date | null) => {
     setDateRange({ start: startDate, end: endDate });
+  };
+
+  const handleClearDateRange = () => {
+    setDateRange({ start: null, end: null });
   };
 
   const formatDateRange = () => {
@@ -247,13 +251,23 @@ export default function TransactionsScreen() {
           </Pressable>
         </ScrollView>
 
-        <Pressable 
-          style={styles.dateRangeButton}
-          onPress={() => setIsDateRangeModalVisible(true)}
-        >
-          <Calendar size={20} color={colors.text} />
-          <Text style={styles.dateRangeText}>{formatDateRange()}</Text>
-        </Pressable>
+        <View style={styles.dateRangeButton}>
+          <Pressable 
+            style={styles.dateRangeButtonContent}
+            onPress={() => setIsDateRangeModalVisible(true)}
+          >
+            <Calendar size={20} color={colors.text} />
+            <Text style={styles.dateRangeText}>{formatDateRange()}</Text>
+          </Pressable>
+          {dateRange.start && dateRange.end && (
+            <Pressable 
+              style={styles.clearDateRangeButton}
+              onPress={handleClearDateRange}
+            >
+              <X size={16} color={colors.textSecondary} />
+            </Pressable>
+          )}
+        </View>
 
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
@@ -455,7 +469,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   dateRangeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginHorizontal: 16,
@@ -465,10 +479,25 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.card,
   },
+  dateRangeButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
   dateRangeText: {
     fontSize: 14,
     color: colors.text,
     fontWeight: '500',
+  },
+  clearDateRangeButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   statsContainer: {
     flexDirection: 'row',
