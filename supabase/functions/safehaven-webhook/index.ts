@@ -1096,17 +1096,31 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal: any, transf
       console.log(`✅ Successfully reduced ₦${emergencyWithdrawal.withdrawal_amount} from wallet for user ${emergencyWithdrawal.user_id}`);
     }
 
-    // Send push notification
-    await supabase.rpc('send_push_notification', {
-      p_user_id: emergencyWithdrawal.user_id,
-      p_title: 'Emergency Withdrawal Completed',
-      p_body: `Your emergency withdrawal of ₦${emergencyWithdrawal.net_amount.toLocaleString()} has been completed`,
-      p_data: {
-        type: 'emergency_withdrawal_successful',
-        withdrawal_id: emergencyWithdrawal.id,
-        amount: emergencyWithdrawal.net_amount
-      }
-    });
+    // Create event - the trigger will automatically create notification and send push notification
+    // This prevents duplicate notifications (the process-emergency-withdrawal function also creates events)
+    // Only create event if one doesn't already exist for this withdrawal
+    const { data: existingEvent } = await supabase
+      .from('events')
+      .select('id')
+      .eq('user_id', emergencyWithdrawal.user_id)
+      .eq('type', 'payout_completed')
+      .eq('title', 'Emergency Withdrawal Completed')
+      .ilike('description', `%${emergencyWithdrawal.net_amount.toLocaleString()}%`)
+      .limit(1)
+      .single();
+    
+    if (!existingEvent) {
+      await supabase
+        .from('events')
+        .insert({
+          user_id: emergencyWithdrawal.user_id,
+          type: 'payout_completed',
+          title: 'Emergency Withdrawal Completed',
+          description: `Your emergency withdrawal of ₦${emergencyWithdrawal.net_amount.toLocaleString()} has been processed successfully. Fee charged: ₦${emergencyWithdrawal.fee_amount?.toLocaleString() || '0'} (${emergencyWithdrawal.fee_amount && emergencyWithdrawal.withdrawal_amount ? Math.round((emergencyWithdrawal.fee_amount / emergencyWithdrawal.withdrawal_amount) * 100) : 12}%).`,
+          status: 'unread',
+          payout_plan_id: emergencyWithdrawal.payout_plan_id
+        });
+    }
 
     // Send email notification (if email function exists)
     // await sendEmergencyWithdrawalSuccessEmailNotification(...);

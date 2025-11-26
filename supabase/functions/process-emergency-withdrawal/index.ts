@@ -397,37 +397,17 @@ serve(async (req: Request) => {
         console.log(`Successfully updated plan ${withdrawal.payout_plan_id} status to cancelled`)
       }
 
-      // Create success notification (both event and notification for immediate alert)
-      const eventResult = await supabase
+      // Create event - the trigger will automatically create notification and send push notification
+      await supabase
         .from("events")
         .insert({
           user_id: userId,
           type: "payout_completed",
           title: "Emergency Withdrawal Completed",
           description: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been processed successfully. Fee charged: ₦${feeAmount.toLocaleString()} (${feePercentage}%).`,
-          status: "unread"
-        })
-        .select()
-        .single();
-
-      // Also create notification directly to ensure immediate alert
-      if (eventResult.data) {
-        await supabase
-          .from("notifications")
-          .insert({
-            user_id: userId,
-            title: "Emergency Withdrawal Completed",
-            message: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been processed successfully. Fee charged: ₦${feeAmount.toLocaleString()} (${feePercentage}%).`,
-            type: "payout",
-            data: {
-              eventId: eventResult.data.id,
-              eventType: "payout_completed",
-              route: "/all-payouts",
-              payoutPlanId: withdrawal.payout_plan_id,
-            },
-            is_read: false
-          });
-      }
+          status: "unread",
+          payout_plan_id: withdrawal.payout_plan_id
+        });
 
       return new Response(
         JSON.stringify({
