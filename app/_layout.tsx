@@ -50,8 +50,8 @@ SplashScreen.preventAutoHideAsync().catch((e) =>
 function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
   const { isDark, colors } = useTheme();
-  const { isAppLocked, isPinResetMode } = useAppLock();
-  const { isLoading: isPinLoading } = usePin();
+  const { isAppLocked, isPinResetMode, lockApp } = useAppLock();
+  const { isLoading: isPinLoading, hasAppLockPin } = usePin();
   const [showSplash, setShowSplash] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const hasInitializedRef = useRef(false);
@@ -312,6 +312,12 @@ function RootLayoutNav() {
     const pinReady = !isPinLoading;
 
     if (fontsReady && authReady && pinReady) {
+      // Immediately lock app if PIN is set - do this first so lock screen is ready
+      if (hasAppLockPin && session?.user?.id && !isAppLocked) {
+        console.log('🔒 RootLayoutNav - Locking app immediately (PIN is set)');
+        lockApp();
+      }
+      
       // Add a delay to ensure everything is settled before hiding splash
       // This prevents the welcome screen from flashing before auth redirects to dashboard
       const timer = setTimeout(() => {
@@ -322,7 +328,7 @@ function RootLayoutNav() {
 
       return () => clearTimeout(timer);
     }
-  }, [fontsLoaded, fontError, isLoading, isPinLoading]);
+  }, [fontsLoaded, fontError, isLoading, isPinLoading, hasAppLockPin, session?.user?.id, lockApp, isAppLocked]);
 
   // Show error screen if there's a critical fatal error during startup
   // Non-fatal errors should not unmount the app; they are handled via the
