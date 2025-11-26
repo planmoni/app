@@ -664,7 +664,7 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            {/* <Pressable 
               style={styles.settingItem}
               onPress={handleTwoFactorAuth}
             >
@@ -701,7 +701,7 @@ export default function SettingsScreen() {
                 </Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
+            </Pressable> */}
             
             <View style={styles.divider} />
 

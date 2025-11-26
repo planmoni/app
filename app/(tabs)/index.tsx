@@ -321,7 +321,8 @@ export default function HomeScreen() {
       const depositId = latestDeposit.id;
 
       // Check if this deposit has already been shown
-      if (!shownDepositIds.has(depositId)) {
+      // Only show modal for deposits >= ₦5,000
+      if (!shownDepositIds.has(depositId) && depositAmount >= 5000) {
         // Small delay to ensure transaction is processed
         const timer = setTimeout(async () => {
           setShowPlanCreationModal(true);
