@@ -200,7 +200,10 @@ class InAppNotificationService {
             
             if (existingNotification) {
               console.log('✅ Found existing notification:', existingNotification.id);
-              // Still schedule local notification if needed
+              // Push notification should have already been queued by database trigger when notification was first created
+              // Server-side cron job will process it - no need to queue again
+              
+              // Still schedule local notification if needed (for in-app display when app is open)
               if (scheduleLocal) {
                 try {
                   const prefs = await this.getNotificationPreferences(userId);

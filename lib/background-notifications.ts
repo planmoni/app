@@ -1,100 +1,20 @@
 import * as Notifications from 'expo-notifications';
-import { Platform, AppState } from 'react-native';
+import { AppState } from 'react-native';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { inAppNotificationService } from './in-app-notifications';
 
 /**
  * Background Notification Service
- * Handles listening for events and sending push/in-app notifications
+ * Handles local notifications when app is open using expo-notifications.
+ * Also schedules local notifications for immediate feedback.
+ * Server-side push notifications work when the app is closed.
  */
-
-export interface EventNotification {
-  id: string;
-  user_id: string;
-  type: string;
-  title: string;
-  description: string;
-  status: 'unread' | 'read';
-  payout_plan_id?: string;
-  transaction_id?: string;
-  created_at: string;
-}
-
-// Map event types to notification types
-const eventTypeToNotificationType = (
-  eventType: string
-): 'transaction' | 'payout' | 'security' | 'marketing' | 'system' => {
-  const mapping: Record<string, 'transaction' | 'payout' | 'security' | 'marketing' | 'system'> = {
-    payout_completed: 'payout',
-    payout_scheduled: 'payout',
-    withdrawal_scheduled: 'payout',
-    disbursement_failed: 'payout',
-    deposit_successful: 'transaction',
-    deposit_failed: 'transaction',
-    transaction_completed: 'transaction',
-    transaction_failed: 'transaction',
-    security_alert: 'security',
-    login_alert: 'security',
-    suspicious_activity: 'security',
-    vault_created: 'system',
-    account_created: 'system',
-    kyc_completed: 'system',
-    kyc_failed: 'system',
-  };
-  return mapping[eventType] || 'system';
-};
-
-// Map event types to notification titles and messages
-const getNotificationContent = (event: EventNotification) => {
-  const { type, title, description } = event;
-  
-  // Use provided title/description if available, otherwise generate from type
-  let notificationTitle = title;
-  let notificationMessage = description || '';
-
-  if (!notificationMessage) {
-    switch (type) {
-      case 'payout_completed':
-        notificationMessage = 'Your payout has been completed successfully.';
-        break;
-      case 'payout_scheduled':
-        notificationMessage = 'A new payout has been scheduled.';
-        break;
-      case 'withdrawal_scheduled':
-        notificationMessage = 'Your emergency withdrawal has been scheduled.';
-        break;
-      case 'disbursement_failed':
-        notificationMessage = 'Your payout failed. Please check your account details.';
-        break;
-      case 'deposit_successful':
-        notificationMessage = 'Your deposit was successful.';
-        break;
-      case 'deposit_failed':
-        notificationMessage = 'Your deposit failed. Please try again.';
-        break;
-      case 'security_alert':
-        notificationMessage = 'A security alert has been triggered.';
-        break;
-      case 'login_alert':
-        notificationMessage = 'A new login was detected on your account.';
-        break;
-      default:
-        notificationMessage = description || 'You have a new notification.';
-    }
-  }
-
-  return {
-    title: notificationTitle,
-    message: notificationMessage,
-  };
-};
 
 class BackgroundNotificationService {
   private static instance: BackgroundNotificationService;
   private isListening = false;
   private userId: string | null = null;
   private appStateSubscription: { remove: () => void } | null = null;
-  private eventsChannel: any = null;
   private notificationsChannel: any = null;
 
   private constructor() {
@@ -118,17 +38,19 @@ class BackgroundNotificationService {
   }
 
   /**
-   * Start listening for events and trigger notifications
+   * Start listening for notifications to schedule local notifications and refresh badge
+   * Local notifications use expo-notifications for immediate feedback when app is open
+   * Server-side push notifications work when the app is closed
    */
   async startListening(userId: string): Promise<void> {
     if (this.isListening && this.userId === userId) {
-      console.log('🔔 Already listening for events');
+      console.log('🔔 Already listening for notifications');
       return;
     }
 
     // Check if Supabase is configured
     if (!isSupabaseConfigured()) {
-      console.warn('⚠️ Supabase not configured, skipping event subscription');
+      console.warn('⚠️ Supabase not configured, skipping notification subscription');
       return;
     }
 
@@ -143,26 +65,9 @@ class BackgroundNotificationService {
     try {
       // Handle app state changes (using subscription pattern for React Native 0.65+)
       this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
-      
-      // Subscribe to events table for real-time event notifications
-      this.eventsChannel = supabase
-        .channel(`events:${userId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'events',
-            filter: `user_id=eq.${userId}`,
-          },
-          async (payload: any) => {
-            console.log('🔔 New event received:', payload.new);
-            await this.handleNewEvent(payload.new as EventNotification);
-          }
-        )
-        .subscribe();
 
-      // Subscribe to notifications table for direct notifications
+      // Subscribe to notifications table to schedule local notifications when app is open
+      // Server-side push notifications also work when the app is closed
       this.notificationsChannel = supabase
         .channel(`notifications:${userId}`)
         .on(
@@ -174,16 +79,16 @@ class BackgroundNotificationService {
             filter: `user_id=eq.${userId}`,
           },
           async (payload: any) => {
-            console.log('🔔 New notification received:', payload.new);
+            console.log('🔔 New notification received, scheduling local notification:', payload.new);
             await this.handleNewNotification(payload.new);
           }
         )
         .subscribe();
       
-      // Refresh badge count on app state change
+      // Refresh badge count on initialization
       this.refreshBadgeCount();
       
-      console.log('✅ Real-time subscriptions active for events and notifications');
+      console.log('✅ Notification subscription active - local notifications enabled');
     } catch (error) {
       console.error('❌ Error setting up background notification service:', error);
       // Don't throw - allow app to continue
@@ -192,17 +97,13 @@ class BackgroundNotificationService {
   }
 
   /**
-   * Stop listening for events
+   * Stop listening for notifications
    */
   stopListening(): void {
     console.log('🔔 Stopping background notification service');
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
-    }
-    if (this.eventsChannel) {
-      supabase.removeChannel(this.eventsChannel);
-      this.eventsChannel = null;
     }
     if (this.notificationsChannel) {
       supabase.removeChannel(this.notificationsChannel);
@@ -224,143 +125,65 @@ class BackgroundNotificationService {
   };
 
   /**
-   * Handle new event from database
-   */
-  private async handleNewEvent(event: EventNotification): Promise<void> {
-    try {
-      console.log('🔔 Processing new event:', event.type);
-
-      // Skip if already read
-      if (event.status === 'read') {
-        console.log('⚠️ Event already read, skipping notification');
-        return;
-      }
-
-      const notificationType = eventTypeToNotificationType(event.type);
-      const { title, message } = getNotificationContent(event);
-
-      // Create notification in database
-      const notificationId = await inAppNotificationService.createNotification(
-        event.user_id,
-        title,
-        message,
-        notificationType,
-        {
-          eventId: event.id,
-          eventType: event.type,
-          payoutPlanId: event.payout_plan_id,
-          transactionId: event.transaction_id,
-          route: this.getRouteForEvent(event.type),
-        },
-        true // Schedule local notification
-      );
-
-      if (notificationId) {
-        console.log('✅ Notification created or found:', notificationId);
-        // Send push notification (works in foreground and background)
-        // The notification handler will decide whether to show alert based on app state
-        await this.sendPushNotification(event, title, message, notificationType);
-      } else {
-        console.log('⚠️ Notification creation skipped (likely duplicate or error)');
-      }
-    } catch (error) {
-      console.error('❌ Error handling new event:', error);
-    }
-  }
-
-  /**
    * Handle new notification from database
+   * Schedules local notification using expo-notifications for immediate feedback when app is open
+   * Server-side push notifications also work when the app is closed
    */
   private async handleNewNotification(notification: any): Promise<void> {
     try {
-      console.log('🔔 Processing new notification:', notification.type);
-
       // Skip if already read
       if (notification.is_read) {
-        console.log('⚠️ Notification already read, skipping');
         return;
       }
 
-      // Always send push notification (works in foreground and background)
-      await this.sendPushNotification(
-        {
-          id: notification.id,
-          user_id: notification.user_id,
-          type: notification.type,
-          title: notification.title,
-          description: notification.message,
-          status: notification.is_read ? 'read' : 'unread',
-          created_at: notification.created_at,
-        },
-        notification.title,
-        notification.message,
-        notification.type as any
-      );
+      // Schedule local notification using expo-notifications for immediate feedback
+      // This works when the app is open or in background
+      try {
+        const prefs = await inAppNotificationService.getNotificationPreferences(this.userId!);
+        const shouldShow = prefs 
+          ? (prefs.local_notifications_enabled && this.shouldShowNotification(notification.type, prefs))
+          : true; // Default to true if preferences unavailable
+        
+        if (shouldShow) {
+          await inAppNotificationService.scheduleLocalNotification(
+            notification.title,
+            notification.message,
+            {
+              ...notification.data,
+              notificationId: notification.id,
+              type: notification.type,
+            }
+          );
+          console.log('✅ Local notification scheduled via expo-notifications:', notification.title);
+        }
+      } catch (error) {
+        console.error('Error scheduling local notification:', error);
+        // Still refresh badge even if local notification fails
+      }
+
+      // Refresh badge count
+      await this.refreshBadgeCount();
     } catch (error) {
       console.error('❌ Error handling new notification:', error);
     }
   }
 
   /**
-   * Send push notification
+   * Check if notification should be shown based on preferences
    */
-  private async sendPushNotification(
-    event: EventNotification,
-    title: string,
-    message: string,
-    type: 'transaction' | 'payout' | 'security' | 'marketing' | 'system'
-  ): Promise<void> {
-    try {
-      // Schedule a local notification that will show even when app is in background
-      const channelId = inAppNotificationService.getChannelForType(type);
-      
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body: message,
-          data: {
-            eventId: event.id,
-            eventType: event.type,
-            notificationType: type,
-            payoutPlanId: event.payout_plan_id,
-            transactionId: event.transaction_id,
-            route: this.getRouteForEvent(event.type),
-          },
-          sound: true,
-          badge: 1,
-          ...(Platform.OS === 'android' && { channelId }),
-        },
-        trigger: null, // Send immediately
-      });
-
-      console.log('✅ Push notification scheduled:', title);
-    } catch (error) {
-      console.error('❌ Error sending push notification:', error);
-    }
-  }
-
-  /**
-   * Get route for event type
-   */
-  private getRouteForEvent(eventType: string): string {
-    const routeMap: Record<string, string> = {
-      payout_completed: '/all-payouts',
-      payout_scheduled: '/all-payouts',
-      withdrawal_scheduled: '/all-payouts',
-      disbursement_failed: '/all-payouts',
-      deposit_successful: '/(tabs)/',
-      deposit_failed: '/(tabs)/',
-      transaction_completed: '/transactions',
-      transaction_failed: '/transactions',
-      security_alert: '/profile',
-      login_alert: '/profile',
-      suspicious_activity: '/profile',
-      vault_created: '/(tabs)/',
-      account_created: '/(tabs)/',
-      kyc_completed: '/profile',
-      kyc_failed: '/profile',
+  private shouldShowNotification(
+    type: string,
+    prefs: any
+  ): boolean {
+    const typeMap: Record<string, string> = {
+      transaction: 'transaction_alerts',
+      payout: 'payout_alerts',
+      security: 'security_alerts',
+      marketing: 'marketing_alerts',
+      system: 'system_alerts',
     };
-    return routeMap[eventType] || '/(tabs)/';
+    const prefKey = typeMap[type];
+    return prefKey ? (prefs[prefKey] !== false) : true;
   }
 
   /**
@@ -378,8 +201,7 @@ class BackgroundNotificationService {
 
   /**
    * Refresh badge count for missed notifications when app starts
-   * NOTE: This does NOT send push notifications for old events.
-   * Notifications are only sent when events happen in real-time.
+   * Push notifications are handled server-side via database triggers and cron job
    */
   async checkMissedNotifications(userId: string): Promise<void> {
     // Check if Supabase is configured before attempting to fetch
@@ -391,9 +213,7 @@ class BackgroundNotificationService {
     try {
       console.log('🔔 Refreshing badge count for unread notifications...');
 
-      // Just refresh the badge count - don't send notifications for old events
-      // Notifications are already in the database and will be shown in the notification center
-      // Push notifications are only sent when events happen in real-time
+      // Just refresh the badge count - push notifications are handled server-side
       await this.refreshBadgeCount();
       
       console.log('✅ Badge count refreshed');

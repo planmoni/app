@@ -3,7 +3,7 @@ import SafeFooter from '@/components/SafeFooter';
 import TransactionModal from '@/components/TransactionModal';
 import DateRangeModal from '@/components/DateRangeModal';
 import { router } from 'expo-router';
-import { ArrowDownRight, ArrowLeft, BanknoteArrowDown, BanknoteArrowUp, ArrowUpRight, Ban as Bank, Calendar, Search, X } from 'lucide-react-native';
+import { ArrowDownRight, ArrowLeft, ArrowUpRight, Calendar, Search, X, XCircle, CheckCircle2, Clock } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,7 +13,7 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 type TransactionType = 'all' | 'deposits' | 'payouts' | 'withdrawals';
 
 export default function TransactionsScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { transactions, isLoading } = useRealtimeTransactions();
   const { payoutPlans } = useRealtimePayoutPlans();  const [activeType, setActiveType] = useState<TransactionType>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -305,10 +305,44 @@ export default function TransactionsScreen() {
                     : date}
               </Text>
               {transactions.map((transaction) => {
+                // Map transaction types to icons and colors matching notifications page
+                let Icon = ArrowDownRight;
+                let iconBg = colors.accent;
+                let iconColor = colors.primary;
+                
+                if (transaction.status === 'failed') {
+                  // Failed transactions use error styling
+                  Icon = XCircle;
+                  iconBg = colors.errorLight;
+                  iconColor = colors.error;
+                } else {
+                  switch (transaction.type) {
+                    case 'deposit':
+                      // Deposit: ArrowDownRight with accent/primary colors (matching deposit_successful)
+                      Icon = ArrowDownRight;
+                      iconBg = colors.accent;
+                      iconColor = colors.primary;
+                      break;
+                    case 'payout':
+                      // Payout: ArrowUpRight with success colors (matching payout_completed)
+                      Icon = ArrowUpRight;
+                      iconBg = colors.successLight;
+                      iconColor = colors.success;
+                      break;
+                    case 'withdrawal':
+                      // Withdrawal: ArrowUpRight with orange colors (matching emergency withdrawal)
+                      Icon = ArrowUpRight;
+                      iconBg = '#F97316';
+                      iconColor = '#fff';
+                      break;
+                    default:
+                      Icon = ArrowDownRight;
+                      iconBg = colors.accent;
+                      iconColor = colors.primary;
+                  }
+                }
+                
                 const isPositive = transaction.type === 'deposit';
-                const Icon = isPositive ? BanknoteArrowDown : transaction.type === 'payout' ? BanknoteArrowDown : BanknoteArrowUp;
-                const iconBg = isPositive ? colors.iconBackground : transaction.type === 'payout' ? colors.iconBackground : colors.iconBackground;
-                const iconColor = isPositive ? colors.iconColor : transaction.type === 'payout' ? colors.iconColor : colors.iconColor;
                 
                 // Format date and time
                 const txDate = new Date(transaction.created_at);
@@ -325,7 +359,7 @@ export default function TransactionsScreen() {
                     onPress={() => handleTransactionPress(transaction)}
                   >
                     <View style={[styles.transactionIcon, { backgroundColor: iconBg }]}>
-                      <Icon size={24} color={iconColor} />
+                      <Icon size={24} color={iconColor} strokeWidth={2} />
                     </View>
                     <View style={styles.transactionInfo}>
                       <View style={styles.transactionHeader}>
@@ -563,9 +597,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.border,
   },
   transactionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -580,7 +614,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 4,
   },
   transactionTitle: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '500',
     color: colors.text,
   },
@@ -589,7 +623,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
   },
   transactionDate: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   transactionStatus: {
@@ -597,7 +631,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
   },
   transactionAmount: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '600',
   },
   positiveAmount: {

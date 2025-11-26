@@ -90,10 +90,10 @@ BEGIN
   
   -- Immediately trigger the edge function to process the notification
   -- This ensures push notifications are sent as soon as data lands in the database
+  -- Note: JWT verification is disabled for this function, so no auth header needed
   BEGIN
-    -- Get Supabase URL and service role key from settings
+    -- Get Supabase URL from settings or use default
     v_supabase_url := current_setting('app.settings.supabase_url', true);
-    v_service_role_key := current_setting('app.settings.service_role_key', true);
     
     -- Default Supabase URL if not set
     IF v_supabase_url IS NULL THEN
@@ -102,10 +102,10 @@ BEGIN
     
     -- Trigger the edge function immediately (fire and forget)
     -- Using PERFORM to ignore the result - we don't want to block if the HTTP call fails
+    -- No Authorization header needed since JWT verification is disabled
     PERFORM net.http_post(
       url := v_supabase_url || '/functions/v1/send-push-notifications',
       headers := jsonb_build_object(
-        'Authorization', 'Bearer ' || COALESCE(v_service_role_key, ''),
         'Content-Type', 'application/json'
       ),
       body := '{}'::text  -- Empty body is fine, edge function will fetch from queue

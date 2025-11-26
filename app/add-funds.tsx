@@ -404,7 +404,7 @@ export default function AddFundsScreen() {
                 <View style={styles.transferNotice}>
                   <Info size={18} color={colors.primary} />
                   <Text style={styles.transferNoticeText}>
-                    Bank transfers can take up to 1 min before reflecting on your wallet, we will notify you immediately your transfer arrives.
+                    Bank transfers can take up to 2 mins before reflecting on your wallet, we will notify you immediately your transfer arrives.
                   </Text>
                 </View>
 
