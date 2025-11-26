@@ -6,7 +6,7 @@
     <item name="android:navigationBarColor">@android:color/transparent</item>
     <item name="android:windowLightNavigationBar" tools:targetApi="28">false</item>
     <item name="android:windowDrawsSystemBarBackgrounds">true</item>
-    <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="28">noEdges</item>
+    <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="28">shortEdges</item>
   </style>
   <style name="Theme.App.SplashScreen" parent="Theme.SplashScreen">
     <item name="windowSplashScreenBackground">@color/splashscreen_background</item>
