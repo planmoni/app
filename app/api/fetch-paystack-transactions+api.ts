@@ -100,54 +100,37 @@ export async function POST(request: Request) {
 
         console.log(`Processing transaction: ${tx.reference}, Amount: ₦${amountInNaira}`);
 
-        // Add funds to user's wallet
-        const { data: result, error } = await supabase.rpc('add_funds', {
+        // Process deposit atomically using process_paystack_deposit function
+        // This function handles wallet update, transaction creation, and notifications
+        const { data: result, error } = await supabase.rpc('process_paystack_deposit', {
           arg_user_id: userId,
-          arg_amount: amountInNaira
+          arg_amount: amountInNaira,
+          arg_reference: tx.reference,
+          arg_paystack_data: {
+            paystack_transaction_id: tx.id,
+            paystack_reference: tx.reference,
+            account_number: tx.authorization?.account_number,
+            processed_by: 'fetch_paystack_transactions_api',
+            processed_at: new Date().toISOString()
+          }
         });
 
         if (error) {
-          console.error('Error adding funds:', error);
+          console.error('Error processing deposit:', error);
           continue;
         }
 
         if (result && result.success) {
-          console.log(`Successfully added ₦${amountInNaira} to wallet for transaction ${tx.reference}`);
+          if (result.already_processed) {
+            console.log(`Transaction ${tx.reference} was already processed`);
+            continue;
+          }
           
-          // Create a transaction record in our database
-          await supabase
-            .from('transactions')
-            .insert({
-              user_id: userId,
-              type: 'deposit',
-              amount: amountInNaira,
-              status: 'completed',
-              source: 'Paystack Virtual Account',
-              destination: 'Wallet',
-              reference: tx.reference,
-              metadata: {
-                paystack_transaction_id: tx.id,
-                paystack_reference: tx.reference,
-                account_number: tx.authorization?.account_number
-              }
-            });
-
-          // Create notification
-          await supabase
-            .from('events')
-            .insert({
-              user_id: userId,
-              type: 'deposit_successful',
-              title: 'Funds Received',
-              description: `₦${amountInNaira.toLocaleString()} has been added to your wallet`,
-              status: 'unread'
-            });
-
+          console.log(`Successfully processed deposit: ₦${amountInNaira} for transaction ${tx.reference}`);
           processedCount++;
           totalAmount += amountInNaira;
-
         } else {
-          console.error('Failed to add funds for transaction:', tx.reference);
+          console.error('Failed to process deposit for transaction:', tx.reference);
         }
 
       } catch (err) {

@@ -70,13 +70,6 @@ export default function AccountCreationSuccessModal({
             </Text>
             
             <View style={styles.buttonContainer}>
-              <Button
-                title="Start Verification"
-                onPress={handleStartVerification}
-                style={styles.primaryButton}
-                icon={ArrowRight}
-                hapticType="medium"
-              />
               
               <Button
                 title="Go to Dashboard"

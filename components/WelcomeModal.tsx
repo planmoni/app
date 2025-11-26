@@ -466,8 +466,8 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   slideTitle: {
     fontWeight: '800',
-    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1.5,
-    lineHeight: Platform.OS === 'ios' ? responsive.titleSize * 1.1 : responsive.titleSize * 1.5,
+    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1.2,
+    lineHeight: Platform.OS === 'ios' ? responsive.titleSize * 1.1 : responsive.titleSize * 1.1,
     letterSpacing: -0.5,
     color: isDark ? colors.text : colors.primary,
     textAlign: 'center',
@@ -475,8 +475,8 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   slideDescription: {
     color: colors.text,
     textAlign: 'center',
-    fontSize: Platform.OS === 'ios' ? responsive.descriptionSize * 1.2: responsive.descriptionSize * 1.6,
-    lineHeight: Platform.OS === 'ios' ? responsive.descriptionSize * 1.6 : responsive.descriptionSize * 2.2,
+    fontSize: Platform.OS === 'ios' ? responsive.descriptionSize * 1.2: responsive.descriptionSize * 1.2,
+    lineHeight: Platform.OS === 'ios' ? responsive.descriptionSize * 1.6 : responsive.descriptionSize * 1.5,
     maxWidth: '90%',
   },
   pagination: {
@@ -509,7 +509,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    height: 56,
+    height: Platform.OS === 'ios' ? 56 : 50,
     borderRadius: 16,
     paddingHorizontal: 24,
     flex: 1,
@@ -528,7 +528,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   signInButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 56,
+    height: Platform.OS === 'ios' ? 56 : 50,
     borderRadius: 16,
     paddingHorizontal: 24,
     flex: 1,

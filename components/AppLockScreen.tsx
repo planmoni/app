@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Platform, Animated, useWindowDimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, Pressable, Alert, Platform, Animated, useWindowDimensions, Keyboard } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePin } from '@/contexts/PinContext';
@@ -21,9 +21,41 @@ export default function AppLockScreen() {
   const haptics = useHaptics();
   const { showError } = useToast();
   const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   
   // Determine if we're on a small screen
   const isSmallScreen = height < 700;
+  
+  // Dismiss keyboard when lock screen appears and prevent it from showing
+  useEffect(() => {
+    // Immediately dismiss any open keyboard multiple times to ensure it's gone
+    Keyboard.dismiss();
+    setTimeout(() => Keyboard.dismiss(), 100);
+    setTimeout(() => Keyboard.dismiss(), 300);
+    
+    // Prevent keyboard from showing while lock screen is visible
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+      Keyboard.dismiss();
+    });
+    
+    const keyboardWillShowListener = Platform.OS === 'ios' 
+      ? Keyboard.addListener('keyboardWillShow', () => {
+          Keyboard.dismiss();
+        })
+      : null;
+    
+    // Also listen for keyboard hide to ensure it stays hidden
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+      // Ensure keyboard stays dismissed
+      setTimeout(() => Keyboard.dismiss(), 50);
+    });
+    
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardWillShowListener?.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
   
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -229,12 +261,14 @@ export default function AppLockScreen() {
     return 'shield-checkmark-outline';
   };
 
-  const styles = getStyles(isDark, colors, isSmallScreen, showBiometricOption);
+  const styles = getStyles(isDark, colors, isSmallScreen, showBiometricOption, insets);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.header}>
+    <View style={styles.container} pointerEvents="box-none">
+      <View style={styles.overlay} pointerEvents="auto">
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
+          <View style={styles.content}>
+          <View style={styles.header}>
           <Text style={styles.greeting}>Welcome back,</Text>
           <Text style={styles.userName}>{getUserName()}</Text>
         </View>
@@ -301,28 +335,45 @@ export default function AppLockScreen() {
             </Text>
           </Pressable>
         </View>
+        </View>
+        </SafeAreaView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
-const getStyles = (isDark: boolean, colors: any, isSmallScreen: boolean, showBiometricOption: boolean) => StyleSheet.create({
+const getStyles = (isDark: boolean, colors: any, isSmallScreen: boolean, showBiometricOption: boolean, insets: any) => StyleSheet.create({
   container: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
+    width: '100%',
+    height: '100%',
+    zIndex: 10000,
+    elevation: Platform.OS === 'android' ? 10000 : undefined,
+  },
+  overlay: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
     backgroundColor: colors.background,
-    zIndex: 9999,
+  },
+  safeArea: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   content: {
     flex: 1,
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: isSmallScreen ? Platform.OS === 'ios' ? 60 : 40 : Platform.OS === 'ios' ? 80 : 60,
+    paddingTop: isSmallScreen ? Platform.OS === 'ios' ? 40 : 30 : Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: Platform.OS === 'ios' ? 20 : 16,
+    minHeight: '100%',
+    width: '100%',
   },
   header: {
     alignItems: 'center',

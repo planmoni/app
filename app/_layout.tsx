@@ -49,7 +49,7 @@ SplashScreen.preventAutoHideAsync().catch((e) =>
 
 function RootLayoutNav() {
   const { session, isLoading, error } = useAuth();
-  const { isDark } = useTheme();
+  const { isDark, colors } = useTheme();
   const { isAppLocked, isPinResetMode } = useAppLock();
   const { isLoading: isPinLoading } = usePin();
   const [showSplash, setShowSplash] = useState(false);
@@ -66,6 +66,16 @@ function RootLayoutNav() {
   // Initialize notification hooks for payout and transaction notifications
   usePayoutNotifications();
   useTransactionNotifications();
+
+  // Update Android navigation bar for edge-to-edge display
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      // Set transparent navigation bar to allow app colors to extend
+      SystemUI.setBackgroundColorAsync('transparent').catch((error) => {
+        console.warn('Failed to set navigation bar color:', error);
+      });
+    }
+  }, [isDark]);
 
   // Deterministic navigation-finish clearing: when the pathname changes,
   // clear the stored navigation token so AppLockContext won't falsely skip or lock.
@@ -191,18 +201,52 @@ function RootLayoutNav() {
   useEffect(() => {
     const checkInitialNotification = async () => {
       try {
-        const { getLastNotificationResponseAsync } = await import('expo-notifications');
-        const response = await getLastNotificationResponseAsync();
+        const Notifications = await import('expo-notifications');
+        const response = await Notifications.getLastNotificationResponseAsync();
         if (response) {
           const data = response.notification.request.content.data;
+          
+          // Handle Intercom notifications
           if (data?.intercom) {
             console.log('📬 App opened from Intercom notification');
-            // Open Intercom when app is ready
             setTimeout(() => {
               const { intercomInstant } = require('@/lib/IntercomInstant');
               intercomInstant.open().catch((error: any) => {
                 console.error('Failed to open Intercom from notification:', error);
               });
+            }, 1000);
+            return;
+          }
+
+          // Handle event/notification navigation
+          if (data?.route) {
+            console.log('🔔 App opened from notification, navigating to:', data.route);
+            setTimeout(() => {
+              const { router } = require('expo-router');
+              router.push(data.route as any);
+            }, 1000);
+          } else if (data?.eventType || data?.notificationType) {
+            // Navigate based on event/notification type
+            const routeMap: Record<string, string> = {
+              payout_completed: '/all-payouts',
+              payout_scheduled: '/all-payouts',
+              disbursement_failed: '/all-payouts',
+              deposit_successful: '/(tabs)/',
+              deposit_failed: '/(tabs)/',
+              transaction_completed: '/transactions',
+              transaction_failed: '/transactions',
+              security_alert: '/profile',
+              login_alert: '/profile',
+              suspicious_activity: '/profile',
+              payout: '/all-payouts',
+              transaction: '/transactions',
+              security: '/profile',
+            };
+            const eventType = (data.eventType || data.notificationType) as string;
+            const route = routeMap[eventType] || '/(tabs)/';
+            setTimeout(() => {
+              const { router } = require('expo-router');
+              router.push(route as any);
             }, 1000);
           }
         }
@@ -316,7 +360,7 @@ function RootLayoutNav() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Non-fatal app error banner (non-blocking) */}
       {appError && !appError.fatal && (
         <View style={styles.nonFatalBanner}>
@@ -441,10 +485,11 @@ function RootLayoutNav() {
 export default function RootLayout() {
   useFrameworkReady();
 
-  // Initialize expo-system-ui to allow system to control appearance
+  // Initialize expo-system-ui for edge-to-edge display
+  // Set transparent system bars so app colors can extend behind them
   useEffect(() => {
-    if (Platform.OS !== 'web') {
-      SystemUI.setBackgroundColorAsync('system').catch((error) => {
+    if (Platform.OS === 'android') {
+      SystemUI.setBackgroundColorAsync('transparent').catch((error) => {
         console.warn('Failed to set system background color:', error);
       });
     }

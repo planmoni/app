@@ -24,6 +24,8 @@ if (supabaseUrl && supabaseAnonKey) {
       params: {
         eventsPerSecond: 10,
       },
+      // Note: Supabase JS client handles reconnection automatically
+      // The retry logic in individual subscriptions will handle errors
     },
   });
   console.log('✅ Supabase client initialized successfully with SecureStore adapter');

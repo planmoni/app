@@ -248,16 +248,16 @@ export const useKYCProgress = () => {
         canUpgrade = canUpgradeData || false;
       }
 
-      // Get tier limits
-      const { data: limits } = await supabase.rpc('get_user_deposit_limits', {
-        p_user_id: session.user.id
+      // Get tier limits - fetch directly from database for the current tier
+      const tierToFetch = currentTierValue === 0 ? 1 : currentTierValue;
+      const { data: limits, error: limitsError } = await supabase.rpc('get_tier_deposit_limits', {
+        p_tier_number: tierToFetch
       });
 
-      return {
-        current_tier: currentTierValue,
-        can_upgrade: canUpgrade,
-        next_tier_requirements: {},
-        tier_limits: limits && limits[0] ? {
+      // If direct fetch fails, try get_user_deposit_limits as fallback
+      let tierLimits = null;
+      if (!limitsError && limits && limits[0]) {
+        tierLimits = {
           tier_number: limits[0].tier_number,
           tier_name: limits[0].tier_name,
           tier_description: '',
@@ -267,7 +267,33 @@ export const useKYCProgress = () => {
           max_single_deposit: limits[0].max_single_deposit,
           max_account_balance: limits[0].max_account_balance,
           requirements: {}
-        } : null
+        };
+      } else {
+        // Fallback to get_user_deposit_limits
+        const { data: userLimits } = await supabase.rpc('get_user_deposit_limits', {
+          p_user_id: session.user.id
+        });
+        
+        if (userLimits && userLimits[0]) {
+          tierLimits = {
+            tier_number: userLimits[0].tier_number,
+            tier_name: userLimits[0].tier_name,
+            tier_description: '',
+            max_daily_deposit: userLimits[0].max_daily_deposit,
+            max_weekly_deposit: userLimits[0].max_weekly_deposit,
+            max_monthly_deposit: userLimits[0].max_monthly_deposit,
+            max_single_deposit: userLimits[0].max_single_deposit,
+            max_account_balance: userLimits[0].max_account_balance,
+            requirements: {}
+          };
+        }
+      }
+
+      return {
+        current_tier: currentTierValue,
+        can_upgrade: canUpgrade,
+        next_tier_requirements: {},
+        tier_limits: tierLimits
       };
     } catch (err) {
       console.error('Error getting tier info:', err);

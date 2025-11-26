@@ -73,12 +73,12 @@ export default function TabLayout() {
 
     if (!session?.user?.id) return;
 
-    // Clean up any existing channel before creating a new one
+    // Clean up any existing channel
     if (channelRef.current) {
       try {
         supabase.removeChannel(channelRef.current);
       } catch (err) {
-        console.error('Error removing existing channel:', err);
+        // Ignore errors
       }
       channelRef.current = null;
     }
@@ -86,112 +86,19 @@ export default function TabLayout() {
     // Initial fetch of unread notifications count
     fetchUnreadNotificationsCount();
 
-    // Create a unique channel name per user to prevent conflicts
-    const channelName = `events-changes-${session.user.id}`;
-
-    // Set up real-time subscription for events table
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'events',
-          filter: `user_id=eq.${session.user.id}`,
-        },
-        (payload: any) => {
-          try {
-            console.log('Events change received:', payload);
-            // Refresh unread count when events change
-            fetchUnreadNotificationsCount();
-          } catch (err) {
-            console.error('Error processing events change:', err);
-          }
-        }
-      );
-
-    // Subscribe with proper error handling and retry logic
-    let retryCount = 0;
-    const maxRetries = 3;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    // const retrySubscription = () => {
-    //   if (retryCount < maxRetries) {
-    //     retryCount++;
-    //     console.log(`Retrying events subscription (${retryCount}/${maxRetries})...`);
-    //     retryTimeout = setTimeout(() => {
-    //       if (channelRef.current) {
-    //         supabase.removeChannel(channelRef.current);
-    //       }
-    //       // Re-setup the subscription
-    //       const newChannel = supabase
-    //         .channel(channelName)
-    //         .on(
-    //           'postgres_changes',
-    //           {
-    //             event: '*',
-    //             schema: 'public',
-    //             table: 'events',
-    //             filter: `user_id=eq.${session.user.id}`,
-    //           },
-    //           (payload: any) => {
-    //             try {
-    //               console.log('Events change received:', payload);
-    //               fetchUnreadNotificationsCount();
-    //             } catch (err) {
-    //               console.error('Error processing events change:', err);
-    //             }
-    //           }
-    //         );
-          
-    //       newChannel.subscribe((status: any) => {
-    //         if (status === 'SUBSCRIBED') {
-    //           console.log('Events subscription successful');
-    //           retryCount = 0;
-    //         } else if (status === 'CHANNEL_ERROR') {
-    //           console.error('Events subscription error:', status);
-    //           retrySubscription();
-    //         } else if (status === 'TIMED_OUT') {
-    //           console.error('Events subscription timed out');
-    //           retrySubscription();
-    //         } else if (status === 'CLOSED') {
-    //           console.log('Events subscription closed');
-    //         }
-    //       });
-          
-    //       channelRef.current = newChannel;
-    //     }, 2000 * retryCount); // Exponential backoff
-    //   }
-    // };
-
-    // channel.subscribe((status: any) => {
-    //   if (status === 'SUBSCRIBED') {
-    //     console.log('Events subscription successful');
-    //     retryCount = 0; // Reset retry count on successful connection
-    //   } else if (status === 'CHANNEL_ERROR') {
-    //     console.error('Events subscription error:', status);
-    //     retrySubscription();
-    //   } else if (status === 'TIMED_OUT') {
-    //     console.error('Events subscription timed out');
-    //     retrySubscription();
-    //   } else if (status === 'CLOSED') {
-    //     console.log('Events subscription closed');
-    //   }
-    // });
-
-    // Store the channel reference
-    channelRef.current = channel;
+    // Poll for updates every 30 seconds instead of real-time subscription
+    // Server-side push notifications handle delivery when app is closed
+    const pollInterval = setInterval(() => {
+      fetchUnreadNotificationsCount();
+    }, 30000); // Poll every 30 seconds
 
     return () => {
-      if (retryTimeout) {
-        clearTimeout(retryTimeout);
-      }
+      clearInterval(pollInterval);
       if (channelRef.current) {
         try {
           supabase.removeChannel(channelRef.current);
         } catch (err) {
-          console.error('Error removing events channel:', err);
+          // Ignore errors
         }
         channelRef.current = null;
       }
@@ -231,12 +138,21 @@ export default function TabLayout() {
     }
   };
 
+  // Use darker color for inactive icons on Android in light mode for better visibility
+  const getInactiveTintColor = () => {
+    if (Platform.OS === 'android' && !isDark) {
+      // Use textSecondary instead of textTertiary for better contrast on white background
+      return colors.textSecondary;
+    }
+    return colors.textTertiary;
+  };
+
   return (
     <>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: isDark ? colors.text : colors.primary,
-        tabBarInactiveTintColor: colors.textTertiary,
+        tabBarInactiveTintColor: getInactiveTintColor(),
         tabBarStyle: isBottomNavVisible ? [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }] : { display: 'none' },
         // tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
         tabBarLabelStyle: styles.tabBarLabel,
@@ -290,9 +206,9 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: Platform.OS === 'ios' ? 85 : 70,
+    height: Platform.OS === 'ios' ? 85 : 100,
     paddingBottom: Platform.OS === 'ios' ? 15 : 10 ,
-    paddingTop: 8,
+    paddingTop: 5,
   },
   tabBarLabel: {
     fontSize: Platform.OS === 'ios' ? 12 : 10,

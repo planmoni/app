@@ -124,14 +124,16 @@ export default function KYCVerificationModal({
 
   const handleCameraPermissionComplete = (selfieUrl: string) => {
     setShowCameraPermissionModal(false);
+    // Always navigate to kyc-upgrade page after liveness completion
+    // The progress has already been updated by LivenessTestEnhanced
+    // The page will automatically show BVN verification step
+    setTimeout(() => {
+      router.push('/kyc-upgrade');
+    }, 300);
+    
+    // Call onComplete callback if provided (for other use cases)
     if (onComplete) {
       onComplete(selfieUrl);
-    } else if (onStartVerification) {
-      // Fallback to onStartVerification if onComplete is not provided
-      onStartVerification();
-    } else {
-      // Navigate to kyc-upgrade as final fallback
-      router.push('/kyc-upgrade');
     }
   };
 

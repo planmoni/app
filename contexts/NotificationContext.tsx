@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { inAppNotificationService, InAppNotification } from '@/lib/in-app-notifications';
+import { backgroundNotificationService } from '@/lib/background-notifications';
 import { useAuth } from './AuthContext';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
+import { AppState } from 'react-native';
 
 interface NotificationContextType {
   unreadCount: number;
@@ -23,7 +25,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      // Stop listening if user logs out
+      backgroundNotificationService.stopListening();
+      return;
+    }
 
     const initializeNotifications = async () => {
       console.log('🔔 Initializing notifications for user:', user.id);
@@ -33,22 +39,29 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       if (hasPermission) {
         console.log('🔔 Setting up notification listeners...');
+        
+        // Set up foreground notification listeners
         inAppNotificationService.setupListeners(
           (notification) => {
             console.log('🔔 Foreground notification received:', notification.request.content.title);
-            Toast.show({
-              type: 'info',
-              text1: notification.request.content.title || 'New Notification',
-              text2: notification.request.content.body || undefined,
-              visibilityTime: 4000,
-              autoHide: true,
-              topOffset: 50,
-              onPress: () => {
-                // Handle navigation when toast is tapped
-                const data = notification.request.content.data;
-                handleNotificationNavigation(data);
-              },
-            });
+            const appState = AppState.currentState;
+            
+            // Only show toast if app is in foreground
+            if (appState === 'active') {
+              Toast.show({
+                type: 'info',
+                text1: notification.request.content.title || 'New Notification',
+                text2: notification.request.content.body || undefined,
+                visibilityTime: 4000,
+                autoHide: true,
+                topOffset: 50,
+                onPress: () => {
+                  // Handle navigation when toast is tapped
+                  const data = notification.request.content.data;
+                  handleNotificationNavigation(data);
+                },
+              });
+            }
             refreshUnreadCount();
           },
           (data) => {
@@ -57,36 +70,27 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           }
         );
         console.log('✅ Notification listeners set up successfully');
+
+        // Start background notification listener for events
+        // This will listen for NEW events and send notifications in real-time
+        await backgroundNotificationService.startListening(user.id);
+        console.log('✅ Background notification listener started');
+
+        // Refresh badge count for existing unread notifications
+        // NOTE: This does NOT send push notifications - only refreshes the badge
+        await backgroundNotificationService.checkMissedNotifications(user.id);
       } else {
         console.warn('⚠️ Notification permissions not granted');
       }
 
       await refreshUnreadCount();
 
-      const unsubscribe = inAppNotificationService.subscribeToNotifications(
-        user.id,
-        async (notification) => {
-          console.log('New notification via realtime:', notification);
-
-          Toast.show({
-            type: 'info',
-            text1: notification.title,
-            text2: notification.message,
-            visibilityTime: 4000,
-            autoHide: true,
-            topOffset: 50,
-            onPress: () => {
-              // Handle navigation when toast is tapped
-              const data = notification.data || {};
-              handleNotificationNavigation(data);
-            },
-          });
-
-          await refreshUnreadCount();
-        }
-      );
-
-      return unsubscribe;
+      // Real-time subscriptions disabled - server-side push notifications handle delivery
+      // No need to subscribe to notifications table changes
+      
+      return () => {
+        // Cleanup function (no-op since we're not subscribing)
+      };
     };
 
     const cleanup = initializeNotifications();
@@ -96,6 +100,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         if (unsub) unsub();
       });
       inAppNotificationService.removeListeners();
+      backgroundNotificationService.stopListening();
     };
   }, [user?.id]);
 

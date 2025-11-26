@@ -387,10 +387,15 @@ export default function ViewPayoutScreen() {
                   <TextInput
                     style={styles.nameInput}
                     value={payoutName}
-                    onChangeText={setPayoutName}
+                    onChangeText={(text) => {
+                      if (text.length <= 50) {
+                        setPayoutName(text);
+                      }
+                    }}
                     autoFocus
                     placeholder="Plan name"
                     placeholderTextColor={colors.textTertiary}
+                    maxLength={50}
                   />
                   <TextInput
                     style={styles.descriptionInput}

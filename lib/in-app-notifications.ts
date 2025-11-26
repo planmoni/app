@@ -139,7 +139,7 @@ class InAppNotificationService {
     });
   }
 
-  private getChannelForType(type: string): string {
+  getChannelForType(type: string): string {
     const channelMap: Record<string, string> = {
       transaction: 'transactions',
       payout: 'payouts',
@@ -172,6 +172,60 @@ class InAppNotificationService {
         .single();
 
       if (error) {
+        // Handle unique constraint violation (duplicate notification)
+        if (error.code === '23505' && error.message?.includes('idx_notifications_unique_transaction')) {
+          console.log('⚠️ Notification already exists for this transaction, checking for existing notification...');
+          
+          // Try to find existing notification by transactionId or eventId
+          const transactionId = data?.transactionId;
+          const eventId = data?.eventId;
+          
+          if (transactionId || eventId) {
+            let query = supabase
+              .from('notifications')
+              .select('id')
+              .eq('user_id', userId)
+              .eq('type', type);
+            
+            if (transactionId) {
+              query = query.contains('data', { transactionId });
+            } else if (eventId) {
+              query = query.contains('data', { eventId });
+            }
+            
+            const { data: existingNotification } = await query
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            
+            if (existingNotification) {
+              console.log('✅ Found existing notification:', existingNotification.id);
+              // Push notification should have already been queued by database trigger when notification was first created
+              // Server-side cron job will process it - no need to queue again
+              
+              // Still schedule local notification if needed (for in-app display when app is open)
+              if (scheduleLocal) {
+                try {
+                  const prefs = await this.getNotificationPreferences(userId);
+                  const shouldShow = prefs 
+                    ? (prefs.local_notifications_enabled && this.shouldShowNotification(type, prefs))
+                    : true;
+                  
+                  if (shouldShow) {
+                    await this.scheduleLocalNotification(title, message, { ...data, notificationId: existingNotification.id, type });
+                  }
+                } catch (err) {
+                  console.error('Error scheduling local notification for existing notification:', err);
+                }
+              }
+              return existingNotification.id;
+            }
+          }
+          
+          console.log('⚠️ Duplicate notification detected but could not find existing notification');
+          return null;
+        }
+        
         console.error('Error creating notification:', error);
         return null;
       }

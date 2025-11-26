@@ -228,17 +228,7 @@ export function useCreatePayout() {
         }
       }
 
-      // 📣 Create event
-      await supabase.from("events").insert({
-        user_id: session.user.id,
-        type: "payout_scheduled",
-        title: "New Payout Plan Created",
-        description: `Your payout plan "${name}" has been created successfully.`,
-        status: "unread",
-        payout_plan_id: payoutPlan.id,
-      });
-
-      // 🔔 Create notification
+      // 📣 Create event (this will be displayed as an in-app notification on the notifications page)
       // Format frequency for display
       const frequencyDisplay = 
         frequency === 'daily' ? 'daily' :
@@ -252,20 +242,18 @@ export function useCreatePayout() {
         frequency === 'custom' ? 'on custom dates' :
         'as scheduled';
 
-      await inAppNotificationService.createNotification(
-        session.user.id,
-        'Payout Plan Created',
-        `Your payout plan "${name}" has been created successfully. ₦${payoutAmount.toLocaleString()} will be paid ${frequencyDisplay}.`,
-        'payout',
-        {
-          payoutPlanId: payoutPlan.id,
-          payoutAmount: payoutAmount,
-          totalAmount: totalAmount,
-          frequency: frequency,
-          route: '/all-payouts',
-        },
-        true // Schedule local notification
-      );
+      await supabase.from("events").insert({
+        user_id: session.user.id,
+        type: "payout_scheduled",
+        title: "New Payout Plan Created",
+        description: `Your payout plan "${name}" has been created successfully. ₦${payoutAmount.toLocaleString()} will be paid ${frequencyDisplay}.`,
+        status: "unread",
+        payout_plan_id: payoutPlan.id,
+      });
+
+      // Note: No server-side push notification for payout_scheduled events
+      // Only deposits and payouts trigger server-side push notifications
+      // This event will be displayed as an in-app notification on the notifications page
 
       // ♻️ Refresh wallet
       await refreshWallet();

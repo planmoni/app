@@ -79,6 +79,28 @@ export const useKYCStyles = () => {
       color: colors.error,
       marginTop: 4,
     },
+    helperText: {
+      fontSize: getScaledFontSize(12, textSizeMultiplier),
+      color: colors.textSecondary,
+      marginTop: 6,
+      lineHeight: 16,
+    },
+    otpNoteContainer: {
+      marginTop: 4,
+      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF',
+      borderRadius: 8,
+      padding: 12,
+      gap: 8,
+    },
+    linkButton: {
+      paddingVertical: 4,
+      alignSelf: 'flex-start',
+    },
+    linkButtonText: {
+      fontSize: getScaledFontSize(17, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.primary,
+    },
     infoContainer: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -182,6 +204,14 @@ export const useKYCStyles = () => {
     },
     selectedIdOptionText: {
       color: colors.primary,
+    },
+    disabledOption: {
+      opacity: 0.5,
+      backgroundColor: isDark ? 'rgba(148, 163, 184, 0.1)' : '#F1F5F9',
+      borderColor: colors.border,
+    },
+    disabledOptionText: {
+      color: colors.textTertiary,
     },
     identityTypeContainer: {
       flexDirection: 'row',

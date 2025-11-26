@@ -4,12 +4,14 @@ import { Info, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useKYCStyles } from './sharedStyles';
 import { IdentityType } from './types';
+import NINVerificationStep from './NINVerificationStep';
 
 interface IDFaceMatchStepProps {
   nin: string;
   phoneNumber: string;
   otp: string;
   ninIdentityId: string | null;
+  bvnIdentityId: string | null;
   otpMessage: string | null;
   selectedIdentityType: IdentityType;
   errors: Record<string, string>;
@@ -17,10 +19,14 @@ interface IDFaceMatchStepProps {
   isVerifyingDocuments: boolean;
   documentsVerified: boolean;
   isLoading: boolean;
+  showBvnOption: boolean;
+  bvn: string;
+  formDataBvn?: string;
   onNinChange: (text: string) => void;
   onPhoneNumberChange: (text: string) => void;
   onOtpChange: (text: string) => void;
   onIdentityTypeChange: (type: IdentityType) => void;
+  onUseBvnInstead: () => void;
   onSaveFormData?: (data: { phone_number: string }) => Promise<void>;
   phoneInputRef?: React.RefObject<TextInput | null>;
 }
@@ -30,6 +36,7 @@ export default function IDFaceMatchStep({
   phoneNumber,
   otp,
   ninIdentityId,
+  bvnIdentityId,
   otpMessage,
   selectedIdentityType,
   errors,
@@ -37,21 +44,51 @@ export default function IDFaceMatchStep({
   isVerifyingDocuments,
   documentsVerified,
   isLoading,
+  showBvnOption,
+  bvn,
+  formDataBvn,
   onNinChange,
   onPhoneNumberChange,
   onOtpChange,
   onIdentityTypeChange,
+  onUseBvnInstead,
   onSaveFormData,
   phoneInputRef,
 }: IDFaceMatchStepProps) {
   const { colors } = useTheme();
   const styles = useKYCStyles();
 
+  // If NIN is selected, show NIN verification step
+  if (selectedIdentityType === 'nin') {
+    return (
+      <NINVerificationStep
+        nin={nin}
+        phoneNumber={phoneNumber}
+        otp={otp}
+        ninIdentityId={ninIdentityId}
+        otpMessage={otpMessage}
+        errors={errors}
+        bvnVerified={bvnVerified}
+        isVerifyingDocuments={isVerifyingDocuments}
+        documentsVerified={documentsVerified}
+        isLoading={isLoading}
+        showBvnOption={showBvnOption}
+        onNinChange={onNinChange}
+        onPhoneNumberChange={onPhoneNumberChange}
+        onOtpChange={onOtpChange}
+        onUseBvnInstead={onUseBvnInstead}
+        onSaveFormData={onSaveFormData}
+        phoneInputRef={phoneInputRef}
+      />
+    );
+  }
+
+  // BVN verification step
   return (
     <View style={styles.formContainer}>
-      <Text style={styles.sectionTitle}>NIN Verification</Text>
+      <Text style={styles.sectionTitle}>BVN Verification</Text>
       <Text style={styles.sectionDescription}>
-        Please provide a government-issued ID and take a selfie for verification.
+        Please verify your Bank Verification Number (BVN) to proceed.
       </Text>
       
       {!bvnVerified && (
@@ -63,57 +100,105 @@ export default function IDFaceMatchStep({
         </View>
       )}
       
-      <View style={styles.idTypeSelector}>
-        <Text style={styles.label}>Select ID Type</Text>
-        <View style={styles.idOptions}>
-          <Pressable
-            style={[
-              styles.idOption,
-              selectedIdentityType === 'nin' && styles.selectedIdOption
-            ]}
-            onPress={() => {
-              onIdentityTypeChange('nin');
-            }}
-            disabled={isVerifyingDocuments || documentsVerified}
-          >
-            <Text style={[
-              styles.idOptionText,
-              selectedIdentityType === 'nin' && styles.selectedIdOptionText
-            ]}>NIN</Text>
-          </Pressable>
-        </View>
-      </View>
+      {!bvnIdentityId && (
+        <>
+          <View style={styles.idTypeSelector}>
+            <Text style={styles.label}>Select ID Type</Text>
+            <View style={styles.idOptions}>
+              <Pressable
+                style={[
+                  styles.idOption,
+                  (selectedIdentityType as string) === 'nin' && styles.selectedIdOption,
+                  ((selectedIdentityType as string) === 'bvn' || bvnIdentityId) && styles.disabledOption
+                ]}
+                onPress={() => {
+                  onIdentityTypeChange('nin');
+                  // Clear errors when switching
+                  // errors will be cleared by parent component
+                }}
+                disabled={isVerifyingDocuments || documentsVerified || (selectedIdentityType as string) === 'bvn' || !!bvnIdentityId}
+              >
+                <Text style={[
+                  styles.idOptionText,
+                  (selectedIdentityType as string) === 'nin' && styles.selectedIdOptionText,
+                  ((selectedIdentityType as string) === 'bvn' || bvnIdentityId) && styles.disabledOptionText
+                ]}>NIN</Text>
+              </Pressable>
+              
+              {showBvnOption && (
+                <Pressable
+                  style={[
+                    styles.idOption,
+                    selectedIdentityType === 'bvn' && styles.selectedIdOption,
+                    ((selectedIdentityType as string) === 'nin' || ninIdentityId) && styles.disabledOption
+                  ]}
+                  onPress={() => {
+                    onIdentityTypeChange('bvn');
+                  }}
+                  disabled={isVerifyingDocuments || documentsVerified || (selectedIdentityType as string) === 'nin' || !!ninIdentityId}
+                >
+                  <Text style={[
+                    styles.idOptionText,
+                    selectedIdentityType === 'bvn' && styles.selectedIdOptionText,
+                    ((selectedIdentityType as string) === 'nin' || ninIdentityId) && styles.disabledOptionText
+                  ]}>BVN</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+          
+          {selectedIdentityType === 'bvn' && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Bank Verification Number (BVN)</Text>
+              <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your 11-digit BVN"
+                  placeholderTextColor={colors.textTertiary}
+                  value={bvn || formDataBvn || ''}
+                  editable={false}
+                  keyboardType="numeric"
+                  maxLength={11}
+                />
+              </View>
+              {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
+            </View>
+          )}
+        </>
+      )}
       
-      {selectedIdentityType === 'nin' && (
+      {bvnIdentityId && (
         <>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>National Identification Number (NIN)</Text>
-            <View style={[styles.inputContainer, errors.nin && styles.inputError]}>
+            <Text style={styles.label}>Enter OTP</Text>
+            
+            <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your 11-digit NIN"
+                placeholder="Enter 6-digit OTP"
                 placeholderTextColor={colors.textTertiary}
-                value={nin}
+                value={otp}
                 onChangeText={(text) => {
-                  // Only allow numbers and limit to 11 digits
+                  // Only allow numbers and limit to 6 digits
                   const numericText = text.replace(/[^0-9]/g, '');
-                  if (numericText.length <= 11) {
-                    onNinChange(numericText);
+                  if (numericText.length <= 6) {
+                    onOtpChange(numericText);
                   }
                 }}
                 keyboardType="numeric"
-                maxLength={11}
-                editable={!isVerifyingDocuments && !documentsVerified && !ninIdentityId}
+                maxLength={6}
+                editable={!isLoading && !documentsVerified}
+                autoFocus={true}
               />
             </View>
-            {errors.nin && <Text style={styles.errorText}>{errors.nin}</Text>}
+            <Text style={styles.sectionDescription}>
+              {otpMessage || 'Enter the phone number linked to your BVN. This is required for BVN verification.'}
+            </Text>
+            {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
           </View>
           
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Phone Number *</Text>
-            <Text style={styles.sectionDescription}>
-              Enter the phone number linked to your NIN. This is required for NIN verification.
-            </Text>
             <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
               <TextInput
                 ref={phoneInputRef}
@@ -142,36 +227,10 @@ export default function IDFaceMatchStep({
               />
             </View>
             {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
+            <Text style={styles.helperText}>
+              Confirm the phone number linked to your BVN. This is required for account creation.
+            </Text>
           </View>
-          
-          {ninIdentityId && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Enter OTP</Text>
-              <Text style={styles.sectionDescription}>
-                {otpMessage || 'An OTP has been sent to the phone number linked to your NIN. Please enter the 6-digit code.'}
-              </Text>
-              <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter 6-digit OTP"
-                  placeholderTextColor={colors.textTertiary}
-                  value={otp}
-                  onChangeText={(text) => {
-                    // Only allow numbers and limit to 6 digits
-                    const numericText = text.replace(/[^0-9]/g, '');
-                    if (numericText.length <= 6) {
-                      onOtpChange(numericText);
-                    }
-                  }}
-                  keyboardType="numeric"
-                  maxLength={6}
-                  editable={!isLoading && !documentsVerified}
-                  autoFocus={true}
-                />
-              </View>
-              {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
-            </View>
-          )}
         </>
       )}
       

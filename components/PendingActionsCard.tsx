@@ -38,7 +38,7 @@ export default function PendingActionsCard() {
   const [isLoading, setIsLoading] = useState(true);
   const { session } = useAuth();
   const { isAuthenticated } = useRequireAuth();
-  const { hasAppLockPin } = usePin();
+  const { hasAppLockPin, isLoading: pinLoading } = usePin();
   const haptics = useHaptics();
   const { isOnline } = useOnlineStatus();
   const { progress, currentTier = 0, getTierInfo } = useKYCProgress();
@@ -62,139 +62,10 @@ export default function PendingActionsCard() {
     }
   };
 
-  // Get tier-specific pending actions - show all incomplete tiers
+  // Get tier-specific pending actions - permanently hidden
   const getTierPendingActions = (): PendingAction[] => {
-    if (!progress) return [];
-
-    const actions: PendingAction[] = [];
-    const tier = currentTier || 0;
-
-    // Tier 1 requirements: Liveness + BVN + NIN
-    // Show if tier < 1 (user hasn't completed Tier 1)
-    if (tier < 1) {
-      const missingSteps: string[] = [];
-      
-      if (!progress.liveness_test_completed) {
-        missingSteps.push('Liveness Test');
-      }
-      if (!progress.bvn_verified) {
-        missingSteps.push('BVN');
-      }
-      if (!progress.id_face_verified) {
-        missingSteps.push('NIN');
-      }
-
-      if (missingSteps.length > 0) {
-        let description = '';
-        if (missingSteps.length === 1) {
-          description = `Complete ${missingSteps[0]} verification`;
-        } else if (missingSteps.length === 2) {
-          description = `Complete ${missingSteps[0]} and ${missingSteps[1]} verification`;
-        } else {
-          description = `Complete ${missingSteps.slice(0, -1).join(', ')}, and ${missingSteps[missingSteps.length - 1]} verification`;
-        }
-
-        actions.push({
-          id: 'tier-1-verification',
-          title: 'Tier 1: Basic Verification',
-          description: 'Increase single transaction limit to ₦50,000',
-          icon: Tier1Icon,
-          iconBg: '#EFEDED',
-          iconColor: '#F59E0B',
-          route: '/kyc-upgrade',
-          priority: 'high',
-        });
-      }
-    }
-
-    // Tier 2 requirements: Tier 1 + Personal Info + Documents
-    // Always show if tier < 2 (user hasn't completed Tier 2)
-    if (tier < 2) {
-      const missingSteps: string[] = [];
-      
-      if (!progress.personal_info_completed) {
-        missingSteps.push('Personal Information');
-      }
-      if (!progress.documents_verified) {
-        missingSteps.push('Document Verification');
-      }
-
-      // Check if Tier 1 is complete (prerequisite for Tier 2)
-      const tier1Complete = tier >= 1 || 
-        (progress.liveness_test_completed && progress.bvn_verified && progress.id_face_verified);
-
-      // Show Tier 2 action even if all steps are missing (user can see what's needed)
-      let description = '';
-      if (missingSteps.length === 0) {
-        // All Tier 2 steps are complete, but tier might not be updated yet
-        // description = 'Complete personal information and document verification';
-      } else if (missingSteps.length === 1) {
-        description = `Complete ${missingSteps[0]}`;
-      } else {
-        description = `Complete ${missingSteps[0]} and ${missingSteps[1]}`;
-      }
-
-      actions.push({
-        id: 'tier-2-verification',
-        title: 'Tier 2: Enhanced Verification',
-        description: tier1Complete 
-          ? 'Increase single transaction limit to ₦200,000'
-          : 'Complete Tier 1 first to unlock Tier 2 verification',
-        icon: Tier2Icon,
-        iconBg: tier1Complete ? '#EFF6FF' : '#F3F4F6',
-        iconColor: tier1Complete ? '#1E3A8A' : '#9CA3AF',
-        route: '/kyc-upgrade',
-        priority: tier1Complete ? 'high' : 'medium',
-        disabled: !tier1Complete,
-        disabledReason: 'Complete Tier 1 first',
-      });
-    }
-
-    // Tier 3 requirements: Tier 2 + Address + Utility
-    // Always show if tier < 3 (user hasn't completed Tier 3)
-    if (tier < 3) {
-      const missingSteps: string[] = [];
-      
-      if (!progress.address_completed) {
-        missingSteps.push('Address Details');
-      }
-      if (!progress.utility_bill_verified) {
-        missingSteps.push('Utility Bill');
-      }
-
-      // Check if Tier 2 is complete (prerequisite for Tier 3)
-      const tier2Complete = tier >= 2 || 
-        (progress.personal_info_completed && progress.documents_verified && 
-         progress.liveness_test_completed && progress.bvn_verified && progress.id_face_verified);
-
-      // Show Tier 3 action even if all steps are missing (user can see what's needed)
-      let description = '';
-      if (missingSteps.length === 0) {
-        // All Tier 3 steps are complete, but tier might not be updated yet
-        // description = 'Complete address details and utility bill verification';
-      } else if (missingSteps.length === 1) {
-        description = `Complete ${missingSteps[0]}`;
-      } else {
-        description = `Complete ${missingSteps[0]} and ${missingSteps[1]}`;
-      }
-
-      actions.push({
-        id: 'tier-3-verification',
-        title: 'Tier 3: Full Verification',
-        description: tier2Complete
-          ? 'Increase single transaction limit to ₦5,000,000'
-          : 'Complete Tier 2 first to unlock Tier 3 verification',
-        icon: Tier3Icon,
-        iconBg: tier2Complete ? '#F0FDF4' : '#F3F4F6',
-        iconColor: tier2Complete ? '#22C55E' : '#9CA3AF',
-        route: '/kyc-upgrade',
-        priority: tier2Complete ? 'high' : 'medium',
-        disabled: !tier2Complete,
-        disabledReason: 'Complete Tier 2 first',
-      });
-    }
-
-    return actions;
+    // KYC Tiers are permanently hidden from PendingActionsCard
+    return [];
   };
 
   const fetchProfileData = async () => {
@@ -238,7 +109,8 @@ export default function PendingActionsCard() {
       });
     }
 
-    if (!hasAppLockPin) {
+    // Only check PIN status if PIN loading is complete
+    if (!pinLoading && !hasAppLockPin) {
       actions.push({
         id: 'setup-app-lock',
         title: 'Setup App PIN',
@@ -251,18 +123,19 @@ export default function PendingActionsCard() {
       });
     }
 
-    if (!profileData?.two_factor_enabled) {
-      actions.push({
-        id: 'setup-2fa',
-        title: 'Setup 2FA',
-        description: 'Enable two-factor authentication',
-        icon: Fingerprint,
-        iconBg: colors.backgroundTertiary,
-        iconColor: colors.text,
-        route: '/two-factor-auth',
-        priority: 'medium',
-      });
-    }
+    // Setup 2FA is permanently hidden from PendingActionsCard
+    // if (!profileData?.two_factor_enabled) {
+    //   actions.push({
+    //     id: 'setup-2fa',
+    //     title: 'Setup 2FA',
+    //     description: 'Enable two-factor authentication',
+    //     icon: Fingerprint,
+    //     iconBg: colors.backgroundTertiary,
+    //     iconColor: colors.text,
+    //     route: '/two-factor-auth',
+    //     priority: 'medium',
+    //   });
+    // }
 
     return actions;
   };
@@ -281,7 +154,8 @@ export default function PendingActionsCard() {
       case 'verify-email':
         return !!profileData?.email_verified || !!session?.user?.email_confirmed_at;
       case 'setup-app-lock':
-        return hasAppLockPin;
+        // Only consider PIN setup completed if PIN loading is done and PIN exists
+        return !pinLoading && hasAppLockPin;
       case 'account-verification':
         return !!profileData?.account_verified;
       case 'setup-2fa':
@@ -323,13 +197,13 @@ export default function PendingActionsCard() {
     return null;
   }
 
-  // Don't render if there are no pending actions and data is loaded
-  if (!isLoading && filteredActions.length === 0) {
+  // Don't render if there are no pending actions and data is loaded (including PIN state)
+  if (!isLoading && !pinLoading && filteredActions.length === 0) {
     return null;
   }
 
   // Show loading state
-  if (isLoading) {
+  if (isLoading || pinLoading) {
     return (
       <View>
         <Text style={styles.sectionTitle}>Pending Actions</Text>
@@ -441,7 +315,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     gap: 12,
   },
   actionCard: {
-    width: Platform.OS === 'ios' ? 300 : 320,
+    width: Platform.OS === 'ios' ? 300 : 250,
     backgroundColor: colors.card,
     borderRadius: 12,
     height: 110,

@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, TextInput, Alert, Platform } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Info, Plus, X } from 'lucide-react-native';
 import Button from '@/components/Button';
 import { useState, useEffect, useRef } from 'react';
@@ -13,12 +13,21 @@ import * as Haptics from 'expo-haptics';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
+  const params = useLocalSearchParams();
   const { balance, lockedBalance } = useBalance();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
   const availableBalance = balance - lockedBalance;
   const amountInputRef = useRef<TextInput>(null);
+
+  // Initialize amount from params if editing
+  useEffect(() => {
+    if (params.totalAmount) {
+      const amountValue = params.totalAmount as string;
+      setAmount(amountValue.replace(/,/g, ''));
+    }
+  }, [params.totalAmount]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -56,7 +65,23 @@ export default function AmountScreen() {
     haptics.mediumImpact();
     router.push({
       pathname: '/create-payout/schedule',
-      params: { totalAmount: amount }
+      params: {
+        totalAmount: amount,
+        frequency: params.frequency || '',
+        payoutAmount: params.payoutAmount || '',
+        duration: params.duration || '',
+        startDate: params.startDate || '',
+        bankName: params.bankName || '',
+        accountNumber: params.accountNumber || '',
+        accountName: params.accountName || '',
+        bankAccountId: params.bankAccountId || '',
+        payoutAccountId: params.payoutAccountId || '',
+        emergencyWithdrawal: params.emergencyWithdrawal || 'false',
+        customDates: params.customDates || '',
+        dayOfWeek: params.dayOfWeek || '',
+        payoutHour: params.payoutHour || '',
+        payoutMinute: params.payoutMinute || '',
+      }
     });
   };
 

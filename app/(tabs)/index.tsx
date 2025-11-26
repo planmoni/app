@@ -4,6 +4,8 @@ import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 import AccountInformationModal from '@/components/AccountInformationModal';
 import PlanCreationModal from '@/components/PlanCreationModal';
 import AppLockModal from '@/components/AppLockModal';
+import IdentityVerificationSuccessModal from '@/components/IdentityVerificationSuccessModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
@@ -50,6 +52,7 @@ import { useKYCProgress } from '@/hooks/useKYCProgress';
 // import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
+import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
 import { logAnalyticsEvent } from '@/lib/firebase';
 // import { intercomInstant } from '@/lib/IntercomInstant';
 import NotificationIcon from '@/components/NotificationIcon';
@@ -83,7 +86,8 @@ export default function HomeScreen() {
   const { updateLastActiveOnInteraction } = useAppLock();
   const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
-  const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress } = useKYCProgress();
+  const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress, currentTier } = useKYCProgress();
+  const { hasCreatedPayoutPlan, isLoading: hasCreatedPayoutPlanLoading } = useHasCreatedPayoutPlan();
   const navigation = useNavigation();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
@@ -111,6 +115,7 @@ export default function HomeScreen() {
   const [hasDismissedDepositModal, setHasDismissedDepositModal] = useState(false);
   const [showAppLockModal, setShowAppLockModal] = useState(false);
   const [hasShownAppLockModal, setHasShownAppLockModal] = useState(false);
+  const [showIdentityVerificationModal, setShowIdentityVerificationModal] = useState(false);
   const { hasAppLockPin } = usePin();
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
@@ -228,6 +233,30 @@ export default function HomeScreen() {
 
   // Don't show ClaimAccountModal after Tier 1 completion - user can navigate directly to add funds
   // Removed the useEffect that automatically shows ClaimAccountModal after Tier 1 completion
+
+  // Check for identity verification success flag and show modal
+  useEffect(() => {
+    const checkIdentityVerificationSuccess = async () => {
+      try {
+        const shouldShow = await AsyncStorage.getItem('show_identity_verification_success');
+        if (shouldShow === 'true') {
+          // Small delay to ensure smooth transition after redirect
+          const timer = setTimeout(() => {
+            setShowIdentityVerificationModal(true);
+            // Clear the flag immediately so it doesn't show again
+            AsyncStorage.removeItem('show_identity_verification_success');
+          }, 500);
+          return () => clearTimeout(timer);
+        }
+      } catch (error) {
+        console.error('Error checking identity verification success flag:', error);
+      }
+    };
+    
+    if (session?.user?.id) {
+      checkIdentityVerificationSuccess();
+    }
+  }, [session?.user?.id]);
 
   // Show AccountInformationModal only when coming from Tier1CompletionModal
   const params = useLocalSearchParams();
@@ -535,9 +564,22 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // Always show the new plan info modal for these buttons
-    setShowNewPlanInfoModal(true);
-    logAnalyticsEvent('create_payout_click_modal');
+    // For authenticated users, only show modal if user has never created a payout plan before
+    if (isAuthenticated) {
+      if (hasCreatedPayoutPlan) {
+        // User has created a payout plan before - navigate directly to create payout
+        router.push('/create-payout/amount');
+        logAnalyticsEvent('create_payout_click_direct');
+      } else {
+        // User has never created a payout plan - show info modal
+        setShowNewPlanInfoModal(true);
+        logAnalyticsEvent('create_payout_click_modal');
+      }
+    } else {
+      // Unauthenticated users - show modal
+      setShowNewPlanInfoModal(true);
+      logAnalyticsEvent('create_payout_click_modal');
+    }
   };
 
   const handleAISuggestionPress = (suggestion: any) => {
@@ -776,6 +818,7 @@ export default function HomeScreen() {
                   lastName={lastName} 
                   size={48}
                   fontSize={getScaledFontSize(18, textSizeMultiplier)}
+                  kycTier={currentTier}
                 />
               </Pressable>
             ) : (
@@ -878,7 +921,6 @@ export default function HomeScreen() {
         
         {/* On Track Card */}
         <OnTrackCard payoutPlans={payoutPlans} />
-        
         {/* AI Suggestion Section - Only show for authenticated users */}
         {isAuthenticated && (
           <AISuggestionCard 
@@ -912,6 +954,7 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         </View> */}
+        
 
         <ImageCarousel images={carouselImages} />
         {isAuthenticated && !checkTierCompletion().tier1 && <KYCCard />}
@@ -923,6 +966,7 @@ export default function HomeScreen() {
 
         {/* Next Payout Section */}
         <NextPayoutCard nextPayout={nextPayout} />
+
 
         {/* Payout Plans Section */}
         <PayoutPlansSection 
@@ -1029,6 +1073,13 @@ export default function HomeScreen() {
             }}
           />
 
+          <IdentityVerificationSuccessModal
+            isVisible={showIdentityVerificationModal}
+            onClose={() => {
+              setShowIdentityVerificationModal(false);
+            }}
+          />
+
           <PlanCreationModal
             isVisible={showPlanCreationModal}
             onClose={async () => {
@@ -1109,7 +1160,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   avatarButton: {
     borderRadius: 24,
-    overflow: 'hidden',
+    overflow: 'visible', // Changed to visible to allow badge to show
   },
   avatarPlaceholder: {
     width: 48,
@@ -1161,28 +1212,10 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: colors.textSecondary,
     lineHeight: 18,
   },
-  livenessTestButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingVertical: Platform.OS === 'ios' ? 16 : 14,
-    paddingHorizontal: 20,
-    marginBottom: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  livenessTestButtonText: {
-    color: '#FFFFFF',
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
   balanceCard: {
     borderRadius: 15,
     borderWidth: 0.5,
+    backgroundColor: colors.accentBackground,
     borderColor: colors.border,
     overflow: 'hidden',
     marginBottom: 10,
@@ -1195,7 +1228,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Platform.OS === 'ios' ? 8 : 0,
+    marginBottom: Platform.OS === 'ios' ? 8 : -1,
   },
   balanceLabelGroup: {
     flexDirection: 'row',
@@ -1214,17 +1247,17 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     padding: 4,
   },
   balanceAmount: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 35 : 34, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 35 : 30, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
-    marginBottom: Platform.OS === 'ios' ? 5 : 0,
+    marginBottom: Platform.OS === 'ios' ? 5 : -1,
   },
   lockedSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 5,
-    marginBottom: Platform.OS === 'ios' ? 10 : 10,
+    marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   lockedLabelContainer: {
     flexDirection: 'row',
@@ -1232,7 +1265,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     gap: 8,
   },
   lockedLabel: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     color: colors.textSecondary,
   },
   lockedAmount: {
@@ -1249,8 +1282,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flexDirection: 'row',
     backgroundColor: colors.primary,
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderRadius: 20,
-    height: Platform.OS === 'ios' ? 55 : 55,
+    borderRadius: Platform.OS === 'ios' ? 20 : 15,
+    height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
@@ -1263,12 +1296,12 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: colors.backgroundBlack + '70',
+    backgroundColor: Platform.OS === 'ios' ? colors.backgroundBlack + '70' : colors.background + '10',
     padding: Platform.OS === 'ios' ? 14 : 10,
     borderWidth: 2, 
     borderColor: isDark ? '#fff' : colors.primary,
-    borderRadius: 20,
-    height: Platform.OS === 'ios' ? 55 : 55,
+    borderRadius: Platform.OS === 'ios' ? 20 : 15,
+    height: Platform.OS === 'ios' ? 55 : 45,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,

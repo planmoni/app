@@ -21,29 +21,14 @@ export default function NotificationIcon({ size = 24, color }: NotificationIconP
     if (session?.user?.id) {
       fetchUnreadCount();
       
-      // Set up real-time subscription with unique channel name
-      const channelName = `notification-count-${session.user.id}`;
-      const channel = supabase
-        .channel(channelName)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'events',
-            filter: `user_id=eq.${session.user.id}`,
-          },
-          () => {
-            // Refresh count when events change
-            fetchUnreadCount();
-          }
-        );
-      // Only subscribe if not already subscribed
-      if (channel.state === 'closed' || channel.state === 'leaving') {
-        channel.subscribe();
-      }
+      // Poll for updates every 30 seconds instead of real-time subscription
+      // Server-side push notifications handle delivery when app is closed
+      const pollInterval = setInterval(() => {
+        fetchUnreadCount();
+      }, 30000); // Poll every 30 seconds
+
       return () => {
-        supabase.removeChannel(channel);
+        clearInterval(pollInterval);
       };
     }
   }, [session?.user?.id]);

@@ -17,8 +17,17 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
 import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 import { safeHavenService } from '@/lib/safehaven-service';
-
-type IdentityType = 'bvn' | 'nin' | 'passport';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+// KYC Step Components
+import LivenessVerificationStep from '@/components/KYCSteps/LivenessVerificationStep';
+import BVNVerificationStep from '@/components/KYCSteps/BVNVerificationStep';
+import IDFaceMatchStep from '@/components/KYCSteps/IDFaceMatchStep';
+import PersonalInfoStep from '@/components/KYCSteps/PersonalInfoStep';
+import DocumentsVerificationStep from '@/components/KYCSteps/DocumentsVerificationStep';
+import AddressDetailsStep from '@/components/KYCSteps/AddressDetailsStep';
+import ReviewStep from '@/components/KYCSteps/ReviewStep';
+import { IdentityType } from '@/components/KYCSteps/types';
+import Tier1CompletionModal from '@/components/Tier1CompletionModal';
 
 export default function KYCUpgradeScreen() {
   const { colors, isDark } = useTheme();
@@ -41,6 +50,15 @@ export default function KYCUpgradeScreen() {
   // Helper function to get the first incomplete step from scratch
   const getFirstIncompleteStep = useCallback((): KYCStep => {
     if (!progress) return 'liveness_verification';
+    
+    // Check if Tier 1 is complete
+    const tierStatus = checkTierCompletion();
+    
+    // If Tier 1 is complete but current_step is still 'id_face_match', 
+    // keep user on id_face_match until they explicitly choose to upgrade via modal
+    if (tierStatus.tier1 && progress.current_step === 'id_face_match') {
+      return 'id_face_match';
+    }
     
     const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
     
@@ -71,7 +89,7 @@ export default function KYCUpgradeScreen() {
     }
     
     return 'review'; // Default to review if all steps are complete
-  }, [progress]);
+  }, [progress, checkTierCompletion]);
 
   // Step management - will be initialized to first incomplete step by useEffect
   const [currentStep, setCurrentStep] = useState<KYCStep>('liveness_verification');
@@ -99,6 +117,9 @@ export default function KYCUpgradeScreen() {
   const [livenessInitiated, setLivenessInitiated] = useState(false);
   const [livenessManuallyClosed, setLivenessManuallyClosed] = useState(false);
   const [livenessCompleted, setLivenessCompleted] = useState(false);
+  
+  // Tier 1 completion modal
+  const [showTier1CompletionModal, setShowTier1CompletionModal] = useState(false);
   
   // Personal information
   const [firstName, setFirstName] = useState('');
@@ -349,7 +370,7 @@ export default function KYCUpgradeScreen() {
 
   // Update current step when progress changes, but skip to first incomplete step
   useEffect(() => {
-    if (progress && !progressLoading) {
+    if (progress && !progressLoading && !showTier1CompletionModal) {
       setBvnVerified(progress.bvn_verified);
       setDocumentsVerified(progress.documents_verified);
       
@@ -364,7 +385,7 @@ export default function KYCUpgradeScreen() {
         setShowBvnOption(true);
       }
     }
-  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep, bvn, formData?.bvn]);
+  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep, bvn, formData?.bvn, showTier1CompletionModal]);
 
   // Auto-focus BVN input when step changes to bvn_verification
   useEffect(() => {
@@ -1344,8 +1365,12 @@ export default function KYCUpgradeScreen() {
         await updateTier(); // Update tier after BVN verification
         const tierStatus = checkTierCompletion();
         if (tierStatus.tier1) {
-          console.log('Tier 1 completed! User can now proceed to Tier 2.');
-          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+          console.log('Tier 1 completed! Showing completion modal.');
+          // Show Tier 1 completion modal - show even if account number not yet available
+          setShowTier1CompletionModal(true);
+          setIsManualVerification(false);
+          setIsResolvingBvn(false);
+          return; // Don't proceed automatically - let user choose from modal
         }
       }
       
@@ -1354,15 +1379,19 @@ export default function KYCUpgradeScreen() {
         return;
       }
       
-      // Wait for toast to be visible before moving to next step
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Move to next incomplete step (skip if already verified)
-      const nextStep = getNextIncompleteStep('bvn_verification');
-      setCurrentStep(nextStep);
-      setTimeout(() => {
-        setIsManualVerification(false);
-      }, 1000);
+      // Only proceed to next step if Tier 1 is not complete
+      const tierStatus = checkTierCompletion();
+      if (!tierStatus.tier1) {
+        // Wait for toast to be visible before moving to next step
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Move to next incomplete step (skip if already verified)
+        const nextStep = getNextIncompleteStep('bvn_verification');
+        setCurrentStep(nextStep);
+        setTimeout(() => {
+          setIsManualVerification(false);
+        }, 1000);
+      }
       
       // } else {
       //   throw new Error('Name mismatch detected. Please verify your personal information.');
@@ -1934,8 +1963,9 @@ export default function KYCUpgradeScreen() {
       }
       
       // Update progress with NIN verified (using id_face_verified)
+      // Don't update current_step to 'personal' yet - wait for user to choose via modal
       const progressResult = await updateProgress({
-        current_step: 'personal', // Move to personal info (Tier 2) after NIN verification
+        current_step: 'id_face_match', // Keep on id_face_match until user chooses to upgrade
         id_face_verified: true
       });
       
@@ -1944,26 +1974,30 @@ export default function KYCUpgradeScreen() {
         await updateTier(); // Update tier after NIN verification
         const tierStatus = checkTierCompletion();
         if (tierStatus.tier1) {
-          console.log('Tier 1 completed! User can now proceed to Tier 2.');
-          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+          console.log('Tier 1 completed! Showing completion modal.');
+          // Show Tier 1 completion modal - show even if account number not yet available
+          setShowTier1CompletionModal(true);
+          setIsManualVerification(false);
+          setIsLoading(false);
+          return; // Don't proceed automatically - let user choose from modal
         }
       }
       
       if (!progressResult) {
         showToast('Failed to update progress. Please try again.', 'error');
+        setIsLoading(false);
         return;
       }
       
-      // Wait for toast to be visible before moving to next step
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Set loading to false before redirecting
+      setIsManualVerification(false);
+      setIsLoading(false);
       
-      // Move to next incomplete step
-      const nextStep = getNextIncompleteStep('id_face_match');
-      setCurrentStep(nextStep);
-      setTimeout(() => {
-        setIsManualVerification(false);
-        setIsLoading(false);
-      }, 1000);
+      // Set flag to show identity verification success modal on home page
+      await AsyncStorage.setItem('show_identity_verification_success', 'true');
+      
+      // Redirect to tabs immediately after verification completes
+      router.replace('/(tabs)');
       
       // } else {
       //   throw new Error('Name mismatch detected. Please verify your personal information.');
@@ -2131,8 +2165,9 @@ export default function KYCUpgradeScreen() {
       }
       
       // Update progress with BVN verified (using id_face_verified)
+      // Don't update current_step to 'personal' yet - wait for user to choose via modal
       const progressResult = await updateProgress({
-        current_step: 'personal', // Move to personal info (Tier 2) after BVN verification
+        current_step: 'id_face_match', // Keep on id_face_match until user chooses to upgrade
         id_face_verified: true
       });
       
@@ -2141,26 +2176,30 @@ export default function KYCUpgradeScreen() {
         await updateTier(); // Update tier after BVN verification
         const tierStatus = checkTierCompletion();
         if (tierStatus.tier1) {
-          console.log('Tier 1 completed! User can now proceed to Tier 2.');
-          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+          console.log('Tier 1 completed! Showing completion modal.');
+          // Show Tier 1 completion modal - show even if account number not yet available
+          setShowTier1CompletionModal(true);
+          setIsManualVerification(false);
+          setIsLoading(false);
+          return; // Don't proceed automatically - let user choose from modal
         }
       }
       
       if (!progressResult) {
         showToast('Failed to update progress. Please try again.', 'error');
+        setIsLoading(false);
         return;
       }
       
-      // Wait for toast to be visible before moving to next step
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Set loading to false before redirecting
+      setIsManualVerification(false);
+      setIsLoading(false);
       
-      // Move to next incomplete step
-      const nextStep = getNextIncompleteStep('id_face_match');
-      setCurrentStep(nextStep);
-      setTimeout(() => {
-        setIsManualVerification(false);
-        setIsLoading(false);
-      }, 1000);
+      // Set flag to show identity verification success modal on home page
+      await AsyncStorage.setItem('show_identity_verification_success', 'true');
+      
+      // Redirect to tabs immediately after verification completes
+      router.replace('/(tabs)');
       
     } catch (error) {
       console.error('BVN verification error:', error);
@@ -2665,1144 +2704,172 @@ export default function KYCUpgradeScreen() {
   
   const renderPersonalInfoStep = () => {
     return (
-      <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>Basic Information</Text>
-        <Text style={styles.sectionDescription}>
-          Please provide your personal details as they appear on your official documents.
-        </Text>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>First Name</Text>
-          <View style={[styles.inputContainer, errors.firstName && styles.inputError]}>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your first name"
-              placeholderTextColor={colors.textTertiary}
-              value={firstName}
-              onChangeText={(text) => {
-                setFirstName(text);
-                setErrors(prev => ({ ...prev, firstName: '' }));
-              }}
-              autoCapitalize="words"
-              returnKeyType="next"
-              onSubmitEditing={() => lastNameInputRef.current?.focus()}
-            />
-          </View>
-          {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Last Name</Text>
-          <View style={[styles.inputContainer, errors.lastName && styles.inputError]}>
-            <TextInput
-              ref={lastNameInputRef}
-              style={styles.input}
-              placeholder="Enter your last name"
-              placeholderTextColor={colors.textTertiary}
-              value={lastName}
-              onChangeText={(text) => {
-                setLastName(text);
-                setErrors(prev => ({ ...prev, lastName: '' }));
-              }}
-              autoCapitalize="words"
-              returnKeyType="next"
-              onSubmitEditing={() => middleNameInputRef.current?.focus()}
-            />
-          </View>
-          {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Middle Name (Optional)</Text>
-          <View style={styles.inputContainer}>
-            <TextInput
-              ref={middleNameInputRef}
-              style={styles.input}
-              placeholder="Enter your middle name"
-              placeholderTextColor={colors.textTertiary}
-              value={middleName}
-              onChangeText={setMiddleName}
-              autoCapitalize="words"
-              returnKeyType="next"
-              onSubmitEditing={() => phoneInputRef.current?.focus()}
-            />
-          </View>
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Date of Birth</Text>
-          <Pressable 
-            style={[styles.inputContainer, errors.dateOfBirth && styles.inputError]}
-            onPress={handleDatePickerOpen}
-          >
-            <View style={styles.dateInputContent}>
-              <Calendar size={20} color={colors.textSecondary} />
-              <Text style={[
-                styles.dateInputText,
-                !dateOfBirth && styles.dateInputPlaceholder
-              ]}>
-                {dateOfBirth || 'DD/MM/YYYY'}
-              </Text>
-            </View>
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
-          {errors.dateOfBirth && <Text style={styles.errorText}>{errors.dateOfBirth}</Text>}
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Phone Number</Text>
-          <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
-            <TextInput
-              ref={phoneInputRef}
-              style={styles.input}
-              placeholder="090XXXXXXXX"
-              placeholderTextColor={colors.textTertiary}
-              value={phoneNumber}
-              onChangeText={(text) => {
-                setPhoneNumber(text);
-                setErrors(prev => ({ ...prev, phoneNumber: '' }));
-              }}
-              keyboardType="phone-pad"
-              returnKeyType="next"
-              onSubmitEditing={() => addressInputRef.current?.focus()}
-            />
-            </View>
-            {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
-            <Text style={styles.helperText}>
-              Use the same phone number you registered your NIN with. One-Time Passwords can only be sent to that line.
-            </Text>
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>House/Street Number</Text>
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter house/street number"
-              placeholderTextColor={colors.textTertiary}
-              value={addressNo}
-              onChangeText={(text) => {
-                setAddressNo(text);
-                setErrors(prev => ({ ...prev, addressNo: '' }));
-              }}
-              keyboardType="numeric"
-            />
-          </View>
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Residential Address</Text>
-          <Pressable 
-            style={[styles.inputContainer, errors.address && styles.inputError]}
-            onPress={() => setShowLocationSearch(true)}
-          >
-            <TextInput
-              ref={addressInputRef}
-              style={[styles.input, styles.multilineInput]}
-              placeholder="Tap to search for your address"
-              placeholderTextColor={colors.textTertiary}
-              value={address}
-              onChangeText={(text) => {
-                setAddress(text);
-                setErrors(prev => ({ ...prev, address: '' }));
-              }}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-              editable={false}
-            />
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
-          {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
-          {address && (
-            <Text style={styles.locationInfo}>
-              📍 Location selected from map
-            </Text>
-          )}
-        </View>
-        
-        <View style={styles.infoContainer}>
-          <Info size={20} color={colors.primary} />
-          <Text style={styles.infoText}>
-            Your personal information is securely stored and will only be used for verification purposes.
-          </Text>
-        </View>
-      </View>
+      <PersonalInfoStep
+        firstName={firstName}
+        lastName={lastName}
+        middleName={middleName}
+        dateOfBirth={dateOfBirth}
+        phoneNumber={phoneNumber}
+        address={address}
+        addressNo={addressNo}
+        errors={errors}
+        onFirstNameChange={(text) => {
+          setFirstName(text);
+          setErrors(prev => ({ ...prev, firstName: '' }));
+        }}
+        onLastNameChange={(text) => {
+          setLastName(text);
+          setErrors(prev => ({ ...prev, lastName: '' }));
+        }}
+        onMiddleNameChange={setMiddleName}
+        onDateOfBirthChange={setDateOfBirth}
+        onPhoneNumberChange={(text) => {
+          setPhoneNumber(text);
+          setErrors(prev => ({ ...prev, phoneNumber: '' }));
+        }}
+        onAddressChange={(text) => {
+          setAddress(text);
+          setErrors(prev => ({ ...prev, address: '' }));
+        }}
+        onAddressNoChange={(text) => {
+          setAddressNo(text);
+          setErrors(prev => ({ ...prev, addressNo: '' }));
+        }}
+        onDatePickerOpen={handleDatePickerOpen}
+        onLocationSearchOpen={() => setShowLocationSearch(true)}
+        lastNameInputRef={lastNameInputRef}
+        middleNameInputRef={middleNameInputRef}
+        phoneInputRef={phoneInputRef}
+        addressInputRef={addressInputRef}
+      />
     );
   };
   
   const renderDocumentsVerificationStep = () => {
     return (
-      <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>Document Verification</Text>
-        <Text style={styles.sectionDescription}>
-          Please upload clear photos of your identity document for verification.
-        </Text>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Document Type</Text>
-          <View style={styles.identityTypeContainer}>
-            <Pressable
-              style={[
-                styles.identityTypeOption,
-                selectedIdentityType === 'nin' && styles.identityTypeSelected
-              ]}
-              onPress={() => setSelectedIdentityType('nin')}
-            >
-              <Text style={[
-                styles.identityTypeText,
-                selectedIdentityType === 'nin' && styles.identityTypeTextSelected
-              ]}>
-                NIN
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.identityTypeOption,
-                selectedIdentityType === 'passport' && styles.identityTypeSelected
-              ]}
-              onPress={() => setSelectedIdentityType('passport')}
-            >
-              <Text style={[
-                styles.identityTypeText,
-                selectedIdentityType === 'passport' && styles.identityTypeTextSelected
-              ]}>
-                Passport
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Front of Document *</Text>
-          <View style={styles.documentActions}>
-            {/* <Pressable style={styles.documentButton} onPress={() => takePicture('front')}>
-              <Text style={styles.documentButtonText}>Take Photo</Text>
-            </Pressable> */}
-            <Pressable style={styles.documentButton} onPress={() => pickImage(setDocumentFrontImage, 'documentFront')}>
-              <Text style={styles.documentButtonText}>Upload Photo</Text>
-            </Pressable>
-          </View>
-          <Pressable
-            style={[styles.imageUploadContainer, errors.documentFront && styles.inputError]}
-            onPress={() => takePicture('front')}
-          >
-            {documentFrontImage ? (
-              <Image source={{ uri: documentFrontImage }} style={styles.uploadedImage} />
-            ) : (
-              <View style={styles.uploadPlaceholder}>
-                <Camera size={24} color={colors.textSecondary} />
-                <Text style={styles.uploadText}>Tap to take photo</Text>
-              </View>
-            )}
-          </Pressable>
-          
-          {errors.documentFront && <Text style={styles.errorText}>{errors.documentFront}</Text>}
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Back of Document (Optional)</Text>
-          <View style={styles.documentActions}>
-            {/* <Pressable style={styles.documentButton} onPress={() => takePicture('back')}>
-              <Text style={styles.documentButtonText}>Take Photo</Text>
-            </Pressable> */}
-            <Pressable style={styles.documentButton} onPress={() => pickImage(setDocumentBackImage, 'documentBack')}>
-              <Text style={styles.documentButtonText}>Upload Photo</Text>
-            </Pressable>
-          </View>
-          <Pressable
-            style={[styles.imageUploadContainer, errors.documentBack && styles.inputError]}
-            onPress={() => takePicture('back')}
-          >
-            {documentBackImage ? (
-              <Image source={{ uri: documentBackImage }} style={styles.uploadedImage} />
-            ) : (
-              <View style={styles.uploadPlaceholder}>
-                <Camera size={24} color={colors.textSecondary} />
-                <Text style={styles.uploadText}>Tap to take photo</Text>
-              </View>
-            )}
-          </Pressable>
-          
-          {errors.documentBack && <Text style={styles.errorText}>{errors.documentBack}</Text>}
-        </View>
-
-        <View style={styles.infoContainer}>
-          <Info size={20} color={colors.primary} />
-          <Text style={styles.infoText}>
-            Ensure the document is clearly visible, well-lit, and all text is readable. Avoid glare and shadows.
-          </Text>
-        </View>
-      </View>
+      <DocumentsVerificationStep
+        selectedIdentityType={selectedIdentityType}
+        documentFrontImage={documentFrontImage}
+        documentBackImage={documentBackImage}
+        errors={errors}
+        onIdentityTypeChange={setSelectedIdentityType}
+        onDocumentFrontImageChange={setDocumentFrontImage}
+        onDocumentBackImageChange={setDocumentBackImage}
+        onPickImage={pickImage}
+        onTakePicture={takePicture}
+      />
     );
   };
 
   const renderBvnVerificationStep = () => {
     return (
-      <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>BVN Verification</Text>
-        <Text style={styles.sectionDescription}>
-          Please enter your Bank Verification Number (BVN) for identity verification.
-        </Text>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Bank Verification Number (BVN)</Text>
-          <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
-            <TextInput
-              ref={bvnInputRef}
-              style={styles.input}
-              placeholder="Enter your 11-digit BVN"
-              placeholderTextColor={colors.textTertiary}
-              value={bvn}
-              onChangeText={(text) => handleNumericInput(text, setBvn, 11, 'bvn')}
-              keyboardType="numeric"
-              maxLength={11}
-              editable={!isResolvingBvn && !bvnVerified}
-              autoCorrect={false}
-              autoCapitalize="none"
-              selectTextOnFocus={true}
-              blurOnSubmit={false}
-              returnKeyType="done"
-              textContentType="none"
-              autoComplete="off"
-              importantForAutofill="no"
-              spellCheck={false}
-            />
-            {/* {!bvn && !isResolvingBvn && !bvnVerified && (
-              <Pressable
-                style={styles.focusButton}
-                onPress={() => forceFocusInput(bvnInputRef)}
-              >
-                <Text style={styles.focusButtonText}>Tap to focus</Text>
-              </Pressable>
-            )} */}
-            {isResolvingBvn && (
-              <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
-            )}
-            {bvnVerified && (
-              <View style={styles.verifiedBadge}>
-                <Check size={16} color="#FFFFFF" />
-              </View>
-            )}
-          </View>
-          {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
-          {/* {!bvn && (
-            <Text style={styles.inputHelpText}>
-              💡 Having trouble typing? Tap the &quot;Tap to focus&quot; button above
-            </Text>
-          )} */}
-        </View>
-        
-        {bvnVerified && bvnMatchedName && (
-          <View style={styles.matchedNameContainer}>
-            <Check size={16} color={colors.success} />
-            <Text style={styles.matchedNameText}>
-              BVN verified! Name: {bvnMatchedName}
-            </Text>
-          </View>
-        )}
-        
-        <View style={styles.infoContainer}>
-          <Info size={20} color={colors.primary} />
-          <Text style={styles.infoText}>
-            Your BVN is used for verification purposes only. This helps us confirm your identity and protect your account.
-          </Text>
-        </View>
-      </View>
+      <BVNVerificationStep
+        bvn={bvn}
+        errors={errors}
+        bvnVerified={bvnVerified}
+        bvnMatchedName={bvnMatchedName}
+        isResolvingBvn={isResolvingBvn}
+        onBvnChange={setBvn}
+        handleNumericInput={handleNumericInput}
+        bvnInputRef={bvnInputRef}
+      />
     );
   };
   
   const renderIDFaceMatchStep = () => {
     return (
-      <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>
-          {selectedIdentityType === 'bvn' ? 'BVN Verification' : 'NIN Verification'}
-        </Text>
-        <Text style={styles.sectionDescription}>
-          {selectedIdentityType === 'bvn' 
-            ? 'Please verify your Bank Verification Number (BVN) to proceed.'
-            : 'Please provide a government-issued ID and take a selfie for verification.'}
-        </Text>
-        
-        {!bvnVerified && (
-          <View style={styles.warningContainer}>
-            <Info size={20} color={colors.warning} />
-            <Text style={styles.warningText}>
-              You must complete BVN verification before proceeding with ID verification.
-            </Text>
-          </View>
-        )}
-        
-        <View style={styles.idTypeSelector}>
-          <Text style={styles.label}>Select ID Type</Text>
-          <View style={styles.idOptions}>
-            <Pressable
-              style={[
-                styles.idOption,
-                selectedIdentityType === 'nin' && styles.selectedIdOption,
-                (selectedIdentityType === 'bvn' || bvnIdentityId) && styles.disabledOption
-              ]}
-              onPress={() => {
-                setSelectedIdentityType('nin');
-                setErrors({});
-              }}
-              disabled={isVerifyingDocuments || documentsVerified || selectedIdentityType === 'bvn' || !!bvnIdentityId}
-            >
-              <Text style={[
-                styles.idOptionText,
-                selectedIdentityType === 'nin' && styles.selectedIdOptionText,
-                (selectedIdentityType === 'bvn' || bvnIdentityId) && styles.disabledOptionText
-              ]}>NIN</Text>
-            </Pressable>
-            
-            {showBvnOption && (
-              <Pressable
-                style={[
-                  styles.idOption,
-                  selectedIdentityType === 'bvn' && styles.selectedIdOption,
-                  (selectedIdentityType === 'nin' || ninIdentityId) && styles.disabledOption
-                ]}
-                onPress={() => {
-                  setSelectedIdentityType('bvn');
-                  setErrors({});
-                }}
-                disabled={isVerifyingDocuments || documentsVerified || selectedIdentityType === 'nin' || !!ninIdentityId}
-              >
-                <Text style={[
-                  styles.idOptionText,
-                  selectedIdentityType === 'bvn' && styles.selectedIdOptionText,
-                  (selectedIdentityType === 'nin' || ninIdentityId) && styles.disabledOptionText
-                ]}>BVN</Text>
-              </Pressable>
-            )}
-            
-          </View>
-        </View>
-        
-        {selectedIdentityType === 'nin' && (
-          <>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>National Identification Number (NIN)</Text>
-              <View style={[styles.inputContainer, errors.nin && styles.inputError]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your 11-digit NIN"
-                  placeholderTextColor={colors.textTertiary}
-                  value={nin}
-                  onChangeText={(text) => {
-                    // Only allow numbers and limit to 11 digits
-                    const numericText = text.replace(/[^0-9]/g, '');
-                    if (numericText.length <= 11) {
-                      setNin(numericText);
-                      setErrors(prev => ({ ...prev, nin: '' }));
-                    }
-                  }}
-                  keyboardType="numeric"
-                  maxLength={11}
-                  editable={!isVerifyingDocuments && !documentsVerified && !ninIdentityId}
-                />
-              </View>
-              {errors.nin && <Text style={styles.errorText}>{errors.nin}</Text>}
-            </View>
-            
-            {ninIdentityId && (
-              <>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Phone Number *</Text>
-                  <Text style={styles.sectionDescription}>
-                    {otpMessage || 'Enter the phone number linked to your NIN. This is required for NIN verification.'}
-                  </Text>
-                  <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
-                    <TextInput
-                      ref={phoneInputRef}
-                      style={styles.input}
-                      placeholder="Enter your phone number"
-                      placeholderTextColor={colors.textTertiary}
-                      value={phoneNumber}
-                      onChangeText={(text) => {
-                        // Only allow numbers
-                        const numericText = text.replace(/[^0-9]/g, '');
-                        if (numericText.length <= 11) {
-                          setPhoneNumber(numericText);
-                          setErrors(prev => ({ ...prev, phoneNumber: '' }));
-                          // Save to kyc_data when phone number is entered
-                          if (numericText.length >= 10 && session?.user?.id) {
-                            saveFormData({ phone_number: numericText }).catch(err => {
-                              console.error('[KYC] Error saving phone number:', err);
-                            });
-                          }
-                        }
-                      }}
-                      keyboardType="phone-pad"
-                      maxLength={11}
-                      editable={!isVerifyingDocuments && !documentsVerified}
-                      autoCorrect={false}
-                      autoCapitalize="none"
-                    />
-                  </View>
-                  <Text style={styles.helperText}>
-                    Use the same phone number you registered your NIN with. One-Time Passwords can only be sent to that line.
-                  </Text>
-                  {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
-                </View>
-                
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Enter OTP</Text>
-                  <Text style={styles.sectionDescription}>
-                    Enter the 6-digit OTP code sent to your phone number.
-                  </Text>
-                  <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Enter 6-digit OTP"
-                      placeholderTextColor={colors.textTertiary}
-                      value={otp}
-                      onChangeText={(text) => {
-                        // Only allow numbers and limit to 6 digits
-                        const numericText = text.replace(/[^0-9]/g, '');
-                        if (numericText.length <= 6) {
-                          setOtp(numericText);
-                          setErrors(prev => ({ ...prev, otp: '' }));
-                        }
-                      }}
-                      keyboardType="numeric"
-                      maxLength={6}
-                      editable={!isLoading && !documentsVerified}
-                      autoFocus={true}
-                    />
-                  </View>
-                  {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
-                  <View style={styles.otpNoteContainer}>
-                    <Text style={styles.helperText}>
-                      Didn&apos;t receive the OTP? Confirm you&apos;re using the NIN registration number. If it still doesn&apos;t arrive, let&apos;s use your BVN instead.
-                    </Text>
-                    <Pressable onPress={handleUseBvnInstead} style={styles.linkButton}>
-                      <Text style={styles.linkButtonText}>Use BVN instead</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              </>
-            )}
-          </>
-        )}
-
-        {selectedIdentityType === 'bvn' && (
-          <>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Bank Verification Number (BVN)</Text>
-              <View style={[styles.inputContainer, errors.bvn && styles.inputError]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your 11-digit BVN"
-                  placeholderTextColor={colors.textTertiary}
-                  value={bvn || formData?.bvn || ''}
-                  editable={false}
-                  keyboardType="numeric"
-                  maxLength={11}
-                />
-              </View>
-              {errors.bvn && <Text style={styles.errorText}>{errors.bvn}</Text>}
-            </View>
-            
-            {bvnIdentityId && (
-              <>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Phone Number *</Text>
-                  <Text style={styles.sectionDescription}>
-                    {otpMessage || 'Enter the phone number linked to your BVN. This is required for BVN verification.'}
-                  </Text>
-                  <View style={[styles.inputContainer, errors.phoneNumber && styles.inputError]}>
-                    <TextInput
-                      ref={phoneInputRef}
-                      style={styles.input}
-                      placeholder="Enter your phone number"
-                      placeholderTextColor={colors.textTertiary}
-                      value={phoneNumber}
-                      onChangeText={(text) => {
-                        // Only allow numbers
-                        const numericText = text.replace(/[^0-9]/g, '');
-                        if (numericText.length <= 11) {
-                          setPhoneNumber(numericText);
-                          setErrors(prev => ({ ...prev, phoneNumber: '' }));
-                          // Save to kyc_data when phone number is entered
-                          if (numericText.length >= 10 && session?.user?.id) {
-                            saveFormData({ phone_number: numericText }).catch(err => {
-                              console.error('[KYC] Error saving phone number:', err);
-                            });
-                          }
-                        }
-                      }}
-                      keyboardType="phone-pad"
-                      maxLength={11}
-                      editable={!isVerifyingDocuments && !documentsVerified}
-                      autoCorrect={false}
-                      autoCapitalize="none"
-                    />
-                  </View>
-                  <Text style={styles.helperText}>
-                    Use the same phone number you registered your BVN with. One-Time Passwords can only be sent to that line.
-                  </Text>
-                  {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
-                </View>
-                
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Enter OTP</Text>
-                  <Text style={styles.sectionDescription}>
-                    Enter the 6-digit OTP code sent to your phone number.
-                  </Text>
-                  <View style={[styles.inputContainer, errors.otp && styles.inputError]}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Enter 6-digit OTP"
-                      placeholderTextColor={colors.textTertiary}
-                      value={otp}
-                      onChangeText={(text) => {
-                        // Only allow numbers and limit to 6 digits
-                        const numericText = text.replace(/[^0-9]/g, '');
-                        if (numericText.length <= 6) {
-                          setOtp(numericText);
-                          setErrors(prev => ({ ...prev, otp: '' }));
-                        }
-                      }}
-                      keyboardType="numeric"
-                      maxLength={6}
-                      editable={!isLoading && !documentsVerified}
-                      autoFocus={true}
-                    />
-                  </View>
-                  {errors.otp && <Text style={styles.errorText}>{errors.otp}</Text>}
-                </View>
-              </>
-            )}
-          </>
-        )}
-        
-        {/* {selectedIdentityType === 'passport' && (
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>International Passport Number</Text>
-            <View style={[styles.inputContainer, errors.passportNumber && styles.inputError]}>
-              <CreditCard size={20} color={colors.textSecondary} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your passport number"
-                placeholderTextColor={colors.textTertiary}
-                value={passportNumber}
-                onChangeText={(text) => {
-                  setPassportNumber(text);
-                  setErrors(prev => ({ ...prev, passportNumber: '' }));
-                }}
-                autoCapitalize="characters"
-                editable={!isVerifyingDocuments && !documentsVerified}
-              />
-            </View>
-            {errors.passportNumber && <Text style={styles.errorText}>{errors.passportNumber}</Text>}
-          </View>
-        )} */}
-        
-        
-        {/* <View style={styles.documentSection}>
-          <Text style={styles.documentSectionTitle}>Document Upload</Text>
-          
-          <View style={styles.documentCard}>
-            <View style={styles.documentHeader}>
-              <Text style={styles.documentName}>Front of ID</Text>
-              <View style={styles.documentStatus}>
-                <Text style={styles.documentStatusText}>Required</Text>
-              </View>
-            </View>
-            <Text style={styles.documentDescription}>
-              Upload a clear photo of the front of your {
-                selectedIdentityType === 'nin' ? 'NIN slip' :
-                selectedIdentityType === 'passport' ? 'passport' : 'document'
-              }
-            </Text>
-            
-            {documentFrontImage ? (
-              <View style={styles.imagePreviewContainer}>
-                <Image 
-                  source={{ uri: documentFrontImage }} 
-                  style={styles.imagePreview} 
-                  resizeMode="cover"
-                />
-                <Pressable 
-                  style={styles.retakeButton}
-                  onPress={() => setDocumentFrontImage(null)}
-                  disabled={isVerifyingDocuments || documentsVerified}
-                >
-                  <Text style={styles.retakeButtonText}>Retake</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <View style={styles.documentActions}>
-                <Pressable 
-                  style={styles.documentButton}
-                  onPress={() => pickImage(setDocumentFrontImage, 'documentFront')}
-                  disabled={isVerifyingDocuments || documentsVerified}
-                >
-                  <Upload size={16} color={colors.primary} />
-                  <Text style={styles.documentButtonText}>Upload</Text>
-                </Pressable>
-                
-                <Pressable 
-                  style={styles.documentButton}
-                  onPress={() => takePicture('front')}
-                  disabled={isVerifyingDocuments || documentsVerified}
-                >
-                  <Camera size={16} color={colors.primary} />
-                  <Text style={styles.documentButtonText}>Take Photo</Text>
-                </Pressable>
-              </View>
-            )}
-            {errors.documentFront && <Text style={styles.errorText}>{errors.documentFront}</Text>}
-          </View>
-          
-          {selectedIdentityType === 'passport' && (
-            <View style={styles.documentCard}>
-              <View style={styles.documentHeader}>
-                <Text style={styles.documentName}>Back of ID</Text>
-                <View style={styles.documentStatus}>
-                  <Text style={styles.documentStatusText}>Required</Text>
-                </View>
-              </View>
-              <Text style={styles.documentDescription}>
-                Upload a clear photo of the back of your {
-                  selectedIdentityType === 'passport' ? 'passport' : 'driver\'s license'
-                }
-              </Text>
-              
-              {documentBackImage ? (
-                <View style={styles.imagePreviewContainer}>
-                  <Image 
-                    source={{ uri: documentBackImage }} 
-                    style={styles.imagePreview} 
-                    resizeMode="cover"
-                  />
-                  <Pressable 
-                    style={styles.retakeButton}
-                    onPress={() => setDocumentBackImage(null)}
-                    disabled={isVerifyingDocuments || documentsVerified}
-                  >
-                    <Text style={styles.retakeButtonText}>Retake</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <View style={styles.documentActions}>
-                  <Pressable 
-                    style={styles.documentButton}
-                    onPress={() => pickImage(setDocumentBackImage, 'documentBack')}
-                    disabled={isVerifyingDocuments || documentsVerified}
-                  >
-                    <Upload size={16} color={colors.primary} />
-                    <Text style={styles.documentButtonText}>Upload</Text>
-                  </Pressable>
-                  
-                  <Pressable 
-                    style={styles.documentButton}
-                    onPress={() => takePicture('back')}
-                    disabled={isVerifyingDocuments || documentsVerified}
-                  >
-                    <Camera size={16} color={colors.primary} />
-                    <Text style={styles.documentButtonText}>Take Photo</Text>
-                  </Pressable>
-                </View>
-              )}
-              {errors.documentBack && <Text style={styles.errorText}>{errors.documentBack}</Text>}
-            </View>
-          )}
-          
-          <View style={styles.documentCard}>
-            <View style={styles.documentHeader}>
-              <Text style={styles.documentName}>Selfie Verification</Text>
-              <View style={styles.documentStatus}>
-                <Text style={styles.documentStatusText}>Required</Text>
-              </View>
-            </View>
-            <Text style={styles.documentDescription}>
-              Complete the liveness test to capture a secure selfie for verification. This advanced security feature ensures your identity is verified through facial recognition and prevents fraud.
-            </Text>
-            
-            {formData.selfie_url ? (
-              <View style={styles.imagePreviewContainer}>
-                <Image 
-                  source={{ uri: formData.selfie_url }} 
-                  style={styles.imagePreview} 
-                  resizeMode="cover"
-                />
-                <Pressable 
-                  style={styles.retakeButton}
-                  onPress={() => {
-                    setShowLivenessTest(true);
-                    haptics.lightImpact();
-                  }}
-                  disabled={isVerifyingDocuments || documentsVerified}
-                >
-                  <Text style={styles.retakeButtonText}>Retake with Liveness Test</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <View style={styles.documentActions}>
-                <Pressable 
-                  style={[styles.documentButton, styles.livenessButton, { flex: 1 }]}
-                  onPress={() => {
-                    setShowLivenessTest(true);
-                    haptics.lightImpact();
-                  }}
-                  disabled={isVerifyingDocuments || documentsVerified}
-                >
-                  <Shield size={16} color={colors.primary} />
-                  <Text style={styles.documentButtonText}>Start Liveness Test</Text>
-                </Pressable>
-              </View>
-            )}
-            {errors.selfie && <Text style={styles.errorText}>{errors.selfie}</Text>}
-          </View>
-        </View> */}
-        
-        {errors.documentVerification && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{errors.documentVerification}</Text>
-          </View>
-        )}
-        
-        <View style={styles.infoContainer}>
-          <Shield size={20} color={colors.primary} />
-          <Text style={styles.infoText}>
-            Your documents are securely encrypted and will only be used for verification purposes.
-          </Text>
-        </View>
-      </View>
+      <IDFaceMatchStep
+        nin={nin}
+        phoneNumber={phoneNumber}
+        otp={otp}
+        ninIdentityId={ninIdentityId}
+        bvnIdentityId={bvnIdentityId}
+        otpMessage={otpMessage}
+        selectedIdentityType={selectedIdentityType}
+        errors={errors}
+        bvnVerified={bvnVerified}
+        isVerifyingDocuments={isVerifyingDocuments}
+        documentsVerified={documentsVerified}
+        isLoading={isLoading}
+        showBvnOption={showBvnOption}
+        bvn={bvn}
+        formDataBvn={formData?.bvn}
+        onNinChange={setNin}
+        onPhoneNumberChange={setPhoneNumber}
+        onOtpChange={setOtp}
+        onIdentityTypeChange={(type) => {
+          setSelectedIdentityType(type);
+          setErrors({});
+        }}
+        onUseBvnInstead={handleUseBvnInstead}
+        onSaveFormData={saveFormData}
+        phoneInputRef={phoneInputRef}
+      />
     );
   };
   
   const renderAddressDetailsStep = () => {
     return (
-      <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>Address Details</Text>
-        <Text style={styles.sectionDescription}>
-          Please confirm your residential address and provide additional details.
-        </Text>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>House/Street Number</Text>
-          <View style={styles.inputContainer}>
-            <MapPin size={20} color={colors.textSecondary} />
-            <TextInput
-              style={styles.input}
-              placeholder="Enter house/street number"
-              placeholderTextColor={colors.textTertiary}
-              value={addressNo}
-              onChangeText={(text) => {
-                setAddressNo(text);
-                setErrors(prev => ({ ...prev, addressNo: '' }));
-              }}
-              keyboardType="numeric"
-            />
-          </View>
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Residential Address</Text>
-          <Pressable 
-            style={[styles.inputContainer, errors.address && styles.inputError]}
-            onPress={() => setShowLocationSearch(true)}
-          >
-            <MapPin size={20} color={colors.textSecondary} />
-            <TextInput
-              ref={addressInputRef}
-              style={[styles.input, styles.multilineInput]}
-              placeholder="Tap to search for your address"
-              placeholderTextColor={colors.textTertiary}
-              value={address}
-              onChangeText={(text) => {
-                setAddress(text);
-                setErrors(prev => ({ ...prev, address: '' }));
-              }}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-              editable={false}
-            />
-            <ChevronRight size={20} color={colors.textTertiary} />
-          </Pressable>
-          {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
-          {address && (
-            <Text style={styles.locationInfo}>
-              📍 Location selected from map
-            </Text>
-          )}
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Local Government Area (LGA)</Text>
-          <View style={[styles.inputContainer, errors.lga && styles.inputError]}>
-            <MapPin size={20} color={colors.textSecondary} />
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your LGA"
-              placeholderTextColor={colors.textTertiary}
-              value={lga}
-              onChangeText={(text) => {
-                setLga(text);
-                setErrors(prev => ({ ...prev, lga: '' }));
-              }}
-            />
-          </View>
-          {errors.lga && <Text style={styles.errorText}>{errors.lga}</Text>}
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>State</Text>
-          <View style={[styles.inputContainer, errors.state && styles.inputError]}>
-            <MapPin size={20} color={colors.textSecondary} />
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your state"
-              placeholderTextColor={colors.textTertiary}
-              value={state}
-              onChangeText={(text) => {
-                setState(text);
-                setErrors(prev => ({ ...prev, state: '' }));
-              }}
-            />
-          </View>
-          {errors.state && <Text style={styles.errorText}>{errors.state}</Text>}
-        </View>
-        
-
-        
-        <View style={styles.documentCard}>
-          <View style={styles.documentHeader}>
-            <Text style={styles.documentName}>House Photo (Required)</Text>
-            <View style={[styles.documentStatus, styles.requiredStatus]}>
-              <Text style={styles.requiredStatusText}>Required</Text>
-            </View>
-          </View>
-          <Text style={styles.documentDescription}>
-            Take a photo of your house/building for address verification.
-          </Text>
-          {houseUrl ? (
-            <View style={styles.imagePreviewContainer}>
-              <Image 
-                source={{ uri: houseUrl }} 
-                style={styles.imagePreview} 
-                resizeMode="cover"
-              />
-              <Pressable 
-                style={styles.retakeButton}
-                onPress={() => setHouseUrl(null)}
-              >
-                <Text style={styles.retakeButtonText}>Remove</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.documentActions}>
-              <Pressable 
-                style={styles.documentButton}
-                onPress={() => takePicture('house')}
-              >
-                <Camera size={16} color={colors.primary} />
-                <Text style={styles.documentButtonText}>Take Photo</Text>
-              </Pressable>
-            </View>
-          )}
-          {errors.houseUrl && <Text style={styles.errorText}>{errors.houseUrl}</Text>}
-        </View>
-        
-        <View style={styles.documentCard}>
-          <View style={styles.documentHeader}>
-            <Text style={styles.documentName}>Utility Bill (Optional for Tier 3)</Text>
-            <View style={[styles.documentStatus, styles.optionalStatus]}>
-              <Text style={styles.optionalStatusText}>Optional</Text>
-            </View>
-          </View>
-          <Text style={styles.documentDescription}>
-            Upload a recent utility bill (electricity, water, etc.) for Tier 3 verification.
-          </Text>
-          
-          {utilityBill ? (
-            <View style={styles.imagePreviewContainer}>
-              <Image 
-                source={{ uri: utilityBill }} 
-                style={styles.imagePreview} 
-                resizeMode="cover"
-              />
-              <Pressable 
-                style={styles.retakeButton}
-                onPress={() => setUtilityBill(null)}
-              >
-                <Text style={styles.retakeButtonText}>Remove</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.documentActions}>
-              <Pressable 
-                style={styles.documentButton}
-                onPress={() => pickImage(setUtilityBill, 'utilityBill')}
-              >
-                <Upload size={16} color={colors.primary} />
-                <Text style={styles.documentButtonText}>Upload</Text>
-              </Pressable>
-              
-              <Pressable 
-                style={styles.documentButton}
-                onPress={() => takePicture('utility')}
-              >
-                <Camera size={16} color={colors.primary} />
-                <Text style={styles.documentButtonText}>Take Photo</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-        
-        <View style={styles.infoContainer}>
-          <Info size={20} color={colors.primary} />
-          <Text style={styles.infoText}>
-            Your address information is used for verification purposes and to determine your transaction limits.
-          </Text>
-        </View>
-      </View>
+      <AddressDetailsStep
+        addressNo={addressNo}
+        address={address}
+        lga={lga}
+        state={state}
+        houseUrl={houseUrl}
+        utilityBill={utilityBill}
+        errors={errors}
+        onAddressNoChange={(text) => {
+          setAddressNo(text);
+          setErrors(prev => ({ ...prev, addressNo: '' }));
+        }}
+        onAddressChange={(text) => {
+          setAddress(text);
+          setErrors(prev => ({ ...prev, address: '' }));
+        }}
+        onLgaChange={(text) => {
+          setLga(text);
+          setErrors(prev => ({ ...prev, lga: '' }));
+        }}
+        onStateChange={(text) => {
+          setState(text);
+          setErrors(prev => ({ ...prev, state: '' }));
+        }}
+        onHouseUrlChange={setHouseUrl}
+        onUtilityBillChange={setUtilityBill}
+        onLocationSearchOpen={() => setShowLocationSearch(true)}
+        onPickImage={pickImage}
+        onTakePicture={takePicture}
+        addressInputRef={addressInputRef}
+      />
     );
   };
   
   const renderReviewStep = () => {
     return (
-      <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>Review Your Information</Text>
-        <Text style={styles.sectionDescription}>
-          Please review your information before submitting.
-        </Text>
-        
-        <View style={styles.reviewSection}>
-          <View style={styles.reviewCard}>
-            <Text style={styles.reviewSectionTitle}>Personal Information</Text>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Full Name</Text>
-              <Text style={styles.reviewValue}>
-                {firstName} {middleName ? `${middleName} ` : ''}{lastName}
-              </Text>
-            </View>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Date of Birth</Text>
-              <Text style={styles.reviewValue}>{dateOfBirth || 'Not provided'}</Text>
-            </View>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Phone Number</Text>
-              <Text style={styles.reviewValue}>{phoneNumber || 'Not provided'}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.reviewCard}>
-            <Text style={styles.reviewSectionTitle}>Identity Verification</Text>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>BVN</Text>
-              <Text style={styles.reviewValue}>
-                •••• •••• {bvn.slice(-3)} {bvnVerified && <Check size={16} color={colors.success} />}
-              </Text>
-            </View>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>ID Type</Text>
-              <Text style={styles.reviewValue}>
-                {selectedIdentityType === 'nin' ? 'National ID (NIN)' :
-                 selectedIdentityType === 'passport' ? 'International Passport' :
-                 'Driver\'s License'}
-              </Text>
-            </View>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>
-                {selectedIdentityType === 'nin' ? 'NIN' :
-                 selectedIdentityType === 'passport' ? 'Passport Number' :
-                 'License Number'}
-              </Text>
-              <Text style={styles.reviewValue}>
-                {selectedIdentityType === 'nin' ? nin :
-                 selectedIdentityType === 'passport' ? passportNumber :
-                 'Not provided'}
-              </Text>
-            </View>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Document Verification</Text>
-              <Text style={[
-                styles.reviewValue,
-                documentsVerified ? styles.verifiedText : styles.pendingText
-              ]}>
-                {documentsVerified ? 'Verified' : 'Pending'}
-              </Text>
-            </View>
-          </View>
-          
-          <View style={styles.reviewCard}>
-            <Text style={styles.reviewSectionTitle}>Address Information</Text>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>House/Street Number</Text>
-              <Text style={styles.reviewValue}>{addressNo || 'Not provided'}</Text>
-            </View>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Residential Address</Text>
-              <Text style={styles.reviewValue}>{address}</Text>
-            </View>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>LGA</Text>
-              <Text style={styles.reviewValue}>{lga}</Text>
-            </View>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>State</Text>
-              <Text style={styles.reviewValue}>{state}</Text>
-            </View>
-            
-
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>House Photo</Text>
-              <Text style={styles.reviewValue}>
-                {houseUrl ? 'Uploaded' : 'Not provided'}
-              </Text>
-            </View>
-            
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewLabel}>Utility Bill</Text>
-              <Text style={styles.reviewValue}>
-                {utilityBill ? 'Uploaded' : 'Not provided (Optional for Tier 3)'}
-              </Text>
-            </View>
-          </View>
-        </View>
-        
-        <View style={styles.termsContainer}>
-          <Text style={styles.termsText}>
-            By submitting this information, I confirm that all details provided are accurate and complete. I authorize Planmoni to verify my identity using the information provided.
-          </Text>
-        </View>
-      </View>
+      <ReviewStep
+        firstName={firstName}
+        lastName={lastName}
+        middleName={middleName}
+        dateOfBirth={dateOfBirth}
+        phoneNumber={phoneNumber}
+        addressNo={addressNo}
+        address={address}
+        lga={lga}
+        state={state}
+        bvn={bvn}
+        bvnVerified={bvnVerified}
+        selectedIdentityType={selectedIdentityType}
+        nin={nin}
+        passportNumber={passportNumber}
+        documentsVerified={documentsVerified}
+        houseUrl={houseUrl}
+        utilityBill={utilityBill}
+      />
     );
   };
   
   const renderLivenessVerificationStep = () => {
-    return (
-      <View style={styles.formContainer}>
-        <Text style={styles.sectionTitle}>Liveness Verification</Text>
-        <Text style={styles.sectionDescription}>
-          Please complete the liveness test to verify your identity. This is the first step in your KYC verification process.
-        </Text>
-        
-        <View style={styles.infoContainer}>
-          <Info size={20} color={colors.primary} />
-          <Text style={styles.infoText}>
-            The liveness test requires you to perform facial movements to ensure you are a real person. This helps protect your account from fraud.
-          </Text>
-        </View>
-      </View>
-    );
+    return <LivenessVerificationStep />;
   };
 
   const renderCurrentStep = () => {
@@ -4792,6 +3859,21 @@ export default function KYCUpgradeScreen() {
         isVisible={showLivenessTest}
         onClose={handleLivenessClose}
         onComplete={handleLivenessComplete}
+      />
+      
+      <Tier1CompletionModal
+        isVisible={showTier1CompletionModal}
+        onClose={() => setShowTier1CompletionModal(false)}
+        onGoToDashboard={() => {
+          router.push('/(tabs)');
+        }}
+        onUpgradeToTier2={async () => {
+          // Update progress to personal step when user explicitly chooses to upgrade
+          await updateProgress({
+            current_step: 'personal'
+          });
+          setCurrentStep('personal');
+        }}
       />
     </SafeAreaView>
   );

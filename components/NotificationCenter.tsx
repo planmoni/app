@@ -11,8 +11,10 @@ import {
 import { Bell, Check, CheckCheck, Trash2, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { inAppNotificationService, InAppNotification } from '@/lib/in-app-notifications';
+import { backgroundNotificationService } from '@/lib/background-notifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
+import { supabase } from '@/lib/supabase';
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -44,15 +46,16 @@ export function NotificationCenter({ onClose, onNotificationPress }: Notificatio
   useEffect(() => {
     loadNotifications();
 
+    // Poll for updates every 30 seconds instead of real-time subscriptions
+    // Server-side push notifications handle delivery when app is closed
     if (user?.id) {
-      const unsubscribe = inAppNotificationService.subscribeToNotifications(
-        user.id,
-        (newNotification) => {
-          setNotifications(prev => [newNotification, ...prev]);
-        }
-      );
+      const pollInterval = setInterval(() => {
+        loadNotifications();
+      }, 30000); // Poll every 30 seconds
 
-      return unsubscribe;
+      return () => {
+        clearInterval(pollInterval);
+      };
     }
   }, [user?.id]);
 
@@ -82,6 +85,11 @@ export function NotificationCenter({ onClose, onNotificationPress }: Notificatio
       setNotifications(prev =>
         prev.map(n => (n.id === notificationId ? { ...n, is_read: true } : n))
       );
+      // Refresh badge count after marking as read
+      if (user?.id) {
+        const count = await inAppNotificationService.getUnreadCount(user.id);
+        await inAppNotificationService.setBadgeCount(count);
+      }
     }
   };
 
@@ -90,6 +98,8 @@ export function NotificationCenter({ onClose, onNotificationPress }: Notificatio
     const success = await inAppNotificationService.markAllAsRead(user.id);
     if (success) {
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      // Clear badge count after marking all as read
+      await inAppNotificationService.clearBadge();
     }
   };
 

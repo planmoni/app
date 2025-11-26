@@ -25,74 +25,52 @@ function verifyWebhookSignature(payload: string, signature: string): boolean {
   return hash === signature;
 }
 
-// Function to add funds to user's wallet
-async function addFundsToWallet(userId: string, amount: number, reference: string, accountNumber?: string) {
+// Function to process deposit using atomic process_paystack_deposit function
+// This function handles wallet update, transaction creation, events, and notifications
+async function addFundsToWallet(userId: string, amount: number, reference: string, accountNumber?: string, paystackData?: any) {
   try {
-    console.log(`Adding ₦${amount} to wallet for user ${userId}, reference: ${reference}`);
+    console.log(`Processing deposit: ₦${amount} for user ${userId}, reference: ${reference}`);
 
-    // Check if transaction already exists to prevent duplicates
-    const { data: existingTransaction } = await supabase
-      .from('transactions')
-      .select('id')
-      .eq('reference', reference)
-      .single();
-
-    if (existingTransaction) {
-      console.log(`Transaction with reference ${reference} already exists, skipping`);
-      return { success: true, message: 'Transaction already processed' };
-    }
-
-    // Add funds using the existing function
-    const { data: result, error } = await supabase.rpc('add_funds', {
+    // Process deposit atomically using process_paystack_deposit function
+    // This function handles wallet update, transaction creation, events, and notifications
+    const { data: result, error } = await supabase.rpc('process_paystack_deposit', {
       arg_user_id: userId,
-      arg_amount: amount
+      arg_amount: amount,
+      arg_reference: reference,
+      arg_paystack_data: {
+        paystack_transaction_id: paystackData?.id,
+        paystack_reference: reference,
+        account_number: accountNumber,
+        processed_by: 'paystack_webhook',
+        processed_at: new Date().toISOString(),
+        ...(paystackData && { paystack_data: paystackData })
+      }
     });
 
     if (error) {
-      console.error('Error adding funds:', error);
+      console.error('Error processing deposit:', error);
       throw error;
     }
 
     if (!result || !result.success) {
-      console.error('Add funds failed:', result?.error);
-      throw new Error(result?.error || 'Failed to add funds');
+      if (result?.already_processed) {
+        console.log(`Transaction ${reference} was already processed`);
+        return { success: true, message: 'Transaction already processed', already_processed: true };
+      }
+      console.error('Process deposit failed:', result);
+      throw new Error('Failed to process deposit');
     }
 
-    // Update transaction with reference
-    const { error: updateError } = await supabase
-      .from('transactions')
-      .update({ reference })
-      .eq('user_id', userId)
-      .eq('type', 'deposit')
-      .eq('amount', amount)
-      .gte('created_at', new Date(Date.now() - 60000).toISOString()); // Within last minute
-
-    if (updateError) {
-      console.error('Error updating transaction reference:', updateError);
-    }
-
-    console.log(`Successfully added ₦${amount} to wallet for user ${userId}`);
+    console.log(`Successfully processed deposit: ₦${amount} for user ${userId}`);
     
-    // Get user email for notifications
+    // Get user email for email notification
     const { data: userProfile } = await supabase
       .from('profiles')
       .select('email, first_name')
       .eq('id', userId)
       .single();
 
-    // Send push notification
-    await supabase.rpc('send_push_notification', {
-      p_user_id: userId,
-      p_title: 'Funds Received',
-      p_body: `₦${amount.toLocaleString()} has been added to your wallet`,
-      p_data: {
-        type: 'deposit_successful',
-        transaction_reference: reference,
-        amount: amount
-      }
-    });
-
-    // Send email notification
+    // Send email notification (push notification is handled by process_paystack_deposit)
     if (userProfile?.email) {
       await sendEmailNotification({
         to: userProfile.email,
@@ -103,7 +81,13 @@ async function addFundsToWallet(userId: string, amount: number, reference: strin
       });
     }
     
-    return { success: true, balance: result.balance, available_balance: result.available_balance };
+    return { 
+      success: true, 
+      balance: result.new_balance, 
+      available_balance: result.new_balance,
+      transaction_id: result.transaction_id,
+      event_id: result.event_id
+    };
   } catch (error) {
     console.error('Error in addFundsToWallet:', error);
     throw error;
@@ -263,23 +247,19 @@ async function handleChargeSuccess(data: any) {
       return;
     }
 
-    await addFundsToWallet(userId, amountInNaira, reference, data.authorization?.account_number);
+    // Process deposit - this function handles wallet update, transaction creation, events, and notifications
+    const depositResult = await addFundsToWallet(
+      userId, 
+      amountInNaira, 
+      reference, 
+      data.authorization?.account_number,
+      data
+    );
 
-    // Create notification event
-    const notificationTitle = metadata?.payment_type === 'ussd' ? 'USSD Payment Successful' : 'Funds Received';
-    const notificationDescription = metadata?.payment_type === 'ussd' 
-      ? `₦${amountInNaira.toLocaleString()} has been added to your wallet via USSD`
-      : `₦${amountInNaira.toLocaleString()} has been added to your wallet`;
-
-    await supabase
-      .from('events')
-      .insert({
-        user_id: userId,
-        type: 'deposit_successful',
-        title: notificationTitle,
-        description: notificationDescription,
-        status: 'unread'
-      });
+    if (depositResult.already_processed) {
+      console.log(`Transaction ${reference} was already processed, skipping duplicate notification`);
+      return;
+    }
 
     console.log(`Successfully processed charge.success for user ${userId}`);
 

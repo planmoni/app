@@ -75,6 +75,23 @@ export function usePayoutAccounts() {
     try {
       setError(null);
       
+      // Check if account already exists
+      const { data: existingAccount, error: checkError } = await supabase
+        .from('payout_accounts')
+        .select('id, account_number, bank_name')
+        .eq('user_id', session?.user?.id)
+        .eq('account_number', accountData.account_number.trim())
+        .eq('bank_name', accountData.bank_name.trim())
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingAccount) {
+        const errorMessage = `This account (${accountData.account_number.slice(-4)}) at ${accountData.bank_name} already exists in your payout accounts.`;
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      }
+      
       const { data, error: insertError } = await supabase
         .from('payout_accounts')
         .insert({
@@ -91,7 +108,8 @@ export function usePayoutAccounts() {
       
       return data;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add payout account');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add payout account';
+      setError(errorMessage);
       throw err;
     }
   };

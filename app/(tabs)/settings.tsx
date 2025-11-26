@@ -56,6 +56,7 @@ import Constants from 'expo-constants';
 import { Download, Info } from 'lucide-react-native';
 import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { useKYCProgress } from '@/hooks/useKYCProgress';
 
 export default function SettingsScreen() {
   const { colors, theme, setTheme, isDark } = useTheme();
@@ -67,6 +68,7 @@ export default function SettingsScreen() {
   const { needsUpdate, checkForUpdates, currentVersion, currentBuild, isChecking } = useAppVersion();
   const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
   const { requireAuth, isAuthenticated } = useRequireAuth();
+  const { currentTier } = useKYCProgress();
   
   const firstName = session?.user?.user_metadata?.first_name || '';
   const lastName = session?.user?.user_metadata?.last_name || '';
@@ -396,6 +398,7 @@ export default function SettingsScreen() {
                 lastName={lastName} 
                 size={60}
                 fontSize={getScaledFontSize(24, textSizeMultiplier)}
+                kycTier={currentTier}
               />
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{firstName} {lastName}</Text>
@@ -1271,7 +1274,7 @@ const createStyles = (colors: any, textSizeMultiplier: number) => StyleSheet.cre
     flex: 1,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1284,7 +1287,7 @@ const createStyles = (colors: any, textSizeMultiplier: number) => StyleSheet.cre
     flex: 1,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 17,
     borderWidth: 1.5,
     backgroundColor: 'transparent',
     alignItems: 'center',

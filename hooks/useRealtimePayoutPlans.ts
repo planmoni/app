@@ -10,7 +10,7 @@ export type PayoutPlan = {
   description?: string;
   total_amount: number;
   payout_amount: number;
-  frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom';
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
   duration: number;
   start_date: string;
   bank_account_id: string;
@@ -79,8 +79,6 @@ export function useRealtimePayoutPlans() {
     }
 
     let channel: RealtimeChannel | null = null;
-    let retryCount = 0;
-    const maxRetries = 3;
     let isMounted = true;
 
     const setupRealtimeSubscription = async () => {
@@ -93,6 +91,15 @@ export function useRealtimePayoutPlans() {
         // Set up real-time subscription with improved error handling
         const channelName = `payout-plans-changes-${session.user.id}`;
         console.log('🔗 Setting up real-time subscription for channel:', channelName);
+        
+        // Clean up existing channel if any
+        if (channel) {
+          try {
+            supabase.removeChannel(channel);
+          } catch (err) {
+            // Ignore errors when removing
+          }
+        }
         
         channel = supabase
           .channel(channelName)
@@ -137,22 +144,27 @@ export function useRealtimePayoutPlans() {
             }
           );
         
-        // Subscribe with improved error handling
+        // Subscribe without retry logic - server-side push notifications handle delivery
+        // Real-time subscription is only for UI updates when app is open
         if (channel) {
           channel.subscribe((status: any) => {
-          console.log('📡 Payout plans subscription status:', status);
-          if (status === 'SUBSCRIBED') {
-            console.log('✅ Successfully subscribed to payout plans changes');
-            retryCount = 0; // Reset retry count on successful subscription
-          } else if (status === 'CHANNEL_ERROR') {
-            console.warn('⚠️ Channel subscription error - continuing without realtime updates');
-            // Don't set error state, just log warning and continue
-          } else if (status === 'TIMED_OUT') {
-            console.warn('⚠️ Channel subscription timed out - continuing without realtime updates');
-            // Don't set error state, just log warning and continue
-          } else if (status === 'CLOSED') {
-            console.log('🔒 Channel subscription closed');
-          }
+            console.log('📡 Payout plans subscription status:', status);
+            switch (status) {
+              case 'SUBSCRIBED':
+                console.log('✅ Successfully subscribed to payout plans changes');
+                break;
+              case 'CHANNEL_ERROR':
+                console.log('ℹ️ Channel subscription error - server-side push notifications will handle delivery');
+                break;
+              case 'TIMED_OUT':
+                console.log('ℹ️ Channel subscription timed out - server-side push notifications will handle delivery');
+                break;
+              case 'CLOSED':
+                console.log('🔒 Channel subscription closed');
+                break;
+              default:
+                console.log(`ℹ️ Payout plans channel status: ${status}`);
+            }
           });
         }
       } catch (err) {
@@ -171,6 +183,7 @@ export function useRealtimePayoutPlans() {
         } catch (err) {
           console.error('Error removing payout plans channel:', err);
         }
+        channel = null;
       }
     };
   }, [session?.user?.id, fetchPayoutPlans]);

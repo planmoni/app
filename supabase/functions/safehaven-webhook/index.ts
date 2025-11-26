@@ -811,92 +811,60 @@ async function updateUserBalance(userId: string, transferData: SafeHavenTransfer
           // NOTE: The trigger should also do this, but we set it explicitly to ensure it's correct
           const newAvailableBalance = newWalletBalance - currentLockedBalance;
           
-          // Update wallet balance and available_balance using function
-          // This bypasses the trigger that blocks direct updates
-          const { error: walletUpdateError } = await supabase.rpc('update_wallet_from_webhook', {
-            arg_user_id: userId,
-            arg_balance: newWalletBalance,
-            arg_available_balance: newAvailableBalance
-          });
+          // Process deposit atomically using process_safehaven_deposit function
+          // This function handles wallet update, transaction creation, events, and notifications
+          const paymentRef = transferData.paymentReference || (transferData as any).reference || '';
+          const narration = transferData.narration || 'SafeHaven deposit';
+          const senderName = transferData.debitAccountName || transferData.creditAccountName || null;
+          
+          if (paymentRef) {
+            const { data: depositResult, error: depositError } = await supabase.rpc('process_safehaven_deposit', {
+              arg_user_id: userId,
+              arg_amount: walletAmount,
+              arg_reference: paymentRef,
+              arg_safehaven_data: {
+                safehaven_transfer_id: transferData._id,
+                safehaven_account_number: accountNumber,
+                fees: transferData.fees || 0,
+                full_amount: walletAmount,
+                net_amount: walletAmount - (transferData.fees || 0),
+                sender_name: senderName,
+                sender_account: transferData.debitAccountNumber || transferData.creditAccountNumber,
+                sender_bank: transferData.provider || transferData.destinationInstitutionCode,
+                narration: narration,
+                webhook_processed_at: new Date().toISOString()
+              }
+            });
 
-          if (walletUpdateError) {
-            console.error('Error updating wallet balance:', walletUpdateError);
-          } else {
-            console.log(`Wallet balance updated: ${wallet?.balance || 0} -> ${newWalletBalance} (credited full amount: ${walletAmount}, fees absorbed)`);
-            console.log(`Available balance updated: ${wallet?.available_balance || 0} -> ${newAvailableBalance} (balance: ${newWalletBalance} - locked: ${currentLockedBalance})`);
-            
-            // Create transaction record
-            const paymentRef = transferData.paymentReference || (transferData as any).reference || '';
-            const narration = transferData.narration || 'SafeHaven deposit';
-            const senderName = transferData.debitAccountName || 'Unknown';
-            
-            // Check if transaction already exists to avoid duplicates
-            let transactionId: string | null = null;
-            if (paymentRef) {
-              const { data: existingTransaction } = await supabase
-                .from('transactions')
-                .select('id')
-                .eq('reference', paymentRef)
-                .eq('type', 'deposit')
-                .eq('user_id', userId)
-                .single();
-
-              if (!existingTransaction) {
-                // Create new transaction record
-                const { data: newTransaction, error: transactionError } = await supabase
-                  .from('transactions')
-                  .insert({
-                    user_id: userId,
-                    type: 'deposit',
-                    amount: walletAmount,
-                    status: 'completed',
-                    source: 'SafeHaven',
-                    destination: 'wallet',
-                    reference: paymentRef,
-                    description: `${narration} - From ${senderName}`,
-                    // metadata column may or may not exist - if it doesn't, the insert will still work without it
-                    ...(transferData._id && {
-                      metadata: {
-                        safehaven_transfer_id: transferData._id,
-                        safehaven_account_number: accountNumber,
-                        fees: transferData.fees || 0,
-                        full_amount: walletAmount,
-                        net_amount: walletAmount - (transferData.fees || 0),
-                        webhook_processed_at: new Date().toISOString()
-                      }
-                    })
-                  } as any)
-                  .select('id')
-                  .single();
-
-                if (transactionError) {
-                  console.warn('Error creating transaction record:', transactionError);
-                } else {
-                  transactionId = newTransaction?.id || null;
-                  console.log('Transaction record created:', transactionId);
-                  
-                  // Send deposit success email notification
-                  try {
-                    await sendDepositSuccessEmailNotification(
-                      userId,
-                      walletAmount,
-                      newAvailableBalance,
-                      paymentRef,
-                      transactionId,
-                      senderName,
-                      transferData.debitAccountNumber,
-                      transferData.provider || transferData.destinationInstitutionCode,
-                      narration
-                    );
-                  } catch (emailError) {
-                    console.error('❌ Error sending deposit success email notification:', emailError);
-                  }
-                }
+            if (depositError) {
+              console.error('Error processing SafeHaven deposit:', depositError);
+            } else if (depositResult && depositResult.success) {
+              if (depositResult.already_processed) {
+                console.log('Transaction already processed, skipping duplicate');
               } else {
-                transactionId = existingTransaction.id;
-                console.log('Transaction already exists, skipping duplicate:', transactionId);
+                const transactionId = depositResult.transaction_id;
+                console.log(`✅ SafeHaven deposit processed successfully: Transaction ${transactionId}`);
+                console.log(`Wallet balance updated: ${wallet?.balance || 0} -> ${depositResult.new_balance} (credited full amount: ${walletAmount}, fees absorbed)`);
+                
+                // Send deposit success email notification
+                try {
+                  await sendDepositSuccessEmailNotification(
+                    userId,
+                    walletAmount,
+                    depositResult.new_balance - currentLockedBalance,
+                    paymentRef,
+                    transactionId,
+                    senderName || 'Unknown',
+                    transferData.debitAccountNumber || transferData.creditAccountNumber || '',
+                    transferData.provider || transferData.destinationInstitutionCode || '',
+                    narration
+                  );
+                } catch (emailError) {
+                  console.error('❌ Error sending deposit success email notification:', emailError);
+                }
               }
             }
+          }
 
             // Mark wallet as credited in safehaven_deposit_webhooks table
             if (paymentRef) {
@@ -1128,17 +1096,31 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal: any, transf
       console.log(`✅ Successfully reduced ₦${emergencyWithdrawal.withdrawal_amount} from wallet for user ${emergencyWithdrawal.user_id}`);
     }
 
-    // Send push notification
-    await supabase.rpc('send_push_notification', {
-      p_user_id: emergencyWithdrawal.user_id,
-      p_title: 'Emergency Withdrawal Completed',
-      p_body: `Your emergency withdrawal of ₦${emergencyWithdrawal.net_amount.toLocaleString()} has been completed`,
-      p_data: {
-        type: 'emergency_withdrawal_successful',
-        withdrawal_id: emergencyWithdrawal.id,
-        amount: emergencyWithdrawal.net_amount
-      }
-    });
+    // Create event - the trigger will automatically create notification and send push notification
+    // This prevents duplicate notifications (the process-emergency-withdrawal function also creates events)
+    // Only create event if one doesn't already exist for this withdrawal
+    const { data: existingEvent } = await supabase
+      .from('events')
+      .select('id')
+      .eq('user_id', emergencyWithdrawal.user_id)
+      .eq('type', 'payout_completed')
+      .eq('title', 'Emergency Withdrawal Completed')
+      .ilike('description', `%${emergencyWithdrawal.net_amount.toLocaleString()}%`)
+      .limit(1)
+      .single();
+    
+    if (!existingEvent) {
+      await supabase
+        .from('events')
+        .insert({
+          user_id: emergencyWithdrawal.user_id,
+          type: 'payout_completed',
+          title: 'Emergency Withdrawal Completed',
+          description: `Your emergency withdrawal of ₦${emergencyWithdrawal.net_amount.toLocaleString()} has been processed successfully. Fee charged: ₦${emergencyWithdrawal.fee_amount?.toLocaleString() || '0'} (${emergencyWithdrawal.fee_amount && emergencyWithdrawal.withdrawal_amount ? Math.round((emergencyWithdrawal.fee_amount / emergencyWithdrawal.withdrawal_amount) * 100) : 12}%).`,
+          status: 'unread',
+          payout_plan_id: emergencyWithdrawal.payout_plan_id
+        });
+    }
 
     // Send email notification (if email function exists)
     // await sendEmergencyWithdrawalSuccessEmailNotification(...);

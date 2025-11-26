@@ -1106,6 +1106,27 @@ class SafeHavenService {
             withholding_tax_balance: accountData?.data?.withHoldingTaxBalance || accountData?.withHoldingTaxBalance || 0
           });
           console.log("safehaven account saved successfully to database");
+
+          // Send account creation email notification
+          try {
+            const { sendAccountCreationEmail } = await import('@/lib/email-service');
+            const emailResult = await sendAccountCreationEmail(
+              userId,
+              verificationData.account_number,
+              accountName || `${verificationData.first_name} ${verificationData.last_name}`.trim() || 'NIN Account',
+              'SafeHaven Microfinance Bank'
+            );
+            
+            if (emailResult.success) {
+              console.log("Account creation email sent successfully");
+            } else {
+              console.warn("Failed to send account creation email:", emailResult.error);
+              // Don't throw - email failure shouldn't break account creation
+            }
+          } catch (emailError) {
+            console.error("Error sending account creation email:", emailError);
+            // Don't throw - email failure shouldn't break account creation
+          }
         } catch (storeError) {
           console.error("safehaven error storing account:", storeError);
           // Don't throw - log the error but continue with verification
@@ -1145,6 +1166,572 @@ class SafeHavenService {
         auditLogId: auditLogId || undefined,
         responseTime
       };
+    }
+  }
+
+  /**
+   * Initializes BVN verification using SafeHaven API
+   * Creates identity verification and returns identityId and OTP message
+   */
+  async initializeBVNVerification(
+    userId: string,
+    bvn: string,
+    emailAddress: string
+  ): Promise<SafeHavenOperationResult> {
+    const startTime = Date.now();
+    let auditLogId: string | undefined = undefined;
+
+    try {
+      // Get valid token
+      const token = await this.getValidToken(userId);
+      if (!token) {
+        return {
+          success: false,
+          error: 'Unable to get SafeHaven token. Please try again.'
+        };
+      }
+
+      // Create audit log entry for KYC
+      const kycAuditLogId = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: userId,
+        p_operation_type: 'bvn_verification',
+        p_verification_type: 'bvn',
+        p_verification_provider: 'safehaven',
+        p_request_data: {
+          bvn: bvn.substring(0, 4) + '****', // Partial BVN for security
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: null,
+        p_status: 'pending',
+        p_result_message: 'BVN verification initiated',
+        p_metadata: {
+          service: 'safehaven-service',
+          operation: 'bvn_verification'
+        }
+      });
+
+      // Create SafeHaven audit log entry
+      auditLogId = await this.logOperation(
+        userId,
+        'bvn_verification',
+        {
+          bvn: bvn.substring(0, 4) + '****', // Partial BVN for security
+          step: 'identity_verification'
+        },
+        null,
+        'pending'
+      );
+
+      // Create identity verification
+      const defaultDebitAccountNumber = '0117753301';
+      const identityRequestPayload = {
+        type: 'BVN',
+        async: false,
+        debitAccountNumber: defaultDebitAccountNumber,
+        number: bvn
+      };
+
+      const identityResponse = await fetch(`${this.API_URL}/identity/v2`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ClientID': this.CLIENT_ID,
+          'Authorization': `Bearer ${token.access_token}`
+        },
+        body: JSON.stringify(identityRequestPayload)
+      });
+
+      if (!identityResponse.ok) {
+        const errorText = await identityResponse.text();
+        const errorData = { 
+          status: identityResponse.status, 
+          statusText: identityResponse.statusText, 
+          error: errorText,
+          step: 'identity_verification'
+        };
+        
+        const responseTime = Date.now() - startTime;
+        
+        // Update both audit logs with error
+        if (kycAuditLogId?.data) {
+          await supabase
+            .from('kyc_audit_logs')
+            .update({
+              status: 'failed',
+              response_data: errorData,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', kycAuditLogId.data);
+        }
+        await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
+
+        return {
+          success: false,
+          error: `Identity verification failed: ${identityResponse.status} ${identityResponse.statusText}`,
+          auditLogId,
+          responseTime
+        };
+      }
+
+      const identityData = await identityResponse.json();
+      console.log("safehaven bvn verification identityData", identityData);
+      
+      // Extract identityId from response
+      let identityId: string | undefined;
+      if (identityData?.data?._id) {
+        identityId = identityData.data._id;
+      } else if (identityData?._id) {
+        identityId = identityData._id;
+      } else {
+        throw new Error('Identity ID not found in response');
+      }
+
+      // Extract OTP message from response
+      const otpMessage = identityData?.message || null;
+
+      // Update audit log with identity verification success
+      await this.updateAuditLog(
+        auditLogId,
+        'pending', // Still pending as we need to create account
+        identityData, // Store full response in response_data
+        null,
+        Date.now() - startTime
+      );
+
+      // Update KYC audit log
+      if (kycAuditLogId?.data) {
+        await supabase
+          .from('kyc_audit_logs')
+          .update({
+            status: 'success',
+            response_data: {
+              identityId: identityId,
+              otp_sent: true,
+              status: identityData?.data?.status || identityData?.status || 'PENDING',
+              otp_message: otpMessage
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', kycAuditLogId.data);
+      }
+
+      return {
+        success: true,
+        data: {
+          identityId: identityId,
+          requiresOtp: true,
+          status: identityData?.data?.status || identityData?.status || 'PENDING',
+          otpMessage: otpMessage
+        },
+        auditLogId,
+        responseTime: Date.now() - startTime
+      };
+
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+
+      // Update audit log with error
+      if (auditLogId) {
+        await this.updateAuditLog(auditLogId, 'failed', null, { error: errorMessage }, responseTime);
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+        auditLogId: auditLogId || undefined,
+        responseTime
+      };
+    }
+  }
+
+  /**
+   * Verifies BVN using SafeHaven API and creates account
+   * Uses two-step workflow: identity verification first, then account creation
+   * 
+   * Requires OTP and identityId from initializeBVNVerification
+   */
+  async verifyBVNAndCreateAccount(
+    userId: string,
+    bvn: string,
+    phoneNumber: string,
+    emailAddress: string,
+    otp: string,
+    identityId: string
+  ): Promise<SafeHavenOperationResult> {
+    const startTime = Date.now();
+    let auditLogId: string | undefined = undefined;
+
+    try {
+      // Get valid token
+      const token = await this.getValidToken(userId);
+      if (!token) {
+        return {
+          success: false,
+          error: 'Unable to get SafeHaven token. Please try again.'
+        };
+      }
+
+      // Create audit log entry for KYC
+      const kycAuditLogId = await supabase.rpc('create_kyc_audit_log', {
+        p_user_id: userId,
+        p_operation_type: 'bvn_verification',
+        p_verification_type: 'bvn',
+        p_verification_provider: 'safehaven',
+        p_request_data: {
+          bvn: bvn.substring(0, 4) + '****', // Partial BVN for security
+          timestamp: new Date().toISOString()
+        },
+        p_response_data: null,
+        p_status: 'pending',
+        p_result_message: 'BVN verification with OTP initiated',
+        p_metadata: {
+          service: 'safehaven-service',
+          operation: 'bvn_verification',
+          step: 'account_creation'
+        }
+      });
+
+      // Create SafeHaven audit log entry
+      auditLogId = await this.logOperation(
+        userId,
+        'bvn_verification',
+        {
+          bvn: bvn.substring(0, 4) + '****', // Partial BVN for security
+          step: 'account_creation',
+          hasIdentityId: !!identityId,
+          hasOtp: !!otp
+        },
+        null,
+        'pending'
+      );
+
+      // Create account using identityId and OTP
+      const accountRequestPayload: any = {
+        phoneNumber: phoneNumber,
+        emailAddress: emailAddress,
+        identityType: 'BVN',
+        autoSweep: true,
+        autoSweepDetails: {
+          schedule: 'Instant',
+          accountNumber: "0117753301"
+        },
+        externalReference: `AC_${userId.substring(0, 8)}`,
+        identityNumber: bvn,
+        identityId: identityId,
+        otp: otp
+      };
+
+      const accountResponse = await fetch(`${this.API_URL}/accounts/v2/subaccount`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ClientID': this.CLIENT_ID,
+          'Authorization': `Bearer ${token.access_token}`
+        },
+        body: JSON.stringify(accountRequestPayload)
+      });
+
+      const responseTime = Date.now() - startTime;
+
+      if (!accountResponse.ok) {
+        const errorText = await accountResponse.text();
+        const errorData = { 
+          status: accountResponse.status, 
+          statusText: accountResponse.statusText, 
+          error: errorText,
+          step: 'account_creation',
+          identityId: identityId
+        };
+        
+        // Update both audit logs with error
+        if (kycAuditLogId?.data) {
+          await supabase
+            .from('kyc_audit_logs')
+            .update({
+              status: 'failed',
+              response_data: errorData,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', kycAuditLogId.data);
+        }
+        await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
+
+        return {
+          success: false,
+          error: `Account creation failed: ${accountResponse.status} ${accountResponse.statusText}`,
+          auditLogId,
+          responseTime,
+          data: { identityId: identityId, requiresOtp: accountResponse.status === 400 || accountResponse.status === 422 }
+        };
+      }
+
+      const accountData = await accountResponse.json();
+      console.log("safehaven bvn account creation accountData", accountData);
+      
+      // Extract account information from response
+      const verificationData: any = {
+        verified: true,
+        identityId: identityId,
+        identityNumber: bvn,
+        status: accountData?.data?.status || accountData?.status || 'PENDING'
+      };
+
+      // Extract account number if available - check multiple possible locations
+      let accountNumber: string | null = null;
+      if (accountData?.data?.accountNumber) {
+        accountNumber = accountData.data.accountNumber;
+      } else if (accountData?.data?.account_number) {
+        accountNumber = accountData.data.account_number;
+      } else if (accountData?.accountNumber) {
+        accountNumber = accountData.accountNumber;
+      } else if (accountData?.account_number) {
+        accountNumber = accountData.account_number;
+      } else if (accountData?.data?.data?.accountNumber) {
+        accountNumber = accountData.data.data.accountNumber;
+      }
+      
+      if (accountNumber) {
+        verificationData.account_number = accountNumber;
+        console.log("safehaven bvn account number extracted:", accountNumber);
+      } else {
+        console.warn("safehaven bvn account number not found in response:", JSON.stringify(accountData, null, 2));
+      }
+
+      // Extract account name if available - check multiple possible locations
+      let accountName: string | null = null;
+      if (accountData?.data?.accountName) {
+        accountName = accountData.data.accountName;
+      } else if (accountData?.data?.account_name) {
+        accountName = accountData.data.account_name;
+      } else if (accountData?.accountName) {
+        accountName = accountData.accountName;
+      } else if (accountData?.account_name) {
+        accountName = accountData.account_name;
+      }
+
+      // Extract names if available
+      if (accountName) {
+        const names = accountName.split(' ');
+        verificationData.first_name = names[0] || '';
+        verificationData.last_name = names[names.length - 1] || '';
+        verificationData.middle_name = names.length > 2 ? names.slice(1, -1).join(' ') : '';
+        verificationData.account_name = accountName;
+      }
+
+      // Update KYC audit log with success
+      if (kycAuditLogId?.data) {
+        await supabase
+          .from('kyc_audit_logs')
+          .update({
+            status: 'success',
+            response_data: {
+              verified: true,
+              bvn: bvn.substring(0, 4) + '****',
+              hasAccount: !!verificationData.account_number,
+              identityId: identityId
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', kycAuditLogId.data);
+      }
+
+      // Update SafeHaven audit log with success
+      await this.updateAuditLog(
+        auditLogId,
+        'success',
+        {
+          verified: true,
+          hasAccount: !!verificationData.account_number,
+          accountNumber: verificationData.account_number ? verificationData.account_number.substring(0, 5) + '****' : null,
+          identityId: identityId,
+          step: 'account_creation_complete',
+          responseData: accountData
+        },
+        null,
+        responseTime
+      );
+
+      // If account was created, store it
+      if (verificationData.account_number) {
+        console.log("safehaven bvn account creation verificationData", verificationData);
+        try {
+          await this.storeAccountFromBVNVerification(userId, {
+            account_number: verificationData.account_number,
+            account_name: accountName || `${verificationData.first_name} ${verificationData.last_name}`.trim() || 'BVN Account',
+            account_type: accountData?.data?.accountType || accountData?.accountType || 'savings',
+            account_product: accountData?.data?.accountProduct || accountData?.accountProduct || 'Savings',
+            currency_code: accountData?.data?.currencyCode || accountData?.currencyCode || 'NGN',
+            status: accountData?.data?.status || accountData?.status || 'active',
+            account_id: accountData?.data?._id || accountData?.data?.id || accountData?._id || accountData?.id || null,
+            account_balance: accountData?.data?.accountBalance || accountData?.accountBalance || 0,
+            book_balance: accountData?.data?.bookBalance || accountData?.bookBalance || 0,
+            interest_balance: accountData?.data?.interestBalance || accountData?.interestBalance || 0,
+            withholding_tax_balance: accountData?.data?.withHoldingTaxBalance || accountData?.withHoldingTaxBalance || 0,
+            bvn: bvn
+          });
+          console.log("safehaven bvn account saved successfully to database");
+
+          // Send account creation email notification
+          try {
+            const { sendAccountCreationEmail } = await import('@/lib/email-service');
+            const emailResult = await sendAccountCreationEmail(
+              userId,
+              verificationData.account_number,
+              accountName || `${verificationData.first_name} ${verificationData.last_name}`.trim() || 'BVN Account',
+              'SafeHaven Microfinance Bank'
+            );
+            
+            if (emailResult.success) {
+              console.log("Account creation email sent successfully");
+            } else {
+              console.warn("Failed to send account creation email:", emailResult.error);
+              // Don't throw - email failure shouldn't break account creation
+            }
+          } catch (emailError) {
+            console.error("Error sending account creation email:", emailError);
+            // Don't throw - email failure shouldn't break account creation
+          }
+        } catch (storeError) {
+          console.error("safehaven bvn error storing account:", storeError);
+          // Don't throw - log the error but continue with verification
+        }
+      } else {
+        console.warn("safehaven bvn account number not found, skipping database storage");
+      }
+
+      // Update KYC progress with BVN verification
+      await supabase
+        .from('kyc_progress')
+        .update({
+          bvn_verified: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
+
+      return {
+        success: true,
+        data: verificationData,
+        auditLogId,
+        responseTime
+      };
+
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+
+      // Update audit log with error
+      if (auditLogId) {
+        await this.updateAuditLog(auditLogId, 'failed', null, { error: errorMessage }, responseTime);
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+        auditLogId: auditLogId || undefined,
+        responseTime
+      };
+    }
+  }
+
+  /**
+   * Stores account created from BVN verification
+   */
+  private async storeAccountFromBVNVerification(userId: string, verificationData: any): Promise<void> {
+    try {
+      if (!verificationData.account_number) {
+        console.error('Cannot store account: account_number is missing');
+        throw new Error('Account number is required to store account');
+      }
+
+      // Get client_id from token or use default
+      const token = await this.getToken(userId);
+      const clientId = token?.client_id || this.CLIENT_ID || '';
+
+      const accountRecord: any = {
+        user_id: userId,
+        safehaven_account_id: verificationData.account_id || verificationData.safehaven_account_id || verificationData.account_number,
+        client_id: clientId,
+        account_product: verificationData.account_product || 'Savings',
+        account_number: verificationData.account_number,
+        cba_account_id: verificationData.cba_account_id || null,
+        account_name: verificationData.account_name || verificationData.full_name || 'BVN Account',
+        account_type: verificationData.account_type || 'savings',
+        currency_code: verificationData.currency_code || 'NGN',
+        bvn: verificationData.bvn || null,
+        account_balance: verificationData.account_balance || 0,
+        book_balance: verificationData.book_balance || 0,
+        interest_balance: verificationData.interest_balance || 0,
+        withholding_tax_balance: verificationData.withholding_tax_balance || 0,
+        status: verificationData.status || 'active',
+        is_default: true,
+        can_debit: verificationData.can_debit !== false,
+        can_credit: verificationData.can_credit !== false,
+        nominal_annual_interest_rate: verificationData.nominal_annual_interest_rate || 0,
+        interest_compounding_period: verificationData.interest_compounding_period || null,
+        interest_posting_period: verificationData.interest_posting_period || null,
+        interest_calculation_type: verificationData.interest_calculation_type || null,
+        interest_calculation_days_in_year_type: verificationData.interest_calculation_days_in_year_type || null,
+        min_required_opening_balance: verificationData.min_required_opening_balance || 0,
+        lockin_period_frequency: verificationData.lockin_period_frequency || 0,
+        lockin_period_frequency_type: verificationData.lockin_period_frequency_type || null,
+        allow_overdraft: verificationData.allow_overdraft !== false,
+        overdraft_limit: verificationData.overdraft_limit || 0,
+        charge_withholding_tax: verificationData.charge_withholding_tax !== false,
+        charge_value_added_tax: verificationData.charge_value_added_tax !== false,
+        charge_stamp_duty: verificationData.charge_stamp_duty !== false,
+        notification_settings: verificationData.notification_settings || null,
+        is_sub_account: verificationData.is_sub_account !== false,
+        is_deleted: verificationData.is_deleted === true,
+        synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      // Check if account already exists by account number
+      const { data: existingAccount, error: fetchError } = await supabase
+        .from('safehaven_accounts')
+        .select('id, safehaven_account_id')
+        .eq('user_id', userId)
+        .eq('account_number', verificationData.account_number)
+        .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error checking for existing account:', fetchError);
+        throw fetchError;
+      }
+
+      if (existingAccount) {
+        // Update existing account
+        console.log('Updating existing SafeHaven BVN account:', existingAccount.id);
+        const { error: updateError } = await supabase
+          .from('safehaven_accounts')
+          .update(accountRecord)
+          .eq('id', existingAccount.id);
+
+        if (updateError) {
+          console.error('Error updating existing BVN account:', updateError);
+          throw updateError;
+        }
+        console.log('SafeHaven BVN account updated successfully');
+      } else {
+        // Insert new account
+        console.log('Inserting new SafeHaven BVN account:', verificationData.account_number);
+        const { error: insertError } = await supabase
+          .from('safehaven_accounts')
+          .insert({
+            ...accountRecord,
+            created_at: new Date().toISOString()
+          });
+
+        if (insertError) {
+          console.error('Error inserting new BVN account:', insertError);
+          throw insertError;
+        }
+        console.log('SafeHaven BVN account inserted successfully');
+      }
+    } catch (error) {
+      console.error('Error storing account from BVN verification:', error);
+      throw error;
     }
   }
 

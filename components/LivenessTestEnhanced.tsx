@@ -29,6 +29,8 @@ import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { useKYCProgress } from "@/hooks/useKYCProgress";
+import { router } from "expo-router";
 import * as FileSystem from 'expo-file-system';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -57,6 +59,7 @@ export default function LivenessTestEnhanced({
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
+  const { updateProgress } = useKYCProgress();
   
   console.log('[LivenessTest] Permissions check:', { hasPermission, hasSession: !!session });
 
@@ -340,12 +343,37 @@ export default function LivenessTestEnhanced({
         }
       }
 
+      // Update progress to mark liveness as completed and set step to BVN verification
+      console.log('[LivenessTest] Updating progress to mark liveness as completed');
+      const progressResult = await updateProgress({
+        liveness_test_completed: true,
+        current_step: 'bvn_verification'
+      });
+
+      if (!progressResult) {
+        console.error('[LivenessTest] Failed to update progress');
+        setIsSubmitting(false);
+        setTimeout(() => {
+          onClose();
+        }, 1000);
+        return;
+      }
+
+      console.log('[LivenessTest] Progress updated successfully');
+
       // Call the onComplete callback with the storage URL
       if (onComplete && storageUrl) {
         console.log('[LivenessTest] Calling onComplete callback with URL:', storageUrl);
         onComplete(storageUrl);
       } else {
-        console.log('[LivenessTest] No onComplete callback or storageUrl');
+        console.log('[LivenessTest] No onComplete callback, navigating to kyc-upgrade');
+        // If no callback, navigate directly to kyc-upgrade page
+        setTimeout(() => {
+          setIsSubmitting(false);
+          onClose();
+          router.push('/kyc-upgrade');
+        }, 500);
+        return;
       }
 
       setTimeout(() => {
