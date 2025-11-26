@@ -77,19 +77,36 @@ export default function TransactionsScreen() {
   };
 
   const filteredTransactions = transactions.filter(transaction => {
+    // Filter by transaction type
     if (activeType !== 'all' && transaction.type !== typeMap[activeType]) {
       return false;
     }
 
+    // Filter by search query
     if (searchQuery) {
-      return transaction.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             transaction.source.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             transaction.destination.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = transaction.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             transaction.source?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             transaction.destination?.toLowerCase().includes(searchQuery.toLowerCase());
+      if (!matchesSearch) {
+        return false;
+      }
     }
 
+    // Filter by date range
     if (dateRange.start && dateRange.end) {
       const transactionDate = new Date(transaction.created_at);
-      return transactionDate >= dateRange.start && transactionDate <= dateRange.end;
+      
+      // Normalize dates to start and end of day for accurate comparison
+      const startDate = new Date(dateRange.start);
+      startDate.setHours(0, 0, 0, 0);
+      
+      const endDate = new Date(dateRange.end);
+      endDate.setHours(23, 59, 59, 999);
+      
+      // Check if transaction date falls within the range (inclusive)
+      if (transactionDate < startDate || transactionDate > endDate) {
+        return false;
+      }
     }
 
     return true;

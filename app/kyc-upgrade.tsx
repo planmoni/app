@@ -1364,8 +1364,12 @@ export default function KYCUpgradeScreen() {
         await updateTier(); // Update tier after BVN verification
         const tierStatus = checkTierCompletion();
         if (tierStatus.tier1) {
-          console.log('Tier 1 completed! User can now proceed to Tier 2.');
-          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+          console.log('Tier 1 completed! Showing completion modal.');
+          // Show Tier 1 completion modal - show even if account number not yet available
+          setShowTier1CompletionModal(true);
+          setIsManualVerification(false);
+          setIsResolvingBvn(false);
+          return; // Don't proceed automatically - let user choose from modal
         }
       }
       
@@ -1374,15 +1378,19 @@ export default function KYCUpgradeScreen() {
         return;
       }
       
-      // Wait for toast to be visible before moving to next step
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Move to next incomplete step (skip if already verified)
-      const nextStep = getNextIncompleteStep('bvn_verification');
-      setCurrentStep(nextStep);
-      setTimeout(() => {
-        setIsManualVerification(false);
-      }, 1000);
+      // Only proceed to next step if Tier 1 is not complete
+      const tierStatus = checkTierCompletion();
+      if (!tierStatus.tier1) {
+        // Wait for toast to be visible before moving to next step
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Move to next incomplete step (skip if already verified)
+        const nextStep = getNextIncompleteStep('bvn_verification');
+        setCurrentStep(nextStep);
+        setTimeout(() => {
+          setIsManualVerification(false);
+        }, 1000);
+      }
       
       // } else {
       //   throw new Error('Name mismatch detected. Please verify your personal information.');
@@ -1964,16 +1972,13 @@ export default function KYCUpgradeScreen() {
       if (progressResult) {
         await updateTier(); // Update tier after NIN verification
         const tierStatus = checkTierCompletion();
-        if (tierStatus.tier1 && accountNumber) {
+        if (tierStatus.tier1) {
           console.log('Tier 1 completed! Showing completion modal.');
-          // Show Tier 1 completion modal instead of automatically proceeding
+          // Show Tier 1 completion modal - show even if account number not yet available
           setShowTier1CompletionModal(true);
           setIsManualVerification(false);
           setIsLoading(false);
           return; // Don't proceed automatically - let user choose from modal
-        } else if (tierStatus.tier1) {
-          console.log('Tier 1 completed but account number not yet available.');
-          showToast('Tier 1 completed! Account creation in progress.', 'success');
         }
       }
       
@@ -2173,16 +2178,13 @@ export default function KYCUpgradeScreen() {
       if (progressResult) {
         await updateTier(); // Update tier after BVN verification
         const tierStatus = checkTierCompletion();
-        if (tierStatus.tier1 && accountNumber) {
+        if (tierStatus.tier1) {
           console.log('Tier 1 completed! Showing completion modal.');
-          // Show Tier 1 completion modal instead of automatically proceeding
+          // Show Tier 1 completion modal - show even if account number not yet available
           setShowTier1CompletionModal(true);
           setIsManualVerification(false);
           setIsLoading(false);
           return; // Don't proceed automatically - let user choose from modal
-        } else if (tierStatus.tier1) {
-          console.log('Tier 1 completed but account number not yet available.');
-          showToast('Tier 1 completed! Account creation in progress.', 'success');
         }
       }
       

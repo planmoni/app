@@ -38,7 +38,7 @@ export default function PendingActionsCard() {
   const [isLoading, setIsLoading] = useState(true);
   const { session } = useAuth();
   const { isAuthenticated } = useRequireAuth();
-  const { hasAppLockPin } = usePin();
+  const { hasAppLockPin, isLoading: pinLoading } = usePin();
   const haptics = useHaptics();
   const { isOnline } = useOnlineStatus();
   const { progress, currentTier = 0, getTierInfo } = useKYCProgress();
@@ -109,7 +109,8 @@ export default function PendingActionsCard() {
       });
     }
 
-    if (!hasAppLockPin) {
+    // Only check PIN status if PIN loading is complete
+    if (!pinLoading && !hasAppLockPin) {
       actions.push({
         id: 'setup-app-lock',
         title: 'Setup App PIN',
@@ -153,7 +154,8 @@ export default function PendingActionsCard() {
       case 'verify-email':
         return !!profileData?.email_verified || !!session?.user?.email_confirmed_at;
       case 'setup-app-lock':
-        return hasAppLockPin;
+        // Only consider PIN setup completed if PIN loading is done and PIN exists
+        return !pinLoading && hasAppLockPin;
       case 'account-verification':
         return !!profileData?.account_verified;
       case 'setup-2fa':
@@ -195,13 +197,13 @@ export default function PendingActionsCard() {
     return null;
   }
 
-  // Don't render if there are no pending actions and data is loaded
-  if (!isLoading && filteredActions.length === 0) {
+  // Don't render if there are no pending actions and data is loaded (including PIN state)
+  if (!isLoading && !pinLoading && filteredActions.length === 0) {
     return null;
   }
 
   // Show loading state
-  if (isLoading) {
+  if (isLoading || pinLoading) {
     return (
       <View>
         <Text style={styles.sectionTitle}>Pending Actions</Text>
@@ -313,7 +315,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     gap: 12,
   },
   actionCard: {
-    width: Platform.OS === 'ios' ? 300 : 320,
+    width: Platform.OS === 'ios' ? 300 : 250,
     backgroundColor: colors.card,
     borderRadius: 12,
     height: 110,

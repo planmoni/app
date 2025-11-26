@@ -51,7 +51,7 @@ export default function ImageCarousel({
   autoPlay = true,
   autoPlayInterval = 7000,
   showPagination = true,
-  height = 160,
+  height = Platform.OS === 'android' ? 140 : 150,
   images: propImages,
   showDimensions = false, // Default to false for production
 }: ImageCarouselProps) {

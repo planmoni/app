@@ -46,16 +46,23 @@ export default function DestinationScreen() {
   const isLoading = payoutAccountsLoading || bankAccountsLoading;
   const error = payoutAccountsError || bankAccountsError;
 
-  // Set default selection based on the active tab type
+  // Set default selection based on the active tab type or params when editing
   useEffect(() => {
-    if (accountType === 'payout' && payoutAccounts.length > 0 && !selectedAccountId) {
+    // If we have params from review page, use those to set the selected account
+    if (params.payoutAccountId && !selectedAccountId) {
+      setSelectedAccountId(params.payoutAccountId as string);
+      setAccountType('payout');
+    } else if (params.bankAccountId && !selectedAccountId) {
+      setSelectedAccountId(params.bankAccountId as string);
+      setAccountType('linked');
+    } else if (accountType === 'payout' && payoutAccounts.length > 0 && !selectedAccountId) {
       const defaultAccount = payoutAccounts.find(account => account.is_default);
       setSelectedAccountId(defaultAccount?.id || payoutAccounts[0].id);
     } else if (accountType === 'linked' && bankAccounts.length > 0 && !selectedAccountId) {
       const defaultAccount = bankAccounts.find(account => account.is_default);
       setSelectedAccountId(defaultAccount?.id || bankAccounts[0].id);
     }
-  }, [payoutAccounts, bankAccounts, selectedAccountId, accountType]);
+  }, [payoutAccounts, bankAccounts, selectedAccountId, accountType, params.payoutAccountId, params.bankAccountId]);
 
   // Helper function to get bank code from bank name
   const getBankCode = (bankName: string): string | undefined => {
@@ -150,6 +157,9 @@ export default function DestinationScreen() {
             startDate: params.startDate || '',
             customDates: params.customDates || '',
             dayOfWeek: params.dayOfWeek || '',
+            payoutHour: params.payoutHour || '',
+            payoutMinute: params.payoutMinute || '',
+            emergencyWithdrawal: params.emergencyWithdrawal || 'false',
           }
         });
       }
@@ -397,6 +407,9 @@ export default function DestinationScreen() {
                   startDate: params.startDate || '',
                   customDates: params.customDates || '',
                   dayOfWeek: params.dayOfWeek || '',
+                  payoutHour: params.payoutHour || '',
+                  payoutMinute: params.payoutMinute || '',
+                  emergencyWithdrawal: params.emergencyWithdrawal || 'false',
                 }
               });
             }

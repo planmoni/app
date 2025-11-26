@@ -252,7 +252,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '95%',
-    minHeight: 750,
+    minHeight: 660,
     width: '100%',
     position: 'relative',
     paddingTop: 8,

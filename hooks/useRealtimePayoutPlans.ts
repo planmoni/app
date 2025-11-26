@@ -10,7 +10,7 @@ export type PayoutPlan = {
   description?: string;
   total_amount: number;
   payout_amount: number;
-  frequency: 'weekly' | 'biweekly' | 'monthly' | 'custom';
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
   duration: number;
   start_date: string;
   bank_account_id: string;
