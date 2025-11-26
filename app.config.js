@@ -6,13 +6,13 @@ module.exports = {
     name: "Planmoni",
     owner: "planmoni", // 👈 Add this line
     slug: "planmoni",
-    version: "1.0.7",
+    version: "1.0.9",
     scheme: "myapp",
     userInterfaceStyle: "automatic", // Allow system to control theme
     updates: {
       url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83"
     },
-    runtimeVersion: "1.0.7",
+    runtimeVersion: "1.0.9",
     android: {
       package: "com.planmoni.app", // ← choose your unique package name
       permissions: [

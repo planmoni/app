@@ -17,6 +17,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
 import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 import { safeHavenService } from '@/lib/safehaven-service';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // KYC Step Components
 import LivenessVerificationStep from '@/components/KYCSteps/LivenessVerificationStep';
 import BVNVerificationStep from '@/components/KYCSteps/BVNVerificationStep';
@@ -1984,23 +1985,19 @@ export default function KYCUpgradeScreen() {
       
       if (!progressResult) {
         showToast('Failed to update progress. Please try again.', 'error');
+        setIsLoading(false);
         return;
       }
       
-      // Only proceed to next step if Tier 1 is not complete or account number not available
-      const tierStatus = checkTierCompletion();
-      if (!tierStatus.tier1 || !accountNumber) {
-        // Wait for toast to be visible before moving to next step
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Move to next incomplete step
-        const nextStep = getNextIncompleteStep('id_face_match');
-        setCurrentStep(nextStep);
-        setTimeout(() => {
-          setIsManualVerification(false);
-          setIsLoading(false);
-        }, 1000);
-      }
+      // Set loading to false before redirecting
+      setIsManualVerification(false);
+      setIsLoading(false);
+      
+      // Set flag to show identity verification success modal on home page
+      await AsyncStorage.setItem('show_identity_verification_success', 'true');
+      
+      // Redirect to tabs immediately after verification completes
+      router.replace('/(tabs)');
       
       // } else {
       //   throw new Error('Name mismatch detected. Please verify your personal information.');
@@ -2190,23 +2187,19 @@ export default function KYCUpgradeScreen() {
       
       if (!progressResult) {
         showToast('Failed to update progress. Please try again.', 'error');
+        setIsLoading(false);
         return;
       }
       
-      // Only proceed to next step if Tier 1 is not complete or account number not available
-      const tierStatus = checkTierCompletion();
-      if (!tierStatus.tier1 || !accountNumber) {
-        // Wait for toast to be visible before moving to next step
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Move to next incomplete step
-        const nextStep = getNextIncompleteStep('id_face_match');
-        setCurrentStep(nextStep);
-        setTimeout(() => {
-          setIsManualVerification(false);
-          setIsLoading(false);
-        }, 1000);
-      }
+      // Set loading to false before redirecting
+      setIsManualVerification(false);
+      setIsLoading(false);
+      
+      // Set flag to show identity verification success modal on home page
+      await AsyncStorage.setItem('show_identity_verification_success', 'true');
+      
+      // Redirect to tabs immediately after verification completes
+      router.replace('/(tabs)');
       
     } catch (error) {
       console.error('BVN verification error:', error);

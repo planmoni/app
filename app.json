@@ -2,7 +2,7 @@
   "expo": {
     "name": "Planmoni",
     "slug": "planmoni",
-    "version": "1.0.7",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/images/AppIcon.png",
     "scheme": "myapp",
@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.planmoni",
-      "versionCode": 7,
+      "versionCode": 9,
       "softwareKeyboardLayoutMode": "resize",
       "useNextNotificationsApi": true,
      "permissions": [
@@ -31,7 +31,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.planmoni",
-      "buildNumber": "7",
+      "buildNumber": "9",
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"],
         "ITSAppUsesNonExemptEncryption": false,

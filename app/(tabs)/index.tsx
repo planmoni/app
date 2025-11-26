@@ -4,6 +4,8 @@ import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 import AccountInformationModal from '@/components/AccountInformationModal';
 import PlanCreationModal from '@/components/PlanCreationModal';
 import AppLockModal from '@/components/AppLockModal';
+import IdentityVerificationSuccessModal from '@/components/IdentityVerificationSuccessModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
@@ -113,6 +115,7 @@ export default function HomeScreen() {
   const [hasDismissedDepositModal, setHasDismissedDepositModal] = useState(false);
   const [showAppLockModal, setShowAppLockModal] = useState(false);
   const [hasShownAppLockModal, setHasShownAppLockModal] = useState(false);
+  const [showIdentityVerificationModal, setShowIdentityVerificationModal] = useState(false);
   const { hasAppLockPin } = usePin();
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
@@ -230,6 +233,30 @@ export default function HomeScreen() {
 
   // Don't show ClaimAccountModal after Tier 1 completion - user can navigate directly to add funds
   // Removed the useEffect that automatically shows ClaimAccountModal after Tier 1 completion
+
+  // Check for identity verification success flag and show modal
+  useEffect(() => {
+    const checkIdentityVerificationSuccess = async () => {
+      try {
+        const shouldShow = await AsyncStorage.getItem('show_identity_verification_success');
+        if (shouldShow === 'true') {
+          // Small delay to ensure smooth transition after redirect
+          const timer = setTimeout(() => {
+            setShowIdentityVerificationModal(true);
+            // Clear the flag immediately so it doesn't show again
+            AsyncStorage.removeItem('show_identity_verification_success');
+          }, 500);
+          return () => clearTimeout(timer);
+        }
+      } catch (error) {
+        console.error('Error checking identity verification success flag:', error);
+      }
+    };
+    
+    if (session?.user?.id) {
+      checkIdentityVerificationSuccess();
+    }
+  }, [session?.user?.id]);
 
   // Show AccountInformationModal only when coming from Tier1CompletionModal
   const params = useLocalSearchParams();
@@ -1043,6 +1070,13 @@ export default function HomeScreen() {
               setHasShownAccountInfoModal(true);
               // Refresh the app to clear any blocking state
               await handleRefresh();
+            }}
+          />
+
+          <IdentityVerificationSuccessModal
+            isVisible={showIdentityVerificationModal}
+            onClose={() => {
+              setShowIdentityVerificationModal(false);
             }}
           />
 
