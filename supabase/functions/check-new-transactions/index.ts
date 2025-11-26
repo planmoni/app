@@ -171,9 +171,16 @@ serve(async (req) => {
 
             // Process deposit atomically
             const { data: result, error } = await supabase.rpc('process_paystack_deposit', {
-              p_user_id: account.user_id,
-              p_amount: amountInNaira,
-              p_reference: tx.reference
+              arg_user_id: account.user_id,
+              arg_amount: amountInNaira,
+              arg_reference: tx.reference,
+              arg_paystack_data: {
+                paystack_transaction_id: tx.id,
+                paystack_reference: tx.reference,
+                account_number: tx.authorization?.account_number,
+                processed_by: 'check_new_transactions_function',
+                processed_at: new Date().toISOString()
+              }
             })
 
             if (error) {

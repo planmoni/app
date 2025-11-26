@@ -201,18 +201,52 @@ function RootLayoutNav() {
   useEffect(() => {
     const checkInitialNotification = async () => {
       try {
-        const { getLastNotificationResponseAsync } = await import('expo-notifications');
-        const response = await getLastNotificationResponseAsync();
+        const Notifications = await import('expo-notifications');
+        const response = await Notifications.getLastNotificationResponseAsync();
         if (response) {
           const data = response.notification.request.content.data;
+          
+          // Handle Intercom notifications
           if (data?.intercom) {
             console.log('📬 App opened from Intercom notification');
-            // Open Intercom when app is ready
             setTimeout(() => {
               const { intercomInstant } = require('@/lib/IntercomInstant');
               intercomInstant.open().catch((error: any) => {
                 console.error('Failed to open Intercom from notification:', error);
               });
+            }, 1000);
+            return;
+          }
+
+          // Handle event/notification navigation
+          if (data?.route) {
+            console.log('🔔 App opened from notification, navigating to:', data.route);
+            setTimeout(() => {
+              const { router } = require('expo-router');
+              router.push(data.route as any);
+            }, 1000);
+          } else if (data?.eventType || data?.notificationType) {
+            // Navigate based on event/notification type
+            const routeMap: Record<string, string> = {
+              payout_completed: '/all-payouts',
+              payout_scheduled: '/all-payouts',
+              disbursement_failed: '/all-payouts',
+              deposit_successful: '/(tabs)/',
+              deposit_failed: '/(tabs)/',
+              transaction_completed: '/transactions',
+              transaction_failed: '/transactions',
+              security_alert: '/profile',
+              login_alert: '/profile',
+              suspicious_activity: '/profile',
+              payout: '/all-payouts',
+              transaction: '/transactions',
+              security: '/profile',
+            };
+            const eventType = (data.eventType || data.notificationType) as string;
+            const route = routeMap[eventType] || '/(tabs)/';
+            setTimeout(() => {
+              const { router } = require('expo-router');
+              router.push(route as any);
             }, 1000);
           }
         }

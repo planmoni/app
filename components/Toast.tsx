@@ -19,9 +19,15 @@ export default function Toast({
   message,
   type = 'info',
   duration = 3000,
-  onDismiss
+  onDismiss,
+  colors: propsColors,
+  isDark: propsIsDark
 }: ToastProps) {
-  const { colors, isDark } = useTheme();
+  // Always call useTheme() unconditionally (Rules of Hooks)
+  // Prefer props if provided (from ToastProvider), otherwise use hook result
+  const themeHook = useTheme();
+  const colors = propsColors || themeHook.colors;
+  const isDark = propsIsDark !== undefined ? propsIsDark : themeHook.isDark;
   const translateY = useRef(new Animated.Value(100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.8)).current;

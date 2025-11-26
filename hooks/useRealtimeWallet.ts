@@ -96,9 +96,6 @@ export function useRealtimeWallet() {
     }
 
     let channel: RealtimeChannel | null = null;
-    let retryCount = 0;
-    const maxRetries = 3;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const setupRealtimeSubscription = () => {
       try {
@@ -108,7 +105,9 @@ export function useRealtimeWallet() {
           return;
         }
 
-        // Set up real-time subscription with improved error handling
+        // Set up real-time subscription without retry logic
+        // Server-side push notifications handle delivery when app is closed
+        // This subscription is only for real-time UI updates when app is open
         const channelName = `wallet-changes-${session.user.id}`;
         channel = supabase
           .channel(channelName)
@@ -138,40 +137,17 @@ export function useRealtimeWallet() {
           .subscribe((status: 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED') => {
             switch (status) {
               case 'SUBSCRIBED':
-                console.log('Wallet subscription successful');
+                console.log('✅ Wallet subscription successful');
                 setError(null);
-                retryCount = 0; // Reset retry count on successful connection
                 break;
               case 'CHANNEL_ERROR':
-                console.warn('Wallet subscription error - continuing without realtime updates');
-                // Implement retry logic for channel errors
-                if (retryCount < maxRetries) {
-                  retryCount++;
-                  console.log(`Retrying wallet subscription (${retryCount}/${maxRetries})...`);
-                  retryTimeout = setTimeout(() => {
-                    if (channel) {
-                      supabase.removeChannel(channel);
-                    }
-                    setupRealtimeSubscription();
-                  }, 2000 * retryCount); // Exponential backoff
-                }
+                console.log('ℹ️ Wallet subscription error - server-side push notifications will handle delivery');
                 break;
               case 'TIMED_OUT':
-                console.warn('Wallet subscription timed out - continuing without realtime updates');
-                // Implement retry logic for timeouts
-                if (retryCount < maxRetries) {
-                  retryCount++;
-                  console.log(`Retrying wallet subscription after timeout (${retryCount}/${maxRetries})...`);
-                  retryTimeout = setTimeout(() => {
-                    if (channel) {
-                      supabase.removeChannel(channel);
-                    }
-                    setupRealtimeSubscription();
-                  }, 2000 * retryCount); // Exponential backoff
-                }
+                console.log('ℹ️ Wallet subscription timed out - server-side push notifications will handle delivery');
                 break;
               case 'CLOSED':
-                console.log('Wallet subscription closed');
+                console.log('ℹ️ Wallet subscription closed');
                 break;
             }
           });
@@ -191,9 +167,6 @@ export function useRealtimeWallet() {
 
     return () => {
       clearTimeout(subscriptionTimer);
-      if (retryTimeout) {
-        clearTimeout(retryTimeout);
-      }
       if (channel) {
         supabase.removeChannel(channel);
       }

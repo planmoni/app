@@ -1,9 +1,10 @@
 import { View, Text, StyleSheet, Pressable, useWindowDimensions, Image, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Building2, Plus, Info, Check, X } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '@/components/Button';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
 import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,7 +31,8 @@ export default function DestinationScreen() {
   const { 
     payoutAccounts, 
     isLoading: payoutAccountsLoading, 
-    error: payoutAccountsError 
+    error: payoutAccountsError,
+    fetchPayoutAccounts
   } = usePayoutAccounts();
   
   const { 
@@ -45,6 +47,16 @@ export default function DestinationScreen() {
   // Combine loading and error states
   const isLoading = payoutAccountsLoading || bankAccountsLoading;
   const error = payoutAccountsError || bankAccountsError;
+
+  // Refresh accounts when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // Refresh payout accounts when screen is focused
+      if (accountType === 'payout') {
+        fetchPayoutAccounts();
+      }
+    }, [accountType, fetchPayoutAccounts])
+  );
 
   // Set default selection based on the active tab type or params when editing
   useEffect(() => {
@@ -386,9 +398,13 @@ export default function DestinationScreen() {
       {accountType === 'payout' ? (
         <AddPayoutAccountModal
           isVisible={showAddAccount}
-          onClose={(newAccount) => {
+          onClose={async (newAccount) => {
             haptics.lightImpact();
             setShowAddAccount(false);
+            // Refresh accounts list to ensure newly added account is visible
+            if (newAccount) {
+              await fetchPayoutAccounts();
+            }
             // If a new account was added, select it and auto-advance
             if (newAccount && newAccount.id) {
               setSelectedAccountId(newAccount.id);

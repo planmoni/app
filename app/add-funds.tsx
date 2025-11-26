@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Animated, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Animated, useWindowDimensions, AppState } from 'react-native';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Copy, Info, Shield, ChevronRight } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -129,44 +130,85 @@ export default function AddFundsScreen() {
   }, [session?.user?.id, getTierInfo]);
 
   // Fetch today's deposit amount
-  useEffect(() => {
-    const fetchTodayDeposits = async () => {
-      if (!session?.user?.id) {
+  const fetchTodayDeposits = React.useCallback(async () => {
+    if (!session?.user?.id) {
+      return;
+    }
+
+    try {
+      // Get start and end of today in GMT+1 (resets at 00:00 GMT+1)
+      // GMT+1 is UTC+1, meaning 00:00 GMT+1 = 23:00 UTC the previous day
+      const now = new Date();
+      
+      // Convert current UTC time to GMT+1 by subtracting 1 hour
+      const nowGMT1 = new Date(now.getTime() - (1 * 60 * 60 * 1000));
+      
+      // Get the date components in GMT+1
+      const yearGMT1 = nowGMT1.getUTCFullYear();
+      const monthGMT1 = nowGMT1.getUTCMonth();
+      const dateGMT1 = nowGMT1.getUTCDate();
+      
+      // Create start of day in GMT+1 (00:00:00 GMT+1)
+      // This is equivalent to 23:00:00 UTC the previous day
+      const startOfDayGMT1 = new Date(Date.UTC(yearGMT1, monthGMT1, dateGMT1, 0, 0, 0, 0));
+      
+      // Convert GMT+1 start of day to UTC: subtract 1 hour
+      // 00:00 GMT+1 = 23:00 UTC previous day
+      const startOfDayUTC = new Date(startOfDayGMT1.getTime() - (1 * 60 * 60 * 1000));
+      
+      // End of day is start + 24 hours
+      const endOfDayUTC = new Date(startOfDayUTC.getTime() + (24 * 60 * 60 * 1000));
+
+      // Query today's completed deposits
+      const { data: transactions, error } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('user_id', session.user.id)
+        .eq('type', 'deposit')
+        .eq('status', 'completed')
+        .gte('created_at', startOfDayUTC.toISOString())
+        .lt('created_at', endOfDayUTC.toISOString());
+
+      if (error) {
+        console.error('Error fetching today\'s deposits:', error);
         return;
       }
 
-      try {
-        // Get start and end of today
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        // Query today's completed deposits
-        const { data: transactions, error } = await supabase
-          .from('transactions')
-          .select('amount')
-          .eq('user_id', session.user.id)
-          .eq('type', 'deposit')
-          .eq('status', 'completed')
-          .gte('created_at', today.toISOString())
-          .lt('created_at', tomorrow.toISOString());
-
-        if (error) {
-          console.error('Error fetching today\'s deposits:', error);
-          return;
-        }
-
-        // Sum up today's deposits (amount is stored in kobo, convert to naira)
-        const totalToday = (transactions || []).reduce((sum: number, tx: { amount: number }) => sum + (tx.amount / 100), 0);
-        setTodayDepositAmount(totalToday);
-      } catch (err) {
-        console.error('Error calculating today\'s deposits:', err);
-      }
-    };
-
-    fetchTodayDeposits();
+      // Sum up today's deposits (amount is stored in naira, not kobo)
+      const totalToday = (transactions || []).reduce((sum: number, tx: { amount: number }) => sum + Number(tx.amount), 0);
+      setTodayDepositAmount(totalToday);
+    } catch (err) {
+      console.error('Error calculating today\'s deposits:', err);
+    }
   }, [session?.user?.id]);
+
+  useEffect(() => {
+    fetchTodayDeposits();
+
+    // Refresh every minute to check if day has changed
+    const interval = setInterval(() => {
+      fetchTodayDeposits();
+    }, 60000); // Check every minute
+
+    // Refresh when app comes to foreground
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        fetchTodayDeposits();
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [fetchTodayDeposits]);
+
+  // Refresh when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchTodayDeposits();
+    }, [fetchTodayDeposits])
+  );
 
   // Update virtual account state when safehaven account changes
   useEffect(() => {
@@ -356,6 +398,14 @@ export default function AddFundsScreen() {
                       </Text>
                     </View>
                   )} */}
+                </View>
+
+                {/* Transfer Timing Notice */}
+                <View style={styles.transferNotice}>
+                  <Info size={18} color={colors.primary} />
+                  <Text style={styles.transferNoticeText}>
+                    Bank transfers can take up to 1 min before reflecting on your wallet, we will notify you immediately your transfer arrives.
+                  </Text>
                 </View>
 
                 {/* Tier Limit Reminder */}
@@ -1014,5 +1064,22 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontSize: isSmallScreen ? 12 : 13,
     fontWeight: '600',
     color: colors.primary,
+  },
+  transferNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 12,
+    padding: isSmallScreen ? 14 : 16,
+    marginBottom: isSmallScreen ? 20 : 24,
+    gap: 12,
+  },
+  transferNoticeText: {
+    flex: 1,
+    fontSize: isSmallScreen ? 13 : 14,
+    color: colors.text,
+    lineHeight: 20,
   },
 });

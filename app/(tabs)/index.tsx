@@ -50,6 +50,7 @@ import { useKYCProgress } from '@/hooks/useKYCProgress';
 // import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
+import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
 import { logAnalyticsEvent } from '@/lib/firebase';
 // import { intercomInstant } from '@/lib/IntercomInstant';
 import NotificationIcon from '@/components/NotificationIcon';
@@ -84,6 +85,7 @@ export default function HomeScreen() {
   const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress, currentTier } = useKYCProgress();
+  const { hasCreatedPayoutPlan, isLoading: hasCreatedPayoutPlanLoading } = useHasCreatedPayoutPlan();
   const navigation = useNavigation();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
@@ -535,17 +537,14 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // For authenticated users, only show modal if there are no active payout plans (or total is ₦0)
+    // For authenticated users, only show modal if user has never created a payout plan before
     if (isAuthenticated) {
-      const activePlansTotal = activePlans.reduce((sum, plan) => sum + Number(plan.total_amount || 0), 0);
-      const hasActivePlansWithBalance = activePlans.length > 0 && activePlansTotal > 0;
-      
-      if (hasActivePlansWithBalance) {
-        // User has active plans with balance - navigate directly to create payout
+      if (hasCreatedPayoutPlan) {
+        // User has created a payout plan before - navigate directly to create payout
         router.push('/create-payout/amount');
         logAnalyticsEvent('create_payout_click_direct');
       } else {
-        // No active plans or total is ₦0 - show info modal
+        // User has never created a payout plan - show info modal
         setShowNewPlanInfoModal(true);
         logAnalyticsEvent('create_payout_click_modal');
       }

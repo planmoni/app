@@ -598,6 +598,37 @@ export default function ScheduleScreen() {
     }
   };
 
+  const getFrequencyLabel = () => {
+    switch (selectedSchedule || '') {
+      case 'daily':
+        return 'daily';
+      case 'monthly':
+        return 'monthly';
+      case 'biweekly':
+        return 'bi-weekly';
+      case 'weekly':
+        return 'weekly';
+      case 'weekly_specific':
+        if (selectedDayOfWeek !== null) {
+          const dayName = DAYS_OF_WEEK.find(day => day.value === selectedDayOfWeek)?.label || '';
+          return dayName.toLowerCase().replace('every ', '');
+        }
+        return 'weekly';
+      case 'end_of_month':
+        return 'month-end';
+      case 'quarterly':
+        return 'quarterly';
+      case 'biannual':
+        return 'bi-annual';
+      case 'annually':
+        return 'annual';
+      case 'custom':
+        return 'custom';
+      default:
+        return '';
+    }
+  };
+
   const getPayoutLabel = () => {
     switch (selectedSchedule || '') {
       case 'daily':
@@ -1209,7 +1240,21 @@ export default function ScheduleScreen() {
             </Pressable>
             
             <Text style={styles.payoutCount}>
-              {numberOfPayouts} payout{numberOfPayouts !== 1 ? 's' : ''} of ₦{payoutAmount}
+              {selectedSchedule === 'weekly_specific' && selectedDayOfWeek !== null ? (
+                <>
+                  You'll receive {numberOfPayouts} payout{numberOfPayouts !== 1 ? 's' : ''} of ₦{payoutAmount} every {DAYS_OF_WEEK.find(day => day.value === selectedDayOfWeek)?.label.toLowerCase().replace('every ', '') || 'week'} totalling ₦{parseFloat(totalAmount.replace(/,/g, '')).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })}
+                </>
+              ) : (
+                <>
+                  You'll receive {numberOfPayouts} {getFrequencyLabel()} payout{numberOfPayouts !== 1 ? 's' : ''} of ₦{payoutAmount} totalling ₦{parseFloat(totalAmount.replace(/,/g, '')).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })}
+                </>
+              )}
             </Text>
           </View>
         </View>
@@ -1291,7 +1336,7 @@ export default function ScheduleScreen() {
                 </View>
                 {calculatedRemainder > 0 && (
                   <Text style={styles.modalRemainderNote}>
-                    This amount will remain in your available balance
+                    This remainder will be returned to your available balance.
                   </Text>
                 )}
               </View>

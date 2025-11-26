@@ -397,8 +397,8 @@ serve(async (req: Request) => {
         console.log(`Successfully updated plan ${withdrawal.payout_plan_id} status to cancelled`)
       }
 
-      // Create success notification
-      await supabase
+      // Create success notification (both event and notification for immediate alert)
+      const eventResult = await supabase
         .from("events")
         .insert({
           user_id: userId,
@@ -407,6 +407,27 @@ serve(async (req: Request) => {
           description: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been processed successfully. Fee charged: ₦${feeAmount.toLocaleString()} (${feePercentage}%).`,
           status: "unread"
         })
+        .select()
+        .single();
+
+      // Also create notification directly to ensure immediate alert
+      if (eventResult.data) {
+        await supabase
+          .from("notifications")
+          .insert({
+            user_id: userId,
+            title: "Emergency Withdrawal Completed",
+            message: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been processed successfully. Fee charged: ₦${feeAmount.toLocaleString()} (${feePercentage}%).`,
+            type: "payout",
+            data: {
+              eventId: eventResult.data.id,
+              eventType: "payout_completed",
+              route: "/all-payouts",
+              payoutPlanId: withdrawal.payout_plan_id,
+            },
+            is_read: false
+          });
+      }
 
       return new Response(
         JSON.stringify({
@@ -459,8 +480,8 @@ serve(async (req: Request) => {
         }
       })
 
-      // Create failure notification
-      await supabase
+      // Create failure notification (both event and notification for immediate alert)
+      const failureEventResult = await supabase
         .from("events")
         .insert({
           user_id: userId,
@@ -469,6 +490,26 @@ serve(async (req: Request) => {
           description: `Your emergency withdrawal request failed: ${error.message}`,
           status: "unread"
         })
+        .select()
+        .single();
+
+      // Also create notification directly to ensure immediate alert
+      if (failureEventResult.data) {
+        await supabase
+          .from("notifications")
+          .insert({
+            user_id: userId,
+            title: "Emergency Withdrawal Failed",
+            message: `Your emergency withdrawal request failed: ${error.message}`,
+            type: "payout",
+            data: {
+              eventId: failureEventResult.data.id,
+              eventType: "disbursement_failed",
+              route: "/all-payouts",
+            },
+            is_read: false
+          });
+      }
 
       return new Response(
         JSON.stringify({
@@ -483,8 +524,8 @@ serve(async (req: Request) => {
       // For scheduled withdrawals (24hrs, 72hrs), just return success without processing
       const processingTimeText = correctWithdrawalType === "24hrs" ? "within 24 hours" : "within 72 hours"
       
-      // Create notification for scheduled withdrawal
-      await supabase
+      // Create notification for scheduled withdrawal (both event and notification for immediate alert)
+      const scheduledEventResult = await supabase
         .from("events")
         .insert({
           user_id: userId,
@@ -493,6 +534,27 @@ serve(async (req: Request) => {
           description: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been scheduled for processing ${processingTimeText}.`,
           status: "unread"
         })
+        .select()
+        .single();
+
+      // Also create notification directly to ensure immediate alert
+      if (scheduledEventResult.data) {
+        await supabase
+          .from("notifications")
+          .insert({
+            user_id: userId,
+            title: "Emergency Withdrawal Scheduled",
+            message: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been scheduled for processing ${processingTimeText}.`,
+            type: "payout",
+            data: {
+              eventId: scheduledEventResult.data.id,
+              eventType: "withdrawal_scheduled",
+              route: "/all-payouts",
+              payoutPlanId: withdrawal.payout_plan_id,
+            },
+            is_read: false
+          });
+      }
 
       return new Response(
         JSON.stringify({

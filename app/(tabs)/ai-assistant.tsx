@@ -2796,7 +2796,14 @@ export default function AIAssistantScreen() {
                 </Pressable>
               );
             })}
-            <Button title="Add New Account" onPress={() => setShowAddAccountModal(true)} />
+            <Pressable
+              style={[styles.secondaryButton, { borderColor: colors.border }]}
+              onPress={() => setShowAddAccountModal(true)}
+            >
+              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>
+                Add New Account
+              </Text>
+            </Pressable>
           </View>
         )}
         {/* Day of week selection UI */}
