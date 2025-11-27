@@ -1081,7 +1081,37 @@ async function handleEmergencyWithdrawalSuccess(emergencyWithdrawal: any, transf
     // Update SafeHaven account balance (debit the account)
     // For Outwards transfers, we need to subtract amount + fees from the account
     const debitAccountNumber = transferData.debitAccountNumber || '0117753301';
+    const totalAmount = emergencyWithdrawal.withdrawal_amount; // Total including withdrawal fee
+    
+    // Get current account balance before update for logging
+    const { data: accountBeforeUpdate } = await supabase
+      .from('safehaven_accounts')
+      .select('account_balance, book_balance')
+      .eq('user_id', emergencyWithdrawal.user_id)
+      .eq('account_number', debitAccountNumber)
+      .single();
+    
     await updateUserBalance(emergencyWithdrawal.user_id, transferData, debitAccountNumber);
+    
+    // Log balance change for clarity
+    if (accountBeforeUpdate) {
+      const balanceChange = -(transferData.amount + (transferData.fees || 0));
+      console.log('💰 EMERGENCY WITHDRAWAL SUCCESS - SafeHaven Account Balance DEBITED:', {
+        withdrawal_id: emergencyWithdrawal.id,
+        payment_reference: transferData.paymentReference || transferData.sessionId,
+        withdrawal_amount: emergencyWithdrawal.withdrawal_amount,
+        net_amount: emergencyWithdrawal.net_amount,
+        fee_amount: emergencyWithdrawal.fee_amount || (emergencyWithdrawal.withdrawal_amount - emergencyWithdrawal.net_amount),
+        transfer_amount: transferData.amount,
+        transfer_fees: transferData.fees || 0,
+        total_debited: totalAmount,
+        balance_change: balanceChange,
+        old_balance: accountBeforeUpdate.account_balance,
+        action: 'DEBITED (subtracted from account)',
+        note: 'Money sent to beneficiary, balance reduced'
+      });
+    }
+    
     console.log(`✅ Updated SafeHaven account balance for emergency withdrawal`);
 
     // Update wallet balance - reduce both balance and locked_balance since money is being withdrawn from the system
@@ -1170,10 +1200,25 @@ async function handleAutomatedPayoutSuccess(automatedPayout: any, transferData: 
       .single();
 
     if (currentAccount) {
-      const balanceChange = -(transferData.amount + (transferData.fees || 0));
+      const totalAmount = transferData.amount + (transferData.fees || 0);
+      const balanceChange = -totalAmount; // DEBIT: Subtract from balance
       const newAccountBalance = (currentAccount.account_balance || 0) + balanceChange;
       const newBookBalance = (currentAccount.book_balance || 0) + balanceChange;
       const paymentRef = transferData.paymentReference || transferData.sessionId || automatedPayout.payment_reference || automatedPayout.transfer_reference;
+
+      // Log balance change for clarity
+      console.log('💰 PAYOUT SUCCESS - SafeHaven Account Balance DEBITED:', {
+        payout_id: automatedPayout.id,
+        payment_reference: paymentRef,
+        transfer_amount: transferData.amount,
+        transfer_fees: transferData.fees || 0,
+        total_debited: totalAmount,
+        balance_change: balanceChange,
+        old_balance: currentAccount.account_balance,
+        new_balance: newAccountBalance,
+        action: 'DEBITED (subtracted from account)',
+        note: 'Money sent to beneficiary, balance reduced'
+      });
 
       // Update account balance with metadata containing payment reference and status
       // The trigger will automatically handle transaction and wallet updates
@@ -1191,6 +1236,8 @@ async function handleAutomatedPayoutSuccess(automatedPayout: any, transferData: 
             transfer_status: 'Completed',
             automated_payout_id: automatedPayout.id,
             balance_change: balanceChange,
+            balance_action: 'debited',
+            total_debited: totalAmount,
             updated_by: 'webhook_success'
           }
         })
@@ -1250,6 +1297,30 @@ async function handleEmergencyWithdrawalFailed(emergencyWithdrawal: any, transfe
     }
 
     console.log(`❌ Emergency withdrawal ${emergencyWithdrawal.id} marked as failed`);
+
+    // Log that balance is NOT changed on failure
+    const paymentRef = transferData.paymentReference || transferData.sessionId || emergencyWithdrawal.reference;
+    const debitAccountNumber = transferData.debitAccountNumber || '0117753301';
+    
+    // Get current account balance for logging
+    const { data: currentAccount } = await supabase
+      .from('safehaven_accounts')
+      .select('account_balance, book_balance')
+      .eq('user_id', emergencyWithdrawal.user_id)
+      .eq('account_number', debitAccountNumber)
+      .single();
+
+    if (currentAccount) {
+      console.log('💰 EMERGENCY WITHDRAWAL FAILED - SafeHaven Account Balance NOT CHANGED:', {
+        withdrawal_id: emergencyWithdrawal.id,
+        payment_reference: paymentRef,
+        withdrawal_amount: emergencyWithdrawal.withdrawal_amount,
+        net_amount: emergencyWithdrawal.net_amount,
+        current_balance: currentAccount.account_balance,
+        action: 'NO DEBIT (balance unchanged)',
+        note: 'Transfer failed, money stays in SafeHaven account, no debit occurred'
+      });
+    }
 
     // Create transaction record
     await createTransactionRecord({
@@ -1319,6 +1390,17 @@ async function handleAutomatedPayoutFailed(automatedPayout: any, transferData: S
       .single();
 
     if (currentAccount && paymentRef) {
+      // Log that balance is NOT changed on failure
+      console.log('💰 PAYOUT FAILED - SafeHaven Account Balance NOT CHANGED:', {
+        payout_id: automatedPayout.id,
+        payment_reference: paymentRef,
+        transfer_amount: transferData.amount,
+        transfer_fees: transferData.fees || 0,
+        current_balance: currentAccount.account_balance,
+        action: 'NO DEBIT (balance unchanged)',
+        note: 'Transfer failed, money stays in SafeHaven account, no debit occurred'
+      });
+
       // Update account with failure metadata (balance doesn't change on failure, but we log it)
       await supabase
         .from('safehaven_accounts')
@@ -1332,6 +1414,8 @@ async function handleAutomatedPayoutFailed(automatedPayout: any, transferData: S
             transfer_status: 'Failed',
             automated_payout_id: automatedPayout.id,
             failure_reason: transferData.responseMessage || 'Transfer failed',
+            balance_action: 'not_changed',
+            balance_note: 'Transfer failed - no debit occurred, funds remain in account',
             updated_by: 'webhook_failed'
           }
         })
@@ -1341,7 +1425,7 @@ async function handleAutomatedPayoutFailed(automatedPayout: any, transferData: S
       // Manually update transaction since balance didn't change (trigger won't fire)
       await updateTransactionStatus(automatedPayout, transferData, 'failed');
       
-      console.log(`✅ Updated SafeHaven account metadata for failed payout (trigger will handle transaction update)`);
+      console.log(`✅ Updated SafeHaven account metadata for failed payout (balance unchanged - no debit)`);
     } else {
       // Fallback: manually update transaction
       await updateTransactionStatus(automatedPayout, transferData, 'failed');
@@ -1395,6 +1479,66 @@ async function handleEmergencyWithdrawalReversed(emergencyWithdrawal: any, trans
     }
 
     console.log(`🔄 Emergency withdrawal ${emergencyWithdrawal.id} marked as reversed`);
+
+    // Add funds back to SafeHaven account balance (reversal means money is returned)
+    const debitAccountNumber = transferData.debitAccountNumber || '0117753301';
+    const totalAmount = emergencyWithdrawal.withdrawal_amount; // Total including withdrawal fee
+    const paymentRef = transferData.paymentReference || transferData.sessionId || emergencyWithdrawal.reference;
+
+    // Get current account to add funds back
+    const { data: currentAccount } = await supabase
+      .from('safehaven_accounts')
+      .select('account_balance, book_balance, metadata')
+      .eq('user_id', emergencyWithdrawal.user_id)
+      .eq('account_number', debitAccountNumber)
+      .single();
+
+    if (currentAccount) {
+      const balanceChange = totalAmount; // CREDIT: Add back to balance
+      const newAccountBalance = (currentAccount.account_balance || 0) + balanceChange;
+      const newBookBalance = (currentAccount.book_balance || 0) + balanceChange;
+
+      // Log balance change for clarity
+      console.log('💰 EMERGENCY WITHDRAWAL REVERSED - SafeHaven Account Balance CREDITED (added back):', {
+        withdrawal_id: emergencyWithdrawal.id,
+        payment_reference: paymentRef,
+        withdrawal_amount: emergencyWithdrawal.withdrawal_amount,
+        net_amount: emergencyWithdrawal.net_amount,
+        fee_amount: emergencyWithdrawal.fee_amount || (emergencyWithdrawal.withdrawal_amount - emergencyWithdrawal.net_amount),
+        total_credited: totalAmount,
+        balance_change: balanceChange,
+        old_balance: currentAccount.account_balance,
+        new_balance: newAccountBalance,
+        action: 'CREDITED (added back to account)',
+        note: 'Transfer reversed, money returned to SafeHaven account'
+      });
+
+      // Update account balance - add funds back
+      await supabase
+        .from('safehaven_accounts')
+        .update({
+          account_balance: newAccountBalance,
+          book_balance: newBookBalance,
+          updated_at: new Date().toISOString(),
+          synced_at: new Date().toISOString(),
+          metadata: {
+            ...(currentAccount.metadata || {}),
+            payment_reference: paymentRef,
+            transfer_reference: paymentRef,
+            transfer_status: 'Reversed',
+            emergency_withdrawal_id: emergencyWithdrawal.id,
+            balance_change: balanceChange,
+            balance_action: 'credited',
+            total_credited: totalAmount,
+            reversal_reason: transferData.responseMessage || 'Transfer was reversed',
+            updated_by: 'webhook_reversed'
+          }
+        })
+        .eq('user_id', emergencyWithdrawal.user_id)
+        .eq('account_number', debitAccountNumber);
+
+      console.log(`✅ Updated SafeHaven account balance: ${currentAccount.account_balance} -> ${newAccountBalance} (funds added back)`);
+    }
 
     // Create transaction record
     await createTransactionRecord({
@@ -1472,6 +1616,65 @@ async function handleAutomatedPayoutReversed(automatedPayout: any, transferData:
     }
 
     console.log(`🔄 Automated payout ${automatedPayout.id} marked as reversed`);
+
+    // Add funds back to SafeHaven account balance (reversal means money is returned)
+    const debitAccountNumber = transferData.debitAccountNumber || '0117753301';
+    const totalAmount = transferData.amount + (transferData.fees || 0);
+    const paymentRef = transferData.paymentReference || transferData.sessionId || automatedPayout.payment_reference || automatedPayout.transfer_reference;
+
+    // Get current account to add funds back
+    const { data: currentAccount } = await supabase
+      .from('safehaven_accounts')
+      .select('account_balance, book_balance, metadata')
+      .eq('user_id', automatedPayout.user_id)
+      .eq('account_number', debitAccountNumber)
+      .single();
+
+    if (currentAccount) {
+      const balanceChange = totalAmount; // CREDIT: Add back to balance
+      const newAccountBalance = (currentAccount.account_balance || 0) + balanceChange;
+      const newBookBalance = (currentAccount.book_balance || 0) + balanceChange;
+
+      // Log balance change for clarity
+      console.log('💰 PAYOUT REVERSED - SafeHaven Account Balance CREDITED (added back):', {
+        payout_id: automatedPayout.id,
+        payment_reference: paymentRef,
+        transfer_amount: transferData.amount,
+        transfer_fees: transferData.fees || 0,
+        total_credited: totalAmount,
+        balance_change: balanceChange,
+        old_balance: currentAccount.account_balance,
+        new_balance: newAccountBalance,
+        action: 'CREDITED (added back to account)',
+        note: 'Transfer reversed, money returned to SafeHaven account'
+      });
+
+      // Update account balance - add funds back
+      await supabase
+        .from('safehaven_accounts')
+        .update({
+          account_balance: newAccountBalance,
+          book_balance: newBookBalance,
+          updated_at: new Date().toISOString(),
+          synced_at: new Date().toISOString(),
+          metadata: {
+            ...(currentAccount.metadata || {}),
+            payment_reference: paymentRef,
+            transfer_reference: paymentRef,
+            transfer_status: 'Reversed',
+            automated_payout_id: automatedPayout.id,
+            balance_change: balanceChange,
+            balance_action: 'credited',
+            total_credited: totalAmount,
+            reversal_reason: transferData.responseMessage || 'Transfer was reversed',
+            updated_by: 'webhook_reversed'
+          }
+        })
+        .eq('user_id', automatedPayout.user_id)
+        .eq('account_number', debitAccountNumber);
+
+      console.log(`✅ Updated SafeHaven account balance: ${currentAccount.account_balance} -> ${newAccountBalance} (funds added back)`);
+    }
 
     // Create transaction record
     await createTransactionRecord(automatedPayout, transferData, 'reversed');
@@ -2115,12 +2318,22 @@ async function processIdentityCreditCheckWebhook(identityData: SafeHavenIdentity
 async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData): Promise<any> {
   // Use paymentReference if available, otherwise fall back to reference
   const paymentRef = debitData.paymentReference || debitData.reference || '';
-  console.log('Processing account debit webhook:', paymentRef);
-  console.log('Debit data: ', JSON.stringify(debitData, null, 2));
-  console.log('User ID (client): ', debitData.client);
-  // Use paymentReference if available, otherwise fall back to reference
-  const paymentRef = debitData.paymentReference || debitData.reference || '';
-  console.log('Processing account debit webhook:', paymentRef);
+  const totalDebitAmount = (debitData.amount || 0) + (debitData.fees || 0) + (debitData.vat || 0) + (debitData.stampDuty || 0);
+  const isSuccessful = debitData.status === 'Created' || debitData.status === 'Completed';
+  
+  console.log('💰 ACCOUNT.DEBIT WEBHOOK - Processing account debit:', {
+    payment_reference: paymentRef,
+    debit_status: debitData.status,
+    is_successful: isSuccessful,
+    debit_amount: debitData.amount || 0,
+    fees: debitData.fees || 0,
+    vat: debitData.vat || 0,
+    stamp_duty: debitData.stampDuty || 0,
+    total_debit: totalDebitAmount,
+    debit_account: debitData.debitAccountNumber || '0117753301',
+    credit_account: debitData.creditAccountNumber,
+    note: 'Account.debit webhook received - will determine if this is a payout/withdrawal or regular debit'
+  });
   console.log('Debit data: ', JSON.stringify(debitData, null, 2));
   console.log('User ID (client): ', debitData.client);
 
@@ -2133,15 +2346,8 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
       .from('emergency_withdrawals')
       .select('id, user_id, payout_plan_id, withdrawal_amount, net_amount, status, reference')
       .eq('reference', paymentRef)
-    let userId: string | null = null;
-
-    // Try to get user ID from payment reference (automated payout or emergency withdrawal)
-    // First, check if this is an emergency withdrawal
-    const { data: emergencyWithdrawal, error: emergencyError } = await supabase
-      .from('emergency_withdrawals')
-      .select('id, user_id, payout_plan_id, withdrawal_amount, net_amount, status, reference')
-      .eq('reference', paymentRef)
       .single();
+
 
     console.log('Emergency withdrawal: ', emergencyWithdrawal);
     console.log('Emergency error: ', emergencyError);
@@ -2177,7 +2383,8 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
 
     if (!payoutError && automatedPayout) {
       userId = automatedPayout.user_id;
-      console.log(`📋 Processing automated payout from account debit: ${paymentRef}`);
+      console.log(`💰 ACCOUNT.DEBIT → AUTOMATED PAYOUT: ${paymentRef}`);
+      
       // Convert debit data to transfer-like format for handler
       const transferLikeData: any = {
         _id: debitData._id || paymentRef,
@@ -2194,108 +2401,14 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
         ...debitData
       };
       
-      // Check if debit was successful (Created status means successful)
-      const isSuccessful = debitData.status === 'Created' || debitData.status === 'Completed';
-      
       if (isSuccessful) {
+        console.log('💰 Balance Action: WILL BE DEBITED (money sent to beneficiary)');
         // Update safehaven_account table (this triggers safehaven_account_balance view update)
         // Then handle success which updates transaction, wallets, etc.
         await handleAutomatedPayoutSuccess(automatedPayout, transferLikeData);
         return { success: true, type: 'automated_payout', reference: paymentRef, status: 'completed' };
       } else {
-        // Handle failure - update transaction status but don't update wallets or automated payouts balance
-        await handleAutomatedPayoutFailed(automatedPayout, transferLikeData);
-        return { success: true, type: 'automated_payout', reference: paymentRef, status: 'failed' };
-      }
-    }
-
-    // If not related to payout/withdrawal, try to get user_id from account number
-    // This handles regular account debits (fees, charges, etc.)
-    const accountNumber = debitData.debitAccountNumber || '0117753301'; // Default to main account
-    
-    if (!userId) {
-      console.log(`Trying to find user by account number: ${accountNumber}`);
-      
-      const { data: accountData, error: accountError } = await supabase
-        .from('safehaven_accounts')
-        .select('user_id, account_number')
-        .eq('account_number', accountNumber)
-        .eq('is_deleted', false)
-        .single();
-
-      if (!accountError && accountData) {
-        userId = accountData.user_id;
-        console.log(`Found user ${userId} for account number ${accountNumber}`);
-      } else {
-        console.warn('Cannot process account debit: User ID not found for account number:', accountNumber);
-        return { 
-          success: false,
-          error: 'User not found',
-          note: 'Webhook received but user not found for account debit. Could not match by payment reference or account number.',
-          reference: paymentRef,
-          accountNumber: accountNumber
-        };
-      }
-    console.log('Emergency withdrawal: ', emergencyWithdrawal);
-    console.log('Emergency error: ', emergencyError);
-
-    if (!emergencyError && emergencyWithdrawal) {
-      userId = emergencyWithdrawal.user_id;
-      console.log(`🚨 Processing emergency withdrawal from account debit: ${paymentRef}`);
-      // Convert debit data to transfer-like format for handler
-      const transferLikeData: any = {
-        _id: debitData._id || paymentRef,
-        paymentReference: paymentRef,
-        sessionId: debitData.sessionId || paymentRef,
-        status: debitData.status === 'Created' ? 'Completed' : debitData.status,
-        amount: debitData.amount || 0,
-        type: 'Outwards', // Account debits are always Outwards transfers
-        fees: debitData.fees || 0,
-        debitAccountNumber: debitData.debitAccountNumber || '0117753301',
-        creditAccountNumber: debitData.creditAccountNumber,
-        responseMessage: debitData.responseMessage || debitData.debitMessage || 'Debit completed',
-        updatedAt: debitData.updatedAt || new Date().toISOString(),
-        ...debitData
-      };
-      await handleEmergencyWithdrawalSuccess(emergencyWithdrawal, transferLikeData);
-      return { success: true, type: 'emergency_withdrawal', reference: paymentRef };
-    }
-
-    // If not emergency withdrawal, check for automated payout
-    const { data: automatedPayout, error: payoutError } = await supabase
-      .from('automated_payouts')
-      .select('id, payout_plan_id, user_id, amount, status, payment_reference, transfer_reference')
-      .or(`payment_reference.eq.${paymentRef},transfer_reference.eq.${paymentRef}`)
-      .single();
-
-    if (!payoutError && automatedPayout) {
-      userId = automatedPayout.user_id;
-      console.log(`📋 Processing automated payout from account debit: ${paymentRef}`);
-      // Convert debit data to transfer-like format for handler
-      const transferLikeData: any = {
-        _id: debitData._id || paymentRef,
-        paymentReference: paymentRef,
-        sessionId: debitData.sessionId || paymentRef,
-        status: debitData.status === 'Created' ? 'Completed' : debitData.status,
-        amount: debitData.amount || 0,
-        type: 'Outwards', // Account debits are always Outwards transfers
-        fees: debitData.fees || 0,
-        debitAccountNumber: debitData.debitAccountNumber || '0117753301',
-        creditAccountNumber: debitData.creditAccountNumber,
-        responseMessage: debitData.responseMessage || debitData.debitMessage || 'Debit completed',
-        updatedAt: debitData.updatedAt || new Date().toISOString(),
-        ...debitData
-      };
-      
-      // Check if debit was successful (Created status means successful)
-      const isSuccessful = debitData.status === 'Created' || debitData.status === 'Completed';
-      
-      if (isSuccessful) {
-        // Update safehaven_account table (this triggers safehaven_account_balance view update)
-        // Then handle success which updates transaction, wallets, etc.
-        await handleAutomatedPayoutSuccess(automatedPayout, transferLikeData);
-        return { success: true, type: 'automated_payout', reference: paymentRef, status: 'completed' };
-      } else {
+        console.log('💰 Balance Action: WILL NOT BE CHANGED (transfer failed, no debit occurred)');
         // Handle failure - update transaction status but don't update wallets or automated payouts balance
         await handleAutomatedPayoutFailed(automatedPayout, transferLikeData);
         return { success: true, type: 'automated_payout', reference: paymentRef, status: 'failed' };
@@ -2331,19 +2444,28 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
       }
     }
 
-    // Process regular account debit (fees, charges, etc.)
-    console.log('Processing regular account debit (not related to payout/withdrawal):', paymentRef);
+      if (!accountError && accountData) {
+        userId = accountData.user_id;
+        console.log(`Found user ${userId} for account number ${accountNumber}`);
+      } else {
+        console.warn('Cannot process account debit: User ID not found for account number:', accountNumber);
+        return { 
+          success: false,
+          error: 'User not found',
+          note: 'Webhook received but user not found for account debit. Could not match by payment reference or account number.',
+          reference: paymentRef,
+          accountNumber: accountNumber
+        };
+      }
+    }
 
-    // Find account by account number to update balance
     // Process regular account debit (fees, charges, etc.)
-    console.log('Processing regular account debit (not related to payout/withdrawal):', paymentRef);
+    console.log('💰 ACCOUNT.DEBIT → REGULAR DEBIT (fees, charges, etc.):', paymentRef);
+    console.log('💰 Balance Action: WILL BE DEBITED (subtract amount + fees + vat + stampDuty)');
 
     // Find account by account number to update balance
     const { data: accountData, error: accountError } = await supabase
       .from('safehaven_accounts')
-      .select('id, account_balance, book_balance, metadata')
-      .eq('account_number', accountNumber)
-      .eq('user_id', userId)
       .select('id, account_balance, book_balance, metadata')
       .eq('account_number', accountNumber)
       .eq('user_id', userId)
@@ -2352,14 +2474,26 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
 
     if (accountError || !accountData) {
       console.error('Could not find account for account number:', accountNumber);
-      console.error('Could not find account for account number:', accountNumber);
       // Still create audit log even if account not found
     } else {
       // Update account balance (subtract the debit amount + fees)
-      const totalDebit = (debitData.amount || 0) + (debitData.fees || 0) + (debitData.vat || 0) + (debitData.stampDuty || 0);
-      const totalDebit = (debitData.amount || 0) + (debitData.fees || 0) + (debitData.vat || 0) + (debitData.stampDuty || 0);
-      const newAccountBalance = (accountData.account_balance || 0) - totalDebit;
-      const newBookBalance = (accountData.book_balance || 0) - totalDebit;
+      const newAccountBalance = (accountData.account_balance || 0) - totalDebitAmount;
+      const newBookBalance = (accountData.book_balance || 0) - totalDebitAmount;
+
+      // Log balance change for clarity
+      console.log('💰 REGULAR ACCOUNT DEBIT - SafeHaven Account Balance DEBITED:', {
+        payment_reference: paymentRef,
+        debit_amount: debitData.amount || 0,
+        fees: debitData.fees || 0,
+        vat: debitData.vat || 0,
+        stamp_duty: debitData.stampDuty || 0,
+        total_debited: totalDebitAmount,
+        balance_change: -totalDebitAmount,
+        old_balance: accountData.account_balance,
+        new_balance: newAccountBalance,
+        action: 'DEBITED (subtracted from account)',
+        note: 'Regular account debit (fees, charges, etc.) - balance reduced'
+      });
 
       const { error: updateError } = await supabase
         .from('safehaven_accounts')
@@ -2374,16 +2508,9 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
             transfer_reference: paymentRef,
             transfer_status: 'Regular Debit',
             updated_by: 'webhook_regular_debit',
-            debit_amount: totalDebit
-          }
-          synced_at: new Date().toISOString(),
-          metadata: {
-            ...(accountData.metadata || {}),
-            payment_reference: paymentRef,
-            transfer_reference: paymentRef,
-            transfer_status: 'Regular Debit',
-            updated_by: 'webhook_regular_debit',
-            debit_amount: totalDebit
+            debit_amount: totalDebitAmount,
+            balance_action: 'debited',
+            balance_change: -totalDebitAmount
           }
         })
         .eq('id', accountData.id);
@@ -2391,7 +2518,7 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
       if (updateError) {
         console.error('Error updating account balance after debit:', updateError);
       } else {
-        console.log(`Account balance updated after debit: ${accountData.account_balance} -> ${newAccountBalance}`);
+        console.log(`✅ Account balance updated after regular debit: ${accountData.account_balance} -> ${newAccountBalance}`);
       }
     }
 
@@ -2417,8 +2544,7 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
       'success'
     );
 
-    console.log('Account debit webhook processed successfully:', paymentRef);
-    console.log('Account debit webhook processed successfully:', paymentRef);
+    console.log('✅ Account debit webhook processed successfully:', paymentRef);
     return { 
       success: true, 
       reference: paymentRef, 

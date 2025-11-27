@@ -8,6 +8,8 @@ export type PayoutAccount = {
   account_name: string;
   account_number: string;
   bank_name: string;
+  bank_code?: string | null;
+  safehaven_bank_code?: string | null;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -70,6 +72,8 @@ export function usePayoutAccounts() {
     account_name: string;
     account_number: string;
     bank_name: string;
+    bank_code?: string;
+    safehaven_bank_code?: string;
     is_default?: boolean;
   }) => {
     try {
@@ -92,6 +96,16 @@ export function usePayoutAccounts() {
         throw new Error(errorMessage);
       }
       
+      // Log the data being inserted for debugging
+      console.log('💾 Inserting payout account to database:', {
+        user_id: session?.user?.id,
+        account_name: accountData.account_name,
+        account_number: accountData.account_number,
+        bank_name: accountData.bank_name,
+        bank_code: accountData.bank_code || 'N/A',
+        safehaven_bank_code: accountData.safehaven_bank_code || 'N/A'
+      });
+      
       const { data, error: insertError } = await supabase
         .from('payout_accounts')
         .insert({
@@ -101,7 +115,16 @@ export function usePayoutAccounts() {
         .select()
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('❌ Error inserting payout account:', insertError);
+        throw insertError;
+      }
+      
+      console.log('✅ Payout account inserted successfully:', {
+        id: data.id,
+        bank_code: data.bank_code || 'N/A',
+        safehaven_bank_code: data.safehaven_bank_code || 'N/A'
+      });
       
       // Update local state with the new account
       setPayoutAccounts(prev => [data, ...prev]);

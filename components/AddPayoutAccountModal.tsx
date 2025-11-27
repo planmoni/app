@@ -11,6 +11,7 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useBanks, Bank } from '@/hooks/useBanks';
 import { useAccountResolution } from '@/hooks/useAccountResolution';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getSafeHavenBankCode } from '@/lib/safehaven-bank-mapper';
 
 interface AddPayoutAccountModalProps {
   isVisible: boolean;
@@ -110,11 +111,33 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       setIsSubmitting(true);
       haptics.impact();
       
-      const newAccount = await addPayoutAccount({
+      const bankName = selectedBank?.name || formData.bankName.trim();
+      const bankCode = selectedBank?.code || null;
+      const safeHavenBankCode = getSafeHavenBankCode(bankCode, bankName);
+      
+      // Prepare account data with bank codes
+      const accountData = {
         account_name: formData.accountName.trim(),
         account_number: formData.accountNumber.trim(),
-        bank_name: selectedBank?.name || formData.bankName.trim()
+        bank_name: bankName,
+        ...(bankCode && { bank_code: bankCode }),
+        ...(safeHavenBankCode && { safehaven_bank_code: safeHavenBankCode })
+      };
+      
+      // Log the data being sent for debugging
+      console.log('📤 Adding payout account with data:', {
+        account_name: accountData.account_name,
+        account_number: accountData.account_number,
+        bank_name: accountData.bank_name,
+        bank_code: accountData.bank_code || 'N/A',
+        safehaven_bank_code: accountData.safehaven_bank_code || 'N/A',
+        selectedBank: selectedBank ? {
+          name: selectedBank.name,
+          code: selectedBank.code
+        } : 'N/A'
       });
+      
+      const newAccount = await addPayoutAccount(accountData);
       
       haptics.notification(Haptics.NotificationFeedbackType.Success);
       resetForm();
@@ -144,6 +167,11 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     
     if (!selectedBank && !formData.bankName.trim()) {
       errors.bankName = 'Bank name is required';
+    }
+    
+    // Validate that bank_code exists when a bank is selected
+    if (selectedBank && !selectedBank.code) {
+      errors.bankName = 'Selected bank is missing bank code. Please select a different bank.';
     }
     
     setFormErrors(errors);

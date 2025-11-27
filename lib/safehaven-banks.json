@@ -1,0 +1,350 @@
+{
+  "statusCode": 200,
+  "responseCode": "00",
+  "message": "Approved or completed successfully",
+  "data": [
+    {
+      "name": "SIGNATURE BANK",
+      "alias": ["SIGNATURE BANK"],
+      "routingKey": "000034",
+      "logoImage": null,
+      "bankCode": "000034",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "OPTIMUS BANK",
+      "alias": ["OPTIMUS BANK"],
+      "routingKey": "000036",
+      "logoImage": null,
+      "bankCode": "000036",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "STERLING BANK",
+      "alias": ["STERLING BANK"],
+      "routingKey": "000001",
+      "logoImage": null,
+      "bankCode": "000001",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "KEYSTONE BANK",
+      "alias": ["KEYSTONE BANK"],
+      "routingKey": "000002",
+      "logoImage": null,
+      "bankCode": "000002",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "FIRST CITY MONUMENT BANK",
+      "alias": ["FCMB"],
+      "routingKey": "000003",
+      "logoImage": null,
+      "bankCode": "000003",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "UNITED BANK FOR AFRICA",
+      "alias": ["UBA"],
+      "routingKey": "000004",
+      "logoImage": null,
+      "bankCode": "000004",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "JAIZ BANK",
+      "alias": ["JAIZ BANK"],
+      "routingKey": "000006",
+      "logoImage": null,
+      "bankCode": "000006",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "FIDELITY BANK",
+      "alias": ["FIDELITY BANK"],
+      "routingKey": "000007",
+      "logoImage": null,
+      "bankCode": "000007",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "POLARIS BANK",
+      "alias": ["POLARIS BANK"],
+      "routingKey": "000008",
+      "logoImage": null,
+      "bankCode": "000008",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "CITI BANK",
+      "alias": ["CITI BANK"],
+      "routingKey": "000009",
+      "logoImage": null,
+      "bankCode": "000009",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "ECOBANK",
+      "alias": ["ECO BANK"],
+      "routingKey": "000010",
+      "logoImage": null,
+      "bankCode": "000010",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "UNITY BANK",
+      "alias": ["UNITY BANK"],
+      "routingKey": "000011",
+      "logoImage": null,
+      "bankCode": "000011",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "STANBIC IBTC BANK",
+      "alias": ["STANBIC IBTC BANK"],
+      "routingKey": "000012",
+      "logoImage": null,
+      "bankCode": "000012",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "GTBANK PLC",
+      "alias": ["GUARANTY TRUST BANK PLC", "GT BANK", "GTB"],
+      "routingKey": "000013",
+      "logoImage": null,
+      "bankCode": "000013",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "ACCESS BANK",
+      "alias": ["ACCESS BANK"],
+      "routingKey": "000014",
+      "logoImage": null,
+      "bankCode": "000014",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "ZENITH BANK",
+      "alias": ["ZENITH BANK"],
+      "routingKey": "000015",
+      "logoImage": null,
+      "bankCode": "000015",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "FIRST BANK OF NIGERIA",
+      "alias": ["FBN PLC"],
+      "routingKey": "000016",
+      "logoImage": null,
+      "bankCode": "000016",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "WEMA BANK",
+      "alias": ["WEMA BANK", "ALAT"],
+      "routingKey": "000017",
+      "logoImage": null,
+      "bankCode": "000017",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "UNION BANK",
+      "alias": ["UNION BANK"],
+      "routingKey": "000018",
+      "logoImage": null,
+      "bankCode": "000018",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "STANDARD CHARTERED BANK",
+      "alias": ["STANDARD CHARTERED BANK"],
+      "routingKey": "000021",
+      "logoImage": null,
+      "bankCode": "000021",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "SUNTRUST BANK",
+      "alias": ["SUNTRUST BANK"],
+      "routingKey": "000022",
+      "logoImage": null,
+      "bankCode": "000022",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "PROVIDUS BANK",
+      "alias": ["PROVIDUS BANK"],
+      "routingKey": "000023",
+      "logoImage": null,
+      "bankCode": "000023",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "HERITAGE BANK",
+      "alias": [],
+      "routingKey": "000020",
+      "logoImage": null,
+      "bankCode": "000020",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "TAJ BANK",
+      "alias": [],
+      "routingKey": "000026",
+      "logoImage": null,
+      "bankCode": "000026",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "GLOBUS BANK",
+      "alias": [],
+      "routingKey": "000027",
+      "logoImage": null,
+      "bankCode": "000027",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "LOTUS BANK",
+      "alias": [],
+      "routingKey": "000029",
+      "logoImage": null,
+      "bankCode": "000029",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "PARALLEX BANK",
+      "alias": [],
+      "routingKey": "000030",
+      "logoImage": null,
+      "bankCode": "000030",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "PREMIUM TRUST  BANK",
+      "alias": [],
+      "routingKey": "000031",
+      "logoImage": null,
+      "bankCode": "000031",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "TITAN TRUST BANK",
+      "alias": [],
+      "routingKey": "000025",
+      "logoImage": null,
+      "bankCode": "000025",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "ACCESS(DIAMOND) BANK",
+      "alias": [],
+      "routingKey": "000005",
+      "logoImage": null,
+      "bankCode": "000005",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "TATUM BANK",
+      "alias": [],
+      "routingKey": "000042",
+      "logoImage": null,
+      "bankCode": "000042",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "SUMMIT BANK",
+      "alias": [],
+      "routingKey": "080030",
+      "logoImage": null,
+      "bankCode": "080030",
+      "categoryId": "2",
+      "nubanCode": null
+    },
+    {
+      "name": "KUDA MICROFINANCE BANK",
+      "alias": [],
+      "routingKey": "090267",
+      "logoImage": null,
+      "bankCode": "090267",
+      "categoryId": "9",
+      "nubanCode": null
+    },
+    {
+      "name": "OPAY",
+      "alias": [],
+      "routingKey": "100004",
+      "logoImage": null,
+      "bankCode": "100004",
+      "categoryId": "12",
+      "nubanCode": null
+    },
+    {
+      "name": "PALMPAY",
+      "alias": [],
+      "routingKey": "100033",
+      "logoImage": null,
+      "bankCode": "100033",
+      "categoryId": "10",
+      "nubanCode": null
+    },
+    {
+      "name": "CARBON",
+      "alias": [],
+      "routingKey": "100026",
+      "logoImage": null,
+      "bankCode": "100026",
+      "categoryId": "9",
+      "nubanCode": null
+    },
+    {
+      "name": "MONIEPOINT MICROFINANCE BANK",
+      "alias": [],
+      "routingKey": "090405",
+      "logoImage": null,
+      "bankCode": "090405",
+      "categoryId": "9",
+      "nubanCode": null
+    },
+    {
+      "name": "SAFE HAVEN MICROFINANCE BANK",
+      "alias": [],
+      "routingKey": "090286",
+      "logoImage": null,
+      "bankCode": "090286",
+      "categoryId": "9",
+      "nubanCode": null
+    }
+  ]
+}
+

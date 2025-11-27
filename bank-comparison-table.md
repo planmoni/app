@@ -1,0 +1,221 @@
+| Bank Name | Paystack Code | SafeHaven Code | Status | Provider |
+|------------|---------------|----------------|--------|----------|
+| 78 Finance Company Ltd | 40195 | N/A | Paystack Only | Paystack |
+| 9mobile 9Payment Service Bank | 120001 | N/A | Paystack Only | Paystack |
+| Abbey Mortgage Bank | 404 | N/A | Paystack Only | Paystack |
+| Above Only MFB | 51204 | N/A | Paystack Only | Paystack |
+| Abulesoro MFB | 51312 | N/A | Paystack Only | Paystack |
+| Accion Microfinance Bank | 602 | N/A | Paystack Only | Paystack |
+| Aella MFB | 50315 | N/A | Paystack Only | Paystack |
+| AG Mortgage Bank | 90077 | N/A | Paystack Only | Paystack |
+| Ahmadu Bello University Microfinance Bank | 50036 | N/A | Paystack Only | Paystack |
+| Airtel Smartcash PSB | 120004 | N/A | Paystack Only | Paystack |
+| AKU Microfinance Bank | 51336 | N/A | Paystack Only | Paystack |
+| Akuchukwu Microfinance Bank Limited | 090561 | N/A | Paystack Only | Paystack |
+| Al-Barakah Microfinance Bank | 50055 | N/A | Paystack Only | Paystack |
+| Alpha Morgan Bank | 108 | N/A | Paystack Only | Paystack |
+| Alternative bank | 000304 | N/A | Paystack Only | Paystack |
+| Amegy Microfinance Bank | 090629 | N/A | Paystack Only | Paystack |
+| Amju Unique MFB | 50926 | N/A | Paystack Only | Paystack |
+| Aramoko MFB | 50083 | N/A | Paystack Only | Paystack |
+| ASO Savings and Loans | 401 | N/A | Paystack Only | Paystack |
+| Assets Microfinance Bank | 50092 | N/A | Paystack Only | Paystack |
+| Astrapolaris MFB LTD | MFB50094 | N/A | Paystack Only | Paystack |
+| AVUENEGBE MICROFINANCE BANK | 090478 | N/A | Paystack Only | Paystack |
+| AWACASH MICROFINANCE BANK | 51351 | N/A | Paystack Only | Paystack |
+| AZTEC MICROFINANCE BANK LIMITED | 51337 | N/A | Paystack Only | Paystack |
+| Bainescredit MFB | 51229 | N/A | Paystack Only | Paystack |
+| Banc Corp Microfinance Bank | 50117 | N/A | Paystack Only | Paystack |
+| BANKIT MICROFINANCE BANK LTD | 50572 | N/A | Paystack Only | Paystack |
+| BANKLY MFB | 51341 | N/A | Paystack Only | Paystack |
+| Baobab Microfinance Bank | MFB50992 | N/A | Paystack Only | Paystack |
+| BellBank Microfinance Bank | 51100 | N/A | Paystack Only | Paystack |
+| Benysta Microfinance Bank Limited | 51267 | N/A | Paystack Only | Paystack |
+| Beststar Microfinance Bank | 50123 | N/A | Paystack Only | Paystack |
+| BOLD MFB | 50725 | N/A | Paystack Only | Paystack |
+| Bosak Microfinance Bank | 650 | N/A | Paystack Only | Paystack |
+| Bowen Microfinance Bank | 50931 | N/A | Paystack Only | Paystack |
+| Branch International Finance Company Limited | FC40163 | N/A | Paystack Only | Paystack |
+| Brent Mortgage bank | 90070 | N/A | Paystack Only | Paystack |
+| BuyPower MFB | 50645 | N/A | Paystack Only | Paystack |
+| Cashbridge Microfinance Bank Limited | 51353 | N/A | Paystack Only | Paystack |
+| CASHCONNECT MFB | 865 | N/A | Paystack Only | Paystack |
+| CEMCS Microfinance Bank | 50823 | N/A | Paystack Only | Paystack |
+| Chanelle Microfinance Bank Limited | 50171 | N/A | Paystack Only | Paystack |
+| Chikum Microfinance bank | 312 | N/A | Paystack Only | Paystack |
+| CITYCODE MORTAGE BANK | 070027 | N/A | Paystack Only | Paystack |
+| Consumer Microfinance Bank | 50910 | N/A | Paystack Only | Paystack |
+| Cool Microfinance Bank Limited | 51458 | N/A | Paystack Only | Paystack |
+| Corestep MFB | 50204 | N/A | Paystack Only | Paystack |
+| Coronation Merchant Bank | 559 | N/A | Paystack Only | Paystack |
+| County Finance Limited | FC40128 | N/A | Paystack Only | Paystack |
+| Credit Direct Limited | 40119 | N/A | Paystack Only | Paystack |
+| Crescent MFB | 51297 | N/A | Paystack Only | Paystack |
+| Crust Microfinance Bank | 090560 | N/A | Paystack Only | Paystack |
+| CRUTECH MICROFINANCE BANK LTD | 50216 | N/A | Paystack Only | Paystack |
+| Dash Microfinance Bank | 51368 | N/A | Paystack Only | Paystack |
+| Davenport MICROFINANCE BANK | 51334 | N/A | Paystack Only | Paystack |
+| Dillon Microfinance Bank | 51450 | N/A | Paystack Only | Paystack |
+| Dot Microfinance Bank | 50162 | N/A | Paystack Only | Paystack |
+| EBSU Microfinance Bank | 50922 | N/A | Paystack Only | Paystack |
+| Ekimogun MFB | 50263 | N/A | Paystack Only | Paystack |
+| Ekondo Microfinance Bank | 098 | N/A | Paystack Only | Paystack |
+| EXCEL FINANCE BANK | 090678 | N/A | Paystack Only | Paystack |
+| Eyowo | 50126 | N/A | Paystack Only | Paystack |
+| Fairmoney Microfinance Bank | 51318 | N/A | Paystack Only | Paystack |
+| Fedeth MFB | 50298 | N/A | Paystack Only | Paystack |
+| Firmus MFB | 51314 | N/A | Paystack Only | Paystack |
+| FIRST ROYAL MICROFINANCE BANK | 090164 | N/A | Paystack Only | Paystack |
+| FIRSTMIDAS MFB | 51333 | N/A | Paystack Only | Paystack |
+| FirstTrust Mortgage Bank Nigeria | 413 | N/A | Paystack Only | Paystack |
+| FSDH Merchant Bank Limited | 501 | N/A | Paystack Only | Paystack |
+| FUTMINNA MICROFINANCE BANK | 832 | N/A | Paystack Only | Paystack |
+| Garun Mallam MFB | MFB51093 | N/A | Paystack Only | Paystack |
+| Gateway Mortgage Bank LTD | 812 | N/A | Paystack Only | Paystack |
+| Goldman MFB | 090574 | N/A | Paystack Only | Paystack |
+| GoMoney | 100022 | N/A | Paystack Only | Paystack |
+| GOOD SHEPHERD MICROFINANCE BANK | 090664 | N/A | Paystack Only | Paystack |
+| Goodnews Microfinance Bank | 50739 | N/A | Paystack Only | Paystack |
+| Greenwich Merchant Bank | 562 | N/A | Paystack Only | Paystack |
+| GROOMING MICROFINANCE BANK | 51276 | N/A | Paystack Only | Paystack |
+| GTI MFB | 50368 | N/A | Paystack Only | Paystack |
+| Hackman Microfinance Bank | 51251 | N/A | Paystack Only | Paystack |
+| Hasal Microfinance Bank | 50383 | N/A | Paystack Only | Paystack |
+| Hayat Trust MFB | 51364 | N/A | Paystack Only | Paystack |
+| HopePSB | 120002 | N/A | Paystack Only | Paystack |
+| IBANK Microfinance Bank | 51211 | N/A | Paystack Only | Paystack |
+| IBBU MFB | 51279 | N/A | Paystack Only | Paystack |
+| Ibile Microfinance Bank | 51244 | N/A | Paystack Only | Paystack |
+| Ibom Mortgage Bank | 90012 | N/A | Paystack Only | Paystack |
+| Ikoyi Osun MFB | 50439 | N/A | Paystack Only | Paystack |
+| Ilaro Poly Microfinance Bank | 50442 | N/A | Paystack Only | Paystack |
+| Imowo MFB | 50453 | N/A | Paystack Only | Paystack |
+| IMPERIAL HOMES MORTAGE BANK | 415 | N/A | Paystack Only | Paystack |
+| INDULGE MFB | 51392 | N/A | Paystack Only | Paystack |
+| Infinity MFB | 50457 | N/A | Paystack Only | Paystack |
+| Infinity trust  Mortgage Bank | 070016 | N/A | Paystack Only | Paystack |
+| ISUA MFB | 090701 | N/A | Paystack Only | Paystack |
+| Kadpoly MFB | 50502 | N/A | Paystack Only | Paystack |
+| KANOPOLY MFB | 51308 | N/A | Paystack Only | Paystack |
+| Kayvee Microfinance Bank | 5129 | N/A | Paystack Only | Paystack |
+| Kolomoni MFB | 899 | N/A | Paystack Only | Paystack |
+| KONGAPAY (Kongapay Technologies Limited)(formerly Zinternet) | 100025 | N/A | Paystack Only | Paystack |
+| Kredi Money MFB LTD | 50200 | N/A | Paystack Only | Paystack |
+| Lagos Building Investment Company Plc. | 90052 | N/A | Paystack Only | Paystack |
+| Letshego Microfinance Bank | 090420 | N/A | Paystack Only | Paystack |
+| Links MFB | 50549 | N/A | Paystack Only | Paystack |
+| Living Trust Mortgage Bank | 031 | N/A | Paystack Only | Paystack |
+| LOMA MFB | 50491 | N/A | Paystack Only | Paystack |
+| Maal MFB | 51444 | N/A | Paystack Only | Paystack |
+| MAINSTREET MICROFINANCE BANK | 090171 | N/A | Paystack Only | Paystack |
+| Mayfair MFB | 50563 | N/A | Paystack Only | Paystack |
+| Mint MFB | 50304 | N/A | Paystack Only | Paystack |
+| MINT-FINEX MFB | 09 | N/A | Paystack Only | Paystack |
+| Money Master PSB | 946 | N/A | Paystack Only | Paystack |
+| MTN Momo PSB | 120003 | N/A | Paystack Only | Paystack |
+| MUTUAL BENEFITS MICROFINANCE BANK | 090190 | N/A | Paystack Only | Paystack |
+| NDCC MICROFINANCE BANK | 090679 | N/A | Paystack Only | Paystack |
+| NET MICROFINANCE BANK | 51361 | N/A | Paystack Only | Paystack |
+| Nigerian Navy Microfinance Bank Limited | 51142 | N/A | Paystack Only | Paystack |
+| Nombank MFB | 50072 | N/A | Paystack Only | Paystack |
+| NOVA BANK | 561 | N/A | Paystack Only | Paystack |
+| Novus MFB | 51371 | N/A | Paystack Only | Paystack |
+| NPF MICROFINANCE BANK | 50629 | N/A | Paystack Only | Paystack |
+| NSUK MICROFINANACE BANK | 51261 | N/A | Paystack Only | Paystack |
+| Olabisi Onabanjo University Microfinance Bank | 50689 | N/A | Paystack Only | Paystack |
+| OLUCHUKWU MICROFINANCE BANK LTD | 50697 | N/A | Paystack Only | Paystack |
+| Paga | 100002 | N/A | Paystack Only | Paystack |
+| Parkway - ReadyCash | 311 | N/A | Paystack Only | Paystack |
+| PATHFINDER MICROFINANCE BANK LIMITED | 090680 | N/A | Paystack Only | Paystack |
+| Paystack-Titan | 100039 | N/A | Paystack Only | Paystack |
+| Peace Microfinance Bank | 50743 | N/A | Paystack Only | Paystack |
+| PECANTRUST MICROFINANCE BANK LIMITED | 51226 | N/A | Paystack Only | Paystack |
+| Personal Trust MFB | 51146 | N/A | Paystack Only | Paystack |
+| Petra Mircofinance Bank Plc | 50746 | N/A | Paystack Only | Paystack |
+| Pettysave MFB | MFB51452 | N/A | Paystack Only | Paystack |
+| PFI FINANCE COMPANY LIMITED | 050021 | N/A | Paystack Only | Paystack |
+| Platinum Mortgage Bank | 268 | N/A | Paystack Only | Paystack |
+| Pocket App | 00716 | N/A | Paystack Only | Paystack |
+| Polyunwana MFB | 50864 | N/A | Paystack Only | Paystack |
+| Prospa Capital Microfinance Bank | 50739 | N/A | Paystack Only | Paystack |
+| PROSPERIS FINANCE LIMITED | 050023 | N/A | Paystack Only | Paystack |
+| QuickFund MFB | 51293 | N/A | Paystack Only | Paystack |
+| Rand Merchant Bank | 502 | N/A | Paystack Only | Paystack |
+| RANDALPHA MICROFINANCE BANK | 090496 | N/A | Paystack Only | Paystack |
+| Refuge Mortgage Bank | 90067 | N/A | Paystack Only | Paystack |
+| REHOBOTH MICROFINANCE BANK | 50761 | N/A | Paystack Only | Paystack |
+| Rephidim Microfinance Bank | 50994 | N/A | Paystack Only | Paystack |
+| Rigo Microfinance Bank Limited | 51286 | N/A | Paystack Only | Paystack |
+| ROCKSHIELD MICROFINANCE BANK | 50767 | N/A | Paystack Only | Paystack |
+| Rubies MFB | 125 | N/A | Paystack Only | Paystack |
+| Safe Haven MFB | 51113 | N/A | Paystack Only | Paystack |
+| SAGE GREY FINANCE LIMITED | 40165 | N/A | Paystack Only | Paystack |
+| Shield MFB | 50582 | N/A | Paystack Only | Paystack |
+| Solid Allianze MFB | 51062 | N/A | Paystack Only | Paystack |
+| Solid Rock MFB | 50800 | N/A | Paystack Only | Paystack |
+| Sparkle Microfinance Bank | 51310 | N/A | Paystack Only | Paystack |
+| Springfield Microfinance Bank | 51429 | N/A | Paystack Only | Paystack |
+| STANFORD MICROFINANCE BANK | 090162 | N/A | Paystack Only | Paystack |
+| STATESIDE MICROFINANCE BANK | 50809 | N/A | Paystack Only | Paystack |
+| STB Mortgage Bank | 070022 | N/A | Paystack Only | Paystack |
+| Stellas MFB | 51253 | N/A | Paystack Only | Paystack |
+| Supreme MFB | 50968 | N/A | Paystack Only | Paystack |
+| Tangerine Money | 51269 | N/A | Paystack Only | Paystack |
+| TENN | 51403 | N/A | Paystack Only | Paystack |
+| Think Finance Microfinance Bank | 677 | N/A | Paystack Only | Paystack |
+| TransPay MFB | 090708 | N/A | Paystack Only | Paystack |
+| TRUSTBANC J6 MICROFINANCE BANK | 51118 | N/A | Paystack Only | Paystack |
+| U&C Microfinance Bank Ltd (U AND C MFB) | 50840 | N/A | Paystack Only | Paystack |
+| UCEE MFB | 090706 | N/A | Paystack Only | Paystack |
+| Uhuru MFB | 51322 | N/A | Paystack Only | Paystack |
+| Ultraviolet Microfinance Bank | 51080 | N/A | Paystack Only | Paystack |
+| Unaab Microfinance Bank Limited | 50870 | N/A | Paystack Only | Paystack |
+| UNIABUJA MFB | 51447 | N/A | Paystack Only | Paystack |
+| Unical MFB | 50871 | N/A | Paystack Only | Paystack |
+| Unilag Microfinance Bank | 51316 | N/A | Paystack Only | Paystack |
+| UNIMAID MICROFINANCE BANK | 50875 | N/A | Paystack Only | Paystack |
+| Uzondu Microfinance Bank Awka Anambra State | 50894 | N/A | Paystack Only | Paystack |
+| Vale Finance Limited | 050020 | N/A | Paystack Only | Paystack |
+| VFD Microfinance Bank Limited | 566 | N/A | Paystack Only | Paystack |
+| Waya Microfinance Bank | 51355 | N/A | Paystack Only | Paystack |
+| Weston Charis MFB | 51386 | N/A | Paystack Only | Paystack |
+| Xpress Wallet | 100040 | N/A | Paystack Only | Paystack |
+| Yes MFB | 594 | N/A | Paystack Only | Paystack |
+| Zap | 00zap | N/A | Paystack Only | Paystack |
+| Zitra MFB | 51373 | N/A | Paystack Only | Paystack |
+| Access Bank | 044 | 000014 | Available in SafeHaven | SafeHaven |
+| Access Bank (Diamond) | 063 | 000005 | Available in SafeHaven | SafeHaven |
+| ALAT by WEMA | 035A | 000017 | Available in SafeHaven | SafeHaven |
+| Carbon | 565 | 100026 | Available in SafeHaven | SafeHaven |
+| Citibank Nigeria | 023 | 000009 | Available in SafeHaven | SafeHaven |
+| Ecobank Nigeria | 050 | 000010 | Available in SafeHaven | SafeHaven |
+| Fidelity Bank | 070 | 000007 | Available in SafeHaven | SafeHaven |
+| First Bank of Nigeria | 011 | 000016 | Available in SafeHaven | SafeHaven |
+| First City Monument Bank | 214 | 000003 | Available in SafeHaven | SafeHaven |
+| Globus Bank | 00103 | 000027 | Available in SafeHaven | SafeHaven |
+| Guaranty Trust Bank | 058 | 000013 | Available in SafeHaven | SafeHaven |
+| Jaiz Bank | 301 | 000006 | Available in SafeHaven | SafeHaven |
+| Keystone Bank | 082 | 000002 | Available in SafeHaven | SafeHaven |
+| Kuda Bank | 50211 | 090267 | Available in SafeHaven | SafeHaven |
+| Lotus Bank | 303 | 000029 | Available in SafeHaven | SafeHaven |
+| Moniepoint MFB | 50515 | 090405 | Available in SafeHaven | SafeHaven |
+| OPay Digital Services Limited (OPay) | 999992 | 100004 | Available in SafeHaven | SafeHaven |
+| Optimus Bank Limited | 107 | 000036 | Available in SafeHaven | SafeHaven |
+| PalmPay | 999991 | 100033 | Available in SafeHaven | SafeHaven |
+| Parallex Bank | 104 | 000030 | Available in SafeHaven | SafeHaven |
+| Polaris Bank | 076 | 000008 | Available in SafeHaven | SafeHaven |
+| PremiumTrust Bank | 105 | 000031 | Available in SafeHaven | SafeHaven |
+| Providus Bank | 101 | 000023 | Available in SafeHaven | SafeHaven |
+| Signature Bank Ltd | 106 | 000034 | Available in SafeHaven | SafeHaven |
+| Stanbic IBTC Bank | 221 | 000012 | Available in SafeHaven | SafeHaven |
+| Standard Chartered Bank | 068 | 000021 | Available in SafeHaven | SafeHaven |
+| Sterling Bank | 232 | 000001 | Available in SafeHaven | SafeHaven |
+| Summit Bank | 00305 | 080030 | Available in SafeHaven | SafeHaven |
+| Suntrust Bank | 100 | 000022 | Available in SafeHaven | SafeHaven |
+| TAJ Bank | 302 | 000026 | Available in SafeHaven | SafeHaven |
+| Titan Bank | 102 | 000025 | Available in SafeHaven | SafeHaven |
+| Union Bank of Nigeria | 032 | 000018 | Available in SafeHaven | SafeHaven |
+| United Bank For Africa | 033 | 000004 | Available in SafeHaven | SafeHaven |
+| Unity Bank | 215 | 000011 | Available in SafeHaven | SafeHaven |
+| Wema Bank | 035 | 000017 | Available in SafeHaven | SafeHaven |
+| Zenith Bank | 057 | 000015 | Available in SafeHaven | SafeHaven |
