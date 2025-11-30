@@ -203,33 +203,93 @@ export default function LivenessTestEnhanced({
         flash: "off", 
         enableShutterSound: false,
       });
-      console.log('[LivenessTest] Photo captured:', photo.path);
+      console.log('[LivenessTest] Photo captured, path:', photo.path);
       
-      // Extract the file path (remove file:// prefix if present)
-      const originalPath = photo.path.startsWith('file://') 
-        ? photo.path.replace('file://', '') 
-        : photo.path;
+      // Handle path format - react-native-vision-camera returns paths differently on Android/iOS
+      let originalPath = photo.path;
       
-      // Verify the original file exists
-      const fileInfo = await FileSystem.getInfoAsync(originalPath);
-      if (!fileInfo.exists) {
-        throw new Error(`Photo file does not exist at: ${originalPath}`);
-      }
+      // On Android, the path might not have file:// prefix, on iOS it usually does
+      // FileSystem APIs work with or without the prefix, but we'll normalize it
+      const hasFilePrefix = originalPath.startsWith('file://');
+      const normalizedPath = hasFilePrefix ? originalPath : `file://${originalPath}`;
       
-      // Copy to permanent location in cache directory
+      // Create permanent path in cache directory
       const fileName = `liveness-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
       const permanentPath = `${FileSystem.cacheDirectory}${fileName}`;
       
-      console.log('[LivenessTest] Copying photo to permanent location:', permanentPath);
-      await FileSystem.copyAsync({
-        from: originalPath,
-        to: permanentPath,
-      });
+      console.log('[LivenessTest] Attempting to copy photo from:', normalizedPath, 'to:', permanentPath);
       
-      // Verify the copied file exists
-      const copiedFileInfo = await FileSystem.getInfoAsync(permanentPath);
-      if (!copiedFileInfo.exists) {
-        throw new Error(`Failed to copy photo to permanent location: ${permanentPath}`);
+      // Try to copy the file with retry mechanism
+      let copySuccess = false;
+      let copyAttempts = 0;
+      const maxCopyAttempts = 20; // Increased attempts
+      const copyDelay = 250; // 250ms between attempts
+      
+      while (!copySuccess && copyAttempts < maxCopyAttempts) {
+        try {
+          // First, try to verify source file exists (with retry for file to appear)
+          let sourceExists = false;
+          let sourceCheckAttempts = 0;
+          const maxSourceChecks = 5;
+          
+          while (!sourceExists && sourceCheckAttempts < maxSourceChecks) {
+            const sourceInfo = await FileSystem.getInfoAsync(normalizedPath);
+            if (sourceInfo.exists) {
+              sourceExists = true;
+              console.log('[LivenessTest] Source file verified to exist');
+            } else {
+              sourceCheckAttempts++;
+              if (sourceCheckAttempts < maxSourceChecks) {
+                console.log(`[LivenessTest] Source file not found yet, waiting... (${sourceCheckAttempts}/${maxSourceChecks})`);
+                await new Promise(resolve => setTimeout(resolve, 200));
+              }
+            }
+          }
+          
+          // Try to copy the file (even if source check failed, the copy might work)
+          await FileSystem.copyAsync({
+            from: normalizedPath,
+            to: permanentPath,
+          });
+          
+          // Verify the copy was successful
+          const copiedFileInfo = await FileSystem.getInfoAsync(permanentPath);
+          if (copiedFileInfo.exists) {
+            copySuccess = true;
+            console.log('[LivenessTest] Photo copied successfully to:', permanentPath);
+          } else {
+            throw new Error('Copy completed but destination file does not exist');
+          }
+        } catch (copyError: any) {
+          copyAttempts++;
+          const errorMsg = copyError?.message || String(copyError);
+          console.log(`[LivenessTest] Copy attempt ${copyAttempts}/${maxCopyAttempts} failed:`, errorMsg);
+          
+          if (copyAttempts < maxCopyAttempts) {
+            await new Promise(resolve => setTimeout(resolve, copyDelay));
+          } else {
+            // All copy attempts failed - try using the original path directly as fallback
+            console.log('[LivenessTest] All copy attempts failed, using original path as fallback...');
+            try {
+              // Verify original path is accessible
+              const originalInfo = await FileSystem.getInfoAsync(normalizedPath);
+              if (originalInfo.exists) {
+                // Use original path directly
+                setCapturedImage(normalizedPath);
+                console.log('[LivenessTest] Using original photo path directly:', normalizedPath);
+                return; // Exit successfully
+              } else {
+                throw new Error('Original file path is not accessible');
+              }
+            } catch (fallbackError: any) {
+              throw new Error(`Failed to copy photo after ${maxCopyAttempts} attempts. Original path also not accessible: ${fallbackError?.message || fallbackError}`);
+            }
+          }
+        }
+      }
+      
+      if (!copySuccess) {
+        throw new Error(`Failed to save photo after ${maxCopyAttempts} attempts`);
       }
       
       const imageUri = `file://${permanentPath}`;
@@ -404,10 +464,9 @@ export default function LivenessTestEnhanced({
       // Let the parent component handle closing and transitioning to BVN step
       if (onComplete && storageUrl) {
         console.log('[LivenessTest] Calling onComplete callback with URL:', storageUrl);
-        // Small delay to show success state, then let parent handle transition
-        setTimeout(() => {
-          onComplete(storageUrl);
-        }, 600);
+        // Call onComplete immediately - parent will handle closing the modal
+        // This prevents the modal from staying open and potentially reopening
+        onComplete(storageUrl);
       } else {
         console.log('[LivenessTest] No onComplete callback or storageUrl');
         // If no callback, close after showing success
@@ -436,8 +495,8 @@ export default function LivenessTestEnhanced({
       case "setup": return "Position your face in the circle to start";
       case "blink": return "Blink your eyes a few times";
       case "nod": return "Nod your head up and down";
-      case "look_right": return "Turn your head right";
-      case "look_left": return "Turn your head left";
+      case "look_right": return "Turn your head left";
+      case "look_left": return "Turn your head right";
       case "smile": return "Smile at the camera";
       case "photo_capture": return uploadComplete ? "Verifying..." : "Liveness test complete!";
       default: return "Position your face in the circle";
@@ -471,7 +530,7 @@ export default function LivenessTestEnhanced({
       
       // Check if face is too close (face area is too large)
       const faceArea = face.bounds.width * face.bounds.height;
-      const maxFaceArea = Platform.OS === 'ios' ? 800000 : 80000;
+      const maxFaceArea = Platform.OS === 'ios' ? 800000 : 120000;
       
       if (faceArea > maxFaceArea) {
         setFaceTooClose(true);

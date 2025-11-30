@@ -19,7 +19,6 @@ import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 import { safeHavenService } from '@/lib/safehaven-service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // KYC Step Components
-import LivenessVerificationStep from '@/components/KYCSteps/LivenessVerificationStep';
 import BVNVerificationStep from '@/components/KYCSteps/BVNVerificationStep';
 import IDFaceMatchStep from '@/components/KYCSteps/IDFaceMatchStep';
 import PersonalInfoStep from '@/components/KYCSteps/PersonalInfoStep';
@@ -49,7 +48,7 @@ export default function KYCUpgradeScreen() {
   
   // Helper function to get the first incomplete step from scratch
   const getFirstIncompleteStep = useCallback((): KYCStep => {
-    if (!progress) return 'liveness_verification';
+    if (!progress) return 'bvn_verification';
     
     // Check if Tier 1 is complete
     const tierStatus = checkTierCompletion();
@@ -72,14 +71,13 @@ export default function KYCUpgradeScreen() {
     }
     
     // Tier 1 not complete, check Tier 1 steps
-    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match'];
+    // Skip liveness_verification step - it's handled via modal
+    // Start at bvn_verification, which will trigger liveness modal if needed
+    const stepOrder: KYCStep[] = ['bvn_verification', 'id_face_match'];
     
     // Find the first incomplete Tier 1 step
     for (const step of stepOrder) {
       switch (step) {
-        case 'liveness_verification':
-          if (!progress.liveness_test_completed) return step;
-          break;
         case 'bvn_verification':
           if (!progress.bvn_verified) return step;
           break;
@@ -95,7 +93,7 @@ export default function KYCUpgradeScreen() {
   }, [progress, checkTierCompletion]);
 
   // Step management - will be initialized to first incomplete step by useEffect
-  const [currentStep, setCurrentStep] = useState<KYCStep>('liveness_verification');
+  const [currentStep, setCurrentStep] = useState<KYCStep>('bvn_verification');
   
   // Identity verification
   const [selectedIdentityType, setSelectedIdentityType] = useState<IdentityType>('nin');
@@ -191,11 +189,12 @@ export default function KYCUpgradeScreen() {
     }
   }, [session]);
 
-  // Check for liveness test completion when on liveness_verification step
+  // Check for liveness test completion when on bvn_verification step
+  // Auto-trigger liveness modal if liveness is not completed
   useEffect(() => {
     const checkLivenessTestForStep = async () => {
-      // Only check if we're on the liveness_verification step
-      if (currentStep !== 'liveness_verification') {
+      // Only check if we're on the bvn_verification step
+      if (currentStep !== 'bvn_verification') {
         return;
       }
 
@@ -206,7 +205,7 @@ export default function KYCUpgradeScreen() {
 
       // Check if liveness test is completed in progress
       if (progress?.liveness_test_completed) {
-        return; // Liveness already completed, move to next step
+        return; // Liveness already completed, proceed with BVN
       }
 
       // Check if selfie exists in kyc_data table
@@ -219,9 +218,9 @@ export default function KYCUpgradeScreen() {
         
         const hasSelfie = kycData?.selfie_url && kycData.selfie_url.trim() !== '';
         
-        // If no selfie and liveness not completed, show liveness test
+        // If no selfie and liveness not completed, show liveness test modal
         if (!hasSelfie && !progress?.liveness_test_completed) {
-          console.log('On liveness_verification step - showing liveness test');
+          console.log('[KYC] On bvn_verification step - liveness not completed, showing liveness test modal');
           setShowLivenessTest(true);
           setLivenessInitiated(true);
         }
@@ -230,7 +229,7 @@ export default function KYCUpgradeScreen() {
       }
     };
 
-    if (progress && session?.user?.id && currentStep === 'liveness_verification') {
+    if (progress && session?.user?.id && currentStep === 'bvn_verification') {
       checkLivenessTestForStep();
     }
   }, [currentStep, progress, session?.user?.id, livenessInitiated, showLivenessTest, livenessManuallyClosed]);
@@ -298,19 +297,16 @@ export default function KYCUpgradeScreen() {
   // Helper function to get the next incomplete step
   const getNextIncompleteStep = useCallback((current: KYCStep): KYCStep => {
     // Define step order based on tiers:
-    // Tier 1: liveness_verification, bvn_verification, id_face_match
+    // Tier 1: bvn_verification, id_face_match (liveness is handled via modal)
     // Tier 2: personal, documents_verification
     // Tier 3: address_details
-    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
+    const stepOrder: KYCStep[] = ['bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
     const currentIndex = stepOrder.indexOf(current);
     
     // Find the next incomplete step
     for (let i = currentIndex + 1; i < stepOrder.length; i++) {
       const step = stepOrder[i];
       switch (step) {
-        case 'liveness_verification':
-          if (!progress.liveness_test_completed) return step;
-          break;
         case 'bvn_verification':
           if (!progress.bvn_verified) return step;
           break;
@@ -337,19 +333,16 @@ export default function KYCUpgradeScreen() {
   // Helper function to get the previous incomplete step (or first incomplete if going back from a completed step)
   const getPreviousIncompleteStep = useCallback((current: KYCStep): KYCStep | null => {
     // Define step order based on tiers:
-    // Tier 1: liveness_verification, bvn_verification, id_face_match
+    // Tier 1: bvn_verification, id_face_match (liveness is handled via modal)
     // Tier 2: personal, documents_verification
     // Tier 3: address_details
-    const stepOrder: KYCStep[] = ['liveness_verification', 'bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
+    const stepOrder: KYCStep[] = ['bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
     const currentIndex = stepOrder.indexOf(current);
     
     // Find the last incomplete step before current
     for (let i = currentIndex - 1; i >= 0; i--) {
       const step = stepOrder[i];
       switch (step) {
-        case 'liveness_verification':
-          if (!progress.liveness_test_completed) return step;
-          break;
         case 'bvn_verification':
           if (!progress.bvn_verified) return step;
           break;
@@ -373,13 +366,26 @@ export default function KYCUpgradeScreen() {
 
   // Update current step when progress changes, but skip to first incomplete step
   useEffect(() => {
+    // Skip this effect if liveness was just completed - let handleLivenessComplete handle the step transition
+    // Also skip if we're currently on bvn_verification and liveness was just completed (to prevent double navigation)
+    if (livenessCompleted && currentStep === 'bvn_verification') {
+      console.log('[KYC] Skipping step update in useEffect - liveness just completed and already on bvn_verification step');
+      return;
+    }
+    
     if (progress && !progressLoading && !showTier1CompletionModal) {
       setBvnVerified(progress.bvn_verified);
       setDocumentsVerified(progress.documents_verified);
       
       // Get the first incomplete step directly using the helper function
       const targetStep = getFirstIncompleteStep();
-      setCurrentStep(targetStep);
+      
+      // Only update step if it's different from current step
+      // This prevents double navigation after liveness completion
+      if (targetStep !== currentStep) {
+        console.log('[KYC] useEffect updating step from', currentStep, 'to', targetStep);
+        setCurrentStep(targetStep);
+      }
       
       // If we're on id_face_match step and BVN is verified, show BVN option
       // This restores the state if user was using BVN and closed the screen
@@ -388,7 +394,7 @@ export default function KYCUpgradeScreen() {
         setShowBvnOption(true);
       }
     }
-  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep, bvn, formData?.bvn, showTier1CompletionModal]);
+  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep, bvn, formData?.bvn, showTier1CompletionModal, currentStep, livenessCompleted]);
 
   // Auto-focus BVN input when step changes to bvn_verification
   useEffect(() => {
@@ -649,28 +655,6 @@ export default function KYCUpgradeScreen() {
     console.log('[KYC] handleNextStep called, currentStep:', currentStep);
     try {
       switch (currentStep) {
-        case 'liveness_verification':
-          console.log('[KYC] Liveness verification step - Continue button clicked');
-          console.log('[KYC] Liveness test status:', {
-            completed: progress.liveness_test_completed,
-            showLivenessTest,
-            livenessInitiated
-          });
-          // Liveness test is handled via LivenessTestEnhanced component
-          // When user clicks Continue, show the liveness test modal
-          if (!progress.liveness_test_completed) {
-            console.log('[KYC] Opening liveness test modal');
-            setShowLivenessTest(true);
-            setLivenessInitiated(true);
-            console.log('[KYC] Liveness test modal state updated');
-          } else {
-            console.log('[KYC] Liveness test already completed, moving to next step');
-            // If already completed, move to next step
-            const nextStep = getNextIncompleteStep('liveness_verification');
-            console.log('[KYC] Next step:', nextStep);
-            setCurrentStep(nextStep);
-          }
-          break;
         case 'personal':
           if (validatePersonalInfo()) {
             setIsLoading(true);
@@ -964,42 +948,36 @@ export default function KYCUpgradeScreen() {
       // Show success message
       showToast('Selfie captured and saved successfully', 'success');
       
-      // Update current_step to next step after liveness completion
-      // Tier 1: After liveness, move to BVN verification
+      // Close the liveness test modal immediately
+      console.log('[KYC] Closing liveness modal immediately after completion');
+      setShowLivenessTest(false);
+      setLivenessInitiated(false);
+      setLivenessManuallyClosed(false);
+      
+      // Set step immediately before progress update to prevent useEffect from interfering
+      console.log('[KYC] Setting step to bvn_verification immediately');
+      setCurrentStep('bvn_verification');
+      
+      // Update progress - liveness is now completed, stay on BVN step
       const progressResult = await updateProgress({
-        current_step: 'bvn_verification', // Move to BVN verification (Tier 1) after liveness
+        current_step: 'bvn_verification',
         liveness_test_completed: true
       });
       
       if (progressResult) {
-        // Proceed to next incomplete step (should be bvn_verification if not completed)
-        const nextStep = getNextIncompleteStep('liveness_verification');
-        console.log('[KYC] Moving to next step after liveness:', nextStep);
-        
-        // Set the current step first to transition smoothly
-        setCurrentStep(nextStep);
-        
-        // Close the liveness test modal after a short delay to allow step transition
-        // This ensures the user sees the transition to BVN step
+        console.log('[KYC] Progress updated successfully');
+        // Reset manual verification flag after a short delay
         setTimeout(() => {
-          console.log('[KYC] Closing liveness modal after step transition');
-          setShowLivenessTest(false);
-          setLivenessInitiated(false);
-          setLivenessManuallyClosed(false); // Reset the manually closed flag
-          
+          setIsManualVerification(false);
+          // Reset livenessCompleted flag after step is set to allow future progress updates
           setTimeout(() => {
-            setIsManualVerification(false);
-            // Reset completion flag after a delay
-            setTimeout(() => {
-              setLivenessCompleted(false);
-            }, 500);
-          }, 300);
-        }, 800); // Give time for step transition to be visible
+            setLivenessCompleted(false);
+          }, 500);
+        }, 300);
       } else {
-        // If progress update failed, still close the modal
-        console.error('[KYC] Progress update failed, closing modal');
-        setShowLivenessTest(false);
-        setLivenessInitiated(false);
+        // If progress update failed, log error but step is already set
+        console.error('[KYC] Progress update failed, but step is already set to bvn_verification');
+        setLivenessCompleted(false);
       }
     } catch (error) {
       console.error('Error handling liveness completion:', error);
@@ -1083,7 +1061,7 @@ export default function KYCUpgradeScreen() {
     setLivenessManuallyClosed(true);
     // Only navigate to home when liveness test is manually closed (not completed)
     // Don't navigate if we're already on a different step (means completion happened)
-    if (currentStep !== 'liveness_verification') {
+    if (currentStep !== 'bvn_verification') {
       console.log('[KYC] Already moved to next step, not navigating away');
       return; // Don't navigate if we've already moved to the next step
     }
@@ -2562,7 +2540,6 @@ export default function KYCUpgradeScreen() {
   
   const getStepTitle = () => {
     switch (currentStep) {
-      case 'liveness_verification': return 'Liveness Verification';
       case 'personal': return 'Personal Information';
       case 'bvn_verification': return 'BVN Verification';
       case 'id_face_match': return 'ID & Face Verification';
@@ -2786,7 +2763,6 @@ export default function KYCUpgradeScreen() {
         phoneNumber={phoneNumber}
         otp={otp}
         ninIdentityId={ninIdentityId}
-        bvnIdentityId={bvnIdentityId}
         otpMessage={otpMessage}
         selectedIdentityType={selectedIdentityType}
         errors={errors}
@@ -2794,9 +2770,6 @@ export default function KYCUpgradeScreen() {
         isVerifyingDocuments={isVerifyingDocuments}
         documentsVerified={documentsVerified}
         isLoading={isLoading}
-        showBvnOption={showBvnOption}
-        bvn={bvn}
-        formDataBvn={formData?.bvn}
         onNinChange={setNin}
         onPhoneNumberChange={setPhoneNumber}
         onOtpChange={setOtp}
@@ -2804,8 +2777,9 @@ export default function KYCUpgradeScreen() {
           setSelectedIdentityType(type);
           setErrors({});
         }}
-        onUseBvnInstead={handleUseBvnInstead}
-        onSaveFormData={saveFormData}
+        onSaveFormData={async (data: { phone_number: string }) => {
+          await saveFormData(data);
+        }}
         phoneInputRef={phoneInputRef}
       />
     );
@@ -2871,14 +2845,8 @@ export default function KYCUpgradeScreen() {
     );
   };
   
-  const renderLivenessVerificationStep = () => {
-    return <LivenessVerificationStep />;
-  };
-
   const renderCurrentStep = () => {
     switch (currentStep) {
-      case 'liveness_verification':
-        return renderLivenessVerificationStep();
       case 'personal':
         return renderPersonalInfoStep();
       case 'bvn_verification':
