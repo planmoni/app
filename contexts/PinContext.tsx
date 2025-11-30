@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { saveItem, getItem, deleteItem, BIOMETRIC_ENABLED_KEY } from '@/lib/secure-storage';
 import { BiometricService } from '@/lib/biometrics';
@@ -75,59 +75,138 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   // Create user-scoped storage instance when user ID is available
+  // Wrap in try-catch to prevent crashes if storage creation fails
   const userStorage = useMemo(() => {
     if (!userId) return null;
-    return createUserScopedStorage(userId);
+    try {
+      return createUserScopedStorage(userId);
+    } catch (error) {
+      console.error('PinContext - Error creating user storage:', error);
+      return null;
+    }
   }, [userId]);
 
-  // Load PIN state when user ID changes
-  useEffect(() => {
-    if (userId && userStorage) {
-      loadPinState();
-    } else {
-      // Clear PIN state when no user is logged in
-      setHasAppLockPin(false);
-      setHasPayoutPin(false);
-      setHasEmergencyPin(false);
-      setBiometricEnabled(false);
-      setPayoutBiometricEnabled(false);
-      setEmergencyBiometricEnabled(false);
-      setIsLoading(false);
-    }
-  }, [userId, userStorage]);
-
-  const loadPinState = async () => {
-    if (!userStorage) {
+  // Load PIN state when user ID changes - memoized to prevent unnecessary re-renders
+  const loadPinState = useCallback(async () => {
+    if (!userStorage || !userId) {
       setIsLoading(false);
       return;
     }
 
     try {
+      console.log(`🔐 PinContext - Loading PIN state for user: ${userId}`);
       setIsLoading(true);
       
-      // Check if PINs exist using user-scoped storage
-      const appLockPin = await userStorage.getItem(APP_LOCK_PIN_KEY);
-      const payoutPin = await userStorage.getItem(PAYOUT_PIN_KEY);
-      const emergencyPin = await userStorage.getItem(EMERGENCY_PIN_KEY);
+      // Check if PINs exist using user-scoped storage (each user has their own PIN)
+      // Wrap in try-catch for each operation to prevent crashes
+      let appLockPin: string | null = null;
+      let payoutPin: string | null = null;
+      let emergencyPin: string | null = null;
+      
+      try {
+        appLockPin = await userStorage.getItem(APP_LOCK_PIN_KEY);
+      } catch (error) {
+        console.warn('PinContext - Error loading app lock PIN:', error);
+      }
+      
+      try {
+        payoutPin = await userStorage.getItem(PAYOUT_PIN_KEY);
+      } catch (error) {
+        console.warn('PinContext - Error loading payout PIN:', error);
+      }
+      
+      try {
+        emergencyPin = await userStorage.getItem(EMERGENCY_PIN_KEY);
+      } catch (error) {
+        console.warn('PinContext - Error loading emergency PIN:', error);
+      }
+      
+      console.log(`🔐 PinContext - PIN state loaded for user ${userId}:`, {
+        hasAppLockPin: !!appLockPin,
+        hasPayoutPin: !!payoutPin,
+        hasEmergencyPin: !!emergencyPin
+      });
       
       setHasAppLockPin(!!appLockPin);
       setHasPayoutPin(!!payoutPin);
       setHasEmergencyPin(!!emergencyPin);
       
       // Check if biometric is enabled (also user-scoped)
-      const biometric = await userStorage.getItem(BIOMETRIC_ENABLED_KEY);
-      const payoutBiometric = await userStorage.getItem(PAYOUT_BIOMETRIC_KEY);
-      const emergencyBiometric = await userStorage.getItem(EMERGENCY_BIOMETRIC_KEY);
+      let biometric: string | null = null;
+      let payoutBiometric: string | null = null;
+      let emergencyBiometric: string | null = null;
+      
+      try {
+        biometric = await userStorage.getItem(BIOMETRIC_ENABLED_KEY);
+      } catch (error) {
+        console.warn('PinContext - Error loading biometric setting:', error);
+      }
+      
+      try {
+        payoutBiometric = await userStorage.getItem(PAYOUT_BIOMETRIC_KEY);
+      } catch (error) {
+        console.warn('PinContext - Error loading payout biometric setting:', error);
+      }
+      
+      try {
+        emergencyBiometric = await userStorage.getItem(EMERGENCY_BIOMETRIC_KEY);
+      } catch (error) {
+        console.warn('PinContext - Error loading emergency biometric setting:', error);
+      }
       
       setBiometricEnabled(biometric === 'true');
       setPayoutBiometricEnabled(payoutBiometric === 'true');
       setEmergencyBiometricEnabled(emergencyBiometric === 'true');
     } catch (error) {
-      console.error('Error loading PIN state:', error);
+      console.error(`❌ PinContext - Error loading PIN state for user ${userId}:`, error);
+      // Don't crash - set safe defaults
+      setHasAppLockPin(false);
+      setHasPayoutPin(false);
+      setHasEmergencyPin(false);
+      setBiometricEnabled(false);
+      setPayoutBiometricEnabled(false);
+      setEmergencyBiometricEnabled(false);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [userStorage, userId]);
+
+  // Load PIN state when user ID changes (switching accounts)
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadState = async () => {
+      if (userId && userStorage) {
+        console.log(`🔄 PinContext - User changed, loading PIN state for user: ${userId}`);
+        try {
+          await loadPinState();
+        } catch (error) {
+          console.error('PinContext - Error in loadPinState during useEffect:', error);
+          if (isMounted) {
+            setIsLoading(false);
+          }
+        }
+      } else {
+        // Clear PIN state when no user is logged in
+        console.log('🔄 PinContext - No user logged in, clearing PIN state');
+        if (isMounted) {
+          setHasAppLockPin(false);
+          setHasPayoutPin(false);
+          setHasEmergencyPin(false);
+          setBiometricEnabled(false);
+          setPayoutBiometricEnabled(false);
+          setEmergencyBiometricEnabled(false);
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    loadState();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [userId, userStorage, loadPinState]);
 
   const setupAppLockPin = async (pin: string): Promise<boolean> => {
     if (!userStorage) {

@@ -482,7 +482,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
       shadowOffset: { width: 0, height: -2 },
       shadowOpacity: 0.25,
       shadowRadius: 8,
-      elevation: 10,
     },
     header: {
       flexDirection: 'row',

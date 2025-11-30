@@ -35,14 +35,16 @@ import {
   verifyTOTPToken, 
   generateBackupCodes,
   enableTOTPForUser,
+  disableTOTPForUser,
   validateTOTPToken,
   formatBackupCodes,
+  get2FAStatus,
   type TOTPSecret,
   type BackupCodes
 } from '@/lib/totp';
 import QRCode from 'react-native-qrcode-svg';
 
-type SetupStep = 'loading' | 'qr-code' | 'verification' | 'backup-codes' | 'success';
+type SetupStep = 'loading' | 'qr-code' | 'verification' | 'backup-codes' | 'success' | 'disable';
 
 export default function TwoFactorSetupScreen() {
   const { colors } = useTheme();
@@ -57,10 +59,38 @@ export default function TwoFactorSetupScreen() {
   const [showBackupCodes, setShowBackupCodes] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isGeneratingBackup, setIsGeneratingBackup] = useState(false);
+  const [isDisabling, setIsDisabling] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Check 2FA status on mount
   useEffect(() => {
     if (session?.user?.id && isOnline) {
+      check2FAStatus();
+    }
+  }, [session?.user?.id, isOnline]);
+
+  const check2FAStatus = async () => {
+    try {
+      const status = await get2FAStatus(session!.user.id);
+      const isEnabled = !!(status?.two_factor_enabled && status?.totp_enabled);
+      setTwoFactorEnabled(isEnabled);
+      
+      if (isEnabled && method === 'authenticator') {
+        // If 2FA is already enabled, show disable option
+        setCurrentStep('disable');
+      } else if (method === 'authenticator') {
+        if (action === 'regenerate-backup-codes') {
+          handleRegenerateBackupCodes();
+        } else {
+          initializeTOTPSetup();
+        }
+      } else if (method === 'email') {
+        initializeEmail2FA();
+      }
+    } catch (error) {
+      console.error('Error checking 2FA status:', error);
+      // If check fails, proceed with setup flow
       if (method === 'authenticator') {
         if (action === 'regenerate-backup-codes') {
           handleRegenerateBackupCodes();
@@ -71,7 +101,7 @@ export default function TwoFactorSetupScreen() {
         initializeEmail2FA();
       }
     }
-  }, [method, action, session?.user?.id, isOnline]);
+  };
 
   const initializeTOTPSetup = async () => {
     try {
@@ -193,6 +223,55 @@ export default function TwoFactorSetupScreen() {
     setTimeout(() => {
       router.replace('/profile');
     }, 2000);
+  };
+
+  const handleDisable2FA = () => {
+    Alert.alert(
+      "Disable Two-Factor Authentication",
+      "Are you sure you want to disable 2FA? This will make your account less secure. You'll need to set it up again if you want to re-enable it.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Disable",
+          style: "destructive",
+          onPress: confirmDisable2FA
+        }
+      ]
+    );
+  };
+
+  const confirmDisable2FA = async () => {
+    if (!session?.user?.id) return;
+    
+    setIsDisabling(true);
+    setError(null);
+    
+    try {
+      const success = await disableTOTPForUser(session.user.id);
+      
+      if (success) {
+        Alert.alert(
+          "2FA Disabled",
+          "Two-factor authentication has been successfully disabled.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.replace('/profile')
+            }
+          ]
+        );
+      } else {
+        setError('Failed to disable 2FA. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error disabling 2FA:', error);
+      setError('Failed to disable 2FA. Please try again.');
+    } finally {
+      setIsDisabling(false);
+    }
   };
 
   const renderQRCodeStep = () => (
@@ -375,6 +454,36 @@ export default function TwoFactorSetupScreen() {
     </View>
   );
 
+  const renderDisableStep = () => (
+    <View style={styles.stepContainer}>
+      <View style={styles.heroSection}>
+        <View style={[styles.shieldIcon, { backgroundColor: '#FEE2E2' }]}>
+          <Shield size={32} color="#EF4444" />
+        </View>
+        <Text style={styles.heroTitle}>2FA is Currently Enabled</Text>
+        <Text style={styles.heroDescription}>
+          Two-factor authentication is protecting your account. You can disable it if needed.
+        </Text>
+      </View>
+
+      <View style={styles.disableInfo}>
+        <View style={styles.warningSection}>
+          <AlertCircle size={20} color="#F59E0B" />
+          <Text style={styles.warningText}>
+            Disabling 2FA will make your account less secure. You'll need to set it up again if you want to re-enable it.
+          </Text>
+        </View>
+      </View>
+
+      {error && (
+        <View style={styles.errorContainer}>
+          <AlertCircle size={16} color="#EF4444" />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+    </View>
+  );
+
   const renderCurrentStep = () => {
     switch (currentStep) {
       case 'loading':
@@ -393,6 +502,8 @@ export default function TwoFactorSetupScreen() {
         return renderBackupCodesStep();
       case 'success':
         return renderSuccessStep();
+      case 'disable':
+        return renderDisableStep();
       default:
         return null;
     }
@@ -408,6 +519,8 @@ export default function TwoFactorSetupScreen() {
         return 'Continue';
       case 'success':
         return 'Done';
+      case 'disable':
+        return isDisabling ? 'Disabling...' : 'Disable 2FA';
       default:
         return 'Continue';
     }
@@ -427,6 +540,9 @@ export default function TwoFactorSetupScreen() {
       case 'success':
         router.replace('/profile');
         break;
+      case 'disable':
+        handleDisable2FA();
+        break;
     }
   };
 
@@ -436,6 +552,8 @@ export default function TwoFactorSetupScreen() {
         return verificationCode.length !== 6 || isVerifying;
       case 'backup-codes':
         return isGeneratingBackup;
+      case 'disable':
+        return isDisabling || !isOnline;
       default:
         return false;
     }
@@ -465,7 +583,7 @@ export default function TwoFactorSetupScreen() {
           <Button
             title={getNextButtonTitle()}
             onPress={handleNext}
-            style={styles.nextButton}
+            style={currentStep === 'disable' ? styles.disableButton : styles.nextButton}
             disabled={isNextDisabled() || !isOnline}
           />
         </View>
@@ -743,5 +861,11 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   nextButton: {
     backgroundColor: '#1E3A8A',
+  },
+  disableButton: {
+    backgroundColor: '#EF4444',
+  },
+  disableInfo: {
+    marginTop: 24,
   },
 });

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Image, Pressable, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, useWindowDimensions, Platform, InteractionManager } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { 
   useAnimatedScrollHandler,
@@ -59,20 +59,34 @@ const SLIDES = [
 ];
 
 export default function WelcomeScreen() {
-  const { width, height } = useWindowDimensions();
-  const { colors, isDark } = useTheme();
-  const { session } = useAuth();
-  const scrollX = useSharedValue(0);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const scrollViewRef = useRef<Animated.ScrollView>(null);
-  const autoSlideTimerRef = useRef<number | NodeJS.Timeout | null>(null);
-
-  // Redirect to tabs if user is already authenticated
+  // Redirect to tabs for both authenticated and unauthenticated users
+  // Wait for interactions to complete and router to be ready
   useEffect(() => {
-    if (session) {
-      router.replace('/(tabs)');
-    }
-  }, [session]);
+    // Use a longer delay to ensure the router and layout are fully mounted
+    const timer = setTimeout(() => {
+      InteractionManager.runAfterInteractions(() => {
+        try {
+          router.replace('/(tabs)');
+        } catch (error) {
+          console.warn('Navigation error, retrying:', error);
+          // Retry after a longer delay if first attempt fails
+          setTimeout(() => {
+            try {
+    router.replace('/(tabs)');
+            } catch (retryError) {
+              console.warn('Navigation retry failed:', retryError);
+            }
+          }, 500);
+        }
+      });
+    }, 300); // Initial delay to ensure layout is mounted
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Return minimal view to avoid using context hooks before providers are ready
+  // The redirect will happen in the useEffect above
+  return null;
 
   // Auto-slide functionality
   useEffect(() => {
@@ -516,7 +530,6 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
   },
   getStartedButtonText: {
     color: colors.accent,

@@ -3,7 +3,7 @@ import SafeFooter from '@/components/SafeFooter';
 import TransactionModal from '@/components/TransactionModal';
 import DateRangeModal from '@/components/DateRangeModal';
 import { router } from 'expo-router';
-import { ArrowDownRight, ArrowLeft, BanknoteArrowDown, BanknoteArrowUp, ArrowUpRight, Ban as Bank, Calendar, Search, X } from 'lucide-react-native';
+import { ArrowDownRight, ArrowLeft, ArrowUpRight, Calendar, Search, X, XCircle, CheckCircle2, Clock } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,7 +13,7 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 type TransactionType = 'all' | 'deposits' | 'payouts' | 'withdrawals';
 
 export default function TransactionsScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { transactions, isLoading } = useRealtimeTransactions();
   const { payoutPlans } = useRealtimePayoutPlans();  const [activeType, setActiveType] = useState<TransactionType>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -28,10 +28,16 @@ export default function TransactionsScreen() {
   });
 
   const handleTransactionPress = (transaction: Transaction) => {
+    // Map "scheduled" status to "DISBURSED" for payout transactions
+    let displayStatus = transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1);
+    if (transaction.type === 'payout' && transaction.status.toLowerCase() === 'scheduled') {
+      displayStatus = 'DISBURSED';
+    }
+    
     setSelectedTransaction((prevState: any) => ({
       ...prevState,
       amount: `₦${transaction.amount.toLocaleString()}`,
-      status: transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1),
+      status: displayStatus,
       date: new Date(transaction.created_at).toLocaleDateString(),
       time: new Date(transaction.created_at).toLocaleTimeString(),
       type: transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1),
@@ -53,8 +59,12 @@ export default function TransactionsScreen() {
     }, 1000);
   };
 
-  const handleDateRangeSelect = (startDate: Date, endDate: Date) => {
+  const handleDateRangeSelect = (startDate: Date | null, endDate: Date | null) => {
     setDateRange({ start: startDate, end: endDate });
+  };
+
+  const handleClearDateRange = () => {
+    setDateRange({ start: null, end: null });
   };
 
   const formatDateRange = () => {
@@ -77,19 +87,36 @@ export default function TransactionsScreen() {
   };
 
   const filteredTransactions = transactions.filter(transaction => {
+    // Filter by transaction type
     if (activeType !== 'all' && transaction.type !== typeMap[activeType]) {
       return false;
     }
 
+    // Filter by search query
     if (searchQuery) {
-      return transaction.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             transaction.source.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             transaction.destination.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = transaction.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             transaction.source?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             transaction.destination?.toLowerCase().includes(searchQuery.toLowerCase());
+      if (!matchesSearch) {
+        return false;
+      }
     }
 
+    // Filter by date range
     if (dateRange.start && dateRange.end) {
       const transactionDate = new Date(transaction.created_at);
-      return transactionDate >= dateRange.start && transactionDate <= dateRange.end;
+      
+      // Normalize dates to start and end of day for accurate comparison
+      const startDate = new Date(dateRange.start);
+      startDate.setHours(0, 0, 0, 0);
+      
+      const endDate = new Date(dateRange.end);
+      endDate.setHours(23, 59, 59, 999);
+      
+      // Check if transaction date falls within the range (inclusive)
+      if (transactionDate < startDate || transactionDate > endDate) {
+        return false;
+      }
     }
 
     return true;
@@ -230,13 +257,23 @@ export default function TransactionsScreen() {
           </Pressable>
         </ScrollView>
 
-        <Pressable 
-          style={styles.dateRangeButton}
-          onPress={() => setIsDateRangeModalVisible(true)}
-        >
-          <Calendar size={20} color={colors.text} />
-          <Text style={styles.dateRangeText}>{formatDateRange()}</Text>
-        </Pressable>
+        <View style={styles.dateRangeButton}>
+          <Pressable 
+            style={styles.dateRangeButtonContent}
+            onPress={() => setIsDateRangeModalVisible(true)}
+          >
+            <Calendar size={20} color={colors.text} />
+            <Text style={styles.dateRangeText}>{formatDateRange()}</Text>
+          </Pressable>
+          {dateRange.start && dateRange.end && (
+            <Pressable 
+              style={styles.clearDateRangeButton}
+              onPress={handleClearDateRange}
+            >
+              <X size={16} color={colors.textSecondary} />
+            </Pressable>
+          )}
+        </View>
 
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
@@ -274,10 +311,44 @@ export default function TransactionsScreen() {
                     : date}
               </Text>
               {transactions.map((transaction) => {
+                // Map transaction types to icons and colors matching notifications page
+                let Icon = ArrowDownRight;
+                let iconBg = colors.accent;
+                let iconColor = colors.primary;
+                
+                if (transaction.status === 'failed') {
+                  // Failed transactions use error styling
+                  Icon = XCircle;
+                  iconBg = colors.errorLight;
+                  iconColor = colors.error;
+                } else {
+                  switch (transaction.type) {
+                    case 'deposit':
+                      // Deposit: ArrowDownRight with accent/primary colors (matching deposit_successful)
+                      Icon = ArrowDownRight;
+                      iconBg = colors.accent;
+                      iconColor = colors.primary;
+                      break;
+                    case 'payout':
+                      // Payout: ArrowUpRight with success colors (matching payout_completed)
+                      Icon = ArrowUpRight;
+                      iconBg = colors.successLight;
+                      iconColor = colors.success;
+                      break;
+                    case 'withdrawal':
+                      // Withdrawal: ArrowUpRight with orange colors (matching emergency withdrawal)
+                      Icon = ArrowUpRight;
+                      iconBg = '#F97316';
+                      iconColor = '#fff';
+                      break;
+                    default:
+                      Icon = ArrowDownRight;
+                      iconBg = colors.accent;
+                      iconColor = colors.primary;
+                  }
+                }
+                
                 const isPositive = transaction.type === 'deposit';
-                const Icon = isPositive ? BanknoteArrowDown : transaction.type === 'payout' ? BanknoteArrowDown : BanknoteArrowUp;
-                const iconBg = isPositive ? colors.iconBackground : transaction.type === 'payout' ? colors.iconBackground : colors.iconBackground;
-                const iconColor = isPositive ? colors.iconColor : transaction.type === 'payout' ? colors.iconColor : colors.iconColor;
                 
                 // Format date and time
                 const txDate = new Date(transaction.created_at);
@@ -294,7 +365,7 @@ export default function TransactionsScreen() {
                     onPress={() => handleTransactionPress(transaction)}
                   >
                     <View style={[styles.transactionIcon, { backgroundColor: iconBg }]}>
-                      <Icon size={24} color={iconColor} />
+                      <Icon size={24} color={iconColor} strokeWidth={2} />
                     </View>
                     <View style={styles.transactionInfo}>
                       <View style={styles.transactionHeader}>
@@ -311,7 +382,9 @@ export default function TransactionsScreen() {
                           {formattedTime}
                         </Text>
                         <Text style={styles.transactionStatus}>
-                          {transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
+                          {transaction.type === 'payout' && transaction.status.toLowerCase() === 'scheduled' 
+                            ? 'DISBURSED' 
+                            : transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
                         </Text>
                       </View>
                     </View>
@@ -438,7 +511,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   dateRangeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginHorizontal: 16,
@@ -448,10 +521,25 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.card,
   },
+  dateRangeButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
   dateRangeText: {
     fontSize: 14,
     color: colors.text,
     fontWeight: '500',
+  },
+  clearDateRangeButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -517,9 +605,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.border,
   },
   transactionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -534,7 +622,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 4,
   },
   transactionTitle: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '500',
     color: colors.text,
   },
@@ -543,7 +631,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
   },
   transactionDate: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.textSecondary,
   },
   transactionStatus: {
@@ -551,7 +639,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
   },
   transactionAmount: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '600',
   },
   positiveAmount: {

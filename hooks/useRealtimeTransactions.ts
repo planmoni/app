@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -25,14 +25,22 @@ export function useRealtimeTransactions() {
   const { session } = useAuth();
 
   useEffect(() => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      setTransactions([]);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
 
-    let channel: RealtimeChannel;
+    let channel: RealtimeChannel | null = null;
+    let isMounted = true;
 
     const setupRealtimeSubscription = async () => {
       try {
         // Initial fetch
         await fetchTransactions();
+
+        if (!isMounted) return;
 
         // Set up real-time subscription
         const channelName = `transactions-changes-${session.user.id}`;
@@ -47,6 +55,7 @@ export function useRealtimeTransactions() {
               filter: `user_id=eq.${session.user.id}`,
             },
             (payload: any) => {
+              if (!isMounted) return;
               console.log('Transaction change received:', payload);
               
               if (payload.eventType === 'INSERT' && payload.new) {
@@ -61,26 +70,33 @@ export function useRealtimeTransactions() {
             }
           );
         // Only subscribe if not already subscribed
-        if (channel.state === 'closed' || channel.state === 'leaving') {
+        if (channel && (channel.state === 'closed' || channel.state === 'leaving')) {
           channel.subscribe((status: any) => {
             console.log('Transactions subscription status:', status);
           });
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to setup transactions subscription');
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to setup transactions subscription');
+        }
       }
     };
 
     setupRealtimeSubscription();
 
     return () => {
+      isMounted = false;
       if (channel) {
-        supabase.removeChannel(channel);
+        try {
+          supabase.removeChannel(channel);
+        } catch (err) {
+          console.error('Error removing transactions channel:', err);
+        }
       }
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, fetchTransactions]);
 
-  const fetchTransactions = async (limit = 50) => {
+  const fetchTransactions = useCallback(async (limit = 50) => {
     try {
       setError(null);
       const { data, error: fetchError } = await supabase
@@ -106,7 +122,7 @@ export function useRealtimeTransactions() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [session?.user?.id]);
 
   return {
     transactions,

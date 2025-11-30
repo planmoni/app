@@ -23,27 +23,48 @@ interface DeviceCapabilities {
  * Get device capabilities for defensive storage decisions
  */
 async function getDeviceCapabilities(): Promise<DeviceCapabilities> {
-  const isSimulator = __DEV__ && Platform.OS === 'ios' && 
-    (await SecureStore?.isAvailableAsync?.() === false || 
-     process.env.EXPO_PUBLIC_IS_SIMULATOR === 'true');
-
+  let isSimulator = false;
   let hasBiometrics = false;
   let hasPasscode = false;
 
-  if (Platform.OS !== 'web') {
-    try {
-      // Use expo-local-authentication to detect biometric hardware and enrollment
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-      hasBiometrics = !!hasHardware && !!isEnrolled;
-
-      // We cannot reliably detect device passcode state across platforms; keep conservative default
-      hasPasscode = false;
-    } catch (error) {
-      // If detection fails, fall back to conservative defaults
-      hasBiometrics = false;
-      hasPasscode = false;
+  try {
+    // Check if simulator (only on iOS)
+    if (__DEV__ && Platform.OS === 'ios') {
+      try {
+        if (SecureStore && SecureStore.isAvailableAsync) {
+          const isAvailable = await SecureStore.isAvailableAsync();
+          isSimulator = !isAvailable;
+        } else {
+          isSimulator = process.env.EXPO_PUBLIC_IS_SIMULATOR === 'true';
+        }
+      } catch (error) {
+        // If SecureStore check fails, assume not simulator
+        isSimulator = process.env.EXPO_PUBLIC_IS_SIMULATOR === 'true';
+      }
     }
+
+    if (Platform.OS !== 'web') {
+      try {
+        // Use expo-local-authentication to detect biometric hardware and enrollment
+        const hasHardware = await LocalAuthentication.hasHardwareAsync();
+        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+        hasBiometrics = !!hasHardware && !!isEnrolled;
+
+        // We cannot reliably detect device passcode state across platforms; keep conservative default
+        hasPasscode = false;
+      } catch (error) {
+        // If detection fails, fall back to conservative defaults
+        console.warn('Error detecting device capabilities:', error);
+        hasBiometrics = false;
+        hasPasscode = false;
+      }
+    }
+  } catch (error) {
+    // If any capability detection fails, use safe defaults
+    console.warn('Error in getDeviceCapabilities, using defaults:', error);
+    isSimulator = false;
+    hasBiometrics = false;
+    hasPasscode = false;
   }
 
   const isSecureDevice = hasBiometrics || hasPasscode;
@@ -106,39 +127,48 @@ export class UserScopedStorage {
    * Get secure storage options based on device capabilities
    */
   private async getSecureStorageOptions(): Promise<any> {
-    const capabilities = await this.getCapabilities();
-    
-    // Never require auth on simulator
-    if (capabilities.isSimulator) {
+    try {
+      const capabilities = await this.getCapabilities();
+      
+      // Never require auth on simulator
+      if (capabilities.isSimulator) {
+        return {
+          requireAuthentication: false,
+          keychainService: 'planmoni-app-lock-dev',
+          ...(Platform.OS === 'ios' && SecureStore && {
+            kSecAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY
+          })
+        };
+      }
+
+      // On real devices, only use strict security if device has biometrics/passcode
+      if (capabilities.isSecureDevice) {
+        return {
+          requireAuthentication: false, // We handle auth at app level, not keychain level
+          keychainService: 'planmoni-app-lock',
+          ...(Platform.OS === 'ios' && SecureStore && {
+            accessGroup: 'planmoni.app-lock',
+            kSecAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY
+          })
+        };
+      }
+
+      // Fallback for devices without security
       return {
         requireAuthentication: false,
-        keychainService: 'planmoni-app-lock-dev',
-        ...(Platform.OS === 'ios' && {
+        keychainService: 'planmoni-app-lock-basic',
+        ...(Platform.OS === 'ios' && SecureStore && {
           kSecAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY
         })
       };
-    }
-
-    // On real devices, only use strict security if device has biometrics/passcode
-    if (capabilities.isSecureDevice) {
+    } catch (error) {
+      console.warn('Error getting secure storage options, using defaults:', error);
+      // Return safe defaults if capability detection fails
       return {
-        requireAuthentication: false, // We handle auth at app level, not keychain level
-        keychainService: 'planmoni-app-lock',
-        ...(Platform.OS === 'ios' && {
-          accessGroup: 'planmoni.app-lock',
-          kSecAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY
-        })
+        requireAuthentication: false,
+        keychainService: 'planmoni-app-lock-basic'
       };
     }
-
-    // Fallback for devices without security
-    return {
-      requireAuthentication: false,
-      keychainService: 'planmoni-app-lock-basic',
-      ...(Platform.OS === 'ios' && {
-        kSecAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY
-      })
-    };
   }
 
   /**

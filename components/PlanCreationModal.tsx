@@ -124,7 +124,6 @@ export default function PlanCreationModal({
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.3,
       shadowRadius: 8,
-      elevation: 8,
     },
     closeButton: {
       position: 'absolute',
@@ -235,10 +234,10 @@ export default function PlanCreationModal({
           </Pressable>
 
           <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.title}>Deposit Successful! 🎉</Text>
+            <Text style={styles.title}>Quick Payout Plans</Text>
             
             <Text style={styles.message}>
-              You've successfully added {formatCurrency(depositAmount)}. Here are some suggested payout plans:
+              You recently added {formatCurrency(depositAmount)}. Here are some suggested payout plans:
             </Text>
 
             <Text style={styles.suggestionsTitle}>Suggested Plans</Text>

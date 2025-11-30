@@ -138,7 +138,6 @@ const DAYS_OF_WEEK: DayOfWeekOption[] = [
 function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerProps) {
   const { colors } = useTheme();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 380;
 
@@ -177,13 +176,9 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
   };
 
   const handleDateSelect = (date: Date) => {
-    setSelectedDate(date);
-  };
-
-  const handleConfirm = () => {
-    if (selectedDate) {
-      onSelect(formatDate(selectedDate));
-    }
+    const dateString = formatDate(date);
+    // Toggle date selection - parent will handle add/remove
+    onSelect(dateString);
   };
 
   const isDateSelected = (date: Date) => {
@@ -215,7 +210,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.calendarHeader}>
-            <Text style={styles.calendarTitle}>Select Date</Text>
+            <Text style={styles.calendarTitle}>Select Dates</Text>
             <View style={styles.monthNavigation}>
               <Pressable style={styles.navigationButton} onPress={handlePrevMonth}>
                 <ChevronLeft size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
@@ -240,7 +235,9 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
 
             <View style={styles.daysGrid}>
               {Array.from({ length: getFirstDayOfMonth(currentDate) }).map((_, index) => (
-                <View key={`empty-${index}`} style={styles.dayCell} />
+                <View key={`empty-${index}`} style={styles.dayCell}>
+                  <Text style={styles.dayText}></Text>
+                </View>
               ))}
               
               {Array.from({ length: getDaysInMonth(currentDate) }).map((_, index) => {
@@ -248,29 +245,23 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
                 const isDisabled = isPastDate(date);
                 const isDateAlreadySelected = isDateSelected(date);
                 const isTodayDate = isToday(date);
-                const isCurrentlySelected = selectedDate && 
-                  date.getDate() === selectedDate.getDate() &&
-                  date.getMonth() === selectedDate.getMonth() &&
-                  date.getFullYear() === selectedDate.getFullYear();
 
                 return (
                   <Pressable
-                    key={index}
+                    key={`day-${index}`}
                     style={[
                       styles.dayCell,
-                      isCurrentlySelected && styles.selectedDay,
-                      isTodayDate && styles.todayDay,
-                      isDateAlreadySelected && styles.alreadySelectedDay,
+                      isDateAlreadySelected && styles.selectedDay,
+                      isTodayDate && !isDateAlreadySelected && styles.todayDay,
                       isDisabled && styles.disabledDay,
                     ]}
-                    onPress={() => !isDisabled && !isDateAlreadySelected && handleDateSelect(date)}
-                    disabled={isDisabled || isDateAlreadySelected}
+                    onPress={() => !isDisabled && handleDateSelect(date)}
+                    disabled={isDisabled}
                   >
                     <Text style={[
                       styles.dayText,
-                      isCurrentlySelected && styles.selectedDayText,
-                      isTodayDate && styles.todayDayText,
-                      isDateAlreadySelected && styles.alreadySelectedDayText,
+                      isDateAlreadySelected && styles.selectedDayText,
+                      isTodayDate && !isDateAlreadySelected && styles.todayDayText,
                       isDisabled && styles.disabledDayText,
                     ]}>
                       {index + 1}
@@ -283,17 +274,10 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
 
           <View style={styles.modalActions}>
             <Pressable 
-              style={[styles.modalButton, styles.cancelButton]}
+              style={[styles.modalButton, styles.doneButton]}
               onPress={onClose}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </Pressable>
-            <Pressable 
-              style={[styles.modalButton, styles.confirmButton]}
-              onPress={handleConfirm}
-              disabled={!selectedDate}
-            >
-              <Text style={styles.confirmButtonText}>Confirm</Text>
+              <Text style={styles.doneButtonText}>Done</Text>
             </Pressable>
           </View>
         </View>
@@ -314,6 +298,11 @@ export default function ScheduleScreen() {
   const [isYearlySplit, setIsYearlySplit] = useState(true);
   const [isEditingAmount, setIsEditingAmount] = useState(false);
   const [customAmount, setCustomAmount] = useState('');
+  const [calculatedPayouts, setCalculatedPayouts] = useState(0);
+  const [calculatedRemainder, setCalculatedRemainder] = useState(0);
+  const [originalPayoutAmount, setOriginalPayoutAmount] = useState('');
+  const [originalNumberOfPayouts, setOriginalNumberOfPayouts] = useState(12);
+  const [originalIsYearlySplit, setOriginalIsYearlySplit] = useState(true);
   const { width } = useWindowDimensions();
   const haptics = useHaptics();
   
@@ -405,6 +394,74 @@ export default function ScheduleScreen() {
         ];
     }
   };
+
+  // Initialize from params when editing (coming from review page)
+  useEffect(() => {
+    if (params.frequency && params.duration && params.payoutAmount) {
+      // We're editing, initialize all fields from params
+      const amount = params.totalAmount as string;
+      setTotalAmount(amount);
+      
+      const frequency = params.frequency as string;
+      setSelectedSchedule(frequency);
+      
+      const durationNum = parseInt(params.duration as string);
+      setNumberOfPayouts(durationNum);
+      
+      const payoutAmt = params.payoutAmount as string;
+      setPayoutAmount(payoutAmt);
+      
+      // Set day of week if provided
+      if (params.dayOfWeek) {
+        setSelectedDayOfWeek(parseInt(params.dayOfWeek as string));
+      }
+      
+      // Set time if provided
+      if (params.payoutHour) {
+        setSelectedHour(parseInt(params.payoutHour as string));
+      }
+      if (params.payoutMinute) {
+        setSelectedMinute(parseInt(params.payoutMinute as string));
+      }
+      
+      // Set custom dates if provided
+      if (params.customDates) {
+        try {
+          const dates = JSON.parse(params.customDates as string);
+          if (Array.isArray(dates)) {
+            setCustomDates(dates);
+          }
+        } catch (e) {
+          console.error('Error parsing custom dates:', e);
+        }
+      }
+      
+      // Set duration option based on frequency and duration value
+      const durationOptions = getDurationOptions(frequency);
+      const matchingDuration = durationOptions.find(opt => opt.value === durationNum);
+      if (matchingDuration) {
+        setSelectedDuration(matchingDuration);
+      } else {
+        // Fallback to first option if no match
+        setSelectedDuration(durationOptions[0] || { value: durationNum, label: `${durationNum} payouts`, description: `${durationNum} payments` });
+      }
+      
+      // Check if using custom amount (not yearly split)
+      const numericPayoutAmt = parseFloat(payoutAmt.replace(/,/g, ''));
+      const numericTotal = parseFloat(amount.replace(/,/g, ''));
+      const expectedPayoutAmt = numericTotal / durationNum;
+      
+      // If payout amount doesn't match expected (total/duration), it's a custom amount
+      if (Math.abs(numericPayoutAmt - expectedPayoutAmt) > 0.01) {
+        setIsYearlySplit(false);
+        setCustomAmount(payoutAmt.replace(/,/g, ''));
+      } else {
+        setIsYearlySplit(true);
+      }
+      
+      return; // Don't run AI suggestion logic if we're editing
+    }
+  }, [params.frequency, params.duration, params.payoutAmount, params.totalAmount, params.dayOfWeek, params.payoutHour, params.payoutMinute, params.customDates]);
 
   useEffect(() => {
     if (params.totalAmount) {
@@ -511,19 +568,24 @@ export default function ScheduleScreen() {
   };
 
   const handleCustomAmountChange = (amount: string) => {
+    setCustomAmount(amount);
+    
+    // Calculate payouts and remainder in real-time
     const numericAmount = parseFloat(amount.replace(/,/g, ''));
     const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
     
-    if (!isNaN(numericAmount)) {
+    if (!isNaN(numericAmount) && numericAmount > 0 && numericTotal > 0) {
+      const maxPayouts = selectedSchedule === 'custom' ? customDates.length : numberOfPayouts;
       const possiblePayouts = Math.floor(numericTotal / numericAmount);
-      const remainingAmount = numericTotal - (numericAmount * possiblePayouts);
+      // Cap the payouts at the selected duration
+      const cappedPayouts = Math.min(possiblePayouts, maxPayouts);
+      const remainder = numericTotal - (numericAmount * cappedPayouts);
       
-      setCustomAmount(amount);
-      setPayoutAmount(numericAmount.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }));
-      setNumberOfPayouts(possiblePayouts);
+      setCalculatedPayouts(cappedPayouts);
+      setCalculatedRemainder(remainder);
+    } else {
+      setCalculatedPayouts(0);
+      setCalculatedRemainder(0);
     }
   };
 
@@ -533,6 +595,37 @@ export default function ScheduleScreen() {
       setNumberOfPayouts(selectedDuration.value);
       calculatePayoutAmount(totalAmount, selectedDuration.value);
       setCustomAmount('');
+    }
+  };
+
+  const getFrequencyLabel = () => {
+    switch (selectedSchedule || '') {
+      case 'daily':
+        return 'daily';
+      case 'monthly':
+        return 'monthly';
+      case 'biweekly':
+        return 'bi-weekly';
+      case 'weekly':
+        return 'weekly';
+      case 'weekly_specific':
+        if (selectedDayOfWeek !== null) {
+          const dayName = DAYS_OF_WEEK.find(day => day.value === selectedDayOfWeek)?.label || '';
+          return dayName.toLowerCase().replace('every ', '');
+        }
+        return 'weekly';
+      case 'end_of_month':
+        return 'month-end';
+      case 'quarterly':
+        return 'quarterly';
+      case 'biannual':
+        return 'bi-annual';
+      case 'annually':
+        return 'annual';
+      case 'custom':
+        return 'custom';
+      default:
+        return '';
     }
   };
 
@@ -613,13 +706,21 @@ export default function ScheduleScreen() {
   };
 
   const handleDateSelect = (date: string) => {
-    const newDates = [...customDates, date].sort((a, b) => {
-      return new Date(a).getTime() - new Date(b).getTime();
-    });
+    // Toggle date selection - add if not present, remove if present
+    let newDates: string[];
+    if (customDates.includes(date)) {
+      // Remove the date
+      newDates = customDates.filter(d => d !== date);
+    } else {
+      // Add the date and sort
+      newDates = [...customDates, date].sort((a, b) => {
+        return new Date(a).getTime() - new Date(b).getTime();
+      });
+    }
     setCustomDates(newDates);
-    setNumberOfPayouts(newDates.length);
-    calculatePayoutAmount(totalAmount, newDates.length);
-    setShowDatePicker(false);
+    setNumberOfPayouts(newDates.length || 1);
+    calculatePayoutAmount(totalAmount, newDates.length || 1);
+    // Keep the picker open for multiple selections
   };
 
   const handleRemoveDate = (index: number) => {
@@ -1115,14 +1216,45 @@ export default function ScheduleScreen() {
             
             <Pressable 
               style={styles.amountRow}
-              onPress={() => setIsEditingAmount(true)}
+              onPress={() => {
+                // Store original values before opening modal
+                setOriginalPayoutAmount(payoutAmount);
+                setOriginalNumberOfPayouts(numberOfPayouts);
+                setOriginalIsYearlySplit(isYearlySplit);
+                // Set initial custom amount to current payout amount (without formatting)
+                const numericPayout = parseFloat(payoutAmount.replace(/,/g, ''));
+                const initialAmount = isNaN(numericPayout) ? '' : numericPayout.toString();
+                setCustomAmount(initialAmount);
+                // Calculate initial values
+                if (initialAmount) {
+                  handleCustomAmountChange(initialAmount);
+                } else {
+                  setCalculatedPayouts(0);
+                  setCalculatedRemainder(0);
+                }
+                setIsEditingAmount(true);
+              }}
             >
               <Text style={styles.amount}>₦{payoutAmount}</Text>
               <ChevronDown size={20} color={colors.textSecondary} />
             </Pressable>
             
             <Text style={styles.payoutCount}>
-              {numberOfPayouts} payout{numberOfPayouts !== 1 ? 's' : ''} of ₦{payoutAmount}
+              {selectedSchedule === 'weekly_specific' && selectedDayOfWeek !== null ? (
+                <>
+                  You'll receive {numberOfPayouts} payout{numberOfPayouts !== 1 ? 's' : ''} of ₦{payoutAmount} every {DAYS_OF_WEEK.find(day => day.value === selectedDayOfWeek)?.label.toLowerCase().replace('every ', '') || 'week'} totalling ₦{parseFloat(totalAmount.replace(/,/g, '')).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })}
+                </>
+              ) : (
+                <>
+                  You'll receive {numberOfPayouts} {getFrequencyLabel()} payout{numberOfPayouts !== 1 ? 's' : ''} of ₦{payoutAmount} totalling ₦{parseFloat(totalAmount.replace(/,/g, '')).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })}
+                </>
+              )}
             </Text>
           </View>
         </View>
@@ -1142,7 +1274,16 @@ export default function ScheduleScreen() {
         visible={isEditingAmount}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setIsEditingAmount(false)}
+        onRequestClose={() => {
+          // Reset to original values when modal is closed via back button
+          setPayoutAmount(originalPayoutAmount);
+          setNumberOfPayouts(originalNumberOfPayouts);
+          setIsYearlySplit(originalIsYearlySplit);
+          setCustomAmount('');
+          setCalculatedPayouts(0);
+          setCalculatedRemainder(0);
+          setIsEditingAmount(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -1161,19 +1302,85 @@ export default function ScheduleScreen() {
               />
             </View>
 
+            {customAmount && !isNaN(parseFloat(customAmount.replace(/,/g, ''))) && parseFloat(customAmount.replace(/,/g, '')) > 0 && (
+              <View style={styles.modalCalculationInfo}>
+                <View style={styles.modalCalculationRow}>
+                  <Text style={styles.modalCalculationLabel}>Number of payouts:</Text>
+                  <Text style={styles.modalCalculationValue}>
+                    {calculatedPayouts}
+                    {selectedSchedule !== 'custom' && ` / ${numberOfPayouts}`}
+                    {selectedSchedule === 'custom' && ` / ${customDates.length}`}
+                  </Text>
+                </View>
+                {(() => {
+                  const maxPayouts = selectedSchedule === 'custom' ? customDates.length : numberOfPayouts;
+                  const numericAmount = parseFloat(customAmount.replace(/,/g, ''));
+                  const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+                  const possiblePayouts = Math.floor(numericTotal / numericAmount);
+                  const exceedsDuration = possiblePayouts > maxPayouts;
+                  
+                  return exceedsDuration && (
+                    <Text style={styles.modalWarningNote}>
+                      Amount is too small. Maximum {maxPayouts} payout{maxPayouts !== 1 ? 's' : ''} allowed for selected duration.
+                    </Text>
+                  );
+                })()}
+                <View style={styles.modalCalculationRow}>
+                  <Text style={styles.modalCalculationLabel}>Remainder:</Text>
+                  <Text style={styles.modalCalculationValue}>
+                    ₦{calculatedRemainder.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })}
+                  </Text>
+                </View>
+                {calculatedRemainder > 0 && (
+                  <Text style={styles.modalRemainderNote}>
+                    This remainder will be returned to your available balance.
+                  </Text>
+                )}
+              </View>
+            )}
+
             <View style={styles.modalActions}>
               <Button
                 title="Cancel"
-                onPress={() => setIsEditingAmount(false)}
+                onPress={() => {
+                  // Reset to original values
+                  setPayoutAmount(originalPayoutAmount);
+                  setNumberOfPayouts(originalNumberOfPayouts);
+                  setIsYearlySplit(originalIsYearlySplit);
+                  setCustomAmount('');
+                  setCalculatedPayouts(0);
+                  setCalculatedRemainder(0);
+                  setIsEditingAmount(false);
+                }}
                 variant="outline"
                 style={styles.modalCancelButton}
               />
               <Button
                 title="Confirm"
                 onPress={() => {
-                  setIsYearlySplit(false);
+                  // Apply the custom amount changes using calculated values (already capped to duration)
+                  const numericAmount = parseFloat(customAmount.replace(/,/g, ''));
+                  const maxPayouts = selectedSchedule === 'custom' ? customDates.length : numberOfPayouts;
+                  
+                  if (!isNaN(numericAmount) && numericAmount > 0 && calculatedPayouts > 0 && calculatedPayouts <= maxPayouts) {
+                    setPayoutAmount(numericAmount.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    }));
+                    // Use the capped payouts value
+                    setNumberOfPayouts(calculatedPayouts);
+                    setIsYearlySplit(false);
+                  }
+                  
+                  setCustomAmount('');
+                  setCalculatedPayouts(0);
+                  setCalculatedRemainder(0);
                   setIsEditingAmount(false);
                 }}
+                disabled={!customAmount || isNaN(parseFloat(customAmount.replace(/,/g, ''))) || parseFloat(customAmount.replace(/,/g, '')) <= 0 || calculatedPayouts <= 0}
                 style={styles.modalConfirmButton}
               />
             </View>
@@ -1439,6 +1646,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   },
   customDatesSection: {
     marginBottom: 24,
+    marginTop: 24,
   },
   customDatesTitle: {
     fontSize: 14,
@@ -1584,6 +1792,40 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     flex: 1,
     fontSize: isSmallScreen ? 18 : 20,
     color: colors.text,
+  },
+  modalCalculationInfo: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    gap: 12,
+  },
+  modalCalculationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalCalculationLabel: {
+    fontSize: isSmallScreen ? 14 : 16,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  modalCalculationValue: {
+    fontSize: isSmallScreen ? 14 : 16,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  modalRemainderNote: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  modalWarningNote: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: colors.error || '#EF4444',
+    fontWeight: '500',
+    marginTop: 4,
   },
   modalActions: {
     flexDirection: 'row',
@@ -1777,6 +2019,7 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
     fontSize: isSmallScreen ? 18 : 20,
     fontWeight: '600',
     color: colors.text,
+    marginTop: 12,
     marginBottom: 12,
   },
   monthNavigation: {
@@ -1800,10 +2043,12 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
   weekDays: {
     flexDirection: 'row',
     marginBottom: 8,
+    width: '100%',
   },
   weekDay: {
     flex: 1,
     alignItems: 'center',
+    minWidth: 0,
   },
   weekDayText: {
     fontSize: isSmallScreen ? 12 : 14,
@@ -1813,12 +2058,15 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    width: '110%',
   },
   dayCell: {
-    width: `${100/7}%`,
+    flexBasis: '14.2857142857%', // 100/7 exactly
+    maxWidth: '14.2857142857%',
     aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    minWidth: 0,
   },
   dayText: {
     fontSize: isSmallScreen ? 12 : 14,
@@ -1827,6 +2075,7 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
   selectedDay: {
     backgroundColor: '#1E3A8A',
     borderRadius: 8,
+    padding: 7,
   },
   selectedDayText: {
     color: '#FFFFFF',
@@ -1881,5 +2130,15 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
     fontSize: isSmallScreen ? 14 : 16,
     color: '#FFFFFF',
     fontWeight: '500',
+  },
+  doneButton: {
+    backgroundColor: '#1E3A8A',
+    borderRadius: 20,
+    flex: 1,
+  },
+  doneButtonText: {
+    fontSize: isSmallScreen ? 14 : 16,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });

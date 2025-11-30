@@ -10,6 +10,7 @@ import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface RecentTransaction {
   id: string;
@@ -30,6 +31,7 @@ interface MostRecentPayoutsCardProps {
 export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecentPayoutsCardProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
+  const { isAuthenticated } = useRequireAuth();
   const { transactions } = useRealtimeTransactions();
   const { payoutPlans } = useRealtimePayoutPlans();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -223,6 +225,11 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
     router.push('/transactions');
     logAnalyticsEvent('view_all_transactions', { source: 'most_recent_card' });
   };
+
+  // Don't render if user is not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   // Don't render if no recent payouts
   if (recentTransactions.length === 0) {

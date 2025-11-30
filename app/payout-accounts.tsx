@@ -252,18 +252,23 @@ export default function PayoutAccountsScreen() {
 
       <AddPayoutAccountModal
         isVisible={showAddAccount}
-        onClose={() => {
+        onClose={async (newAccount) => {
           haptics.lightImpact();
           setShowAddAccount(false);
+          if (newAccount) {
+            await fetchPayoutAccounts();
+          }
         }}
       />
       
       <EditPayoutAccountModal
         isVisible={showEditAccount}
-        onClose={() => {
+        onClose={async () => {
           haptics.lightImpact();
           setShowEditAccount(false);
           setSelectedAccount(null);
+          // Refresh accounts to ensure active_payout_plans_count is up to date
+          await fetchPayoutAccounts();
         }}
         account={selectedAccount}
       />

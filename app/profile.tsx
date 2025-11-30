@@ -20,7 +20,7 @@ export default function ProfileScreen() {
   const { session, signOut } = useAuth();
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
-  const { progress, loading: kycLoading } = useKYCProgress();
+  const { progress, loading: kycLoading, currentTier } = useKYCProgress();
   const { formData: kycData, loading: kycDataLoading } = useKYCData();
   
   // Utility bill upload modal
@@ -128,6 +128,7 @@ export default function ProfileScreen() {
             lastName={lastName} 
             size={avatarSize}
             fontSize={avatarFontSize}
+            kycTier={currentTier}
           />
           <Text style={[styles.userName, { fontSize: titleFontSize }]}>{firstName} {lastName}</Text>
           <Text style={[styles.userEmail, { fontSize: emailFontSize }]}>{email}</Text>
@@ -159,31 +160,31 @@ export default function ProfileScreen() {
                       <View style={styles.limitRow}>
                         <Text style={styles.limitLabel}>Daily Deposit</Text>
                         <Text style={styles.limitValue}>
-                          {formatCurrency(tierLimits.max_daily_deposit / 100)}
+                          {formatCurrency(tierLimits.max_daily_deposit / 1)}
                         </Text>
                       </View>
                       <View style={styles.limitRow}>
                         <Text style={styles.limitLabel}>Weekly Deposit</Text>
                         <Text style={styles.limitValue}>
-                          {formatCurrency(tierLimits.max_weekly_deposit / 100)}
+                          {formatCurrency(tierLimits.max_weekly_deposit / 1)}
                         </Text>
                       </View>
                       <View style={styles.limitRow}>
                         <Text style={styles.limitLabel}>Monthly Deposit</Text>
                         <Text style={styles.limitValue}>
-                          {formatCurrency(tierLimits.max_monthly_deposit / 100)}
+                          {formatCurrency(tierLimits.max_monthly_deposit / 1)}
                         </Text>
                       </View>
                       <View style={styles.limitRow}>
                         <Text style={styles.limitLabel}>Single Transaction</Text>
                         <Text style={styles.limitValue}>
-                          {formatCurrency(tierLimits.max_single_deposit / 100)}
+                          {formatCurrency(tierLimits.max_single_deposit / 1)}
                         </Text>
                       </View>
                       <View style={styles.limitRow}>
                         <Text style={styles.limitLabel}>Maximum Balance</Text>
                         <Text style={styles.limitValue}>
-                          {formatCurrency(tierLimits.max_account_balance / 100)}
+                          {formatCurrency(tierLimits.max_account_balance / 1)}
                         </Text>
                       </View>
                     </>
@@ -324,7 +325,7 @@ function getKYCStatus(
 ) {
   // Use tier limits from database if available, otherwise use fallback values
   const getLimit = (amount: number) => {
-    return tierLimits ? formatCurrency(amount / 100) : 'Loading...';
+    return tierLimits ? formatCurrency(amount / 1) : 'Loading...';
   };
 
   switch (level) {

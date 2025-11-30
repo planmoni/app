@@ -1,29 +1,49 @@
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, Link } from 'expo-router';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, ArrowRight, Check } from 'lucide-react-native';
-import Button from '@/components/Button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
+import { useHaptics } from '@/hooks/useHaptics';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import FloatingButton from '@/components/FloatingButton';
+import SafeFooter from '@/components/SafeFooter';
 import { supabase } from '@/lib/supabase';
+import * as Haptics from 'expo-haptics';
 
 export default function ForgotPasswordScreen() {
   const { colors } = useTheme();
   const { showToast } = useToast();
+  const haptics = useHaptics();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isEmailSent, setIsEmailSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isButtonEnabled, setIsButtonEnabled] = useState(false);
+  const emailInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      emailInputRef.current?.focus();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    setIsButtonEnabled(email.trim().length > 0 && /\S+@\S+\.\S+/.test(email));
+  }, [email]);
 
   const handleResetPassword = async () => {
     if (!email.trim()) {
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
       setError('Please enter your email address');
       showToast('Please enter your email address', 'error');
       return;
     }
 
     if (!/\S+@\S+\.\S+/.test(email)) {
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
       setError('Please enter a valid email address');
       showToast('Please enter a valid email address', 'error');
       return;
@@ -38,9 +58,11 @@ export default function ForgotPasswordScreen() {
       });
 
       if (error) throw error;
+      haptics.notification(Haptics.NotificationFeedbackType.Success);
       setIsEmailSent(true);
       showToast('Password reset email sent successfully', 'success');
     } catch (err) {
+      haptics.notification(Haptics.NotificationFeedbackType.Error);
       const errorMessage = err instanceof Error ? err.message : 'Failed to send reset email';
       setError(errorMessage);
       showToast(errorMessage, 'error');
@@ -54,99 +76,134 @@ export default function ForgotPasswordScreen() {
   if (isEmailSent) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.successContainer}>
-          <View style={styles.successIcon}>
-            <Check size={32} color={colors.success} />
-          </View>
-          <Text style={styles.successTitle}>Check your email</Text>
-          <Text style={styles.successMessage}>
-            We've sent a password reset link to{'\n'}
-            <Text style={styles.emailText}>{email}</Text>
-          </Text>
-          <Text style={styles.successSubtext}>
-            Click the link in the email to reset your password. If you don't see it, check your spam folder.
-          </Text>
-          
-          <View style={styles.successActions}>
-            <Button
-              title="Back to Sign In"
-              onPress={() => router.replace('/(auth)/login')}
-              style={styles.backToSignInButton}
-            />
-            <Pressable onPress={() => setIsEmailSent(false)}>
-              <Text style={styles.resendText}>Try a different email</Text>
-            </Pressable>
-          </View>
+        <View style={styles.header}>
+          <Pressable 
+            onPress={() => {
+              haptics.lightImpact();
+              router.replace('/(auth)/login');
+            }} 
+            style={styles.backButton}
+          >
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
         </View>
+
+        <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
+          <View style={styles.successContainer}>
+            <View style={styles.successIcon}>
+              <Check size={32} color={colors.success} />
+            </View>
+            <Text style={styles.successTitle}>Check your email</Text>
+            <Text style={styles.successMessage}>
+              We've sent a password reset link to{'\n'}
+              <Text style={styles.emailText}>{email}</Text>
+            </Text>
+            <Text style={styles.successSubtext}>
+              Click the link in the email to reset your password. If you don't see it, check your spam folder.
+            </Text>
+            
+            <View style={styles.successActions}>
+              <Pressable 
+                onPress={() => {
+                  haptics.lightImpact();
+                  setIsEmailSent(false);
+                }}
+              >
+                <Text style={styles.resendText}>Try a different email</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingWrapper>
+
+        <FloatingButton
+          title="Back to Sign In"
+          onPress={() => {
+            haptics.mediumImpact();
+            router.replace('/(auth)/login');
+          }}
+        />
+        
+        <SafeFooter />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView 
-        style={styles.scrollView} 
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={24} color={colors.text} />
-          </Pressable>
-        </View>
+      <View style={styles.header}>
+        <Pressable 
+          onPress={() => {
+            haptics.lightImpact();
+            if (!isLoading) router.back();
+          }} 
+          style={styles.backButton}
+          disabled={isLoading}
+        >
+          <ArrowLeft size={24} color={colors.text} />
+        </Pressable>
+      </View>
 
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
         <View style={styles.content}>
           <Text style={styles.title}>Forgot Password?</Text>
           <Text style={styles.subtitle}>
             Enter your email address and we'll send you a link to reset your password.
           </Text>
 
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-
-          <View style={styles.form}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email Address</Text>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your email"
-                  placeholderTextColor={colors.textTertiary}
-                  value={email}
-                  onChangeText={(text) => {
-                    setEmail(text);
-                    setError(null);
-                  }}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  textContentType="emailAddress"
-                />
+          <View style={styles.formContainer}>
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
               </View>
-            </View>
+            )}
 
-            <Button
-              title="Send Reset Link"
-              onPress={handleResetPassword}
-              isLoading={isLoading}
-              style={styles.resetButton}
-              icon={ArrowRight}
-            />
+            <View style={[
+              styles.inputContainer,
+              email.trim() !== '' && styles.inputContainerFilled,
+              error && styles.inputContainerError,
+            ]}>
+              <TextInput
+                ref={emailInputRef}
+                style={styles.input}
+                placeholder="Enter your email address"
+                placeholderTextColor={colors.textTertiary}
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  setError(null);
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="go"
+                onSubmitEditing={handleResetPassword}
+                editable={!isLoading}
+              />
+            </View>
           </View>
 
           <View style={styles.signInContainer}>
             <Text style={styles.signInText}>Remember your password? </Text>
             <Link href="/(auth)/login" asChild>
-              <Pressable>
+              <Pressable onPress={() => haptics.lightImpact()} disabled={isLoading}>
                 <Text style={styles.signInLink}>Sign in</Text>
               </Pressable>
             </Link>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAvoidingWrapper>
+
+      <FloatingButton 
+        title={isLoading ? "Sending..." : "Send Reset Link"}
+        onPress={handleResetPassword}
+        disabled={!isButtonEnabled || isLoading}
+        loading={isLoading}
+        icon={ArrowRight}
+        hapticType="success"
+      />
+      
+      <SafeFooter />
     </SafeAreaView>
   );
 }
@@ -156,15 +213,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    padding: 24,
-  },
   header: {
-    marginBottom: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   backButton: {
     width: 40,
@@ -174,59 +228,58 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 20,
   },
+  contentContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+  },
   content: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 20,
   },
   title: {
-    fontSize: 32,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
+    textAlign: 'left',
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
+    marginBottom: 40,
+    textAlign: 'left',
     lineHeight: 24,
-    marginBottom: 32,
+  },
+  formContainer: {
+    width: '100%',
   },
   errorContainer: {
     backgroundColor: colors.errorLight,
-    borderWidth: 1,
-    borderColor: colors.error,
     borderRadius: 8,
     padding: 12,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   errorText: {
     color: colors.error,
     fontSize: 14,
-    textAlign: 'center',
-  },
-  form: {
-    gap: 24,
-    marginBottom: 32,
-  },
-  inputGroup: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
     borderRadius: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     paddingHorizontal: 16,
     height: 56,
   },
-  inputIcon: {
-    marginRight: 12,
+  inputContainerFilled: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentBackground || colors.background,
+  },
+  inputContainerError: {
+    borderColor: colors.error || '#DC2626',
   },
   input: {
     flex: 1,
@@ -234,15 +287,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
     height: '100%',
   },
-  resetButton: {
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-  },
   signInContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 32,
   },
   signInText: {
     fontSize: 14,
@@ -257,7 +306,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    paddingTop: 40,
   },
   successIcon: {
     width: 80,
@@ -298,9 +347,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   backToSignInButton: {
     width: '100%',
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
   },
   resendText: {
     fontSize: 14,

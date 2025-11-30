@@ -138,42 +138,30 @@ export async function savePushTokenToDatabase(expoPushToken: string, userId: str
       model: Device.modelName,
     };
 
-    // Check if token already exists
-    const { data: existingToken } = await supabase
+    // Use upsert to handle duplicate token constraint gracefully
+    // The unique constraint is on expo_push_token, so we use upsert to update if exists
+    const { error } = await supabase
       .from('user_push_tokens')
-      .select('id')
-      .eq('expo_push_token', expoPushToken)
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (existingToken) {
-      // Update existing token
-      const { error } = await supabase
-        .from('user_push_tokens')
-        .update({
-          device_info: deviceInfo,
-          is_active: true,
-          last_used: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingToken.id);
-
-      if (error) throw error;
-      console.log('Push token updated in database');
-    } else {
-      // Insert new token
-      const { error } = await supabase
-        .from('user_push_tokens')
-        .insert({
+      .upsert(
+        {
           user_id: userId,
           expo_push_token: expoPushToken,
           device_info: deviceInfo,
           is_active: true,
-        });
+          last_used: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: 'expo_push_token',
+        }
+      );
 
-      if (error) throw error;
-      console.log('Push token saved to database');
+    if (error) {
+      console.error('Error upserting push token:', error);
+      throw error;
     }
+    
+    console.log('Push token saved/updated in database');
 
     // Also store/update the token in user_fcm_tokens so server-side push function can find it
     const platform =
@@ -278,6 +266,15 @@ export async function registerPushToken(userId: string): Promise<boolean> {
       } catch (intercomError) {
         console.warn('⚠️ Failed to register token with Intercom:', intercomError);
         // Don't fail the whole registration if Intercom fails
+      }
+      
+      // Sync badge count on app start/login
+      try {
+        const { syncBadgeCount } = await import('@/lib/badge-sync');
+        await syncBadgeCount(userId);
+      } catch (badgeError) {
+        console.warn('⚠️ Failed to sync badge count:', badgeError);
+        // Don't fail the whole registration if badge sync fails
       }
       
       if (stored) {

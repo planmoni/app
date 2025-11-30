@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Alert } from 'react-native';
-import { TrendingUp, TrendingDown, Users, ArrowUpRight, ArrowDownRight, Wallet, Clock, Calendar, Send, HelpCircle as HelpCircleIcon } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable } from 'react-native';
+import { TrendingUp, TrendingDown, Users, ArrowUpRight, ArrowDownRight, Wallet, Clock, Calendar, Send } from 'lucide-react-native';
 import Card from '@/components/Card';
 import { useMemo, useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,46 +12,18 @@ import SummaryCard from '@/components/SummaryCard';
 import { supabase } from '@/lib/supabase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
-import { useIntercom } from '@/hooks/useIntercom';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 
 export default function InsightsScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const { metrics, trends, vaultStats, isLoading, error, refreshInsights } = useInsightsData();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
   const [customPayoutDates, setCustomPayoutDates] = useState<Record<string, string[]>>({});
   const [vaultStatsLimit, setVaultStatsLimit] = useState(5);
-  const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
-
-  // Handle help button press
-  const handleHelpPress = async () => {
-    if (!isIntercomSupported) {
-      return;
-    }
-    try {
-      console.log('🎯 Help button pressed - opening Intercom instantly');
-      await openChat();
-      logAnalyticsEvent('help_click');
-    } catch (error) {
-      console.error('❌ Failed to open Intercom:', error);
-      Alert.alert(
-        'Support Chat Unavailable',
-        'Unable to open support chat at the moment. This might be due to network connectivity issues. Would you like to try again?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Retry', 
-            onPress: () => {
-              console.log('🔄 Retrying Intercom...');
-              handleHelpPress();
-            }
-          }
-        ]
-      );
-    }
-  };
 
   // Map icon names to components
   const getIconComponent = (iconName: string) => {
@@ -233,13 +205,12 @@ export default function InsightsScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Insights</Text>
-          {isIntercomSupported && (
+          {!isAuthenticated && (
             <Pressable 
-              onPress={handleHelpPress} 
-              style={styles.helpButton}
-              disabled={isHelpLoading}
+              onPress={() => requireAuth(() => {}, '/(tabs)/insights')} 
+              style={styles.loginButton}
             >
-              <HelpCircleIcon size={24} color={colors.text} />
+              <Text style={styles.loginButtonText}>Login</Text>
             </Pressable>
           )}
         </View>
@@ -255,13 +226,12 @@ export default function InsightsScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Insights</Text>
-          {isIntercomSupported && (
+          {!isAuthenticated && (
             <Pressable 
-              onPress={handleHelpPress} 
-              style={styles.helpButton}
-              disabled={isHelpLoading}
+              onPress={() => requireAuth(() => {}, '/(tabs)/insights')} 
+              style={styles.loginButton}
             >
-              <HelpCircleIcon size={24} color={colors.text} />
+              <Text style={styles.loginButtonText}>Login</Text>
             </Pressable>
           )}
         </View>
@@ -281,13 +251,12 @@ export default function InsightsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Insights</Text>
-        {isIntercomSupported && (
+        {!isAuthenticated && (
           <Pressable 
-            onPress={handleHelpPress} 
-            style={styles.helpButton}
-            disabled={isHelpLoading}
+            onPress={() => requireAuth(() => {}, '/(tabs)/insights')} 
+            style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
           >
-            <HelpCircleIcon size={24} color={colors.text} />
+            <Text style={[styles.loginButtonText, { color: isDark ? '#fff' : colors.primary }]}>Login</Text>
           </Pressable>
         )}
       </View>
@@ -344,6 +313,7 @@ export default function InsightsScreen() {
             getLastPayoutDate={getLastPayoutDate}
           />
 
+          {isAuthenticated && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Performance Trends</Text>
             {trends.map((trend, index) => (
@@ -376,6 +346,7 @@ export default function InsightsScreen() {
               </Card>
             ))}
           </View>
+          )}
           
 
           <View style={styles.section}>
@@ -472,13 +443,18 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontWeight: '700',
     color: colors.text,
   },
-  helpButton: {
-    width: 40,
-    height: 40,
+  loginButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: colors.backgroundTertiary,
+    borderWidth: 1.5,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loginButtonText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
   },
   content: {
     flex: 1,
@@ -689,5 +665,39 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   loadMoreButton: {
     marginTop: Platform.OS === 'ios' ? 12 : 10,
     backgroundColor: colors.primary,
+  },
+  loginPromptContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loginPromptCard: {
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    maxWidth: 400,
+  },
+  loginPromptTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 18, textSizeMultiplier),
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loginPromptText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  loginPromptButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  loginPromptButtonText: {
+    color: '#FFFFFF',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
   },
 });

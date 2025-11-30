@@ -121,31 +121,31 @@ export default function TransactionLimitsScreen() {
                   <View style={styles.limitItem}>
                     <Text style={styles.limitLabel}>Daily Deposit Limit</Text>
                     <Text style={styles.limitValue}>
-                      {formatAmount(currentTierLimits.max_daily_deposit / 100)}
+                      {formatAmount(currentTierLimits.max_daily_deposit / 1)}
                     </Text>
                   </View>
                   <View style={styles.limitItem}>
                     <Text style={styles.limitLabel}>Weekly Deposit Limit</Text>
                     <Text style={styles.limitValue}>
-                      {formatAmount(currentTierLimits.max_weekly_deposit / 100)}
+                      {formatAmount(currentTierLimits.max_weekly_deposit / 1)}
                     </Text>
                   </View>
                   <View style={styles.limitItem}>
                     <Text style={styles.limitLabel}>Monthly Deposit Limit</Text>
                     <Text style={styles.limitValue}>
-                      {formatAmount(currentTierLimits.max_monthly_deposit / 100)}
+                      {formatAmount(currentTierLimits.max_monthly_deposit / 1)}
                     </Text>
                   </View>
                   <View style={styles.limitItem}>
                     <Text style={styles.limitLabel}>Single Transaction Limit</Text>
                     <Text style={styles.limitValue}>
-                      {formatAmount(currentTierLimits.max_single_deposit / 100)}
+                      {formatAmount(currentTierLimits.max_single_deposit / 1)}
                     </Text>
                   </View>
                   <View style={styles.limitItem}>
                     <Text style={styles.limitLabel}>Maximum Account Balance</Text>
                     <Text style={styles.limitValue}>
-                      {formatAmount(currentTierLimits.max_account_balance / 100)}
+                      {formatAmount(currentTierLimits.max_account_balance / 1)}
                     </Text>
                   </View>
                 </View>
@@ -183,31 +183,31 @@ export default function TransactionLimitsScreen() {
                       <View style={styles.tierLimit}>
                         <Text style={styles.limitType}>Daily Deposit:</Text>
                         <Text style={styles.limitAmount}>
-                          {formatAmount(limits.max_daily_deposit / 100)}
+                          {formatAmount(limits.max_daily_deposit / 1)}
                         </Text>
                       </View>
                       <View style={styles.tierLimit}>
                         <Text style={styles.limitType}>Weekly Deposit:</Text>
                         <Text style={styles.limitAmount}>
-                          {formatAmount(limits.max_weekly_deposit / 100)}
+                          {formatAmount(limits.max_weekly_deposit / 1)}
                         </Text>
                       </View>
                       <View style={styles.tierLimit}>
                         <Text style={styles.limitType}>Monthly Deposit:</Text>
                         <Text style={styles.limitAmount}>
-                          {formatAmount(limits.max_monthly_deposit / 100)}
+                          {formatAmount(limits.max_monthly_deposit / 1)}
                         </Text>
                       </View>
                       <View style={styles.tierLimit}>
                         <Text style={styles.limitType}>Single Transaction:</Text>
                         <Text style={styles.limitAmount}>
-                          {formatAmount(limits.max_single_deposit / 100)}
+                          {formatAmount(limits.max_single_deposit / 1)}
                         </Text>
                       </View>
                       <View style={styles.tierLimit}>
                         <Text style={styles.limitType}>Max Balance:</Text>
                         <Text style={styles.limitAmount}>
-                          {formatAmount(limits.max_account_balance / 100)}
+                          {formatAmount(limits.max_account_balance / 1)}
                         </Text>
                       </View>
                     </View>

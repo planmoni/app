@@ -6,6 +6,7 @@ let isIntercomAuthenticated = false;
 let isInitialized = false;
 let isRegisteringToken = false;
 let lastRegisteredToken: string | null = null;
+let tokenRegistrationPromise: Promise<void> | null = null;
 
 class IntercomInstant {
   private static instance: IntercomInstant;
@@ -78,10 +79,19 @@ class IntercomInstant {
         return;
       }
 
-      // Prevent multiple simultaneous registrations
-      if (isRegisteringToken) {
-        console.log('ℹ️ Token registration already in progress, skipping...');
-        return;
+      // If there's already a registration in progress, wait for it to complete
+      if (tokenRegistrationPromise) {
+        console.log('ℹ️ Token registration already in progress, waiting for completion...');
+        try {
+          await tokenRegistrationPromise;
+        } catch (error) {
+          // Ignore errors from previous registration attempt
+        }
+        // After waiting, check if this token was already registered
+        if (lastRegisteredToken === expoPushToken) {
+          console.log('ℹ️ Token already registered with Intercom');
+          return;
+        }
       }
 
       // Skip if we're trying to register the same token again
@@ -101,36 +111,58 @@ class IntercomInstant {
         await this.initialize();
       }
 
-      // Set flag to prevent concurrent calls
-      isRegisteringToken = true;
-
-      // Add a small delay to ensure Intercom is fully ready
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      console.log('📱 Registering push token with Intercom...');
-      await Intercom.sendTokenToIntercom(expoPushToken);
-      
-      // Store the successfully registered token
-      lastRegisteredToken = expoPushToken;
-      console.log('✅ Push token registered with Intercom successfully');
-    } catch (error: any) {
-      // Reset flag on error
-      isRegisteringToken = false;
-      
-      // Use warn instead of error since this is non-critical
-      // Intercom push notifications are optional and the error is already handled gracefully
-      const errorMessage = error?.message || String(error);
-      if (errorMessage.includes('sendTokenToIntercom') || errorMessage.includes('already been rejected')) {
-        // This is a known issue - Intercom might not be ready or user might not be authenticated
-        // It's safe to ignore as push notifications will work once Intercom is properly set up
-        console.log('ℹ️ Intercom push token registration skipped (will retry after authentication)');
-      } else {
-        console.warn('⚠️ Failed to register push token with Intercom:', errorMessage);
+      // Ensure user is authenticated before registering token
+      // sendTokenToIntercom requires an authenticated user
+      if (!isIntercomAuthenticated) {
+        console.log('ℹ️ User not authenticated with Intercom yet, skipping token registration');
+        console.log('ℹ️ Token will be registered after authentication');
+        return;
       }
+
+      // Create a new promise for this registration attempt
+      tokenRegistrationPromise = (async () => {
+        // Set flag to prevent concurrent calls
+        isRegisteringToken = true;
+
+        try {
+          // Add a small delay to ensure Intercom is fully ready
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          console.log('📱 Registering push token with Intercom...');
+          await Intercom.sendTokenToIntercom(expoPushToken);
+          
+          // Store the successfully registered token
+          lastRegisteredToken = expoPushToken;
+          console.log('✅ Push token registered with Intercom successfully');
+        } catch (error: any) {
+          // Use warn instead of error since this is non-critical
+          // Intercom push notifications are optional and the error is already handled gracefully
+          const errorMessage = error?.message || String(error);
+          if (errorMessage.includes('sendTokenToIntercom') || errorMessage.includes('already been rejected')) {
+            // This is a known issue - Intercom might not be ready or user might not be authenticated
+            // It's safe to ignore as push notifications will work once Intercom is properly set up
+            console.log('ℹ️ Intercom push token registration skipped (will retry after authentication)');
+          } else {
+            console.warn('⚠️ Failed to register push token with Intercom:', errorMessage);
+          }
+          // Re-throw to mark promise as rejected
+          throw error;
+        } finally {
+          // Always reset the flag
+          isRegisteringToken = false;
+        }
+      })();
+
+      // Wait for the promise to complete
+      await tokenRegistrationPromise;
+    } catch (error: any) {
       // Don't throw - push notifications are optional
+      // The error is already logged in the promise
     } finally {
-      // Always reset the flag
-      isRegisteringToken = false;
+      // Clear the promise reference after a short delay to allow concurrent calls to wait
+      setTimeout(() => {
+        tokenRegistrationPromise = null;
+      }, 1000);
     }
   }
 
@@ -161,15 +193,18 @@ class IntercomInstant {
       console.log('✅ User authenticated with Intercom successfully');
       
       // Register push token with Intercom after authentication
-      try {
-        const { registerForPushNotificationsAsync } = await import('@/lib/notifications');
-        const token = await registerForPushNotificationsAsync();
-        if (token) {
-          await this.registerPushToken(token);
+      // Add a delay to ensure authentication is fully processed
+      setTimeout(async () => {
+        try {
+          const { registerForPushNotificationsAsync } = await import('@/lib/notifications');
+          const token = await registerForPushNotificationsAsync();
+          if (token) {
+            await this.registerPushToken(token);
+          }
+        } catch (tokenError) {
+          console.warn('⚠️ Failed to register push token with Intercom:', tokenError);
         }
-      } catch (tokenError) {
-        console.warn('⚠️ Failed to register push token with Intercom:', tokenError);
-      }
+      }, 500);
       
     } catch (error) {
       console.error('❌ Failed to authenticate user with Intercom:', error);
@@ -208,6 +243,8 @@ class IntercomInstant {
       await Intercom.logout();
       isIntercomAuthenticated = false;
       lastRegisteredToken = null; // Reset token so it can be registered again after re-login
+      tokenRegistrationPromise = null; // Clear any pending registration promise
+      isRegisteringToken = false; // Reset registration flag
       console.log('✅ Logged out from Intercom');
     } catch (error) {
       console.error('❌ Failed to logout from Intercom:', error);

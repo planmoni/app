@@ -130,16 +130,36 @@ export class DeviceInfoService {
   }
 
   static async getLocationInfo(): Promise<LocationInfo> {
+    const defaultLocationInfo: LocationInfo = {
+      ip_address: 'Unknown',
+      country: 'Unknown',
+      country_code: 'Unknown',
+      region: 'Unknown',
+      city: 'Unknown',
+      latitude: null,
+      longitude: null,
+      timezone: 'Unknown',
+      isp: 'Unknown'
+    };
+
     try {
+      // Create AbortController for timeout handling (Android compatible)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       const response = await fetch('https://ipapi.co/json/', {
         method: 'GET',
         headers: {
           'Accept': 'application/json'
-        }
+        },
+        signal: controller.signal
       });
 
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
-        throw new Error('Failed to fetch location info');
+        // Don't log error for non-critical failures, just return defaults
+        return defaultLocationInfo;
       }
 
       const data = await response.json();
@@ -156,18 +176,18 @@ export class DeviceInfoService {
         isp: data.org || 'Unknown'
       };
     } catch (error) {
-      console.error('Error getting location info:', error);
-      return {
-        ip_address: 'Unknown',
-        country: 'Unknown',
-        country_code: 'Unknown',
-        region: 'Unknown',
-        city: 'Unknown',
-        latitude: null,
-        longitude: null,
-        timezone: 'Unknown',
-        isp: 'Unknown'
-      };
+      // Suppress timeout and network errors on Android to reduce log noise
+      // Only log unexpected errors in development
+      if (__DEV__) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const isAbortError = errorMessage.includes('aborted') || errorMessage.includes('AbortError');
+        const isNetworkError = errorMessage.includes('network') || errorMessage.includes('Network');
+        
+        if (!isAbortError && !isNetworkError) {
+          console.warn('Location info fetch failed:', errorMessage);
+        }
+      }
+      return defaultLocationInfo;
     }
   }
 

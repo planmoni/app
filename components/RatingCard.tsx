@@ -107,13 +107,13 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderColor: colors.border,
   },
   feedbackButtonActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: "#000",
     borderColor: colors.primary,
   },
   feedbackButtonText: {
     color: colors.text,
     fontWeight: '600',
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 11, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 13, textSizeMultiplier),
     textAlign: 'center',
   },
   feedbackButtonTextActive: {

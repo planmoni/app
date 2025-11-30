@@ -328,7 +328,26 @@ export default function ReviewScreen() {
                     if (Platform.OS !== 'web') {
                       haptics.selection();
                     }
-                    router.push('/create-payout/amount');
+                    router.push({
+                      pathname: '/create-payout/amount',
+                      params: {
+                        totalAmount: totalAmount,
+                        frequency: frequency,
+                        payoutAmount: payoutAmount,
+                        duration: duration,
+                        startDate: startDate,
+                        bankName: bankName,
+                        accountNumber: accountNumber,
+                        accountName: accountName,
+                        bankAccountId: bankAccountId,
+                        payoutAccountId: payoutAccountId,
+                        emergencyWithdrawal: emergencyWithdrawal.toString(),
+                        customDates: customDates ? JSON.stringify(customDates) : '',
+                        dayOfWeek: dayOfWeek?.toString() || '',
+                        payoutHour: payoutHour?.toString() || '',
+                        payoutMinute: payoutMinute?.toString() || '',
+                      }
+                    });
                   }}
                 >
                   <Text style={styles.editButtonText}>Edit</Text>
@@ -350,7 +369,26 @@ export default function ReviewScreen() {
                     if (Platform.OS !== 'web') {
                       haptics.selection();
                     }
-                    router.push('/create-payout/schedule');
+                    router.push({
+                      pathname: '/create-payout/schedule',
+                      params: {
+                        totalAmount: totalAmount,
+                        frequency: frequency,
+                        payoutAmount: payoutAmount,
+                        duration: duration,
+                        startDate: startDate,
+                        bankName: bankName,
+                        accountNumber: accountNumber,
+                        accountName: accountName,
+                        bankAccountId: bankAccountId,
+                        payoutAccountId: payoutAccountId,
+                        emergencyWithdrawal: emergencyWithdrawal.toString(),
+                        customDates: customDates ? JSON.stringify(customDates) : '',
+                        dayOfWeek: dayOfWeek?.toString() || '',
+                        payoutHour: payoutHour?.toString() || '',
+                        payoutMinute: payoutMinute?.toString() || '',
+                      }
+                    });
                   }}
                 >
                   <Text style={styles.editButtonText}>Edit</Text>
@@ -372,7 +410,26 @@ export default function ReviewScreen() {
                     if (Platform.OS !== 'web') {
                       haptics.selection();
                     }
-                    router.push('/create-payout/schedule');
+                    router.push({
+                      pathname: '/create-payout/schedule',
+                      params: {
+                        totalAmount: totalAmount,
+                        frequency: frequency,
+                        payoutAmount: payoutAmount,
+                        duration: duration,
+                        startDate: startDate,
+                        bankName: bankName,
+                        accountNumber: accountNumber,
+                        accountName: accountName,
+                        bankAccountId: bankAccountId,
+                        payoutAccountId: payoutAccountId,
+                        emergencyWithdrawal: emergencyWithdrawal.toString(),
+                        customDates: customDates ? JSON.stringify(customDates) : '',
+                        dayOfWeek: dayOfWeek?.toString() || '',
+                        payoutHour: payoutHour?.toString() || '',
+                        payoutMinute: payoutMinute?.toString() || '',
+                      }
+                    });
                   }}
                 >
                   <Text style={styles.editButtonText}>Edit</Text>
@@ -413,7 +470,26 @@ export default function ReviewScreen() {
                     if (Platform.OS !== 'web') {
                       haptics.selection();
                     }
-                    router.push('/create-payout/destination');
+                    router.push({
+                      pathname: '/create-payout/destination',
+                      params: {
+                        totalAmount: totalAmount,
+                        frequency: frequency,
+                        payoutAmount: payoutAmount,
+                        duration: duration,
+                        startDate: startDate,
+                        bankName: bankName,
+                        accountNumber: accountNumber,
+                        accountName: accountName,
+                        bankAccountId: bankAccountId,
+                        payoutAccountId: payoutAccountId,
+                        emergencyWithdrawal: emergencyWithdrawal.toString(),
+                        customDates: customDates ? JSON.stringify(customDates) : '',
+                        dayOfWeek: dayOfWeek?.toString() || '',
+                        payoutHour: payoutHour?.toString() || '',
+                        payoutMinute: payoutMinute?.toString() || '',
+                      }
+                    });
                   }}
                 >
                   <Text style={styles.editButtonText}>Edit</Text>

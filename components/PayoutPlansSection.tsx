@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { Plus } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -8,49 +8,61 @@ import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface PayoutPlansSectionProps {
   activePlans: any[];
   onShowNewPlanInfo?: () => void;
+  onShowHowItWorks?: () => void;
 }
 
-export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: PayoutPlansSectionProps) {
+function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks }: PayoutPlansSectionProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
   const { showBalances, balance, availableBalance } = useBalance();
 
-  const formatBalance = (amount: number) => {
+  const formatBalance = useCallback((amount: number) => {
     return showBalances ? `₦${amount.toLocaleString()}` : '*********';
-  };
+  }, [showBalances]);
 
-  const handleViewPayout = (id: string) => {
+  const handleViewPayout = useCallback((id: string) => {
     router.push({
       pathname: '/view-payout',
       params: { id }
     });
     logAnalyticsEvent('view_payout', { payout_id: id });
-  };
+  }, []);
 
-  const handleViewAllPayouts = () => {
+  const handleViewAllPayouts = useCallback(() => {
     router.push('/all-payouts');
     logAnalyticsEvent('view_all_payouts');
-  };
+  }, []);
 
-  const handleCreatePayout = () => {
-    // Check if balance is ₦0 and no plans exist
-    const hasNoBalance = balance === 0 && availableBalance === 0;
-    const hasNoPlans = activePlans.length === 0;
-    
-    // If no balance and no plans, show info modal
-    if (hasNoBalance && hasNoPlans && onShowNewPlanInfo) {
+  const handleCreatePayout = useCallback(() => {
+    // Always show the new plan info modal for these buttons
+    if (onShowNewPlanInfo) {
       onShowNewPlanInfo();
-      logAnalyticsEvent('create_payout_click_no_balance_modal');
-    } else {
-      // Navigate directly to create payout
-    router.push('/create-payout/amount');
-    logAnalyticsEvent('create_payout_click');
+      logAnalyticsEvent('create_payout_click_modal');
     }
-  };
+  }, [onShowNewPlanInfo]);
+
+  const memoizedPlans = useMemo(() => {
+    return activePlans.map((plan) => {
+      const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
+      const completedAmount = plan.completed_payouts * plan.payout_amount;
+      const dayOfWeek = (plan as any).metadata?.dayOfWeek;
+      const originalFrequency = (plan as any).metadata?.originalFrequency || plan.frequency;
+      
+      return {
+        ...plan,
+        progress,
+        completedAmount,
+        dayOfWeek,
+        originalFrequency,
+      };
+    });
+  }, [activePlans]);
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
@@ -69,15 +81,7 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.payoutPlansContainer}
         >
-          {activePlans.map((plan) => {
-            const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
-            const completedAmount = plan.completed_payouts * plan.payout_amount;
-            
-            // Get the day of week from metadata if available
-            const dayOfWeek = (plan as any).metadata?.dayOfWeek;
-            const originalFrequency = (plan as any).metadata?.originalFrequency || plan.frequency;
-            
-            return (
+          {memoizedPlans.map((plan) => (
               <Pressable
                 key={plan.id}
                 style={styles.payoutPlanCard}
@@ -94,17 +98,17 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
                 <Text style={styles.planAmount}>{formatBalance(plan.total_amount)}</Text>
                 <View style={styles.planDetails}>
                   <Text style={styles.planFrequency}>
-                    {formatPayoutFrequency(originalFrequency, dayOfWeek)}
+                    {formatPayoutFrequency(plan.originalFrequency, plan.dayOfWeek)}
                   </Text>
                   <Text style={styles.planDot}>•</Text>
                   <Text style={styles.planValue}>{formatBalance(plan.payout_amount)}</Text>
                 </View>
                 <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: `${progress}%` }]} />
+                  <View style={[styles.progressFill, { width: `${plan.progress}%` }]} />
                 </View>
                 <View style={styles.planProgress}>
                   <Text style={styles.progressText}>
-                    {formatBalance(completedAmount)}/{formatBalance(plan.total_amount)}
+                    {formatBalance(plan.completedAmount)}/{formatBalance(plan.total_amount)}
                   </Text>
                   <Text style={styles.progressCount}>
                     {plan.completed_payouts}/{plan.duration}
@@ -117,8 +121,7 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
                   </Text>
                 )}
               </Pressable>
-            );
-          })}
+            ))}
           <Pressable 
             style={styles.addPayoutCard}
             onPress={handleCreatePayout}
@@ -137,6 +140,14 @@ export default function PayoutPlansSection({ activePlans, onShowNewPlanInfo }: P
             <Plus size={20} color={colors.text} />
             <Text style={styles.createFirstPayoutText}>Create Your First Plan</Text>
           </Pressable>
+          {/* {!isAuthenticated && onShowHowItWorks && (
+            <Pressable 
+              style={[styles.howItWorksButton, { borderColor: colors.primary }]} 
+              onPress={onShowHowItWorks}
+            >
+              <Text style={[styles.howItWorksButtonText, { color: colors.text }]}>How it works?</Text>
+            </Pressable>
+          )} */}
         </View>
       )}
     </View>
@@ -305,4 +316,17 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '600',
   },
-}); 
+  howItWorksButton: {
+    marginTop: 5,
+    paddingHorizontal: 60,
+    paddingVertical: 3,
+    backgroundColor: 'transparent',
+    borderRadius: 13,
+  },
+  howItWorksButtonText: {
+    fontSize: getScaledFontSize(15, textSizeMultiplier),
+    fontWeight: '400',
+  },
+});
+
+export default React.memo(PayoutPlansSection); 

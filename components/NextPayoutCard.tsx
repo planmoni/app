@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import CountdownTimer from '@/components/CountdownTimer';
@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface NextPayoutCardProps {
   nextPayout: any;
@@ -17,6 +18,7 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
   const { colors, isDark } = useTheme();
   const { showBalances } = useBalance();
   const { textSizeMultiplier } = useTextSize();
+  const { isAuthenticated } = useRequireAuth();
   const formatBalance = (amount: number) => {
     return showBalances ? `₦${amount.toLocaleString()}` : '*********';
   };
@@ -29,7 +31,8 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
     logAnalyticsEvent('view_payout', { payout_id: id });
   };
 
-  if (!nextPayout) return null;
+  // Don't render if user is not authenticated or no next payout
+  if (!isAuthenticated || !nextPayout) return null;
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
@@ -126,7 +129,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number )
   },
   payoutCard: {
     borderRadius: 16,
-    padding: 15,
+    paddingHorizontal: 15,
+    paddingVertical: Platform.OS === 'ios' ? 15 : 5,
     backgroundColor: colors.card,
     borderWidth: 0.5,
     borderColor: colors.border,
@@ -139,7 +143,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number )
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'ios' ? 5 : -1,
   },
   payoutName: {
     fontSize: getScaledFontSize(14, textSizeMultiplier),

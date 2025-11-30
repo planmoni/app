@@ -445,7 +445,6 @@ const createStyles = (colors: any, isDark: boolean, insets: any) => StyleSheet.c
         shadowRadius: 5,
       },
       android: {
-        elevation: 5,
       },
     }),
   },

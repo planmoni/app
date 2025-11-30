@@ -55,9 +55,11 @@ import { useAppVersion } from '@/contexts/AppVersionContext';
 import Constants from 'expo-constants';
 import { Download, Info } from 'lucide-react-native';
 import { useIntercom } from '@/hooks/useIntercom';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { useKYCProgress } from '@/hooks/useKYCProgress';
 
 export default function SettingsScreen() {
-  const { colors, theme, setTheme } = useTheme();
+  const { colors, theme, setTheme, isDark } = useTheme();
   const { textSizeMultiplier, setTextSizeMultiplier } = useTextSize();
   const { session, signOut } = useAuth();
   const { showBalances, toggleBalances } = useBalance();
@@ -65,6 +67,8 @@ export default function SettingsScreen() {
   const { settings: emailSettings, updateSettings: updateEmailSettings } = useEmailNotifications();
   const { needsUpdate, checkForUpdates, currentVersion, currentBuild, isChecking } = useAppVersion();
   const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
+  const { requireAuth, isAuthenticated } = useRequireAuth();
+  const { currentTier } = useKYCProgress();
   
   const firstName = session?.user?.user_metadata?.first_name || '';
   const lastName = session?.user?.user_metadata?.last_name || '';
@@ -351,43 +355,69 @@ export default function SettingsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Settings</Text>
-        {isIntercomSupported && (
-          <Pressable 
-            onPress={handleHelpPress} 
-            style={styles.helpButton}
-            disabled={isHelpLoading}
-          >
-            <HelpCircleIcon size={24} color={colors.text} />
-          </Pressable>
-        )}
+        <Pressable
+          style={styles.helpButton}
+          onPress={handleHelpPress}
+          disabled={!isIntercomSupported || isHelpLoading}
+        >
+          <HelpCircleIcon size={20} color={colors.textSecondary} />
+        </Pressable>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Pressable style={styles.profileCard} onPress={handleViewProfile}>
-          <View style={styles.profileContent}>
-            <InitialsAvatar 
-              firstName={firstName} 
-              lastName={lastName} 
-              size={60}
-              fontSize={getScaledFontSize(24, textSizeMultiplier)}
-            />
-            <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{firstName} {lastName}</Text>
-              <Text style={styles.profileEmail}>{email}</Text>
-              <View style={styles.badgeContainer}>
-                <View style={styles.verifiedBadge}>
-                  <Text style={styles.verifiedText}>Verified</Text>
-                </View>
-                {!isLoading2FA && twoFactorEnabled && (
-                  <View style={styles.twoFactorBadge}>
-                    <Text style={styles.twoFactorText}>2FA</Text>
-                  </View>
-                )}
-              </View>
+        {!isAuthenticated && (
+          <View style={styles.loginPromptCard}>
+            <Text style={[styles.loginPromptTitle, { color: colors.text }]}>
+              Login Required
+            </Text>
+            <Text style={[styles.loginPromptText, { color: colors.textSecondary }]}>
+              Login to access all settings and manage your account preferences.
+            </Text>
+            <View style={styles.authButtonsContainer}>
+              <Pressable
+                style={[styles.signUpButton, { backgroundColor: colors.primary }]}
+                onPress={() => router.push('/(auth)/onboarding/first-name')}
+              >
+                <Text style={styles.signUpButtonText}>Sign Up</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.loginPromptButton, { borderColor: isDark ? '#fff' : colors.primary }]}
+                onPress={() => requireAuth(() => {}, '/(tabs)/settings')}
+              >
+                <Text style={[styles.loginPromptButtonText, { color: isDark ? '#fff' : colors.primary }]}>Login</Text>
+              </Pressable>
             </View>
           </View>
-          <ChevronRight size={20} color={colors.textSecondary} />
-        </Pressable>
+        )}
+        
+        {isAuthenticated && (
+          <Pressable style={styles.profileCard} onPress={handleViewProfile}>
+            <View style={styles.profileContent}>
+              <InitialsAvatar 
+                firstName={firstName} 
+                lastName={lastName} 
+                size={60}
+                fontSize={getScaledFontSize(24, textSizeMultiplier)}
+                kycTier={currentTier}
+              />
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileName}>{firstName} {lastName}</Text>
+                <Text style={styles.profileEmail}>{email}</Text>
+                <View style={styles.badgeContainer}>
+                  <View style={styles.verifiedBadge}>
+                    <Text style={styles.verifiedText}>Verified</Text>
+                  </View>
+                  {!isLoading2FA && twoFactorEnabled && (
+                    <View style={styles.twoFactorBadge}>
+                      <Text style={styles.twoFactorText}>2FA</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+            <ChevronRight size={20} color={colors.textSecondary} />
+          </Pressable>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Preferences</Text>
@@ -480,10 +510,11 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          
-          <View style={styles.card}>
+        {isAuthenticated && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Account</Text>
+            
+            <View style={styles.card}>
             <Pressable 
               style={styles.settingItem}
               onPress={() => {
@@ -588,11 +619,13 @@ export default function SettingsScreen() {
             </Pressable> */}
           </View>
         </View>
+        )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Security</Text>
-          
-          <View style={styles.card}>
+        {isAuthenticated && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Security</Text>
+            
+            <View style={styles.card}>
             <Pressable 
               style={styles.settingItem}
               onPress={() => {
@@ -631,7 +664,7 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            {/* <Pressable 
               style={styles.settingItem}
               onPress={handleTwoFactorAuth}
             >
@@ -668,7 +701,7 @@ export default function SettingsScreen() {
                 </Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
+            </Pressable> */}
             
             <View style={styles.divider} />
 
@@ -687,11 +720,13 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
         </View>
+        )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
-          
-          <View style={styles.card}>
+        {isAuthenticated && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Notifications</Text>
+            
+            <View style={styles.card}>
             <View style={styles.settingItem}>
               <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
                 <Bell size={20} color={colors.textSecondary} />
@@ -767,6 +802,7 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
         </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Support & Legal</Text>
@@ -857,7 +893,7 @@ export default function SettingsScreen() {
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>App Version</Text>
                 <Text style={styles.settingDescription}>
-                  Version {currentVersion} (Build {currentBuild})
+                  Version {currentVersion}
                 </Text>
               </View>
               {needsUpdate && (
@@ -894,24 +930,25 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.accountActions}>
-
-          <Pressable 
-            style={styles.signOutButton}
-            onPress={handleSignOut}
-          >
-            <LogOut size={20} color="#EF4444" />
-            <Text style={styles.signOutText}>Sign Out</Text>
-          </Pressable>
-          
-          <Pressable 
-            style={styles.deleteAccountButton}
-            onPress={handleDeleteAccount}
-          >
-            <Trash2 size={20} color={colors.textTertiary} />
-            <Text style={styles.deleteAccountText}>Close your account</Text>
-          </Pressable>
-        </View>
+        {isAuthenticated && (
+          <View style={styles.accountActions}>
+            <Pressable 
+              style={styles.signOutButton}
+              onPress={handleSignOut}
+            >
+              <LogOut size={20} color="#EF4444" />
+              <Text style={styles.signOutText}>Sign Out</Text>
+            </Pressable>
+            
+            <Pressable 
+              style={styles.deleteAccountButton}
+              onPress={handleDeleteAccount}
+            >
+              <Trash2 size={20} color={colors.textTertiary} />
+              <Text style={styles.deleteAccountText}>Close your account</Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
 
      
@@ -1209,8 +1246,67 @@ const createStyles = (colors: any, textSizeMultiplier: number) => StyleSheet.cre
     color: colors.textTertiary,
     marginLeft: 8,
   },
+  loginPromptCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 24,
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  loginPromptTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 18, textSizeMultiplier),
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loginPromptText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  authButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  signUpButton: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signUpButtonText: {
+    color: '#FFFFFF',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
+  },
+  loginPromptButton: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 17,
+    borderWidth: 1.5,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginPromptButtonText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    fontWeight: '600',
+  },
   disabledSettingItem: {
     opacity: 0.5,
+  },
+  updateBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   comingSoonTag: {
     backgroundColor: colors.backgroundTertiary,

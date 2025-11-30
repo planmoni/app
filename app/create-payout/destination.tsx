@@ -1,9 +1,10 @@
 import { View, Text, StyleSheet, Pressable, useWindowDimensions, Image, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Building2, Plus, Info, Check, X } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '@/components/Button';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AddBankAccountModal from '@/components/AddBankAccountModal';
 import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,7 +31,8 @@ export default function DestinationScreen() {
   const { 
     payoutAccounts, 
     isLoading: payoutAccountsLoading, 
-    error: payoutAccountsError 
+    error: payoutAccountsError,
+    fetchPayoutAccounts
   } = usePayoutAccounts();
   
   const { 
@@ -46,16 +48,33 @@ export default function DestinationScreen() {
   const isLoading = payoutAccountsLoading || bankAccountsLoading;
   const error = payoutAccountsError || bankAccountsError;
 
-  // Set default selection based on the active tab type
+  // Refresh accounts when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // Refresh payout accounts when screen is focused
+      if (accountType === 'payout') {
+        fetchPayoutAccounts();
+      }
+    }, [accountType, fetchPayoutAccounts])
+  );
+
+  // Set default selection based on the active tab type or params when editing
   useEffect(() => {
-    if (accountType === 'payout' && payoutAccounts.length > 0 && !selectedAccountId) {
+    // If we have params from review page, use those to set the selected account
+    if (params.payoutAccountId && !selectedAccountId) {
+      setSelectedAccountId(params.payoutAccountId as string);
+      setAccountType('payout');
+    } else if (params.bankAccountId && !selectedAccountId) {
+      setSelectedAccountId(params.bankAccountId as string);
+      setAccountType('linked');
+    } else if (accountType === 'payout' && payoutAccounts.length > 0 && !selectedAccountId) {
       const defaultAccount = payoutAccounts.find(account => account.is_default);
       setSelectedAccountId(defaultAccount?.id || payoutAccounts[0].id);
     } else if (accountType === 'linked' && bankAccounts.length > 0 && !selectedAccountId) {
       const defaultAccount = bankAccounts.find(account => account.is_default);
       setSelectedAccountId(defaultAccount?.id || bankAccounts[0].id);
     }
-  }, [payoutAccounts, bankAccounts, selectedAccountId, accountType]);
+  }, [payoutAccounts, bankAccounts, selectedAccountId, accountType, params.payoutAccountId, params.bankAccountId]);
 
   // Helper function to get bank code from bank name
   const getBankCode = (bankName: string): string | undefined => {
@@ -150,6 +169,9 @@ export default function DestinationScreen() {
             startDate: params.startDate || '',
             customDates: params.customDates || '',
             dayOfWeek: params.dayOfWeek || '',
+            payoutHour: params.payoutHour || '',
+            payoutMinute: params.payoutMinute || '',
+            emergencyWithdrawal: params.emergencyWithdrawal || 'false',
           }
         });
       }
@@ -376,9 +398,13 @@ export default function DestinationScreen() {
       {accountType === 'payout' ? (
         <AddPayoutAccountModal
           isVisible={showAddAccount}
-          onClose={(newAccount) => {
+          onClose={async (newAccount) => {
             haptics.lightImpact();
             setShowAddAccount(false);
+            // Refresh accounts list to ensure newly added account is visible
+            if (newAccount) {
+              await fetchPayoutAccounts();
+            }
             // If a new account was added, select it and auto-advance
             if (newAccount && newAccount.id) {
               setSelectedAccountId(newAccount.id);
@@ -397,6 +423,9 @@ export default function DestinationScreen() {
                   startDate: params.startDate || '',
                   customDates: params.customDates || '',
                   dayOfWeek: params.dayOfWeek || '',
+                  payoutHour: params.payoutHour || '',
+                  payoutMinute: params.payoutMinute || '',
+                  emergencyWithdrawal: params.emergencyWithdrawal || 'false',
                 }
               });
             }

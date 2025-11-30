@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import Toast from '@/components/Toast';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useTheme } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 
@@ -23,6 +24,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [type, setType] = useState<ToastType>('info');
   const [duration, setDuration] = useState(3000);
   const haptics = useHaptics();
+  // Get theme here and pass to Toast as props to ensure it always has theme access
+  const { colors, isDark } = useTheme();
 
   const showToast = (
     message: string,
@@ -90,6 +93,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         type={type}
         duration={duration}
         onDismiss={hideToast}
+        colors={colors}
+        isDark={isDark}
       />
     </ToastContext.Provider>
   );

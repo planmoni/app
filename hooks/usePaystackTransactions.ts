@@ -154,54 +154,36 @@ export function usePaystackTransactions() {
 
       console.log(`Processing transaction: ${transaction.reference}, Amount: ₦${amountInNaira}`);
 
-      // Add funds to user's wallet
-      const { data: result, error } = await supabase.rpc('add_funds', {
+      // Process deposit atomically using process_paystack_deposit function
+      // This function handles wallet update, transaction creation, events, and notifications
+      const { data: result, error } = await supabase.rpc('process_paystack_deposit', {
         arg_user_id: userId,
-        arg_amount: amountInNaira
+        arg_amount: amountInNaira,
+        arg_reference: transaction.reference,
+        arg_paystack_data: {
+          paystack_transaction_id: transaction.id,
+          paystack_reference: transaction.reference,
+          account_number: transaction.authorization?.account_number,
+          processed_by: 'usePaystackTransactions_hook',
+          processed_at: new Date().toISOString()
+        }
       });
 
       if (error) {
-        console.error('Error adding funds:', error);
+        console.error('Error processing deposit:', error);
         return;
       }
 
       if (result && result.success) {
-        console.log(`Successfully added ₦${amountInNaira} to wallet for transaction ${transaction.reference}`);
+        if (result.already_processed) {
+          console.log(`Transaction ${transaction.reference} was already processed`);
+          return;
+        }
         
-        // Create a transaction record in our database
-        await supabase
-          .from('transactions')
-          .insert({
-            user_id: userId,
-            type: 'deposit',
-            amount: amountInNaira,
-            status: 'completed',
-            source: 'Paystack Virtual Account',
-            destination: 'wallet',
-            reference: transaction.reference,
-            description: 'Funds added to wallet',
-          });
-
-        // Update user's wallet available_balance
-        await supabase
-          .from('wallets')
-          .update({
-            available_balance: supabase.rpc ? undefined : supabase.raw('available_balance + ?', [amountInNaira])
-          }, supabase.rpc ? { increment: { available_balance: amountInNaira } } : undefined)
-          .eq('user_id', userId);
-
-        // Create notification
-        await supabase
-          .from('events')
-          .insert({
-            user_id: userId,
-            type: 'deposit_successful',
-            title: 'Funds Received',
-            description: `₦${amountInNaira.toLocaleString()} has been added to your wallet`,
-            status: 'unread'
-          });
-
-        // Send push notification
+        console.log(`Successfully processed deposit: ₦${amountInNaira} for transaction ${transaction.reference}`);
+        
+        // Push notification is handled by process_paystack_deposit function
+        // But we can send an additional push notification if needed
         await supabase.rpc('send_push_notification', {
           p_user_id: userId,
           p_title: 'Funds Received',
@@ -230,7 +212,7 @@ export function usePaystackTransactions() {
           },
         });
       } else {
-        console.error('Failed to add funds for transaction:', transaction.reference);
+        console.error('Failed to process deposit for transaction:', transaction.reference);
       }
 
     } catch (err) {

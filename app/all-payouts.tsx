@@ -34,6 +34,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
 import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
@@ -46,6 +47,7 @@ export default function AllPayoutsScreen() {
   const { payoutPlans, isLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { showBalances, balance, availableBalance } = useBalance();
   const haptics = useHaptics();
+  const { hasCreatedPayoutPlan } = useHasCreatedPayoutPlan();
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,16 +57,13 @@ export default function AllPayoutsScreen() {
   const handleCreatePayout = () => {
     haptics.mediumImpact();
     
-    // Check if balance is ₦0 and no plans exist
-    const hasNoBalance = balance === 0 && availableBalance === 0;
-    const hasNoPlans = payoutPlans.length === 0;
-    
-    // If no balance and no plans, show info modal
-    if (hasNoBalance && hasNoPlans) {
-      setShowNewPlanInfoModal(true);
+    // Only show modal if user has never created a payout plan before
+    if (hasCreatedPayoutPlan) {
+      // User has created a payout plan before - navigate directly to create payout
+      router.push('/create-payout/amount');
     } else {
-      // Navigate directly to create payout
-    router.push('/create-payout/amount');
+      // User has never created a payout plan - show info modal
+      setShowNewPlanInfoModal(true);
     }
   };
 
@@ -575,7 +574,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
   },
   // statsContainer: {
   //   marginBottom: 4,
@@ -593,7 +591,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   //   shadowOffset: { width: 0, height: 1 },
   //   shadowOpacity: 0.05,
   //   shadowRadius: 2,
-  //   elevation: 2,
   // },
   // statIconContainer: {
   //   width: 24,
@@ -747,7 +744,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
   },
   createFirstButtonText: {
     color: '#FFFFFF',
@@ -763,7 +759,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: .1,
   },
   payoutContent: {
     padding: 20,

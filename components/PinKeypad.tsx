@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions, Platform } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -15,8 +15,9 @@ export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: Pi
   const { width, height } = useWindowDimensions();
   const haptics = useHaptics();
   
-  // Determine if we're on a small screen
-  const isSmallScreen = width < 380 || height < 700;
+  // Use refs to lock initial dimensions and prevent resizing
+  const initialDimensions = useRef({ width, height });
+  const isSmallScreen = initialDimensions.current.width < 380 || initialDimensions.current.height < 700;
   
   const handleKeyPress = (key: string) => {
     if (!disabled) {
@@ -49,6 +50,13 @@ export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: Pi
       ]}
       onPress={() => handleKeyPress(key)}
       disabled={disabled}
+      collapsable={false}
+      removeClippedSubviews={false}
+      {...(Platform.OS === 'ios' && {
+        // Prevent keyboard trigger on iOS
+        accessible: true,
+        accessibilityRole: 'button'
+      })}
     >
       <Text style={[
         styles.keyText, 
@@ -71,12 +79,12 @@ export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: Pi
     container: {
       width: keypadWidth,
       alignSelf: 'center',
-      marginTop: isSmallScreen ? 16 : 24,
+      marginTop: isSmallScreen ? 12 : 16,
     },
     row: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: isSmallScreen ? 12 : 16,
+      marginBottom: isSmallScreen ? 10 : 12,
     },
     keyButton: {
       justifyContent: 'center',
@@ -100,7 +108,11 @@ export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: Pi
   });
 
   return (
-    <View style={styles.container}>
+    <View 
+      style={styles.container}
+      collapsable={false}
+      removeClippedSubviews={false}
+    >
       <View style={styles.row}>
         {renderKey('1')}
         {renderKey('2')}
@@ -134,6 +146,15 @@ export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: Pi
           ]}
           onPress={handleDelete}
           disabled={disabled}
+          collapsable={false}
+          removeClippedSubviews={false}
+          {...(Platform.OS === 'ios' && {
+            // Prevent keyboard trigger on iOS
+            accessible: true,
+            accessibilityRole: 'button',
+            // Explicitly prevent keyboard
+            keyboardShouldPersistTaps: 'handled'
+          })}
         >
           <X size={keyTextSize} color={disabled ? colors.textTertiary : colors.text} />
         </Pressable>

@@ -20,7 +20,7 @@ export default function SecurityCenter() {
     enableBiometric, 
     disableBiometric 
   } = usePin();
-  const { autoLockDuration, setAutoLockDuration, lockApp, isAppLocked } = useAppLock();
+  const { lockApp, isAppLocked } = useAppLock();
   const { isDark, colors } = useTheme();
   const { navigateToHome } = useSafeNavigation();
   
@@ -219,22 +219,6 @@ export default function SecurityCenter() {
           )}
           {hasAppLockPin && (
             <>
-              {renderSettingItem(
-                'time-outline',
-                'Auto Logout',
-                `Current: ${autoLockDuration === 'instant' ? 'Instant' :
-                           autoLockDuration === '5' ? 'After 5 mins' : 
-                           autoLockDuration === '60' ? 'After 60 mins' : 
-                           autoLockDuration === 'never' ? 'OFF' : 'Not set'}`,
-                () => Alert.alert('Auto Logout', 'Select auto logout duration', [
-                  { text: 'Instant', onPress: () => setAutoLockDuration('instant') },
-                  { text: 'After 5 mins', onPress: () => setAutoLockDuration('5') },
-                  { text: 'After 60 mins', onPress: () => setAutoLockDuration('60') },
-                  { text: 'OFF', onPress: () => setAutoLockDuration('never') },
-                  { text: 'Cancel', style: 'cancel' }
-                ])
-              )}
-
               <View style={styles.settingItem}>
                 <View style={styles.settingLeft}>
                   <View style={styles.iconContainer}>

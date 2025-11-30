@@ -1,14 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+// Conditionally import Updates - may not be available until rebuild
+let Updates: any = null;
+try {
+  Updates = require('expo-updates');
+} catch (e) {
+  // Native module not available yet
+}
 import { usePin } from './PinContext';
 import { isNavigationInProgress } from '@/hooks/useSafeNavigation';
 
-type AutoLockDuration = 'instant' | '5' | '60' | 'never';
-
 interface AppLockContextType {
-  autoLockDuration: AutoLockDuration;
-  setAutoLockDuration: (duration: AutoLockDuration) => Promise<void>;
   isAppLocked: boolean;
   unlockApp: () => void;
   lockApp: () => void;
@@ -21,9 +24,9 @@ interface AppLockContextType {
 
 const AppLockContext = createContext<AppLockContextType | undefined>(undefined);
 
-const AUTO_LOCK_KEY = 'auto_lock_duration';
 const LAST_ACTIVE_KEY = 'last_active_timestamp';
 const LAST_ACTIVE_PAGE_KEY = 'last_active_page';
+const AUTO_LOCK_DURATION_MS = 3 * 60 * 1000; // Fixed 3 minutes
 
 export const useAppLock = () => {
   const context = useContext(AppLockContext);
@@ -34,7 +37,6 @@ export const useAppLock = () => {
 };
 
 export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [autoLockDuration, setAutoLockDurationState] = useState<AutoLockDuration>('5');
   const [isAppLocked, setIsAppLocked] = useState(false);
   const [lastActivePage, setLastActivePageState] = useState<string>('(tabs)');
   const [isPinResetMode, setIsPinResetMode] = useState(false);
@@ -42,23 +44,36 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const appState = useRef(AppState.currentState);
   const lastActiveRef = useRef<number>(Date.now());
   const unlockTimestampRef = useRef<number | null>(null);
+  const hasCheckedLaunchLockRef = useRef(false);
+  const backgroundLockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backgroundTimestampRef = useRef<number | null>(null);
+  const REFRESH_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+
+  // Use refs to store latest values for use in event listener
+  const hasAppLockPinRef = useRef(hasAppLockPin);
+  const isAppLockedRef = useRef(isAppLocked);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    hasAppLockPinRef.current = hasAppLockPin;
+  }, [hasAppLockPin]);
+  
+  useEffect(() => {
+    isAppLockedRef.current = isAppLocked;
+  }, [isAppLocked]);
 
   // Load saved settings on mount
   useEffect(() => {
-    loadAutoLockDuration();
     loadLastActivePage();
-  }, []);
-
-  const loadAutoLockDuration = async () => {
-    try {
-      const saved = await AsyncStorage.getItem(AUTO_LOCK_KEY);
-      if (saved && ['instant', '5', '60', 'never'].includes(saved)) {
-        setAutoLockDurationState(saved as AutoLockDuration);
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (backgroundLockTimeoutRef.current) {
+        clearTimeout(backgroundLockTimeoutRef.current);
+        backgroundLockTimeoutRef.current = null;
       }
-    } catch (error) {
-      console.error('Error loading auto-lock duration:', error);
-    }
-  };
+    };
+  }, []);
 
   const loadLastActivePage = async () => {
     try {
@@ -71,40 +86,20 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const setAutoLockDuration = async (duration: AutoLockDuration) => {
-    try {
-      await AsyncStorage.setItem(AUTO_LOCK_KEY, duration);
-      setAutoLockDurationState(duration);
-    } catch (error) {
-      console.error('Error saving auto-lock duration:', error);
-    }
-  };
-
-  // Use refs to store latest values for use in event listener
-  const autoLockDurationRef = useRef(autoLockDuration);
-  const hasAppLockPinRef = useRef(hasAppLockPin);
-  const isAppLockedRef = useRef(isAppLocked);
-  
-  // Keep refs in sync with state
-  useEffect(() => {
-    autoLockDurationRef.current = autoLockDuration;
-  }, [autoLockDuration]);
-  
-  useEffect(() => {
-    hasAppLockPinRef.current = hasAppLockPin;
-  }, [hasAppLockPin]);
-  
-  useEffect(() => {
-    isAppLockedRef.current = isAppLocked;
-  }, [isAppLocked]);
-
   const updateLastActive = async () => {
     try {
       const timestamp = Date.now();
+      const previousTimestamp = lastActiveRef.current;
       lastActiveRef.current = timestamp;
       await AsyncStorage.setItem(LAST_ACTIVE_KEY, timestamp.toString());
+      console.log('⏰ AppLock - Updated last active timestamp', {
+        timestamp: new Date(timestamp).toISOString(),
+        previousTimestamp: previousTimestamp ? new Date(previousTimestamp).toISOString() : 'none',
+        timeSincePrevious: previousTimestamp ? `${timestamp - previousTimestamp}ms` : 'N/A',
+        appState: appState.current
+      });
     } catch (error) {
-      console.error('Error updating last active timestamp:', error);
+      console.error('🔒 AppLock - Error updating last active timestamp:', error);
     }
   };
 
@@ -113,7 +108,14 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const updateLastActiveOnInteraction = useCallback(() => {
     // Only update if app is active and not locked
     if (appState.current === 'active' && !isAppLockedRef.current) {
+      console.log('👆 AppLock - User interaction detected, updating last active timestamp');
       updateLastActive();
+    } else {
+      console.log('👆 AppLock - User interaction ignored', {
+        appState: appState.current,
+        isLocked: isAppLockedRef.current,
+        reason: appState.current !== 'active' ? 'app_not_active' : 'app_locked'
+      });
     }
   }, []);
 
@@ -124,7 +126,6 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     console.log('🔒 AppLock - lockApp() called', {
       hasAppLockPin: currentHasAppLockPin,
       isAppLocked: currentIsAppLocked,
-      autoLockDuration: autoLockDurationRef.current,
       timestamp: new Date().toISOString()
     });
     
@@ -141,29 +142,41 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const checkIfShouldLock = async () => {
-    // Don't lock if no PIN is set or auto-lock is disabled
-    if (!hasAppLockPin || autoLockDuration === 'never') {
-      console.log('⏭️ AppLock - Skipping lock check (no PIN or never setting)');
+    const startTime = Date.now();
+    console.log('🔍 AppLock - checkIfShouldLock() called', {
+      timestamp: new Date().toISOString(),
+      appState: appState.current
+    });
+    
+    // Early exit: Don't lock if no PIN is set
+    const currentHasAppLockPin = hasAppLockPinRef.current;
+    const currentIsAppLocked = isAppLockedRef.current;
+    
+    if (!currentHasAppLockPin) {
+      console.log('⏭️ AppLock - Skipping lock check (no PIN set)');
       return;
     }
 
-    // Don't lock if we just unlocked recently
-    if (unlockTimestampRef.current && (Date.now() - unlockTimestampRef.current) < 30000) {
-      console.log('🛡️ AppLock - Recently unlocked, skipping lock check');
+    // Early exit: Don't lock if already locked
+    if (currentIsAppLocked) {
+      console.log('⏭️ AppLock - Skipping lock check (already locked)');
       return;
     }
 
-    // Don't lock if already locked
-    if (isAppLocked) {
-      console.log('🛡️ AppLock - Already locked, skipping lock check');
+    // Early exit: Don't lock if we just unlocked recently
+    const timeSinceUnlock = unlockTimestampRef.current ? Date.now() - unlockTimestampRef.current : null;
+    if (unlockTimestampRef.current && timeSinceUnlock && timeSinceUnlock < 30000) {
+      console.log('⏭️ AppLock - Skipping lock check (recently unlocked)', {
+        timeSinceUnlock: `${timeSinceUnlock}ms`,
+        remainingProtection: `${30000 - timeSinceUnlock}ms`
+      });
       return;
     }
 
-    // Don't lock if navigation is in progress (check global flag first for immediate protection)
+    // Early exit: Don't lock if navigation is in progress (check global flag first for immediate protection)
     const globalNavFlag = isNavigationInProgress();
-    console.log('🛡️ AppLock - Checking global navigation flag:', globalNavFlag);
     if (globalNavFlag) {
-      console.log('🛡️ AppLock - Global navigation flag active, skipping lock check');
+      console.log('⏭️ AppLock - Skipping lock check (navigation in progress - global flag)');
       return;
     }
 
@@ -212,85 +225,143 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : Date.now();
       const timeDiff = Date.now() - lastActive;
 
-      let shouldLock = false;
+      // Fixed 3-minute auto lock
+      const shouldLock = timeDiff >= AUTO_LOCK_DURATION_MS;
 
-      switch (autoLockDuration) {
-        case 'instant': // Instant lock - handled when app goes to background
-          // This case is handled in handleAppStateChange, so we don't need to check here
-          shouldLock = false;
-          break;
-        case '5': // After 5 minutes
-          shouldLock = timeDiff > 5 * 60 * 1000;
-          break;
-        case '60': // After 60 minutes
-          shouldLock = timeDiff > 60 * 60 * 1000;
-          break;
-        default:
-          shouldLock = false;
-      }
-
-      console.log('⏰ AppLock - Time check:', {
-        timeDiff,
-        autoLockDuration,
-        shouldLock
+      console.log('⏰ AppLock - Time check completed', {
+        lastActive: new Date(lastActive).toISOString(),
+        currentTime: new Date().toISOString(),
+        timeDiff: `${timeDiff}ms`,
+        timeDiffFormatted: `${Math.floor(timeDiff / 1000 / 60)}m ${Math.floor((timeDiff / 1000) % 60)}s`,
+        threshold: '3 minutes',
+        shouldLock,
+        checkDuration: `${Date.now() - startTime}ms`
       });
 
       if (shouldLock) {
-        console.log('🔒 AppLock - Locking app due to inactivity');
+        console.log('🔒 AppLock - Locking app due to inactivity (3 minutes)', {
+          timeDiff: `${timeDiff}ms`
+        });
         lockApp();
+      } else {
+        console.log('✅ AppLock - No lock needed (within 3 minute threshold)');
       }
     } catch (error) {
-      console.error('Error in checkIfShouldLock:', error);
+      console.error('🔒 AppLock - Error in checkIfShouldLock:', error);
     }
   };
 
   const handleAppStateChange = useCallback((nextAppState: AppStateStatus) => {
     const currentState = appState.current;
-    const currentAutoLockDuration = autoLockDurationRef.current;
     const currentHasAppLockPin = hasAppLockPinRef.current;
     const currentIsAppLocked = isAppLockedRef.current;
     
     console.log('📱 AppLock - State change:', currentState, '->', nextAppState, {
-      autoLockDuration: currentAutoLockDuration,
       hasAppLockPin: currentHasAppLockPin,
       isAppLocked: currentIsAppLocked
     });
     
     if (currentState.match(/inactive|background/) && nextAppState === 'active') {
-      // App is becoming active - update last active time and check if we should lock
+      // App is becoming active - cancel any pending background lock timeout
+      if (backgroundLockTimeoutRef.current) {
+        console.log('🔒 AppLock - Cancelling pending background lock (app returned to foreground)');
+        clearTimeout(backgroundLockTimeoutRef.current);
+        backgroundLockTimeoutRef.current = null;
+      }
+      
+      // Check if app was in background for more than 5 minutes
+      if (backgroundTimestampRef.current) {
+        const timeInBackground = Date.now() - backgroundTimestampRef.current;
+        console.log('📱 AppLock - App returned from background', {
+          timeInBackgroundMs: timeInBackground,
+          timeInBackgroundMinutes: (timeInBackground / 1000 / 60).toFixed(2),
+          thresholdMinutes: REFRESH_THRESHOLD_MS / 1000 / 60
+        });
+        
+        if (timeInBackground >= REFRESH_THRESHOLD_MS) {
+          console.log('🔄 AppLock - App was in background for 5+ minutes, reloading app...');
+          backgroundTimestampRef.current = null;
+          
+          // Reload the app to clear any rendering issues
+          try {
+            if (Updates && Updates.reloadAsync) {
+              Updates.reloadAsync().catch((error: any) => {
+              console.error('❌ AppLock - Failed to reload app:', error);
+            });
+            } else {
+              console.warn('⚠️ AppLock - Updates module not available, skipping reload');
+            }
+          } catch (error) {
+            console.error('❌ AppLock - Error calling Updates.reloadAsync:', error);
+            console.warn('⚠️ AppLock - App reload not available (likely in development), app will continue normally');
+          }
+          return; // Exit early since we're reloading
+        }
+        
+        // Reset background timestamp
+        backgroundTimestampRef.current = null;
+      }
+      
+      // Update last active time and check if we should lock
       updateLastActive();
       
-      // Add a slightly larger delay to prevent race conditions during navigation
-      // (gives navigation flags/AsyncStorage a bit more time to settle)
+      // Add a delay to prevent race conditions during navigation
       setTimeout(() => {
-        checkIfShouldLock();
-      }, 300);
+        // Only check if app is still active and not locked
+        if (appState.current === 'active' && !isAppLockedRef.current && hasAppLockPinRef.current) {
+          checkIfShouldLock();
+        }
+      }, 500);
     } else if (currentState === 'active' && nextAppState.match(/inactive|background/)) {
       // App moved from active -> inactive/background
+      // Store timestamp when app goes to background
+      backgroundTimestampRef.current = Date.now();
+      console.log('📱 AppLock - App going to background', {
+        timestamp: new Date(backgroundTimestampRef.current).toISOString()
+      });
+      
       // Update last active time when app goes to background/inactive
       updateLastActive();
       
-      // If instant lock is enabled, lock immediately when app goes to background/inactive
-      if (currentAutoLockDuration === 'instant' && currentHasAppLockPin && !currentIsAppLocked) {
-        console.log('🔒 AppLock - Instant lock triggered (app going to background/inactive)', {
+      // Schedule lock after 3 minutes of inactivity when app goes to background
+      if (currentHasAppLockPin && !currentIsAppLocked) {
+        console.log('🔒 AppLock - Scheduling background lock (3 minutes)', {
           from: currentState,
-          to: nextAppState,
-          autoLockDuration: currentAutoLockDuration,
-          hasAppLockPin: currentHasAppLockPin,
-          isAppLocked: currentIsAppLocked
+          to: nextAppState
         });
-        lockApp();
-      } else {
-        console.log('🔒 AppLock - Instant lock NOT triggered', {
-          from: currentState,
-          to: nextAppState,
-          autoLockDuration: currentAutoLockDuration,
-          hasAppLockPin: currentHasAppLockPin,
-          isAppLocked: currentIsAppLocked,
-          reason: currentAutoLockDuration !== 'instant' ? 'not_instant' :
-                 !currentHasAppLockPin ? 'no_pin' :
-                 currentIsAppLocked ? 'already_locked' : 'unknown'
-        });
+        
+        // Clear any existing timeout
+        if (backgroundLockTimeoutRef.current) {
+          clearTimeout(backgroundLockTimeoutRef.current);
+        }
+        
+        backgroundLockTimeoutRef.current = setTimeout(() => {
+          // Double-check conditions before locking (app might have come back to foreground)
+          const stillInBackground = appState.current.match(/inactive|background/);
+          const stillHasPin = hasAppLockPinRef.current;
+          const stillNotLocked = !isAppLockedRef.current;
+          
+          console.log('🔒 AppLock - Background lock timeout fired, checking conditions', {
+            stillInBackground,
+            stillHasPin,
+            stillNotLocked,
+            appState: appState.current,
+            timestamp: new Date().toISOString()
+          });
+          
+          if (stillInBackground && stillHasPin && stillNotLocked) {
+            console.log('🔒 AppLock - Executing background lock after 3 minutes');
+            lockApp();
+          } else {
+            console.log('🔒 AppLock - Background lock cancelled (app returned to foreground or already locked)', {
+              appState: appState.current,
+              hasPin: stillHasPin,
+              isLocked: !stillNotLocked
+            });
+          }
+          
+          backgroundLockTimeoutRef.current = null;
+        }, AUTO_LOCK_DURATION_MS);
       }
     }
     
@@ -303,36 +374,117 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => subscription?.remove();
   }, [handleAppStateChange]);
 
-  // Periodic check for 5 mins and 60 mins auto-lock while app is active
+  // Always lock app on launch if PIN is set - no checks, just lock if PIN exists
   useEffect(() => {
-    // Only set up periodic check if auto-lock is set to 5 or 60 minutes
-    if (autoLockDuration !== '5' && autoLockDuration !== '60') {
+    // Only check once on app launch
+    if (hasCheckedLaunchLockRef.current) {
       return;
     }
 
+    // Wait a moment for PIN status to be loaded, then lock immediately if PIN exists
+    const checkLaunchLock = setTimeout(() => {
+      const currentHasAppLockPin = hasAppLockPinRef.current;
+      const currentIsAppLocked = isAppLockedRef.current;
+
+      console.log('🚀 AppLock - Checking launch lock', {
+        hasAppLockPin: currentHasAppLockPin,
+        isAppLocked: currentIsAppLocked,
+      });
+
+      // ALWAYS lock on launch if PIN is set - no other conditions
+      if (currentHasAppLockPin && !currentIsAppLocked) {
+        console.log('🔒 AppLock - Locking app on launch (PIN is set)');
+        lockApp();
+      }
+      
+      // Mark as checked regardless of outcome
+      hasCheckedLaunchLockRef.current = true;
+    }, 100); // Small delay to ensure PIN context has loaded
+
+    return () => clearTimeout(checkLaunchLock);
+  }, [hasAppLockPin]);
+
+  // Periodic check for 3-minute auto-lock while app is active
+  useEffect(() => {
     // Only check if app is active and has PIN set
     if (!hasAppLockPin || isAppLocked || appState.current !== 'active') {
+      console.log('🔒 AppLock - Periodic check not started', {
+        hasAppLockPin,
+        isAppLocked,
+        appState: appState.current,
+        reason: !hasAppLockPin ? 'no_pin' :
+                isAppLocked ? 'already_locked' :
+                appState.current !== 'active' ? 'app_not_active' : 'unknown'
+      });
       return;
     }
 
-    // Check every 30 seconds if we should lock
+    console.log('🔒 AppLock - Starting periodic lock check (3 minutes)', {
+      interval: '30 seconds',
+      timestamp: new Date().toISOString()
+    });
+
+    // Use a ref to track if a check is in progress to prevent overlapping calls
+    let isCheckingRef = { current: false };
+
+    // Check every 30 seconds for 3 minutes of inactivity
     const interval = setInterval(() => {
-      // Only check if app is still active
-      if (appState.current === 'active' && !isAppLockedRef.current) {
-        checkIfShouldLock();
+      // Early exit if already checking or app is not in correct state
+      if (isCheckingRef.current) {
+        console.log('⏭️ AppLock - Periodic check skipped (check already in progress)');
+        return;
       }
+      
+      // Double-check app state before proceeding
+      if (appState.current !== 'active' || isAppLockedRef.current || !hasAppLockPinRef.current) {
+        console.log('⏭️ AppLock - Periodic check skipped (state changed)', {
+          appState: appState.current,
+          isLocked: isAppLockedRef.current,
+          hasPin: hasAppLockPinRef.current
+        });
+        return;
+      }
+
+      console.log('⏰ AppLock - Periodic check triggered', {
+        timestamp: new Date().toISOString(),
+        threshold: '3 minutes'
+      });
+
+      // Set checking flag to prevent overlapping calls
+      isCheckingRef.current = true;
+      
+      // Call checkIfShouldLock and clear flag when done
+      checkIfShouldLock()
+        .finally(() => {
+          isCheckingRef.current = false;
+        });
     }, 30000); // Check every 30 seconds
 
-    return () => clearInterval(interval);
-  }, [autoLockDuration, hasAppLockPin, isAppLocked]);
+    return () => {
+      console.log('🔒 AppLock - Stopping periodic lock check', {
+        timestamp: new Date().toISOString()
+      });
+      clearInterval(interval);
+    };
+  }, [hasAppLockPin, isAppLocked]);
 
   const unlockApp = () => {
-    console.log('🔓 AppLock - Unlocking app');
+    const unlockTime = Date.now();
+    console.log('🔓 AppLock - Unlocking app', {
+      timestamp: new Date().toISOString(),
+      previousState: isAppLockedRef.current
+    });
     setIsAppLocked(false);
-    unlockTimestampRef.current = Date.now();
+    unlockTimestampRef.current = unlockTime;
+    
+    console.log('🔓 AppLock - Unlock protection set (30 seconds)', {
+      unlockTimestamp: new Date(unlockTime).toISOString(),
+      protectionUntil: new Date(unlockTime + 30000).toISOString()
+    });
     
     // Clear the unlock timestamp after 30 seconds
     setTimeout(() => {
+      console.log('🔓 AppLock - Unlock protection expired');
       unlockTimestampRef.current = null;
     }, 30000);
   };
@@ -353,8 +505,6 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const value: AppLockContextType = {
-    autoLockDuration,
-    setAutoLockDuration,
     isAppLocked,
     unlockApp,
     lockApp,

@@ -8,7 +8,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 interface DateRangeModalProps {
   isVisible: boolean;
   onClose: () => void;
-  onSelect: (startDate: Date, endDate: Date) => void;
+  onSelect: (startDate: Date | null, endDate: Date | null) => void;
   initialStartDate?: Date;
   initialEndDate?: Date;
 }
@@ -187,6 +187,9 @@ export default function DateRangeModal({
     if (Platform.OS !== 'web') {
       haptics.lightImpact();
     }
+    // Reset the date range filter in parent component
+    onSelect(null, null);
+    onClose();
   };
 
   const handleClose = () => {
@@ -400,7 +403,6 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
         shadowRadius: 5,
       },
       android: {
-        elevation: 5,
       },
     }),
   },

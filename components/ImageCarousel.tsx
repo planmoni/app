@@ -51,7 +51,7 @@ export default function ImageCarousel({
   autoPlay = true,
   autoPlayInterval = 7000,
   showPagination = true,
-  height = 160,
+  height = Platform.OS === 'android' ? 140 : 150,
   images: propImages,
   showDimensions = false, // Default to false for production
 }: ImageCarouselProps) {
@@ -104,10 +104,8 @@ export default function ImageCarousel({
 
       // Load image sizes
       await loadImageSizes(banners, urlMap);
-      
-      console.log(`✅ Processed ${banners.length} images, ${cachedPaths.size} cached`);
     } catch (error) {
-      console.warn('[ImageCarousel] Error processing images:', error);
+      // Error processing images - silently fail
     } finally {
       setIsPrefetching(false);
     }
@@ -122,10 +120,9 @@ export default function ImageCarousel({
         
         if (size) {
           setImageSizes(prev => ({ ...prev, [banner.id]: size }));
-          console.log(` Image ${banner.id} dimensions: ${size.width}x${size.height}`);
         }
       } catch (error) {
-        console.warn(`[ImageCarousel] Failed to get size for ${banner.id}:`, error);
+        // Failed to get image size - silently fail
       }
     });
 
@@ -176,7 +173,6 @@ export default function ImageCarousel({
       // Process the fetched images
       await processImages(fetchedImages);
     } catch (err) {
-      console.error('[ImageCarousel] Error fetching images:', err);
       setError(err instanceof Error ? err.message : 'Failed to load images');
     } finally {
       setIsLoading(false);
@@ -318,9 +314,6 @@ export default function ImageCarousel({
                   transition={200}
                   cachePolicy="memory-disk"
                   placeholder={null}
-                  onError={() => {
-                    console.warn('[ImageCarousel] Image failed to load:', imageSource.uri);
-                  }}
                 />
                 
                 {!isLoaded && (

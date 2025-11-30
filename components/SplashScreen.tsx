@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
-import { View, StyleSheet, Image, Dimensions } from 'react-native';
+import React from 'react';
+import { View, StyleSheet, Image, Dimensions, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useTheme } from '@/contexts/ThemeContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface SplashScreenProps {
   onFinish?: () => void;
@@ -9,56 +9,53 @@ interface SplashScreenProps {
 
 const { width: screenWidth } = Dimensions.get('window');
 
+// Planmoni blue background color
+const PLANMONI_BLUE = '#1E3A8A';
+
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
-  const { colors, isDark } = useTheme();
-
-  useEffect(() => {
-    console.log('🚀 SplashScreen mounted');
-    
-    // Set a timeout to call onFinish after the splash screen duration
-    const timer = setTimeout(() => {
-      console.log('⏰ SplashScreen timer finished, calling onFinish');
-      onFinish?.();
-    }, 3500); // Display for 3.5 seconds
-
-    return () => {
-      console.log('🧹 SplashScreen cleanup');
-      clearTimeout(timer);
-    };
-  }, [onFinish]);
-
-  const styles = createStyles(colors, isDark);
+  const styles = createStyles();
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <StatusBar style={'light'} />
       
       {/* Logo Container */}
       <View style={styles.logoContainer}>
         <Image 
-          source={isDark ? require('@/assets/images/logo-dark.png') : require('@/assets/images/logo-dark.png')} 
+          source={require('@/assets/images/PlanmoniDarkMode.png')} 
           style={styles.logo}
           resizeMode="contain"
         />
       </View>
-    </View>
+
+      {/* Loading Indicator */}
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FFFFFF" />
+      </View>
+    </SafeAreaView>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = () => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: isDark ? colors.background : colors.primary,
+    backgroundColor: PLANMONI_BLUE,
     justifyContent: 'center',
     alignItems: 'center',
   },
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 40,
   },
   logo: {
-    width: Math.min(screenWidth * 0.4, 160), // Responsive width, max 160px
-    height: Math.min(screenWidth * 0.4, 160), // Keep it square
-    marginBottom: 20,
+    width: Math.min(screenWidth * 0.5, 200),
+    height: Math.min(screenWidth * 0.5, 200),
+  },
+  loadingContainer: {
+    position: 'absolute',
+    bottom: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

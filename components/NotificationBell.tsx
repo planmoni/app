@@ -17,15 +17,16 @@ export function NotificationBell() {
   useEffect(() => {
     loadUnreadCount();
 
+    // Poll for updates every 30 seconds instead of real-time subscription
+    // Server-side push notifications handle delivery when app is closed
     if (user?.id) {
-      const unsubscribe = inAppNotificationService.subscribeToNotifications(
-        user.id,
-        () => {
-          loadUnreadCount();
-        }
-      );
+      const pollInterval = setInterval(() => {
+        loadUnreadCount();
+      }, 30000); // Poll every 30 seconds
 
-      return unsubscribe;
+      return () => {
+        clearInterval(pollInterval);
+      };
     }
   }, [user?.id]);
 

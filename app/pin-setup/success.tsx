@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions, ScrollView } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import Button from '@/components/Button';
@@ -10,6 +10,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 export default function PinSuccessScreen() {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { showToast } = useToast();
   const haptics = useHaptics();
   
@@ -22,11 +23,15 @@ export default function PinSuccessScreen() {
     router.replace('/(tabs)');
   };
 
-  const styles = createStyles(colors, isDark, isSmallScreen, width);
+  const styles = createStyles(colors, isDark, isSmallScreen, width, insets);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.content}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <SuccessAnimation />
         
         <Text style={styles.title}>PIN Set Up Complete!</Text>
@@ -49,9 +54,11 @@ export default function PinSuccessScreen() {
             <Text style={styles.infoText}>• Change or disable anytime in Settings</Text>
           </View>
         </View>
-        
+      </ScrollView>
+      
+      <View style={styles.footer}>
         <Button
-          title="Continue to Dashboard"
+          title="Done"
           onPress={handleGoToDashboard}
           style={styles.dashboardButton}
           hapticType="success"
@@ -61,24 +68,29 @@ export default function PinSuccessScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, screenWidth: number) => {
+const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, screenWidth: number, insets: any) => {
   const contentPadding = isSmallScreen ? 16 : 24;
   const titleSize = isSmallScreen ? 24 : 28;
   const subtitleSize = isSmallScreen ? 14 : 16;
   const infoTitleSize = isSmallScreen ? 16 : 18;
   const infoTextSize = isSmallScreen ? 13 : 14;
   const buttonWidth = Math.min(screenWidth - contentPadding * 2, 400);
+  const footerPadding = Math.max(insets.bottom, 16);
   
   return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: colors.background,
     },
-    content: {
+    scrollView: {
       flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
       justifyContent: 'center',
       alignItems: 'center',
       padding: contentPadding,
+      paddingBottom: contentPadding + 20,
     },
     title: {
       fontSize: titleSize,
@@ -99,8 +111,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, scre
       maxWidth: buttonWidth,
       backgroundColor: isDark ? colors.backgroundSecondary : colors.backgroundTertiary,
       borderRadius: 16,
-      padding: 20,
-      marginBottom: 32,
+      padding: isSmallScreen ? 16 : 20,
       borderWidth: 1,
       borderColor: colors.border,
     },
@@ -117,6 +128,14 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, scre
       fontSize: infoTextSize,
       color: colors.textSecondary,
       lineHeight: infoTextSize * 1.5,
+    },
+    footer: {
+      backgroundColor: colors.surface,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingHorizontal: contentPadding,
+      paddingTop: 16,
+      paddingBottom: footerPadding,
     },
     dashboardButton: {
       width: '100%',

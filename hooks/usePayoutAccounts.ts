@@ -8,6 +8,8 @@ export type PayoutAccount = {
   account_name: string;
   account_number: string;
   bank_name: string;
+  bank_code?: string | null;
+  safehaven_bank_code?: string | null;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -70,10 +72,39 @@ export function usePayoutAccounts() {
     account_name: string;
     account_number: string;
     bank_name: string;
+    bank_code?: string;
+    safehaven_bank_code?: string;
     is_default?: boolean;
   }) => {
     try {
       setError(null);
+      
+      // Check if account already exists
+      const { data: existingAccount, error: checkError } = await supabase
+        .from('payout_accounts')
+        .select('id, account_number, bank_name')
+        .eq('user_id', session?.user?.id)
+        .eq('account_number', accountData.account_number.trim())
+        .eq('bank_name', accountData.bank_name.trim())
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingAccount) {
+        const errorMessage = `This account (${accountData.account_number.slice(-4)}) at ${accountData.bank_name} already exists in your payout accounts.`;
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      }
+      
+      // Log the data being inserted for debugging
+      console.log('💾 Inserting payout account to database:', {
+        user_id: session?.user?.id,
+        account_name: accountData.account_name,
+        account_number: accountData.account_number,
+        bank_name: accountData.bank_name,
+        bank_code: accountData.bank_code || 'N/A',
+        safehaven_bank_code: accountData.safehaven_bank_code || 'N/A'
+      });
       
       const { data, error: insertError } = await supabase
         .from('payout_accounts')
@@ -84,14 +115,24 @@ export function usePayoutAccounts() {
         .select()
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('❌ Error inserting payout account:', insertError);
+        throw insertError;
+      }
+      
+      console.log('✅ Payout account inserted successfully:', {
+        id: data.id,
+        bank_code: data.bank_code || 'N/A',
+        safehaven_bank_code: data.safehaven_bank_code || 'N/A'
+      });
       
       // Update local state with the new account
       setPayoutAccounts(prev => [data, ...prev]);
       
       return data;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add payout account');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add payout account';
+      setError(errorMessage);
       throw err;
     }
   };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useAuth } from '@/contexts/AuthContext';
@@ -66,6 +66,23 @@ export default function KYCCard() {
     fetchLatestProgress();
   }, [fetchLatestProgress]);
   
+  // Sync latestProgress with progress from hook whenever it changes
+  useEffect(() => {
+    if (progress) {
+      console.log('[KYCCard] Progress from hook updated, syncing latestProgress');
+      setLatestProgress(progress);
+    }
+  }, [
+    progress?.liveness_test_completed,
+    progress?.bvn_verified,
+    progress?.id_face_verified,
+    progress?.personal_info_completed,
+    progress?.documents_verified,
+    progress?.address_completed,
+    progress?.current_step,
+    progress?.overall_completed
+  ]);
+  
   // Also refresh when progressLoading changes (when hook refreshes)
   useEffect(() => {
     if (!progressLoading && session?.user?.id) {
@@ -76,6 +93,16 @@ export default function KYCCard() {
       return () => clearTimeout(timer);
     }
   }, [progressLoading, session?.user?.id, fetchLatestProgress]);
+
+  // Refresh when screen comes into focus (user navigates back to home)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (session?.user?.id) {
+        console.log('[KYCCard] Screen focused, refreshing progress');
+        fetchLatestProgress();
+      }
+    }, [session?.user?.id, fetchLatestProgress])
+  );
 
   // Check verification status from kyc_verifications table
   useEffect(() => {
@@ -539,7 +566,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     shadowOffset: { width: 1, height: 6},
     shadowOpacity: 0.05,
     shadowRadius: 4,
-    elevation: 2,
     width: '100%',
     borderWidth: 0.5,
     borderColor: colors.border,

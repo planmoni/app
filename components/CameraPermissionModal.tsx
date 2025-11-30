@@ -182,7 +182,7 @@ export default function CameraPermissionModal({
       borderColor: colors.border,
     },
     permissionModalButtonText: {
-      fontSize: 17,
+      fontSize: 13,
       fontWeight: '600',
       color: colors.text,
     },

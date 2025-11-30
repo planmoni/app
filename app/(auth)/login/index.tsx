@@ -95,6 +95,13 @@ export default function LoginEmailScreen() {
                 onSubmitEditing={handleContinue}
               />
             </View>
+
+            <View style={styles.signUpLinkContainer}>
+              <Text style={styles.signUpLinkText}>Don't have a Planmoni account yet?</Text>
+              <Pressable onPress={() => router.push('/(auth)/onboarding/first-name')}>
+                <Text style={styles.signUpLinkButton}>Click here to Set One Up</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingWrapper>
@@ -192,7 +199,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.background,
     paddingHorizontal: 16,
     height: 56,
-    marginBottom: 24,
   },
   inputContainerFilled: {
     borderColor: colors.accent,
@@ -209,5 +215,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 18,
     color: colors.text,
     height: '100%',
+  },
+  signUpLinkContainer: {
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  signUpLinkText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  signUpLinkButton: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'center',
   },
 });

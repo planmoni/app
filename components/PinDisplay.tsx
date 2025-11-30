@@ -24,7 +24,7 @@ export default function PinDisplay({ length, value }: PinDisplayProps) {
       justifyContent: 'center',
       alignItems: 'center',
       gap: dotGap,
-      marginVertical: isSmallScreen ? 16 : 24,
+      marginVertical: isSmallScreen ? 12 : 16,
     },
     dot: {
       width: dotSize,
