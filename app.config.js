@@ -6,7 +6,7 @@ module.exports = {
     name: "Planmoni",
     owner: "planmoni", // 👈 Add this line
     slug: "planmoni",
-    version: "1.0.2",
+    version: "1.1.8",
     scheme: "myapp",
     userInterfaceStyle: "automatic", // Allow system to control theme
     updates: {
@@ -74,7 +74,7 @@ module.exports = {
         "expo-build-properties",
         {
           "android": {
-            "minSdkVersion": 24,
+            "minSdkVersion": 26,
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
             "buildToolsVersion": "35.0.0"
