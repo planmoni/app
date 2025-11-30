@@ -788,7 +788,7 @@ class SafeHavenService {
       if (!token) {
         return {
           success: false,
-          error: 'Unable to get SafeHaven token. Please try again.'
+          error: 'NIN is incorrect. Please enter your correct NIN and try again.'
         };
       }
 
@@ -1368,7 +1368,7 @@ class SafeHavenService {
       if (!token) {
         return {
           success: false,
-          error: 'Unable to get SafeHaven token. Please try again.'
+          error: 'BVN is incorrect. Please enter your correct BVN and try again.'
         };
       }
 

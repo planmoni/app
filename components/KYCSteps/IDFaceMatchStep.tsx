@@ -49,10 +49,14 @@ export default function IDFaceMatchStep({
 
   return (
     <View style={styles.formContainer}>
-      <Text style={styles.sectionTitle}>NIN Verification</Text>
-      <Text style={styles.sectionDescription}>
-        Please provide a government-issued ID and take a selfie for verification.
-      </Text>
+      {!ninIdentityId && (
+        <>
+          <Text style={styles.sectionTitle}>NIN Verification</Text>
+          <Text style={styles.sectionDescription}>
+            Please provide a government-issued ID and take a selfie for verification.
+          </Text>
+        </>
+      )}
       
       {!bvnVerified && (
         <View style={styles.warningContainer}>
@@ -63,7 +67,7 @@ export default function IDFaceMatchStep({
         </View>
       )}
       
-      <View style={styles.idTypeSelector}>
+      {/* <View style={styles.idTypeSelector}>
         <Text style={styles.label}>Select ID Type</Text>
         <View style={styles.idOptions}>
           <Pressable
@@ -82,32 +86,34 @@ export default function IDFaceMatchStep({
             ]}>NIN</Text>
           </Pressable>
         </View>
-      </View>
+      </View> */}
       
       {selectedIdentityType === 'nin' && (
         <>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>National Identification Number (NIN)</Text>
-            <View style={[styles.inputContainer, errors.nin && styles.inputError]}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your 11-digit NIN"
-                placeholderTextColor={colors.textTertiary}
-                value={nin}
-                onChangeText={(text) => {
-                  // Only allow numbers and limit to 11 digits
-                  const numericText = text.replace(/[^0-9]/g, '');
-                  if (numericText.length <= 11) {
-                    onNinChange(numericText);
-                  }
-                }}
-                keyboardType="numeric"
-                maxLength={11}
-                editable={!isVerifyingDocuments && !documentsVerified && !ninIdentityId}
-              />
+          {!ninIdentityId && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>National Identification Number (NIN)</Text>
+              <View style={[styles.inputContainer, errors.nin && styles.inputError]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your 11-digit NIN"
+                  placeholderTextColor={colors.textTertiary}
+                  value={nin}
+                  onChangeText={(text) => {
+                    // Only allow numbers and limit to 11 digits
+                    const numericText = text.replace(/[^0-9]/g, '');
+                    if (numericText.length <= 11) {
+                      onNinChange(numericText);
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={11}
+                  editable={!isVerifyingDocuments && !documentsVerified}
+                />
+              </View>
+              {errors.nin && <Text style={styles.errorText}>{errors.nin}</Text>}
             </View>
-            {errors.nin && <Text style={styles.errorText}>{errors.nin}</Text>}
-          </View>
+          )}
           
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Phone Number *</Text>
@@ -182,7 +188,6 @@ export default function IDFaceMatchStep({
       )}
       
       <View style={styles.infoContainer}>
-        <Shield size={20} color={colors.primary} />
         <Text style={styles.infoText}>
           Your documents are securely encrypted and will only be used for verification purposes. They will be deleted after verification is complete.
         </Text>
