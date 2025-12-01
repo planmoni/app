@@ -76,12 +76,12 @@ function RootLayoutNav() {
           // Set navigation bar background and button style based on theme
           if (isDark) {
             // Dark mode: black background with light buttons
-            await NavigationBar.setBackgroundColorAsync('#000000');
+            await NavigationBar.setBackgroundColorAsync('#0E141F');
             await NavigationBar.setButtonStyleAsync('light');
           } else {
             // Light mode: use a darker gray (#64748B) for strong contrast against light backgrounds
             // This ensures the navigation bar is clearly visible with light buttons
-            await NavigationBar.setBackgroundColorAsync('#64748B');
+            await NavigationBar.setBackgroundColorAsync('#FFFFFF');
             await NavigationBar.setButtonStyleAsync('light');
           }
         } catch (error) {
@@ -531,7 +531,7 @@ export default function RootLayout() {
           
           // Set initial navigation bar style (will be updated by theme in RootLayoutNav)
           // Default to light theme initially with darker gray for better visibility
-          await NavigationBar.setBackgroundColorAsync('#64748B');
+          await NavigationBar.setBackgroundColorAsync('#FFFFFF');
           await NavigationBar.setButtonStyleAsync('light');
         } catch (error) {
           console.warn('Failed to initialize system UI:', error);

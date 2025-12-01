@@ -206,7 +206,7 @@ function TabLayoutContent() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: Platform.OS === 'ios' ? 85 : 95,
+    height: Platform.OS === 'ios' ? 85 : 65,
     paddingBottom: Platform.OS === 'ios' ? 15 : 15 ,
     paddingTop: 5,
   },

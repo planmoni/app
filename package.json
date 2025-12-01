@@ -10,7 +10,9 @@
     "run:android": "react-native run-android",
     "ios": "npx expo start --ios",
     "web": "npx expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "prebuild": "node scripts/preserve-native-assets.js backup && npx expo prebuild --clean && node scripts/preserve-native-assets.js restore",
+    "prebuild:ios": "node scripts/preserve-native-assets.js backup && npx expo prebuild --platform ios --clean && node scripts/preserve-native-assets.js restore && cd ios && pod install"
   },
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",

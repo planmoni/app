@@ -416,7 +416,7 @@ export default function LivenessTestEnhanced({
                 styles.holdButtonText,
                 { color: isHolding ? colors.primary : '#FFFFFF' }
               ]}>
-                {isHolding ? 'Keep Holding...' : 'Start Capture'}
+                {isHolding ? 'Keep Holding...' : 'Press & Hold to Capture'}
               </Text>
             </Pressable>
           </View>

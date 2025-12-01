@@ -259,9 +259,24 @@ export async function sendAccountCreationEmail(
 
     const subject = 'Your Bank Account Has Been Created - Planmoni';
 
-    // Send email
+    // Send email using Supabase Edge Function (which has proper API key access)
     try {
-      const emailResponse = await sendEmail(userEmail, subject, html);
+      const { data: emailResponse, error: emailError } = await supabase.functions.invoke('send-email', {
+        body: {
+          to: userEmail,
+          subject: subject,
+          html: html
+        }
+      });
+
+      if (emailError) {
+        throw new Error(emailError.message || 'Failed to invoke send-email function');
+      }
+
+      if (!emailResponse || !emailResponse.success) {
+        const errorDetails = emailResponse?.error || emailResponse?.details || 'Unknown error';
+        throw new Error(`Failed to send email: ${JSON.stringify(errorDetails)}`);
+      }
 
       // Update email record with success
       if (emailRecordId) {

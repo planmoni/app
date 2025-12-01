@@ -223,12 +223,12 @@ export const useKYCProgress = () => {
     }
   }, [session?.user?.id]);
 
-  // Get tier info
+  // Get tier info - optimized with parallel calls
   const getTierInfo = useCallback(async (): Promise<KYCTierInfo | null> => {
     if (!session?.user?.id) return null;
 
     try {
-      // Get current tier
+      // Get current tier first (required for other calls)
       const { data: tier, error: tierError } = await supabase.rpc('calculate_user_kyc_tier', {
         p_user_id: session.user.id
       });
@@ -236,40 +236,51 @@ export const useKYCProgress = () => {
       if (tierError) throw tierError;
 
       const currentTierValue = tier || 0;
-
-      // Check if can upgrade
+      const tierToFetch = currentTierValue === 0 ? 1 : currentTierValue;
       const nextTier = currentTierValue + 1;
+
+      // Parallelize independent calls: can_upgrade check and tier limits fetch
+      const [canUpgradeResult, limitsResult] = await Promise.allSettled([
+        // Check if can upgrade (only if next tier <= 3)
+        nextTier <= 3 
+          ? supabase.rpc('can_upgrade_tier', {
+              p_user_id: session.user.id,
+              p_target_tier: nextTier
+            })
+          : Promise.resolve({ data: false }),
+        // Get tier limits
+        supabase.rpc('get_tier_deposit_limits', {
+          p_tier_number: tierToFetch
+        })
+      ]);
+
+      // Extract can upgrade result
       let canUpgrade = false;
-      if (nextTier <= 3) {
-        const { data: canUpgradeData } = await supabase.rpc('can_upgrade_tier', {
-          p_user_id: session.user.id,
-          p_target_tier: nextTier
-        });
-        canUpgrade = canUpgradeData || false;
+      if (canUpgradeResult.status === 'fulfilled' && canUpgradeResult.value.data !== undefined) {
+        canUpgrade = canUpgradeResult.value.data || false;
       }
 
-      // Get tier limits - fetch directly from database for the current tier
-      const tierToFetch = currentTierValue === 0 ? 1 : currentTierValue;
-      const { data: limits, error: limitsError } = await supabase.rpc('get_tier_deposit_limits', {
-        p_tier_number: tierToFetch
-      });
-
-      // If direct fetch fails, try get_user_deposit_limits as fallback
+      // Extract tier limits
       let tierLimits = null;
-      if (!limitsError && limits && limits[0]) {
-        tierLimits = {
-          tier_number: limits[0].tier_number,
-          tier_name: limits[0].tier_name,
-          tier_description: '',
-          max_daily_deposit: limits[0].max_daily_deposit,
-          max_weekly_deposit: limits[0].max_weekly_deposit,
-          max_monthly_deposit: limits[0].max_monthly_deposit,
-          max_single_deposit: limits[0].max_single_deposit,
-          max_account_balance: limits[0].max_account_balance,
-          requirements: {}
-        };
-      } else {
-        // Fallback to get_user_deposit_limits
+      if (limitsResult.status === 'fulfilled') {
+        const { data: limits, error: limitsError } = limitsResult.value;
+        if (!limitsError && limits && limits[0]) {
+          tierLimits = {
+            tier_number: limits[0].tier_number,
+            tier_name: limits[0].tier_name,
+            tier_description: '',
+            max_daily_deposit: limits[0].max_daily_deposit,
+            max_weekly_deposit: limits[0].max_weekly_deposit,
+            max_monthly_deposit: limits[0].max_monthly_deposit,
+            max_single_deposit: limits[0].max_single_deposit,
+            max_account_balance: limits[0].max_account_balance,
+            requirements: {}
+          };
+        }
+      }
+
+      // Fallback to get_user_deposit_limits only if tier limits fetch failed
+      if (!tierLimits) {
         const { data: userLimits } = await supabase.rpc('get_user_deposit_limits', {
           p_user_id: session.user.id
         });

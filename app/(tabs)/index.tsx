@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
-import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
+// import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal'; // Disabled - success modal removed after onboarding
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 import AccountInformationModal from '@/components/AccountInformationModal';
 import PlanCreationModal from '@/components/PlanCreationModal';
@@ -257,17 +257,18 @@ export default function HomeScreen() {
     checkAccount();
   }, [session?.user?.id]);
 
-  // Show welcome modal if account was created recently
-  useEffect(() => {
-    if (!recentAccountLoading && isRecentAccount && !showWelcomeModal && !hasShownWelcomeModal) {
-      // Add a small delay to ensure the dashboard is fully loaded
-      const timer = setTimeout(() => {
-        setShowWelcomeModal(true);
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
+  // Disabled: Show welcome modal if account was created recently
+  // The success modal has been disabled - users are navigated directly to home page after account creation
+  // useEffect(() => {
+  //   if (!recentAccountLoading && isRecentAccount && !showWelcomeModal && !hasShownWelcomeModal) {
+  //     // Add a small delay to ensure the dashboard is fully loaded
+  //     const timer = setTimeout(() => {
+  //       setShowWelcomeModal(true);
+  //     }, 1000);
+  //     
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [isRecentAccount, recentAccountLoading, showWelcomeModal, hasShownWelcomeModal]);
 
   // Don't show ClaimAccountModal after Tier 1 completion - user can navigate directly to add funds
   // Removed the useEffect that automatically shows ClaimAccountModal after Tier 1 completion
@@ -1133,7 +1134,8 @@ export default function HomeScreen() {
       
       {isAuthenticated && (
         <>
-          <AccountCreationSuccessModal
+          {/* AccountCreationSuccessModal disabled - users are navigated directly to home page after account creation */}
+          {/* <AccountCreationSuccessModal
             isVisible={showWelcomeModal}
             onClose={() => {
               setShowWelcomeModal(false);
@@ -1144,7 +1146,7 @@ export default function HomeScreen() {
             email={email}
             onStartVerification={handleStartVerification}
             onGoToDashboard={handleGoToDashboard}
-          />
+          /> */}
 
           <AccountInformationModal
             isVisible={showAccountInfoModal}

@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +29,37 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: "Missing required fields: userId, email, or firstName" }),
         {
           status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Initialize Supabase client for deduplication check
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Check if welcome email has already been sent for this user
+    // Using a simple approach: check if welcome_email_sent_at exists in profiles
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("welcome_email_sent_at")
+      .eq("id", userId)
+      .single();
+
+    if (profileError && profileError.code !== "PGRST116") {
+      console.error("Error checking profile:", profileError);
+      // Continue anyway - don't block email sending due to check error
+    } else if (profile?.welcome_email_sent_at) {
+      console.log(`Welcome email already sent to ${email} (User ID: ${userId}) at ${profile.welcome_email_sent_at}`);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Welcome email already sent",
+          skipped: true,
+        }),
+        {
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
@@ -79,6 +111,19 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log(`Welcome email sent successfully to ${email} (User ID: ${userId})`);
+
+    // Mark welcome email as sent in the database to prevent duplicates
+    try {
+      // Try to update the profiles table with welcome_email_sent_at
+      // If the column doesn't exist, this will fail gracefully
+      await supabase
+        .from("profiles")
+        .update({ welcome_email_sent_at: new Date().toISOString() })
+        .eq("id", userId);
+    } catch (updateError) {
+      // If the column doesn't exist, log but don't fail
+      console.warn("Could not update welcome_email_sent_at (column may not exist):", updateError);
+    }
 
     return new Response(
       JSON.stringify({

@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Copy, Info, Shield, ChevronRight } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -43,7 +44,65 @@ export default function AddFundsScreen() {
   // Determine if we're on a small screen
   const isSmallScreen = screenWidth < 380;
 
-  // Fetch SafeHaven account from database - optimized query
+  // ============================================
+  // Caching Strategy for Instant Loading
+  // ============================================
+  // All data is cached in AsyncStorage with TTL:
+  // - SafeHaven Account: 5 minutes (rarely changes)
+  // - Tier Info: 5 minutes (changes only on KYC completion)
+  // - Today's Deposits: 2 minutes (changes with transactions)
+  // 
+  // Flow: Load cached data → Show UI instantly → Fetch fresh data in background → Update UI
+  // Cache keys are user-scoped to prevent data leakage between users
+  // ============================================
+  
+  // Cache keys
+  const getCacheKey = (key: string) => `add_funds_cache_${session?.user?.id}_${key}`;
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache TTL for account and tier info
+  const DEPOSITS_CACHE_TTL = 2 * 60 * 1000; // 2 minutes cache TTL for deposits (more frequent updates)
+
+  // Cache helper functions
+  const getCachedData = async <T,>(key: string, ttl?: number): Promise<{ data: T; timestamp: number } | null> => {
+    try {
+      const cached = await AsyncStorage.getItem(getCacheKey(key));
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const age = Date.now() - parsed.timestamp;
+        const cacheTTL = ttl || CACHE_TTL;
+        if (age < cacheTTL) {
+          return parsed;
+        } else {
+          // Cache expired, remove it
+          await AsyncStorage.removeItem(getCacheKey(key));
+        }
+      }
+    } catch (error) {
+      console.warn(`Error reading cache for ${key}:`, error);
+    }
+    return null;
+  };
+
+  const setCachedData = async <T,>(key: string, data: T): Promise<void> => {
+    try {
+      await AsyncStorage.setItem(
+        getCacheKey(key),
+        JSON.stringify({ data, timestamp: Date.now() })
+      );
+    } catch (error) {
+      console.warn(`Error writing cache for ${key}:`, error);
+    }
+  };
+
+  // Clear cache for a specific key
+  const clearCache = async (key: string): Promise<void> => {
+    try {
+      await AsyncStorage.removeItem(getCacheKey(key));
+    } catch (error) {
+      console.warn(`Error clearing cache for ${key}:`, error);
+    }
+  };
+
+  // Fetch SafeHaven account from database - with caching
   useEffect(() => {
     const fetchSafehavenAccount = async () => {
       if (!session?.user?.id) {
@@ -51,9 +110,20 @@ export default function AddFundsScreen() {
         return;
       }
 
+      let cached: { data: any; timestamp: number } | null = null;
+      
       try {
-        setSafehavenAccountLoading(true);
-        // Use single() instead of maybeSingle() for better performance when account exists
+        // Try to load from cache first
+        cached = await getCachedData<any>('safehaven_account');
+        if (cached) {
+          setSafehavenAccount(cached.data);
+          setSafehavenAccountLoading(false);
+          // Continue to fetch fresh data in background
+        } else {
+          setSafehavenAccountLoading(true);
+        }
+
+        // Fetch fresh data from database
         const { data, error } = await supabase
           .from('safehaven_accounts')
           .select('account_number, account_name, status')
@@ -65,24 +135,42 @@ export default function AddFundsScreen() {
 
         if (error && error.code !== 'PGRST116') {
           console.warn('Error fetching SafeHaven account:', error);
-          setSafehavenAccount(null);
+          if (!cached) {
+            setSafehavenAccount(null);
+          }
         } else if (data) {
           setSafehavenAccount(data);
+          // Cache the result
+          await setCachedData('safehaven_account', data);
         } else {
-          setSafehavenAccount(null);
+          if (!cached) {
+            setSafehavenAccount(null);
+          }
+          // Cache null to avoid repeated queries
+          await setCachedData('safehaven_account', null);
         }
       } catch (err) {
         console.warn('Error fetching SafeHaven account:', err);
-        setSafehavenAccount(null);
+        if (!cached) {
+          const fallbackCache = await getCachedData('safehaven_account');
+          if (!fallbackCache) {
+            setSafehavenAccount(null);
+          }
+        }
       } finally {
         setSafehavenAccountLoading(false);
       }
     };
 
     fetchSafehavenAccount();
+
+    // Cleanup: Clear cache when user changes
+    return () => {
+      // Cache will be automatically invalidated by TTL, but we can clear on unmount if needed
+    };
   }, [session?.user?.id]);
 
-  // Fetch tier information - optimized to load faster
+  // Fetch tier information - with caching
   useEffect(() => {
     const fetchTierInfo = async () => {
       if (!session?.user?.id) {
@@ -91,37 +179,23 @@ export default function AddFundsScreen() {
       }
 
       try {
-        setTierInfoLoading(true);
-        
-        // Fetch tier info
-        const info = await getTierInfo();
-        
-        // Ensure we have tier limits, if not fetch directly from database
-        if (info && (!info.tier_limits || !info.tier_limits.max_daily_deposit)) {
-          const currentTier = info.current_tier || 0;
-          const tierToFetch = currentTier === 0 ? 1 : currentTier;
-          
-          // Fetch tier limits directly from database
-          const { data: limits, error: limitsError } = await supabase.rpc('get_tier_deposit_limits', {
-            p_tier_number: tierToFetch
-          });
-          
-          if (!limitsError && limits && limits[0]) {
-            info.tier_limits = {
-              tier_number: limits[0].tier_number,
-              tier_name: limits[0].tier_name,
-              tier_description: '',
-              max_daily_deposit: limits[0].max_daily_deposit,
-              max_weekly_deposit: limits[0].max_weekly_deposit,
-              max_monthly_deposit: limits[0].max_monthly_deposit,
-              max_single_deposit: limits[0].max_single_deposit,
-              max_account_balance: limits[0].max_account_balance,
-              requirements: {}
-            };
-          }
+        // Try to load from cache first
+        const cached = await getCachedData<any>('tier_info');
+        if (cached) {
+          setTierInfo(cached.data);
+          setTierInfoLoading(false);
+          // Continue to fetch fresh data in background
+        } else {
+          setTierInfoLoading(true);
         }
-        
-        setTierInfo(info);
+
+        // Fetch tier info in background - getTierInfo already handles tier limits
+        const info = await getTierInfo();
+        if (info) {
+          setTierInfo(info);
+          // Cache the result
+          await setCachedData('tier_info', info);
+        }
       } catch (err) {
         console.error('Error fetching tier info:', err);
       } finally {
@@ -129,16 +203,30 @@ export default function AddFundsScreen() {
       }
     };
 
-    fetchTierInfo();
+    // Delay tier info fetch slightly to let UI render first
+    const timer = setTimeout(() => {
+      fetchTierInfo();
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [session?.user?.id, getTierInfo]);
 
-  // Fetch today's deposit amount
-  const fetchTodayDeposits = React.useCallback(async () => {
+  // Fetch today's deposit amount - with caching
+  const fetchTodayDeposits = React.useCallback(async (forceRefresh = false) => {
     if (!session?.user?.id) {
       return;
     }
 
     try {
+      // Try to load from cache first (unless forcing refresh)
+      if (!forceRefresh) {
+        const cached = await getCachedData<number>('today_deposits', DEPOSITS_CACHE_TTL);
+        if (cached) {
+          setTodayDepositAmount(cached.data);
+          // Continue to fetch fresh data in background
+        }
+      }
+
       // Get start and end of today in GMT+1 (resets at 00:00 GMT+1)
       // GMT+1 is UTC+1, meaning 00:00 GMT+1 = 23:00 UTC the previous day
       const now = new Date();
@@ -180,6 +268,9 @@ export default function AddFundsScreen() {
       // Sum up today's deposits (amount is stored in naira, not kobo)
       const totalToday = (transactions || []).reduce((sum: number, tx: { amount: number }) => sum + Number(tx.amount), 0);
       setTodayDepositAmount(totalToday);
+      
+      // Cache the result (with shorter TTL for deposits - 2 minutes)
+      await setCachedData('today_deposits', totalToday);
     } catch (err) {
       console.error('Error calculating today\'s deposits:', err);
     }
@@ -188,18 +279,18 @@ export default function AddFundsScreen() {
   useEffect(() => {
     if (!session?.user?.id) return;
     
-    // Initial fetch
-    fetchTodayDeposits();
+    // Load from cache immediately, then fetch fresh data
+    fetchTodayDeposits(false);
 
-    // Refresh every 5 minutes instead of every minute to reduce load
+    // Refresh every 2 minutes (shorter interval for deposits)
     const interval = setInterval(() => {
-      fetchTodayDeposits();
-    }, 300000); // Check every 5 minutes
+      fetchTodayDeposits(true); // Force refresh
+    }, 120000); // Check every 2 minutes
 
     // Refresh when app comes to foreground
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
-        fetchTodayDeposits();
+        fetchTodayDeposits(true); // Force refresh
       }
     });
 
@@ -213,7 +304,11 @@ export default function AddFundsScreen() {
   useFocusEffect(
     React.useCallback(() => {
       if (session?.user?.id) {
-        fetchTodayDeposits();
+        // Small delay to not block UI, but force refresh
+        const timer = setTimeout(() => {
+          fetchTodayDeposits(true);
+        }, 200);
+        return () => clearTimeout(timer);
       }
     }, [session?.user?.id, fetchTodayDeposits])
   );
@@ -328,8 +423,6 @@ export default function AddFundsScreen() {
         bounces={true}
       >
         <View style={styles.content}>
-
-
             {safehavenAccountLoading ? (
               <View style={{ marginTop: 40, alignItems: 'center' }}>
                 <PlanmoniLoader size="medium" description="Loading account details..." />

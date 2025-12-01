@@ -89,11 +89,11 @@ const generateSuggestedPrompts = (availableBalance: number): string[] => {
   };
   
   return [
-    `Help me plan ${formatAmount(planAmount)} for 1 month`,
-    `Create a daily payout plan for ${formatAmount(dailyAmount)}`,
+    `Help me plan 100k for 1 month`,
+    `Create a daily payout plan for 5k`,
     "How can I improve my money habits?",
-    "Set up daily savings for 1 week",
-    "Analyze my money patterns",
+    "Give me some financial advice",
+    "Analyze my spending patterns",
   ];
 };
 

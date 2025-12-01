@@ -15,6 +15,7 @@ prepare_react_native_project!
 
 target 'Planmoni' do
   use_expo_modules!
+  use_modular_headers!
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
@@ -49,6 +50,15 @@ target 'Planmoni' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
     )
+
+    # Enable modular headers for Firebase dependencies
+    installer.pods_project.targets.each do |target|
+      if target.name == 'GoogleUtilities' || target.name.start_with?('Firebase')
+        target.build_configurations.each do |config|
+          config.build_settings['DEFINES_MODULE'] = 'YES'
+        end
+      end
+    end
 
     # This is necessary for Xcode 14, because it signs resource bundles by default
     # when building for devices.
