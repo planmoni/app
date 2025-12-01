@@ -74,7 +74,7 @@ module.exports = {
         "expo-build-properties",
         {
           "android": {
-            "minSdkVersion": 26,
+            "minSdkVersion": 24,
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
             "buildToolsVersion": "35.0.0"
@@ -84,7 +84,8 @@ module.exports = {
           }
         }
        
-      ]
+      ],
+      "expo-navigation-bar"
     ],
     extra: {
       eas: {

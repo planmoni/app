@@ -8,7 +8,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import { accountCreationHandler } from '@/scripts/account-creation-handler';
-import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal';
 
 export default function CreatingAccountScreen() {
   const { colors } = useTheme();
@@ -29,7 +28,6 @@ export default function CreatingAccountScreen() {
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [showRetryOptions, setShowRetryOptions] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
   
   // Use ref to prevent multiple simultaneous calls
   const isCreatingRef = useRef(false);
@@ -88,13 +86,14 @@ export default function CreatingAccountScreen() {
           console.log('Account creation successful:', data);
           setCreationProgress('Account created successfully!');
           
-          // Show success modal after 5 seconds
+          // Navigate directly to dashboard after account creation
           setTimeout(() => {
             if (Platform.OS !== 'web') {
               haptics.success();
             }
-            setShowSuccessModal(true);
-          }, 5000);
+            // Navigate directly to tabs (home page) - skip success modal
+            router.replace('/(tabs)');
+          }, 2000);
         }
       });
       
@@ -154,15 +153,6 @@ export default function CreatingAccountScreen() {
     router.push('/login');
   };
 
-  const handleStartVerification = () => {
-    setShowSuccessModal(false);
-    router.push('/kyc-upgrade');
-  };
-
-  const handleGoToDashboard = () => {
-    setShowSuccessModal(false);
-    router.push('/(tabs)');
-  };
 
   const styles = createStyles(colors);
 
@@ -225,16 +215,6 @@ export default function CreatingAccountScreen() {
           </View>
         )}
       </View>
-
-      <AccountCreationSuccessModal
-        isVisible={showSuccessModal}
-        onClose={() => setShowSuccessModal(false)}
-        firstName={firstName}
-        lastName={lastName}
-        email={email}
-        onStartVerification={handleStartVerification}
-        onGoToDashboard={handleGoToDashboard}
-      />
     </SafeAreaView>
   );
 }

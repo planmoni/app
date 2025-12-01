@@ -381,12 +381,6 @@ export default function AddFundsScreen() {
                 </View>
 
                 {/* Transfer Timing Notice */}
-                <View style={styles.transferNotice}>
-                  <Info size={18} color={colors.primary} />
-                  <Text style={styles.transferNoticeText}>
-                    Bank transfers can take up to 2 mins before reflecting on your wallet, we will notify you immediately your transfer arrives.
-                  </Text>
-                </View>
 
                 {/* Tier Limit Reminder */}
                 {!tierInfoLoading && tierInfo?.tier_limits && (
@@ -427,7 +421,14 @@ export default function AddFundsScreen() {
                       </Pressable>
                     )}
                   </View>
+                  
                 )}
+                <View style={styles.transferNotice}>
+                  <Info size={18} color={colors.primary} />
+                  <Text style={styles.transferNoticeText}>
+                    Bank transfers can take up to 2 mins before reflecting on your wallet, we will notify you immediately your transfer arrives.
+                  </Text>
+                </View>
               </>
             ) : (
               <View style={{ marginTop: 40, marginBottom: 24, alignItems: 'center' }}>

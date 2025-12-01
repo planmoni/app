@@ -28,13 +28,7 @@ import { Text, View, StyleSheet, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications, setupTokenRefresh } from '@/lib/notifications';
 import * as SystemUI from 'expo-system-ui';
-// Conditionally import NavigationBar - may not be available until rebuild
-let NavigationBar: any = null;
-try {
-  NavigationBar = require('expo-navigation-bar');
-} catch (e) {
-  // Native module not available yet
-}
+import * as NavigationBar from 'expo-navigation-bar';
 // import { intercomInstant } from '@/lib/IntercomInstant';
 import { 
   PlusJakartaSans_400Regular, 
@@ -76,19 +70,27 @@ function RootLayoutNav() {
 
   // Update Android navigation bar style based on theme
   useEffect(() => {
-    if (Platform.OS === 'android' && NavigationBar) {
-      try {
-        // Set navigation bar background and button style based on theme
-        if (isDark) {
-          NavigationBar.setBackgroundColorAsync('#000000').catch(() => {});
-          NavigationBar.setButtonStyleAsync('light').catch(() => {});
-        } else {
-          NavigationBar.setBackgroundColorAsync('#ffffff').catch(() => {});
-          NavigationBar.setButtonStyleAsync('dark').catch(() => {});
+    if (Platform.OS === 'android') {
+      const updateNavigationBar = async () => {
+        try {
+          // Set navigation bar background and button style based on theme
+          if (isDark) {
+            // Dark mode: black background with light buttons
+            await NavigationBar.setBackgroundColorAsync('#000000');
+            await NavigationBar.setButtonStyleAsync('light');
+          } else {
+            // Light mode: use a darker gray (#64748B) for strong contrast against light backgrounds
+            // This ensures the navigation bar is clearly visible with light buttons
+            await NavigationBar.setBackgroundColorAsync('#64748B');
+            await NavigationBar.setButtonStyleAsync('light');
+          }
+        } catch (error) {
+          // Navigation bar API not available (e.g., on older Android versions)
+          console.warn('Failed to update navigation bar:', error);
         }
-      } catch (error) {
-        // Native module not available yet - will work after rebuild
-      }
+      };
+      
+      updateNavigationBar();
     }
   }, [isDark]);
 
@@ -519,13 +521,24 @@ function RootLayoutNav() {
 export default function RootLayout() {
   useFrameworkReady();
 
-  // Initialize expo-system-ui for edge-to-edge display
-  // Set transparent system bars so app colors can extend behind them
+  // Initialize expo-system-ui and navigation bar for edge-to-edge display
   useEffect(() => {
     if (Platform.OS === 'android') {
-      SystemUI.setBackgroundColorAsync('transparent').catch((error) => {
-        console.warn('Failed to set system background color:', error);
-      });
+      const initializeSystemUI = async () => {
+        try {
+          // Set transparent system bars so app colors can extend behind them
+          await SystemUI.setBackgroundColorAsync('transparent');
+          
+          // Set initial navigation bar style (will be updated by theme in RootLayoutNav)
+          // Default to light theme initially with darker gray for better visibility
+          await NavigationBar.setBackgroundColorAsync('#64748B');
+          await NavigationBar.setButtonStyleAsync('light');
+        } catch (error) {
+          console.warn('Failed to initialize system UI:', error);
+        }
+      };
+      
+      initializeSystemUI();
     }
   }, []);
 
