@@ -22,6 +22,34 @@ export default function ProfileScreen() {
   const { width } = useWindowDimensions();
   const { progress, loading: kycLoading, currentTier, checkTierCompletion } = useKYCProgress();
   const { formData: kycData, loading: kycDataLoading } = useKYCData();
+  const [hasAccount, setHasAccount] = useState(false);
+  
+  // Check if user has an account
+  useEffect(() => {
+    const checkAccount = async () => {
+      if (!session?.user?.id) {
+        setHasAccount(false);
+        return;
+      }
+      
+      try {
+        const { data } = await supabase
+          .from('safehaven_accounts')
+          .select('id, account_number')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .not('account_number', 'ilike', 'PENDING_%')
+          .maybeSingle();
+        
+        setHasAccount(!!(data && data.account_number && !data.account_number.startsWith('PENDING_')));
+      } catch (error) {
+        console.error('Error checking account:', error);
+        setHasAccount(false);
+      }
+    };
+    
+    checkAccount();
+  }, [session?.user?.id]);
   
   // Utility bill upload modal
   const [showUtilityBillModal, setShowUtilityBillModal] = useState(false);
@@ -128,7 +156,8 @@ export default function ProfileScreen() {
             lastName={lastName} 
             size={avatarSize}
             fontSize={avatarFontSize}
-            kycTier={currentTier}
+            kycTier={currentTier || 0}
+            hasAccount={hasAccount}
             tier1Complete={checkTierCompletion().tier1}
           />
           <Text style={[styles.userName, { fontSize: titleFontSize }]}>{firstName} {lastName}</Text>

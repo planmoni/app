@@ -11,7 +11,8 @@ type InitialsAvatarProps = {
   size?: number;
   fontSize?: number;
   kycTier?: number; // 0, 1, 2, or 3
-  tier1Complete?: boolean; // Optional: directly check Tier 1 completion status
+  hasAccount?: boolean; // Whether user has created an account (required for Tier 1 badge)
+  tier1Complete?: boolean; // Optional: directly check Tier 1 completion status (fallback if currentTier not updated)
 };
 
 const InitialsAvatar: React.FC<InitialsAvatarProps> = React.memo((props) => {
@@ -21,7 +22,8 @@ const InitialsAvatar: React.FC<InitialsAvatarProps> = React.memo((props) => {
     size, 
     fontSize, 
     kycTier,
-    tier1Complete
+    hasAccount = false,
+    tier1Complete = false
   } = props;
   
   const { isDark } = useTheme();
@@ -37,24 +39,34 @@ const InitialsAvatar: React.FC<InitialsAvatarProps> = React.memo((props) => {
     return typeof value === 'number' && !isNaN(value) && value > 0 ? value : 40;
   }, [fontSize]);
   
-  // Ensure kycTier is a valid number (0, 1, 2, or 3)
-  // If tier1Complete is true, ensure we show at least Tier 1 badge
-  const safeKycTier = React.useMemo(() => {
-    // Check if tier1Complete is truthy (handles boolean, number, string)
-    const isTier1Complete = tier1Complete === true || tier1Complete === 1 || tier1Complete === 'true' || tier1Complete === '1';
+  // Determine which tier badge to display
+  // Tier 0: No badge
+  // Tier 1: Show badge only if Tier 1 is complete AND account has been created
+  // Tier 2: Show badge if tier >= 2
+  // Tier 3: Show badge if tier >= 3
+  const displayTier = React.useMemo(() => {
+    // Ensure kycTier is a valid number
+    let tier = typeof kycTier === 'number' && !isNaN(kycTier) 
+      ? Math.max(0, Math.min(3, Math.floor(kycTier))) 
+      : 0;
     
-    // If tier1Complete is truthy, show Tier 1 badge
-    if (isTier1Complete) {
-      // If kycTier is already 1 or higher, use it; otherwise use 1
-      if (typeof kycTier === 'number' && !isNaN(kycTier) && kycTier >= 1) {
-        return Math.max(1, Math.min(3, Math.floor(kycTier)));
-      }
-      return 1; // Show Tier 1 badge if Tier 1 is complete
+    // If currentTier is 0 but Tier 1 is actually complete, set tier to 1
+    // This handles the case where currentTier hasn't been updated yet
+    if (tier === 0 && tier1Complete) {
+      tier = 1;
     }
-    // Otherwise, use kycTier if it's valid
-    if (typeof kycTier !== 'number' || isNaN(kycTier)) return undefined;
-    return Math.max(0, Math.min(3, Math.floor(kycTier)));
-  }, [kycTier, tier1Complete]);
+    
+    // Tier 0: No badge
+    if (tier === 0) return null;
+    
+    // Tier 1: Only show if account has been created
+    if (tier === 1) {
+      return hasAccount ? 1 : null;
+    }
+    
+    // Tier 2 and 3: Always show
+    return tier;
+  }, [kycTier, hasAccount, tier1Complete]);
   
   // Ensure firstName and lastName are always strings, handling all edge cases
   // Safely convert to string, handling null, undefined, numbers, and other primitives
@@ -116,9 +128,6 @@ const InitialsAvatar: React.FC<InitialsAvatarProps> = React.memo((props) => {
 
   // Get tier badge icon - memoized to prevent re-renders
   const tierBadge = React.useMemo(() => {
-    // Determine which tier to show
-    const displayTier = safeKycTier !== undefined && safeKycTier > 0 ? safeKycTier : null;
-    
     if (!displayTier) return null;
     
     switch (displayTier) {
@@ -131,7 +140,7 @@ const InitialsAvatar: React.FC<InitialsAvatarProps> = React.memo((props) => {
       default:
         return null;
     }
-  }, [safeKycTier, badgeIconSize]);
+  }, [displayTier, badgeIconSize]);
 
   // Ensure displayInitials is always a valid non-empty string
   const textContent = React.useMemo(() => {

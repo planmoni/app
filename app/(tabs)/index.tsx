@@ -108,6 +108,7 @@ export default function HomeScreen() {
   const [showAccountInfoModal, setShowAccountInfoModal] = useState(false);
   const [hasShownAccountInfoModal, setHasShownAccountInfoModal] = useState(false);
   const accountInfoModalShownRef = useRef(false);
+  const [hasAccount, setHasAccount] = useState(false);
   const [showPlanCreationModal, setShowPlanCreationModal] = useState(false);
   const [lastDepositAmount, setLastDepositAmount] = useState<number | null>(null);
   const [lastShownDepositId, setLastShownDepositId] = useState<string | null>(null);
@@ -228,6 +229,33 @@ export default function HomeScreen() {
     return String(value);
   })();
   const email = session?.user?.email || '';
+
+  // Check if user has an account
+  useEffect(() => {
+    const checkAccount = async () => {
+      if (!session?.user?.id) {
+        setHasAccount(false);
+        return;
+      }
+      
+      try {
+        const { data } = await supabase
+          .from('safehaven_accounts')
+          .select('id, account_number')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .not('account_number', 'ilike', 'PENDING_%')
+          .maybeSingle();
+        
+        setHasAccount(!!(data && data.account_number && !data.account_number.startsWith('PENDING_')));
+      } catch (error) {
+        console.error('Error checking account:', error);
+        setHasAccount(false);
+      }
+    };
+    
+    checkAccount();
+  }, [session?.user?.id]);
 
   // Show welcome modal if account was created recently
   useEffect(() => {
@@ -850,7 +878,8 @@ export default function HomeScreen() {
                   fontSize={typeof textSizeMultiplier === 'number' && !isNaN(textSizeMultiplier) 
                     ? getScaledFontSize(18, textSizeMultiplier) 
                     : 18}
-                  kycTier={typeof currentTier === 'number' && !isNaN(currentTier) ? currentTier : undefined}
+                  kycTier={typeof currentTier === 'number' && !isNaN(currentTier) ? currentTier : 0}
+                  hasAccount={hasAccount}
                   tier1Complete={checkTierCompletion().tier1}
                 />
               </Pressable>

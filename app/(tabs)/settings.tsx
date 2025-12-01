@@ -68,7 +68,35 @@ export default function SettingsScreen() {
   const { needsUpdate, checkForUpdates, currentVersion, currentBuild, isChecking } = useAppVersion();
   const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
   const { requireAuth, isAuthenticated } = useRequireAuth();
-  const { currentTier, progress, checkTierCompletion } = useKYCProgress();
+  const { currentTier, checkTierCompletion } = useKYCProgress();
+  const [hasAccount, setHasAccount] = useState(false);
+  
+  // Check if user has an account
+  useEffect(() => {
+    const checkAccount = async () => {
+      if (!session?.user?.id) {
+        setHasAccount(false);
+        return;
+      }
+      
+      try {
+        const { data } = await supabase
+          .from('safehaven_accounts')
+          .select('id, account_number')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .not('account_number', 'ilike', 'PENDING_%')
+          .maybeSingle();
+        
+        setHasAccount(!!(data && data.account_number && !data.account_number.startsWith('PENDING_')));
+      } catch (error) {
+        console.error('Error checking account:', error);
+        setHasAccount(false);
+      }
+    };
+    
+    checkAccount();
+  }, [session?.user?.id]);
   
   const firstName = session?.user?.user_metadata?.first_name || '';
   const lastName = session?.user?.user_metadata?.last_name || '';
@@ -398,7 +426,8 @@ export default function SettingsScreen() {
                 lastName={lastName} 
                 size={60}
                 fontSize={getScaledFontSize(24, textSizeMultiplier)}
-                kycTier={currentTier}
+                kycTier={currentTier || 0}
+                hasAccount={hasAccount}
                 tier1Complete={checkTierCompletion().tier1}
               />
               <View style={styles.profileInfo}>
