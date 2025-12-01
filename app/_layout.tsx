@@ -411,6 +411,14 @@ function RootLayoutNav() {
           options={{ headerShown: false, gestureEnabled: false }} 
         />
         <Stack.Screen 
+          name="kyc-upgrade" 
+          options={{ 
+            headerShown: false, 
+            gestureEnabled: false,
+            animation: 'fade',
+          }} 
+        />
+        <Stack.Screen 
           name="add-funds" 
           options={{ headerShown: false, gestureEnabled: false }} 
         />
