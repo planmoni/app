@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Modal, useWindowDimensions, Linking } from 'react-native';
 import { Camera, Shield, Check, Info, AlertCircle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useCameraPermission } from 'react-native-vision-camera';
+import { useCameraPermissions } from 'expo-camera';
 import LivenessTestEnhanced from './LivenessTestEnhanced';
 
 interface CameraPermissionModalProps {
@@ -18,7 +18,8 @@ export default function CameraPermissionModal({
 }: CameraPermissionModalProps) {
   const { colors, isDark } = useTheme();
   const { width } = useWindowDimensions();
-  const { hasPermission, requestPermission } = useCameraPermission();
+  const [permission, requestPermission] = useCameraPermissions();
+  const hasPermission = permission?.granted ?? false;
   const [showPermissionDeniedModal, setShowPermissionDeniedModal] = useState(false);
   const [showLivenessTest, setShowLivenessTest] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
@@ -47,9 +48,9 @@ export default function CameraPermissionModal({
     
     setIsRequesting(true);
     try {
-      const granted = await requestPermission();
+      const result = await requestPermission();
       
-      if (granted) {
+      if (result?.granted) {
         // Permission granted, show liveness test
         setShowLivenessTest(true);
       } else {

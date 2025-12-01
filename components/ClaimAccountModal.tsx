@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable, Dimensions, Image } from 'react-native';
 import { Building2, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -50,6 +50,14 @@ export default function ClaimAccountModal({
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [isCheckingAccount, setIsCheckingAccount] = useState(false);
   const [existingAccount, setExistingAccount] = useState<{ account_number: string; account_name?: string; status?: string } | null>(null);
+  const hasNavigatedRef = useRef(false);
+
+  // Reset navigation flag when modal closes
+  useEffect(() => {
+    if (!isVisible) {
+      hasNavigatedRef.current = false;
+    }
+  }, [isVisible]);
 
   // Get NIN and phone number from KYC data when modal opens
   useEffect(() => {
@@ -85,6 +93,12 @@ export default function ClaimAccountModal({
           if (!error && data && data.account_number && !data.account_number.startsWith('PENDING_')) {
             // Account exists - close modal immediately
             console.log('[ClaimAccountModal] Account exists, closing modal immediately');
+            
+            // Prevent duplicate navigation
+            if (hasNavigatedRef.current) {
+              return;
+            }
+            
             setExistingAccount({
               account_number: data.account_number,
               account_name: data.account_name,
@@ -96,10 +110,12 @@ export default function ClaimAccountModal({
             
             // Only navigate if onClaim callback is provided (let parent handle navigation)
             // This prevents duplicate navigation
-            if (onClaim) {
+            if (onClaim && !hasNavigatedRef.current) {
+              hasNavigatedRef.current = true;
+              // Use a small delay to ensure modal closes first, but prevent duplicate calls
               setTimeout(() => {
                 onClaim();
-              }, 100);
+              }, 150);
             }
             // Don't navigate here if onClaim is not provided - parent should handle it
             return;
@@ -142,6 +158,12 @@ export default function ClaimAccountModal({
       // Store account data if it exists and is valid
       if (data && data.account_number && !data.account_number.startsWith('PENDING_')) {
         console.log('[ClaimAccountModal] Existing account found:', data.account_number.substring(0, 5) + '****');
+        
+        // Prevent duplicate navigation
+        if (hasNavigatedRef.current) {
+          return;
+        }
+        
         setExistingAccount({
           account_number: data.account_number,
           account_name: data.account_name,
@@ -152,16 +174,18 @@ export default function ClaimAccountModal({
         // The parent component should handle navigation if needed
         onClose();
         
-        // If onClaim callback is provided, call it
-        if (onClaim) {
+        // If onClaim callback is provided, call it (parent handles navigation)
+        if (onClaim && !hasNavigatedRef.current) {
+          hasNavigatedRef.current = true;
           setTimeout(() => {
             onClaim();
-          }, 100);
-        } else {
-          // Navigate to add-funds page
+          }, 150);
+        } else if (!onClaim && !hasNavigatedRef.current) {
+          // Fallback: Navigate to add-funds page only if no callback provided
+          hasNavigatedRef.current = true;
           setTimeout(() => {
             router.push('/add-funds');
-          }, 100);
+          }, 150);
         }
       } else {
         setExistingAccount(null);

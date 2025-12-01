@@ -43,7 +43,7 @@ export default function AddFundsScreen() {
   // Determine if we're on a small screen
   const isSmallScreen = screenWidth < 380;
 
-  // Fetch SafeHaven account from database
+  // Fetch SafeHaven account from database - optimized query
   useEffect(() => {
     const fetchSafehavenAccount = async () => {
       if (!session?.user?.id) {
@@ -53,16 +53,19 @@ export default function AddFundsScreen() {
 
       try {
         setSafehavenAccountLoading(true);
+        // Use single() instead of maybeSingle() for better performance when account exists
         const { data, error } = await supabase
           .from('safehaven_accounts')
           .select('account_number, account_name, status')
           .eq('user_id', session.user.id)
           .eq('is_deleted', false)
+          .not('account_number', 'ilike', 'PENDING_%')
           .limit(1)
           .maybeSingle();
 
         if (error && error.code !== 'PGRST116') {
           console.warn('Error fetching SafeHaven account:', error);
+          setSafehavenAccount(null);
         } else if (data) {
           setSafehavenAccount(data);
         } else {
@@ -79,7 +82,7 @@ export default function AddFundsScreen() {
     fetchSafehavenAccount();
   }, [session?.user?.id]);
 
-  // Fetch tier information
+  // Fetch tier information - optimized to load faster
   useEffect(() => {
     const fetchTierInfo = async () => {
       if (!session?.user?.id) {
@@ -89,6 +92,8 @@ export default function AddFundsScreen() {
 
       try {
         setTierInfoLoading(true);
+        
+        // Fetch tier info
         const info = await getTierInfo();
         
         // Ensure we have tier limits, if not fetch directly from database

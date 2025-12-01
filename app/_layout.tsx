@@ -420,7 +420,11 @@ function RootLayoutNav() {
         />
         <Stack.Screen 
           name="add-funds" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+          options={{ 
+            headerShown: false, 
+            gestureEnabled: false,
+            animation: 'fade',
+          }} 
         />
         <Stack.Screen 
           name="all-payouts" 

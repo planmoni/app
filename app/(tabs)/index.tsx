@@ -561,7 +561,15 @@ export default function HomeScreen() {
     return showBalances ? `₦${amount.toLocaleString()}` : '******';
   };
 
+  // Ref to prevent duplicate navigation
+  const isNavigatingToAddFundsRef = useRef(false);
+
   const handleAddFunds = async () => {
+    // Prevent duplicate navigation
+    if (isNavigatingToAddFundsRef.current) {
+      return;
+    }
+
     // Trigger medium impact haptic feedback
     impact();
     
@@ -595,21 +603,20 @@ export default function HomeScreen() {
     
     // If Tier 1 is complete AND has account, navigate directly to add funds page
     if (tierCompletion.tier1 && hasAccount) {
+      isNavigatingToAddFundsRef.current = true;
       router.push('/add-funds');
       logAnalyticsEvent('add_funds_click');
+      // Reset flag after navigation completes
+      setTimeout(() => {
+        isNavigatingToAddFundsRef.current = false;
+      }, 1000);
       return;
     }
     
     // If Tier 1 not complete or no account, show ClaimAccountModal
     // The modal will handle navigation if account exists after checking
-    if (!hasAccount || !tierCompletion.tier1) {
-      setShowClaimAccountModal(true);
-      logAnalyticsEvent('add_funds_click_claim_modal');
-    } else {
-      // This case should not happen (covered above), but just in case
-      router.push('/add-funds');
-      logAnalyticsEvent('add_funds_click');
-    }
+    setShowClaimAccountModal(true);
+    logAnalyticsEvent('add_funds_click_claim_modal');
   };
 
   const handleCreatePayout = () => {
@@ -1099,14 +1106,28 @@ export default function HomeScreen() {
       {showClaimAccountModal && ClaimAccountModalComponent && (
         <ClaimAccountModalComponent
           isVisible={showClaimAccountModal}
-          onClose={() => setShowClaimAccountModal(false)}
+          onClose={() => {
+            setShowClaimAccountModal(false);
+            // Reset navigation flag when modal closes
+            isNavigatingToAddFundsRef.current = false;
+          }}
           accountNumber="01177 XXXXX"
           bankName="SAFEHAVEN MFB"
           accountName={`PLANMONI/${(firstName || 'YOUR').toUpperCase()} ${(lastName || 'NAME').toUpperCase()}`}
-        onClaim={() => {
-          router.push('/add-funds');
-          logAnalyticsEvent('claim_account_click');
-        }}
+          onClaim={() => {
+            // Prevent duplicate navigation
+            if (isNavigatingToAddFundsRef.current) {
+              return;
+            }
+            isNavigatingToAddFundsRef.current = true;
+            setShowClaimAccountModal(false);
+            router.push('/add-funds');
+            logAnalyticsEvent('claim_account_click');
+            // Reset flag after navigation completes
+            setTimeout(() => {
+              isNavigatingToAddFundsRef.current = false;
+            }, 1000);
+          }}
         />
       )}
       
