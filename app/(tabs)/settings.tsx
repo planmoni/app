@@ -68,7 +68,7 @@ export default function SettingsScreen() {
   const { needsUpdate, checkForUpdates, currentVersion, currentBuild, isChecking } = useAppVersion();
   const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
   const { requireAuth, isAuthenticated } = useRequireAuth();
-  const { currentTier } = useKYCProgress();
+  const { currentTier, progress, checkTierCompletion } = useKYCProgress();
   
   const firstName = session?.user?.user_metadata?.first_name || '';
   const lastName = session?.user?.user_metadata?.last_name || '';
@@ -399,6 +399,7 @@ export default function SettingsScreen() {
                 size={60}
                 fontSize={getScaledFontSize(24, textSizeMultiplier)}
                 kycTier={currentTier}
+                tier1Complete={checkTierCompletion().tier1}
               />
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{firstName} {lastName}</Text>

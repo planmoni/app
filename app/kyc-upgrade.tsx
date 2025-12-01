@@ -1874,9 +1874,10 @@ export default function KYCUpgradeScreen() {
       }
       
       // Update progress with NIN verified (using id_face_verified)
-      // First update without current_step to check Tier 1 completion
+      // Update progress with NIN verification completed
       const progressResult = await updateProgress({
-        id_face_verified: true
+        id_face_verified: true,
+        current_step: 'review' // Set to review to prevent auto-advance to Tier 2
       });
       
       if (!progressResult) {
@@ -1893,8 +1894,12 @@ export default function KYCUpgradeScreen() {
       const tierStatus = checkTierCompletion();
       
       if (tierStatus.tier1) {
-        console.log('Tier 1 completed! Redirecting to home page.');
+        console.log('[KYC] Tier 1 completed! Redirecting to home page.');
         showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+        
+        // Clean up loading states
+        setIsLoading(false);
+        setIsManualVerification(false);
         
         // Wait for toast to be visible before redirecting
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -1904,26 +1909,11 @@ export default function KYCUpgradeScreen() {
         return;
       }
       
-      // If Tier 1 is not complete, update current_step to personal (Tier 2)
-      await updateProgress({
-        current_step: 'personal'
-      });
-      
-      if (!progressResult) {
-        showToast('Failed to update progress. Please try again.', 'error');
-        return;
-      }
-      
-      // Wait for toast to be visible before moving to next step
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Move to next incomplete step
-      const nextStep = getNextIncompleteStep('id_face_match');
-      setCurrentStep(nextStep);
-      setTimeout(() => {
-        setIsManualVerification(false);
-        setIsLoading(false);
-      }, 1000);
+      // This should not happen if Tier 1 logic is correct, but keep as fallback
+      console.warn('[KYC] Tier 1 not complete after NIN verification, but redirecting anyway');
+      setIsLoading(false);
+      setIsManualVerification(false);
+      router.replace('/(tabs)');
       
       // } else {
       //   throw new Error('Name mismatch detected. Please verify your personal information.');

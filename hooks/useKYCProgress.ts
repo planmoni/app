@@ -319,23 +319,32 @@ export const useKYCProgress = () => {
 
   // Check tier completion based on progress
   const checkTierCompletion = useCallback(() => {
+    // Helper function to check if a value is truthy (handles boolean, number, string)
+    const isTruthy = (value: any): boolean => {
+      if (value === null || value === undefined) return false;
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value !== 0;
+      if (typeof value === 'string') return value.toLowerCase() === 'true' || value === '1';
+      return Boolean(value);
+    };
+
     // Tier 1: Liveness + BVN + NIN (id_face_verified)
     const tier1Complete = 
-      progress.liveness_test_completed && 
-      progress.bvn_verified && 
-      progress.id_face_verified;
+      isTruthy(progress.liveness_test_completed) && 
+      isTruthy(progress.bvn_verified) && 
+      isTruthy(progress.id_face_verified);
 
     // Tier 2: Tier 1 + Personal Info + Documents
     const tier2Complete = 
       tier1Complete &&
-      progress.personal_info_completed &&
-      progress.documents_verified;
+      isTruthy(progress.personal_info_completed) &&
+      isTruthy(progress.documents_verified);
 
     // Tier 3: Tier 2 + Address + Utility
     const tier3Complete = 
       tier2Complete &&
-      progress.address_completed &&
-      progress.utility_bill_verified;
+      isTruthy(progress.address_completed) &&
+      isTruthy(progress.utility_bill_verified);
 
     return {
       tier1: tier1Complete,

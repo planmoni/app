@@ -851,6 +851,7 @@ export default function HomeScreen() {
                     ? getScaledFontSize(18, textSizeMultiplier) 
                     : 18}
                   kycTier={typeof currentTier === 'number' && !isNaN(currentTier) ? currentTier : undefined}
+                  tier1Complete={checkTierCompletion().tier1}
                 />
               </Pressable>
             ) : (

@@ -20,7 +20,7 @@ export default function ProfileScreen() {
   const { session, signOut } = useAuth();
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
-  const { progress, loading: kycLoading, currentTier } = useKYCProgress();
+  const { progress, loading: kycLoading, currentTier, checkTierCompletion } = useKYCProgress();
   const { formData: kycData, loading: kycDataLoading } = useKYCData();
   
   // Utility bill upload modal
@@ -129,6 +129,7 @@ export default function ProfileScreen() {
             size={avatarSize}
             fontSize={avatarFontSize}
             kycTier={currentTier}
+            tier1Complete={checkTierCompletion().tier1}
           />
           <Text style={[styles.userName, { fontSize: titleFontSize }]}>{firstName} {lastName}</Text>
           <Text style={[styles.userEmail, { fontSize: emailFontSize }]}>{email}</Text>

@@ -264,18 +264,29 @@ export default function KYCCard() {
   const kycStatus = getKYCStatus();
   const isLoadingStatus = isLoading || progressLoading;
 
-  // Check if NIN verification is complete using latest progress data
+  // Check if Tier 1 is complete (Liveness + BVN + NIN)
   // Use latestProgress (direct from DB) if available, otherwise fall back to progress from hook
   const currentProgress = latestProgress || progress;
-  const isNINVerified = 
-    currentProgress?.id_face_verified === true || 
-    currentProgress?.id_face_verified === 1 ||
-    currentProgress?.id_face_verified === 'true';
+  
+  // Helper function to check if a field is true
+  const isFieldTrue = (field: any): boolean => {
+    return field === true || field === 1 || field === 'true';
+  };
+  
+  // Check if all Tier 1 steps are completed
+  const isTier1Complete = 
+    (isFieldTrue(currentProgress?.liveness_test_completed) || 
+     isFieldTrue(currentProgress?.bvn_verified) || 
+     isFieldTrue(currentProgress?.id_face_verified)) && // Liveness is implied if BVN or NIN is verified
+    isFieldTrue(currentProgress?.bvn_verified) &&
+    isFieldTrue(currentProgress?.id_face_verified);
 
-  // Don't show card if NIN verification is complete or if KYC is fully completed and verified
-  if (isNINVerified || (currentProgress?.overall_completed && verificationStatus === 'verified')) {
-    console.log('[KYCCard] Hiding card - NIN verified or KYC fully completed:', {
-      isNINVerified,
+  // Don't show card if Tier 1 is complete or if KYC is fully completed and verified
+  if (isTier1Complete || (currentProgress?.overall_completed && verificationStatus === 'verified')) {
+    console.log('[KYCCard] Hiding card - Tier 1 complete or KYC fully completed:', {
+      isTier1Complete,
+      liveness: currentProgress?.liveness_test_completed,
+      bvn: currentProgress?.bvn_verified,
       idFace: currentProgress?.id_face_verified,
       overallCompleted: currentProgress?.overall_completed,
       verificationStatus
@@ -489,6 +500,62 @@ export default function KYCCard() {
     }
   };
 
+  // Calculate progress percentage (Tier 1 only - 3 steps)
+  const getProgressPercentage = (): number => {
+    const currentProgress = latestProgress || progress;
+    if (!currentProgress) return 0;
+    
+    // Helper function to check if a field is true
+    const isFieldTrue = (field: any): boolean => {
+      return field === true || field === 1 || field === 'true';
+    };
+    
+    // Define Tier 1 steps only (3 steps)
+    const tier1Steps = [
+      { key: 'liveness_test_completed', name: 'Liveness Verification' },
+      { key: 'bvn_verified', name: 'BVN Verification' },
+      { key: 'id_face_verified', name: 'NIN Verification' },
+    ];
+    
+    // Count completed Tier 1 steps
+    let completedCount = 0;
+    tier1Steps.forEach(step => {
+      if (isFieldTrue(currentProgress[step.key as keyof typeof currentProgress])) {
+        completedCount++;
+      }
+    });
+    
+    // Calculate percentage based on 3 steps
+    const totalSteps = 3;
+    return Math.round((completedCount / totalSteps) * 100);
+  };
+
+  // Get completed steps count (Tier 1 only - 3 steps)
+  const getCompletedStepsCount = (): { completed: number; total: number } => {
+    const currentProgress = latestProgress || progress;
+    if (!currentProgress) return { completed: 0, total: 3 };
+    
+    const isFieldTrue = (field: any): boolean => {
+      return field === true || field === 1 || field === 'true';
+    };
+    
+    // Tier 1 steps only (3 steps)
+    const tier1Steps = [
+      'liveness_test_completed',
+      'bvn_verified',
+      'id_face_verified',
+    ];
+    
+    let completedCount = 0;
+    tier1Steps.forEach(step => {
+      if (isFieldTrue(currentProgress[step as keyof typeof currentProgress])) {
+        completedCount++;
+      }
+    });
+    
+    return { completed: completedCount, total: 3 };
+  };
+
   // Get status message with last completed and current step
   // Use latestProgress if available (direct from DB), otherwise fall back to progress from hook
   const getStatusMessage = (): string => {
@@ -496,20 +563,6 @@ export default function KYCCard() {
     const currentProgress = latestProgress || progress;
     
     if (!currentProgress) return 'Start verification';
-    
-    console.log('[KYCCard] getStatusMessage - currentProgress:', {
-      liveness_test_completed: currentProgress.liveness_test_completed,
-      bvn_verified: currentProgress.bvn_verified,
-      id_face_verified: currentProgress.id_face_verified,
-      personal_info_completed: currentProgress.personal_info_completed,
-      current_step: currentProgress.current_step,
-      usingLatest: !!latestProgress,
-      progressFromHook: {
-        liveness_test_completed: progress?.liveness_test_completed,
-        bvn_verified: progress?.bvn_verified,
-        id_face_verified: progress?.id_face_verified
-      }
-    });
     
     if (currentProgress.overall_completed) {
       return 'Verification complete!';
@@ -531,26 +584,15 @@ export default function KYCCard() {
                           currentProgress.id_face_verified === 1 ||
                           currentProgress.id_face_verified === 'true';
     
-    console.log('[KYCCard] Verification status check:', {
-      liveness_test_completed: currentProgress.liveness_test_completed,
-      livenessCompleted,
-      bvnVerified,
-      idFaceVerified,
-      type: typeof currentProgress.liveness_test_completed
-    });
-    
     // If liveness is not completed AND BVN is not verified, show start message
     // If BVN or NIN is verified, we know liveness was completed (even if flag is missing)
     if (!livenessCompleted && !bvnVerified && !idFaceVerified) {
-      console.log('[KYCCard] Liveness not completed and no verification done, showing "Start" message');
-      return 'Verify your identity to unlock features';
+      return 'Verify your identity';
     }
     
     // Liveness is completed (or BVN/NIN verified, which implies liveness), so get the next incomplete step
     // Always get the next incomplete step to show (this matches kyc-upgrade.tsx logic)
     const currentStepToShow = getNextIncompleteStep();
-    
-    console.log('[KYCCard] Next incomplete step:', currentStepToShow);
     
     // Ensure we have a valid step
     if (!currentStepToShow || currentStepToShow === null) {
@@ -565,7 +607,6 @@ export default function KYCCard() {
     }
     
     // Once liveness is completed, all other steps say "Continue"
-    console.log('[KYCCard] Showing "Continue with', stepDisplayName + '"');
     return `Continue with ${stepDisplayName}`;
   };
 
@@ -638,6 +679,8 @@ export default function KYCCard() {
         );
 
       case 'continuing':
+        const progressPercentage = getProgressPercentage();
+        const stepCount = getCompletedStepsCount();
         return (
           <>
             <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
@@ -645,10 +688,25 @@ export default function KYCCard() {
             </View>
             <View style={styles.textContainer}>
               <Text style={styles.cardText}>{getStatusMessage()}</Text>
-              {/* <Text style={styles.cardSubtext}>{getTierMessage()}</Text> */}
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBarContainer}>
+                  <View 
+                    style={[
+                      styles.progressBar, 
+                      { 
+                        width: `${progressPercentage}%`,
+                        backgroundColor: colors.primary 
+                      }
+                    ]} 
+                  />
+                </View>
+                <Text style={styles.progressText}>
+                  {stepCount.completed} of {stepCount.total} steps completed
+                </Text>
+              </View>
             </View>
             <View style={styles.actionButton}>
-              <Text style={styles.actionButtonText}>Start</Text>
+              <Text style={styles.actionButtonText}>Go</Text>
             </View>
           </>
         );
@@ -720,7 +778,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     minWidth: 0, // Allow text to shrink properly in flex layout
   },
   cardText: {
-    fontSize: getScaledFontSize(17, textSizeMultiplier),
+    fontSize: getScaledFontSize(15, textSizeMultiplier),
     fontWeight: '500',
     color: isDark ? colors.text : '#374151',
     marginBottom: 2,
@@ -738,7 +796,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderRadius: 15,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    minWidth: 90,
+    minWidth: 20,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
@@ -761,6 +819,26 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   statusIndicatorText: {
     fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '600',
+    color: isDark ? colors.textSecondary : '#6B7280',
+  },
+  progressContainer: {
+    marginTop: 8,
+    width: '100%',
+  },
+  progressBarContainer: {
+    height: 4,
+    backgroundColor: isDark ? colors.backgroundTertiary : '#E5E7EB',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  progressText: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    fontWeight: '400',
     color: isDark ? colors.textSecondary : '#6B7280',
   },
 });

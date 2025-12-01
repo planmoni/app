@@ -11,6 +11,7 @@ type InitialsAvatarProps = {
   size?: number;
   fontSize?: number;
   kycTier?: number; // 0, 1, 2, or 3
+  tier1Complete?: boolean; // Optional: directly check Tier 1 completion status
 };
 
 const InitialsAvatar: React.FC<InitialsAvatarProps> = React.memo((props) => {
@@ -19,7 +20,8 @@ const InitialsAvatar: React.FC<InitialsAvatarProps> = React.memo((props) => {
     lastName, 
     size, 
     fontSize, 
-    kycTier 
+    kycTier,
+    tier1Complete
   } = props;
   
   const { isDark } = useTheme();
@@ -36,10 +38,23 @@ const InitialsAvatar: React.FC<InitialsAvatarProps> = React.memo((props) => {
   }, [fontSize]);
   
   // Ensure kycTier is a valid number (0, 1, 2, or 3)
+  // If tier1Complete is true, ensure we show at least Tier 1 badge
   const safeKycTier = React.useMemo(() => {
+    // Check if tier1Complete is truthy (handles boolean, number, string)
+    const isTier1Complete = tier1Complete === true || tier1Complete === 1 || tier1Complete === 'true' || tier1Complete === '1';
+    
+    // If tier1Complete is truthy, show Tier 1 badge
+    if (isTier1Complete) {
+      // If kycTier is already 1 or higher, use it; otherwise use 1
+      if (typeof kycTier === 'number' && !isNaN(kycTier) && kycTier >= 1) {
+        return Math.max(1, Math.min(3, Math.floor(kycTier)));
+      }
+      return 1; // Show Tier 1 badge if Tier 1 is complete
+    }
+    // Otherwise, use kycTier if it's valid
     if (typeof kycTier !== 'number' || isNaN(kycTier)) return undefined;
     return Math.max(0, Math.min(3, Math.floor(kycTier)));
-  }, [kycTier]);
+  }, [kycTier, tier1Complete]);
   
   // Ensure firstName and lastName are always strings, handling all edge cases
   // Safely convert to string, handling null, undefined, numbers, and other primitives
@@ -101,9 +116,12 @@ const InitialsAvatar: React.FC<InitialsAvatarProps> = React.memo((props) => {
 
   // Get tier badge icon - memoized to prevent re-renders
   const tierBadge = React.useMemo(() => {
-    if (!safeKycTier || safeKycTier === 0) return null;
+    // Determine which tier to show
+    const displayTier = safeKycTier !== undefined && safeKycTier > 0 ? safeKycTier : null;
     
-    switch (safeKycTier) {
+    if (!displayTier) return null;
+    
+    switch (displayTier) {
       case 1:
         return <Tier1Icon width={badgeIconSize} height={badgeIconSize} />;
       case 2:
@@ -148,7 +166,7 @@ const InitialsAvatar: React.FC<InitialsAvatarProps> = React.memo((props) => {
       ]}>
         {renderText}
       </View>
-      {safeKycTier !== undefined && safeKycTier > 0 && tierBadge && (
+      {tierBadge && (
         <View style={[
           styles.badgeContainer,
           {
