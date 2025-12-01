@@ -7,18 +7,8 @@ import {
   Modal,
   Pressable,
   Image,
-  Platform,
 } from "react-native";
-import {
-  Camera as VisionCamera,
-  useCameraDevice,
-  useCameraPermission,
-} from "react-native-vision-camera";
-import {
-  Camera,
-  Face,
-  FaceDetectionOptions,
-} from "react-native-vision-camera-face-detector";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { X } from "lucide-react-native";
 import Animated, {
   useSharedValue,
@@ -29,7 +19,6 @@ import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
-import * as FileSystem from "expo-file-system";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -39,13 +28,7 @@ interface LivenessTestEnhancedProps {
   onComplete?: (capturedImage: string) => void;
 }
 
-const detections = {
-  BLINK: { minProbability: 0.25 }, // Eyes closed probability threshold (more sensitive)
-  NOD: { minDiff: 8 }, // Minimum pitch change for nod (lower = more responsive)
-  TURN_HEAD_LEFT: { maxAngle: -10 }, // Negative yaw = turning left
-  TURN_HEAD_RIGHT: { minAngle: 10 }, // Positive yaw = turning right
-  SMILE: { minProbability: 0.5 }, // Minimum smile probability (more sensitive)
-};
+const HOLD_DURATION = 5000; // 5 seconds
 
 export default function LivenessTestEnhanced({
   isVisible,
@@ -53,58 +36,32 @@ export default function LivenessTestEnhanced({
   onComplete,
 }: LivenessTestEnhancedProps) {
   console.log('[LivenessTest] Component rendered, isVisible:', isVisible);
-  const { hasPermission, requestPermission } = useCameraPermission();
+  const [permission, requestPermission] = useCameraPermissions();
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
   const styles = createStyles(colors, isDark);
   
-  console.log('[LivenessTest] Permissions check:', { hasPermission, hasSession: !!session });
+  console.log('[LivenessTest] Permissions check:', { hasPermission: permission?.granted, hasSession: !!session });
 
-  const [livenessStage, setLivenessStage] = useState<
-    "setup" | "blink" | "nod" | "look_left" | "look_right" | "smile" | "photo_capture"
-  >("setup");
-  const [isTestActive, setIsTestActive] = useState(false);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isHolding, setIsHolding] = useState(false);
-  const [positionValid, setPositionValid] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadComplete, setUploadComplete] = useState(false);
-  const [faceTooClose, setFaceTooClose] = useState(false);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
 
   const progressValue = useSharedValue(0);
-  const pitchAngles = useRef<number[]>([]);
-  const nodBaseline = useRef<number | null>(null);
-  const device = useCameraDevice("front");
-  const cameraRef = useRef<VisionCamera>(null);
-  const setupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cameraRef = useRef<any>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  console.log('[LivenessTest] Camera device:', { hasDevice: !!device, deviceId: device?.id });
-
-  const detectionSteps = ["BLINK", "NOD", "TURN_HEAD_LEFT", "TURN_HEAD_RIGHT", "SMILE"];
 
   // Reset all state when modal closes or opens
   const resetState = useCallback(() => {
-    setLivenessStage("setup");
-    setIsTestActive(false);
-    setCurrentStepIndex(0);
     setIsHolding(false);
-    setPositionValid(false);
     setCapturedImage(null);
-    setFaceTooClose(false);
     setUploadComplete(false);
     progressValue.value = 0;
-    pitchAngles.current = [];
-    nodBaseline.current = null;
     
     // Clear any pending timers
-    if (setupTimerRef.current) {
-      clearTimeout(setupTimerRef.current);
-      setupTimerRef.current = null;
-    }
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
@@ -115,29 +72,28 @@ export default function LivenessTestEnhanced({
   const animatedProps = useAnimatedProps(() => {
     'worklet';
     const progress = progressValue.value;
-    const circumference = 2 * Math.PI * 130;
+    const circumference = 2 * Math.PI * 140;
     const offset = circumference - (progress / 100) * circumference;
     return { strokeDashoffset: offset };
   });
 
   // Request camera permission when modal becomes visible
   useEffect(() => {
-    if (isVisible && !hasPermission && !isRequestingPermission) {
+    if (isVisible && !permission?.granted && !isRequestingPermission) {
       console.log('[LivenessTest] Requesting camera permission...');
       setIsRequestingPermission(true);
-      requestPermission().then((granted) => {
-        console.log('[LivenessTest] Camera permission result:', granted);
+      requestPermission().then((result) => {
+        console.log('[LivenessTest] Camera permission result:', result.granted);
         setIsRequestingPermission(false);
-        if (!granted) {
+        if (!result.granted) {
           console.warn('[LivenessTest] Camera permission denied');
-          // Optionally close modal or show error
         }
       }).catch((error) => {
         console.error('[LivenessTest] Error requesting camera permission:', error);
         setIsRequestingPermission(false);
       });
     }
-  }, [isVisible, hasPermission, isRequestingPermission, requestPermission]);
+  }, [isVisible, permission?.granted, isRequestingPermission, requestPermission]);
 
   useEffect(() => {
     console.log('[LivenessTest] Visibility changed:', isVisible);
@@ -153,220 +109,67 @@ export default function LivenessTestEnhanced({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (setupTimerRef.current) clearTimeout(setupTimerRef.current);
       if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
     };
   }, []);
 
-  const startLivenessTest = useCallback(() => {
-    console.log('[LivenessTest] Starting liveness test');
-    if (setupTimerRef.current) {
-      clearTimeout(setupTimerRef.current);
-      setupTimerRef.current = null;
-    }
-    setIsTestActive(true);
-    setLivenessStage("blink");
-    setCurrentStepIndex(0);
-    setPositionValid(false);
-    progressValue.value = withTiming(20, { duration: 300 });
-    console.log('[LivenessTest] Test started, stage: blink');
-  }, [progressValue]);
-
-  const capturePhoto = async (retryCount = 0) => {
-    const maxRetries = 2;
-    console.log('[LivenessTest] capturePhoto called, retry:', retryCount);
+  const capturePhoto = useCallback(async () => {
+    console.log('[LivenessTest] capturePhoto called');
     try {
       if (!cameraRef.current) {
         console.error('[LivenessTest] Camera ref is null, cannot capture photo');
-        if (retryCount < maxRetries) {
-          console.log('[LivenessTest] Retrying in 500ms...');
-          setTimeout(() => capturePhoto(retryCount + 1), 500);
-        }
         return;
       }
-      
-      if (!device) {
-        console.error('[LivenessTest] Camera device is not available');
-        if (retryCount < maxRetries) {
-          console.log('[LivenessTest] Retrying in 500ms...');
-          setTimeout(() => capturePhoto(retryCount + 1), 500);
-        }
-        return;
-      }
-      
-      // Wait a bit to ensure camera is fully ready (longer wait on first attempt)
-      const waitTime = retryCount === 0 ? 500 : 300;
-      await new Promise(resolve => setTimeout(resolve, waitTime));
       
       console.log('[LivenessTest] Taking photo...');
-      const photo = await cameraRef.current.takePhoto({ 
-        flash: "off", 
-        enableShutterSound: false,
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.8,
+        base64: false,
       });
-      console.log('[LivenessTest] Photo captured, path:', photo.path);
+      console.log('[LivenessTest] Photo captured, URI:', photo.uri);
       
-      // Handle path format - react-native-vision-camera returns paths differently on Android/iOS
-      let originalPath = photo.path;
-      
-      // On Android, the path might not have file:// prefix, on iOS it usually does
-      // FileSystem APIs work with or without the prefix, but we'll normalize it
-      const hasFilePrefix = originalPath.startsWith('file://');
-      const normalizedPath = hasFilePrefix ? originalPath : `file://${originalPath}`;
-      
-      // Create permanent path in cache directory
-      const fileName = `liveness-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-      const permanentPath = `${FileSystem.cacheDirectory}${fileName}`;
-      
-      console.log('[LivenessTest] Attempting to copy photo from:', normalizedPath, 'to:', permanentPath);
-      
-      // Try to copy the file with retry mechanism
-      let copySuccess = false;
-      let copyAttempts = 0;
-      const maxCopyAttempts = 20; // Increased attempts
-      const copyDelay = 250; // 250ms between attempts
-      
-      while (!copySuccess && copyAttempts < maxCopyAttempts) {
-        try {
-          // First, try to verify source file exists (with retry for file to appear)
-          let sourceExists = false;
-          let sourceCheckAttempts = 0;
-          const maxSourceChecks = 5;
-          
-          while (!sourceExists && sourceCheckAttempts < maxSourceChecks) {
-            const sourceInfo = await FileSystem.getInfoAsync(normalizedPath);
-            if (sourceInfo.exists) {
-              sourceExists = true;
-              console.log('[LivenessTest] Source file verified to exist');
-            } else {
-              sourceCheckAttempts++;
-              if (sourceCheckAttempts < maxSourceChecks) {
-                console.log(`[LivenessTest] Source file not found yet, waiting... (${sourceCheckAttempts}/${maxSourceChecks})`);
-                await new Promise(resolve => setTimeout(resolve, 200));
-              }
-            }
-          }
-          
-          // Try to copy the file (even if source check failed, the copy might work)
-          await FileSystem.copyAsync({
-            from: normalizedPath,
-            to: permanentPath,
-          });
-          
-          // Verify the copy was successful
-          const copiedFileInfo = await FileSystem.getInfoAsync(permanentPath);
-          if (copiedFileInfo.exists) {
-            copySuccess = true;
-            console.log('[LivenessTest] Photo copied successfully to:', permanentPath);
-          } else {
-            throw new Error('Copy completed but destination file does not exist');
-          }
-        } catch (copyError: any) {
-          copyAttempts++;
-          const errorMsg = copyError?.message || String(copyError);
-          console.log(`[LivenessTest] Copy attempt ${copyAttempts}/${maxCopyAttempts} failed:`, errorMsg);
-          
-          if (copyAttempts < maxCopyAttempts) {
-            await new Promise(resolve => setTimeout(resolve, copyDelay));
-          } else {
-            // All copy attempts failed - try using the original path directly as fallback
-            console.log('[LivenessTest] All copy attempts failed, using original path as fallback...');
-            try {
-              // Verify original path is accessible
-              const originalInfo = await FileSystem.getInfoAsync(normalizedPath);
-              if (originalInfo.exists) {
-                // Use original path directly
-                setCapturedImage(normalizedPath);
-                console.log('[LivenessTest] Using original photo path directly:', normalizedPath);
-                return; // Exit successfully
-              } else {
-                throw new Error('Original file path is not accessible');
-              }
-            } catch (fallbackError: any) {
-              throw new Error(`Failed to copy photo after ${maxCopyAttempts} attempts. Original path also not accessible: ${fallbackError?.message || fallbackError}`);
-            }
-          }
-        }
-      }
-      
-      if (!copySuccess) {
-        throw new Error(`Failed to save photo after ${maxCopyAttempts} attempts`);
-      }
-      
-      const imageUri = `file://${permanentPath}`;
-      setCapturedImage(imageUri);
-      console.log('[LivenessTest] Image URI set:', imageUri);
+      setCapturedImage(photo.uri);
+      console.log('[LivenessTest] Image URI set:', photo.uri);
     } catch (error: any) {
       console.error('[LivenessTest] Error capturing photo:', error);
-      // Check if it's a file IO error and retry if we haven't exceeded max retries
-      if ((error?.message?.includes('file-io-error') || error?.message?.includes("doesn't exist")) && retryCount < maxRetries) {
-        console.log('[LivenessTest] File IO error detected, retrying in 800ms...');
-        setTimeout(() => capturePhoto(retryCount + 1), 800);
-      } else {
-        // Final error - log details
-        if (error?.message?.includes('file-io-error') || error?.message?.includes("doesn't exist")) {
-          console.error('[LivenessTest] File IO error - camera may not have proper permissions or storage access');
-        }
-        if (error?.message) {
-          console.error('[LivenessTest] Error details:', error.message);
-        } else if (error instanceof Error) {
-          console.error('[LivenessTest] Error details:', error.message);
-        }
+      if (error?.message) {
+        console.error('[LivenessTest] Error details:', error.message);
       }
     }
-  };
+  }, []);
 
-  const nextStep = useCallback(() => {
-    console.log('[LivenessTest] nextStep called, current stage:', livenessStage, 'current index:', currentStepIndex);
+  // Handle hold button press start
+  const handleHoldStart = useCallback(() => {
+    console.log('[LivenessTest] Hold started');
+    if (capturedImage) return; // Don't allow holding if already captured
+    
+    setIsHolding(true);
+    progressValue.value = 0;
+    
+    // Animate progress from 0 to 100 over HOLD_DURATION
+    progressValue.value = withTiming(100, { duration: HOLD_DURATION });
+    
+    // Set timer to capture photo when hold completes
+    holdTimerRef.current = setTimeout(() => {
+      console.log('[LivenessTest] Hold completed, capturing photo');
+      setIsHolding(false);
+      capturePhoto();
+      holdTimerRef.current = null;
+    }, HOLD_DURATION);
+  }, [capturedImage, progressValue, capturePhoto]);
+
+  // Handle hold button release
+  const handleHoldEnd = useCallback(() => {
+    console.log('[LivenessTest] Hold released');
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
-    
-    const nextIndex = currentStepIndex + 1;
-    const newProgress = ((nextIndex + 1) / detectionSteps.length) * 100;
+    setIsHolding(false);
+    // Reset progress with animation
+    progressValue.value = withTiming(0, { duration: 200 });
+  }, [progressValue]);
 
-    // Reset detection-specific state
-    setPositionValid(false);
-    pitchAngles.current = [];
-    nodBaseline.current = null;
-
-    switch (livenessStage) {
-      case "blink":
-        console.log('[LivenessTest] Moving from blink to nod');
-        setLivenessStage("nod");
-        setCurrentStepIndex(nextIndex);
-        progressValue.value = withTiming(newProgress, { duration: 300 });
-        break;
-      case "nod":
-        console.log('[LivenessTest] Moving from nod to look_left');
-        setLivenessStage("look_left");
-        setCurrentStepIndex(nextIndex);
-        progressValue.value = withTiming(newProgress, { duration: 300 });
-        break;
-      case "look_left":
-        console.log('[LivenessTest] Moving from look_left to look_right');
-        setLivenessStage("look_right");
-        setCurrentStepIndex(nextIndex);
-        progressValue.value = withTiming(newProgress, { duration: 300 });
-        break;
-      case "look_right":
-        console.log('[LivenessTest] Moving from look_right to smile');
-        setLivenessStage("smile");
-        setCurrentStepIndex(nextIndex);
-        progressValue.value = withTiming(newProgress, { duration: 300 });
-        break;
-      case "smile":
-        console.log('[LivenessTest] Moving from smile to photo_capture');
-        setLivenessStage("photo_capture");
-        progressValue.value = withTiming(100, { duration: 300 });
-        console.log('[LivenessTest] Scheduling photo capture in 1000ms');
-        setTimeout(() => {
-          console.log('[LivenessTest] Executing scheduled photo capture');
-          capturePhoto();
-        }, 1000);
-        break;
-    }
-  }, [livenessStage, currentStepIndex, detectionSteps.length, progressValue]);
 
   const handleSubmit = async () => {
     console.log('[LivenessTest] handleSubmit called');
@@ -484,188 +287,32 @@ export default function LivenessTestEnhanced({
   };
 
   const getInstructionText = useCallback(() => {
-    const canUseCamera = hasPermission && !isRequestingPermission;
+    const canUseCamera = permission?.granted && !isRequestingPermission;
     if (!canUseCamera) {
       if (isRequestingPermission) {
         return "Requesting camera permission...";
       }
       return "Camera permission required to start liveness test";
     }
-    switch (livenessStage) {
-      case "setup": return "Position your face in the circle to start";
-      case "blink": return "Blink your eyes a few times";
-      case "nod": return "Nod your head up and down";
-      case "look_right": return "Turn your head left";
-      case "look_left": return "Turn your head right";
-      case "smile": return "Smile at the camera";
-      case "photo_capture": return uploadComplete ? "Verifying..." : "Liveness test complete!";
-      default: return "Position your face in the circle";
+    if (capturedImage) {
+      return uploadComplete ? "Verifying..." : "Photo captured!";
     }
-  }, [hasPermission, isRequestingPermission, livenessStage, uploadComplete]);
-
-  const getWarningText = () => {
-    if (faceTooClose) return "Please move the phone away from your face";
-    return null;
-  };
-
-  const handleFacesDetection = useCallback((faces: Face[]) => {
-    try {
-      if (!faces || faces.length === 0) {
-        return;
-      }
-
-      const face = faces[0];
-      // Log face detection periodically (every 30 frames to avoid spam)
-      if (Math.random() < 0.033) {
-        console.log('[LivenessTest] Face detected:', {
-          stage: livenessStage,
-          isTestActive,
-          isHolding,
-          faceArea: face.bounds.width * face.bounds.height,
-          yaw: face.yawAngle,
-          pitch: face.pitchAngle,
-          smiling: face.smilingProbability
-        });
-      }
-      
-      // Check if face is too close (face area is too large)
-      const faceArea = face.bounds.width * face.bounds.height;
-      const maxFaceArea = Platform.OS === 'ios' ? 800000 : 120000;
-      
-      if (faceArea > maxFaceArea) {
-        setFaceTooClose(true);
-        return;
-      } else {
-        setFaceTooClose(false);
-      }
-
-      // Setup stage: Start test when face is detected with good quality
-      if (livenessStage === "setup" && !isTestActive) {
-        const hasGoodQuality = faceArea > 10000;
-        console.log('[LivenessTest] Setup stage - face quality check:', { 
-          faceArea, 
-          hasGoodQuality, 
-          hasTimer: !!setupTimerRef.current 
-        });
-        if (hasGoodQuality && !setupTimerRef.current) {
-          console.log('[LivenessTest] Starting setup timer (500ms)');
-          setupTimerRef.current = setTimeout(() => {
-            startLivenessTest();
-          }, 500); // Faster start (500ms instead of 800ms)
-        }
-        return;
-      }
-
-      // Skip detection if holding (between stages) or test not active
-      if (!isTestActive || isHolding) {
-        return;
-      }
-
-      let currentPositionValid = false;
-
-      switch (livenessStage) {
-        case "blink":
-          // Check if both eyes are closed (low probability = eyes closed)
-          const leftEyeClosed = (face.leftEyeOpenProbability || 1) <= detections.BLINK.minProbability;
-          const rightEyeClosed = (face.rightEyeOpenProbability || 1) <= detections.BLINK.minProbability;
-          currentPositionValid = leftEyeClosed && rightEyeClosed;
-          break;
-
-        case "nod":
-          const currentPitch = face.pitchAngle || 0;
-          
-          // Initialize baseline if not set
-          if (nodBaseline.current === null) {
-            nodBaseline.current = currentPitch;
-            pitchAngles.current = [currentPitch];
-          } else {
-            pitchAngles.current.push(currentPitch);
-            // Keep only last 6 samples for faster detection
-            if (pitchAngles.current.length > 6) {
-              pitchAngles.current.shift();
-            }
-
-            // Need at least 2 samples to detect nod (faster response)
-            if (pitchAngles.current.length >= 2) {
-              const minPitch = Math.min(...pitchAngles.current);
-              const maxPitch = Math.max(...pitchAngles.current);
-              
-              // Detect upward nod (positive pitch change from baseline or minimum)
-              const pitchFromBaseline = currentPitch - nodBaseline.current;
-              const pitchFromMin = currentPitch - minPitch;
-              
-              // Valid nod: upward movement detected (more lenient)
-              currentPositionValid = pitchFromBaseline >= detections.NOD.minDiff || 
-                                    pitchFromMin >= detections.NOD.minDiff;
-            }
-          }
-          break;
-
-        case "look_left":
-          // Negative yaw angle means turning left (from camera's perspective)
-          currentPositionValid = (face.yawAngle || 0) <= detections.TURN_HEAD_LEFT.maxAngle;
-          break;
-
-        case "look_right":
-          // Positive yaw angle means turning right (from camera's perspective)
-          currentPositionValid = (face.yawAngle || 0) >= detections.TURN_HEAD_RIGHT.minAngle;
-          break;
-
-        case "smile":
-          // Check smile probability
-          currentPositionValid = (face.smilingProbability || 0) >= detections.SMILE.minProbability;
-          break;
-
-        default:
-          currentPositionValid = false;
-      }
-
-      // Update position validity and trigger next step if valid
-      if (currentPositionValid !== positionValid) {
-        console.log('[LivenessTest] Position validity changed:', {
-          stage: livenessStage,
-          wasValid: positionValid,
-          nowValid: currentPositionValid
-        });
-        setPositionValid(currentPositionValid);
-        
-        if (currentPositionValid) {
-          console.log('[LivenessTest] Position valid, starting hold timer (1200ms)');
-          setIsHolding(true);
-          holdTimerRef.current = setTimeout(() => {
-            console.log('[LivenessTest] Hold timer expired, calling nextStep');
-            nextStep();
-            setIsHolding(false);
-            holdTimerRef.current = null;
-          }, 1200); // Hold for 1.2 seconds before moving to next step (faster)
-        }
-      }
-    } catch (error) {
-      console.error("Face detection error:", error);
+    if (isHolding) {
+      return "Hold the button...";
     }
-  }, [livenessStage, isTestActive, isHolding, positionValid, startLivenessTest, nextStep]);
+    return "Place your face in the frame.";
+  }, [permission?.granted, isRequestingPermission, capturedImage, uploadComplete, isHolding]);
 
-  const faceDetectionOptions = useRef<FaceDetectionOptions>({
-    performanceMode: "accurate",
-    landmarkMode: "all",
-    classificationMode: "all",
-    trackingEnabled: true,
-  }).current;
-
-  // Don't render if modal is not visible or device is not available
-  if (!isVisible || !device) {
-    console.log('[LivenessTest] Component not rendering:', {
-      isVisible,
-      hasDevice: !!device
-    });
+  // Don't render if modal is not visible
+  if (!isVisible) {
     return null;
   }
 
   // Show modal even if permission is not granted yet (to show permission request UI)
   // But only render camera if permission is granted
-  const canUseCamera = hasPermission && !isRequestingPermission;
+  const canUseCamera = permission?.granted && !isRequestingPermission;
   
-  console.log('[LivenessTest] Rendering component, stage:', livenessStage, 'canUseCamera:', canUseCamera);
+  console.log('[LivenessTest] Rendering component, canUseCamera:', canUseCamera);
 
   return (
     <Modal visible={isVisible} animationType="slide" presentationStyle="fullScreen">
@@ -678,14 +325,14 @@ export default function LivenessTestEnhanced({
                 <Text style={[styles.permissionText, { color: colors.text }]}>
                   {isRequestingPermission ? 'Requesting camera permission...' : 'Camera permission required'}
                 </Text>
-                {!isRequestingPermission && !hasPermission && (
+                {!isRequestingPermission && !permission?.granted && (
                   <Pressable
                     style={[styles.permissionButton, { backgroundColor: colors.primary }]}
                     onPress={() => {
                       setIsRequestingPermission(true);
-                      requestPermission().then((granted) => {
+                      requestPermission().then((result) => {
                         setIsRequestingPermission(false);
-                        if (!granted) {
+                        if (!result.granted) {
                           console.warn('[LivenessTest] Camera permission denied');
                         }
                       }).catch((error) => {
@@ -698,24 +345,20 @@ export default function LivenessTestEnhanced({
                   </Pressable>
                 )}
               </View>
-            ) : livenessStage === "photo_capture" && capturedImage ? (
+            ) : capturedImage ? (
               <Image source={{ uri: capturedImage }} style={styles.camera} resizeMode="cover" />
             ) : (
-              <Camera
+              <CameraView
                 ref={cameraRef}
                 style={styles.camera}
-                device={device}
-                isActive={isVisible && canUseCamera}
-                photo={true}
-                faceDetectionCallback={handleFacesDetection}
-                faceDetectionOptions={faceDetectionOptions}
+                facing="front"
               />
             )}
           </View>
         </View>
 
         {/* Circular Progress Ring */}
-        {livenessStage !== "photo_capture" && canUseCamera && (
+        {!capturedImage && canUseCamera && (
           <View style={styles.progressRingWrapper}>
             <Svg width={300} height={300}>
               <Circle 
@@ -743,7 +386,7 @@ export default function LivenessTestEnhanced({
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Liveness Test</Text>
+          <Text style={[styles.title, { color: colors.primary }]}>Liveness Test</Text>
           <Pressable onPress={onClose} style={styles.closeButton}>
             <X size={24} color={colors.text} />
           </Pressable>
@@ -754,20 +397,33 @@ export default function LivenessTestEnhanced({
           <Text style={[styles.instructionText, { color: colors.text }]}>
             {getInstructionText()}
           </Text>
-          {isTestActive && (
-            <Text style={[styles.stepText, { color: colors.textSecondary }]}>
-              Step {currentStepIndex + 1} of {detectionSteps.length}
-            </Text>
-          )}
-          {getWarningText() && (
-            <Text style={[styles.warningText, { color: '#FF6B6B' }]}>
-              {getWarningText()}
-            </Text>
-          )}
         </View>
 
+        {/* Hold Button */}
+        {!capturedImage && canUseCamera && (
+          <View style={styles.holdButtonContainer}>
+            <Pressable
+              style={[
+                styles.holdButton,
+                { backgroundColor: isHolding ? colors.accent : colors.primary},
+                isHolding && styles.holdButtonActive
+              ]}
+              onPressIn={handleHoldStart}
+              onPressOut={handleHoldEnd}
+              disabled={isHolding && !capturedImage}
+            >
+              <Text style={[
+                styles.holdButtonText,
+                { color: isHolding ? colors.primary : '#FFFFFF' }
+              ]}>
+                {isHolding ? 'Keep Holding...' : 'Start Capture'}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* Submit Button */}
-        {livenessStage === "photo_capture" && capturedImage && !uploadComplete && (
+        {capturedImage && !uploadComplete && (
           <Pressable
             style={[styles.submitButton, { backgroundColor: colors.primary }]}
             onPress={handleSubmit}
@@ -838,8 +494,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingHorizontal: 20,
   },
   title: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 22,
+    fontWeight: "700",
   },
   closeButton: {
     width: 40,
@@ -871,6 +527,31 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
     marginTop: 8,
+  },
+  holdButtonContainer: {
+    position: "absolute",
+    bottom: 50,
+    left: 20,
+    right: 20,
+    alignItems: "center",
+  },
+  holdButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 48,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 260,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  holdButtonActive: {
+    borderColor: colors.primary,
+    transform: [{ scale: 1.05 }],
+  },
+  holdButtonText: {
+    fontSize: 17,
+    fontWeight: "600",
   },
   submitButton: {
     position: "absolute",

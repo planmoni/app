@@ -34,6 +34,13 @@ export default function CameraPermissionModal({
     }
   }, [isVisible]);
 
+  // If permission is already granted when modal becomes visible, skip permission modal and go directly to liveness test
+  useEffect(() => {
+    if (isVisible && hasPermission && !showLivenessTest && !showPermissionDeniedModal) {
+      setShowLivenessTest(true);
+    }
+  }, [isVisible, hasPermission, showLivenessTest, showPermissionDeniedModal]);
+
   // Handle camera permission request
   const handleRequestCameraPermission = async () => {
     if (isRequesting) return;
@@ -273,10 +280,15 @@ export default function CameraPermissionModal({
     );
   }
 
-  // Show permission request modal
+  // Don't show permission request modal if permission is already granted
+  if (hasPermission) {
+    return null;
+  }
+
+  // Show permission request modal only if permission is not granted and modal is visible
   return (
     <Modal
-      visible={isVisible}
+      visible={isVisible && !hasPermission}
       transparent={true}
       animationType="slide"
       onRequestClose={onClose}
@@ -294,7 +306,7 @@ export default function CameraPermissionModal({
           
           <View style={styles.permissionModalContent}>
             <Text style={styles.permissionModalText}>
-              To start your KYC verification, we need access to your camera to perform a liveness check where you will be required to blink your eyes and move your head and smile. This helps us ensure you are a real person, prevent fraud and secure your account. It takes less than a minute to complete.
+              To start your KYC verification, we need access to your camera to perform a 5-second liveness check. This helps us ensure you are a real person, prevent fraud and secure your account.
             </Text>
           </View>
           
