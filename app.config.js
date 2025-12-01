@@ -27,7 +27,7 @@ module.exports = {
     },
     ios: {
       googleServicesFile: "./GoogleService-Info.plist",
-      bundleIdentifier: "com.planmoni.app",
+      bundleIdentifier: "app.planmoni",
       infoPlist: {
         UIBackgroundModes: ["remote-notification"],
       },
@@ -40,7 +40,7 @@ module.exports = {
       ]
     },
     ios: {
-      "bundleIdentifier": "com.planmoni",
+      "bundleIdentifier": "app.planmoni",
       "userInterfaceStyle": "automatic",
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"], // ✅ Required for push notifications
@@ -50,7 +50,7 @@ module.exports = {
       },
       "entitlements": {
         "aps-environment": "development", // ✅ Required for push notification, change to "production" for Testflight and App Store builds
-        "keychain-access-groups": ["$(AppIdentifierPrefix)com.planmoni"]
+        "keychain-access-groups": ["$(AppIdentifierPrefix)app.planmoni"]
       }
     },
     "plugins": [

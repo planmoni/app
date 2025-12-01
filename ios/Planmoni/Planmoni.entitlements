@@ -6,7 +6,7 @@
     <string>development</string>
     <key>keychain-access-groups</key>
     <array>
-      <string>$(AppIdentifierPrefix)com.planmoni</string>
+      <string>$(AppIdentifierPrefix)app.planmoni</string>
     </array>
   </dict>
 </plist>

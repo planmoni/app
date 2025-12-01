@@ -1,13 +1,12 @@
-import { View, Text, StyleSheet, Pressable, TextInput, Modal, useWindowDimensions , Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Modal, useWindowDimensions , Platform, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Calendar, ChevronRight, Clock, Info, Plus, ChevronLeft, ChevronDown, ArrowLeft, Check, X } from 'lucide-react-native';
 import Button from '@/components/Button';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
-import { ScrollView } from 'react-native-gesture-handler';
 import { useHaptics } from '@/hooks/useHaptics';
 
 type DatePickerProps = {
@@ -70,7 +69,12 @@ function TimePicker({ isVisible, onClose, onSelect, selectedHour, selectedMinute
           <View style={styles.timeContainer}>
             <View style={styles.timeSection}>
               <Text style={styles.timeLabel}>Hour</Text>
-              <ScrollView style={styles.timeScroll} showsVerticalScrollIndicator={false}>
+              <ScrollView 
+                style={styles.timeScroll} 
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled={Platform.OS === 'android'}
+                bounces={Platform.OS === 'ios'}
+              >
                 {hours.map((h) => (
                   <Pressable
                     key={h}
@@ -92,7 +96,12 @@ function TimePicker({ isVisible, onClose, onSelect, selectedHour, selectedMinute
             
             <View style={styles.timeSection}>
               <Text style={styles.timeLabel}>Minute</Text>
-              <ScrollView style={styles.timeScroll} showsVerticalScrollIndicator={false}>
+              <ScrollView 
+                style={styles.timeScroll} 
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled={Platform.OS === 'android'}
+                bounces={Platform.OS === 'ios'}
+              >
                 {minutes.filter(m => m % 5 === 0).map((m) => (
                   <Pressable
                     key={m}
@@ -306,6 +315,13 @@ export default function ScheduleScreen() {
   const { width } = useWindowDimensions();
   const haptics = useHaptics();
   
+  // Refs to prevent infinite loops on Android
+  const isInitializingRef = useRef(false);
+  const hasInitializedRef = useRef(false);
+  const isUpdatingDurationRef = useRef(false);
+  const lastSelectedScheduleRef = useRef<string>('');
+  const lastSelectedDurationRef = useRef<number>(0);
+  
   // New state for day of week selection
   const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<number | null>(null);
   const [showDayOfWeekPicker, setShowDayOfWeekPicker] = useState(false);
@@ -397,16 +413,24 @@ export default function ScheduleScreen() {
 
   // Initialize from params when editing (coming from review page)
   useEffect(() => {
+    if (hasInitializedRef.current) {
+      return; // Only initialize once
+    }
+    
     if (params.frequency && params.duration && params.payoutAmount) {
+      isInitializingRef.current = true;
+      
       // We're editing, initialize all fields from params
       const amount = params.totalAmount as string;
       setTotalAmount(amount);
       
       const frequency = params.frequency as string;
       setSelectedSchedule(frequency);
+      lastSelectedScheduleRef.current = frequency;
       
       const durationNum = parseInt(params.duration as string);
       setNumberOfPayouts(durationNum);
+      lastSelectedDurationRef.current = durationNum;
       
       const payoutAmt = params.payoutAmount as string;
       setPayoutAmount(payoutAmt);
@@ -459,36 +483,59 @@ export default function ScheduleScreen() {
         setIsYearlySplit(true);
       }
       
+      hasInitializedRef.current = true;
+      setTimeout(() => {
+        isInitializingRef.current = false;
+      }, 200);
+      
       return; // Don't run AI suggestion logic if we're editing
     }
   }, [params.frequency, params.duration, params.payoutAmount, params.totalAmount, params.dayOfWeek, params.payoutHour, params.payoutMinute, params.customDates]);
 
   useEffect(() => {
+    // Skip if already initialized from editing params
+    if (hasInitializedRef.current && params.frequency && params.duration && params.payoutAmount) {
+      return;
+    }
+    
+    // Skip if already initializing
+    if (isInitializingRef.current) {
+      return;
+    }
+    
     if (params.totalAmount) {
       const amount = params.totalAmount as string;
-      setTotalAmount(amount);
+      
+      // Only update if different to prevent re-renders
+      if (totalAmount !== amount) {
+        setTotalAmount(amount);
+      }
       
       // Handle AI suggestion parameters
       if (params.suggestedFrequency) {
         const frequency = params.suggestedFrequency as string;
-        console.log('AI Suggestion - Frequency:', frequency);
-        setSelectedSchedule(frequency);
+        
+        // Only update if different
+        if (selectedSchedule !== frequency) {
+          isInitializingRef.current = true;
+          setSelectedSchedule(frequency);
+          lastSelectedScheduleRef.current = frequency;
+        }
         
         // Handle suggested duration
         if (params.suggestedDuration) {
           const duration = parseInt(params.suggestedDuration as string);
-          console.log('AI Suggestion - Duration:', duration);
           const durationOptions = getDurationOptions(frequency);
           const matchingDuration = durationOptions.find(opt => opt.value === duration);
           
-          if (matchingDuration) {
-            console.log('AI Suggestion - Found matching duration:', matchingDuration);
+          if (matchingDuration && matchingDuration.value !== lastSelectedDurationRef.current) {
+            lastSelectedDurationRef.current = matchingDuration.value;
             setSelectedDuration(matchingDuration);
             setNumberOfPayouts(duration);
             if (isYearlySplit) {
               calculatePayoutAmount(amount, duration);
             }
-          } else {
+          } else if (!matchingDuration) {
             // Fallback to default duration for the frequency
             let defaultDuration;
             if (frequency === 'daily') {
@@ -496,10 +543,13 @@ export default function ScheduleScreen() {
             } else {
               defaultDuration = durationOptions[durationOptions.length - 1];
             }
-            setSelectedDuration(defaultDuration);
-            setNumberOfPayouts(defaultDuration.value);
-            if (isYearlySplit) {
-              calculatePayoutAmount(amount, defaultDuration.value);
+            if (defaultDuration.value !== lastSelectedDurationRef.current) {
+              lastSelectedDurationRef.current = defaultDuration.value;
+              setSelectedDuration(defaultDuration);
+              setNumberOfPayouts(defaultDuration.value);
+              if (isYearlySplit) {
+                calculatePayoutAmount(amount, defaultDuration.value);
+              }
             }
           }
         } else {
@@ -511,32 +561,59 @@ export default function ScheduleScreen() {
           } else {
             defaultDuration = durationOptions[durationOptions.length - 1];
           }
-          setSelectedDuration(defaultDuration);
-          setNumberOfPayouts(defaultDuration.value);
-          if (isYearlySplit) {
-            calculatePayoutAmount(amount, defaultDuration.value);
+          if (defaultDuration.value !== lastSelectedDurationRef.current) {
+            lastSelectedDurationRef.current = defaultDuration.value;
+            setSelectedDuration(defaultDuration);
+            setNumberOfPayouts(defaultDuration.value);
+            if (isYearlySplit) {
+              calculatePayoutAmount(amount, defaultDuration.value);
+            }
           }
         }
-      } else {
-        // No AI suggestion, set default schedule to daily
+        
+        setTimeout(() => {
+          isInitializingRef.current = false;
+        }, 100);
+      } else if (!selectedSchedule) {
+        // No AI suggestion, set default schedule to daily only if not already set
+        isInitializingRef.current = true;
         setSelectedSchedule('daily');
+        lastSelectedScheduleRef.current = 'daily';
         if (isYearlySplit) {
           calculatePayoutAmount(amount, 30); // Default to 30 days for daily
         }
+        setTimeout(() => {
+          isInitializingRef.current = false;
+        }, 100);
       }
     }
-  }, [params.totalAmount, params.suggestedFrequency, params.suggestedDuration]);
+  }, [params.totalAmount, params.suggestedFrequency, params.suggestedDuration, params.frequency, params.duration, params.payoutAmount, totalAmount, selectedSchedule, isYearlySplit, calculatePayoutAmount]);
   
   // Update duration options when frequency changes (but not when coming from AI suggestions)
   useEffect(() => {
+    // Prevent infinite loops on Android
+    if (isUpdatingDurationRef.current || isInitializingRef.current) {
+      return;
+    }
+    
     // Only run this effect if we don't have AI suggestion parameters
     // This prevents overriding AI suggestion settings
     if (params.suggestedFrequency && params.suggestedDuration) {
-      console.log('Skipping duration override - AI suggestion detected');
       return; // Skip this effect if we have AI suggestion parameters
     }
     
-    console.log('Running default duration logic for frequency:', selectedSchedule);
+    // Skip if schedule hasn't changed
+    if (selectedSchedule === lastSelectedScheduleRef.current || !selectedSchedule) {
+      return;
+    }
+    
+    // Skip if we're editing (params already set)
+    if (params.frequency && params.duration && params.payoutAmount) {
+      return;
+    }
+    
+    isUpdatingDurationRef.current = true;
+    lastSelectedScheduleRef.current = selectedSchedule;
     
     const durationOptions = getDurationOptions(selectedSchedule || '');
     
@@ -548,24 +625,38 @@ export default function ScheduleScreen() {
       defaultDuration = durationOptions[durationOptions.length - 1]; // Default to the longest duration for other frequencies
     }
     
-    setSelectedDuration(defaultDuration);
-    setNumberOfPayouts(defaultDuration.value);
-    
-    if (isYearlySplit && totalAmount) {
-      calculatePayoutAmount(totalAmount, defaultDuration.value);
+    // Only update if duration actually changed
+    if (defaultDuration.value !== lastSelectedDurationRef.current) {
+      lastSelectedDurationRef.current = defaultDuration.value;
+      setSelectedDuration(defaultDuration);
+      setNumberOfPayouts(defaultDuration.value);
+      
+      if (isYearlySplit && totalAmount && totalAmount !== '0') {
+        calculatePayoutAmount(totalAmount, defaultDuration.value);
+      }
     }
-  }, [selectedSchedule, params.suggestedFrequency, params.suggestedDuration]);
+    
+    // Reset flag after a short delay to allow state updates to complete
+    setTimeout(() => {
+      isUpdatingDurationRef.current = false;
+    }, 100);
+  }, [selectedSchedule, params.suggestedFrequency, params.suggestedDuration, params.frequency, params.duration, params.payoutAmount, totalAmount, isYearlySplit]);
 
-  const calculatePayoutAmount = (total: string, payouts: number) => {
+  const calculatePayoutAmount = useCallback((total: string, payouts: number) => {
     const numericTotal = parseFloat(total.replace(/,/g, ''));
     if (!isNaN(numericTotal) && payouts > 0) {
       const amount = numericTotal / payouts;
-      setPayoutAmount(amount.toLocaleString(undefined, {
+      const formattedAmount = amount.toLocaleString(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-      }));
+      });
+      
+      // Only update if the value actually changed to prevent blinking
+      if (formattedAmount !== payoutAmount) {
+        setPayoutAmount(formattedAmount);
+      }
     }
-  };
+  }, [payoutAmount]);
 
   const handleCustomAmountChange = (amount: string) => {
     setCustomAmount(amount);
@@ -591,7 +682,7 @@ export default function ScheduleScreen() {
 
   const handleYearlySplitToggle = () => {
     setIsYearlySplit(!isYearlySplit);
-    if (!isYearlySplit) {
+    if (!isYearlySplit && totalAmount && totalAmount !== '0') {
       setNumberOfPayouts(selectedDuration.value);
       calculatePayoutAmount(totalAmount, selectedDuration.value);
       setCustomAmount('');
@@ -670,6 +761,10 @@ export default function ScheduleScreen() {
   };
 
   const handleScheduleSelect = (schedule: string) => {
+    // Prevent triggering useEffect by setting ref
+    isUpdatingDurationRef.current = true;
+    lastSelectedScheduleRef.current = schedule;
+    
     setSelectedSchedule(schedule);
     
     // Reset duration options based on new frequency
@@ -683,11 +778,15 @@ export default function ScheduleScreen() {
       defaultDuration = durationOptions[durationOptions.length - 1]; // Default to the longest duration for other frequencies
     }
     
-    setSelectedDuration(defaultDuration);
-    setNumberOfPayouts(defaultDuration.value);
-    
-    if (isYearlySplit && totalAmount) {
-      calculatePayoutAmount(totalAmount, defaultDuration.value);
+    // Only update if duration actually changed
+    if (defaultDuration.value !== lastSelectedDurationRef.current) {
+      lastSelectedDurationRef.current = defaultDuration.value;
+      setSelectedDuration(defaultDuration);
+      setNumberOfPayouts(defaultDuration.value);
+      
+      if (isYearlySplit && totalAmount && totalAmount !== '0') {
+        calculatePayoutAmount(totalAmount, defaultDuration.value);
+      }
     }
     
     // Show day of week picker if weekly_specific is selected
@@ -699,6 +798,11 @@ export default function ScheduleScreen() {
     } else {
       setShowDayOfWeekPicker(false);
     }
+    
+    // Reset flag after state updates
+    setTimeout(() => {
+      isUpdatingDurationRef.current = false;
+    }, 100);
   };
 
   const handleAddDate = () => {
@@ -743,14 +847,24 @@ export default function ScheduleScreen() {
     if (Platform.OS !== 'web') {
       haptics.selection();
     }
+    
+    // Prevent triggering useEffect by setting ref
+    isUpdatingDurationRef.current = true;
+    lastSelectedDurationRef.current = duration.value;
+    
     setSelectedDuration(duration);
     setNumberOfPayouts(duration.value);
     
-    if (isYearlySplit && totalAmount) {
+    if (isYearlySplit && totalAmount && totalAmount !== '0') {
       calculatePayoutAmount(totalAmount, duration.value);
     }
     
     setShowDurationPicker(false);
+    
+    // Reset flag after state updates
+    setTimeout(() => {
+      isUpdatingDurationRef.current = false;
+    }, 100);
   };
   
   const handleTimeSelect = (hour: number, minute: number) => {
@@ -860,6 +974,8 @@ export default function ScheduleScreen() {
             horizontal 
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.scheduleOptions}
+            nestedScrollEnabled={Platform.OS === 'android'}
+            bounces={Platform.OS === 'ios'}
           >
             <Pressable 
               style={[

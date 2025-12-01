@@ -257,7 +257,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.planmoni";
+				PRODUCT_BUNDLE_IDENTIFIER = "app.planmoni";
 				PRODUCT_NAME = "Planmoni";
 				SWIFT_OBJC_BRIDGING_HEADER = "Planmoni/Planmoni-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -286,7 +286,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.planmoni";
+				PRODUCT_BUNDLE_IDENTIFIER = "app.planmoni";
 				PRODUCT_NAME = "Planmoni";
 				SWIFT_OBJC_BRIDGING_HEADER = "Planmoni/Planmoni-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;

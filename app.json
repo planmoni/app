@@ -44,7 +44,7 @@
       },
       "entitlements": {
         "aps-environment": "development",
-        "keychain-access-groups": ["$(AppIdentifierPrefix)com.planmoni"]
+        "keychain-access-groups": ["$(AppIdentifierPrefix)app.planmoni"]
       }
     },
     "web": {
