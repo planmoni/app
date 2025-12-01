@@ -565,21 +565,22 @@ export default function HomeScreen() {
       }
     }
     
-    // If Tier 1 is complete, navigate directly to add funds page
-    if (tierCompletion.tier1) {
+    // If Tier 1 is complete AND has account, navigate directly to add funds page
+    if (tierCompletion.tier1 && hasAccount) {
       router.push('/add-funds');
       logAnalyticsEvent('add_funds_click');
       return;
     }
     
     // If Tier 1 not complete or no account, show ClaimAccountModal
+    // The modal will handle navigation if account exists after checking
     if (!hasAccount || !tierCompletion.tier1) {
       setShowClaimAccountModal(true);
       logAnalyticsEvent('add_funds_click_claim_modal');
     } else {
-    // Navigate directly to add funds page
-    router.push('/add-funds');
-    logAnalyticsEvent('add_funds_click');
+      // This case should not happen (covered above), but just in case
+      router.push('/add-funds');
+      logAnalyticsEvent('add_funds_click');
     }
   };
 
@@ -988,7 +989,11 @@ export default function HomeScreen() {
         
 
         <ImageCarousel images={carouselImages} />
-        {isAuthenticated && !checkTierCompletion().tier1 && <KYCCard />}
+        {isAuthenticated && progress && !(
+          progress.id_face_verified === true || 
+          progress.id_face_verified === 1 ||
+          progress.id_face_verified === 'true'
+        ) && <KYCCard />}
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 

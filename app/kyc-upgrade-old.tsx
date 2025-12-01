@@ -32,7 +32,7 @@ export default function KYCUpgradeScreen() {
   
   // Custom hooks for KYC data and progress
   const { formData, loading: formDataLoading, saveFormData } = useKYCData();
-  const { progress, loading: progressLoading, updateProgress, getStepProgress, updateTier, currentTier, checkTierCompletion, loadProgress } = useKYCProgress();
+  const { progress, loading: progressLoading, updateProgress, getStepProgress, updateTier, currentTier, checkTierCompletion } = useKYCProgress();
   
   
 
@@ -1874,40 +1874,20 @@ export default function KYCUpgradeScreen() {
       }
       
       // Update progress with NIN verified (using id_face_verified)
-      // First update without current_step to check Tier 1 completion
       const progressResult = await updateProgress({
+        current_step: 'personal', // Move to personal info (Tier 2) after NIN verification
         id_face_verified: true
       });
       
-      if (!progressResult) {
-        showToast('Failed to update progress. Please try again.', 'error');
-        return;
-      }
-      
-      // Reload progress to get the latest state after update
-      await loadProgress();
-      
       // Check if Tier 1 is complete (Liveness + BVN + NIN)
-      // After reloading, progress state should be up to date
-      await updateTier(); // Update tier after NIN verification
-      const tierStatus = checkTierCompletion();
-      
-      if (tierStatus.tier1) {
-        console.log('Tier 1 completed! Redirecting to home page.');
-        showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
-        
-        // Wait for toast to be visible before redirecting
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Redirect to home page after Tier 1 completion (do not continue to Tier 2)
-        router.replace('/(tabs)');
-        return;
+      if (progressResult) {
+        await updateTier(); // Update tier after NIN verification
+        const tierStatus = checkTierCompletion();
+        if (tierStatus.tier1) {
+          console.log('Tier 1 completed! User can now proceed to Tier 2.');
+          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+        }
       }
-      
-      // If Tier 1 is not complete, update current_step to personal (Tier 2)
-      await updateProgress({
-        current_step: 'personal'
-      });
       
       if (!progressResult) {
         showToast('Failed to update progress. Please try again.', 'error');
@@ -2091,40 +2071,20 @@ export default function KYCUpgradeScreen() {
       }
       
       // Update progress with BVN verified (using id_face_verified)
-      // First update without current_step to check Tier 1 completion
       const progressResult = await updateProgress({
+        current_step: 'personal', // Move to personal info (Tier 2) after BVN verification
         id_face_verified: true
       });
       
-      if (!progressResult) {
-        showToast('Failed to update progress. Please try again.', 'error');
-        return;
-      }
-      
-      // Reload progress to get the latest state after update
-      await loadProgress();
-      
       // Check if Tier 1 is complete (Liveness + BVN + NIN)
-      // After reloading, progress state should be up to date
-      await updateTier(); // Update tier after BVN verification
-      const tierStatus = checkTierCompletion();
-      
-      if (tierStatus.tier1) {
-        console.log('Tier 1 completed! Redirecting to home page.');
-        showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
-        
-        // Wait for toast to be visible before redirecting
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Redirect to home page after Tier 1 completion (do not continue to Tier 2)
-        router.replace('/(tabs)');
-        return;
+      if (progressResult) {
+        await updateTier(); // Update tier after BVN verification
+        const tierStatus = checkTierCompletion();
+        if (tierStatus.tier1) {
+          console.log('Tier 1 completed! User can now proceed to Tier 2.');
+          showToast('Tier 1 completed! You can now deposit up to ₦20,000 monthly.', 'success');
+        }
       }
-      
-      // If Tier 1 is not complete, update current_step to personal (Tier 2)
-      await updateProgress({
-        current_step: 'personal'
-      });
       
       if (!progressResult) {
         showToast('Failed to update progress. Please try again.', 'error');
@@ -4720,7 +4680,7 @@ export default function KYCUpgradeScreen() {
           <Text style={styles.headerTitle}>Account Verification</Text>
         </View>
         
-        <Pressable onPress={() => router.replace('/(tabs)')} style={styles.closeButton}>
+        <Pressable onPress={() => router.back()} style={styles.closeButton}>
           <X size={isSmallScreen ? 20 : 24} color={colors.text} />
         </Pressable>
       </View>

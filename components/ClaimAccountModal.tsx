@@ -59,17 +59,63 @@ export default function ClaimAccountModal({
     }
   }, [isVisible, formData, session]);
 
-  // Check for existing account when modal opens, but only if Tier 1 is not complete
+  // Check for existing account and Tier 1 status when modal opens
   // Skip this check for unauthenticated users
   useEffect(() => {
     if (isVisible && session?.user?.id && isAuthenticated) {
-      const tierCompletion = checkTierCompletion();
-      // If Tier 1 is complete, close the modal immediately
-      if (tierCompletion.tier1) {
-        onClose();
-        return;
-      }
-      checkExistingAccount();
+      const checkBeforeShowing = async () => {
+        // First check if Tier 1 is complete - if so, close immediately
+        const tierCompletion = checkTierCompletion();
+        if (tierCompletion.tier1) {
+          onClose();
+          return;
+        }
+        
+        // Then check if account exists - if so, close immediately without showing modal
+        setIsCheckingAccount(true);
+        try {
+          const { data, error } = await supabase
+            .from('safehaven_accounts')
+            .select('id, account_number, account_name, status, is_deleted')
+            .eq('user_id', session.user.id)
+            .eq('is_deleted', false)
+            .not('account_number', 'ilike', 'PENDING_%')
+            .maybeSingle();
+
+          if (!error && data && data.account_number && !data.account_number.startsWith('PENDING_')) {
+            // Account exists - close modal immediately
+            console.log('[ClaimAccountModal] Account exists, closing modal immediately');
+            setExistingAccount({
+              account_number: data.account_number,
+              account_name: data.account_name,
+              status: data.status
+            });
+            
+            // Close modal first
+            onClose();
+            
+            // Only navigate if onClaim callback is provided (let parent handle navigation)
+            // This prevents duplicate navigation
+            if (onClaim) {
+              setTimeout(() => {
+                onClaim();
+              }, 100);
+            }
+            // Don't navigate here if onClaim is not provided - parent should handle it
+            return;
+          }
+          
+          // No account exists - allow modal to show
+          setExistingAccount(null);
+        } catch (error) {
+          console.error('[ClaimAccountModal] Error checking account:', error);
+          setExistingAccount(null);
+        } finally {
+          setIsCheckingAccount(false);
+        }
+      };
+      
+      checkBeforeShowing();
     }
   }, [isVisible, session?.user?.id, isAuthenticated, checkTierCompletion, onClose]);
 
@@ -102,17 +148,21 @@ export default function ClaimAccountModal({
           status: data.status
         });
         
-        showToast('Your account is already available!', 'success');
+        // Close modal immediately without showing toast or navigating
+        // The parent component should handle navigation if needed
+        onClose();
         
-        // Close modal and navigate
-        setTimeout(() => {
-          onClose();
-          if (onClaim) {
+        // If onClaim callback is provided, call it
+        if (onClaim) {
+          setTimeout(() => {
             onClaim();
-          } else {
+          }, 100);
+        } else {
+          // Navigate to add-funds page
+          setTimeout(() => {
             router.push('/add-funds');
-          }
-        }, 500);
+          }, 100);
+        }
       } else {
         setExistingAccount(null);
       }
@@ -285,9 +335,12 @@ export default function ClaimAccountModal({
     router.push('/kyc-upgrade');
   };
 
+  // Don't show modal if we're still checking for account or if account exists
+  const shouldShowModal = isVisible && !isCheckingAccount && !existingAccount?.account_number;
+
   return (
     <Modal
-      visible={isVisible}
+      visible={shouldShowModal}
       animationType="slide"
       transparent={true}
       onRequestClose={onClose}

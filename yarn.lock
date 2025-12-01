@@ -8393,15 +8393,15 @@ react-native-view-shot@4.0.3:
   dependencies:
     html2canvas "^1.4.1"
 
-react-native-vision-camera-face-detector@^1.7.2:
-  version "1.7.2"
-  resolved "https://registry.npmjs.org/react-native-vision-camera-face-detector/-/react-native-vision-camera-face-detector-1.7.2.tgz"
-  integrity sha512-Y12FVJfGzqLpslBhr3E57JzLb2ZiuI0wl5VoBa7qLIjaiWv4agkU9somVeowfM60cU2NT5njiQY+PT+wKqLJGQ==
+react-native-vision-camera-face-detector@^1.10.1:
+  version "1.10.1"
+  resolved "https://registry.npmjs.org/react-native-vision-camera-face-detector/-/react-native-vision-camera-face-detector-1.10.1.tgz"
+  integrity sha512-KTGJNVh2KszeMnVs/QsSYyUIu2wmZA0H3cQLaOqNXDsc33HB32EPRhO/+A574GGw0/FuYEAnBp3+hFnMCSISGA==
 
-react-native-vision-camera@^4.6.4, "react-native-vision-camera@>= 4.0":
-  version "4.6.4"
-  resolved "https://registry.npmjs.org/react-native-vision-camera/-/react-native-vision-camera-4.6.4.tgz"
-  integrity sha512-d998uTHsGJ9bTlsClgT37RK1sK7ZQekv5y6ylynds3vmdK6YbFQJUoi2cvMrFN4dp9qvSlCjEfwekjMIz3guQA==
+react-native-vision-camera@^4.7.3, "react-native-vision-camera@>= 4.0":
+  version "4.7.3"
+  resolved "https://registry.npmjs.org/react-native-vision-camera/-/react-native-vision-camera-4.7.3.tgz"
+  integrity sha512-g1/neOyjSqn1kaAa2FxI/qp5KzNvPcF0bnQw6NntfbxH6tm0+8WFZszlgb5OV+iYlB6lFUztCbDtyz5IpL47OA==
 
 react-native-web@*, react-native-web@~0.20.0:
   version "0.20.0"
@@ -8432,7 +8432,7 @@ react-native-worklets-core@*, react-native-worklets-core@^1.6.2:
   dependencies:
     string-hash-64 "^1.0.3"
 
-react-native@*, "react-native@^0.0.0-0 || >=0.60 <1.0", "react-native@^0.0.0-0 || >=0.65 <1.0", react-native@>=0.46, react-native@>=0.50.0, react-native@>=0.57, react-native@>=0.59.0, react-native@>=0.63.4, react-native@>=0.64, react-native@>=0.65.0, react-native@>=0.78.0, react-native@0.79.6:
+react-native@*, "react-native@^0.0.0-0 || >=0.60 <1.0", "react-native@^0.0.0-0 || >=0.65 <1.0", "react-native@>= 0.74", react-native@>=0.46, react-native@>=0.50.0, react-native@>=0.57, react-native@>=0.59.0, react-native@>=0.63.4, react-native@>=0.64, react-native@>=0.65.0, react-native@>=0.78.0, react-native@0.79.6:
   version "0.79.6"
   resolved "https://registry.npmjs.org/react-native/-/react-native-0.79.6.tgz"
   integrity sha512-kvIWSmf4QPfY41HC25TR285N7Fv0Pyn3DAEK8qRL9dA35usSaxsJkHfw+VqnonqJjXOaoKCEanwudRAJ60TBGA==
@@ -8494,7 +8494,7 @@ react-refresh@^0.14.0, react-refresh@^0.14.2:
   resolved "https://registry.npmjs.org/react-refresh/-/react-refresh-0.14.2.tgz"
   integrity sha512-jCvmsr+1IUSMUyzOkRcvnVbX3ZYC6g9TDrDbFuFmRDq7PD4yaGbLKNQL6k2jnArV8hjYxh7hVhAZB6s9HDGpZA==
 
-react@*, "react@^16.14.0 || 17.x || 18.x || 19.x", "react@^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react@^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react@^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react@^18.0 || ^19.0 || ^19.0.0-rc", react@^18.0.0, "react@^18.0.0 || ^19.0.0", react@^19.0.0, "react@>= 18.2.0", react@>=16, react@>=16.0.0, react@>=16.3.0, react@>=16.8, react@>=17.0.0, react@>=18.0, react@>=19.0.0, "react@16 - 19", react@19.0.0:
+react@*, "react@^16.14.0 || 17.x || 18.x || 19.x", "react@^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react@^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react@^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react@^18.0 || ^19.0 || ^19.0.0-rc", react@^18.0.0, "react@^18.0.0 || ^19.0.0", react@^19.0.0, "react@>= 18", "react@>= 18.2.0", react@>=16, react@>=16.0.0, react@>=16.3.0, react@>=16.8, react@>=17.0.0, react@>=18.0, react@>=19.0.0, "react@16 - 19", react@19.0.0:
   version "19.0.0"
   resolved "https://registry.npmjs.org/react/-/react-19.0.0.tgz"
   integrity sha512-V8AVnmPIICiWpGfm6GLzCR/W5FXLchHop40W4nXBmdlEceh16rCN8O8LNWm5bh5XUX91fh7KpA+W0TgMKmgTpQ==

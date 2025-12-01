@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import Tier0Icon from '@/assets/kyc/tier-0.svg';
@@ -14,6 +14,7 @@ import Tier3Icon from '@/assets/kyc/tier-3.svg';
 import {BadgeCheck} from 'lucide-react-native';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useTextSize } from '@/contexts/TextSizeContext';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 type KYCStatus = 'starting' | 'continuing' | 'pending';
 
@@ -22,11 +23,12 @@ export default function KYCCard() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const { session } = useAuth();
-  const { progress, loading: progressLoading, currentTier = 0, checkTierCompletion } = useKYCProgress();
+  const { progress, loading: progressLoading, currentTier = 0, checkTierCompletion, loadProgress } = useKYCProgress();
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [latestProgress, setLatestProgress] = useState<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   // Fetch latest progress directly from Supabase to ensure we have the most up-to-date data
@@ -93,6 +95,101 @@ export default function KYCCard() {
       return () => clearTimeout(timer);
     }
   }, [progressLoading, session?.user?.id, fetchLatestProgress]);
+
+  // Set up real-time subscription to kyc_progress table
+  useEffect(() => {
+    if (!session?.user?.id) {
+      return;
+    }
+
+    // Check if Supabase is configured before attempting subscription
+    if (!isSupabaseConfigured()) {
+      console.log('[KYCCard] Supabase not configured, skipping realtime subscription');
+      return;
+    }
+
+    const channelName = `kyc-progress-changes-${session.user.id}`;
+    
+    // Clean up existing channel if any
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'kyc_progress',
+          filter: `user_id=eq.${session.user.id}`,
+        },
+        (payload: any) => {
+          console.log('[KYCCard] Real-time progress update received:', {
+            event: payload.event,
+            table: payload.table,
+            schema: payload.schema,
+            new: payload.new,
+            old: payload.old
+          });
+          
+          if (payload.event === 'UPDATE' && payload.new) {
+            // Update latestProgress with the new data
+            setLatestProgress(payload.new);
+            console.log('[KYCCard] Progress updated in real-time:', {
+              liveness_test_completed: payload.new.liveness_test_completed,
+              bvn_verified: payload.new.bvn_verified,
+              id_face_verified: payload.new.id_face_verified,
+              current_step: payload.new.current_step,
+            });
+            // Also reload progress in the hook to keep it in sync
+            loadProgress().catch(err => {
+              console.warn('[KYCCard] Error reloading progress after real-time update:', err);
+            });
+          } else if (payload.event === 'INSERT' && payload.new) {
+            // Handle new record creation
+            setLatestProgress(payload.new);
+            console.log('[KYCCard] New progress record created in real-time');
+            // Also reload progress in the hook to keep it in sync
+            loadProgress().catch(err => {
+              console.warn('[KYCCard] Error reloading progress after real-time update:', err);
+            });
+          }
+        }
+      )
+      .subscribe((status: 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED') => {
+        console.log(`[KYCCard] Realtime subscription status: ${status}`);
+        
+        switch (status) {
+          case 'SUBSCRIBED':
+            console.log('[KYCCard] ✅ Real-time subscription active');
+            break;
+          case 'CHANNEL_ERROR':
+            console.warn('[KYCCard] ⚠️ Real-time subscription error - continuing without realtime updates');
+            break;
+          case 'TIMED_OUT':
+            console.warn('[KYCCard] ⚠️ Real-time subscription timed out - continuing without realtime updates');
+            break;
+          case 'CLOSED':
+            console.log('[KYCCard] ℹ️ Real-time subscription closed');
+            break;
+        }
+      });
+
+    channelRef.current = channel;
+
+    // Cleanup function
+    return () => {
+      if (channelRef.current) {
+        console.log('[KYCCard] Cleaning up real-time subscription');
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [session?.user?.id]);
 
   // Refresh when screen comes into focus (user navigates back to home)
   useFocusEffect(
@@ -167,12 +264,22 @@ export default function KYCCard() {
   const kycStatus = getKYCStatus();
   const isLoadingStatus = isLoading || progressLoading;
 
-  // Check if Tier 1 is complete
-  const tierCompletion = checkTierCompletion();
-  const isTier1Complete = tierCompletion.tier1;
+  // Check if NIN verification is complete using latest progress data
+  // Use latestProgress (direct from DB) if available, otherwise fall back to progress from hook
+  const currentProgress = latestProgress || progress;
+  const isNINVerified = 
+    currentProgress?.id_face_verified === true || 
+    currentProgress?.id_face_verified === 1 ||
+    currentProgress?.id_face_verified === 'true';
 
-  // Don't show card if Tier 1 is complete or if KYC is fully completed and verified
-  if (isTier1Complete || (progress.overall_completed && verificationStatus === 'verified')) {
+  // Don't show card if NIN verification is complete or if KYC is fully completed and verified
+  if (isNINVerified || (currentProgress?.overall_completed && verificationStatus === 'verified')) {
+    console.log('[KYCCard] Hiding card - NIN verified or KYC fully completed:', {
+      isNINVerified,
+      idFace: currentProgress?.id_face_verified,
+      overallCompleted: currentProgress?.overall_completed,
+      verificationStatus
+    });
     return null;
   }
 
@@ -180,23 +287,32 @@ export default function KYCCard() {
     haptics.mediumImpact();
     console.log('KYCCard handlePress called, kycStatus:', kycStatus);
     
-    // Check if liveness is completed
+    // Check current progress
     const currentProgress = latestProgress || progress;
+    const currentStep = currentProgress?.current_step;
+    
+    // Check if liveness is completed
     const isLivenessCompleted = currentProgress?.liveness_test_completed === true || 
                                 currentProgress?.liveness_test_completed === 1 || 
                                 currentProgress?.liveness_test_completed === 'true';
     
-    if (kycStatus === 'starting') {
-      // Always show KYCVerificationModal first when starting
+    // If user has a current_step beyond liveness, they should navigate directly
+    // Steps that indicate liveness is completed: bvn_verification, id_face_match, personal, documents_verification, address_details, review
+    const stepsBeyondLiveness = ['bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
+    const hasProgressBeyondLiveness = currentStep && stepsBeyondLiveness.includes(currentStep);
+    
+    if (kycStatus === 'starting' && !hasProgressBeyondLiveness && !isLivenessCompleted) {
+      // Only show KYCVerificationModal if starting and no progress beyond liveness
       console.log('Setting showVerificationModal to true');
       setShowVerificationModal(true);
-    } else if (!isLivenessCompleted) {
-      // If continuing but liveness not completed, show verification modal to trigger camera permission
+    } else if (hasProgressBeyondLiveness || isLivenessCompleted) {
+      // Navigate directly to kyc-upgrade if user has progress beyond liveness or liveness is completed
+      console.log('Navigating directly to kyc-upgrade, currentStep:', currentStep);
+      router.push('/kyc-upgrade');
+    } else {
+      // Fallback: if continuing but liveness not completed, show verification modal
       console.log('Liveness not completed, showing verification modal');
       setShowVerificationModal(true);
-    } else {
-      // Navigate directly to kyc-upgrade if liveness is already completed
-      router.push('/kyc-upgrade');
     }
   };
 
@@ -291,16 +407,19 @@ export default function KYCCard() {
     
     if (!currentProgress) return 'bvn_verification';
     
-    // Check liveness first - handle boolean, number, and string representations
-    const livenessCompleted = currentProgress.liveness_test_completed === true || 
-                              currentProgress.liveness_test_completed === 1 ||
-                              currentProgress.liveness_test_completed === 'true';
+    // Helper function to check if a boolean field is true (handles boolean, number, and string)
+    const isFieldTrue = (field: any): boolean => {
+      return field === true || field === 1 || field === 'true';
+    };
     
-    // If liveness is not completed, show BVN step (liveness will be triggered automatically)
-    // This matches kyc-upgrade.tsx getFirstIncompleteStep logic
-    if (!livenessCompleted) {
-      return 'bvn_verification'; // Go to BVN step, but liveness will be triggered automatically
-    }
+    // Check if BVN is verified - if BVN is verified, liveness must have been completed
+    const bvnVerified = isFieldTrue(currentProgress.bvn_verified);
+    
+    // Check if NIN is verified - if NIN is verified, both liveness and BVN must have been completed
+    const idFaceVerified = isFieldTrue(currentProgress.id_face_verified);
+    
+    // Check liveness - but if BVN or NIN is verified, we know liveness was completed
+    const livenessCompleted = isFieldTrue(currentProgress.liveness_test_completed) || bvnVerified || idFaceVerified;
     
     // Step order matching kyc-upgrade.tsx
     const stepOrder: KYCStep[] = ['bvn_verification', 'id_face_match', 'personal', 'documents_verification', 'address_details', 'review'];
@@ -309,34 +428,32 @@ export default function KYCCard() {
     for (const step of stepOrder) {
       switch (step) {
         case 'bvn_verification':
-          // Check if BVN is not verified (handle boolean, number, and string)
-          const bvnNotVerified = !(currentProgress.bvn_verified === true || 
-                                   currentProgress.bvn_verified === 1 ||
-                                   currentProgress.bvn_verified === 'true');
-          if (bvnNotVerified) return step;
+          // Only return BVN step if it's not verified AND liveness is not completed
+          // If BVN is verified, skip to next step
+          if (!bvnVerified && !livenessCompleted) {
+            return step; // Go to BVN step, but liveness will be triggered automatically
+          }
+          // If BVN is verified, continue to next step
+          if (bvnVerified) {
+            break; // Continue to check next step
+          }
           break;
         case 'id_face_match':
-          const idFaceNotVerified = !(currentProgress.id_face_verified === true || 
-                                     currentProgress.id_face_verified === 1 ||
-                                     currentProgress.id_face_verified === 'true');
-          if (idFaceNotVerified) return step;
+          // Only return NIN step if it's not verified
+          if (!idFaceVerified) {
+            return step;
+          }
           break;
         case 'personal':
-          const personalNotCompleted = !(currentProgress.personal_info_completed === true || 
-                                        currentProgress.personal_info_completed === 1 ||
-                                        currentProgress.personal_info_completed === 'true');
+          const personalNotCompleted = !isFieldTrue(currentProgress.personal_info_completed);
           if (personalNotCompleted) return step;
           break;
         case 'documents_verification':
-          const documentsNotVerified = !(currentProgress.documents_verified === true || 
-                                        currentProgress.documents_verified === 1 ||
-                                        currentProgress.documents_verified === 'true');
+          const documentsNotVerified = !isFieldTrue(currentProgress.documents_verified);
           if (documentsNotVerified) return step;
           break;
         case 'address_details':
-          const addressNotCompleted = !(currentProgress.address_completed === true || 
-                                       currentProgress.address_completed === 1 ||
-                                       currentProgress.address_completed === 'true');
+          const addressNotCompleted = !isFieldTrue(currentProgress.address_completed);
           if (addressNotCompleted) return step;
           break;
         case 'review':
@@ -383,11 +500,14 @@ export default function KYCCard() {
     console.log('[KYCCard] getStatusMessage - currentProgress:', {
       liveness_test_completed: currentProgress.liveness_test_completed,
       bvn_verified: currentProgress.bvn_verified,
+      id_face_verified: currentProgress.id_face_verified,
+      personal_info_completed: currentProgress.personal_info_completed,
       current_step: currentProgress.current_step,
       usingLatest: !!latestProgress,
       progressFromHook: {
         liveness_test_completed: progress?.liveness_test_completed,
-        bvn_verified: progress?.bvn_verified
+        bvn_verified: progress?.bvn_verified,
+        id_face_verified: progress?.id_face_verified
       }
     });
     
@@ -401,18 +521,32 @@ export default function KYCCard() {
                               currentProgress.liveness_test_completed === 1 ||
                               currentProgress.liveness_test_completed === 'true';
     
-    console.log('[KYCCard] Liveness check:', {
+    // Also check if BVN is verified - if BVN is verified, liveness must have been completed
+    const bvnVerified = currentProgress.bvn_verified === true || 
+                        currentProgress.bvn_verified === 1 ||
+                        currentProgress.bvn_verified === 'true';
+    
+    // Also check if NIN is verified - if NIN is verified, liveness and BVN must have been completed
+    const idFaceVerified = currentProgress.id_face_verified === true || 
+                          currentProgress.id_face_verified === 1 ||
+                          currentProgress.id_face_verified === 'true';
+    
+    console.log('[KYCCard] Verification status check:', {
       liveness_test_completed: currentProgress.liveness_test_completed,
       livenessCompleted,
+      bvnVerified,
+      idFaceVerified,
       type: typeof currentProgress.liveness_test_completed
     });
     
-    if (!livenessCompleted) {
-      console.log('[KYCCard] Liveness not completed, showing "Start with Liveness Verification"');
+    // If liveness is not completed AND BVN is not verified, show start message
+    // If BVN or NIN is verified, we know liveness was completed (even if flag is missing)
+    if (!livenessCompleted && !bvnVerified && !idFaceVerified) {
+      console.log('[KYCCard] Liveness not completed and no verification done, showing "Start" message');
       return 'Verify your identity to unlock features';
     }
     
-    // Liveness is completed, so get the next incomplete step
+    // Liveness is completed (or BVN/NIN verified, which implies liveness), so get the next incomplete step
     // Always get the next incomplete step to show (this matches kyc-upgrade.tsx logic)
     const currentStepToShow = getNextIncompleteStep();
     
@@ -431,7 +565,7 @@ export default function KYCCard() {
     }
     
     // Once liveness is completed, all other steps say "Continue"
-    console.log('[KYCCard] Liveness completed, showing "Continue with', stepDisplayName + '"');
+    console.log('[KYCCard] Showing "Continue with', stepDisplayName + '"');
     return `Continue with ${stepDisplayName}`;
   };
 
@@ -630,5 +764,3 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: isDark ? colors.textSecondary : '#6B7280',
   },
 });
-
-

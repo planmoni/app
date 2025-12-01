@@ -155,7 +155,7 @@ export default function CreatePasswordScreen() {
               </View>
             )}
             
-            <View style={styles.requirements}>
+            {/* <View style={styles.requirements}>
               <View style={styles.requirementsHeader}>
                 <View style={styles.requirementsIconContainer}>
                   <Shield size={20} color="#1E3A8A" />
@@ -180,7 +180,7 @@ export default function CreatePasswordScreen() {
                   /\d/.test(password) && styles.requirementMet
                 ]}>• Contains at least one number</Text>
               </View>
-            </View>
+            </View> */}
           </View>
         </View>
       </KeyboardAvoidingWrapper>

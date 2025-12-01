@@ -125,7 +125,7 @@ export default function AddFundsScreen() {
     };
 
     fetchTierInfo();
-  }, [session?.user?.id]);
+  }, [session?.user?.id, getTierInfo]);
 
   // Fetch today's deposit amount
   const fetchTodayDeposits = React.useCallback(async () => {
