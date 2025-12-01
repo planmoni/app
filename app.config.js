@@ -84,14 +84,6 @@ module.exports = {
           }
         }
        
-      ],
-      [
-        "react-native-vision-camera",
-        {
-          "cameraPermissionText": "$(PRODUCT_NAME) needs access to your Camera to take photos for liveness verification.",
-          "enableMicrophonePermission": false,
-          "enableFrameProcessors": true
-        }
       ]
     ],
     extra: {

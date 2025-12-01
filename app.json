@@ -54,14 +54,6 @@
     },
     "plugins": [
       [
-        "react-native-vision-camera",
-        {
-          "cameraPermissionText": "$(PRODUCT_NAME) needs access to your Camera to perform liveness verification.",
-          "enableMicrophonePermission": false,
-          "enableCodeScanner": false
-        }
-      ],
-      [
         "@intercom/intercom-react-native",
         {
           "appId": "tf4dp3qt",
