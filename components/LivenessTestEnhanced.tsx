@@ -14,6 +14,8 @@ import Animated, {
   useSharedValue,
   useAnimatedProps,
   withTiming,
+  cancelAnimation,
+  Easing,
 } from "react-native-reanimated";
 import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -74,7 +76,9 @@ export default function LivenessTestEnhanced({
     const progress = progressValue.value;
     const circumference = 2 * Math.PI * 140;
     const offset = circumference - (progress / 100) * circumference;
-    return { strokeDashoffset: offset };
+    return { 
+      strokeDashoffset: offset 
+    };
   });
 
   // Request camera permission when modal becomes visible
@@ -144,10 +148,23 @@ export default function LivenessTestEnhanced({
     if (capturedImage) return; // Don't allow holding if already captured
     
     setIsHolding(true);
+    
+    // Cancel any existing animation first (important for iOS)
+    cancelAnimation(progressValue);
+    
+    // Reset progress to 0 immediately
     progressValue.value = 0;
     
-    // Animate progress from 0 to 100 over HOLD_DURATION
-    progressValue.value = withTiming(100, { duration: HOLD_DURATION });
+    // Small delay to ensure the reset is applied before starting animation
+    // This is especially important on iOS where animations can be batched
+    setTimeout(() => {
+      // Animate progress from 0 to 100 over HOLD_DURATION with linear easing
+      // Linear easing ensures consistent progress over time on both iOS and Android
+      progressValue.value = withTiming(100, { 
+        duration: HOLD_DURATION,
+        easing: Easing.linear,
+      });
+    }, 16); // One frame delay (16ms at 60fps)
     
     // Set timer to capture photo when hold completes
     holdTimerRef.current = setTimeout(() => {
@@ -166,8 +183,12 @@ export default function LivenessTestEnhanced({
       holdTimerRef.current = null;
     }
     setIsHolding(false);
-    // Reset progress with animation
-    progressValue.value = withTiming(0, { duration: 200 });
+    // Cancel the ongoing animation and reset progress
+    cancelAnimation(progressValue);
+    progressValue.value = withTiming(0, { 
+      duration: 200,
+      easing: Easing.out(Easing.ease),
+    });
   }, [progressValue]);
 
 
