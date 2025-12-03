@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Shield, Camera } from 'lucide-react-native';
+import { Camera } from 'lucide-react-native';
 import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
+import CameraPermissionModal from '@/components/CameraPermissionModal';
+import { useCameraPermissions } from 'expo-camera';
 import ProgressBar from './ProgressBar';
 import { useTier1KYC } from '@/hooks/useTier1KYC';
 import { useToast } from '@/contexts/ToastContext';
@@ -10,7 +12,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useKYCData } from '@/hooks/useKYCData';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
 import { supabase } from '@/lib/supabase';
-import FloatingButton from '@/components/FloatingButton';
 
 interface LivenessStepProps {
   onComplete: () => void;
@@ -23,8 +24,11 @@ export default function LivenessStep({ onComplete }: LivenessStepProps) {
   const { saveFormData } = useKYCData();
   const { progress, updateProgress } = useKYCProgress();
   const { getProgressPercentage, getCurrentStepNumber } = useTier1KYC();
+  const [permission] = useCameraPermissions();
+  const hasPermission = permission?.granted ?? false;
   
   const [showLivenessTest, setShowLivenessTest] = useState(false);
+  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLivenessComplete = async (selfieUrl: string) => {
@@ -119,6 +123,28 @@ export default function LivenessStep({ onComplete }: LivenessStepProps) {
     setShowLivenessTest(false);
   };
 
+  const handleStartLivenessTest = () => {
+    // Check if camera permission is granted
+    if (hasPermission) {
+      // Permission already granted, show liveness test directly
+      setShowLivenessTest(true);
+    } else {
+      // No permission, show camera permission modal
+      setShowCameraPermissionModal(true);
+    }
+  };
+
+  const handleCameraPermissionComplete = (selfieUrl: string) => {
+    // Permission granted and liveness test completed from CameraPermissionModal
+    // Close the permission modal and handle completion
+    setShowCameraPermissionModal(false);
+    handleLivenessComplete(selfieUrl);
+  };
+
+  const handleCameraPermissionClose = () => {
+    setShowCameraPermissionModal(false);
+  };
+
   const styles = createStyles(colors, isDark);
   const percentage = getProgressPercentage();
   const stepNumber = getCurrentStepNumber();
@@ -129,26 +155,32 @@ export default function LivenessStep({ onComplete }: LivenessStepProps) {
       
       <View style={styles.content}>
         
-        <Text style={styles.title}>Liveness Verification</Text>
+        <Text style={styles.title}>Selfie Capture</Text>
         <Text style={styles.description}>
-          Complete a quick liveness test to verify your identity. This helps us ensure your account security.
+          Complete a quick selfie capture to verify your identity. This helps us ensure your account security.
         </Text>
 
         {progress?.liveness_test_completed ? (
           <View style={styles.completedContainer}>
-            <Text style={styles.completedText}>✓ Liveness test completed</Text>
+            <Text style={styles.completedText}>✓ Selfie captured</Text>
           </View>
         ) : (
           <Pressable
             style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={() => setShowLivenessTest(true)}
+            onPress={handleStartLivenessTest}
             disabled={isLoading}
           >
             <Camera size={20} color="#FFFFFF" />
-            <Text style={styles.buttonText}>Start Liveness Test</Text>
+            <Text style={styles.buttonText}>Start Selfie Capture</Text>
           </Pressable>
         )}
       </View>
+
+      <CameraPermissionModal
+        isVisible={showCameraPermissionModal}
+        onClose={handleCameraPermissionClose}
+        onComplete={handleCameraPermissionComplete}
+      />
 
       <LivenessTestEnhanced
         isVisible={showLivenessTest}

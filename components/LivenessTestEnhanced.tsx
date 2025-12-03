@@ -7,6 +7,7 @@ import {
   Modal,
   Pressable,
   Image,
+  Platform,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { X } from "lucide-react-native";
@@ -51,10 +52,12 @@ export default function LivenessTestEnhanced({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadComplete, setUploadComplete] = useState(false);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
+  const [countdown, setCountdown] = useState(HOLD_DURATION / 1000); // iOS only
 
   const progressValue = useSharedValue(0);
   const cameraRef = useRef<any>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Reset all state when modal closes or opens
   const resetState = useCallback(() => {
@@ -62,11 +65,16 @@ export default function LivenessTestEnhanced({
     setCapturedImage(null);
     setUploadComplete(false);
     progressValue.value = 0;
+    setCountdown(HOLD_DURATION / 1000);
     
     // Clear any pending timers
     if (holdTimerRef.current) {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
     }
   }, [progressValue]);
 
@@ -154,6 +162,24 @@ export default function LivenessTestEnhanced({
     
     // Reset progress to 0 immediately
     progressValue.value = 0;
+    setCountdown(HOLD_DURATION / 1000);
+    
+    // Start countdown timer (iOS only)
+    if (Platform.OS === 'ios') {
+      let remaining = HOLD_DURATION / 1000;
+      countdownIntervalRef.current = setInterval(() => {
+        remaining -= 0.1;
+        if (remaining > 0) {
+          setCountdown(remaining);
+        } else {
+          setCountdown(0);
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+          }
+        }
+      }, 100);
+    }
     
     // Small delay to ensure the reset is applied before starting animation
     // This is especially important on iOS where animations can be batched
@@ -170,10 +196,14 @@ export default function LivenessTestEnhanced({
     holdTimerRef.current = setTimeout(() => {
       console.log('[LivenessTest] Hold completed, capturing photo');
       setIsHolding(false);
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
       capturePhoto();
       holdTimerRef.current = null;
     }, HOLD_DURATION);
-  }, [capturedImage, progressValue, capturePhoto]);
+  }, [capturedImage, progressValue, capturePhoto, countdownIntervalRef]);
 
   // Handle hold button release
   const handleHoldEnd = useCallback(() => {
@@ -182,6 +212,10 @@ export default function LivenessTestEnhanced({
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
     setIsHolding(false);
     // Cancel the ongoing animation and reset progress
     cancelAnimation(progressValue);
@@ -189,6 +223,7 @@ export default function LivenessTestEnhanced({
       duration: 200,
       easing: Easing.out(Easing.ease),
     });
+    setCountdown(HOLD_DURATION / 1000);
   }, [progressValue]);
 
 
@@ -313,16 +348,21 @@ export default function LivenessTestEnhanced({
       if (isRequestingPermission) {
         return "Requesting camera permission...";
       }
-      return "Camera permission required to start liveness test";
+      return "Camera permission required to start selfiecapture";
     }
     if (capturedImage) {
       return uploadComplete ? "Verifying..." : "Photo captured!";
     }
     if (isHolding) {
+      // Show countdown on iOS only
+      if (Platform.OS === 'ios') {
+        const remaining = Math.ceil(countdown);
+        return `Hold the button... ${remaining > 0 ? `${remaining}s` : ''}`;
+      }
       return "Hold the button...";
     }
     return "Place your face in the frame.";
-  }, [permission?.granted, isRequestingPermission, capturedImage, uploadComplete, isHolding]);
+  }, [permission?.granted, isRequestingPermission, capturedImage, uploadComplete, isHolding, countdown]);
 
   // Don't render if modal is not visible
   if (!isVisible) {
@@ -402,12 +442,21 @@ export default function LivenessTestEnhanced({
                 strokeLinecap="round"
               />
             </Svg>
+            
+            {/* Countdown text in center - iOS only */}
+            {Platform.OS === 'ios' && isHolding && (
+              <View style={styles.countdownContainer}>
+                <Text style={[styles.countdownText, { color: '#FFFFFF' }]}>
+                  {Math.ceil(countdown)}s
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.primary }]}>Liveness Test</Text>
+          <Text style={[styles.title, { color: colors.primary }]}>Selfie Capture</Text>
           <Pressable onPress={onClose} style={styles.closeButton}>
             <X size={24} color={colors.text} />
           </Pressable>
@@ -460,7 +509,7 @@ export default function LivenessTestEnhanced({
         {uploadComplete && (
           <View style={styles.successContainer}>
             <Text style={[styles.successText, { color: '#fff' }]}>
-              ✓ Upload Complete
+              ✓ Selfie Captured
             </Text>
             <Text style={[styles.successSubtext, { color: colors.textSecondary }]}>
               Proceeding to BVN verification...
@@ -503,6 +552,22 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     top: "20%",
     width: 300,
     height: 300,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  countdownContainer: {
+    position: "absolute",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(0,0,0,0.7)",
+  },
+  countdownText: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   header: {
     position: "absolute",
