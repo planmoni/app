@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '@/lib/formatters';
+import { useKYCProgress } from '@/hooks/useKYCProgress';
 
 type KYCTier = 0 | 1 | 2 | 3;
 
@@ -24,6 +25,7 @@ interface TierLimitData {
 export default function TransactionLimitsScreen() {
   const { colors } = useTheme();
   const { session } = useAuth();
+  const { checkTierCompletion } = useKYCProgress();
   const [currentTier, setCurrentTier] = useState<KYCTier>(0);
   const [tierLimits, setTierLimits] = useState<Record<number, TierLimitData>>({});
   const [loading, setLoading] = useState(true);
@@ -75,8 +77,32 @@ export default function TransactionLimitsScreen() {
   };
 
   const handleUpgrade = () => {
-    // Navigate to KYC upgrade flow
-    router.push('/kyc-upgrade');
+    // Check user's tier completion status to route appropriately
+    const tierCompletion = checkTierCompletion();
+    
+    console.log('🔍 Transaction Limits Upgrade - Tier Status:', {
+      currentTier,
+      tierCompletion
+    });
+    
+    // Route based on tier status
+    // Check if Tier 1 is complete (liveness + BVN + NIN)
+    const isTier1Done = tierCompletion.tier1 || currentTier >= 1;
+    const isTier2Done = tierCompletion.tier2 || currentTier >= 2;
+    
+    if (isTier1Done && !isTier2Done) {
+      // Tier 1 complete but Tier 2 not complete - go to Tier 2 flow
+      console.log('✅ Routing to Tier 2 flow');
+      router.push('/kyc/tier2');
+    } else if (isTier2Done) {
+      // Tier 2 complete - go to old kyc-upgrade flow for Tier 3
+      console.log('✅ Routing to Tier 3 flow');
+      router.push('/kyc-upgrade');
+    } else {
+      // Tier 1 not complete or unverified - go to Tier 1 flow
+      console.log('✅ Routing to Tier 1 flow');
+      router.push('/kyc/tier1');
+    }
   };
 
   // Filter out current tier and lower tiers from available tiers

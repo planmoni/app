@@ -1,25 +1,28 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, ActivityIndicator, Pressable, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Check, CreditCard } from 'lucide-react-native';
 import ProgressBar from './ProgressBar';
 import { useTier1KYC } from '@/hooks/useTier1KYC';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useKYCData } from '@/hooks/useKYCData';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
-import { verifyBVN, validateBVN } from '@/utils/kyc-verification';
+import { verifyNIN } from '@/utils/kyc-verification';
+import { safeHavenService } from '@/lib/safehaven-service';
 import Button from '@/components/Button';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFabKeyboardOffset } from '@/hooks/useFabKeyboardOffset';
 import { BlurView } from 'expo-blur';
 
-interface BVNStepProps {
+interface OTPStepProps {
   onComplete: () => void;
-  onSwitchToNIN?: () => void;
+  nin: string;
+  identityId: string;
+  otpMessage?: string;
+  onSwitchToBVN?: () => void;
 }
 
-export default function BVNStep({ onComplete, onSwitchToNIN }: BVNStepProps) {
+export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwitchToBVN }: OTPStepProps) {
   const { colors, isDark } = useTheme();
   const { showToast } = useToast();
   const { session } = useAuth();
@@ -34,39 +37,37 @@ export default function BVNStep({ onComplete, onSwitchToNIN }: BVNStepProps) {
     tabBarHeight: 0,
   });
   
-  const [bvn, setBvn] = useState(formData?.bvn || '');
+  const [phoneNumber, setPhoneNumber] = useState(formData?.phone_number || '');
+  const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
-  const [bvnVerified, setBvnVerified] = useState(false);
-  const [bvnMatchedName, setBvnMatchedName] = useState('');
+  const [isSendingToBVN, setIsSendingToBVN] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bvnInputRef = useRef<TextInput>(null);
+  const otpInputRef = useRef<TextInput>(null);
+  const phoneInputRef = useRef<TextInput>(null);
 
-  // Auto-focus BVN input when step loads
+  // Auto-focus OTP input when component mounts
   useEffect(() => {
-    if (!bvnVerified && bvnInputRef.current) {
-      const timer = setTimeout(() => {
-        bvnInputRef.current?.focus();
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [bvnVerified]);
+    setTimeout(() => {
+      otpInputRef.current?.focus();
+    }, 300);
+  }, []);
 
   const handleVerify = async () => {
-    // Validate BVN
-    const validation = validateBVN(bvn);
-    if (!validation.isValid) {
-      setError(validation.error || 'Invalid BVN');
-      showToast(validation.error || 'Invalid BVN', 'error');
+    // Validate OTP and phone number
+    if (!otp || otp.length !== 6) {
+      setError('Valid 6-digit OTP is required');
+      showToast('Please enter a valid 6-digit OTP', 'error');
       return;
     }
 
-    if (!session?.user?.id) {
+    if (!phoneNumber || phoneNumber.length < 10) {
+      setError('Phone number is required');
+      showToast('Please enter your phone number', 'error');
+      return;
+    }
+
+    if (!session?.user?.id || !session?.user?.email) {
       showToast('Authentication required', 'error');
-      return;
-    }
-
-    if (!formData?.selfie_url) {
-      showToast('Please complete the liveness test first', 'error');
       return;
     }
 
@@ -74,36 +75,38 @@ export default function BVNStep({ onComplete, onSwitchToNIN }: BVNStepProps) {
     setError(null);
 
     try {
-      const result = await verifyBVN(
-        bvn,
-        formData.selfie_url,
+      const result = await verifyNIN(
+        nin,
+        phoneNumber,
+        otp,
+        identityId,
         session.user.id,
+        session.user.email,
         async (updates) => {
           return await updateProgress(updates);
         }
       );
 
-      if (result.success && result.displayName) {
-        setBvnVerified(true);
-        setBvnMatchedName(result.displayName);
+      if (result.success) {
+        // Save phone number to form data
+        await saveFormData({ phone_number: phoneNumber });
         
-        // Save BVN to form data
-        await saveFormData({ 
-          bvn: bvn
-        });
+        if (result.accountNumber) {
+          showToast(`NIN verified! Account created: ${result.accountNumber.substring(0, 5)}****`, 'success');
+        } else {
+          showToast('NIN verified! Account creation in progress', 'success');
+        }
         
-        showToast(`BVN verified! Name: ${result.displayName}`, 'success');
-        
-        // Auto-advance to next step after delay
+        // Navigate to success screen
         setTimeout(() => {
           onComplete();
         }, 2000);
       } else {
-        setError(result.error || 'BVN verification failed');
-        showToast(result.error || 'BVN verification failed', 'error');
+        setError(result.error || 'NIN verification failed');
+        showToast(result.error || 'NIN verification failed', 'error');
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'BVN verification failed';
+      const errorMessage = error instanceof Error ? error.message : 'NIN verification failed';
       setError(errorMessage);
       showToast(errorMessage, 'error');
     } finally {
@@ -111,24 +114,69 @@ export default function BVNStep({ onComplete, onSwitchToNIN }: BVNStepProps) {
     }
   };
 
-  const handleNumericInput = (text: string) => {
+  const handleNumericInput = (text: string, maxLength: number, setter: (value: string) => void) => {
     const numericText = text.replace(/[^0-9]/g, '');
-    if (numericText.length <= 11) {
-      setBvn(numericText);
+    if (numericText.length <= maxLength) {
+      setter(numericText);
       setError(null);
+    }
+  };
+
+  const handleSendToBVN = async () => {
+    if (!session?.user?.id || !session?.user?.email) {
+      showToast('Authentication required', 'error');
+      return;
+    }
+
+    const bvn = formData?.bvn;
+    if (!bvn || bvn.length !== 11) {
+      showToast('BVN not found. Please complete BVN verification first.', 'error');
+      return;
+    }
+
+    setIsSendingToBVN(true);
+    setError(null);
+
+    try {
+      const result = await safeHavenService.initializeBVNVerification(
+        session.user.id,
+        bvn,
+        session.user.email
+      );
+
+      if (result.success && result.data?.identityId) {
+        const newIdentityId = result.data.identityId;
+        const newOtpMessage = result.data?.otpMessage || 'OTP sent to phone number linked to your BVN';
+        
+        showToast(newOtpMessage, 'success');
+        
+        // Navigate to BVN OTP step
+        if (onSwitchToBVN) {
+          onSwitchToBVN();
+        }
+      } else {
+        setError(result.error || 'Failed to send OTP to BVN number');
+        showToast(result.error || 'Failed to send OTP to BVN number', 'error');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send OTP to BVN number';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
+    } finally {
+      setIsSendingToBVN(false);
     }
   };
 
   const styles = createStyles(colors, isDark);
   const percentage = getProgressPercentage();
   const stepNumber = getCurrentStepNumber();
-  const isVerified = progress?.bvn_verified || bvnVerified;
+  const isVerified = progress?.id_face_verified || false;
 
   return (
     <View style={styles.container}>
       <ProgressBar percentage={percentage} currentStep={stepNumber} totalSteps={4} />
       
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
@@ -142,54 +190,60 @@ export default function BVNStep({ onComplete, onSwitchToNIN }: BVNStepProps) {
           alwaysBounceVertical={false}
         >
           <View style={styles.content}>
-
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Bank Verification Number (BVN)</Text>
-              <View style={[styles.inputContainer, error && styles.inputError, isVerified && styles.inputVerified]}>
+              <Text style={styles.label}>Enter OTP</Text>
+              <Text style={styles.description}>
+              {otpMessage ? `${otpMessage} Or Send OTP to your BVN Number` : 'An OTP has been sent to the phone number linked to your NIN. Or Send OTP to your BVN Number. Please enter the 6-digit code and your phone number for account creation.'}
+            </Text>
+              <View style={[styles.inputContainer, error && styles.inputError]}>
                 <TextInput
-                  ref={bvnInputRef}
+                  ref={otpInputRef}
                   style={styles.input}
-                  placeholder="Enter your 11-digit BVN"
+                  placeholder="Enter 6-digit OTP"
                   placeholderTextColor={colors.textTertiary}
-                  value={bvn}
-                  onChangeText={handleNumericInput}
+                  value={otp}
+                  onChangeText={(text) => handleNumericInput(text, 6, setOtp)}
                   keyboardType="numeric"
-                  maxLength={11}
+                  maxLength={6}
                   editable={!isVerifying && !isVerified}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                  selectTextOnFocus={true}
-                  blurOnSubmit={false}
-                  returnKeyType="done"
-                  textContentType="none"
-                  autoComplete="off"
-                  importantForAutofill="no"
-                  spellCheck={false}
+                  autoFocus={true}
                 />
-                {isVerifying && (
-                  <ActivityIndicator size="small" color={colors.primary} style={styles.activityIndicator} />
-                )}
-                {isVerified && (
-                  <View style={styles.verifiedBadge}>
-                    <Check size={16} color="#FFFFFF" />
-                  </View>
-                )}
               </View>
               {error && <Text style={styles.errorText}>{error}</Text>}
             </View>
 
-            {isVerified && bvnMatchedName && (
-              <View style={styles.matchedNameContainer}>
-                <Check size={16} color={colors.success} />
-                <Text style={styles.matchedNameText}>
-                  BVN verified! Name: {bvnMatchedName}
-                </Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Phone Number</Text>
+              <Text style={styles.helperText}>
+                Enter your phone number for account creation
+              </Text>
+              <View style={[styles.inputContainer, error && styles.inputError]}>
+                <TextInput
+                  ref={phoneInputRef}
+                  style={styles.input}
+                  placeholder="080XXXXXXXX"
+                  placeholderTextColor={colors.textTertiary}
+                  value={phoneNumber}
+                  onChangeText={(text) => handleNumericInput(text, 11, setPhoneNumber)}
+                  keyboardType="phone-pad"
+                  maxLength={11}
+                  editable={!isVerifying && !isVerified}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+              </View>
+              {error && <Text style={styles.errorText}>{error}</Text>}
+            </View>
+
+            {isVerified && (
+              <View style={styles.completedContainer}>
+                <Text style={styles.completedText}>✓ NIN verified successfully</Text>
               </View>
             )}
 
             <View style={styles.infoContainer}>
               <Text style={styles.infoText}>
-                Your BVN is used for verification purposes only. This helps us confirm your identity and protect your account.
+                Your phone number will be used to create your SafeHaven microfinance account.
               </Text>
             </View>
           </View>
@@ -231,9 +285,9 @@ export default function BVNStep({ onComplete, onSwitchToNIN }: BVNStepProps) {
           ]}>
             <View style={styles.buttonWrapper}>
               <Button
-                title="Verify BVN"
+                title="Verify NIN"
                 onPress={handleVerify}
-                disabled={isVerifying || bvn.length !== 11}
+                disabled={isVerifying || isSendingToBVN || !otp || otp.length !== 6 || !phoneNumber || phoneNumber.length < 10}
                 isLoading={isVerifying}
                 style={styles.mainButton}
                 variant="primary"
@@ -242,11 +296,13 @@ export default function BVNStep({ onComplete, onSwitchToNIN }: BVNStepProps) {
               />
               
               <Pressable
-                onPress={onSwitchToNIN}
-                disabled={isVerifying || !onSwitchToNIN}
-                style={styles.switchToNINLink}
+                onPress={handleSendToBVN}
+                disabled={isVerifying || isSendingToBVN}
+                style={styles.sendToBVNLink}
               >
-                
+                <Text style={[styles.sendToBVNText, { color: colors.primary }]}>
+                  {isSendingToBVN ? 'Sending...' : 'Send to BVN Instead'}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -269,20 +325,10 @@ function createStyles(colors: any, isDark: boolean) {
       flex: 1,
     },
     scrollContent: {
-      paddingBottom: 250, // Adjusted padding
+      paddingBottom: 250, // Extra padding to ensure content is scrollable above FloatingButton
     },
     content: {
       padding: 24,
-    },
-    iconContainer: {
-      width: 100,
-      height: 100,
-      borderRadius: 50,
-      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EFF6FF',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 24,
-      alignSelf: 'center',
     },
     title: {
       fontSize: 24,
@@ -294,7 +340,6 @@ function createStyles(colors: any, isDark: boolean) {
     description: {
       fontSize: 16,
       color: colors.textSecondary,
-      textAlign: 'center',
       lineHeight: 24,
       marginBottom: 32,
     },
@@ -306,6 +351,12 @@ function createStyles(colors: any, isDark: boolean) {
       fontWeight: '500',
       color: colors.text,
       marginBottom: 8,
+    },
+    helperText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginBottom: 8,
+      lineHeight: 16,
     },
     inputContainer: {
       flexDirection: 'row',
@@ -320,44 +371,29 @@ function createStyles(colors: any, isDark: boolean) {
     inputError: {
       borderColor: colors.error,
     },
-    inputVerified: {
-      borderColor: colors.success,
-      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
-    },
     input: {
       flex: 1,
       fontSize: 18,
       color: colors.text,
-    },
-    activityIndicator: {
-      marginLeft: 8,
-    },
-    verifiedBadge: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      backgroundColor: colors.success,
-      justifyContent: 'center',
-      alignItems: 'center',
     },
     errorText: {
       fontSize: 12,
       color: colors.error,
       marginTop: 4,
     },
-    matchedNameContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
-      padding: 12,
+    completedContainer: {
+      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : '#F0FDF4',
+      paddingVertical: 12,
+      paddingHorizontal: 24,
       borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.success,
       marginBottom: 20,
     },
-    matchedNameText: {
-      fontSize: 14,
-      color: colors.success,
+    completedText: {
+      fontSize: 16,
       fontWeight: '500',
+      color: colors.success,
     },
     infoContainer: {
       backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
@@ -413,20 +449,19 @@ function createStyles(colors: any, isDark: boolean) {
       height: 60,
       borderRadius: 20,
       backgroundColor: colors.primary,
-      marginBottom: 12, // Space between main button and link
     },
     buttonText: {
       fontSize: 17,
       fontWeight: '600',
     },
-    switchToNINLink: {
+    sendToBVNLink: {
       paddingVertical: 12,
       paddingHorizontal: 24,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: 4,
     },
-    switchToNINText: {
+    sendToBVNText: {
       fontSize: 14,
       fontWeight: '500',
       textDecorationLine: 'underline',

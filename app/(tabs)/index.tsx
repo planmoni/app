@@ -11,8 +11,9 @@ import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import KYCCard from '@/components/KYCCard';
 import ImageCarousel from '@/components/ImageCarousel';
+import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   HelpCircleIcon,
@@ -117,6 +118,8 @@ export default function HomeScreen() {
   const [showAppLockModal, setShowAppLockModal] = useState(false);
   const [hasShownAppLockModal, setHasShownAppLockModal] = useState(false);
   const [showIdentityVerificationModal, setShowIdentityVerificationModal] = useState(false);
+  const [showKYCVerificationModal, setShowKYCVerificationModal] = useState(false);
+  const [hasShownKYCModalThisSession, setHasShownKYCModalThisSession] = useState(false);
   const { hasAppLockPin } = usePin();
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
@@ -296,6 +299,43 @@ export default function HomeScreen() {
       checkIdentityVerificationSuccess();
     }
   }, [session?.user?.id]);
+
+  // Show KYC Verification Modal ONLY after onboarding completes (signup)
+  // Disabled: No longer shows on app open - only shows once after onboarding
+  useFocusEffect(
+    useCallback(() => {
+      const checkAndShowKYCModal = async () => {
+        // Early returns: don't check if already shown, no session, or still loading
+        if (!session?.user?.id || hasShownKYCModalThisSession || kycProgressLoading) {
+          return;
+        }
+        
+        try {
+          // ONLY show if the signup flag is set (onboarding just completed)
+          const showAfterSignup = await AsyncStorage.getItem('show_kyc_modal_after_signup');
+          
+          // Only show modal if signup flag is set (onboarding completed)
+          if (showAfterSignup === 'true') {
+            // Small delay to ensure smooth transition
+            const timer = setTimeout(() => {
+              setShowKYCVerificationModal(true);
+              setHasShownKYCModalThisSession(true);
+              // Clear the signup flag after showing
+              AsyncStorage.removeItem('show_kyc_modal_after_signup');
+            }, 1000);
+            return () => clearTimeout(timer);
+          }
+        } catch (error) {
+          console.error('Error checking KYC modal flag:', error);
+        }
+      };
+      
+      // Wait for progress to load before checking
+      if (session?.user?.id && !kycProgressLoading) {
+        checkAndShowKYCModal();
+      }
+    }, [session?.user?.id, kycProgressLoading, hasShownKYCModalThisSession])
+  );
 
   // Show AccountInformationModal only when coming from Tier1CompletionModal
   const params = useLocalSearchParams();
@@ -1167,6 +1207,18 @@ export default function HomeScreen() {
             isVisible={showIdentityVerificationModal}
             onClose={() => {
               setShowIdentityVerificationModal(false);
+            }}
+          />
+          
+          <KYCVerificationModal
+            isVisible={showKYCVerificationModal}
+            onClose={() => {
+              setShowKYCVerificationModal(false);
+            }}
+            onStartVerification={() => {
+              setShowKYCVerificationModal(false);
+              // Navigate to Tier 1 KYC flow
+              router.push('/kyc/tier1');
             }}
           />
 

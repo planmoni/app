@@ -8,11 +8,11 @@ import { useHaptics } from '@/hooks/useHaptics';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import SuccessAnimation from '@/components/SuccessAnimation';
 
-export default function Tier1SuccessScreen() {
+export default function Tier2SuccessScreen() {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
 
-  // Auto-redirect to home after 3 seconds
+  // Auto-redirect to home after 5 seconds
   useEffect(() => {
     // Wait a bit to ensure router is ready
     const timer = setTimeout(() => {
@@ -51,9 +51,9 @@ export default function Tier1SuccessScreen() {
           entering={FadeInDown.duration(600).delay(200)}
           style={styles.textContainer}
         >
-          <Text style={styles.title}>Tier 1 Verification Complete!</Text>
+          <Text style={styles.title}>Tier 2 Verification Complete!</Text>
           <Text style={styles.subtitle}>
-            Congratulations! You've successfully completed Tier 1 verification.
+            Congratulations! You've successfully completed Tier 2 verification.
           </Text>
         </Animated.View>
 
@@ -66,7 +66,7 @@ export default function Tier1SuccessScreen() {
             <View style={styles.benefitItem}>
               <Text style={styles.benefitIcon}>✓</Text>
               <Text style={styles.benefitText}>
-                Deposit up to ₦100,000 daily
+                Deposit up to ₦100,000 monthly
               </Text>
             </View>
             <View style={styles.benefitItem}>
@@ -78,7 +78,7 @@ export default function Tier1SuccessScreen() {
             <View style={styles.benefitItem}>
               <Text style={styles.benefitIcon}>✓</Text>
               <Text style={styles.benefitText}>
-                Access to all Tier 1 features
+                Access to all Tier 2 features
               </Text>
             </View>
           </View>
@@ -198,4 +198,5 @@ function createStyles(colors: any, isDark: boolean) {
     },
   });
 }
+
 

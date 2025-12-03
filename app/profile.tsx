@@ -87,30 +87,53 @@ export default function ProfileScreen() {
     fetchTierLimits();
   }, [session?.user?.id, progress]);
 
-  // Determine KYC level based on actual progress data
+  // Determine KYC level based on currentTier from useKYCProgress
+  // This uses the database function which correctly calculates tier based on all requirements
   const getKYCLevel = (): KYCLevel => {
     if (!progress) return 'unverified';
     
-    // Tier 3: overall_completed + utility_bill_url present + approved
-    if (progress.overall_completed && kycData?.utility_bill_url && kycData?.approved) {
-      return 'tier3';
-    }
+    // Use currentTier from useKYCProgress which is calculated by the database function
+    // This ensures consistency with the actual tier status
+    const tier = currentTier || 0;
     
-    // Tier 2: BVN + documents + address completed
-    if (progress.bvn_verified && progress.documents_verified && progress.address_completed) {
-      return 'tier2';
+    switch (tier) {
+      case 3: return 'tier3';
+      case 2: return 'tier2';
+      case 1: return 'tier1';
+      default: return 'unverified';
     }
-    
-    // Tier 1: BVN verification only
-    if (progress.bvn_verified) {
-      return 'tier1';
-    }
-    
-    return 'unverified';
   };
 
   const kycLevel = getKYCLevel();
   const kycStatus = getKYCStatus(kycLevel, progress, tierLimits);
+
+  // Helper functions for tier badge
+  const getTierBadgeLabel = (level: KYCLevel): string => {
+    switch (level) {
+      case 'tier1': return 'Tier 1';
+      case 'tier2': return 'Tier 2';
+      case 'tier3': return 'Tier 3';
+      default: return 'Unverified Identity';
+    }
+  };
+
+  const getTierBadgeColor = (level: KYCLevel): string => {
+    switch (level) {
+      case 'tier1': return '#FEF3C7'; // Light yellow
+      case 'tier2': return '#EFF6FF'; // Light blue
+      case 'tier3': return '#F0FDF4'; // Light green
+      default: return colors.backgroundTertiary; // Gray for unverified
+    }
+  };
+
+  const getTierBadgeTextColor = (level: KYCLevel): string => {
+    switch (level) {
+      case 'tier1': return '#D97706'; // Dark yellow
+      case 'tier2': return '#1E3A8A'; // Dark blue
+      case 'tier3': return '#22C55E'; // Green
+      default: return colors.textSecondary; // Gray for unverified
+    }
+  };
 
   // Calculate responsive sizes based on screen width
   const avatarSize = Math.max(80, Math.min(width * 0.25, 140));
@@ -130,19 +153,48 @@ export default function ProfileScreen() {
   const handleUpgradeKYC = () => {
     // Check user's tier to route appropriately
     const tierCompletion = checkTierCompletion();
-    const isTier1Complete = tierCompletion.tier1;
-    const isTier2OrHigher = currentTier >= 2;
+    
+    console.log('🔍 Upgrade KYC - Tier Status:', {
+      currentTier,
+      kycLevel,
+      tierCompletion,
+      progress: {
+        liveness: progress?.liveness_test_completed,
+        bvn: progress?.bvn_verified,
+        nin: progress?.id_face_verified,
+        personal: progress?.personal_info_completed,
+        documents: progress?.documents_verified
+      }
+    });
     
     // If user is Tier 2 and needs to upload utility bill, show the modal
     if (kycLevel === 'tier2' && (!kycData?.utility_bill_url || !kycData?.approved)) {
       setShowUtilityBillModal(true);
-    } else if (isTier2OrHigher) {
-      // Tier 2/3 users go to old kyc-upgrade flow
-      router.push('/kyc-upgrade');
-    } else {
-      // Tier 1 users (or not yet Tier 1) go to new Tier 1 flow
-      router.push('/kyc/tier1');
+      return;
     }
+    
+    // Check if Tier 1 is complete but Tier 2 is not
+    // Priority: Check tierCompletion first, then fallback to currentTier
+    const isTier1Done = tierCompletion.tier1 || (currentTier >= 1 && progress?.liveness_test_completed && progress?.bvn_verified && progress?.id_face_verified);
+    const isTier2Done = tierCompletion.tier2 || (currentTier >= 2 && progress?.personal_info_completed && progress?.documents_verified);
+    
+    if (isTier1Done && !isTier2Done) {
+      // Tier 1 complete but Tier 2 not complete - go to Tier 2 flow
+      console.log('✅ Routing to Tier 2 flow');
+      router.push('/kyc/tier2');
+      return;
+    }
+    
+    // If Tier 2 is complete, go to Tier 3 flow (old kyc-upgrade)
+    if (isTier2Done || currentTier >= 2) {
+      console.log('✅ Routing to Tier 3 flow');
+      router.push('/kyc-upgrade');
+      return;
+    }
+    
+    // Otherwise, go to Tier 1 flow
+    console.log('✅ Routing to Tier 1 flow');
+    router.push('/kyc/tier1');
   };
 
   const styles = createStyles(colors, width);
@@ -170,8 +222,10 @@ export default function ProfileScreen() {
           />
           <Text style={[styles.userName, { fontSize: titleFontSize }]}>{firstName} {lastName}</Text>
           <Text style={[styles.userEmail, { fontSize: emailFontSize }]}>{email}</Text>
-          <View style={styles.verifiedBadge}>
-            <Text style={styles.verifiedText}>Verified</Text>
+          <View style={[styles.tierBadge, { backgroundColor: getTierBadgeColor(kycLevel) }]}>
+            <Text style={[styles.tierBadgeText, { color: getTierBadgeTextColor(kycLevel) }]}>
+              {getTierBadgeLabel(kycLevel)}
+            </Text>
           </View>
         </View>
 
@@ -674,6 +728,15 @@ const createStyles = (colors: any, screenWidth: number) => {
     verifiedText: {
       fontSize: 12,
       color: colors.accent,
+      fontWeight: '600',
+    },
+    tierBadge: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+    },
+    tierBadgeText: {
+      fontSize: 12,
       fontWeight: '600',
     },
     divider: {

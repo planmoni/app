@@ -22,7 +22,7 @@ export default function LivenessStep({ onComplete }: LivenessStepProps) {
   const { showToast } = useToast();
   const { session } = useAuth();
   const { saveFormData } = useKYCData();
-  const { progress, updateProgress } = useKYCProgress();
+  const { progress, updateProgress, loadProgress } = useKYCProgress();
   const { getProgressPercentage, getCurrentStepNumber } = useTier1KYC();
   const [permission] = useCameraPermissions();
   const hasPermission = permission?.granted ?? false;
@@ -103,6 +103,9 @@ export default function LivenessStep({ onComplete }: LivenessStepProps) {
         liveness_test_completed: true
       });
       
+      // Reload progress to ensure state is updated
+      await loadProgress();
+      
       showToast('Selfie captured and saved successfully', 'success');
       
       // Auto-advance to next step
@@ -151,13 +154,13 @@ export default function LivenessStep({ onComplete }: LivenessStepProps) {
 
   return (
     <View style={styles.container}>
-      <ProgressBar percentage={percentage} currentStep={stepNumber} totalSteps={3} />
+      <ProgressBar percentage={percentage} currentStep={stepNumber} totalSteps={4} />
       
       <View style={styles.content}>
         
         <Text style={styles.title}>Selfie Capture</Text>
         <Text style={styles.description}>
-          Complete a quick selfie capture to verify your identity. This helps us ensure your account security.
+          Complete a quick selfie capture to begin your verification process. This helps us ensure your account security.
         </Text>
 
         {progress?.liveness_test_completed ? (

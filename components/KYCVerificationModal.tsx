@@ -26,7 +26,7 @@ const faqs: FAQItem[] = [
   {
     id: '1',
     question: 'What information do I need to provide in order to start using Planmoni?',
-    answer: 'You will need to conduct a live face recognition test, provide your personal information including your full name, date of birth, phone number, and address. You\'ll also need to verify your identity using your BVN (Bank Verification Number) and upload a valid government-issued ID card such as National ID, Passport, or Driver\'s License.',
+    answer: 'You will need to conduct a selfie capture, provide your personal information including your full name, date of birth, phone number, and address. You\'ll also need to verify your identity using your BVN (Bank Verification Number) and upload a valid government-issued ID card such as National ID, Passport, or Driver\'s License.',
   },
   {
     id: '2',

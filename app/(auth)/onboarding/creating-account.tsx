@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import { accountCreationHandler } from '@/scripts/account-creation-handler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CreatingAccountScreen() {
   const { colors } = useTheme();
@@ -82,16 +83,23 @@ export default function CreatingAccountScreen() {
             haptics.error();
           }
         },
-        onSuccess: (data: any) => {
+        onSuccess: async (data: any) => {
           console.log('Account creation successful:', data);
           setCreationProgress('Account created successfully!');
+          
+          // Set flag to show KYC verification modal after signup
+          try {
+            await AsyncStorage.setItem('show_kyc_modal_after_signup', 'true');
+          } catch (error) {
+            console.error('Error setting KYC modal flag:', error);
+          }
           
           // Navigate directly to dashboard after account creation
           setTimeout(() => {
             if (Platform.OS !== 'web') {
               haptics.success();
             }
-            // Navigate directly to tabs (home page) - skip success modal
+            // Navigate directly to tabs (home page) - KYC modal will show automatically
             router.replace('/(tabs)');
           }, 2000);
         }

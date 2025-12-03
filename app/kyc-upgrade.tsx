@@ -296,6 +296,24 @@ export default function KYCUpgradeScreen() {
     return null; // No previous incomplete step
   }, [progress]);
 
+  // Redirect Tier 2 users to new Tier 2 flow
+  useEffect(() => {
+    if (progress && !progressLoading) {
+      const tierStatus = checkTierCompletion();
+      // If Tier 1 is complete but Tier 2 is not, redirect to Tier 2 flow
+      if (tierStatus.tier1 && !tierStatus.tier2) {
+        setTimeout(() => {
+          try {
+            router.replace('/kyc/tier2');
+          } catch (error) {
+            console.error('Navigation error:', error);
+          }
+        }, 300);
+        return;
+      }
+    }
+  }, [progress, progressLoading, checkTierCompletion]);
+
   // Update current step when progress changes, but skip to first incomplete step
   useEffect(() => {
     if (progress && !progressLoading) {
@@ -308,6 +326,12 @@ export default function KYCUpgradeScreen() {
         return;
       }
       
+      // Check if user should be redirected to Tier 2 flow
+      const tierStatus = checkTierCompletion();
+      if (tierStatus.tier1 && !tierStatus.tier2) {
+        // Don't set step, redirect will happen in the other useEffect
+        return;
+      }
       
       // Get the first incomplete step directly using the helper function
       const targetStep = getFirstIncompleteStep();
@@ -320,7 +344,7 @@ export default function KYCUpgradeScreen() {
         setShowBvnOption(true);
       }
     }
-  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep, bvn, formData?.bvn, isTransitioningFromLiveness, currentStep]);
+  }, [progress, progressLoading, showToast, isManualVerification, getFirstIncompleteStep, bvn, formData?.bvn, isTransitioningFromLiveness, currentStep, checkTierCompletion]);
 
   // Auto-focus BVN input when step changes to bvn_verification
   useEffect(() => {

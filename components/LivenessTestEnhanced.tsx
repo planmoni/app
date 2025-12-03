@@ -413,6 +413,7 @@ export default function LivenessTestEnhanced({
                 ref={cameraRef}
                 style={styles.camera}
                 facing="front"
+                mirror={false}
               />
             )}
           </View>

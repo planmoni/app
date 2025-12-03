@@ -429,6 +429,14 @@ function RootLayoutNav() {
           }} 
         />
         <Stack.Screen 
+          name="kyc/tier2" 
+          options={{ 
+            headerShown: false, 
+            gestureEnabled: false,
+            animation: 'fade',
+          }} 
+        />
+        <Stack.Screen 
           name="add-funds" 
           options={{ 
             headerShown: false, 

@@ -70,6 +70,34 @@ export default function SettingsScreen() {
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { currentTier, checkTierCompletion } = useKYCProgress();
   const [hasAccount, setHasAccount] = useState(false);
+
+  // Helper functions for tier badge
+  const getTierBadgeLabel = (tier: number): string => {
+    switch (tier) {
+      case 1: return 'Tier 1';
+      case 2: return 'Tier 2';
+      case 3: return 'Tier 3';
+      default: return 'Unverified Identity';
+    }
+  };
+
+  const getTierBadgeColor = (tier: number): string => {
+    switch (tier) {
+      case 1: return '#FEF3C7'; // Light yellow
+      case 2: return '#EFF6FF'; // Light blue
+      case 3: return '#F0FDF4'; // Light green
+      default: return colors.backgroundTertiary; // Gray for unverified
+    }
+  };
+
+  const getTierBadgeTextColor = (tier: number): string => {
+    switch (tier) {
+      case 1: return '#D97706'; // Dark yellow
+      case 2: return '#1E3A8A'; // Dark blue
+      case 3: return '#22C55E'; // Green
+      default: return colors.textSecondary; // Gray for unverified
+    }
+  };
   
   // Check if user has an account
   useEffect(() => {
@@ -434,8 +462,10 @@ export default function SettingsScreen() {
                 <Text style={styles.profileName}>{firstName} {lastName}</Text>
                 <Text style={styles.profileEmail}>{email}</Text>
                 <View style={styles.badgeContainer}>
-                  <View style={styles.verifiedBadge}>
-                    <Text style={styles.verifiedText}>Verified</Text>
+                  <View style={[styles.tierBadge, { backgroundColor: getTierBadgeColor(currentTier || 0) }]}>
+                    <Text style={[styles.tierBadgeText, { color: getTierBadgeTextColor(currentTier || 0) }]}>
+                      {getTierBadgeLabel(currentTier || 0)}
+                    </Text>
                   </View>
                   {!isLoading2FA && twoFactorEnabled && (
                     <View style={styles.twoFactorBadge}>
@@ -1138,6 +1168,15 @@ const createStyles = (colors: any, textSizeMultiplier: number) => StyleSheet.cre
   verifiedText: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.accent,
+    fontWeight: '500',
+  },
+  tierBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  tierBadgeText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     fontWeight: '500',
   },
   twoFactorBadge: {

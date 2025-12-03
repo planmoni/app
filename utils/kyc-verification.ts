@@ -404,3 +404,221 @@ export const validateNIN = (nin: string): { isValid: boolean; error?: string } =
   return { isValid: true };
 };
 
+/**
+ * Validate image format and size
+ */
+export const validateImage = (imageUri: string): { isValid: boolean; error?: string } => {
+  // Accept data URIs, file/content URIs, and http(s) URLs
+  const isDataUri = imageUri.startsWith('data:image/');
+  const isFileUri = imageUri.startsWith('file:');
+  const isContentUri = imageUri.startsWith('content:');
+  const isHttpUri = imageUri.startsWith('http://') || imageUri.startsWith('https://');
+  if (!isDataUri && !isFileUri && !isContentUri && !isHttpUri) {
+    return { isValid: false, error: 'Invalid image format. Please select a valid image.' };
+  }
+
+  // Only enforce size check for data URIs where we can read base64 length
+  if (isDataUri) {
+    const parts = imageUri.split(',');
+    if (parts.length > 1) {
+      const base64Data = parts[1];
+      const sizeInBytes = (base64Data.length * 3) / 4; // Approximate
+      const sizeInMB = sizeInBytes / (1024 * 1024);
+      if (sizeInMB > 5) {
+        return { isValid: false, error: 'Image size must be less than 5MB. Please select a smaller image.' };
+      }
+    }
+  }
+
+  return { isValid: true };
+};
+
+/**
+ * Upload document image to Supabase storage
+ */
+export const uploadDocumentToStorage = async (
+  uri: string,
+  part: 'front' | 'back' | 'house' | 'utility' | string,
+  userId: string
+): Promise<string | null> => {
+  try {
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    const fileExtensionGuess = uri.split('.').pop()?.toLowerCase();
+    const ext = fileExtensionGuess && fileExtensionGuess.length <= 5 ? fileExtensionGuess : 'jpg';
+    const fileName = `${part}-document-${Date.now()}.${ext}`;
+    const filePath = `kyc-documents/${userId}/${fileName}`;
+
+    const file: any = {
+      uri,
+      name: fileName,
+      type: 'image/jpeg',
+    };
+
+    const { error: uploadError } = await supabase.storage
+      .from('documents')
+      .upload(filePath, file, { contentType: 'image/jpeg', upsert: true });
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError);
+      throw new Error('Upload failed. Please try again.');
+    }
+
+    const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
+    return urlData.publicUrl || null;
+  } catch (e) {
+    console.error('Upload exception:', e);
+    return null;
+  }
+};
+
+/**
+ * Verify document with Dojah API
+ */
+export const verifyDocument = async (
+  frontImageUrl: string,
+  backImageUrl: string | null,
+  documentType: 'nin' | 'passport',
+  userId: string
+): Promise<{ success: boolean; data?: any; error?: string }> => {
+  try {
+    // Create audit log for document verification start
+    const { data: auditLogId } = await supabase.rpc('create_kyc_audit_log', {
+      p_user_id: userId,
+      p_operation_type: 'document_uploaded',
+      p_verification_type: documentType,
+      p_verification_provider: 'dojah',
+      p_request_data: {
+        action: 'start_document_verification',
+        document_type: documentType,
+        source: 'tier2_kyc_flow',
+        timestamp: new Date().toISOString()
+      },
+      p_response_data: {
+        user_action: 'initiated_document_verification',
+        verification_status: 'pending'
+      },
+      p_status: 'pending',
+      p_result_message: 'User initiated document verification process',
+      p_metadata: {
+        component: 'Tier2KYC',
+        action: 'document_verification_start',
+        step: 'documents_verification',
+        document_type: documentType
+      }
+    });
+
+    // Create audit event for document verification start
+    if (auditLogId) {
+      await supabase
+        .from('kyc_audit_events')
+        .insert({
+          audit_log_id: auditLogId,
+          user_id: userId,
+          event_type: 'document_uploaded',
+          event_data: {
+            action: 'document_verification_initiated',
+            document_type: documentType,
+            provider: 'dojah'
+          },
+          severity: 'medium'
+        });
+    }
+
+    // Check if environment variables are available
+    const appId = process.env.EXPO_PUBLIC_DOJAH_APP_ID!;
+    const privateKey = process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!;
+    
+    if (!appId || !privateKey) {
+      console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
+      return { success: false, error: 'KYC service configuration error' };
+    }
+
+    // Validate image format
+    const frontImageValidation = validateImage(frontImageUrl);
+    if (!frontImageValidation.isValid) {
+      return { success: false, error: frontImageValidation.error };
+    }
+
+    // Ensure we have URLs (upload if still data URI)
+    let finalFrontImageUrl = frontImageUrl;
+    let finalBackImageUrl = backImageUrl;
+
+    if (frontImageUrl.startsWith('data:image/')) {
+      const uploaded = await uploadDocumentToStorage(frontImageUrl, 'front', userId);
+      if (!uploaded) {
+        return { success: false, error: 'Failed to upload front document image' };
+      }
+      finalFrontImageUrl = uploaded;
+    }
+
+    if (backImageUrl && backImageUrl.startsWith('data:image/')) {
+      const uploadedBack = await uploadDocumentToStorage(backImageUrl, 'back', userId);
+      if (!uploadedBack) {
+        return { success: false, error: 'Failed to upload back document image' };
+      }
+      finalBackImageUrl = uploadedBack;
+    }
+
+    // Call Dojah document analysis API
+    const payload: any = {
+      input_type: 'url',
+      imagefrontside: finalFrontImageUrl
+    };
+
+    if (finalBackImageUrl) {
+      payload.imagebackside = finalBackImageUrl;
+    }
+
+    const analysisResponse = await fetch('https://api.dojah.io/api/v1/document/analysis', {
+      method: 'POST',
+      headers: {
+        'AppId': appId,
+        'Authorization': privateKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!analysisResponse.ok) {
+      const errorData = await analysisResponse.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.message || errorData.error || `Document analysis failed: ${analysisResponse.status} ${analysisResponse.statusText}`
+      };
+    }
+
+    const analysisData = await analysisResponse.json();
+    
+    if (!analysisData.entity) {
+      return { success: false, error: 'Invalid response from document analysis service' };
+    }
+
+    if (analysisData.entity?.status?.overall_status !== 1) {
+      return {
+        success: false,
+        error: `Document validation failed: ${analysisData.entity?.status?.reason || 'Invalid document'}`
+      };
+    }
+
+    // Document analysis successful
+    return {
+      success: true,
+      data: {
+        entity: analysisData.entity,
+        documentType: analysisData.entity?.document_type,
+        documentNumber: analysisData.entity?.details?.document_number || 
+                        analysisData.entity?.details?.id_number || 
+                        analysisData.entity?.details?.passport_number || 
+                        analysisData.entity?.details?.number || null
+      }
+    };
+  } catch (error) {
+    console.error('Document verification error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Document verification failed';
+    return { success: false, error: errorMessage };
+  }
+};
+

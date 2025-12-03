@@ -200,12 +200,47 @@ export default function KYCCard() {
       console.log('Liveness not completed, showing verification modal');
       setShowVerificationModal(true);
     } else {
-      // Route based on tier: Tier 1 users go to new flow, Tier 2/3 go to old flow
-      if (isTier2OrHigher) {
-        // Tier 2/3 users go to old kyc-upgrade flow
+      // Route based on tier
+      const tierCompletion = checkTierCompletion();
+      const currentProgress = latestProgress || progress;
+      
+      // More explicit check: Tier 1 requires liveness + BVN + NIN
+      const isTier1Done = tierCompletion.tier1 || 
+        (currentProgress?.liveness_test_completed && 
+         currentProgress?.bvn_verified && 
+         currentProgress?.id_face_verified);
+      
+      // Tier 2 requires Tier 1 + Personal Info + Documents
+      const isTier2Done = tierCompletion.tier2 || 
+        (isTier1Done && 
+         currentProgress?.personal_info_completed && 
+         currentProgress?.documents_verified);
+      
+      console.log('🔍 KYCCard - Routing decision:', {
+        currentTier,
+        tierCompletion,
+        isTier1Done,
+        isTier2Done,
+        progress: {
+          liveness: currentProgress?.liveness_test_completed,
+          bvn: currentProgress?.bvn_verified,
+          nin: currentProgress?.id_face_verified,
+          personal: currentProgress?.personal_info_completed,
+          documents: currentProgress?.documents_verified
+        }
+      });
+      
+      if (isTier1Done && !isTier2Done) {
+        // Tier 1 complete but Tier 2 not complete - go to Tier 2 flow
+        console.log('✅ Routing to Tier 2 flow');
+        router.push('/kyc/tier2');
+      } else if (isTier2Done || isTier2OrHigher) {
+        // Tier 2 complete or Tier 3 - go to old kyc-upgrade flow for Tier 3
+        console.log('✅ Routing to Tier 3 flow');
         router.push('/kyc-upgrade');
       } else {
         // Tier 1 users (or not yet Tier 1) go to new Tier 1 flow
+        console.log('✅ Routing to Tier 1 flow');
         router.push('/kyc/tier1');
       }
     }
@@ -219,12 +254,33 @@ export default function KYCCard() {
     // Check user's tier to route appropriately
     const tierCompletion = checkTierCompletion();
     const isTier2OrHigher = currentTier >= 2;
+    const currentProgress = latestProgress || progress;
     
-    // Route based on tier: Tier 1 users go to new flow, Tier 2/3 go to old flow
+    // More explicit check: Tier 1 requires liveness + BVN + NIN
+    const isTier1Done = tierCompletion.tier1 || 
+      (currentProgress?.liveness_test_completed && 
+       currentProgress?.bvn_verified && 
+       currentProgress?.id_face_verified);
+    
+    // Tier 2 requires Tier 1 + Personal Info + Documents
+    const isTier2Done = tierCompletion.tier2 || 
+      (isTier1Done && 
+       currentProgress?.personal_info_completed && 
+       currentProgress?.documents_verified);
+    
+    // Route based on tier
     setTimeout(() => {
-      if (isTier2OrHigher) {
+      if (isTier1Done && !isTier2Done) {
+        // Tier 1 complete but Tier 2 not complete - go to Tier 2 flow
+        console.log('✅ Routing to Tier 2 flow');
+        router.push('/kyc/tier2');
+      } else if (isTier2Done || isTier2OrHigher) {
+        // Tier 2 complete or Tier 3 - go to old kyc-upgrade flow for Tier 3
+        console.log('✅ Routing to Tier 3 flow');
         router.push('/kyc-upgrade');
       } else {
+        // Tier 1 users (or not yet Tier 1) go to new Tier 1 flow
+        console.log('✅ Routing to Tier 1 flow');
         router.push('/kyc/tier1');
       }
     }, 400); // Wait for modal animations to complete
@@ -239,14 +295,19 @@ export default function KYCCard() {
     const tierCompletion = checkTierCompletion();
     const isTier2OrHigher = currentTier >= 2;
     
-    // Route based on tier: Tier 1 users go to new flow, Tier 2/3 go to old flow
+    // Route based on tier
     setTimeout(() => {
-      if (isTier2OrHigher) {
+      if (tierCompletion.tier1 && !tierCompletion.tier2) {
+        // Tier 1 complete but Tier 2 not complete - go to Tier 2 flow
+        router.push('/kyc/tier2');
+      } else if (isTier2OrHigher && tierCompletion.tier2) {
+        // Tier 2 complete or Tier 3 - go to old kyc-upgrade flow for Tier 3
         router.push({
           pathname: '/kyc-upgrade',
           params: { selfieUrl }
         });
       } else {
+        // Tier 1 users (or not yet Tier 1) go to new Tier 1 flow
         router.push('/kyc/tier1');
       }
     }, 400);
@@ -383,7 +444,7 @@ export default function KYCCard() {
 
     switch (nextStep) {
       case 'liveness_verification':
-        return 'Complete your Liveness Verification';
+        return 'Complete your Selfie Capture';
       case 'bvn_verification':
         return 'Complete your BVN Verification';
       case 'id_face_match':
