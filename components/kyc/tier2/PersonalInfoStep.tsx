@@ -465,6 +465,7 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
                   numberOfLines={3}
                   textAlignVertical="top"
                   editable={false}
+                  pointerEvents="none"
                 />
                 <ChevronRight size={20} color={colors.textTertiary} />
               </Pressable>
