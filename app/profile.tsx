@@ -128,12 +128,20 @@ export default function ProfileScreen() {
   };
 
   const handleUpgradeKYC = () => {
+    // Check user's tier to route appropriately
+    const tierCompletion = checkTierCompletion();
+    const isTier1Complete = tierCompletion.tier1;
+    const isTier2OrHigher = currentTier >= 2;
+    
     // If user is Tier 2 and needs to upload utility bill, show the modal
     if (kycLevel === 'tier2' && (!kycData?.utility_bill_url || !kycData?.approved)) {
       setShowUtilityBillModal(true);
-    } else {
-      // For other tiers, go to the full KYC upgrade flow
+    } else if (isTier2OrHigher) {
+      // Tier 2/3 users go to old kyc-upgrade flow
       router.push('/kyc-upgrade');
+    } else {
+      // Tier 1 users (or not yet Tier 1) go to new Tier 1 flow
+      router.push('/kyc/tier1');
     }
   };
 

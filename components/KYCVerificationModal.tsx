@@ -5,7 +5,7 @@ import { CheckCircle,BadgeCheck, ChevronDown, ChevronUp, X } from 'lucide-react-
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { router } from 'expo-router';
-import CameraPermissionModal from './CameraPermissionModal';
+import { useKYCProgress } from '@/hooks/useKYCProgress';
 
 interface KYCVerificationModalProps {
   isVisible: boolean;
@@ -53,9 +53,9 @@ export default function KYCVerificationModal({
 }: KYCVerificationModalProps) {
   const { colors, isDark } = useTheme();
   const haptics = useHaptics();
+  const { currentTier, checkTierCompletion } = useKYCProgress();
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [modalVisible, setModalVisible] = useState(false);
-  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const styles = createStyles(colors, isDark);
@@ -114,31 +114,28 @@ export default function KYCVerificationModal({
 
   const handleStartVerification = () => {
     haptics.mediumImpact();
-    // Close KYCVerificationModal and show CameraPermissionModal
+    // Close KYCVerificationModal
     onClose();
-    // Wait for modal animation to complete before showing camera permission modal
-    setTimeout(() => {
-      setShowCameraPermissionModal(true);
-    }, 400);
-  };
-
-  const handleCameraPermissionComplete = (selfieUrl: string) => {
-    setShowCameraPermissionModal(false);
-    // Always navigate to kyc-upgrade page after liveness completion
-    // The progress has already been updated by LivenessTestEnhanced
-    // The page will automatically show BVN verification step
-    setTimeout(() => {
-      router.push('/kyc-upgrade');
-    }, 300);
     
-    // Call onComplete callback if provided (for other use cases)
-    if (onComplete) {
-      onComplete(selfieUrl);
+    // Check user's tier to route appropriately
+    const tierCompletion = checkTierCompletion();
+    const isTier2OrHigher = currentTier >= 2;
+    
+    // Wait for modal animation to complete before navigating
+    setTimeout(() => {
+      // Route based on tier: Tier 1 users go to new flow, Tier 2/3 go to old flow
+      if (isTier2OrHigher) {
+        router.push('/kyc-upgrade');
+      } else {
+        // Navigate directly to Tier 1 flow (Step 1 - Liveness test)
+        router.push('/kyc/tier1');
+      }
+    }, 400);
+    
+    // Call onStartVerification callback if provided (for other use cases)
+    if (onStartVerification) {
+      onStartVerification();
     }
-  };
-
-  const handleCameraPermissionClose = () => {
-    setShowCameraPermissionModal(false);
   };
 
   const toggleItem = (id: string) => {
@@ -253,13 +250,6 @@ export default function KYCVerificationModal({
           </Animated.View>
         </Animated.View>
       </Modal>
-      
-      {/* Render CameraPermissionModal outside of the main modal to avoid nesting issues */}
-      <CameraPermissionModal
-        isVisible={showCameraPermissionModal}
-        onClose={handleCameraPermissionClose}
-        onComplete={handleCameraPermissionComplete}
-      />
     </>
   );
 }

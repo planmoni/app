@@ -180,6 +180,11 @@ export default function KYCCard() {
     haptics.mediumImpact();
     console.log('KYCCard handlePress called, kycStatus:', kycStatus);
     
+    // Check user's tier to route appropriately
+    const tierCompletion = checkTierCompletion();
+    const isTier1Complete = tierCompletion.tier1;
+    const isTier2OrHigher = currentTier >= 2;
+    
     // Check if liveness is completed
     const currentProgress = latestProgress || progress;
     const isLivenessCompleted = currentProgress?.liveness_test_completed === true || 
@@ -195,31 +200,55 @@ export default function KYCCard() {
       console.log('Liveness not completed, showing verification modal');
       setShowVerificationModal(true);
     } else {
-      // Navigate directly to kyc-upgrade if liveness is already completed
-      router.push('/kyc-upgrade');
+      // Route based on tier: Tier 1 users go to new flow, Tier 2/3 go to old flow
+      if (isTier2OrHigher) {
+        // Tier 2/3 users go to old kyc-upgrade flow
+        router.push('/kyc-upgrade');
+      } else {
+        // Tier 1 users (or not yet Tier 1) go to new Tier 1 flow
+        router.push('/kyc/tier1');
+      }
     }
   };
 
   const handleStartVerification = () => {
-    // This callback is now used as fallback - CameraPermissionModal handles the flow
+    // This callback is now used as fallback - KYCVerificationModal handles the navigation
     // Close KYCVerificationModal first
     setShowVerificationModal(false);
     
-    // Navigate to kyc-upgrade page
+    // Check user's tier to route appropriately
+    const tierCompletion = checkTierCompletion();
+    const isTier2OrHigher = currentTier >= 2;
+    
+    // Route based on tier: Tier 1 users go to new flow, Tier 2/3 go to old flow
     setTimeout(() => {
-      router.push('/kyc-upgrade');
+      if (isTier2OrHigher) {
+        router.push('/kyc-upgrade');
+      } else {
+        router.push('/kyc/tier1');
+      }
     }, 400); // Wait for modal animations to complete
   };
 
   const handleLivenessComplete = (selfieUrl: string) => {
-    // Handle liveness completion from CameraPermissionModal
+    // This callback is no longer used since we navigate directly from the modal
+    // But keeping it for backward compatibility
     setShowVerificationModal(false);
-    // Navigate to kyc-upgrade with selfie URL
+    
+    // Check user's tier to route appropriately
+    const tierCompletion = checkTierCompletion();
+    const isTier2OrHigher = currentTier >= 2;
+    
+    // Route based on tier: Tier 1 users go to new flow, Tier 2/3 go to old flow
     setTimeout(() => {
-      router.push({
-        pathname: '/kyc-upgrade',
-        params: { selfieUrl }
-      });
+      if (isTier2OrHigher) {
+        router.push({
+          pathname: '/kyc-upgrade',
+          params: { selfieUrl }
+        });
+      } else {
+        router.push('/kyc/tier1');
+      }
     }, 400);
   };
 

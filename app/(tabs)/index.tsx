@@ -734,7 +734,8 @@ export default function HomeScreen() {
 
     setShowWelcomeModal(false);
     setHasShownWelcomeModal(true);
-    router.push('/kyc-upgrade');
+    // Route new users to Tier 1 flow
+    router.push('/kyc/tier1');
   };
 
   const handleGoToDashboard = () => {
