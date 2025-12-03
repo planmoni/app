@@ -148,6 +148,10 @@ export default function LivenessStep({ onComplete }: LivenessStepProps) {
     setShowCameraPermissionModal(false);
   };
 
+  const handleContinue = () => {
+    onComplete();
+  };
+
   const styles = createStyles(colors, isDark);
   const percentage = getProgressPercentage();
   const stepNumber = getCurrentStepNumber();
@@ -166,6 +170,12 @@ export default function LivenessStep({ onComplete }: LivenessStepProps) {
         {progress?.liveness_test_completed ? (
           <View style={styles.completedContainer}>
             <Text style={styles.completedText}>✓ Selfie captured</Text>
+            <Pressable
+              style={[styles.button, styles.continueButton]}
+              onPress={handleContinue}
+            >
+              <Text style={styles.buttonText}>Continue</Text>
+            </Pressable>
           </View>
         ) : (
           <Pressable
@@ -256,11 +266,17 @@ function createStyles(colors: any, isDark: boolean) {
       borderRadius: 8,
       borderWidth: 1,
       borderColor: colors.success,
+      alignItems: 'center',
+      gap: 16,
     },
     completedText: {
       fontSize: 16,
       fontWeight: '500',
       color: colors.success,
+    },
+    continueButton: {
+      marginTop: 8,
+      minWidth: 150,
     },
   });
 }

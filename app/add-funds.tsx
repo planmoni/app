@@ -28,7 +28,7 @@ export default function AddFundsScreen() {
   const haptics = useHaptics();
   
   const { session } = useAuth();
-  const { getTierInfo } = useKYCProgress();
+  const { getTierInfo, checkTierCompletion } = useKYCProgress();
   const [safehavenAccount, setSafehavenAccount] = useState<any>(null);
   const [safehavenAccountLoading, setSafehavenAccountLoading] = useState(true);
   const [tierInfo, setTierInfo] = useState<any>(null);
@@ -293,7 +293,29 @@ export default function AddFundsScreen() {
   // Handle upgrade button press
   const handleUpgrade = () => {
     haptics.mediumImpact();
-    router.push('/kyc-upgrade');
+    
+    // Check user's tier completion status to route appropriately
+    const tierCompletion = checkTierCompletion();
+    const currentTier = tierInfo?.current_tier || 0;
+    
+    // Route based on tier status
+    const isTier1Done = tierCompletion.tier1 || currentTier >= 1;
+    const isTier2Done = tierCompletion.tier2 || currentTier >= 2;
+    
+    // IMPORTANT: Check Tier 2 first to avoid routing Tier 1 complete users to Tier 1
+    if (isTier2Done) {
+      // Tier 2 complete - go to Tier 3 flow
+      console.log('✅ Add Funds - Routing to Tier 3 flow');
+      router.push('/kyc/tier3');
+    } else if (isTier1Done && !isTier2Done) {
+      // Tier 1 complete but Tier 2 not complete - go DIRECTLY to Tier 2 flow
+      console.log('✅ Add Funds - Routing to Tier 2 flow (Tier 1 already complete)');
+      router.push('/kyc/tier2');
+    } else {
+      // Tier 1 not complete or unverified - go to Tier 1 flow
+      console.log('✅ Add Funds - Routing to Tier 1 flow');
+      router.push('/kyc/tier1');
+    }
   };
 
   // Memoize styles to prevent recalculation on every render

@@ -70,7 +70,7 @@ export default function SettingsScreen() {
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { currentTier, checkTierCompletion } = useKYCProgress();
   const [hasAccount, setHasAccount] = useState(false);
-
+  
   // Helper functions for tier badge
   const getTierBadgeLabel = (tier: number): string => {
     switch (tier) {

@@ -180,9 +180,9 @@ export default function ProfileScreen() {
     
     // IMPORTANT: Check Tier 2 first to avoid routing Tier 1 complete users to Tier 1
     if (isTier2Done || currentTier >= 2) {
-      // Tier 2 complete - go to Tier 3 flow (old kyc-upgrade)
+      // Tier 2 complete - go to Tier 3 flow
       console.log('✅ Routing to Tier 3 flow');
-      router.push('/kyc-upgrade');
+      router.push('/kyc/tier3');
       return;
     }
     

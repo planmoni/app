@@ -25,7 +25,7 @@ interface TierLimitData {
 export default function TransactionLimitsScreen() {
   const { colors } = useTheme();
   const { session } = useAuth();
-  const { checkTierCompletion } = useKYCProgress();
+  const { checkTierCompletion, progress } = useKYCProgress();
   const [currentTier, setCurrentTier] = useState<KYCTier>(0);
   const [tierLimits, setTierLimits] = useState<Record<number, TierLimitData>>({});
   const [loading, setLoading] = useState(true);
@@ -92,9 +92,9 @@ export default function TransactionLimitsScreen() {
     
     // IMPORTANT: Check Tier 2 first to avoid routing Tier 1 complete users to Tier 1
     if (isTier2Done) {
-      // Tier 2 complete - go to old kyc-upgrade flow for Tier 3
+      // Tier 2 complete - go to Tier 3 flow
       console.log('✅ Routing to Tier 3 flow');
-      router.push('/kyc-upgrade');
+      router.push('/kyc/tier3');
     } else if (isTier1Done && !isTier2Done) {
       // Tier 1 complete but Tier 2 not complete - go DIRECTLY to Tier 2 flow
       // Do NOT route to Tier 1 as it will redirect to success screen
@@ -107,10 +107,33 @@ export default function TransactionLimitsScreen() {
     }
   };
 
-  // Filter out current tier and lower tiers from available tiers
+  // Get tier completion status
+  const tierCompletion = checkTierCompletion();
+  
+  // Filter tiers - only remove tiers that user has already passed
+  // All other tiers should be visible but may be disabled
   const availableTiers = Object.entries(tierLimits)
-    .filter(([tier]) => parseInt(tier) > currentTier)
+    .filter(([tier]) => {
+      const tierNum = parseInt(tier);
+      // Remove tiers user has already passed
+      if (tierNum <= currentTier) return false;
+      return true;
+    })
     .sort(([a], [b]) => parseInt(a) - parseInt(b));
+  
+  // Helper function to check if a tier should be disabled
+  const isTierDisabled = (tierNum: number): boolean => {
+    // If unverified, all tiers (1, 2, 3) are disabled
+    if (currentTier === 0) return true;
+    
+    // If Tier 1, Tier 3 is disabled until Tier 2 is complete
+    if (currentTier === 1 && tierNum === 3) {
+      return !tierCompletion.tier2;
+    }
+    
+    // Otherwise, tier is enabled
+    return false;
+  };
 
   const formatAmount = (amount: number): string => {
     return formatCurrency(amount);
@@ -180,67 +203,93 @@ export default function TransactionLimitsScreen() {
               ) : (
                 <Text style={styles.errorText}>Unable to load limits</Text>
               )}
+              
+              {/* Continue Verification button for unverified users */}
+              {currentTier === 0 && (
+                <Pressable
+                  style={styles.continueVerificationButton}
+                  onPress={() => router.push('/kyc/tier1')}
+                >
+                  <Text style={styles.continueVerificationButtonText}>Continue Verification</Text>
+                  <ChevronRight size={20} color="#FFFFFF" />
+                </Pressable>
+              )}
             </View>
 
             {availableTiers.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Available Upgrades</Text>
                 
-                {availableTiers.map(([tier, limits]) => (
-                  <View 
-                    key={tier} 
-                    style={styles.tierCard}
-                  >
-                    <View style={styles.tierHeader}>
-                      <View style={styles.tierInfo}>
-                        <Text style={styles.tierName}>Tier {tier}</Text>
-                        <View style={styles.upgradeTag}>
-                          <Text style={styles.upgradeTagText}>Available</Text>
+                {availableTiers.map(([tier, limits]) => {
+                  const tierNum = parseInt(tier);
+                  const disabled = isTierDisabled(tierNum);
+                  
+                  return (
+                    <View 
+                      key={tier} 
+                      style={[styles.tierCard, disabled && styles.tierCardDisabled]}
+                    >
+                      <View style={styles.tierHeader}>
+                        <View style={styles.tierInfo}>
+                          <Text style={[styles.tierName, disabled && styles.tierNameDisabled]}>Tier {tier}</Text>
+                          <View style={[styles.upgradeTag, disabled && styles.upgradeTagDisabled]}>
+                            <Text style={disabled ? styles.upgradeTagTextDisabled : styles.upgradeTagText}>
+                              {disabled ? 'Locked' : 'Available'}
+                            </Text>
+                          </View>
+                        </View>
+                        {disabled ? (
+                          <View style={[styles.upgradeButton, styles.upgradeButtonDisabled]}>
+                            <Text style={styles.upgradeButtonTextDisabled}>
+                              {currentTier === 0 ? 'Start Verification' : 'Complete Tier 2'}
+                            </Text>
+                          </View>
+                        ) : (
+                          <Pressable 
+                            style={styles.upgradeButton}
+                            onPress={handleUpgrade}
+                          >
+                            <Text style={styles.upgradeButtonText}>Upgrade</Text>
+                            <ChevronRight size={16} color="#1E3A8A" />
+                          </Pressable>
+                        )}
+                      </View>
+
+                      <View style={styles.tierLimits}>
+                        <View style={styles.tierLimit}>
+                          <Text style={[styles.limitType, disabled && styles.limitTypeDisabled]}>Daily Deposit:</Text>
+                          <Text style={[styles.limitAmount, disabled && styles.limitAmountDisabled]}>
+                            {formatAmount(limits.max_daily_deposit / 1)}
+                          </Text>
+                        </View>
+                        <View style={styles.tierLimit}>
+                          <Text style={[styles.limitType, disabled && styles.limitTypeDisabled]}>Weekly Deposit:</Text>
+                          <Text style={[styles.limitAmount, disabled && styles.limitAmountDisabled]}>
+                            {formatAmount(limits.max_weekly_deposit / 1)}
+                          </Text>
+                        </View>
+                        <View style={styles.tierLimit}>
+                          <Text style={[styles.limitType, disabled && styles.limitTypeDisabled]}>Monthly Deposit:</Text>
+                          <Text style={[styles.limitAmount, disabled && styles.limitAmountDisabled]}>
+                            {formatAmount(limits.max_monthly_deposit / 1)}
+                          </Text>
+                        </View>
+                        <View style={styles.tierLimit}>
+                          <Text style={[styles.limitType, disabled && styles.limitTypeDisabled]}>Single Transaction:</Text>
+                          <Text style={[styles.limitAmount, disabled && styles.limitAmountDisabled]}>
+                            {formatAmount(limits.max_single_deposit / 1)}
+                          </Text>
+                        </View>
+                        <View style={styles.tierLimit}>
+                          <Text style={[styles.limitType, disabled && styles.limitTypeDisabled]}>Max Balance:</Text>
+                          <Text style={[styles.limitAmount, disabled && styles.limitAmountDisabled]}>
+                            {formatAmount(limits.max_account_balance / 1)}
+                          </Text>
                         </View>
                       </View>
-                      <Pressable 
-                        style={styles.upgradeButton}
-                        onPress={handleUpgrade}
-                      >
-                        <Text style={styles.upgradeButtonText}>Upgrade</Text>
-                        <ChevronRight size={16} color="#1E3A8A" />
-                      </Pressable>
                     </View>
-
-                    <View style={styles.tierLimits}>
-                      <View style={styles.tierLimit}>
-                        <Text style={styles.limitType}>Daily Deposit:</Text>
-                        <Text style={styles.limitAmount}>
-                          {formatAmount(limits.max_daily_deposit / 1)}
-                        </Text>
-                      </View>
-                      <View style={styles.tierLimit}>
-                        <Text style={styles.limitType}>Weekly Deposit:</Text>
-                        <Text style={styles.limitAmount}>
-                          {formatAmount(limits.max_weekly_deposit / 1)}
-                        </Text>
-                      </View>
-                      <View style={styles.tierLimit}>
-                        <Text style={styles.limitType}>Monthly Deposit:</Text>
-                        <Text style={styles.limitAmount}>
-                          {formatAmount(limits.max_monthly_deposit / 1)}
-                        </Text>
-                      </View>
-                      <View style={styles.tierLimit}>
-                        <Text style={styles.limitType}>Single Transaction:</Text>
-                        <Text style={styles.limitAmount}>
-                          {formatAmount(limits.max_single_deposit / 1)}
-                        </Text>
-                      </View>
-                      <View style={styles.tierLimit}>
-                        <Text style={styles.limitType}>Max Balance:</Text>
-                        <Text style={styles.limitAmount}>
-                          {formatAmount(limits.max_account_balance / 1)}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             )}
           </>
@@ -474,5 +523,46 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.error || '#EF4444',
     textAlign: 'center',
     marginTop: 16,
+  },
+  continueVerificationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#1E3A8A',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 24,
+  },
+  continueVerificationButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  tierCardDisabled: {
+    opacity: 0.6,
+    backgroundColor: colors.backgroundTertiary || '#F3F4F6',
+  },
+  tierNameDisabled: {
+    color: colors.textTertiary || '#9CA3AF',
+  },
+  upgradeTagDisabled: {
+    backgroundColor: '#E5E7EB',
+  },
+  upgradeTagTextDisabled: {
+    color: '#6B7280',
+  },
+  upgradeButtonDisabled: {
+    backgroundColor: '#E5E7EB',
+  },
+  upgradeButtonTextDisabled: {
+    color: '#6B7280',
+  },
+  limitTypeDisabled: {
+    color: colors.textTertiary || '#9CA3AF',
+  },
+  limitAmountDisabled: {
+    color: colors.textTertiary || '#9CA3AF',
   },
 });

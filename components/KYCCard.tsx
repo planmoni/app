@@ -230,12 +230,12 @@ export default function KYCCard() {
         }
       });
       
-      // IMPORTANT: Check Tier 2 first to avoid routing Tier 1 complete users to Tier 1
-      // The Tier 1 screen will redirect completed users to success screen, so we must go directly to Tier 2
-      if (isTier2Done || isTier2OrHigher) {
-        // Tier 2 complete or Tier 3 - go to old kyc-upgrade flow for Tier 3
-        console.log('✅ Routing to Tier 3 flow');
-        router.push('/kyc-upgrade');
+        // IMPORTANT: Check Tier 2 first to avoid routing Tier 1 complete users to Tier 1
+        // The Tier 1 screen will redirect completed users to success screen, so we must go directly to Tier 2
+        if (isTier2Done || isTier2OrHigher) {
+          // Tier 2 complete or Tier 3 - go to Tier 3 flow
+          console.log('✅ Routing to Tier 3 flow');
+          router.push('/kyc/tier3');
       } else if (isTier1Done && !isTier2Done) {
         // Tier 1 complete but Tier 2 not complete - go DIRECTLY to Tier 2 flow
         // Do NOT route to Tier 1 as it will redirect to success screen
@@ -275,9 +275,9 @@ export default function KYCCard() {
     setTimeout(() => {
       // IMPORTANT: Check Tier 2 first to avoid routing Tier 1 complete users to Tier 1
       if (isTier2Done || isTier2OrHigher) {
-        // Tier 2 complete or Tier 3 - go to old kyc-upgrade flow for Tier 3
+        // Tier 2 complete or Tier 3 - go to Tier 3 flow
         console.log('✅ Routing to Tier 3 flow');
-        router.push('/kyc-upgrade');
+        router.push('/kyc/tier3');
       } else if (isTier1Done && !isTier2Done) {
         // Tier 1 complete but Tier 2 not complete - go DIRECTLY to Tier 2 flow
         // Do NOT route to Tier 1 as it will redirect to success screen
@@ -306,11 +306,8 @@ export default function KYCCard() {
         // Tier 1 complete but Tier 2 not complete - go to Tier 2 flow
         router.push('/kyc/tier2');
       } else if (isTier2OrHigher && tierCompletion.tier2) {
-        // Tier 2 complete or Tier 3 - go to old kyc-upgrade flow for Tier 3
-        router.push({
-          pathname: '/kyc-upgrade',
-          params: { selfieUrl }
-        });
+        // Tier 2 complete or Tier 3 - go to Tier 3 flow
+        router.push('/kyc/tier3');
       } else {
         // Tier 1 users (or not yet Tier 1) go to new Tier 1 flow
         router.push('/kyc/tier1');
