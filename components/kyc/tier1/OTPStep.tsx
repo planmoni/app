@@ -27,7 +27,7 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
   const { showToast } = useToast();
   const { session } = useAuth();
   const { formData, saveFormData } = useKYCData();
-  const { progress, updateProgress } = useKYCProgress();
+  const { progress, updateProgress, updateTier, loadProgress } = useKYCProgress();
   const { getProgressPercentage, getCurrentStepNumber } = useTier1KYC();
   const insets = useSafeAreaInsets();
   
@@ -90,6 +90,10 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
       if (result.success) {
         // Save phone number to form data
         await saveFormData({ phone_number: phoneNumber });
+        
+        // Ensure tier is updated in database after NIN verification
+        await updateTier();
+        await loadProgress();
         
         if (result.accountNumber) {
           showToast(`NIN verified! Account created: ${result.accountNumber.substring(0, 5)}****`, 'success');

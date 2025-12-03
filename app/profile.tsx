@@ -178,21 +178,23 @@ export default function ProfileScreen() {
     const isTier1Done = tierCompletion.tier1 || (currentTier >= 1 && progress?.liveness_test_completed && progress?.bvn_verified && progress?.id_face_verified);
     const isTier2Done = tierCompletion.tier2 || (currentTier >= 2 && progress?.personal_info_completed && progress?.documents_verified);
     
-    if (isTier1Done && !isTier2Done) {
-      // Tier 1 complete but Tier 2 not complete - go to Tier 2 flow
-      console.log('✅ Routing to Tier 2 flow');
-      router.push('/kyc/tier2');
-      return;
-    }
-    
-    // If Tier 2 is complete, go to Tier 3 flow (old kyc-upgrade)
+    // IMPORTANT: Check Tier 2 first to avoid routing Tier 1 complete users to Tier 1
     if (isTier2Done || currentTier >= 2) {
+      // Tier 2 complete - go to Tier 3 flow (old kyc-upgrade)
       console.log('✅ Routing to Tier 3 flow');
       router.push('/kyc-upgrade');
       return;
     }
     
-    // Otherwise, go to Tier 1 flow
+    if (isTier1Done && !isTier2Done) {
+      // Tier 1 complete but Tier 2 not complete - go DIRECTLY to Tier 2 flow
+      // Do NOT route to Tier 1 as it will redirect to success screen
+      console.log('✅ Routing to Tier 2 flow (Tier 1 already complete)');
+      router.push('/kyc/tier2');
+      return;
+    }
+    
+    // Otherwise, go to Tier 1 flow (Tier 1 not complete)
     console.log('✅ Routing to Tier 1 flow');
     router.push('/kyc/tier1');
   };

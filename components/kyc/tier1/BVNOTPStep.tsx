@@ -27,7 +27,7 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
   const { showToast } = useToast();
   const { session } = useAuth();
   const { formData, saveFormData } = useKYCData();
-  const { progress, updateProgress } = useKYCProgress();
+  const { progress, updateProgress, updateTier, loadProgress } = useKYCProgress();
   const { getProgressPercentage, getCurrentStepNumber } = useTier1KYC();
   const insets = useSafeAreaInsets();
   
@@ -170,6 +170,10 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
         current_step: 'review',
         id_face_verified: true
       });
+
+      // Ensure tier is updated in database after BVN verification
+      await updateTier();
+      await loadProgress();
 
       // Show success message
       if (accountNumber) {

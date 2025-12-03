@@ -90,14 +90,16 @@ export default function TransactionLimitsScreen() {
     const isTier1Done = tierCompletion.tier1 || currentTier >= 1;
     const isTier2Done = tierCompletion.tier2 || currentTier >= 2;
     
-    if (isTier1Done && !isTier2Done) {
-      // Tier 1 complete but Tier 2 not complete - go to Tier 2 flow
-      console.log('✅ Routing to Tier 2 flow');
-      router.push('/kyc/tier2');
-    } else if (isTier2Done) {
+    // IMPORTANT: Check Tier 2 first to avoid routing Tier 1 complete users to Tier 1
+    if (isTier2Done) {
       // Tier 2 complete - go to old kyc-upgrade flow for Tier 3
       console.log('✅ Routing to Tier 3 flow');
       router.push('/kyc-upgrade');
+    } else if (isTier1Done && !isTier2Done) {
+      // Tier 1 complete but Tier 2 not complete - go DIRECTLY to Tier 2 flow
+      // Do NOT route to Tier 1 as it will redirect to success screen
+      console.log('✅ Routing to Tier 2 flow (Tier 1 already complete)');
+      router.push('/kyc/tier2');
     } else {
       // Tier 1 not complete or unverified - go to Tier 1 flow
       console.log('✅ Routing to Tier 1 flow');

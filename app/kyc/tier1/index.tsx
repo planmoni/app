@@ -40,43 +40,69 @@ export default function Tier1KYCScreen() {
     setIsMounted(true);
   }, []);
 
-  // Check if Tier 1 is already complete (after mount and router is ready)
-  useEffect(() => {
-    if (!isMounted) return;
+  // TIER 1 COMPLETION CHECK - COMPLETELY ISOLATED FROM TIER 2
+  // Only run when Tier 1 screen is actually focused (not when navigating to Tier 2)
+  useFocusEffect(
+    useCallback(() => {
+      if (!isMounted) return;
 
-    const checkCompletion = async () => {
-      try {
-        await loadProgress();
-        await updateTier();
-        
-        const tierStatus = checkTierCompletion();
-        if (tierStatus.tier1) {
-          // Already completed, redirect to success
-          // Use setTimeout to ensure navigation happens after router is ready
-          setTimeout(() => {
-            try {
-              router.replace('/kyc/tier1/success');
-            } catch (error) {
-              console.error('Navigation error:', error);
-              // Retry after a longer delay
-              setTimeout(() => {
+      let hasChecked = false;
+
+      const checkCompletion = async () => {
+        // Only check once per focus
+        if (hasChecked) return;
+        hasChecked = true;
+
+        try {
+          // Wait a bit to ensure we're actually on Tier 1 screen
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          await loadProgress();
+          await updateTier();
+          
+          const tierStatus = checkTierCompletion();
+          
+          console.log('🔍 Tier 1 - Checking completion status (ISOLATED):', {
+            tierStatus,
+            currentStep,
+            shouldRedirect: tierStatus.tier1
+          });
+          
+          // Only redirect if Tier 1 is complete AND we're not actively on a step
+          // This prevents redirecting while user is filling the form
+          if (tierStatus.tier1 && currentStep !== 'liveness' && currentStep !== 'bvn' && currentStep !== 'nin' && currentStep !== 'otp' && currentStep !== 'bvn_otp') {
+            // Already completed, redirect to Tier 1 success ONLY (NOT Tier 2)
+            console.log('✅ Tier 1 complete, redirecting to Tier 1 success (NOT Tier 2)');
+            setTimeout(() => {
+              try {
                 router.replace('/kyc/tier1/success');
-              }, 500);
-            }
-          }, 300);
+              } catch (error) {
+                console.error('Navigation error:', error);
+                // Retry after a longer delay
+                setTimeout(() => {
+                  router.replace('/kyc/tier1/success');
+                }, 500);
+              }
+            }, 300);
+          } else {
+            console.log('⏳ Tier 1 not complete yet or user is on a step:', currentStep);
+          }
+        } catch (error) {
+          console.error('Error checking Tier 1 completion:', error);
         }
-      } catch (error) {
-        console.error('Error checking Tier 1 completion:', error);
-      }
-    };
+      };
 
-    // Delay the check to ensure router is ready
-    const timer = setTimeout(() => {
-      checkCompletion();
-    }, 100);
+      // Delay the check to ensure router is ready and we're actually on Tier 1
+      const timer = setTimeout(() => {
+        checkCompletion();
+      }, 500);
 
-    return () => clearTimeout(timer);
-  }, [isMounted, loadProgress, updateTier, checkTierCompletion]);
+      return () => {
+        clearTimeout(timer);
+        hasChecked = false;
+      };
+    }, [isMounted, currentStep, loadProgress, updateTier, checkTierCompletion])
+  );
 
   // Handle step completion
   const handleLivenessComplete = () => {

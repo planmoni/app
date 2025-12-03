@@ -84,22 +84,34 @@ export const useTier2KYC = () => {
   }, [progress, checkTierCompletion]);
 
   // Determine current step based on progress
+  // IMPORTANT: Only set step on initial load, don't auto-advance
+  // This prevents interfering with user's active form filling
   useEffect(() => {
     if (!progress) {
-      setCurrentStep('personal');
+      // Only set to personal if we don't have a step set yet
+      if (!currentStep || currentStep === 'personal') {
+        setCurrentStep('personal');
+      }
       return;
     }
 
     const personalInfoCompleted = progress.personal_info_completed || false;
     const documentsVerified = progress.documents_verified || false;
 
-    // Only auto-set step if it makes sense based on progress
-    if (!personalInfoCompleted && currentStep !== 'personal') {
+    // Only auto-set step on initial load (when currentStep is not set or is default)
+    // Don't change step if user is actively on a step
+    if (currentStep === 'personal' || currentStep === 'documents') {
+      // User is on a step, don't auto-advance
+      return;
+    }
+
+    // Only set initial step based on progress
+    if (!personalInfoCompleted) {
       setCurrentStep('personal');
-    } else if (personalInfoCompleted && !documentsVerified && currentStep !== 'documents') {
+    } else if (personalInfoCompleted && !documentsVerified) {
       setCurrentStep('documents');
     }
-  }, [progress?.personal_info_completed, progress?.documents_verified]);
+  }, [progress?.personal_info_completed, progress?.documents_verified, currentStep]);
 
   // Move to next step
   const moveToNextStep = useCallback(() => {

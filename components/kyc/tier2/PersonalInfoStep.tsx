@@ -270,15 +270,25 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
   };
 
   const handleLocationSelect = (location: {
-    address: string;
+    place_id: number;
+    display_name: string;
     lat: string;
     lon: string;
-    placeId: string;
+    type: string;
+    address?: {
+      house_number?: string;
+      road?: string;
+      suburb?: string;
+      city?: string;
+      state?: string;
+      postcode?: string;
+      country?: string;
+    };
   }) => {
-    setAddress(location.address);
+    setAddress(location.display_name);
     setAddressLat(location.lat);
     setAddressLon(location.lon);
-    setAddressPlaceId(location.placeId);
+    setAddressPlaceId(location.place_id.toString());
     setErrors(prev => ({ ...prev, address: '' }));
     setShowLocationSearch(false);
   };
@@ -702,9 +712,9 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
 
       {/* Location Search Modal */}
       <LocationSearchModal
-        isVisible={showLocationSearch}
+        visible={showLocationSearch}
         onClose={() => setShowLocationSearch(false)}
-        onSelect={handleLocationSelect}
+        onSelectLocation={handleLocationSelect}
       />
     </View>
   );

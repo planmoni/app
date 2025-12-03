@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text, Pressable, useWindowDimensions, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { X, CircleHelp as HelpCircle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTier2KYC } from '@/hooks/useTier2KYC';
@@ -27,83 +27,114 @@ export default function Tier2KYCScreen() {
     setIsMounted(true);
   }, []);
 
-  // Check if Tier 1 is complete (prerequisite)
-  useEffect(() => {
-    if (!isMounted || !progress) return;
+  // TIER 2 IS COMPLETELY ISOLATED FROM TIER 1
+  // No prerequisite checks, no redirects to Tier 1
+  // If user is here, they should be able to complete Tier 2 regardless of Tier 1 status
+  // The upgrade buttons handle routing logic - Tier 2 screen doesn't need to check prerequisites
 
-    const checkTier1Prerequisite = async () => {
-      // Reload progress to ensure we have the latest data
-      await loadProgress();
-      await updateTier();
-      
-      const tierStatus = checkTierCompletion();
-      const tier1Complete = tierStatus.tier1 || 
-        (progress?.liveness_test_completed && 
-         progress?.bvn_verified && 
-         progress?.id_face_verified);
-      
-      console.log('🔍 Tier 2 - Checking Tier 1 prerequisite:', {
-        tierStatus,
-        tier1Complete,
-        progress: {
-          liveness: progress?.liveness_test_completed,
-          bvn: progress?.bvn_verified,
-          nin: progress?.id_face_verified
-        }
-      });
+  // TIER 2 COMPLETION CHECK - COMPLETELY ISOLATED FROM TIER 1
+  // Only run when Tier 2 screen is actually focused (not when navigating away)
+  // Never redirect to Tier 1 - Tier 2 is completely isolated
+  useFocusEffect(
+    useCallback(() => {
+      if (!isMounted || !progress) return;
 
-      if (!tier1Complete) {
-        // Tier 1 not complete, redirect to Tier 1 flow
-        console.log('❌ Tier 1 not complete, redirecting to Tier 1 flow');
-        setTimeout(() => {
-          try {
-            router.replace('/kyc/tier1');
-          } catch (error) {
-            console.error('Navigation error:', error);
-          }
-        }, 300);
-      } else {
-        console.log('✅ Tier 1 complete, proceeding with Tier 2');
+      // NEVER check completion if user is on a step - they're actively filling the form
+      if (currentStep === 'personal' || currentStep === 'documents') {
+        console.log('⏳ Tier 2 - User is on a step, skipping completion check');
+        return;
       }
-    };
 
-    checkTier1Prerequisite();
-  }, [isMounted, progress, isTier1Complete, loadProgress, updateTier, checkTierCompletion]);
+      let hasChecked = false;
+      
+      const checkCompletion = async () => {
+        // Only check once per focus
+        if (hasChecked) return;
+        hasChecked = true;
 
-  // Check if Tier 2 is already complete
-  useEffect(() => {
-    if (!isMounted) return;
-
-    const checkCompletion = async () => {
-      try {
-        await loadProgress();
-        await updateTier();
-        
-        const tierStatus = checkTierCompletion();
-        if (tierStatus.tier2) {
-          // Already completed, redirect to success
-          setTimeout(() => {
-            try {
-              router.replace('/kyc/tier2/success');
-            } catch (error) {
-              console.error('Navigation error:', error);
-              setTimeout(() => {
-                router.replace('/kyc/tier2/success');
-              }, 500);
+        try {
+          // Wait a bit to ensure we're actually on Tier 2 screen
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Load fresh progress data
+          await loadProgress();
+          await updateTier();
+          
+          // Wait for state to update
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Now check completion with fresh data
+          const tierStatus = checkTierCompletion();
+          
+          // Get fresh progress after reload
+          // We need to check the actual progress state, not the stale one
+          await loadProgress();
+          const freshProgress = await loadProgress();
+          
+          // Explicitly check both requirements - use strict boolean checks
+          // Use the progress from the hook which should be updated by loadProgress
+          const personalInfoDone = progress?.personal_info_completed === true;
+          const documentsVerified = progress?.documents_verified === true;
+          
+          console.log('🔍 Tier 2 - Checking completion status (ISOLATED):', {
+            tierStatus,
+            personalInfoDone,
+            documentsVerified,
+            currentStep,
+            progress: {
+              personal: progress?.personal_info_completed,
+              documents: progress?.documents_verified
             }
-          }, 300);
+          });
+          
+          // CRITICAL: Only redirect if BOTH are true AND tierStatus confirms Tier 2 is complete
+          // AND we're definitely not on a step (double check)
+          // NEVER redirect to Tier 1 - Tier 2 is completely isolated
+          if (tierStatus.tier2 && personalInfoDone && documentsVerified) {
+            // Final check - make sure we're not on a step
+            if (currentStep === 'personal' || currentStep === 'documents') {
+              console.log('⏳ Tier 2 - User is on a step, not redirecting');
+              return;
+            }
+            
+            // Tier 2 is truly complete, redirect to Tier 2 success ONLY (NOT Tier 1)
+            console.log('✅ Tier 2 complete, redirecting to Tier 2 success (NOT Tier 1)');
+            setTimeout(() => {
+              try {
+                router.replace('/kyc/tier2/success');
+              } catch (error) {
+                console.error('Navigation error:', error);
+              }
+            }, 300);
+          } else {
+            console.log('⏳ Tier 2 not complete yet:', {
+              tier2Status: tierStatus.tier2,
+              personalInfoDone,
+              documentsVerified,
+              currentStep
+            });
+          }
+        } catch (error) {
+          console.error('Error checking Tier 2 completion:', error);
         }
-      } catch (error) {
-        console.error('Error checking Tier 2 completion:', error);
-      }
-    };
+      };
 
-    const timer = setTimeout(() => {
-      checkCompletion();
-    }, 100);
+      // Only check once after screen is focused and user is not on a step
+      const timer = setTimeout(() => {
+        // Final check we're not on a step
+        if (currentStep !== 'personal' && currentStep !== 'documents') {
+          checkCompletion();
+        } else {
+          console.log('⏳ Tier 2 - Skipping completion check, user is on a step');
+        }
+      }, 2000); // Longer delay to ensure user isn't actively filling form
 
-    return () => clearTimeout(timer);
-  }, [isMounted, loadProgress, updateTier, checkTierCompletion]);
+      return () => {
+        clearTimeout(timer);
+        hasChecked = false;
+      };
+    }, [isMounted, currentStep, progress, loadProgress, updateTier, checkTierCompletion])
+  );
 
   // Handle step completion
   const handlePersonalInfoComplete = () => {
