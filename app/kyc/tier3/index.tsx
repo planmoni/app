@@ -12,8 +12,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
-import { X, Camera, Upload, Clock, Mail, CheckCircle, CircleHelp as HelpCircle } from 'lucide-react-native';
+import { X, Upload, Clock, Mail, CheckCircle, CircleHelp as HelpCircle, FileText } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { getDocumentAsync } from 'expo-document-picker';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import { useKYCData } from '@/hooks/useKYCData';
@@ -125,30 +126,39 @@ export default function Tier3KYCScreen() {
     }
   };
 
-  const takePicture = async () => {
+  const pickFile = async () => {
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Camera Permission Required',
-          'Please grant camera permission to take a picture of your utility bill.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
+      // Try to use document picker for PDFs and images
+      const result = await getDocumentAsync({
+        type: ['image/*', 'application/pdf'],
+        copyToCacheDirectory: true,
+        multiple: false,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        setUtilityBillImage(result.assets[0].uri);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setUtilityBillImage(asset.uri);
+        showToast('File selected successfully', 'success');
       }
-    } catch (error) {
-      console.error('Error taking picture:', error);
-      showToast('Failed to take picture. Please try again.', 'error');
+    } catch (error: any) {
+      console.error('Error picking file:', error);
+      
+      // Fallback to image picker if document picker fails
+      try {
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.All,
+          allowsEditing: false,
+          quality: 0.8,
+        });
+
+        if (!result.canceled && result.assets[0]) {
+          setUtilityBillImage(result.assets[0].uri);
+          showToast('File selected (images only - rebuild app for PDF support)', 'info');
+        }
+      } catch (fallbackError) {
+        console.error('Fallback image picker error:', fallbackError);
+        showToast('Failed to pick file. Please try again.', 'error');
+      }
     }
   };
 
@@ -191,15 +201,15 @@ export default function Tier3KYCScreen() {
     setIsValidating(true);
 
     try {
-      // Upload image to Supabase storage
+      // Upload file to Supabase storage
       showToast('Uploading utility bill...', 'info');
       
       // Get file extension from URI
-      const fileExtension = utilityBillImage.split('.').pop() || 'jpg';
+      const fileExtension = utilityBillImage.split('.').pop()?.toLowerCase() || 'jpg';
       const fileName = `utility-bill.${fileExtension}`;
       const filePath = `${session.user.id}/${fileName}`;
 
-      // Convert image to blob for upload
+      // Convert file to blob for upload (handles both images and PDFs)
       const response = await fetch(utilityBillImage);
       const blob = await response.blob();
 
@@ -385,12 +395,22 @@ export default function Tier3KYCScreen() {
               </View>
             </View>
 
-            {/* Image Preview */}
+            {/* File Preview */}
             {utilityBillImage && (
               <View style={styles.imagePreviewSection}>
-                <Text style={styles.imagePreviewTitle}>Selected Image</Text>
+                <Text style={styles.imagePreviewTitle}>Selected File</Text>
                 <View style={styles.imageContainer}>
-                  <Image source={{ uri: utilityBillImage }} style={styles.previewImage} />
+                  {utilityBillImage.toLowerCase().endsWith('.pdf') || utilityBillImage.toLowerCase().includes('pdf') ? (
+                    <View style={styles.pdfPreviewContainer}>
+                      <FileText size={48} color={colors.primary} />
+                      <Text style={styles.pdfPreviewText}>PDF Document</Text>
+                      <Text style={styles.pdfPreviewSubtext}>
+                        {utilityBillImage.split('/').pop() || 'utility-bill.pdf'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Image source={{ uri: utilityBillImage }} style={styles.previewImage} />
+                  )}
                   <Pressable
                     onPress={() => setUtilityBillImage(null)}
                     style={styles.removeImageButton}
@@ -409,9 +429,9 @@ export default function Tier3KYCScreen() {
                   <Text style={styles.uploadOptionText}>Choose from Gallery</Text>
                 </Pressable>
                 
-                <Pressable style={styles.uploadOption} onPress={takePicture}>
-                  <Camera size={32} color={colors.primary} />
-                  <Text style={styles.uploadOptionText}>Take Photo</Text>
+                <Pressable style={styles.uploadOption} onPress={pickFile}>
+                  <FileText size={32} color={colors.primary} />
+                  <Text style={styles.uploadOptionText}>Upload Utility Bill</Text>
                 </Pressable>
               </View>
             )}
@@ -599,6 +619,30 @@ function createStyles(colors: any, isDark: boolean) {
       height: 200,
       borderRadius: 12,
       resizeMode: 'cover',
+    },
+    pdfPreviewContainer: {
+      width: '100%',
+      height: 200,
+      borderRadius: 12,
+      backgroundColor: colors.backgroundTertiary || (isDark ? 'rgba(255, 255, 255, 0.05)' : '#F3F4F6'),
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: colors.border,
+      borderStyle: 'dashed',
+    },
+    pdfPreviewText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+      marginTop: 12,
+    },
+    pdfPreviewSubtext: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 4,
+      textAlign: 'center',
+      paddingHorizontal: 16,
     },
     removeImageButton: {
       position: 'absolute',

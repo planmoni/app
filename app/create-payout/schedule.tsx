@@ -645,8 +645,15 @@ export default function ScheduleScreen() {
   const calculatePayoutAmount = useCallback((total: string, payouts: number) => {
     const numericTotal = parseFloat(total.replace(/,/g, ''));
     if (!isNaN(numericTotal) && payouts > 0) {
-      const amount = numericTotal / payouts;
-      const formattedAmount = amount.toLocaleString(undefined, {
+      // Calculate base amount per payout
+      const baseAmount = numericTotal / payouts;
+      
+      // Round DOWN to 2 decimal places to ensure we don't exceed the total
+      // This prevents issues where rounded up amounts exceed the available balance
+      const roundedDown = Math.floor(baseAmount * 100) / 100;
+      
+      // Format the rounded down amount (this ensures payoutAmount * payouts <= totalAmount)
+      const formattedAmount = roundedDown.toLocaleString(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       });

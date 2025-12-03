@@ -67,19 +67,13 @@ export default function ClaimAccountModal({
     }
   }, [isVisible, formData, session]);
 
-  // Check for existing account and Tier 1 status when modal opens
+  // Check for existing account when modal opens
   // Skip this check for unauthenticated users
   useEffect(() => {
+    let isMounted = true;
+    
     if (isVisible && session?.user?.id && isAuthenticated) {
       const checkBeforeShowing = async () => {
-        // First check if Tier 1 is complete - if so, close immediately
-        const tierCompletion = checkTierCompletion();
-        if (tierCompletion.tier1) {
-          onClose();
-          return;
-        }
-        
-        // Then check if account exists - if so, close immediately without showing modal
         setIsCheckingAccount(true);
         try {
           const { data, error } = await supabase
@@ -90,12 +84,15 @@ export default function ClaimAccountModal({
             .not('account_number', 'ilike', 'PENDING_%')
             .maybeSingle();
 
+          if (!isMounted) return;
+
           if (!error && data && data.account_number && !data.account_number.startsWith('PENDING_')) {
             // Account exists - close modal immediately
             console.log('[ClaimAccountModal] Account exists, closing modal immediately');
             
             // Prevent duplicate navigation
             if (hasNavigatedRef.current) {
+              setIsCheckingAccount(false);
               return;
             }
             
@@ -109,94 +106,44 @@ export default function ClaimAccountModal({
             onClose();
             
             // Only navigate if onClaim callback is provided (let parent handle navigation)
-            // This prevents duplicate navigation
             if (onClaim && !hasNavigatedRef.current) {
               hasNavigatedRef.current = true;
-              // Use a small delay to ensure modal closes first, but prevent duplicate calls
               setTimeout(() => {
-                onClaim();
+                if (isMounted) {
+                  onClaim();
+                }
               }, 150);
             }
-            // Don't navigate here if onClaim is not provided - parent should handle it
+            setIsCheckingAccount(false);
             return;
           }
           
           // No account exists - allow modal to show
-          setExistingAccount(null);
+          if (isMounted) {
+            setExistingAccount(null);
+            setIsCheckingAccount(false);
+          }
         } catch (error) {
           console.error('[ClaimAccountModal] Error checking account:', error);
-          setExistingAccount(null);
-        } finally {
-          setIsCheckingAccount(false);
+          if (isMounted) {
+            setExistingAccount(null);
+            setIsCheckingAccount(false);
+          }
         }
       };
       
       checkBeforeShowing();
-    }
-  }, [isVisible, session?.user?.id, isAuthenticated, checkTierCompletion, onClose]);
-
-  const checkExistingAccount = async () => {
-    if (!session?.user?.id) return;
-    
-    setIsCheckingAccount(true);
-    try {
-      // Check if account exists in database
-      const { data, error } = await supabase
-        .from('safehaven_accounts')
-        .select('id, account_number, account_name, status, is_deleted')
-        .eq('user_id', session.user.id)
-        .eq('is_deleted', false)
-        .not('account_number', 'ilike', 'PENDING_%')
-        .maybeSingle();
-
-      if (error) {
-        console.error('[ClaimAccountModal] Error checking existing account:', error);
-        setExistingAccount(null);
-        return;
-      }
-
-      // Store account data if it exists and is valid
-      if (data && data.account_number && !data.account_number.startsWith('PENDING_')) {
-        console.log('[ClaimAccountModal] Existing account found:', data.account_number.substring(0, 5) + '****');
-        
-        // Prevent duplicate navigation
-        if (hasNavigatedRef.current) {
-          return;
-        }
-        
-        setExistingAccount({
-          account_number: data.account_number,
-          account_name: data.account_name,
-          status: data.status
-        });
-        
-        // Close modal immediately without showing toast or navigating
-        // The parent component should handle navigation if needed
-        onClose();
-        
-        // If onClaim callback is provided, call it (parent handles navigation)
-        if (onClaim && !hasNavigatedRef.current) {
-          hasNavigatedRef.current = true;
-          setTimeout(() => {
-            onClaim();
-          }, 150);
-        } else if (!onClaim && !hasNavigatedRef.current) {
-          // Fallback: Navigate to add-funds page only if no callback provided
-          hasNavigatedRef.current = true;
-          setTimeout(() => {
-            router.push('/add-funds');
-          }, 150);
-        }
-      } else {
-        setExistingAccount(null);
-      }
-    } catch (error) {
-      console.error('[ClaimAccountModal] Error checking account:', error);
+    } else if (!isVisible) {
+      // Reset state when modal closes
       setExistingAccount(null);
-    } finally {
       setIsCheckingAccount(false);
     }
-  };
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [isVisible, session?.user?.id, isAuthenticated, onClose, onClaim]);
+
 
   const handleClose = () => {
     if (isCreatingAccount) return; // Prevent closing while creating account
@@ -269,40 +216,41 @@ export default function ClaimAccountModal({
       if (result.data?.verified || result.data?.status === 'PENDING') {
         const accountNumber = result.data?.account_number;
         const status = result.data?.status || 'PENDING';
-        const newIdentityId = result.data?.identityId || identityId;
         
         if (accountNumber) {
           showToast('Account created successfully!', 'success');
         } else if (status === 'PENDING') {
           showToast('Account creation is in progress. Your account will be available shortly.', 'info');
-          
-          // Don't start polling immediately - let the realtime subscription handle updates
-          // Polling will be triggered by the realtime subscription if needed
         } else {
           showToast('Account creation initiated. Your account will be available shortly.', 'success');
         }
         
         // Close OTP modal first
         setShowOTPModal(false);
+        setIsCreatingAccount(false);
         
         // Wait a bit for modal to close before navigating
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        setIsCreatingAccount(false);
+        // Close main modal
         onClose();
         
-        // Navigate to add-funds page after modal is fully closed
-        setTimeout(() => {
-          try {
-            if (onClaim) {
-              onClaim();
-            } else {
-              router.push('/add-funds');
+        // Navigate after modal is fully closed
+        if (!hasNavigatedRef.current) {
+          hasNavigatedRef.current = true;
+          setTimeout(() => {
+            try {
+              if (onClaim) {
+                onClaim();
+              } else {
+                router.push('/add-funds');
+              }
+            } catch (error) {
+              console.error('Navigation error:', error);
+              hasNavigatedRef.current = false;
             }
-          } catch (error) {
-            console.error('Navigation error:', error);
-          }
-        }, 500);
+          }, 200);
+        }
       } else {
         throw new Error('Account verification failed. Please try again.');
       }
@@ -360,6 +308,17 @@ export default function ClaimAccountModal({
   };
 
   // Don't show modal if we're still checking for account or if account exists
+  // Also reset state when modal becomes invisible
+  useEffect(() => {
+    if (!isVisible) {
+      setExistingAccount(null);
+      setIsCheckingAccount(false);
+      setShowOTPModal(false);
+      setIdentityId(null);
+      hasNavigatedRef.current = false;
+    }
+  }, [isVisible]);
+
   const shouldShowModal = isVisible && !isCheckingAccount && !existingAccount?.account_number;
 
   return (

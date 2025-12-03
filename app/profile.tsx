@@ -4,7 +4,6 @@ import SafeFooter from '@/components/SafeFooter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useKYCProgress, KYCProgress } from '@/hooks/useKYCProgress';
 import { useKYCData } from '@/hooks/useKYCData';
-import UtilityBillUploadModal from '@/components/UtilityBillUploadModal';
 import { router } from 'expo-router';
 import { ArrowLeft, Mail, User, Shield, CircleCheck as CheckCircle, CircleAlert as AlertCircle, Clock, ChevronRight, LocationEdit as Edit3, Upload } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -51,8 +50,6 @@ export default function ProfileScreen() {
     checkAccount();
   }, [session?.user?.id]);
   
-  // Utility bill upload modal
-  const [showUtilityBillModal, setShowUtilityBillModal] = useState(false);
   const [tierLimits, setTierLimits] = useState<{
     max_daily_deposit: number;
     max_weekly_deposit: number;
@@ -167,9 +164,10 @@ export default function ProfileScreen() {
       }
     });
     
-    // If user is Tier 2 and needs to upload utility bill, show the modal
+    // If user is Tier 2 and needs to upload utility bill, route to Tier 3 page
     if (kycLevel === 'tier2' && (!kycData?.utility_bill_url || !kycData?.approved)) {
-      setShowUtilityBillModal(true);
+      console.log('✅ Routing to Tier 3 flow (utility bill upload)');
+      router.push('/kyc/tier3');
       return;
     }
     
@@ -391,17 +389,6 @@ export default function ProfileScreen() {
       </View>
       
       <SafeFooter />
-      
-      {/* Utility Bill Upload Modal */}
-      <UtilityBillUploadModal
-        visible={showUtilityBillModal}
-        onClose={() => setShowUtilityBillModal(false)}
-        onSuccess={() => {
-          setShowUtilityBillModal(false);
-          // Refresh KYC data to show updated status
-          // The modal will handle the data refresh internally
-        }}
-      />
     </SafeAreaView>
   );
 }

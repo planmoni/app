@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Image, Dimensions, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Image, Dimensions, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -28,9 +28,14 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
         />
       </View>
 
-      {/* Loading Indicator */}
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#FFFFFF" />
+      {/* Partnership Section */}
+      <View style={styles.partnershipContainer}>
+        <Text style={styles.partnershipText}>In partnership with</Text>
+        <Image 
+          source={require('@/assets/images/SafeHavenLogo.png')} 
+          style={styles.partnershipLogo}
+          resizeMode="contain"
+        />
       </View>
     </SafeAreaView>
   );
@@ -52,10 +57,22 @@ const createStyles = () => StyleSheet.create({
     width: Math.min(screenWidth * 0.5, 200),
     height: Math.min(screenWidth * 0.5, 200),
   },
-  loadingContainer: {
+  partnershipContainer: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    width: '100%',
+  },
+  partnershipText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    opacity: 0.8,
+    marginBottom: 8,
+    fontWeight: '400',
+  },
+  partnershipLogo: {
+    width: Math.min(screenWidth * 0.3, 120),
+    height: Math.min(screenWidth * 0.15, 60),
   },
 });
