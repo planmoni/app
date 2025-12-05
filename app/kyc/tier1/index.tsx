@@ -23,7 +23,7 @@ export default function Tier1KYCScreen() {
   const { colors } = useTheme();
   const { width, height } = useWindowDimensions();
   const isSmallScreen = width < 380 || height < 700;
-  const { currentStep, setCurrentStep, progress, loadProgress, isTier1Complete, updateTier, formData: tier1FormData } = useTier1KYC();
+  const { currentStep, setCurrentStep, progress, loadProgress, isTier1Complete, updateTier, formData: tier1FormData, stepInitialized } = useTier1KYC();
   const { checkTierCompletion } = useKYCProgress();
   const { formData, loadFormData } = useKYCData();
   const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
@@ -282,8 +282,9 @@ export default function Tier1KYCScreen() {
     }
   };
 
-  // Show loading while checking progress
-  if (!progress) {
+  // Show loading while checking progress or initializing step
+  // This prevents showing the wrong step before the correct one is determined
+  if (!progress || !stepInitialized) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.loadingContainer}>
@@ -296,38 +297,52 @@ export default function Tier1KYCScreen() {
   // Render current step
   const renderCurrentStep = () => {
     switch (currentStep) {
-      case 'liveness':
-        return <LivenessStep onComplete={handleLivenessComplete} />;
+      // case 'liveness':
+      //   return <LivenessStep onComplete={handleLivenessComplete} />;
       case 'bvn':
         return <BVNStep onComplete={handleBVNComplete} onSwitchToNIN={handleSwitchToNIN} />;
       case 'nin':
         return <NINStep onComplete={handleNINComplete} onSwitchToBVN={handleSwitchFromNINToBVN} isSendingBVNOTP={isSendingBVNOTP} />;
       case 'otp':
-        return otpData ? (
-          <OTPStep 
-            onComplete={handleOTPComplete} 
-            nin={otpData.nin}
-            identityId={otpData.identityId}
-            otpMessage={otpData.otpMessage}
-            onSwitchToBVN={handleSwitchToBVN}
-          />
-        ) : (
-          <LivenessStep onComplete={handleLivenessComplete} />
-        );
+        if (otpData) {
+          return (
+            <OTPStep 
+              onComplete={handleOTPComplete} 
+              nin={otpData.nin}
+              identityId={otpData.identityId}
+              otpMessage={otpData.otpMessage}
+              onSwitchToBVN={handleSwitchToBVN}
+            />
+          );
+        }
+        // If no otpData, go back to NIN step instead of LivenessStep
+        // This prevents showing "Selfie captured" when user is on OTP step
+        return <NINStep onComplete={handleNINComplete} onSwitchToBVN={handleSwitchFromNINToBVN} isSendingBVNOTP={isSendingBVNOTP} />;
       case 'bvn_otp':
-        return formData?.bvn ? (
-          <BVNOTPStep 
-            onComplete={handleBVNOTPComplete}
-            bvn={formData.bvn}
-            identityId={bvnOtpData?.identityId || ''}
-            otpMessage={bvnOtpData?.otpMessage}
-            onSwitchToNIN={handleSwitchToNINFromBVNOTP}
-          />
-        ) : (
-          <BVNStep onComplete={handleBVNComplete} onSwitchToNIN={handleSwitchToNIN} />
-        );
+        if (formData?.bvn && bvnOtpData?.identityId) {
+          return (
+            <BVNOTPStep 
+              onComplete={handleBVNOTPComplete}
+              bvn={formData.bvn}
+              identityId={bvnOtpData.identityId}
+              otpMessage={bvnOtpData?.otpMessage}
+              onSwitchToNIN={handleSwitchToNINFromBVNOTP}
+            />
+          );
+        }
+        // If no BVN or OTP data, go back to BVN step
+        return <BVNStep onComplete={handleBVNComplete} onSwitchToNIN={handleSwitchToNIN} />;
       default:
-        return <LivenessStep onComplete={handleLivenessComplete} />;
+        // If currentStep is invalid or unexpected, determine correct step based on progress
+        if (!progress?.liveness_test_completed) {
+          return <LivenessStep onComplete={handleLivenessComplete} />;
+        } else if (!progress?.bvn_verified) {
+          return <BVNStep onComplete={handleBVNComplete} onSwitchToNIN={handleSwitchToNIN} />;
+        } else if (!progress?.id_face_verified) {
+          return <NINStep onComplete={handleNINComplete} onSwitchToBVN={handleSwitchFromNINToBVN} isSendingBVNOTP={isSendingBVNOTP} />;
+        }
+        // All steps complete, but still show NIN step as fallback
+        return <NINStep onComplete={handleNINComplete} onSwitchToBVN={handleSwitchFromNINToBVN} isSendingBVNOTP={isSendingBVNOTP} />;
     }
   };
 

@@ -298,7 +298,22 @@ export const verifyNIN = async (
     );
 
     if (!result.success) {
-      return { success: false, error: result.error || 'Account creation failed' };
+      // Parse error message to check if it's an OTP-related error
+      const errorMessage = result.error || 'Account creation failed';
+      const lowerError = errorMessage.toLowerCase().trim();
+      
+      // Check for OTP-related errors (including "Incorrect OTP" from SafeHaven API)
+      if (lowerError.includes('otp') || 
+          lowerError.includes('invalid') || 
+          lowerError.includes('expired') || 
+          lowerError.includes('incorrect') || 
+          lowerError.includes('wrong') ||
+          lowerError === 'incorrect otp.' ||
+          lowerError.startsWith('incorrect otp')) {
+        return { success: false, error: 'Invalid or expired OTP. Please check your OTP and try again.' };
+      }
+      
+      return { success: false, error: errorMessage };
     }
 
     const verificationData = result.data;

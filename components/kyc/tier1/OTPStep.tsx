@@ -41,7 +41,8 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSendingToBVN, setIsSendingToBVN] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const otpInputRef = useRef<TextInput>(null);
   const phoneInputRef = useRef<TextInput>(null);
 
@@ -55,13 +56,13 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
   const handleVerify = async () => {
     // Validate OTP and phone number
     if (!otp || otp.length !== 6) {
-      setError('Valid 6-digit OTP is required');
+      setOtpError('Valid 6-digit OTP is required');
       showToast('Please enter a valid 6-digit OTP', 'error');
       return;
     }
 
     if (!phoneNumber || phoneNumber.length < 10) {
-      setError('Phone number is required');
+      setPhoneError('Phone number is required');
       showToast('Please enter your phone number', 'error');
       return;
     }
@@ -72,7 +73,8 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
     }
 
     setIsVerifying(true);
-    setError(null);
+    setOtpError(null);
+    setPhoneError(null);
 
     try {
       const result = await verifyNIN(
@@ -106,23 +108,51 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
           onComplete();
         }, 2000);
       } else {
-        setError(result.error || 'NIN verification failed');
-        showToast(result.error || 'NIN verification failed', 'error');
+        // Check if it's an OTP-related error
+        const errorMessage = result.error || 'NIN verification failed';
+        const lowerError = errorMessage.toLowerCase().trim();
+        
+        if (lowerError.includes('otp') || 
+            lowerError.includes('invalid') || 
+            lowerError.includes('expired') || 
+            lowerError.includes('incorrect') || 
+            lowerError.includes('wrong') ||
+            lowerError === 'incorrect otp.' ||
+            lowerError.startsWith('incorrect otp')) {
+          setOtpError('Invalid or expired OTP. Please check your OTP and try again.');
+        } else {
+          setOtpError(errorMessage);
+        }
+        showToast(errorMessage, 'error');
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'NIN verification failed';
-      setError(errorMessage);
+      const lowerError = errorMessage.toLowerCase().trim();
+      
+      // Check if it's an OTP-related error
+      if (lowerError.includes('otp') || 
+          lowerError.includes('invalid') || 
+          lowerError.includes('expired') || 
+          lowerError.includes('incorrect') || 
+          lowerError.includes('wrong') ||
+          lowerError === 'incorrect otp.' ||
+          lowerError.startsWith('incorrect otp')) {
+        setOtpError('Invalid or expired OTP. Please check your OTP and try again.');
+      } else {
+        setOtpError(errorMessage);
+      }
       showToast(errorMessage, 'error');
     } finally {
       setIsVerifying(false);
     }
   };
 
-  const handleNumericInput = (text: string, maxLength: number, setter: (value: string) => void) => {
+  const handleNumericInput = (text: string, maxLength: number, setter: (value: string) => void, clearOtpError: boolean = false, clearPhoneError: boolean = false) => {
     const numericText = text.replace(/[^0-9]/g, '');
     if (numericText.length <= maxLength) {
       setter(numericText);
-      setError(null);
+      if (clearOtpError) setOtpError(null);
+      if (clearPhoneError) setPhoneError(null);
     }
   };
 
@@ -139,7 +169,8 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
     }
 
     setIsSendingToBVN(true);
-    setError(null);
+    setOtpError(null);
+    setPhoneError(null);
 
     try {
       const result = await safeHavenService.initializeBVNVerification(
@@ -159,12 +190,12 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
           onSwitchToBVN();
         }
       } else {
-        setError(result.error || 'Failed to send OTP to BVN number');
+        setOtpError(result.error || 'Failed to send OTP to BVN number');
         showToast(result.error || 'Failed to send OTP to BVN number', 'error');
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to send OTP to BVN number';
-      setError(errorMessage);
+      setOtpError(errorMessage);
       showToast(errorMessage, 'error');
     } finally {
       setIsSendingToBVN(false);
@@ -199,21 +230,21 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
               <Text style={styles.description}>
               {otpMessage ? `${otpMessage} Or Send OTP to your BVN Number` : 'An OTP has been sent to the phone number linked to your NIN. Or Send OTP to your BVN Number. Please enter the 6-digit code and your phone number for account creation.'}
             </Text>
-              <View style={[styles.inputContainer, error && styles.inputError]}>
+              <View style={[styles.inputContainer, otpError && styles.inputError]}>
                 <TextInput
                   ref={otpInputRef}
                   style={styles.input}
                   placeholder="Enter 6-digit OTP"
                   placeholderTextColor={colors.textTertiary}
                   value={otp}
-                  onChangeText={(text) => handleNumericInput(text, 6, setOtp)}
+                  onChangeText={(text) => handleNumericInput(text, 6, setOtp, true, false)}
                   keyboardType="numeric"
                   maxLength={6}
                   editable={!isVerifying && !isVerified}
                   autoFocus={true}
                 />
               </View>
-              {error && <Text style={styles.errorText}>{error}</Text>}
+              {otpError && <Text style={styles.errorText}>{otpError}</Text>}
             </View>
 
             <View style={styles.inputGroup}>
@@ -221,14 +252,14 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
               <Text style={styles.helperText}>
                 Enter your phone number for account creation
               </Text>
-              <View style={[styles.inputContainer, error && styles.inputError]}>
+              <View style={[styles.inputContainer, phoneError && styles.inputError]}>
                 <TextInput
                   ref={phoneInputRef}
                   style={styles.input}
                   placeholder="080XXXXXXXX"
                   placeholderTextColor={colors.textTertiary}
                   value={phoneNumber}
-                  onChangeText={(text) => handleNumericInput(text, 11, setPhoneNumber)}
+                  onChangeText={(text) => handleNumericInput(text, 11, setPhoneNumber, false, true)}
                   keyboardType="phone-pad"
                   maxLength={11}
                   editable={!isVerifying && !isVerified}
@@ -236,7 +267,7 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
                   autoCapitalize="none"
                 />
               </View>
-              {error && <Text style={styles.errorText}>{error}</Text>}
+              {phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
             </View>
 
             {isVerified && (
@@ -291,7 +322,7 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
               <Button
                 title="Verify NIN"
                 onPress={handleVerify}
-                disabled={isVerifying || isSendingToBVN || !otp || otp.length !== 6 || !phoneNumber || phoneNumber.length < 10}
+                disabled={isVerifying || isSendingToBVN || !otp || otp.length !== 6 || !phoneNumber || phoneNumber.length < 10 || !!otpError || !!phoneError}
                 isLoading={isVerifying}
                 style={styles.mainButton}
                 variant="primary"

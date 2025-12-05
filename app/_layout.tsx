@@ -28,7 +28,13 @@ import { Text, View, StyleSheet, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications, setupTokenRefresh } from '@/lib/notifications';
 import * as SystemUI from 'expo-system-ui';
-import * as NavigationBar from 'expo-navigation-bar';
+// Conditionally import NavigationBar to handle cases where native module isn't available
+let NavigationBar: any = null;
+try {
+  NavigationBar = require('expo-navigation-bar');
+} catch (e) {
+  console.warn('expo-navigation-bar not available:', e);
+}
 // import { intercomInstant } from '@/lib/IntercomInstant';
 import { 
   PlusJakartaSans_400Regular, 
@@ -72,6 +78,9 @@ function RootLayoutNav() {
   useEffect(() => {
     if (Platform.OS === 'android') {
       const updateNavigationBar = async () => {
+        if (!NavigationBar) {
+          return; // Module not available
+        }
         try {
           // Set navigation bar background and button style based on theme
           if (isDark) {

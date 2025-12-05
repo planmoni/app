@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 // Deno types for Edge Functions
@@ -516,23 +515,6 @@ serve(async (req: Request) => {
       )
       }
     } else {
-      // For scheduled withdrawals (24hrs, 72hrs), cancel the payout plan immediately
-      // to prevent future regular payouts from processing before the emergency withdrawal
-      const { error: planUpdateError } = await supabase
-        .from("payout_plans")
-        .update({ 
-          status: "cancelled",
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", withdrawal.payout_plan_id)
-
-      if (planUpdateError) {
-        console.error("Error updating plan status to cancelled:", planUpdateError)
-        // Don't throw error here as the withdrawal was scheduled successfully
-      } else {
-        console.log(`Successfully cancelled plan ${withdrawal.payout_plan_id} to prevent future payouts before emergency withdrawal`)
-      }
-
       // For scheduled withdrawals (24hrs, 72hrs), just return success without processing
       const processingTimeText = correctWithdrawalType === "24hrs" ? "within 24 hours" : "within 72 hours"
       
@@ -543,7 +525,7 @@ serve(async (req: Request) => {
           user_id: userId,
           type: "withdrawal_scheduled",
           title: "Emergency Withdrawal Scheduled",
-          description: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been scheduled for processing ${processingTimeText}. The payout plan has been cancelled to prevent future payouts.`,
+          description: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been scheduled for processing ${processingTimeText}.`,
           status: "unread"
         })
 

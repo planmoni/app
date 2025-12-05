@@ -121,16 +121,14 @@ export default function KYCVerificationModal({
     const tierCompletion = checkTierCompletion();
     const isTier2OrHigher = currentTier >= 2;
     
-    // Wait for modal animation to complete before navigating
-    setTimeout(() => {
-      // Route based on tier: Tier 1 users go to new flow, Tier 2/3 go to old flow
-      if (isTier2OrHigher) {
-        router.push('/kyc-upgrade');
-      } else {
-        // Navigate directly to Tier 1 flow (Step 1 - Liveness test)
-        router.push('/kyc/tier1');
-      }
-    }, 400);
+    // Navigate immediately without delay for better UX
+    // Route based on tier: Tier 1 users go to new flow, Tier 2/3 go to old flow
+    if (isTier2OrHigher) {
+      router.push('/kyc-upgrade');
+    } else {
+      // Navigate directly to Tier 1 flow (Step 1 - Liveness test)
+      router.push('/kyc/tier1');
+    }
     
     // Call onStartVerification callback if provided (for other use cases)
     if (onStartVerification) {
