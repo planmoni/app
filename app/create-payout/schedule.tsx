@@ -356,7 +356,6 @@ export default function ScheduleScreen() {
           { value: 30, label: '1 Month', description: '30 daily payments' },
           { value: 90, label: '3 Months', description: '90 daily payments' }
         ];
-      case 'weekly':
       case 'weekly_specific':
         return [
           { value: 4, label: '1 Month', description: '4 weekly payments' },
@@ -371,7 +370,6 @@ export default function ScheduleScreen() {
           { value: 12, label: '6 Months', description: '12 bi-weekly payments' },
           { value: 26, label: '1 Year', description: '26 bi-weekly payments' }
         ];
-      case 'monthly':
       case 'end_of_month':
         return [
           { value: 1, label: '1 Month', description: '1 monthly payment' },
@@ -410,6 +408,46 @@ export default function ScheduleScreen() {
         ];
     }
   };
+
+  // Initialize schedule from frequency-selection step
+  useEffect(() => {
+    if (params.frequency && !hasInitializedRef.current && !params.duration) {
+      // Coming from frequency-selection step (has frequency but no duration yet)
+      const frequency = params.frequency as string;
+      setSelectedSchedule(frequency);
+      lastSelectedScheduleRef.current = frequency;
+      
+      // If custom, automatically show date picker
+      if (frequency === 'custom') {
+        setTimeout(() => {
+          setShowDatePicker(true);
+        }, 300);
+      }
+      
+      // If weekly_specific, show day of week picker
+      if (frequency === 'weekly_specific') {
+        setTimeout(() => {
+          setShowDayOfWeekPicker(true);
+        }, 300);
+      }
+      
+      // Set default duration based on frequency
+      const durationOptions = getDurationOptions(frequency);
+      let defaultDuration;
+      if (frequency === 'daily') {
+        defaultDuration = durationOptions.find(opt => opt.value === 30) || durationOptions[0];
+      } else {
+        defaultDuration = durationOptions[durationOptions.length - 1];
+      }
+      if (defaultDuration) {
+        setSelectedDuration(defaultDuration);
+        setNumberOfPayouts(defaultDuration.value);
+        if (totalAmount && totalAmount !== '0' && isYearlySplit) {
+          calculatePayoutAmount(totalAmount, defaultDuration.value);
+        }
+      }
+    }
+  }, [params.frequency, params.duration, totalAmount, isYearlySplit, calculatePayoutAmount]);
 
   // Initialize from params when editing (coming from review page)
   useEffect(() => {
@@ -696,6 +734,29 @@ export default function ScheduleScreen() {
     }
   };
 
+  const getFrequencyDisplayLabel = (frequency: string): string => {
+    switch (frequency) {
+      case 'daily':
+        return 'daily payments';
+      case 'biweekly':
+        return 'bi-weekly payments';
+      case 'weekly_specific':
+        return 'weekly payments';
+      case 'end_of_month':
+        return 'monthly payments';
+      case 'quarterly':
+        return 'quarterly payments';
+      case 'biannual':
+        return 'bi-annual payments';
+      case 'annually':
+        return 'annually payments';
+      case 'custom':
+        return 'custom dates';
+      default:
+        return 'payouts';
+    }
+  };
+
   const getFrequencyLabel = () => {
     switch (selectedSchedule || '') {
       case 'daily':
@@ -967,23 +1028,33 @@ export default function ScheduleScreen() {
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '40%' }]} />
+          <View style={[styles.progressFill, { width: '60%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 2 of 5</Text>
+        <Text style={styles.stepText}>Step 3 of 5</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Text style={styles.title}>How often do you want us to send this money?</Text>
-          <Text style={styles.description}>Choose your payout schedule</Text>
+          {/* Show title when coming from frequency-selection step */}
+          {params.frequency && !params.duration && (
+            <Text style={styles.title}>
+              Select the time and duration for your {getFrequencyDisplayLabel(selectedSchedule || params.frequency as string)}
+            </Text>
+          )}
+          
+          {/* Only show schedule selection if not coming from frequency-selection step */}
+          {(!params.frequency || params.duration) && (
+            <>
+              <Text style={styles.title}>How often do you want us to send this money?</Text>
+              <Text style={styles.description}>Choose your payout schedule</Text>
 
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.scheduleOptions}
-            nestedScrollEnabled={Platform.OS === 'android'}
-            bounces={Platform.OS === 'ios'}
-          >
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.scheduleOptions}
+                nestedScrollEnabled={Platform.OS === 'android'}
+                bounces={Platform.OS === 'ios'}
+              >
             <Pressable 
               style={[
                 styles.scheduleOption,
@@ -1001,25 +1072,6 @@ export default function ScheduleScreen() {
                 styles.optionText,
                 selectedSchedule === 'daily' && styles.selectedOptionText
               ]}>Daily</Text>
-            </Pressable>
-
-            <Pressable 
-              style={[
-                styles.scheduleOption,
-                selectedSchedule === 'weekly' && styles.selectedOption
-              ]}
-              onPress={() => {
-                if (Platform.OS !== 'web') {
-                  haptics.selection();
-                }
-                handleScheduleSelect('weekly');
-              }}
-            >
-              <Calendar size={isSmallScreen ? 18 : 20} color={selectedSchedule === 'weekly' ? '#1E3A8A' : colors.text} />
-              <Text style={[
-                styles.optionText,
-                selectedSchedule === 'weekly' && styles.selectedOptionText
-              ]}>Weekly</Text>
             </Pressable>
 
             <Pressable 
@@ -1058,25 +1110,6 @@ export default function ScheduleScreen() {
                 styles.optionText,
                 selectedSchedule === 'biweekly' && styles.selectedOptionText
               ]}>Bi-weekly</Text>
-            </Pressable>
-
-            <Pressable 
-              style={[
-                styles.scheduleOption,
-                selectedSchedule === 'monthly' && styles.selectedOption
-              ]}
-              onPress={() => {
-                if (Platform.OS !== 'web') {
-                  haptics.selection();
-                }
-                handleScheduleSelect('monthly');
-              }}
-            >
-              <Calendar size={isSmallScreen ? 18 : 20} color={selectedSchedule === 'monthly' ? '#1E3A8A' : colors.text} />
-              <Text style={[
-                styles.optionText,
-                selectedSchedule === 'monthly' && styles.selectedOptionText
-              ]}>Monthly</Text>
             </Pressable>
 
             <Pressable 
@@ -1174,10 +1207,12 @@ export default function ScheduleScreen() {
               ]}>Custom Dates</Text>
             </Pressable>
           </ScrollView>
+            </>
+          )}
 
-          {(selectedSchedule === 'daily' || selectedSchedule === 'weekly' || selectedSchedule === 'weekly_specific' || selectedSchedule === 'biweekly' || selectedSchedule === 'monthly' || selectedSchedule === 'end_of_month' || selectedSchedule === 'quarterly' || selectedSchedule === 'biannual' || selectedSchedule === 'annually' ) && (
+          {(selectedSchedule === 'daily' || selectedSchedule === 'weekly_specific' || selectedSchedule === 'biweekly' || selectedSchedule === 'end_of_month' || selectedSchedule === 'quarterly' || selectedSchedule === 'biannual' || selectedSchedule === 'annually' ) && (
             <View style={styles.timeSection}>
-              <Text style={styles.timeTitle}>Select time of the day</Text>
+              <Text style={styles.timeTitle}>What time?</Text>
               <Pressable 
                 style={styles.timeSelector}
                 onPress={() => {
@@ -1267,7 +1302,7 @@ export default function ScheduleScreen() {
           {/* Duration Selector */}
           {selectedSchedule !== 'custom' && (
             <View style={styles.durationSection}>
-              <Text style={styles.durationTitle}>Select Duration</Text>
+              <Text style={styles.durationTitle}>How long?</Text>
               <Pressable 
                 style={styles.durationSelector}
                 onPress={() => {

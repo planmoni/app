@@ -26,8 +26,8 @@ interface InfoItem {
 const infoItems: InfoItem[] = [
   {
     id: '1',
-    question: 'How do I create a payout plan?',
-    answer: 'Creating a payout plan is simple! First, add funds to your wallet. Then, set the amount you want to receive, choose how often you want to receive it (daily, weekly, or monthly), and select the time, Your money will be automatically credited to your account according to your schedule.',
+    question: 'How do I create a payment plan?',
+    answer: 'Creating a payment plan is simple! First, add funds to your wallet. Then, set the amount you want to receive, choose how often you want to receive it (daily, weekly, or monthly), and select the time, Your money will be automatically credited to your account according to your schedule.',
   },
   {
     id: '2',
@@ -192,7 +192,7 @@ export default function NewPlanInfoModal({
               </View>
               <Text style={styles.title}>Create Your First Plan</Text>
               <Text style={styles.description}>
-                Learn how payout plans work and start receiving your funds according to your schedule
+                Learn how payment plans work and start receiving your funds according to your schedule
               </Text>
             </View>
 

@@ -28,7 +28,7 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
   const faqs = [
     {
       id: '1',
-      question: 'How do I create a payout plan?',
+      question: 'How do I create a payment plan?',
       answer: 'To create a payout plan, go to the Home tab and tap on " New Plan" or the "+" button. Follow the steps to set up your payout schedule and amount.'
     },
     {

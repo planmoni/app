@@ -64,7 +64,7 @@ export default function AmountScreen() {
 
     haptics.mediumImpact();
     router.push({
-      pathname: '/create-payout/schedule',
+      pathname: '/create-payout/frequency-selection',
       params: {
         totalAmount: amount,
         frequency: params.frequency || '',

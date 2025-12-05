@@ -1023,7 +1023,7 @@ export default function HomeScreen() {
                 onPress={handleCreatePayout}
               >
                 <CalendarCheck size={22} color={'#fff'} />
-                <Text style={styles.createButtonText}>New plan</Text>
+                <Text style={styles.createButtonText}>Plan</Text>
               </Pressable>
               
             </View>
@@ -1120,7 +1120,7 @@ export default function HomeScreen() {
           onPress={handleCreatePayout}
         >
           <CalendarCheck size={22} color={'#fff'} />
-          <Text style={styles.createButtonText}>New plan</Text>
+          <Text style={styles.createButtonText}>Plan</Text>
         </Pressable>
         
       </Animated.View>

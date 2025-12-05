@@ -213,7 +213,7 @@ export default function DestinationScreen() {
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: '60%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 3 of 5</Text>
+        <Text style={styles.stepText}>Step 4 of 5</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>

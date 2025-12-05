@@ -77,7 +77,7 @@ export default function HelpScreen() {
           
           <Card style={styles.faqCard}>
             <Pressable style={styles.faqItem}>
-              <Text style={styles.faqQuestion}>How do I create a payout plan?</Text>
+              <Text style={styles.faqQuestion}>How do I create a payment plan?</Text>
               <Text style={styles.faqAnswer}>
                 To create a payout plan, go to the Home tab and tap on "Plan" or the "+" button. Follow the steps to set up your payout schedule and amount.
               </Text>

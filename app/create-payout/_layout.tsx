@@ -12,6 +12,7 @@ export default function CreatePayoutLayout() {
       }}
     >
       <Stack.Screen name="amount" />
+      <Stack.Screen name="frequency-selection" />
       <Stack.Screen name="schedule" />
       <Stack.Screen name="destination" />
       <Stack.Screen name="rules" />
