@@ -43,7 +43,8 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
   const [otpMessage, setOtpMessage] = useState<string | null>(initialOtpMessage || null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const otpInputRef = useRef<TextInput>(null);
   const phoneInputRef = useRef<TextInput>(null);
 
@@ -69,7 +70,8 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
       }
 
       setIsInitializing(true);
-      setError(null);
+      setOtpError(null);
+      setPhoneError(null);
 
       try {
         const result = await safeHavenService.initializeBVNVerification(
@@ -91,12 +93,12 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
             otpInputRef.current?.focus();
           }, 300);
         } else {
-          setError(result.error || 'Failed to initialize BVN verification');
+          setOtpError(result.error || 'Failed to initialize BVN verification');
           showToast(result.error || 'Failed to initialize BVN verification', 'error');
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to initialize BVN verification';
-        setError(errorMessage);
+        setOtpError(errorMessage);
         showToast(errorMessage, 'error');
       } finally {
         setIsInitializing(false);
@@ -109,13 +111,13 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
   const handleVerify = async () => {
     // Validate OTP and phone number
     if (!otp || otp.length !== 6) {
-      setError('Valid 6-digit OTP is required');
+      setOtpError('Valid 6-digit OTP is required');
       showToast('Please enter a valid 6-digit OTP', 'error');
       return;
     }
 
     if (!phoneNumber || phoneNumber.length < 10) {
-      setError('Phone number is required');
+      setPhoneError('Phone number is required');
       showToast('Please enter your phone number', 'error');
       return;
     }
@@ -131,7 +133,8 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
     }
 
     setIsVerifying(true);
-    setError(null);
+    setOtpError(null);
+    setPhoneError(null);
 
     try {
       // Use SafeHaven service to verify BVN and create account with OTP
@@ -145,15 +148,32 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
       );
 
       if (!result.success) {
-        setError(result.error || 'BVN verification failed');
-        showToast(result.error || 'BVN verification failed', 'error');
+        // Parse error message to check if it's an OTP-related error
+        const errorMessage = result.error || 'BVN verification failed';
+        const lowerError = errorMessage.toLowerCase().trim();
+        
+        // Check for OTP-related errors (including "Incorrect OTP" from SafeHaven API)
+        if (lowerError.includes('otp') || 
+            lowerError.includes('invalid') || 
+            lowerError.includes('expired') || 
+            lowerError.includes('incorrect') || 
+            lowerError.includes('wrong') ||
+            lowerError === 'incorrect otp.' ||
+            lowerError.startsWith('incorrect otp')) {
+          setOtpError('Invalid or expired OTP. Please check your OTP and try again.');
+          showToast('Invalid or expired OTP. Please check your OTP and try again.', 'error');
+          return;
+        }
+        
+        setOtpError(errorMessage);
+        showToast(errorMessage, 'error');
         return;
       }
 
       const verificationData = result.data;
       
       if (!verificationData || !verificationData.verified) {
-        setError('BVN verification failed. Please check your BVN and try again.');
+        setOtpError('BVN verification failed. Please check your BVN and try again.');
         showToast('BVN verification failed. Please check your BVN and try again.', 'error');
         return;
       }
@@ -188,18 +208,32 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
       }, 2000);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'BVN verification failed';
-      setError(errorMessage);
+      const lowerError = errorMessage.toLowerCase().trim();
+      
+      // Check if it's an OTP-related error
+      if (lowerError.includes('otp') || 
+          lowerError.includes('invalid') || 
+          lowerError.includes('expired') || 
+          lowerError.includes('incorrect') || 
+          lowerError.includes('wrong') ||
+          lowerError === 'incorrect otp.' ||
+          lowerError.startsWith('incorrect otp')) {
+        setOtpError('Invalid or expired OTP. Please check your OTP and try again.');
+      } else {
+        setOtpError(errorMessage);
+      }
       showToast(errorMessage, 'error');
     } finally {
       setIsVerifying(false);
     }
   };
 
-  const handleNumericInput = (text: string, maxLength: number, setter: (value: string) => void) => {
+  const handleNumericInput = (text: string, maxLength: number, setter: (value: string) => void, clearOtpError: boolean = false, clearPhoneError: boolean = false) => {
     const numericText = text.replace(/[^0-9]/g, '');
     if (numericText.length <= maxLength) {
       setter(numericText);
-      setError(null);
+      if (clearOtpError) setOtpError(null);
+      if (clearPhoneError) setPhoneError(null);
     }
   };
 
@@ -234,21 +268,21 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Enter OTP</Text>
-              <View style={[styles.inputContainer, error && styles.inputError]}>
+              <View style={[styles.inputContainer, otpError && styles.inputError]}>
                 <TextInput
                   ref={otpInputRef}
                   style={styles.input}
                   placeholder="Enter 6-digit OTP"
                   placeholderTextColor={colors.textTertiary}
                   value={otp}
-                  onChangeText={(text) => handleNumericInput(text, 6, setOtp)}
+                  onChangeText={(text) => handleNumericInput(text, 6, setOtp, true, false)}
                   keyboardType="numeric"
                   maxLength={6}
                   editable={!isVerifying && !isVerified}
                   autoFocus={true}
                 />
               </View>
-              {error && <Text style={styles.errorText}>{error}</Text>}
+              {otpError && <Text style={styles.errorText}>{otpError}</Text>}
             </View>
 
             <View style={styles.inputGroup}>
@@ -256,14 +290,14 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
               <Text style={styles.helperText}>
                 Enter your phone number for account creation
               </Text>
-              <View style={[styles.inputContainer, error && styles.inputError]}>
+              <View style={[styles.inputContainer, phoneError && styles.inputError]}>
                 <TextInput
                   ref={phoneInputRef}
                   style={styles.input}
                   placeholder="080XXXXXXXX"
                   placeholderTextColor={colors.textTertiary}
                   value={phoneNumber}
-                  onChangeText={(text) => handleNumericInput(text, 11, setPhoneNumber)}
+                  onChangeText={(text) => handleNumericInput(text, 11, setPhoneNumber, false, true)}
                   keyboardType="phone-pad"
                   maxLength={11}
                   editable={!isVerifying && !isVerified}
@@ -271,7 +305,7 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
                   autoCapitalize="none"
                 />
               </View>
-              {error && <Text style={styles.errorText}>{error}</Text>}
+              {phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
             </View>
 
             {isVerified && (
@@ -326,7 +360,7 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
               <Button
                 title={isInitializing ? 'Sending OTP...' : 'Verify BVN'}
                 onPress={handleVerify}
-                disabled={isVerifying || isInitializing || !identityId || !otp || otp.length !== 6 || !phoneNumber || phoneNumber.length < 10}
+                disabled={isVerifying || isInitializing || !identityId || !otp || otp.length !== 6 || !phoneNumber || phoneNumber.length < 10 || !!otpError || !!phoneError}
                 isLoading={isVerifying || isInitializing}
                 style={styles.mainButton}
                 variant="primary"

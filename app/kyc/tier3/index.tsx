@@ -14,7 +14,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { X, Upload, Clock, Mail, CheckCircle, CircleHelp as HelpCircle, FileText } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { getDocumentAsync } from 'expo-document-picker';
+// Conditionally import document picker to handle cases where native module isn't available
+let getDocumentAsync: any = null;
+try {
+  const documentPicker = require('expo-document-picker');
+  getDocumentAsync = documentPicker.getDocumentAsync;
+} catch (e) {
+  console.warn('expo-document-picker not available:', e);
+}
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import { useKYCData } from '@/hooks/useKYCData';
@@ -128,6 +135,11 @@ export default function Tier3KYCScreen() {
 
   const pickFile = async () => {
     try {
+      if (!getDocumentAsync) {
+        showToast('Document picker is not available. Please use image picker instead.', 'error');
+        return;
+      }
+      
       // Try to use document picker for PDFs and images
       const result = await getDocumentAsync({
         type: ['image/*', 'application/pdf'],

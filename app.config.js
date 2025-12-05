@@ -85,7 +85,8 @@ module.exports = {
         }
        
       ],
-      "expo-navigation-bar"
+      "expo-navigation-bar",
+      "expo-document-picker"
     ],
     extra: {
       eas: {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useKYCData } from './useKYCData';
 import { useKYCProgress } from './useKYCProgress';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,12 +11,48 @@ export interface Tier1Progress {
   ninVerified: boolean;
 }
 
+// Helper function to determine the correct step based on progress
+const determineStepFromProgress = (progress: any, currentStep: Tier1Step): Tier1Step => {
+  if (!progress) {
+    return 'liveness';
+  }
+
+  const livenessCompleted = progress.liveness_test_completed || false;
+  const bvnVerified = progress.bvn_verified || false;
+  const ninVerified = progress.id_face_verified || false;
+
+  // If we're on OTP steps, don't change unless progress indicates completion
+  if (currentStep === 'otp' || currentStep === 'bvn_otp') {
+    if (ninVerified) {
+      // All steps complete, but stay on OTP (parent will handle redirect)
+      return currentStep;
+    }
+    // Still in progress, keep current OTP step
+    return currentStep;
+  }
+
+  // Determine target step based on progress
+  if (!livenessCompleted) {
+    return 'liveness';
+  } else if (!bvnVerified) {
+    return 'bvn';
+  } else if (!ninVerified) {
+    return 'nin';
+  } else {
+    // All steps complete, default to NIN (parent will handle redirect)
+    return 'nin';
+  }
+};
+
 export const useTier1KYC = () => {
   const { session } = useAuth();
   const { formData, saveFormData } = useKYCData();
   const { progress, updateProgress, checkTierCompletion, loadProgress, updateTier } = useKYCProgress();
 
+  // Initialize step - will be set correctly in useLayoutEffect
+  // Start with 'liveness' as default, but useLayoutEffect will correct it immediately
   const [currentStep, setCurrentStep] = useState<Tier1Step>('liveness');
+  const [stepInitialized, setStepInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // Calculate progress percentage
@@ -106,36 +142,54 @@ export const useTier1KYC = () => {
     return tierStatus.tier1;
   }, [progress, checkTierCompletion]);
 
-  // Determine current step based on progress
-  // Only auto-set step on initial load or when progress changes significantly
-  // Don't override manual step changes immediately after updates
-  useEffect(() => {
+  // Use useLayoutEffect to set step synchronously before render
+  // This prevents showing the wrong step before the correct one is determined
+  useLayoutEffect(() => {
     if (!progress) {
-      setCurrentStep('liveness');
+      if (!stepInitialized) {
+        setCurrentStep('liveness');
+        setStepInitialized(true);
+      }
       return;
     }
 
-    const livenessCompleted = progress.liveness_test_completed || false;
-    const bvnVerified = progress.bvn_verified || false;
-    const ninVerified = progress.id_face_verified || false;
-
-    // Only auto-set step if it makes sense based on progress
-    // Don't override if we're already on a step that's consistent with progress
-    if (!livenessCompleted && currentStep !== 'liveness') {
-      setCurrentStep('liveness');
-    } else if (livenessCompleted && !bvnVerified && currentStep !== 'bvn' && currentStep !== 'liveness') {
-      setCurrentStep('bvn');
-    } else if (livenessCompleted && bvnVerified && !ninVerified) {
-      // If NIN is initialized but not verified, we need to check formData to see if we have identityId
-      // For now, default to 'nin' - the component will handle navigation to 'otp'
-      if (currentStep !== 'otp' && currentStep !== 'bvn_otp') {
-        setCurrentStep('nin');
+    const targetStep = determineStepFromProgress(progress, currentStep);
+    
+    // Always update if step doesn't match target (except when on OTP steps that are still valid)
+    if (currentStep !== targetStep) {
+      // Special handling for OTP steps - only change if progress indicates we should
+      if ((currentStep === 'otp' || currentStep === 'bvn_otp') && !progress.id_face_verified) {
+        // Still in OTP verification, keep current step
+        if (!stepInitialized) {
+          setStepInitialized(true);
+        }
+        return;
       }
-    } else if (livenessCompleted && bvnVerified && ninVerified && currentStep !== 'otp' && currentStep !== 'bvn_otp') {
-      // All steps complete - should navigate to success (but don't override if already on OTP step)
-      // This case should be handled by the parent component redirecting to success
+      
+      // Update to target step
+      setCurrentStep(targetStep);
     }
-  }, [progress?.liveness_test_completed, progress?.bvn_verified, progress?.id_face_verified]);
+    
+    if (!stepInitialized) {
+      setStepInitialized(true);
+    }
+  }, [progress, currentStep, stepInitialized]);
+
+  // Also update step when progress fields change (for reactive updates)
+  useEffect(() => {
+    if (!progress || !stepInitialized) return;
+
+    const targetStep = determineStepFromProgress(progress, currentStep);
+    
+    if (currentStep !== targetStep) {
+      // Don't override OTP steps unless verification is complete
+      if ((currentStep === 'otp' || currentStep === 'bvn_otp') && !progress.id_face_verified) {
+        return;
+      }
+      
+      setCurrentStep(targetStep);
+    }
+  }, [progress?.liveness_test_completed, progress?.bvn_verified, progress?.id_face_verified, stepInitialized]);
 
   // Move to next step
   const moveToNextStep = useCallback(() => {
@@ -164,6 +218,7 @@ export const useTier1KYC = () => {
     getCurrentStepNumber,
     isTier1Complete,
     moveToNextStep,
+    stepInitialized, // Export to allow parent to wait for step initialization
   };
 };
 

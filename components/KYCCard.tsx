@@ -271,24 +271,22 @@ export default function KYCCard() {
        currentProgress?.personal_info_completed && 
        currentProgress?.documents_verified);
     
-    // Route based on tier
-    setTimeout(() => {
-      // IMPORTANT: Check Tier 2 first to avoid routing Tier 1 complete users to Tier 1
-      if (isTier2Done || isTier2OrHigher) {
-        // Tier 2 complete or Tier 3 - go to Tier 3 flow
-        console.log('✅ Routing to Tier 3 flow');
-        router.push('/kyc/tier3');
-      } else if (isTier1Done && !isTier2Done) {
-        // Tier 1 complete but Tier 2 not complete - go DIRECTLY to Tier 2 flow
-        // Do NOT route to Tier 1 as it will redirect to success screen
-        console.log('✅ Routing to Tier 2 flow (Tier 1 already complete)');
-        router.push('/kyc/tier2');
-      } else {
-        // Tier 1 users (or not yet Tier 1) go to new Tier 1 flow
-        console.log('✅ Routing to Tier 1 flow');
-        router.push('/kyc/tier1');
-      }
-    }, 400); // Wait for modal animations to complete
+    // Navigate immediately without delay for better UX
+    // IMPORTANT: Check Tier 2 first to avoid routing Tier 1 complete users to Tier 1
+    if (isTier2Done || isTier2OrHigher) {
+      // Tier 2 complete or Tier 3 - go to Tier 3 flow
+      console.log('✅ Routing to Tier 3 flow');
+      router.push('/kyc/tier3');
+    } else if (isTier1Done && !isTier2Done) {
+      // Tier 1 complete but Tier 2 not complete - go DIRECTLY to Tier 2 flow
+      // Do NOT route to Tier 1 as it will redirect to success screen
+      console.log('✅ Routing to Tier 2 flow (Tier 1 already complete)');
+      router.push('/kyc/tier2');
+    } else {
+      // Tier 1 users (or not yet Tier 1) go to new Tier 1 flow
+      console.log('✅ Routing to Tier 1 flow');
+      router.push('/kyc/tier1');
+    }
   };
 
   const handleLivenessComplete = (selfieUrl: string) => {

@@ -974,10 +974,37 @@ class SafeHavenService {
 
       if (!accountResponse.ok) {
         const errorText = await accountResponse.text();
+        let parsedError: any = null;
+        let errorMessage = `Account creation failed: ${accountResponse.status} ${accountResponse.statusText}`;
+        
+        // Try to parse error response as JSON to get actual error message
+        try {
+          parsedError = JSON.parse(errorText);
+          // Extract error message from various possible locations
+          if (parsedError?.message) {
+            errorMessage = parsedError.message;
+          } else if (parsedError?.error) {
+            errorMessage = parsedError.error;
+          } else if (parsedError?.data?.message) {
+            errorMessage = parsedError.data.message;
+          } else if (parsedError?.data?.error) {
+            errorMessage = parsedError.data.error;
+          } else if (typeof parsedError === 'string') {
+            errorMessage = parsedError;
+          }
+        } catch (e) {
+          // If not JSON, use the text as-is
+          if (errorText && errorText.trim()) {
+            errorMessage = errorText;
+          }
+        }
+        
         const errorData = { 
           status: accountResponse.status, 
           statusText: accountResponse.statusText, 
           error: errorText,
+          parsedError: parsedError,
+          errorMessage: errorMessage,
           step: 'account_creation',
           identityId: currentIdentityId
         };
@@ -997,7 +1024,7 @@ class SafeHavenService {
 
         return {
           success: false,
-          error: `Account creation failed: ${accountResponse.status} ${accountResponse.statusText}`,
+          error: errorMessage, // Return the parsed error message
           auditLogId,
           responseTime,
           data: { identityId: currentIdentityId, requiresOtp: accountResponse.status === 400 || accountResponse.status === 422 }
@@ -1006,6 +1033,41 @@ class SafeHavenService {
 
       const accountData = await accountResponse.json();
       console.log("safehaven account creation accountData", accountData)
+      
+      // Check if response body contains an error statusCode (even if HTTP status is 201)
+      if (accountData?.statusCode && accountData.statusCode >= 400) {
+        const errorMessage = accountData?.message || accountData?.error || `Account creation failed: ${accountData.statusCode}`;
+        const errorData = {
+          status: accountResponse.status,
+          statusCode: accountData.statusCode,
+          error: errorMessage,
+          responseBody: accountData,
+          step: 'account_creation',
+          identityId: currentIdentityId
+        };
+        
+        // Update both audit logs with error
+        if (kycAuditLogId?.data) {
+          await supabase
+            .from('kyc_audit_logs')
+            .update({
+              status: 'failed',
+              response_data: errorData,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', kycAuditLogId.data);
+        }
+        await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
+        
+        return {
+          success: false,
+          error: errorMessage,
+          auditLogId,
+          responseTime,
+          data: { identityId: currentIdentityId, requiresOtp: accountData.statusCode === 400 || accountData.statusCode === 422 }
+        };
+      }
+      
       // Extract account information from response
       const verificationData: any = {
         verified: true,
@@ -1436,10 +1498,37 @@ class SafeHavenService {
 
       if (!accountResponse.ok) {
         const errorText = await accountResponse.text();
+        let parsedError: any = null;
+        let errorMessage = `Account creation failed: ${accountResponse.status} ${accountResponse.statusText}`;
+        
+        // Try to parse error response as JSON to get actual error message
+        try {
+          parsedError = JSON.parse(errorText);
+          // Extract error message from various possible locations
+          if (parsedError?.message) {
+            errorMessage = parsedError.message;
+          } else if (parsedError?.error) {
+            errorMessage = parsedError.error;
+          } else if (parsedError?.data?.message) {
+            errorMessage = parsedError.data.message;
+          } else if (parsedError?.data?.error) {
+            errorMessage = parsedError.data.error;
+          } else if (typeof parsedError === 'string') {
+            errorMessage = parsedError;
+          }
+        } catch (e) {
+          // If not JSON, use the text as-is
+          if (errorText && errorText.trim()) {
+            errorMessage = errorText;
+          }
+        }
+        
         const errorData = { 
           status: accountResponse.status, 
           statusText: accountResponse.statusText, 
           error: errorText,
+          parsedError: parsedError,
+          errorMessage: errorMessage,
           step: 'account_creation',
           identityId: identityId
         };
@@ -1459,7 +1548,7 @@ class SafeHavenService {
 
         return {
           success: false,
-          error: `Account creation failed: ${accountResponse.status} ${accountResponse.statusText}`,
+          error: errorMessage, // Return the parsed error message
           auditLogId,
           responseTime,
           data: { identityId: identityId, requiresOtp: accountResponse.status === 400 || accountResponse.status === 422 }
@@ -1468,6 +1557,40 @@ class SafeHavenService {
 
       const accountData = await accountResponse.json();
       console.log("safehaven bvn account creation accountData", accountData);
+      
+      // Check if response body contains an error statusCode (even if HTTP status is 201)
+      if (accountData?.statusCode && accountData.statusCode >= 400) {
+        const errorMessage = accountData?.message || accountData?.error || `Account creation failed: ${accountData.statusCode}`;
+        const errorData = {
+          status: accountResponse.status,
+          statusCode: accountData.statusCode,
+          error: errorMessage,
+          responseBody: accountData,
+          step: 'account_creation',
+          identityId: identityId
+        };
+        
+        // Update both audit logs with error
+        if (kycAuditLogId?.data) {
+          await supabase
+            .from('kyc_audit_logs')
+            .update({
+              status: 'failed',
+              response_data: errorData,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', kycAuditLogId.data);
+        }
+        await this.updateAuditLog(auditLogId, 'failed', null, errorData, responseTime);
+        
+        return {
+          success: false,
+          error: errorMessage,
+          auditLogId,
+          responseTime,
+          data: { identityId: identityId, requiresOtp: accountData.statusCode === 400 || accountData.statusCode === 422 }
+        };
+      }
       
       // Extract account information from response
       const verificationData: any = {
