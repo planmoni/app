@@ -175,6 +175,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       padding: 24,
       borderWidth: 1,
       borderColor: colors.border,
+      alignItems: 'center',
     },
     optionIconContainer: {
       width: 64,
@@ -190,11 +191,13 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       fontWeight: '700',
       color: colors.text,
       marginBottom: 8,
+      textAlign: 'center',
     },
     optionDescription: {
       fontSize: getScaledFontSize(14, textSizeMultiplier),
       color: colors.textSecondary,
       lineHeight: 20,
+      textAlign: 'center',
     },
   });
 

@@ -14,8 +14,11 @@ import {
   Plane, Utensils, ShoppingBag, Film, Receipt, Heart, GraduationCap, Car, Home, 
   Sparkles, Bed, Zap, Droplet, Wrench, CreditCard, Target, Fuel, Bus, Baby, 
   Activity, Scissors, Wifi, Smartphone, Music, Shirt, Gift, MoreHorizontal, 
-  DollarSign, PiggyBank, Settings, Users 
+  DollarSign, PiggyBank, Settings, Users, Gamepad2, Palette, Shield, Laptop, 
+  Hammer, Flower2, Train, Scale, Briefcase, Megaphone, Building2, FileText, 
+  Package, Server, FlaskConical, Truck
 } from 'lucide-react-native';
+import { FontAwesome5, Ionicons } from '@expo/vector-icons';
 
 interface SubCategoryBucket {
   id: string;
@@ -25,6 +28,28 @@ interface SubCategoryBucket {
   icon: any;
   targetAmount: string;
 }
+
+// Icon wrapper for @expo/vector-icons - using outline versions only
+// Ionicons are outline by default, FontAwesome5 needs solid={false}
+const createIconWrapper = (IconComponent: any, name: string, solid?: boolean) => {
+  return ({ size, color }: { size?: number; color?: string }) => {
+    if (IconComponent === FontAwesome5) {
+      return <IconComponent name={name} size={size || 24} color={color || '#000'} solid={solid || false} />;
+    }
+    return <IconComponent name={name} size={size || 24} color={color || '#000'} />;
+  };
+};
+
+// Using Ionicons for icons not available in lucide (Ionicons are outline by default)
+const PawIcon = createIconWrapper(Ionicons, 'paw-outline');
+const HandHeartIcon = createIconWrapper(Ionicons, 'heart-outline');
+// Using lucide icons for business-related icons (all lucide icons are outline)
+const BusinessIcon = Briefcase;
+const AdvertIcon = Megaphone;
+const OfficeIcon = Building2;
+const InventoryIcon = Package;
+const ITIcon = Server;
+const ShippingIcon = Truck;
 
 // Import category data structure (in a real app, this would be shared)
 const CATEGORY_ICONS: Record<string, any> = {
@@ -48,6 +73,39 @@ const CATEGORY_ICONS: Record<string, any> = {
   entertainment_social: Music,
   gifts_ceremonies: Gift,
   miscellaneous: MoreHorizontal,
+  // New Personal Categories
+  vehicles: Car,
+  pets_pet_care: PawIcon,
+  hobbies_recreation: Gamepad2,
+  charitable_donations: HandHeartIcon,
+  insurance: Shield,
+  taxes: Receipt,
+  subscriptions: CreditCard,
+  technology_software: Laptop,
+  home_improvement: Hammer,
+  gardening_landscaping: Flower2,
+  sports_fitness: Activity,
+  ground_travel: Train,
+  legal_services: Scale,
+  financial_services: DollarSign,
+  // New Business Categories
+  employee_expenses: Users,
+  business_services: BusinessIcon,
+  marketing_advertising: AdvertIcon,
+  office_workspace: OfficeIcon,
+  business_travel: Plane,
+  professional_development: GraduationCap,
+  business_insurance: Shield,
+  business_taxes_licenses: FileText,
+  equipment_machinery: Wrench,
+  inventory_supplies: InventoryIcon,
+  it_technology: ITIcon,
+  business_subscriptions: CreditCard,
+  client_entertainment: Utensils,
+  research_development: FlaskConical,
+  shipping_logistics: ShippingIcon,
+  business_utilities: Zap,
+  professional_memberships: Users,
 };
 
 // Sub-category names mapping (simplified - in production, this would come from the same source)
@@ -90,6 +148,9 @@ const SUB_CATEGORY_NAMES: Record<string, Record<string, string>> = {
     flight_tickets: 'Flight Tickets',
     visa_fees: 'Visa Fees',
     local_hotel: 'Hotel Bookings',
+    cruise: 'Cruise',
+    travel_insurance: 'Travel Insurance',
+    travel_gear: 'Travel Gear & Luggage',
   },
   food: {
     restaurants: 'Restaurants',
@@ -98,6 +159,8 @@ const SUB_CATEGORY_NAMES: Record<string, Record<string, string>> = {
     drinks: 'Drinks',
     non_alcoholic_beverages: 'Non-Alcoholic Beverages',
     alcoholic_beverages: 'Alcoholic Beverages',
+    catering: 'Catering Services',
+    meal_prep: 'Meal Prep Services',
   },
   shopping: {
     general_shopping: 'General Shopping',
@@ -148,6 +211,10 @@ const SUB_CATEGORY_NAMES: Record<string, Record<string, string>> = {
     uniforms: 'Uniforms',
     extracurricular: 'Extracurricular',
     school_bus: 'School Bus',
+    online_courses: 'Online Courses',
+    certifications: 'Certifications',
+    tutoring: 'Tutoring Services',
+    school_supplies: 'School Supplies',
   },
   child_care: {
     nanny_house_help: 'Nanny/House Help',
@@ -159,6 +226,10 @@ const SUB_CATEGORY_NAMES: Record<string, Record<string, string>> = {
     medication_pharmacy: 'Medication/Pharmacy',
     health_insurance: 'Health Insurance',
     gym_fitness: 'Gym/Fitness',
+    dental: 'Dental Care',
+    vision: 'Vision Care & Eyeglasses',
+    mental_health: 'Mental Health Services',
+    alternative_medicine: 'Alternative Medicine',
   },
   personal_care: {
     haircuts_salon: 'Haircuts/Salon',
@@ -185,6 +256,220 @@ const SUB_CATEGORY_NAMES: Record<string, Record<string, string>> = {
     impulse_purchases: 'Impulse Purchases',
     atm_fees: 'ATM Fees',
     petty_cash: 'Petty Cash',
+  },
+  // New Personal Categories
+  vehicles: {
+    new_car_purchase: 'New Car Purchase',
+    motorcycle: 'Motorcycle',
+    boat_yacht: 'Boat/Yacht',
+    vehicle_registration: 'Vehicle Registration',
+    vehicle_taxes: 'Vehicle Taxes',
+    vehicle_loans: 'Vehicle Loans',
+  },
+  pets_pet_care: {
+    pet_food: 'Pet Food',
+    veterinary_care: 'Veterinary Care',
+    pet_grooming: 'Pet Grooming',
+    pet_insurance: 'Pet Insurance',
+    pet_supplies: 'Pet Supplies',
+    pet_boarding: 'Pet Boarding',
+  },
+  hobbies_recreation: {
+    gaming: 'Gaming',
+    photography: 'Photography',
+    art_supplies: 'Art Supplies',
+    music_instruments: 'Music Instruments',
+    books: 'Books',
+    collectibles: 'Collectibles',
+  },
+  charitable_donations: {
+    religious_donations: 'Religious Donations',
+    charity_organizations: 'Charity Organizations',
+    community_support: 'Community Support',
+    fundraising_events: 'Fundraising Events',
+  },
+  insurance: {
+    life_insurance: 'Life Insurance',
+    auto_insurance: 'Auto Insurance',
+    home_insurance: 'Home Insurance',
+    health_insurance_personal: 'Health Insurance',
+    travel_insurance_personal: 'Travel Insurance',
+  },
+  taxes: {
+    personal_income_tax: 'Personal Income Tax',
+    property_tax: 'Property Tax',
+    capital_gains_tax: 'Capital Gains Tax',
+    tax_preparation_fees: 'Tax Preparation Fees',
+  },
+  subscriptions: {
+    streaming_services: 'Streaming Services',
+    software_subscriptions: 'Software Subscriptions',
+    magazine_subscriptions: 'Magazine Subscriptions',
+    gym_memberships: 'Gym Memberships',
+    cloud_storage: 'Cloud Storage',
+  },
+  technology_software: {
+    software_licenses: 'Software Licenses',
+    cloud_services: 'Cloud Services',
+    tech_support: 'Tech Support',
+    device_insurance: 'Device Insurance',
+  },
+  home_improvement: {
+    renovations: 'Renovations',
+    repairs: 'Repairs',
+    painting: 'Painting',
+    flooring: 'Flooring',
+    roofing: 'Roofing',
+    plumbing: 'Plumbing',
+    electrical_work: 'Electrical Work',
+  },
+  gardening_landscaping: {
+    garden_supplies: 'Garden Supplies',
+    landscaping_services: 'Landscaping Services',
+    lawn_care: 'Lawn Care',
+    plant_purchases: 'Plant Purchases',
+  },
+  sports_fitness: {
+    sports_equipment: 'Sports Equipment',
+    gym_membership: 'Gym Membership',
+    personal_training: 'Personal Training',
+    sports_club_fees: 'Sports Club Fees',
+    event_tickets: 'Event Tickets',
+  },
+  ground_travel: {
+    bus_tickets: 'Bus Tickets',
+    train_tickets: 'Train Tickets',
+    car_rental: 'Car Rental',
+    taxi_services: 'Taxi Services',
+    parking_fees: 'Parking Fees',
+  },
+  legal_services: {
+    legal_consultation: 'Legal Consultation',
+    document_preparation: 'Document Preparation',
+    court_fees: 'Court Fees',
+    notary_services: 'Notary Services',
+  },
+  financial_services: {
+    banking_fees: 'Banking Fees',
+    investment_fees: 'Investment Fees',
+    financial_advisor_fees: 'Financial Advisor Fees',
+    account_maintenance: 'Account Maintenance',
+  },
+  // New Business Categories
+  employee_expenses: {
+    employee_salaries: 'Employee Salaries',
+    payroll_processing: 'Payroll Processing',
+    employee_benefits: 'Employee Benefits',
+    contractors: 'Contractors',
+    freelancers: 'Freelancers',
+    bonuses: 'Bonuses',
+    commissions: 'Commissions',
+  },
+  business_services: {
+    legal_services_business: 'Legal Services',
+    accounting_services: 'Accounting Services',
+    consulting: 'Consulting',
+    it_services: 'IT Services',
+    hr_services: 'HR Services',
+    marketing_agencies: 'Marketing Agencies',
+  },
+  marketing_advertising: {
+    digital_advertising: 'Digital Advertising',
+    print_advertising: 'Print Advertising',
+    social_media_marketing: 'Social Media Marketing',
+    seo_services: 'SEO Services',
+    content_creation: 'Content Creation',
+    pr_services: 'PR Services',
+  },
+  office_workspace: {
+    office_rent: 'Office Rent',
+    office_utilities: 'Office Utilities',
+    office_supplies: 'Office Supplies',
+    office_furniture: 'Office Furniture',
+    office_equipment: 'Office Equipment',
+    cleaning_services: 'Cleaning Services',
+  },
+  business_travel: {
+    business_flights: 'Business Flights',
+    hotel_bookings_business: 'Hotel Bookings',
+    business_meals: 'Business Meals',
+    conference_fees: 'Conference Fees',
+    travel_insurance_business: 'Travel Insurance',
+  },
+  professional_development: {
+    training_courses: 'Training Courses',
+    certifications_business: 'Certifications',
+    conferences: 'Conferences',
+    workshops: 'Workshops',
+    professional_memberships: 'Professional Memberships',
+  },
+  business_insurance: {
+    liability_insurance: 'Liability Insurance',
+    business_property_insurance: 'Business Property Insurance',
+    workers_compensation: 'Workers Compensation',
+    professional_indemnity: 'Professional Indemnity',
+  },
+  business_taxes_licenses: {
+    business_tax: 'Business Tax',
+    license_fees: 'License Fees',
+    permit_fees: 'Permit Fees',
+    regulatory_compliance: 'Regulatory Compliance',
+  },
+  equipment_machinery: {
+    manufacturing_equipment: 'Manufacturing Equipment',
+    office_equipment_business: 'Office Equipment',
+    vehicles_business: 'Vehicles',
+    tools_business: 'Tools',
+    maintenance_equipment: 'Maintenance',
+  },
+  inventory_supplies: {
+    raw_materials: 'Raw Materials',
+    finished_goods: 'Finished Goods',
+    office_supplies_business: 'Office Supplies',
+    manufacturing_supplies: 'Manufacturing Supplies',
+  },
+  it_technology: {
+    software_licenses_business: 'Software Licenses',
+    cloud_infrastructure: 'Cloud Infrastructure',
+    it_support: 'IT Support',
+    hardware: 'Hardware',
+    cybersecurity: 'Cybersecurity',
+  },
+  business_subscriptions: {
+    saas_subscriptions: 'SaaS Subscriptions',
+    software_licenses_subscriptions: 'Software Licenses',
+    service_subscriptions: 'Service Subscriptions',
+    platform_fees: 'Platform Fees',
+  },
+  client_entertainment: {
+    client_meals: 'Client Meals',
+    client_events: 'Client Events',
+    corporate_gifts: 'Corporate Gifts',
+    hospitality: 'Hospitality',
+  },
+  research_development: {
+    rd_expenses: 'R&D Expenses',
+    product_development: 'Product Development',
+    testing: 'Testing',
+    prototyping: 'Prototyping',
+  },
+  shipping_logistics: {
+    shipping_costs: 'Shipping Costs',
+    freight: 'Freight',
+    delivery_services: 'Delivery Services',
+    warehouse_costs: 'Warehouse Costs',
+    customs_fees: 'Customs Fees',
+  },
+  business_utilities: {
+    business_electricity: 'Business Electricity',
+    business_water: 'Business Water',
+    business_internet: 'Business Internet',
+    business_phone: 'Business Phone',
+  },
+  professional_memberships: {
+    industry_associations: 'Industry Associations',
+    professional_bodies: 'Professional Bodies',
+    trade_organizations: 'Trade Organizations',
   },
 };
 
@@ -468,7 +753,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       flex: 1,
     },
     scrollContent: {
-      padding: 20,
+      padding: 10,
       paddingBottom: 100,
     },
     sectionTitle: {
