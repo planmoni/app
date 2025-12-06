@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Plus } from 'lucide-react-native';
+import { ArrowLeft, Plus, Lock, Calendar, ArrowRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -56,6 +56,35 @@ export default function PlanDetailScreen() {
       pathname: '/expense-planner/log-expense',
       params: { planId: id as string },
     });
+  };
+
+  const handleWithdraw = () => {
+    haptics.mediumImpact();
+    router.push({
+      pathname: '/expense-planner/[id]/withdraw',
+      params: { id: id as string },
+    });
+  };
+
+  const handleScheduleWithdrawal = () => {
+    haptics.mediumImpact();
+    router.push({
+      pathname: '/expense-planner/[id]/schedule-withdrawal',
+      params: { id: id as string },
+    });
+  };
+
+  // Mock data for locked funds - will be replaced with real data later
+  const hasLockedFunds = false; // TODO: Check if plan has locked funds
+  const unlockDate = plan ? new Date(plan.created_at) : null; // TODO: Get actual unlock date
+  const isFundsAvailable = unlockDate ? new Date() >= unlockDate : false;
+  
+  const formatDateForDisplay = (date: Date) => {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
   const pieChartData = useMemo(() => {
@@ -155,6 +184,47 @@ export default function PlanDetailScreen() {
             <Text style={styles.progressText}>{Math.round(percentageUsed)}% used</Text>
           </View>
         </View>
+
+        {hasLockedFunds && (
+          <View style={styles.lockedFundsCard}>
+            <View style={styles.lockedFundsHeader}>
+              <View style={styles.lockedFundsIconContainer}>
+                <Lock size={20} color={colors.primary} />
+              </View>
+              <View style={styles.lockedFundsInfo}>
+                <Text style={styles.lockedFundsTitle}>Locked Funds</Text>
+                {unlockDate && !isFundsAvailable && (
+                  <Text style={styles.lockedFundsDate}>
+                    Your expense funds will be accessible from {formatDateForDisplay(unlockDate)}
+                  </Text>
+                )}
+                {isFundsAvailable && (
+                  <Text style={styles.lockedFundsAvailable}>
+                    Funds are now available
+                  </Text>
+                )}
+              </View>
+            </View>
+            {isFundsAvailable && (
+              <View style={styles.withdrawalActions}>
+                <Pressable 
+                  style={styles.withdrawButton}
+                  onPress={handleWithdraw}
+                >
+                  <Text style={styles.withdrawButtonText}>Withdraw Now</Text>
+                  <ArrowRight size={16} color={colors.primary} />
+                </Pressable>
+                <Pressable 
+                  style={styles.scheduleButton}
+                  onPress={handleScheduleWithdrawal}
+                >
+                  <Calendar size={16} color={colors.text} />
+                  <Text style={styles.scheduleButtonText}>Schedule</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        )}
 
         {buckets.length > 0 && (
           <>
@@ -326,4 +396,84 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       fontWeight: '600',
       color: '#fff',
     },
+    lockedFundsCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    lockedFundsHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: 16,
+    },
+    lockedFundsIconContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.primary + '20',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    lockedFundsInfo: {
+      flex: 1,
+    },
+    lockedFundsTitle: {
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 4,
+    },
+    lockedFundsDate: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      color: colors.textSecondary,
+      lineHeight: 20,
+    },
+    lockedFundsAvailable: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    withdrawalActions: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    withdrawButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.primary + '20',
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    withdrawButtonText: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    scheduleButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.backgroundTertiary,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    scheduleButtonText: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+    },
   });
+

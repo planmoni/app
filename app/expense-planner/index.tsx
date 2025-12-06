@@ -120,7 +120,7 @@ export default function ExpensePlannerScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-          <Text style={styles.title}>What is the total budget?</Text>
+          <Text style={styles.title}>What's the total budget?</Text>
 
           {error && (
             <View style={styles.errorContainer}>

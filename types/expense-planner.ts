@@ -38,3 +38,40 @@ export interface BucketProgressStatus {
   status: 'under' | 'warning' | 'over';
 }
 
+export interface ExpenseBucketLockedFunds {
+  id: string;
+  expense_bucket_id: string;
+  locked_amount: number;
+  unlock_date: string;
+  status: 'locked' | 'unlocked' | 'withdrawn';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExpenseBucketWithdrawal {
+  id: string;
+  expense_bucket_id: string;
+  amount: number;
+  payout_account_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  scheduled_date?: string;
+  transfer_reference?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExpenseBucketScheduledWithdrawal {
+  id: string;
+  expense_plan_id: string;
+  payout_account_id: string;
+  frequency: 'once' | 'daily' | 'weekly' | 'custom';
+  start_date: string;
+  end_date: string;
+  amount_per_withdrawal: number;
+  selected_bucket_ids: string[];
+  metadata?: Record<string, any>;
+  status: 'active' | 'completed' | 'cancelled';
+  created_at: string;
+  updated_at: string;
+}
+

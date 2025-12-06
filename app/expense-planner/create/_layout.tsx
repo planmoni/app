@@ -15,6 +15,10 @@ export default function CreateExpensePlanLayout() {
       <Stack.Screen name="buckets" />
       <Stack.Screen name="review" />
       <Stack.Screen name="dates" />
+      <Stack.Screen name="funding-choice" />
+      <Stack.Screen name="fund-budget" />
+      <Stack.Screen name="name-expense" />
+      <Stack.Screen name="success" />
     </Stack>
   );
 }

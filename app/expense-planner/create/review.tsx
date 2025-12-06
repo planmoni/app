@@ -55,7 +55,7 @@ export default function ReviewScreen() {
         <Pressable 
           onPress={() => {
             haptics.selection();
-            router.replace('/expense-planner');
+            router.replace('/(tabs)');
           }} 
           style={styles.closeButton}
         >

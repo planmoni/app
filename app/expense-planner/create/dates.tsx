@@ -8,7 +8,6 @@ import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import FloatingButton from '@/components/FloatingButton';
-import { useExpensePlans } from '@/hooks/useExpensePlans';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = [
@@ -28,11 +27,8 @@ export default function DatesScreen() {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [isCreating, setIsCreating] = useState(false);
   const [showYearPicker, setShowYearPicker] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
-
-  const { createExpensePlan } = useExpensePlans();
 
   const formatDateForDisplay = (date: Date | null) => {
     if (!date) return 'Select date';
@@ -187,37 +183,19 @@ export default function DatesScreen() {
     }
 
     haptics.mediumImpact();
-    setIsCreating(true);
     
-    try {
-      // Generate a plan name if not provided
-      const planName = (params.planName as string) || `Budget Plan - ${formatDateForDisplay(finalStartDate)} to ${formatDateForDisplay(finalEndDate)}`;
-      
-      const plan = await createExpensePlan({
-        name: planName,
-        total_budget: parseFloat(totalBudget),
-        start_date: formatDateForStorage(finalStartDate),
-        end_date: formatDateForStorage(finalEndDate),
-        buckets: buckets.map((bucket: any) => ({
-          name: bucket.name,
-          target_amount: parseFloat(bucket.targetAmount.replace(/,/g, '') || '0'),
-        })),
-      });
-
-      Alert.alert('Success', 'Expense plan created successfully!', [
-        {
-          text: 'OK',
-          onPress: () => {
-            router.replace('/expense-planner');
-          },
-        },
-      ]);
-    } catch (error) {
-      console.error('Error creating expense plan:', error);
-      Alert.alert('Error', 'Failed to create expense plan. Please try again.');
-    } finally {
-      setIsCreating(false);
-    }
+    // Navigate to funding choice screen instead of creating plan directly
+    router.push({
+      pathname: '/expense-planner/create/funding-choice',
+      params: {
+        totalBudget,
+        budgetStructure,
+        buckets: JSON.stringify(buckets),
+        planName: params.planName as string || '',
+        startDate: formatDateForStorage(finalStartDate),
+        endDate: formatDateForStorage(finalEndDate),
+      },
+    });
   };
 
 
@@ -233,7 +211,7 @@ export default function DatesScreen() {
         <Pressable 
           onPress={() => {
             haptics.selection();
-            router.replace('/expense-planner');
+            router.replace('/(tabs)');
           }} 
           style={styles.closeButton}
         >
@@ -482,9 +460,9 @@ export default function DatesScreen() {
       </ScrollView>
 
       <FloatingButton
-        title="Create Plan"
+        title="Continue"
         onPress={handleContinue}
-        disabled={!startDate || isCreating}
+        disabled={!startDate}
         hapticType="medium"
       />
     </SafeAreaView>

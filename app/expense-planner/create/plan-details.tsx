@@ -408,7 +408,7 @@ export default function PlanDetailsScreen() {
         <Pressable
           onPress={() => {
             haptics.selection();
-            router.replace('/expense-planner');
+            router.replace('/(tabs)');
           }}
           style={styles.cancelButton}
         >
@@ -418,7 +418,7 @@ export default function PlanDetailsScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-          <Text style={styles.title}>What is the budget for?</Text>
+          <Text style={styles.title}>What's the budget for?</Text>
 
           <View style={styles.searchWrapper}>
             <View style={styles.searchContainer}>
@@ -456,9 +456,6 @@ export default function PlanDetailsScreen() {
 
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Select one or more categories</Text>
-            <Pressable onPress={handleSeeAll}>
-              <Text style={styles.seeAllText}>+ Add new</Text>
-            </Pressable>
           </View>
 
           <ScrollView

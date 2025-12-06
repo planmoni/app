@@ -9,6 +9,7 @@ import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import { useRealtimeWallet } from '@/hooks/useRealtimeWallet';
 import BucketAllocationSummary from '@/components/expense-planner/BucketAllocationSummary';
 import { 
   Plane, Utensils, ShoppingBag, Film, Receipt, Heart, GraduationCap, Car, Home, 
@@ -24,9 +25,9 @@ interface SubCategoryBucket {
   name: string;
   icon: any;
   targetAmount: string;
+  lockedAmount?: string;
 }
 
-// Import category data structure (in a real app, this would be shared)
 const CATEGORY_ICONS: Record<string, any> = {
   housing_rent: Home,
   utilities_bills: Zap,
@@ -50,188 +51,40 @@ const CATEGORY_ICONS: Record<string, any> = {
   miscellaneous: MoreHorizontal,
 };
 
-// Sub-category names mapping (simplified - in production, this would come from the same source)
-const SUB_CATEGORY_NAMES: Record<string, Record<string, string>> = {
-  housing_rent: {
-    rent_lease: 'Rent/Lease',
-    broker_fees: 'Broker Fees (Agent & Agreement Fees)',
-    property_maintenance: 'Property Maintenance (Electricity, Water, Security)',
-    new_property: 'New Property (Purchase, Renovation)',
-  },
-  utilities_bills: {
-    electricity: 'Electricity',
-    water: 'Water',
-    waste_disposal: 'Waste Disposal',
-    recharge: 'Recharge',
-  },
-  infrastructure_tax: {
-    generator_fuel: 'Generator Fuel',
-    generator_maintenance: 'Generator Maintenance',
-    inverter_solar: 'Inverter/Solar',
-    security_fees: 'Security Fees',
-  },
-  fuel_gas: {
-    car_fuel: 'Car Fuel',
-    cooking_gas: 'Cooking Gas',
-  },
-  car_maintenance: {
-    car_repair: 'Car Repair',
-    servicing: 'Servicing',
-    car_wash: 'Car Wash',
-    insurance: 'Insurance',
-    road_worthiness: 'Road Worthiness',
-  },
-  commute: {
-    public_transport: 'Public Transport (Buses, Danfo, Molue)',
-    ride_hailing: 'Ride-Hailing (Bolt, Uber, In-Drive)',
-    okada_tricycle: 'Okada/Tricycle',
-  },
-  air_travel: {
-    flight_tickets: 'Flight Tickets',
-    visa_fees: 'Visa Fees',
-    local_hotel: 'Hotel Bookings',
-  },
-  food: {
-    restaurants: 'Restaurants',
-    takeout: 'Takeout',
-    cooking: 'Cooking',
-    drinks: 'Drinks',
-    non_alcoholic_beverages: 'Non-Alcoholic Beverages',
-    alcoholic_beverages: 'Alcoholic Beverages',
-  },
-  shopping: {
-    general_shopping: 'General Shopping',
-    online_shopping: 'Online Shopping',
-    jumia: 'Jumia',
-    konga: 'Konga',
-    amazon: 'Amazon',
-    aliexpress: 'AliExpress Purchases',
-    vendor_payments: 'Vendor Payments',
-    phones: 'Phones',
-    laptops: 'Laptops',
-    electronics_accessories: 'Accessories',
-    home_appliances: 'Home Appliances (TVs, Fridges)',
-    furniture: 'Furniture',
-    decor: 'Decor',
-    kitchenware: 'Kitchenware',
-    bedding: 'Bedding',
-    tools: 'Tools',
-    materials: 'Materials',
-    sports_equipment: 'Sports Equipment',
-    new_clothes: 'New Clothes',
-    shoes: 'Shoes',
-    fashion_accessories: 'Accessories',
-    tailoring_fees: 'Tailoring Fees',
-    aso_ebi: 'Aso Ebi',
-    general_mall_purchases: 'General Mall Purchases',
-    unexpected_retail_spending: 'Unexpected Retail Spending',
-  },
-  clothing_fashion: {
-    new_clothes: 'New Clothes',
-    shoes: 'Shoes',
-    accessories: 'Accessories',
-    tailoring_fees: 'Tailoring Fees',
-  },
-  debt_payments: {
-    loan_repayment: 'Loan Repayment',
-    credit_card: 'Credit Card',
-    high_interest_debts: 'High-Interest Debts',
-  },
-  financial_goals: {
-    fixed_deposits: 'Savings',
-    investments: 'Investments',
-    emergency_fund: 'Emergency Fund',
-  },
-  education: {
-    tuition: 'Tuition',
-    textbooks: 'Textbooks',
-    uniforms: 'Uniforms',
-    extracurricular: 'Extracurricular',
-    school_bus: 'School Bus',
-  },
-  child_care: {
-    nanny_house_help: 'Nanny/House Help',
-    daycare_creche: 'Daycare/Crèche',
-    baby_supplies: 'Baby Supplies',
-  },
-  healthcare: {
-    routine_checkups: 'Routine Check-ups',
-    medication_pharmacy: 'Medication/Pharmacy',
-    health_insurance: 'Health Insurance',
-    gym_fitness: 'Gym/Fitness',
-  },
-  personal_care: {
-    haircuts_salon: 'Haircuts/Salon',
-    cosmetics: 'Cosmetics',
-    skin_care: 'Skin Care',
-  },
-  data_communication: {
-    data_subscription: 'Data Subscription',
-    airtime_recharge: 'Airtime Recharge',
-    internet_provider: 'Internet Provider',
-  },
-  entertainment_social: {
-    nightlife: 'Nightlife',
-    concerts_events: 'Concerts/Events',
-    cinema: 'Cinema',
-    cable_tv: 'Cable TV',
-    streaming: 'Streaming',
-  },
-  gifts_ceremonies: {
-    weddings_burials: 'Weddings/Burials',
-    gifts_family: 'Gifts for Family',
-  },
-  miscellaneous: {
-    impulse_purchases: 'Impulse Purchases',
-    atm_fees: 'ATM Fees',
-    petty_cash: 'Petty Cash',
-  },
-};
-
-export default function BucketsScreen() {
+export default function FundBudgetScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
+  const { availableBalance } = useRealtimeWallet();
+  
   const totalBudget = parseFloat((params.totalBudget as string) || '0');
   const [budgetStructure, setBudgetStructure] = useState<string>(params.budgetStructure as string || 'fixed');
-  
-  const selectedSubCategories = useMemo(() => {
-    if (!params.subCategories) return {};
-    try {
-      return JSON.parse(params.subCategories as string);
-    } catch {
-      return {};
-    }
-  }, [params.subCategories]);
+  const startDate = params.startDate as string;
+  const endDate = params.endDate as string;
 
-  const [buckets, setBuckets] = useState<SubCategoryBucket[]>([]);
+  const [bucketStates, setBucketStates] = useState<SubCategoryBucket[]>([]);
   const initializedRef = useRef(false);
 
   useEffect(() => {
-    // Initialize buckets from selected sub-categories only once
-    if (!initializedRef.current && Object.keys(selectedSubCategories).length > 0) {
-      const initialBuckets: SubCategoryBucket[] = [];
-      
-      Object.entries(selectedSubCategories).forEach(([categoryId, subCategoryIds]) => {
-        if (Array.isArray(subCategoryIds)) {
-          subCategoryIds.forEach((subCategoryId: string) => {
-            initialBuckets.push({
-              id: `${categoryId}_${subCategoryId}`,
-              categoryId,
-              subCategoryId,
-              name: SUB_CATEGORY_NAMES[categoryId]?.[subCategoryId] || subCategoryId,
-              icon: CATEGORY_ICONS[categoryId] || MoreHorizontal,
-              targetAmount: '',
-            });
-          });
+    // Initialize buckets only once when params.buckets is available
+    if (!initializedRef.current && params.buckets) {
+      try {
+        const buckets: SubCategoryBucket[] = JSON.parse(params.buckets as string);
+        if (buckets.length > 0) {
+          const initialized = buckets.map(bucket => ({
+            ...bucket,
+            icon: CATEGORY_ICONS[bucket.categoryId] || MoreHorizontal,
+            lockedAmount: '',
+          }));
+          setBucketStates(initialized);
+          initializedRef.current = true;
         }
-      });
-      
-      setBuckets(initialBuckets);
-      initializedRef.current = true;
+      } catch (error) {
+        console.error('Error parsing buckets:', error);
+      }
     }
-  }, [selectedSubCategories]);
+  }, [params.buckets]);
 
   const formatAmount = (value: string) => {
     let cleanValue = value.replace(/[^0-9.]/g, '');
@@ -254,37 +107,26 @@ export default function BucketsScreen() {
     return cleanValue;
   };
 
-  const totalAllocated = buckets.reduce((sum, bucket) => {
-    const amount = parseFloat(bucket.targetAmount.replace(/,/g, '') || '0');
-    return sum + (isNaN(amount) ? 0 : amount);
-  }, 0);
+  const totalLocked = useMemo(() => {
+    return bucketStates.reduce((sum, bucket) => {
+      const amount = parseFloat(bucket.lockedAmount?.replace(/,/g, '') || '0');
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+  }, [bucketStates]);
 
   const handleAmountChange = (id: string, amount: string) => {
     const formatted = formatAmount(amount);
-    const numericAmount = parseFloat(formatted.replace(/,/g, '') || '0');
-    
-    // For fixed budgets, prevent exceeding the total budget
-    if (budgetStructure === 'fixed') {
-      // Calculate total of all other buckets (excluding the one being edited)
-      const otherBucketsTotal = buckets
-        .filter(b => b.id !== id)
-        .reduce((sum, bucket) => {
-          const amount = parseFloat(bucket.targetAmount.replace(/,/g, '') || '0');
-          return sum + (isNaN(amount) ? 0 : amount);
-        }, 0);
-      
-      // Calculate maximum allowed for this bucket
-      const maxAllowed = totalBudget - otherBucketsTotal;
-      
-      // If the new amount exceeds the maximum, cap it at the maximum
-      if (numericAmount > maxAllowed) {
-        const cappedAmount = formatAmount(maxAllowed.toString());
-        setBuckets(buckets.map(bucket => (bucket.id === id ? { ...bucket, targetAmount: cappedAmount } : bucket)));
-        return;
-      }
-    }
-    
-    setBuckets(buckets.map(bucket => (bucket.id === id ? { ...bucket, targetAmount: formatted } : bucket)));
+    setBucketStates(bucketStates.map(bucket => 
+      bucket.id === id ? { ...bucket, lockedAmount: formatted } : bucket
+    ));
+  };
+
+  const handleLockAll = () => {
+    haptics.selection();
+    setBucketStates(bucketStates.map(bucket => ({
+      ...bucket,
+      lockedAmount: formatAmount(bucket.targetAmount.replace(/,/g, '')),
+    })));
   };
 
   const handleSwitchToEstimated = () => {
@@ -293,19 +135,18 @@ export default function BucketsScreen() {
   };
 
   const handleContinue = () => {
-    const bucketsWithAmounts = buckets.filter(b => b.targetAmount);
+    const bucketsWithAmounts = bucketStates.filter(b => b.lockedAmount);
     
     if (bucketsWithAmounts.length === 0) {
-      Alert.alert('Invalid Input', 'Please allocate amounts to at least one sub-category');
+      Alert.alert('No Funds Locked', 'Please lock funds for at least one expense bucket');
       haptics.notification();
       return;
     }
 
-    // Only enforce budget limit for fixed budgets
-    if (budgetStructure === 'fixed' && totalAllocated > totalBudget) {
+    if (totalLocked > availableBalance) {
       Alert.alert(
-        'Budget Exceeded',
-        `Total allocated (₦${totalAllocated.toLocaleString()}) exceeds your budget (₦${totalBudget.toLocaleString()}). Please adjust your allocations.`
+        'Insufficient Balance',
+        `You're trying to lock ₦${totalLocked.toLocaleString()} but only have ₦${availableBalance.toLocaleString()} available. Please adjust your allocations.`
       );
       haptics.notification();
       return;
@@ -313,17 +154,22 @@ export default function BucketsScreen() {
 
     haptics.mediumImpact();
     router.push({
-      pathname: '/expense-planner/create/review',
+      pathname: '/expense-planner/create/name-expense',
       params: {
         totalBudget: totalBudget.toString(),
         budgetStructure,
-        buckets: JSON.stringify(bucketsWithAmounts.map(b => ({
+        buckets: JSON.stringify(bucketStates.map(b => ({
           id: b.id,
           categoryId: b.categoryId,
           subCategoryId: b.subCategoryId,
           name: b.name,
           targetAmount: b.targetAmount.replace(/,/g, ''),
+          lockedAmount: b.lockedAmount?.replace(/,/g, '') || '0',
         }))),
+        planName: params.planName || '',
+        startDate,
+        endDate,
+        totalLocked: totalLocked.toString(),
       },
     });
   };
@@ -336,7 +182,7 @@ export default function BucketsScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Allocate Budget</Text>
+        <Text style={styles.headerTitle}>Lock Funds</Text>
         <Pressable 
           onPress={() => {
             haptics.selection();
@@ -354,23 +200,38 @@ export default function BucketsScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.sectionTitle}>Allocate funds</Text>
+          <Text style={styles.sectionTitle}>Lock funds for expenses</Text>
           <Text style={styles.sectionDescription}>
-            Distribute your budget across the selected categories
+            Lock funds from your balance that will be accessible during your budget period
           </Text>
 
+          <View style={styles.balanceCard}>
+            <Text style={styles.balanceLabel}>Available Balance</Text>
+            <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
+          </View>
+
           <BucketAllocationSummary
-            totalAllocated={totalAllocated}
+            totalAllocated={totalLocked}
             totalBudget={totalBudget}
             budgetStructure={budgetStructure as 'fixed' | 'estimated'}
             onSwitchToEstimated={handleSwitchToEstimated}
           />
 
+          {bucketStates.length > 0 && (
+            <Pressable 
+              style={styles.lockAllButton}
+              onPress={handleLockAll}
+            >
+              <Text style={styles.lockAllText}>Lock All Target Amounts</Text>
+            </Pressable>
+          )}
+
           <View style={styles.bucketsContainer}>
-            {buckets.map((bucket) => {
+            {bucketStates.map((bucket) => {
               const Icon = bucket.icon;
-              const amountValue = parseFloat(bucket.targetAmount.replace(/,/g, '') || '0');
-              const percentage = totalBudget > 0 ? (amountValue / totalBudget) * 100 : 0;
+              const targetAmount = parseFloat(bucket.targetAmount.replace(/,/g, '') || '0');
+              const lockedAmount = parseFloat(bucket.lockedAmount?.replace(/,/g, '') || '0');
+              const percentage = targetAmount > 0 ? (lockedAmount / targetAmount) * 100 : 0;
               
               return (
                 <View key={bucket.id} style={styles.bucketCard}>
@@ -379,9 +240,14 @@ export default function BucketsScreen() {
                       <View style={styles.categoryIconContainer}>
                         <Icon size={24} color={colors.text} strokeWidth={1.5} />
                       </View>
-                      <Text style={styles.categoryName}>{bucket.name}</Text>
+                      <View style={styles.bucketNameContainer}>
+                        <Text style={styles.categoryName}>{bucket.name}</Text>
+                        <Text style={styles.targetAmountText}>
+                          Target: ₦{targetAmount.toLocaleString()}
+                        </Text>
+                      </View>
                     </View>
-                    {bucket.targetAmount && (
+                    {bucket.lockedAmount && (
                       <Text style={styles.percentageText}>{Math.round(percentage)}%</Text>
                     )}
                   </View>
@@ -392,13 +258,13 @@ export default function BucketsScreen() {
                       style={styles.amountInput}
                       placeholder="0"
                       placeholderTextColor={colors.textTertiary}
-                      value={bucket.targetAmount}
+                      value={bucket.lockedAmount}
                       onChangeText={(amount) => handleAmountChange(bucket.id, amount)}
                       keyboardType="numeric"
                     />
                   </View>
 
-                  {bucket.targetAmount && (
+                  {bucket.lockedAmount && (
                     <View style={styles.progressBar}>
                       <View
                         style={[
@@ -421,7 +287,7 @@ export default function BucketsScreen() {
       <FloatingButton
         title="Continue"
         onPress={handleContinue}
-        disabled={(budgetStructure === 'fixed' && totalAllocated > totalBudget) || totalAllocated === 0}
+        disabled={totalLocked === 0 || totalLocked > availableBalance}
         hapticType="medium"
       />
     </SafeAreaView>
@@ -468,7 +334,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       flex: 1,
     },
     scrollContent: {
-      padding: 20,
+      padding: 10,
       paddingBottom: 100,
     },
     sectionTitle: {
@@ -483,8 +349,40 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       marginBottom: 24,
       lineHeight: 20,
     },
+    balanceCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    balanceLabel: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      color: colors.textSecondary,
+      marginBottom: 8,
+    },
+    balanceAmount: {
+      fontSize: getScaledFontSize(28, textSizeMultiplier),
+      fontWeight: '700',
+      color: colors.primary,
+    },
+    lockAllButton: {
+      backgroundColor: colors.backgroundTertiary,
+      borderRadius: 12,
+      padding: 12,
+      alignItems: 'center',
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    lockAllText: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.primary,
+    },
     bucketsContainer: {
-      marginTop: 24,
+      marginTop: 8,
       gap: 16,
     },
     bucketCard: {
@@ -514,10 +412,18 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       justifyContent: 'center',
       alignItems: 'center',
     },
+    bucketNameContainer: {
+      flex: 1,
+    },
     categoryName: {
       fontSize: getScaledFontSize(16, textSizeMultiplier),
       fontWeight: '600',
       color: colors.text,
+      marginBottom: 4,
+    },
+    targetAmountText: {
+      fontSize: getScaledFontSize(12, textSizeMultiplier),
+      color: colors.textSecondary,
     },
     percentageText: {
       fontSize: getScaledFontSize(14, textSizeMultiplier),
@@ -559,3 +465,4 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       borderRadius: 2,
     },
   });
+
