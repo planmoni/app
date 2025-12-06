@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -155,12 +155,15 @@ const CATEGORIES: Category[] = [
   },
   { 
     id: 'food', 
-    name: 'Food', 
+    name: 'Food & Drinks', 
     icon: Utensils,
     subCategories: [
-      { id: 'groceries', name: 'Groceries' },
       { id: 'restaurants', name: 'Restaurants' },
       { id: 'takeout', name: 'Takeout' },
+      { id: 'cooking', name: 'Cooking' },
+      { id: 'drinks', name: 'Drinks' },
+      { id: 'non_alcoholic_beverages', name: 'Non-Alcoholic Beverages' },
+      { id: 'alcoholic_beverages', name: 'Alcoholic Beverages' },
     ],
   },
   { 
@@ -248,6 +251,29 @@ const CATEGORIES: Category[] = [
     subCategories: [
       { id: 'general_shopping', name: 'General Shopping' },
       { id: 'online_shopping', name: 'Online Shopping' },
+      { id: 'jumia', name: 'Jumia' },
+      { id: 'konga', name: 'Konga' },
+      { id: 'amazon', name: 'Amazon' },
+      { id: 'aliexpress', name: 'AliExpress Purchases' },
+      { id: 'vendor_payments', name: 'Vendor Payments' },
+      { id: 'phones', name: 'Phones' },
+      { id: 'laptops', name: 'Laptops' },
+      { id: 'electronics_accessories', name: 'Accessories' },
+      { id: 'home_appliances', name: 'Home Appliances (TVs, Fridges)' },
+      { id: 'furniture', name: 'Furniture' },
+      { id: 'decor', name: 'Decor' },
+      { id: 'kitchenware', name: 'Kitchenware' },
+      { id: 'bedding', name: 'Bedding' },
+      { id: 'tools', name: 'Tools' },
+      { id: 'materials', name: 'Materials' },
+      { id: 'sports_equipment', name: 'Sports Equipment' },
+      { id: 'new_clothes', name: 'New Clothes' },
+      { id: 'shoes', name: 'Shoes' },
+      { id: 'fashion_accessories', name: 'Accessories' },
+      { id: 'tailoring_fees', name: 'Tailoring Fees' },
+      { id: 'aso_ebi', name: 'Aso Ebi' },
+      { id: 'general_mall_purchases', name: 'General Mall Purchases' },
+      { id: 'unexpected_retail_spending', name: 'Unexpected Retail Spending' },
     ],
   },
   { 
@@ -276,9 +302,36 @@ export default function PlanDetailsScreen() {
   const [selectedSubCategories, setSelectedSubCategories] = useState<Record<string, string[]>>({});
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredCategories = CATEGORIES.filter(category =>
-    category.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredCategories = CATEGORIES.filter(category => {
+    const categoryNameMatch = category.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const subCategoryMatch = category.subCategories.some(subCategory =>
+      subCategory.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    return categoryNameMatch || subCategoryMatch;
+  });
+
+  // Generate suggestions for dropdown
+  const suggestions = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    
+    const query = searchQuery.toLowerCase();
+    const results: Array<{ categoryId: string; categoryName: string; subCategoryId: string; subCategoryName: string }> = [];
+    
+    CATEGORIES.forEach(category => {
+      category.subCategories.forEach(subCategory => {
+        if (subCategory.name.toLowerCase().includes(query)) {
+          results.push({
+            categoryId: category.id,
+            categoryName: category.name,
+            subCategoryId: subCategory.id,
+            subCategoryName: subCategory.name,
+          });
+        }
+      });
+    });
+    
+    return results.slice(0, 5); // Limit to 5 suggestions
+  }, [searchQuery]);
 
   const selectedCategory = selectedCategoryId ? CATEGORIES.find(c => c.id === selectedCategoryId) : null;
 
@@ -304,6 +357,17 @@ export default function PlanDetailsScreen() {
 
   const handleSeeAll = () => {
     haptics.selection();
+    setSearchQuery('');
+  };
+
+  const handleSuggestionClick = (categoryId: string, subCategoryId: string) => {
+    haptics.selection();
+    // Open the category if not already open
+    if (selectedCategoryId !== categoryId) {
+      setSelectedCategoryId(categoryId);
+    }
+    // Toggle the subcategory selection
+    handleSubCategoryToggle(categoryId, subCategoryId);
     setSearchQuery('');
   };
 
@@ -356,21 +420,44 @@ export default function PlanDetailsScreen() {
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
           <Text style={styles.title}>What is the budget for?</Text>
 
-          <View style={styles.searchContainer}>
-            <Search size={20} color={colors.textSecondary} style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search"
-              placeholderTextColor={colors.textTertiary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
+          <View style={styles.searchWrapper}>
+            <View style={styles.searchContainer}>
+              <Search size={20} color={colors.textSecondary} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search"
+                placeholderTextColor={colors.textTertiary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
+            
+            {suggestions.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                {suggestions.map((suggestion, index) => (
+                  <Pressable
+                    key={`${suggestion.categoryId}-${suggestion.subCategoryId}-${index}`}
+                    style={[
+                      styles.suggestionItem,
+                      index === suggestions.length - 1 && styles.suggestionItemLast,
+                    ]}
+                    onPress={() => handleSuggestionClick(suggestion.categoryId, suggestion.subCategoryId)}
+                  >
+                    <Text style={styles.suggestionText}>
+                      <Text style={styles.suggestionSubCategory}>{suggestion.subCategoryName}</Text>
+                      <Text style={styles.suggestionIn}> in </Text>
+                      <Text style={styles.suggestionCategory}>{suggestion.categoryName}</Text>
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </View>
 
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Select one or more categories</Text>
             <Pressable onPress={handleSeeAll}>
-              <Text style={styles.seeAllText}>See all</Text>
+              <Text style={styles.seeAllText}>+ Add new</Text>
             </Pressable>
           </View>
 
@@ -524,6 +611,11 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       textAlign: 'center',
       marginBottom: 20,
     },
+    searchWrapper: {
+      marginBottom: 24,
+      position: 'relative',
+      zIndex: 10,
+    },
     searchContainer: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -531,7 +623,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       borderRadius: 12,
       paddingHorizontal: 16,
       paddingVertical: 12,
-      marginBottom: 24,
       borderWidth: 1,
       borderColor: colors.border,
     },
@@ -542,6 +633,49 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       flex: 1,
       fontSize: getScaledFontSize(16, textSizeMultiplier),
       color: colors.text,
+    },
+    suggestionsContainer: {
+      position: 'absolute',
+      top: '100%',
+      left: 0,
+      right: 0,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      marginTop: 4,
+      borderWidth: 1,
+      borderColor: colors.border,
+      maxHeight: 200,
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 5,
+    },
+    suggestionItem: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    suggestionItemLast: {
+      borderBottomWidth: 0,
+    },
+    suggestionText: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      color: colors.text,
+    },
+    suggestionSubCategory: {
+      fontWeight: '600',
+      color: colors.text,
+    },
+    suggestionIn: {
+      fontWeight: '400',
+      color: colors.textSecondary,
+    },
+    suggestionCategory: {
+      fontWeight: '500',
+      color: colors.textSecondary,
     },
     sectionHeader: {
       flexDirection: 'row',
