@@ -514,6 +514,10 @@ function RootLayoutNav() {
           options={{ headerShown: false, gestureEnabled: false }} 
         />
         <Stack.Screen 
+          name="expense-planner" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
           name="app-lock-setup" 
           options={{ headerShown: false, gestureEnabled: false }} 
         />

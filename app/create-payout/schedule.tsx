@@ -219,7 +219,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.calendarHeader}>
-            <Text style={styles.calendarTitle}>Select Dates</Text>
+            <Text style={styles.calendarTitle}>Select one or more dates</Text>
             <View style={styles.monthNavigation}>
               <Pressable style={styles.navigationButton} onPress={handlePrevMonth}>
                 <ChevronLeft size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
@@ -416,13 +416,6 @@ export default function ScheduleScreen() {
       const frequency = params.frequency as string;
       setSelectedSchedule(frequency);
       lastSelectedScheduleRef.current = frequency;
-      
-      // If custom, automatically show date picker
-      if (frequency === 'custom') {
-        setTimeout(() => {
-          setShowDatePicker(true);
-        }, 300);
-      }
       
       // If weekly_specific, show day of week picker
       if (frequency === 'weekly_specific') {
@@ -1028,15 +1021,15 @@ export default function ScheduleScreen() {
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '60%' }]} />
+          <View style={[styles.progressFill, { width: '75%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 3 of 5</Text>
+        <Text style={styles.stepText}>Step 3 of 4</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          {/* Show title when coming from frequency-selection step */}
-          {params.frequency && !params.duration && (
+          {/* Show title when coming from frequency-selection step, but hide for custom */}
+          {params.frequency && !params.duration && selectedSchedule !== 'custom' && (
             <Text style={styles.title}>
               Select the time and duration for your {getFrequencyDisplayLabel(selectedSchedule || params.frequency as string)}
             </Text>
@@ -1090,7 +1083,7 @@ export default function ScheduleScreen() {
               <Text style={[
                 styles.optionText,
                 selectedSchedule === 'weekly_specific' && styles.selectedOptionText
-              ]}>Specific Day</Text>
+              ]}>Weekly</Text>
             </Pressable>
 
             <Pressable 

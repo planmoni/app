@@ -15,13 +15,13 @@ type FrequencyOption = {
 };
 
 const FREQUENCY_OPTIONS: FrequencyOption[] = [
-  { value: 'daily', label: 'Daily payments' },
-  { value: 'weekly_specific', label: 'Weekly payments' },
-  { value: 'biweekly', label: 'Bi-weekly payments' },
-  { value: 'end_of_month', label: 'Monthly payments' },
-  { value: 'quarterly', label: 'Quarterly payments' },
-  { value: 'biannual', label: 'Bi-annual payments' },
-  { value: 'annually', label: 'Annually payments' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly_specific', label: 'Weekly' },
+  { value: 'biweekly', label: 'Bi-weekly(Every 2 weeks)' },
+  { value: 'end_of_month', label: 'Monthly' },
+  { value: 'quarterly', label: 'Quarterly(Every 3 months)' },
+  { value: 'biannual', label: 'Bi-annually(Every 6 months)' },
+  { value: 'annually', label: 'Annually' },
 ];
 
 export default function FrequencySelectionScreen() {
@@ -54,7 +54,7 @@ export default function FrequencySelectionScreen() {
         accountName: params.accountName || '',
         bankAccountId: params.bankAccountId || '',
         payoutAccountId: params.payoutAccountId || '',
-        emergencyWithdrawal: params.emergencyWithdrawal || 'false',
+        emergencyWithdrawal: 'true', // Always enabled
         customDates: params.customDates || '',
         dayOfWeek: params.dayOfWeek || '',
         payoutHour: params.payoutHour || '',
@@ -94,7 +94,7 @@ export default function FrequencySelectionScreen() {
         accountName: params.accountName || '',
         bankAccountId: params.bankAccountId || '',
         payoutAccountId: params.payoutAccountId || '',
-        emergencyWithdrawal: params.emergencyWithdrawal || 'false',
+        emergencyWithdrawal: 'true', // Always enabled
         customDates: params.customDates || '',
         dayOfWeek: params.dayOfWeek || '',
         payoutHour: params.payoutHour || '',
@@ -143,44 +143,14 @@ export default function FrequencySelectionScreen() {
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '40%' }]} />
+          <View style={[styles.progressFill, { width: '50%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 2 of 5</Text>
+        <Text style={styles.stepText}>Step 2 of 4</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Text style={styles.title}>Choose a payout disbursement schedule</Text>
-
-          {/* Select specific dates section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionDescription}>
-              Select the dates you want to get paid
-            </Text>
-            <Pressable
-              style={[
-                styles.selectButton,
-                selectionType === 'custom' && styles.selectButtonSelected
-              ]}
-              onPress={handleSelectDates}
-            >
-              <CalendarDays size={20} color={selectionType === 'custom' ? '#1E3A8A' : colors.text} />
-              <Text style={[
-                styles.selectButtonText,
-                selectionType === 'custom' && styles.selectButtonTextSelected
-              ]}>
-                Select dates
-              </Text>
-              <ChevronRight size={20} color={selectionType === 'custom' ? '#1E3A8A' : colors.textSecondary} />
-            </Pressable>
-          </View>
-
-          {/* Or divider */}
-          <View style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Or</Text>
-            <View style={styles.dividerLine} />
-          </View>
+          <Text style={styles.title}>Choose a payment schedule</Text>
 
           {/* Select payment frequency section */}
           <View style={styles.section}>
@@ -235,6 +205,36 @@ export default function FrequencySelectionScreen() {
                 ))}
               </View>
             )}
+          </View>
+
+          {/* Or divider */}
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>Or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Select specific dates section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionDescription}>
+              Select the dates you want to get paid
+            </Text>
+            <Pressable
+              style={[
+                styles.selectButton,
+                selectionType === 'custom' && styles.selectButtonSelected
+              ]}
+              onPress={handleSelectDates}
+            >
+              <CalendarDays size={20} color={selectionType === 'custom' ? '#1E3A8A' : colors.text} />
+              <Text style={[
+                styles.selectButtonText,
+                selectionType === 'custom' && styles.selectButtonTextSelected
+              ]}>
+                Select dates
+              </Text>
+              <ChevronRight size={20} color={selectionType === 'custom' ? '#1E3A8A' : colors.textSecondary} />
+            </Pressable>
           </View>
         </View>
       </KeyboardAvoidingWrapper>
@@ -346,12 +346,12 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     gap: 12,
   },
   selectButtonSelected: {
-    backgroundColor: '#F0F9FF',
+    backgroundColor: colors.accentBackground,
     borderColor: '#1E3A8A',
   },
   selectButtonText: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 20,
     color: colors.text,
     fontWeight: '500',
   },

@@ -217,28 +217,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               })
             });
 
-            // Check if response is OK and has JSON content type
-            const contentType = response.headers.get('content-type');
-            if (response.ok && contentType && contentType.includes('application/json')) {
-              try {
-                const data = await response.json();
-                if (data.success) {
-                  console.log('Login notification sent successfully');
-                } else {
-                  console.log('Login notification attempted:', data.message);
-                }
-              } catch (parseError) {
-                console.error('Failed to parse login notification response:', parseError);
-              }
+            const data = await response.json();
+            if (data.success) {
+              console.log('Login notification sent successfully');
             } else {
-              // If not JSON or not OK, read as text to see what we got
-              const text = await response.text();
-              console.warn('Login notification returned non-JSON response:', {
-                status: response.status,
-                statusText: response.statusText,
-                contentType,
-                preview: text.substring(0, 200)
-              });
+              console.log('Login notification attempted:', data.message);
             }
           } catch (error) {
             console.error('Failed to send login notification:', error);

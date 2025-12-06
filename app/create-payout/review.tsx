@@ -38,7 +38,7 @@ export default function ReviewScreen() {
   const accountName = params.accountName as string;
   const bankAccountId = params.bankAccountId as string;
   const payoutAccountId = params.payoutAccountId as string;
-  const emergencyWithdrawal = params.emergencyWithdrawal === 'true';
+  const emergencyWithdrawal = params.emergencyWithdrawal !== 'false'; // Default to true, always enabled
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
   const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
   const payoutHour = params.payoutHour ? parseInt(params.payoutHour as string) : undefined;
@@ -291,7 +291,7 @@ export default function ReviewScreen() {
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: '100%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 5 of 5</Text>
+        <Text style={styles.stepText}>Step 4 of 4</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>

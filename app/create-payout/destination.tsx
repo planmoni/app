@@ -154,7 +154,7 @@ export default function DestinationScreen() {
       
       if (selectedAccount) {
         router.push({
-          pathname: '/create-payout/rules',
+          pathname: '/create-payout/review',
           params: {
             ...params,
             bankAccountId: accountType === 'linked' ? selectedAccountId : null,
@@ -171,7 +171,7 @@ export default function DestinationScreen() {
             dayOfWeek: params.dayOfWeek || '',
             payoutHour: params.payoutHour || '',
             payoutMinute: params.payoutMinute || '',
-            emergencyWithdrawal: params.emergencyWithdrawal || 'false',
+            emergencyWithdrawal: 'true', // Always enabled
           }
         });
       }
@@ -211,9 +211,9 @@ export default function DestinationScreen() {
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '60%' }]} />
+          <View style={[styles.progressFill, { width: '100%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 4 of 5</Text>
+        <Text style={styles.stepText}>Step 4 of 4</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
@@ -409,7 +409,7 @@ export default function DestinationScreen() {
             if (newAccount && newAccount.id) {
               setSelectedAccountId(newAccount.id);
               router.push({
-                pathname: '/create-payout/rules',
+                pathname: '/create-payout/review',
                 params: {
                   ...params,
                   payoutAccountId: newAccount.id,
@@ -425,7 +425,7 @@ export default function DestinationScreen() {
                   dayOfWeek: params.dayOfWeek || '',
                   payoutHour: params.payoutHour || '',
                   payoutMinute: params.payoutMinute || '',
-                  emergencyWithdrawal: params.emergencyWithdrawal || 'false',
+                  emergencyWithdrawal: 'true', // Always enabled
                 }
               });
             }

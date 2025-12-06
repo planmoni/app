@@ -76,7 +76,7 @@ export default function AmountScreen() {
         accountName: params.accountName || '',
         bankAccountId: params.bankAccountId || '',
         payoutAccountId: params.payoutAccountId || '',
-        emergencyWithdrawal: params.emergencyWithdrawal || 'false',
+        emergencyWithdrawal: 'true', // Always enabled
         customDates: params.customDates || '',
         dayOfWeek: params.dayOfWeek || '',
         payoutHour: params.payoutHour || '',
@@ -158,9 +158,9 @@ export default function AmountScreen() {
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '20%' }]} />
+          <View style={[styles.progressFill, { width: '25%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 1 of 5</Text>
+        <Text style={styles.stepText}>Step 1 of 4</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>

@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFabKeyboardOffset } from '@/hooks/useFabKeyboardOffset';
 import { BlurView } from 'expo-blur';
 import LocationSearchModal from '@/components/LocationSearchModal';
+import { supabase } from '@/lib/supabase';
 
 interface PersonalInfoStepProps {
   onComplete: () => void;
@@ -64,6 +65,10 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   
+  // BVN verification status
+  const isBVNVerified = progress?.bvn_verified || false;
+  const [isLoadingBVNData, setIsLoadingBVNData] = useState(false);
+  
   // Refs
   const lastNameInputRef = useRef<TextInput>(null);
   const middleNameInputRef = useRef<TextInput>(null);
@@ -100,14 +105,90 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
     return null;
   };
 
+  // Load BVN names if BVN is verified
+  useEffect(() => {
+    const loadBVNNames = async () => {
+      if (!isBVNVerified || !session?.user?.id) return;
+      
+      // If names are already populated from formData, sync state with formData
+      if (formData?.first_name && formData?.last_name) {
+        if (firstName !== formData.first_name) setFirstName(formData.first_name);
+        if (lastName !== formData.last_name) setLastName(formData.last_name);
+        if (middleName !== (formData.middle_name || '')) setMiddleName(formData.middle_name || '');
+        return;
+      }
+      
+      try {
+        setIsLoadingBVNData(true);
+        
+        // Query safehaven_accounts to get account_name
+        const { data: accountData, error } = await supabase
+          .from('safehaven_accounts')
+          .select('account_name')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .limit(1)
+          .maybeSingle();
+        
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching BVN account data:', error);
+          return;
+        }
+        
+        if (accountData?.account_name) {
+          // Extract names from account_name
+          const names = accountData.account_name.trim().split(/\s+/);
+          const bvnFirstName = names[0] || '';
+          const bvnLastName = names[names.length - 1] || '';
+          const bvnMiddleName = names.length > 2 ? names.slice(1, -1).join(' ') : '';
+          
+          // Update state with BVN names
+          setFirstName(bvnFirstName);
+          setLastName(bvnLastName);
+          setMiddleName(bvnMiddleName);
+          
+          // Save to formData
+          await saveFormData({
+            first_name: bvnFirstName,
+            last_name: bvnLastName,
+            middle_name: bvnMiddleName
+          });
+        }
+      } catch (error) {
+        console.error('Error loading BVN names:', error);
+      } finally {
+        setIsLoadingBVNData(false);
+      }
+    };
+    
+    loadBVNNames();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBVNVerified, session?.user?.id, formData?.first_name, formData?.last_name, formData?.middle_name]);
+
   const handleDatePickerOpen = () => {
     const existingDate = parseDateFromString(dateOfBirth);
     if (existingDate) {
-      setSelectedDate(existingDate);
-      setCurrentMonth(existingDate);
+      // Ensure the existing date is within valid range
+      const today = new Date();
+      const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+      const maxDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+      maxDate.setHours(23, 59, 59, 999);
+      
+      if (existingDate >= minDate && existingDate <= maxDate) {
+        setSelectedDate(existingDate);
+        setCurrentMonth(existingDate);
+      } else {
+        // If existing date is out of range, set to a valid default (12 years ago)
+        const defaultDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+        setSelectedDate(null);
+        setCurrentMonth(defaultDate);
+      }
     } else {
+      // Default to 12 years ago (maximum selectable date)
+      const today = new Date();
+      const defaultDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
       setSelectedDate(null);
-      setCurrentMonth(new Date());
+      setCurrentMonth(defaultDate);
     }
     setIsDatePickerVisible(true);
   };
@@ -118,23 +199,56 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
   };
 
   const handleDateSelect = (date: Date) => {
-    setSelectedDate(date);
+    const today = new Date();
+    const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+    const maxDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+    maxDate.setHours(23, 59, 59, 999);
+    
+    // Only allow selection if date is within valid range
+    if (date >= minDate && date <= maxDate) {
+      setSelectedDate(date);
+    }
   };
 
   const handleDateConfirm = () => {
     if (selectedDate) {
-      setDateOfBirth(formatDateForDisplay(selectedDate));
-      setErrors(prev => ({ ...prev, dateOfBirth: '' }));
+      const today = new Date();
+      const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+      const maxDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+      maxDate.setHours(23, 59, 59, 999);
+      
+      // Validate date is within range before confirming
+      if (selectedDate >= minDate && selectedDate <= maxDate) {
+        setDateOfBirth(formatDateForDisplay(selectedDate));
+        setErrors(prev => ({ ...prev, dateOfBirth: '' }));
+      } else {
+        showToast('Please select a valid date of birth (minimum age: 12 years)', 'error');
+        return;
+      }
     }
     handleDatePickerClose();
   };
 
   const handlePrevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
+    const today = new Date();
+    const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+    
+    // Only allow going to previous month if it's not before the minimum date
+    if (newMonth >= minDate) {
+      setCurrentMonth(newMonth);
+    }
   };
 
   const handleNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+    const today = new Date();
+    const maxDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+    
+    // Only allow going to next month if it's not after the maximum date
+    if (newMonth <= maxDate) {
+      setCurrentMonth(newMonth);
+    }
   };
 
   const handleYearSelect = (year: number) => {
@@ -143,17 +257,33 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
   };
 
   const handlePrevYear = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear() - 1, currentMonth.getMonth()));
+    const today = new Date();
+    const minYear = today.getFullYear() - 100;
+    const newYear = currentMonth.getFullYear() - 1;
+    
+    // Only allow going to previous year if it's not before the minimum year
+    if (newYear >= minYear) {
+      setCurrentMonth(new Date(newYear, currentMonth.getMonth()));
+    }
   };
 
   const handleNextYear = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth()));
+    const today = new Date();
+    const maxYear = today.getFullYear() - 12;
+    const newYear = currentMonth.getFullYear() + 1;
+    
+    // Only allow going to next year if it's not after the maximum year
+    if (newYear <= maxYear) {
+      setCurrentMonth(new Date(newYear, currentMonth.getMonth()));
+    }
   };
 
   const getAvailableYears = () => {
-    const currentYear = new Date().getFullYear();
+    const today = new Date();
+    const minYear = today.getFullYear() - 100; // 100 years ago
+    const maxYear = today.getFullYear() - 12; // 12 years ago (minimum age)
     const years = [];
-    for (let year = currentYear; year >= currentYear - 100; year--) {
+    for (let year = maxYear; year >= minYear; year--) {
       years.push(year);
     }
     return years;
@@ -173,11 +303,16 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
            currentMonth.getFullYear() === today.getFullYear();
   };
 
-  const isPastDate = (day: number) => {
+  const isDateSelectable = (day: number) => {
     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+    today.setHours(23, 59, 59, 999); // End of today
+    
+    const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+    const maxDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+    maxDate.setHours(23, 59, 59, 999); // End of the day 12 years ago
+    
+    return date >= minDate && date <= maxDate;
   };
 
   // Validation
@@ -325,63 +460,74 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
             
             <View style={styles.inputGroup}>
               <Text style={styles.label}>First Name</Text>
-              <View style={[styles.inputContainer, errors.firstName && styles.inputError]}>
+              <View style={[styles.inputContainer, errors.firstName && styles.inputError, isBVNVerified && styles.inputDisabled]}>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, isBVNVerified && styles.inputReadOnly]}
                   placeholder="Enter your first name"
                   placeholderTextColor={colors.textTertiary}
                   value={firstName}
                   onChangeText={(text) => {
-                    setFirstName(text);
-                    setErrors(prev => ({ ...prev, firstName: '' }));
+                    if (!isBVNVerified) {
+                      setFirstName(text);
+                      setErrors(prev => ({ ...prev, firstName: '' }));
+                    }
                   }}
                   autoCapitalize="words"
                   returnKeyType="next"
                   onSubmitEditing={() => lastNameInputRef.current?.focus()}
-                  editable={!isCompleted}
+                  editable={!isCompleted && !isBVNVerified}
                 />
               </View>
               {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
+              {isBVNVerified && <Text style={styles.helperText}>This field is populated from your BVN verification</Text>}
             </View>
             
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Last Name</Text>
-              <View style={[styles.inputContainer, errors.lastName && styles.inputError]}>
+              <View style={[styles.inputContainer, errors.lastName && styles.inputError, isBVNVerified && styles.inputDisabled]}>
                 <TextInput
                   ref={lastNameInputRef}
-                  style={styles.input}
+                  style={[styles.input, isBVNVerified && styles.inputReadOnly]}
                   placeholder="Enter your last name"
                   placeholderTextColor={colors.textTertiary}
                   value={lastName}
                   onChangeText={(text) => {
-                    setLastName(text);
-                    setErrors(prev => ({ ...prev, lastName: '' }));
+                    if (!isBVNVerified) {
+                      setLastName(text);
+                      setErrors(prev => ({ ...prev, lastName: '' }));
+                    }
                   }}
                   autoCapitalize="words"
                   returnKeyType="next"
                   onSubmitEditing={() => middleNameInputRef.current?.focus()}
-                  editable={!isCompleted}
+                  editable={!isCompleted && !isBVNVerified}
                 />
               </View>
               {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
+              {isBVNVerified && <Text style={styles.helperText}>This field is populated from your BVN verification</Text>}
             </View>
             
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Middle Name (Optional)</Text>
-              <View style={styles.inputContainer}>
+              <View style={[styles.inputContainer, isBVNVerified && styles.inputDisabled]}>
                 <TextInput
                   ref={middleNameInputRef}
-                  style={styles.input}
+                  style={[styles.input, isBVNVerified && styles.inputReadOnly]}
                   placeholder="Enter your middle name"
                   placeholderTextColor={colors.textTertiary}
                   value={middleName}
-                  onChangeText={setMiddleName}
+                  onChangeText={(text) => {
+                    if (!isBVNVerified) {
+                      setMiddleName(text);
+                    }
+                  }}
                   autoCapitalize="words"
                   returnKeyType="next"
                   onSubmitEditing={() => phoneInputRef.current?.focus()}
-                  editable={!isCompleted}
+                  editable={!isCompleted && !isBVNVerified}
                 />
               </View>
+              {isBVNVerified && <Text style={styles.helperText}>This field is populated from your BVN verification</Text>}
             </View>
             
             <View style={styles.inputGroup}>
@@ -550,8 +696,33 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
             <View style={styles.calendarHeader}>
               {!showYearPicker ? (
                 <>
-                  <Pressable onPress={handlePrevMonth} style={styles.navigationButton}>
-                    <ChevronLeft size={20} color={colors.textSecondary} />
+                  <Pressable 
+                    onPress={handlePrevMonth} 
+                    style={[
+                      styles.navigationButton,
+                      (() => {
+                        const today = new Date();
+                        const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+                        const prevMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
+                        return prevMonth < minDate;
+                      })() && styles.navigationButtonDisabled
+                    ]}
+                    disabled={(() => {
+                      const today = new Date();
+                      const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+                      const prevMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
+                      return prevMonth < minDate;
+                    })()}
+                  >
+                    <ChevronLeft 
+                      size={20} 
+                      color={(() => {
+                        const today = new Date();
+                        const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+                        const prevMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
+                        return prevMonth < minDate ? colors.textTertiary : colors.textSecondary;
+                      })()} 
+                    />
                   </Pressable>
                   <View style={styles.monthYearContainer}>
                     <Pressable 
@@ -563,14 +734,61 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
                       </Text>
                     </Pressable>
                   </View>
-                  <Pressable onPress={handleNextMonth} style={styles.navigationButton}>
-                    <ChevronRight size={20} color={colors.textSecondary} />
+                  <Pressable 
+                    onPress={handleNextMonth} 
+                    style={[
+                      styles.navigationButton,
+                      (() => {
+                        const today = new Date();
+                        const maxDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+                        const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+                        return nextMonth > maxDate;
+                      })() && styles.navigationButtonDisabled
+                    ]}
+                    disabled={(() => {
+                      const today = new Date();
+                      const maxDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+                      const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+                      return nextMonth > maxDate;
+                    })()}
+                  >
+                    <ChevronRight 
+                      size={20} 
+                      color={(() => {
+                        const today = new Date();
+                        const maxDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+                        const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+                        return nextMonth > maxDate ? colors.textTertiary : colors.textSecondary;
+                      })()} 
+                    />
                   </Pressable>
                 </>
               ) : (
                 <>
-                  <Pressable onPress={handlePrevYear} style={styles.navigationButton}>
-                    <ChevronLeft size={20} color={colors.textSecondary} />
+                  <Pressable 
+                    onPress={handlePrevYear} 
+                    style={[
+                      styles.navigationButton,
+                      (() => {
+                        const today = new Date();
+                        const minYear = today.getFullYear() - 100;
+                        return currentMonth.getFullYear() <= minYear;
+                      })() && styles.navigationButtonDisabled
+                    ]}
+                    disabled={(() => {
+                      const today = new Date();
+                      const minYear = today.getFullYear() - 100;
+                      return currentMonth.getFullYear() <= minYear;
+                    })()}
+                  >
+                    <ChevronLeft 
+                      size={20} 
+                      color={(() => {
+                        const today = new Date();
+                        const minYear = today.getFullYear() - 100;
+                        return currentMonth.getFullYear() <= minYear ? colors.textTertiary : colors.textSecondary;
+                      })()} 
+                    />
                   </Pressable>
                   <View style={styles.monthYearContainer}>
                     <Pressable 
@@ -582,8 +800,30 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
                       </Text>
                     </Pressable>
                   </View>
-                  <Pressable onPress={handleNextYear} style={styles.navigationButton}>
-                    <ChevronRight size={20} color={colors.textSecondary} />
+                  <Pressable 
+                    onPress={handleNextYear} 
+                    style={[
+                      styles.navigationButton,
+                      (() => {
+                        const today = new Date();
+                        const maxYear = today.getFullYear() - 12;
+                        return currentMonth.getFullYear() >= maxYear;
+                      })() && styles.navigationButtonDisabled
+                    ]}
+                    disabled={(() => {
+                      const today = new Date();
+                      const maxYear = today.getFullYear() - 12;
+                      return currentMonth.getFullYear() >= maxYear;
+                    })()}
+                  >
+                    <ChevronRight 
+                      size={20} 
+                      color={(() => {
+                        const today = new Date();
+                        const maxYear = today.getFullYear() - 12;
+                        return currentMonth.getFullYear() >= maxYear ? colors.textTertiary : colors.textSecondary;
+                      })()} 
+                    />
                   </Pressable>
                 </>
               )}
@@ -660,7 +900,7 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
                             
                             const isSelected = isDateSelected(day);
                             const isTodayDate = isToday(day);
-                            const isPast = isPastDate(day);
+                            const isSelectable = isDateSelectable(day);
                             
                             return (
                               <Pressable
@@ -671,13 +911,13 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
                                   isTodayDate && !isSelected && styles.dayCellToday,
                                 ]}
                                 onPress={() => handleDateSelect(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day))}
-                                disabled={isPast}
+                                disabled={!isSelectable}
                               >
                                 <Text style={[
                                   styles.dayText,
                                   isSelected && styles.dayTextSelected,
                                   isTodayDate && !isSelected && styles.dayTextToday,
-                                  isPast && styles.dayTextPast,
+                                  !isSelectable && styles.dayTextPast,
                                 ]}>
                                   {day}
                                 </Text>
@@ -795,6 +1035,13 @@ function createStyles(colors: any, isDark: boolean) {
       color: colors.textSecondary,
       marginTop: 8,
       lineHeight: 16,
+    },
+    inputDisabled: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+      opacity: 0.7,
+    },
+    inputReadOnly: {
+      color: colors.textSecondary,
     },
     dateInputContent: {
       flexDirection: 'row',
@@ -917,6 +1164,9 @@ function createStyles(colors: any, isDark: boolean) {
       height: 40,
       justifyContent: 'center',
       alignItems: 'center',
+    },
+    navigationButtonDisabled: {
+      opacity: 0.3,
     },
     monthYearContainer: {
       flex: 1,

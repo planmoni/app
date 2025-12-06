@@ -20,6 +20,7 @@ import {
   Eye,
   EyeOff,
   Plus,
+  PieChart,
   CalendarCheck,
   Clock,
   MoreHorizontal,
@@ -60,6 +61,7 @@ import NotificationIcon from '@/components/NotificationIcon';
 import { supabase } from '@/lib/supabase';
 import NextPayoutCard from '@/components/NextPayoutCard';
 import PayoutPlansSection from '@/components/PayoutPlansSection';
+import ExpensePlansSection from '@/components/ExpensePlansSection';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
@@ -993,13 +995,12 @@ export default function HomeScreen() {
                   )}
                 </Pressable>
               </View>
-              {/* <Pressable 
-                onPress={handleViewHistory}
-                style={styles.historyButton}
-                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              <Pressable 
+                onPress={handleAddFunds}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <History size={20} color={colors.textSecondary} />
-              </Pressable> */}
+                <Text style={[styles.addFundsLink, { color: colors.primary }]}>Add funds</Text>
+              </Pressable>
             </View>
             <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
             <View style={styles.lockedSection}>
@@ -1012,18 +1013,21 @@ export default function HomeScreen() {
             <View style={styles.buttonGroup}>
               <Pressable 
                 style={styles.addFundsButton} 
-                onPress={handleAddFunds}
+                onPress={() => {
+                  impact();
+                  router.push('/expense-planner');
+                }}
               >
                 
-                <Plus size={20} color={isDark ? '#fff' : colors.primary}/>
-                <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
+                <PieChart size={20} color={isDark ? '#fff' : colors.primary}/>
+                <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Plan</Text>
               </Pressable>
               <Pressable 
                 style={styles.createButton} 
                 onPress={handleCreatePayout}
               >
                 <CalendarCheck size={22} color={'#fff'} />
-                <Text style={styles.createButtonText}>Plan</Text>
+                <Text style={styles.createButtonText}>Schedule</Text>
               </Pressable>
               
             </View>
@@ -1090,6 +1094,9 @@ export default function HomeScreen() {
           onShowHowItWorks={() => setShowHowItWorksModal(true)}
         />
 
+        {/* Expense Plans Section */}
+        <ExpensePlansSection />
+
         <View style={styles.bottomPadding} />
 
         <RatingCard />
@@ -1110,17 +1117,20 @@ export default function HomeScreen() {
       ]}>
         <Pressable 
           style={styles.addFundsButton} 
-          onPress={handleAddFunds}
+          onPress={() => {
+            impact();
+            router.push('/expense-planner');
+          }}
         >
-          <Plus size={20} color={isDark ? '#fff' : colors.primary} />
-          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
+          <PieChart size={20} color={isDark ? '#fff' : colors.primary} />
+          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Plan</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
           <CalendarCheck size={22} color={'#fff'} />
-          <Text style={styles.createButtonText}>Plan</Text>
+          <Text style={styles.createButtonText}>Schedule</Text>
         </Pressable>
         
       </Animated.View>
@@ -1387,6 +1397,11 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   eyeIconButton: {
     padding: 4,
+  },
+  addFundsLink: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   balanceAmount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 35 : 30, textSizeMultiplier),

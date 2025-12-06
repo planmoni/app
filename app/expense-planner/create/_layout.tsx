@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 
-export default function CreatePayoutLayout() {
+export default function CreateExpensePlanLayout() {
   const { colors } = useTheme();
 
   return (
@@ -11,12 +11,11 @@ export default function CreatePayoutLayout() {
         contentStyle: { backgroundColor: colors.backgroundSecondary },
       }}
     >
-      <Stack.Screen name="amount" />
-      <Stack.Screen name="frequency-selection" />
-      <Stack.Screen name="schedule" />
-      <Stack.Screen name="destination" />
+      <Stack.Screen name="plan-details" />
+      <Stack.Screen name="buckets" />
       <Stack.Screen name="review" />
-      <Stack.Screen name="success" />
+      <Stack.Screen name="dates" />
     </Stack>
   );
 }
+
