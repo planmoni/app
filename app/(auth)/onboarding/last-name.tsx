@@ -25,6 +25,12 @@ export default function LastNameScreen() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Filter out spaces, special characters, and numbers - only allow letters
+  const filterNameInput = (text: string) => {
+    // Only allow letters (A-Z, a-z) - remove spaces, numbers, and special characters
+    return text.replace(/[^A-Za-z]/g, '');
+  };
+
   useEffect(() => {
     setIsButtonEnabled(lastName.trim().length > 0);
   }, [lastName]);
@@ -85,7 +91,8 @@ export default function LastNameScreen() {
                 placeholderTextColor={colors.textTertiary}
                 value={lastName}
                 onChangeText={(text) => {
-                  setLastName(text);
+                  const filteredText = filterNameInput(text);
+                  setLastName(filteredText);
                   setError(null);
                 }}
                 autoCapitalize="words"

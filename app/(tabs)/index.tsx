@@ -999,7 +999,7 @@ export default function HomeScreen() {
                 onPress={handleAddFunds}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={[styles.addFundsLink, { color: colors.primary }]}>Add funds</Text>
+                <Text style={[styles.addFundsLink, { color: colors.primary }]}>+ Add funds</Text>
               </Pressable>
             </View>
             <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
@@ -1027,7 +1027,7 @@ export default function HomeScreen() {
                 onPress={handleCreatePayout}
               >
                 <CalendarCheck size={22} color={'#fff'} />
-                <Text style={styles.createButtonText}>Schedule</Text>
+                <Text style={styles.createButtonText}>Payout</Text>
               </Pressable>
               
             </View>
@@ -1130,7 +1130,7 @@ export default function HomeScreen() {
           onPress={handleCreatePayout}
         >
           <CalendarCheck size={22} color={'#fff'} />
-          <Text style={styles.createButtonText}>Schedule</Text>
+          <Text style={styles.createButtonText}>Payout</Text>
         </Pressable>
         
       </Animated.View>
@@ -1401,7 +1401,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   addFundsLink: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
     fontWeight: '600',
-    textDecorationLine: 'underline',
   },
   balanceAmount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 35 : 30, textSizeMultiplier),

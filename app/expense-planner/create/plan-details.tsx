@@ -254,13 +254,12 @@ const CATEGORIES: Category[] = [
   },
   { 
     id: 'infrastructure_tax', 
-    name: 'Infrastructure Tax', 
+    name: 'Other Repairs', 
     icon: Wrench,
     subCategories: [
       { id: 'generator_fuel', name: 'Generator Fuel (Petrol/Diesel)' },
       { id: 'generator_maintenance', name: 'Generator Maintenance/Repair' },
-      { id: 'inverter_solar', name: 'Inverter/Solar Charging' },
-      { id: 'security_fees', name: 'Private Security Fees' },
+      { id: 'inverter_solar', name: 'Inverter/Solar Repair' },
     ],
     note: 'This is a crucial, high-cost category unique to the Nigerian context due to public service shortfalls.',
   },

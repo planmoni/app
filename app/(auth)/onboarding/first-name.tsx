@@ -23,6 +23,12 @@ export default function FirstNameScreen() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Filter out spaces, special characters, and numbers - only allow letters
+  const filterNameInput = (text: string) => {
+    // Only allow letters (A-Z, a-z) - remove spaces, numbers, and special characters
+    return text.replace(/[^A-Za-z]/g, '');
+  };
+
   useEffect(() => {
     setIsButtonEnabled(firstName.trim().length > 0);
   }, [firstName]);
@@ -81,7 +87,8 @@ export default function FirstNameScreen() {
                 placeholderTextColor={colors.textTertiary}
                 value={firstName}
                 onChangeText={(text) => {
-                  setFirstName(text);
+                  const filteredText = filterNameInput(text);
+                  setFirstName(filteredText);
                   setError(null);
                 }}
                 autoCapitalize="words"
