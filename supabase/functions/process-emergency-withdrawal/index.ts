@@ -69,6 +69,7 @@ serve(async (req: Request) => {
     }
 
     // Get the emergency withdrawal record
+    // Allow both "pending" (new withdrawals) and "scheduled" (ready to process) statuses
     const { data: withdrawal, error: withdrawalError } = await supabase
       .from("emergency_withdrawals")
       .select(`
@@ -104,13 +105,48 @@ serve(async (req: Request) => {
       `)
       .eq("id", emergencyWithdrawalId)
       .eq("user_id", userId)
-      .eq("status", "pending")
+      .in("status", ["pending", "scheduled"])
       .single()
 
     if (withdrawalError || !withdrawal) {
       return new Response(
-        JSON.stringify({ error: "Emergency withdrawal not found or already processed" }),
+        JSON.stringify({ error: "Emergency withdrawal not found, already processed, or not ready for processing" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // Check if this is a scheduled withdrawal that's ready to be processed
+    // IMPORTANT: Check this BEFORE we update the status, so we can use the original status
+    const isScheduledAndReady = withdrawal.status === "scheduled" && 
+      withdrawal.scheduled_processing_time && 
+      new Date(withdrawal.scheduled_processing_time) <= new Date()
+
+    // If withdrawal is scheduled and ready, update status to processing before proceeding
+    if (isScheduledAndReady) {
+      const scheduledTime = withdrawal.scheduled_processing_time ? new Date(withdrawal.scheduled_processing_time) : null
+      
+      // Update status to processing before proceeding
+      await supabase
+        .from("emergency_withdrawals")
+        .update({ 
+          status: "processing",
+          processed_at: new Date().toISOString()
+        })
+        .eq("id", emergencyWithdrawalId)
+      
+      console.log(`Processing scheduled withdrawal ${emergencyWithdrawalId} that was scheduled for ${scheduledTime?.toISOString()}`)
+    } else if (withdrawal.status === "scheduled") {
+      // Scheduled but not ready yet
+      const scheduledTime = withdrawal.scheduled_processing_time ? new Date(withdrawal.scheduled_processing_time) : null
+      const now = new Date()
+      
+      return new Response(
+        JSON.stringify({ 
+          error: "Scheduled withdrawal is not ready for processing yet",
+          scheduled_processing_time: scheduledTime?.toISOString(),
+          current_time: now.toISOString()
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 
@@ -138,10 +174,30 @@ serve(async (req: Request) => {
     console.log(`Time elapsed: ${timeElapsedHours.toFixed(2)} hours (${timeElapsedDays.toFixed(2)} days)`)
 
     // Determine the correct withdrawal type based on time elapsed
+    // For scheduled withdrawals that are ready to process, use the existing withdrawal_type
     let correctWithdrawalType = ""
     let feePercentage = 0
 
-    if (timeElapsedHours < 24) {
+    if (isScheduledAndReady) {
+      // For scheduled withdrawals being processed, use the existing withdrawal_type and fee_amount
+      correctWithdrawalType = withdrawal.withdrawal_type || "instant"
+      // Use existing fee_amount if available, otherwise calculate
+      if (withdrawal.fee_amount && withdrawal.fee_amount > 0) {
+        feePercentage = (withdrawal.fee_amount / remainingAmount) * 100
+      } else {
+        // Fallback to calculating fee based on withdrawal type
+        if (correctWithdrawalType === "instant") {
+          feePercentage = 12.00
+        } else if (correctWithdrawalType === "24hrs") {
+          feePercentage = 10.00
+        } else if (correctWithdrawalType === "72hrs") {
+          feePercentage = 6.00
+        } else {
+          feePercentage = 12.00 // Default
+        }
+      }
+      console.log(`Using existing withdrawal type ${correctWithdrawalType} and fee ${feePercentage}% for scheduled withdrawal`)
+    } else if (timeElapsedHours < 24) {
       // Less than 24 hours - only instant withdrawal allowed
       correctWithdrawalType = "instant"
       feePercentage = 12.00
@@ -185,8 +241,20 @@ serve(async (req: Request) => {
     console.log(`Selected withdrawal type: ${correctWithdrawalType}, Fee percentage: ${feePercentage}%`)
 
     // Calculate fee based on remaining amount (not total amount)
-    const feeAmount = (remainingAmount * feePercentage) / 100
-    const netAmount = remainingAmount - feeAmount
+    // For scheduled withdrawals, use existing fee_amount if available
+    let feeAmount: number
+    let netAmount: number
+    
+    if (isScheduledAndReady && withdrawal.fee_amount && withdrawal.fee_amount > 0 && withdrawal.net_amount && withdrawal.net_amount > 0) {
+      // Use existing fee and net amounts for scheduled withdrawals
+      feeAmount = withdrawal.fee_amount
+      netAmount = withdrawal.net_amount
+      console.log(`Using existing fee_amount (₦${feeAmount.toLocaleString()}) and net_amount (₦${netAmount.toLocaleString()}) for scheduled withdrawal`)
+    } else {
+      // Calculate fee and net amounts for new withdrawals
+      feeAmount = (remainingAmount * feePercentage) / 100
+      netAmount = remainingAmount - feeAmount
+    }
 
     console.log(`Remaining amount: ₦${remainingAmount.toLocaleString()}`)
     console.log(`Fee amount (${feePercentage}%): ₦${feeAmount.toLocaleString()}`)
@@ -203,13 +271,20 @@ serve(async (req: Request) => {
     }
 
     // Update the withdrawal record with correct fee and net amounts
+    // For scheduled withdrawals, fees are already set, so only update if needed
+    const updateData: any = {
+      withdrawal_type: correctWithdrawalType
+    }
+    
+    if (!isScheduledAndReady || !withdrawal.fee_amount || !withdrawal.net_amount) {
+      // Only update fee and net amounts if not already set (for new withdrawals)
+      updateData.fee_amount = feeAmount
+      updateData.net_amount = netAmount
+    }
+    
     const { error: feeUpdateError } = await supabase
       .from("emergency_withdrawals")
-      .update({ 
-        fee_amount: feeAmount,
-        net_amount: netAmount,
-        withdrawal_type: correctWithdrawalType
-      })
+      .update(updateData)
       .eq("id", emergencyWithdrawalId)
 
     if (feeUpdateError) {
@@ -223,19 +298,29 @@ serve(async (req: Request) => {
     // Calculate scheduled processing time based on withdrawal type
     let scheduledProcessingTime = new Date()
     let status = "processing"
+    let shouldProcessNow = false // Flag to indicate if we should process immediately
     
-    if (correctWithdrawalType === "instant") {
+    if (isScheduledAndReady) {
+      // This is a scheduled withdrawal that's ready to process - treat it like instant
+      scheduledProcessingTime = new Date()
+      status = "processing"
+      shouldProcessNow = true
+      console.log(`Processing scheduled withdrawal ${emergencyWithdrawalId} that is ready`)
+    } else if (correctWithdrawalType === "instant") {
       // Process immediately
       scheduledProcessingTime = new Date()
       status = "processing"
+      shouldProcessNow = true
     } else if (correctWithdrawalType === "24hrs") {
       // Schedule for processing within 24 hours
       scheduledProcessingTime = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
       status = "scheduled"
+      shouldProcessNow = false
     } else if (correctWithdrawalType === "72hrs") {
       // Schedule for processing within 72 hours
       scheduledProcessingTime = new Date(Date.now() + 72 * 60 * 60 * 1000) // 72 hours from now
       status = "scheduled"
+      shouldProcessNow = false
     }
 
     // Update withdrawal status and scheduled time
@@ -256,8 +341,8 @@ serve(async (req: Request) => {
       )
     }
 
-    // Only process immediately for instant withdrawals
-    if (correctWithdrawalType === "instant") {
+    // Process immediately for instant withdrawals or scheduled withdrawals that are ready
+    if (shouldProcessNow) {
       try {
         // Validate SafeHaven credentials
         if (!safeHavenClientId || !safeHavenClientAssertion) {
@@ -381,14 +466,19 @@ serve(async (req: Request) => {
         }
 
       // Reduce both balance and locked_balance since money is being withdrawn from the system
-      const { error: reduceError } = await supabase.rpc("transfer_funds", {
-        arg_user_id: userId,
-        arg_amount: withdrawal.withdrawal_amount
-      })
+      // NOTE: For scheduled withdrawals, funds were already debited when scheduling, so skip this step
+      if (!isScheduledAndReady) {
+        const { error: reduceError } = await supabase.rpc("transfer_funds", {
+          arg_user_id: userId,
+          arg_amount: withdrawal.withdrawal_amount
+        })
 
-      if (reduceError) {
-        console.error("Error reducing wallet balance:", reduceError)
-        throw new Error(`Failed to reduce wallet balance: ${reduceError.message}`)
+        if (reduceError) {
+          console.error("Error reducing wallet balance:", reduceError)
+          throw new Error(`Failed to reduce wallet balance: ${reduceError.message}`)
+        }
+      } else {
+        console.log(`Skipping wallet debit for scheduled withdrawal - funds were already debited when scheduling`)
       }
 
       // Create transaction record for emergency withdrawal
@@ -516,8 +606,41 @@ serve(async (req: Request) => {
       )
       }
     } else {
-      // For scheduled withdrawals (24hrs, 72hrs), cancel the payout plan immediately
-      // to prevent future regular payouts from processing before the emergency withdrawal
+      // For scheduled withdrawals (24hrs, 72hrs), we need to:
+      // 1. Debit funds immediately to reserve them for the scheduled withdrawal
+      // 2. Cancel the payout plan to prevent future regular payouts
+      
+      // IMPORTANT: Debit funds immediately when scheduling, not when processing
+      // This ensures funds are reserved and won't go back to available_balance when plan is cancelled
+      const { error: reduceError } = await supabase.rpc("transfer_funds", {
+        arg_user_id: userId,
+        arg_amount: withdrawal.withdrawal_amount
+      })
+
+      if (reduceError) {
+        console.error("Error reducing wallet balance for scheduled withdrawal:", reduceError)
+        // Update withdrawal status to failed
+        await supabase
+          .from("emergency_withdrawals")
+          .update({ 
+            status: "failed",
+            error_message: `Failed to reserve funds: ${reduceError.message}`,
+            processed_at: new Date().toISOString()
+          })
+          .eq("id", emergencyWithdrawalId)
+
+        return new Response(
+          JSON.stringify({ 
+            error: "Failed to reserve funds for scheduled withdrawal",
+            details: reduceError.message 
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
+
+      console.log(`✅ Successfully debited ₦${withdrawal.withdrawal_amount.toLocaleString()} from wallet for scheduled withdrawal`)
+
+      // Cancel the payout plan immediately to prevent future regular payouts from processing
       const { error: planUpdateError } = await supabase
         .from("payout_plans")
         .update({ 
@@ -528,12 +651,37 @@ serve(async (req: Request) => {
 
       if (planUpdateError) {
         console.error("Error updating plan status to cancelled:", planUpdateError)
-        // Don't throw error here as the withdrawal was scheduled successfully
+        // Don't throw error here as the withdrawal was scheduled successfully and funds are already debited
       } else {
         console.log(`Successfully cancelled plan ${withdrawal.payout_plan_id} to prevent future payouts before emergency withdrawal`)
       }
 
-      // For scheduled withdrawals (24hrs, 72hrs), just return success without processing
+      // Create transaction record for scheduled withdrawal (status: scheduled)
+      const { error: txCreateError } = await supabase.rpc('create_transaction_record', {
+        p_user_id: userId,
+        p_type: 'withdrawal',
+        p_amount: netAmount,
+        p_status: 'scheduled',
+        p_source: 'Wallet',
+        p_destination: 'Bank Transfer',
+        p_reference: withdrawal.reference,
+        p_payout_plan_id: withdrawal.payout_plan_id,
+        p_description: `Emergency withdrawal scheduled (${correctWithdrawalType})`,
+        p_metadata: {
+          emergency_withdrawal_id: withdrawal.id,
+          withdrawal_type: correctWithdrawalType,
+          fee_percentage: feePercentage,
+          fee_amount: feeAmount,
+          scheduled_processing_time: scheduledProcessingTime.toISOString()
+        }
+      })
+
+      if (txCreateError) {
+        console.error("Error creating transaction record for scheduled withdrawal:", txCreateError)
+        // Don't throw error here as the withdrawal was scheduled successfully
+      }
+
+      // For scheduled withdrawals (24hrs, 72hrs), just return success without processing transfer
       const processingTimeText = correctWithdrawalType === "24hrs" ? "within 24 hours" : "within 72 hours"
       
       // Create notification for scheduled withdrawal
@@ -543,7 +691,7 @@ serve(async (req: Request) => {
           user_id: userId,
           type: "withdrawal_scheduled",
           title: "Emergency Withdrawal Scheduled",
-          description: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been scheduled for processing ${processingTimeText}. The payout plan has been cancelled to prevent future payouts.`,
+          description: `Your emergency withdrawal of ₦${netAmount.toLocaleString()} has been scheduled for processing ${processingTimeText}. Funds have been reserved and the payout plan has been cancelled.`,
           status: "unread"
         })
 

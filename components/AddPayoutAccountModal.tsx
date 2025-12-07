@@ -11,7 +11,7 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useBanks, Bank } from '@/hooks/useBanks';
 import { useAccountResolution } from '@/hooks/useAccountResolution';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getSafeHavenBankCode } from '@/lib/safehaven-bank-mapper';
+import { supabase } from '@/lib/supabase';
 
 interface AddPayoutAccountModalProps {
   isVisible: boolean;
@@ -49,6 +49,11 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   const [showBankSelector, setShowBankSelector] = useState(false);
   const [bankSearchQuery, setBankSearchQuery] = useState('');
   const [accountResolved, setAccountResolved] = useState(false);
+  const [bankCodes, setBankCodes] = useState<{ paystackCode: string | null; safehavenCode: string | null }>({
+    paystackCode: null,
+    safehavenCode: null
+  });
+  const [isLoadingBankCodes, setIsLoadingBankCodes] = useState(false);
   
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -112,16 +117,57 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       haptics.impact();
       
       const bankName = selectedBank?.name || formData.bankName.trim();
-      const bankCode = selectedBank?.code || null;
-      const safeHavenBankCode = getSafeHavenBankCode(bankCode, bankName);
+      
+      // Use bank codes from database (bank_comparison table) if available
+      // Otherwise fallback to selected bank's code for Paystack
+      const paystackCode = bankCodes.paystackCode || selectedBank?.code || null;
+      const safehavenCode = bankCodes.safehavenCode || null;
+      
+      // If we don't have codes from database, try to fetch them one more time
+      if (!paystackCode || !safehavenCode) {
+        console.log("⚠️ Missing bank codes, fetching from database...");
+        const codes = await fetchBankCodesFromDatabase(bankName);
+        if (codes.paystackCode || codes.safehavenCode) {
+          setBankCodes(codes);
+          // Use the fetched codes
+          const finalPaystackCode = codes.paystackCode || paystackCode;
+          const finalSafehavenCode = codes.safehavenCode || safehavenCode;
+          
+          // Prepare account data with bank codes from database
+          const accountData = {
+            account_name: formData.accountName.trim(),
+            account_number: formData.accountNumber.trim(),
+            bank_name: bankName,
+            ...(finalPaystackCode && { bank_code: finalPaystackCode }),
+            ...(finalSafehavenCode && { safehaven_bank_code: finalSafehavenCode })
+          };
+          
+          // Log the data being sent for debugging
+          console.log('📤 Adding payout account with data (from bank_comparison):', {
+            account_name: accountData.account_name,
+            account_number: accountData.account_number,
+            bank_name: accountData.bank_name,
+            bank_code: accountData.bank_code || 'N/A',
+            safehaven_bank_code: accountData.safehaven_bank_code || 'N/A',
+            source: 'bank_comparison'
+          });
+          
+          const newAccount = await addPayoutAccount(accountData);
+          
+          haptics.notification(Haptics.NotificationFeedbackType.Success);
+          resetForm();
+          onClose(newAccount);
+          return;
+        }
+      }
       
       // Prepare account data with bank codes
       const accountData = {
         account_name: formData.accountName.trim(),
         account_number: formData.accountNumber.trim(),
         bank_name: bankName,
-        ...(bankCode && { bank_code: bankCode }),
-        ...(safeHavenBankCode && { safehaven_bank_code: safeHavenBankCode })
+        ...(paystackCode && { bank_code: paystackCode }),
+        ...(safehavenCode && { safehaven_bank_code: safehavenCode })
       };
       
       // Log the data being sent for debugging
@@ -131,10 +177,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
         bank_name: accountData.bank_name,
         bank_code: accountData.bank_code || 'N/A',
         safehaven_bank_code: accountData.safehaven_bank_code || 'N/A',
-        selectedBank: selectedBank ? {
-          name: selectedBank.name,
-          code: selectedBank.code
-        } : 'N/A'
+        source: bankCodes.paystackCode || bankCodes.safehavenCode ? 'bank_comparison' : 'fallback'
       });
       
       const newAccount = await addPayoutAccount(accountData);
@@ -193,6 +236,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     setAccountResolved(false);
     setFormErrors({});
     setResolutionError(null);
+    setBankCodes({ paystackCode: null, safehavenCode: null });
   };
   
   const handleClose = () => {
@@ -216,7 +260,46 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     });
   };
 
-  const handleBankSelect = (bank: Bank) => {
+  // Function to fetch bank codes from bank_comparison table
+  const fetchBankCodesFromDatabase = async (bankName: string) => {
+    try {
+      setIsLoadingBankCodes(true);
+      
+      const { data: mapping, error } = await supabase
+        .from("bank_comparison")
+        .select("safehaven_code, paystack_code")
+        .ilike("bank_name", bankName)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error fetching bank codes from bank_comparison:", error);
+        return { paystackCode: null, safehavenCode: null };
+      }
+
+      if (mapping) {
+        console.log("✅ Found bank codes from bank_comparison:", {
+          bankName,
+          paystackCode: mapping.paystack_code,
+          safehavenCode: mapping.safehaven_code
+        });
+        return {
+          paystackCode: mapping.paystack_code || null,
+          safehavenCode: mapping.safehaven_code || null
+        };
+      }
+
+      console.log("⚠️ No bank codes found in bank_comparison for:", bankName);
+      return { paystackCode: null, safehavenCode: null };
+    } catch (error) {
+      console.error("Error in fetchBankCodesFromDatabase:", error);
+      return { paystackCode: null, safehavenCode: null };
+    } finally {
+      setIsLoadingBankCodes(false);
+    }
+  };
+
+  const handleBankSelect = async (bank: Bank) => {
     setSelectedBank(bank);
     setFormData(prev => ({ ...prev, bankName: bank.name }));
     setShowBankSelector(false);
@@ -229,9 +312,15 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       setResolutionError(null);
     }
     
+    // Fetch bank codes from bank_comparison table
+    const codes = await fetchBankCodesFromDatabase(bank.name);
+    setBankCodes(codes);
+    
     // If account number is already entered, try to resolve account
     if (formData.accountNumber.length === 10) {
-      handleResolveAccount(formData.accountNumber, bank.code);
+      // Use Paystack code from database if available, otherwise use bank.code
+      const bankCodeToUse = codes.paystackCode || bank.code;
+      handleResolveAccount(formData.accountNumber, bankCodeToUse);
     }
   };
 
@@ -256,7 +345,9 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       
       // If account number is 10 digits and bank is selected, try to resolve
       if (numericText.length === 10 && selectedBank) {
-        handleResolveAccount(numericText, selectedBank.code);
+        // Use Paystack code from database if available, otherwise use bank.code
+        const bankCodeToUse = bankCodes.paystackCode || selectedBank.code;
+        handleResolveAccount(numericText, bankCodeToUse);
       }
     }
   };
