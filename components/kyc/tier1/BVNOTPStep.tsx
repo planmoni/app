@@ -43,6 +43,8 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
   const [otpMessage, setOtpMessage] = useState<string | null>(initialOtpMessage || null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [timer, setTimer] = useState(60);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const otpInputRef = useRef<TextInput>(null);
@@ -86,6 +88,7 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
           
           setIdentityId(newIdentityId);
           setOtpMessage(newOtpMessage);
+          setTimer(60); // Start countdown timer
           showToast(newOtpMessage, 'success');
           
           // Auto-focus OTP input after initialization
@@ -107,6 +110,16 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
 
     initializeBVN();
   }, [bvn, session?.user?.id, session?.user?.email]); // Run when bvn or session changes
+
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    if (timer > 0 && identityId) {
+      const interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [timer, identityId]);
 
   const handleVerify = async () => {
     // Validate OTP and phone number
@@ -182,8 +195,13 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
       const accountNumber = verificationData.account_number;
       const accountName = verificationData.account_name || `${verificationData.first_name} ${verificationData.last_name}`.trim();
       
-      // Save phone number to form data
-      await saveFormData({ phone_number: phoneNumber });
+      // Save phone number and BVN names to form data
+      await saveFormData({ 
+        phone_number: phoneNumber,
+        first_name: verificationData.first_name || '',
+        last_name: verificationData.last_name || '',
+        middle_name: verificationData.middle_name || ''
+      });
 
       // Update progress - mark id_face_verified as true (same as NIN verification)
       await updateProgress({
@@ -225,6 +243,43 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
       showToast(errorMessage, 'error');
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    if (timer > 0 || !session?.user?.id || !session?.user?.email || !bvn) {
+      return;
+    }
+
+    setIsResending(true);
+    setOtpError(null);
+    setPhoneError(null);
+
+    try {
+      const result = await safeHavenService.initializeBVNVerification(
+        session.user.id,
+        bvn,
+        session.user.email
+      );
+
+      if (result.success && result.data?.identityId) {
+        const newIdentityId = result.data.identityId;
+        const newOtpMessage = result.data?.otpMessage || 'OTP sent to phone number linked to your BVN';
+        
+        setIdentityId(newIdentityId);
+        setOtpMessage(newOtpMessage);
+        setTimer(60); // Reset timer to 60 seconds
+        showToast(newOtpMessage, 'success');
+      } else {
+        setOtpError(result.error || 'Failed to resend OTP');
+        showToast(result.error || 'Failed to resend OTP', 'error');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to resend OTP';
+      setOtpError(errorMessage);
+      showToast(errorMessage, 'error');
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -283,6 +338,25 @@ export default function BVNOTPStep({ onComplete, bvn, identityId: initialIdentit
                 />
               </View>
               {otpError && <Text style={styles.errorText}>{otpError}</Text>}
+              
+              {/* Resend OTP Section */}
+              <View style={styles.resendContainer}>
+                {timer > 0 ? (
+                  <Text style={styles.timerText}>
+                    Resend OTP in {timer}s
+                  </Text>
+                ) : (
+                  <Pressable
+                    onPress={handleResendOTP}
+                    disabled={isResending || isVerifying || isInitializing}
+                    style={styles.resendButton}
+                  >
+                    <Text style={[styles.resendText, { color: colors.primary }]}>
+                      {isResending ? 'Resending...' : 'Resend OTP'}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
 
             <View style={styles.inputGroup}>
@@ -537,6 +611,24 @@ function createStyles(colors: any, isDark: boolean) {
     switchToNINText: {
       fontSize: 14,
       fontWeight: '500',
+      textDecorationLine: 'underline',
+    },
+    resendContainer: {
+      marginTop: 12,
+      alignItems: 'center',
+    },
+    timerText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    resendButton: {
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+    },
+    resendText: {
+      fontSize: 14,
+      fontWeight: '600',
       textDecorationLine: 'underline',
     },
   });

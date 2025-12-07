@@ -7,7 +7,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useKYCData } from '@/hooks/useKYCData';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
-import { verifyNIN } from '@/utils/kyc-verification';
+import { verifyNIN, initializeNINVerification } from '@/utils/kyc-verification';
 import { safeHavenService } from '@/lib/safehaven-service';
 import Button from '@/components/Button';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,17 +41,31 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSendingToBVN, setIsSendingToBVN] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [timer, setTimer] = useState(60);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const otpInputRef = useRef<TextInput>(null);
   const phoneInputRef = useRef<TextInput>(null);
 
-  // Auto-focus OTP input when component mounts
+  // Auto-focus OTP input when component mounts and start timer
   useEffect(() => {
     setTimeout(() => {
       otpInputRef.current?.focus();
     }, 300);
+    // Start countdown timer when component mounts
+    setTimer(60);
   }, []);
+
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    if (timer > 0) {
+      const interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [timer]);
 
   const handleVerify = async () => {
     // Validate OTP and phone number
@@ -156,6 +170,38 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
     }
   };
 
+  const handleResendOTP = async () => {
+    if (timer > 0 || !session?.user?.id || !session?.user?.email) {
+      return;
+    }
+
+    setIsResending(true);
+    setOtpError(null);
+    setPhoneError(null);
+
+    try {
+      const result = await initializeNINVerification(
+        nin,
+        session.user.id,
+        session.user.email
+      );
+
+      if (result.success) {
+        showToast(result.otpMessage || 'OTP resent successfully', 'success');
+        setTimer(60); // Reset timer to 60 seconds
+      } else {
+        setOtpError(result.error || 'Failed to resend OTP');
+        showToast(result.error || 'Failed to resend OTP', 'error');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to resend OTP';
+      setOtpError(errorMessage);
+      showToast(errorMessage, 'error');
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   const handleSendToBVN = async () => {
     if (!session?.user?.id || !session?.user?.email) {
       showToast('Authentication required', 'error');
@@ -245,6 +291,25 @@ export default function OTPStep({ onComplete, nin, identityId, otpMessage, onSwi
                 />
               </View>
               {otpError && <Text style={styles.errorText}>{otpError}</Text>}
+              
+              {/* Resend OTP Section */}
+              <View style={styles.resendContainer}>
+                {timer > 0 ? (
+                  <Text style={styles.timerText}>
+                    Resend OTP in {timer}s
+                  </Text>
+                ) : (
+                  <Pressable
+                    onPress={handleResendOTP}
+                    disabled={isResending || isVerifying}
+                    style={styles.resendButton}
+                  >
+                    <Text style={[styles.resendText, { color: colors.primary }]}>
+                      {isResending ? 'Resending...' : 'Resend OTP'}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
 
             <View style={styles.inputGroup}>
@@ -499,6 +564,24 @@ function createStyles(colors: any, isDark: boolean) {
     sendToBVNText: {
       fontSize: 14,
       fontWeight: '500',
+      textDecorationLine: 'underline',
+    },
+    resendContainer: {
+      marginTop: 12,
+      alignItems: 'center',
+    },
+    timerText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    resendButton: {
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+    },
+    resendText: {
+      fontSize: 14,
+      fontWeight: '600',
       textDecorationLine: 'underline',
     },
   });

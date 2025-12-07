@@ -27,6 +27,18 @@ export default function FirstNameScreen() {
     setIsButtonEnabled(firstName.trim().length > 0);
   }, [firstName]);
 
+  // Filter input to only allow letters (no spaces, numbers, or special characters)
+  const filterLettersOnly = (text: string): string => {
+    // Remove all non-letter characters (keeps only A-Z, a-z, including accented characters)
+    return text.replace(/[^a-zA-ZÀ-ÿ]/g, '');
+  };
+
+  const handleTextChange = (text: string) => {
+    const filteredText = filterLettersOnly(text);
+    setFirstName(filteredText);
+    setError(null);
+  };
+
   const handleContinue = () => {
     if (!firstName.trim()) {
       setError('Please enter your first name');
@@ -80,10 +92,7 @@ export default function FirstNameScreen() {
                 placeholder="Enter your first name"
                 placeholderTextColor={colors.textTertiary}
                 value={firstName}
-                onChangeText={(text) => {
-                  setFirstName(text);
-                  setError(null);
-                }}
+                onChangeText={handleTextChange}
                 autoCapitalize="words"
                 textContentType="givenName"
               />
