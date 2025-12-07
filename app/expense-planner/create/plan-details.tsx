@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Dimensions } from 'react-native';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Dimensions, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { 
@@ -18,6 +18,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { Platform } from 'react-native';
+import { useExpensePlans } from '@/hooks/useExpensePlans';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PADDING = 20;
@@ -706,12 +707,49 @@ export default function PlanDetailsScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
+  const { saveDraftExpensePlan } = useExpensePlans();
   const totalBudget = params.totalBudget as string;
   const budgetStructure = params.budgetStructure as string;
+  const planId = params.planId as string | undefined;
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedSubCategories, setSelectedSubCategories] = useState<Record<string, string[]>>({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentPlanId, setCurrentPlanId] = useState<string | undefined>(planId);
+  const initializedRef = useRef(false);
+
+  // Create draft plan on mount if it doesn't exist (fallback)
+  useEffect(() => {
+    const initializeDraftPlan = async () => {
+      if (!currentPlanId && !initializedRef.current && totalBudget && budgetStructure) {
+        initializedRef.current = true;
+        try {
+          console.log('Creating draft plan on mount...', { totalBudget, budgetStructure });
+          const draftPlan = await saveDraftExpensePlan({
+            total_budget: parseFloat(totalBudget),
+            budget_structure: budgetStructure as 'fixed' | 'estimated',
+          });
+          if (draftPlan?.id) {
+            console.log('Draft plan created successfully:', draftPlan.id);
+            setCurrentPlanId(draftPlan.id);
+          } else {
+            console.error('Draft plan created but no ID returned:', draftPlan);
+          }
+        } catch (error) {
+          console.error('Error initializing draft plan:', error);
+          Alert.alert(
+            'Error',
+            'Failed to initialize plan. Please go back and try again.',
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
+        }
+      }
+    };
+
+    initializeDraftPlan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPlanId, totalBudget, budgetStructure]);
 
   const filteredCategories = CATEGORIES.filter(category => {
     const categoryNameMatch = category.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -782,7 +820,7 @@ export default function PlanDetailsScreen() {
     setSearchQuery('');
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     const allSelectedSubCategories = Object.values(selectedSubCategories).flat();
     
     if (allSelectedSubCategories.length === 0) {
@@ -791,14 +829,66 @@ export default function PlanDetailsScreen() {
     }
 
     haptics.mediumImpact();
-    router.push({
-      pathname: '/expense-planner/create/buckets',
-      params: {
-        totalBudget,
-        budgetStructure,
-        subCategories: JSON.stringify(selectedSubCategories),
-      },
-    });
+    setIsSaving(true);
+
+    try {
+      // Use currentPlanId if available, otherwise use planId from params
+      let activePlanId = currentPlanId || planId;
+      
+      // If still no planId, create one now
+      if (!activePlanId) {
+        console.log('No planId found, creating draft plan...');
+        const newDraftPlan = await saveDraftExpensePlan({
+          total_budget: parseFloat(totalBudget),
+          budget_structure: budgetStructure as 'fixed' | 'estimated',
+        });
+        
+        if (!newDraftPlan || !newDraftPlan.id) {
+          throw new Error('Failed to create draft plan: No plan ID returned');
+        }
+        
+        activePlanId = newDraftPlan.id;
+        setCurrentPlanId(newDraftPlan.id);
+      }
+      
+      // Save or update draft plan
+      const draftPlan = await saveDraftExpensePlan({
+        planId: activePlanId,
+        total_budget: parseFloat(totalBudget),
+        budget_structure: budgetStructure as 'fixed' | 'estimated',
+      });
+
+      // Ensure we have a valid plan ID
+      if (!draftPlan || !draftPlan.id) {
+        throw new Error('Failed to save draft plan: No plan ID returned');
+      }
+
+      console.log('Draft plan saved successfully:', draftPlan.id);
+
+      // Update currentPlanId if it changed
+      if (draftPlan.id !== activePlanId) {
+        setCurrentPlanId(draftPlan.id);
+      }
+
+      router.push({
+        pathname: '/expense-planner/create/buckets',
+        params: {
+          totalBudget,
+          budgetStructure,
+          subCategories: JSON.stringify(selectedSubCategories),
+          planId: draftPlan.id,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error saving draft plan:', error);
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to save draft plan. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
@@ -959,7 +1049,7 @@ export default function PlanDetailsScreen() {
       <FloatingButton
         title="Continue"
         onPress={handleContinue}
-        disabled={Object.values(selectedSubCategories).flat().length === 0}
+        disabled={Object.values(selectedSubCategories).flat().length === 0 || isSaving}
         hapticType="medium"
       />
     </SafeAreaView>

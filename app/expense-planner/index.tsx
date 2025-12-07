@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft, X } from 'lucide-react-native';
@@ -10,14 +10,17 @@ import { useHaptics } from '@/hooks/useHaptics';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { Platform } from 'react-native';
+import { useExpensePlans } from '@/hooks/useExpensePlans';
 
 export default function ExpensePlannerScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
+  const { saveDraftExpensePlan } = useExpensePlans();
   const [amount, setAmount] = useState('');
   const [budgetStructure, setBudgetStructure] = useState<'fixed' | 'estimated' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const amountInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -54,7 +57,7 @@ export default function ExpensePlannerScreen() {
     setError(null);
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!amount) {
       setError('Please enter a budget amount');
       haptics.notification();
@@ -81,13 +84,36 @@ export default function ExpensePlannerScreen() {
     }
 
     haptics.mediumImpact();
-    router.push({
-      pathname: '/expense-planner/create/plan-details',
-      params: {
-        totalBudget: amount.replace(/,/g, ''),
-        budgetStructure,
-      },
-    });
+    setIsCreating(true);
+    setError(null);
+
+    try {
+      // Create draft plan immediately and save to database
+      const draftPlan = await saveDraftExpensePlan({
+        total_budget: numericAmount,
+        budget_structure: budgetStructure,
+      });
+
+      if (!draftPlan || !draftPlan.id) {
+        throw new Error('Failed to create draft plan: No plan ID returned');
+      }
+
+      // Navigate with planId included
+      router.push({
+        pathname: '/expense-planner/create/plan-details',
+        params: {
+          totalBudget: amount.replace(/,/g, ''),
+          budgetStructure,
+          planId: draftPlan.id,
+        },
+      });
+    } catch (error) {
+      console.error('Error creating draft plan:', error);
+      setError('Failed to create plan. Please try again.');
+      Alert.alert('Error', 'Failed to create expense plan. Please try again.');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
@@ -205,7 +231,7 @@ export default function ExpensePlannerScreen() {
       <FloatingButton
         title="Continue"
         onPress={handleContinue}
-        disabled={!amount || !budgetStructure}
+        disabled={!amount || !budgetStructure || isCreating}
         hapticType="medium"
       />
     </SafeAreaView>

@@ -11,6 +11,8 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useRealtimeWallet } from '@/hooks/useRealtimeWallet';
 import BucketAllocationSummary from '@/components/expense-planner/BucketAllocationSummary';
+import { useExpensePlans } from '@/hooks/useExpensePlans';
+import { supabase } from '@/lib/supabase';
 import { 
   Plane, Utensils, ShoppingBag, Film, Receipt, Heart, GraduationCap, Car, Home, 
   Sparkles, Bed, Zap, Droplet, Wrench, CreditCard, Target, Fuel, Bus, Baby, 
@@ -57,34 +59,80 @@ export default function FundBudgetScreen() {
   const haptics = useHaptics();
   const params = useLocalSearchParams();
   const { availableBalance } = useRealtimeWallet();
+  const { lockExpenseFunds, getExpenseBuckets, saveDraftExpensePlan } = useExpensePlans();
   
   const totalBudget = parseFloat((params.totalBudget as string) || '0');
+  const planId = params.planId as string | undefined;
   const [budgetStructure, setBudgetStructure] = useState<string>(params.budgetStructure as string || 'fixed');
   const startDate = params.startDate as string;
   const endDate = params.endDate as string;
 
   const [bucketStates, setBucketStates] = useState<SubCategoryBucket[]>([]);
+  const [dbBuckets, setDbBuckets] = useState<Array<{ id: string; category_id: string; subcategory_id: string }>>([]);
+  const [isSaving, setIsSaving] = useState(false);
   const initializedRef = useRef(false);
 
   useEffect(() => {
-    // Initialize buckets only once when params.buckets is available
-    if (!initializedRef.current && params.buckets) {
-      try {
-        const buckets: SubCategoryBucket[] = JSON.parse(params.buckets as string);
-        if (buckets.length > 0) {
-          const initialized = buckets.map(bucket => ({
-            ...bucket,
-            icon: CATEGORY_ICONS[bucket.categoryId] || MoreHorizontal,
+    // Fetch buckets from database if planId is available
+    const fetchBuckets = async () => {
+      if (planId && !initializedRef.current) {
+        try {
+          const buckets = await getExpenseBuckets(planId);
+          setDbBuckets(buckets);
+          
+          // Map database buckets to state buckets
+          const stateBuckets: SubCategoryBucket[] = buckets.map(bucket => ({
+            id: bucket.id,
+            categoryId: bucket.category_id,
+            subCategoryId: bucket.subcategory_id,
+            name: bucket.name,
+            icon: CATEGORY_ICONS[bucket.category_id] || MoreHorizontal,
+            targetAmount: bucket.target_amount.toString(),
             lockedAmount: '',
           }));
-          setBucketStates(initialized);
+          setBucketStates(stateBuckets);
           initializedRef.current = true;
+        } catch (error) {
+          console.error('Error fetching buckets:', error);
+          // Fallback to params if database fetch fails
+          if (params.buckets) {
+            try {
+              const buckets: SubCategoryBucket[] = JSON.parse(params.buckets as string);
+              if (buckets.length > 0) {
+                const initialized = buckets.map(bucket => ({
+                  ...bucket,
+                  icon: CATEGORY_ICONS[bucket.categoryId] || MoreHorizontal,
+                  lockedAmount: '',
+                }));
+                setBucketStates(initialized);
+                initializedRef.current = true;
+              }
+            } catch (parseError) {
+              console.error('Error parsing buckets:', parseError);
+            }
+          }
         }
-      } catch (error) {
-        console.error('Error parsing buckets:', error);
+      } else if (!initializedRef.current && params.buckets) {
+        // Fallback: Initialize from params if no planId
+        try {
+          const buckets: SubCategoryBucket[] = JSON.parse(params.buckets as string);
+          if (buckets.length > 0) {
+            const initialized = buckets.map(bucket => ({
+              ...bucket,
+              icon: CATEGORY_ICONS[bucket.categoryId] || MoreHorizontal,
+              lockedAmount: '',
+            }));
+            setBucketStates(initialized);
+            initializedRef.current = true;
+          }
+        } catch (error) {
+          console.error('Error parsing buckets:', error);
+        }
       }
-    }
-  }, [params.buckets]);
+    };
+    
+    fetchBuckets();
+  }, [planId, params.buckets, getExpenseBuckets]);
 
   const formatAmount = (value: string) => {
     let cleanValue = value.replace(/[^0-9.]/g, '');
@@ -134,7 +182,22 @@ export default function FundBudgetScreen() {
     setBudgetStructure('estimated');
   };
 
-  const handleContinue = () => {
+  const calculateUnlockDate = (startDateStr: string, endDateStr: string): string => {
+    if (!startDateStr || !endDateStr) return endDateStr || startDateStr || '';
+    
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    
+    // If start_date equals end_date, unlock on that date
+    if (start.toDateString() === end.toDateString()) {
+      return startDateStr;
+    }
+    
+    // If date range, unlock on start_date (funds available from beginning)
+    return startDateStr;
+  };
+
+  const handleContinue = async () => {
     const bucketsWithAmounts = bucketStates.filter(b => b.lockedAmount);
     
     if (bucketsWithAmounts.length === 0) {
@@ -153,25 +216,81 @@ export default function FundBudgetScreen() {
     }
 
     haptics.mediumImpact();
-    router.push({
-      pathname: '/expense-planner/create/name-expense',
-      params: {
-        totalBudget: totalBudget.toString(),
-        budgetStructure,
-        buckets: JSON.stringify(bucketStates.map(b => ({
-          id: b.id,
-          categoryId: b.categoryId,
-          subCategoryId: b.subCategoryId,
-          name: b.name,
-          targetAmount: b.targetAmount.replace(/,/g, ''),
-          lockedAmount: b.lockedAmount?.replace(/,/g, '') || '0',
-        }))),
-        planName: params.planName || '',
-        startDate,
-        endDate,
-        totalLocked: totalLocked.toString(),
-      },
-    });
+    setIsSaving(true);
+
+    try {
+      // If planId is missing, create draft plan first
+      let activePlanId = planId;
+      if (!activePlanId) {
+        console.log('No planId found in fund-budget screen, creating draft plan...');
+        const newDraftPlan = await saveDraftExpensePlan({
+          total_budget: totalBudget,
+          budget_structure: budgetStructure as 'fixed' | 'estimated',
+          start_date: startDate,
+          end_date: endDate,
+        });
+        
+        if (!newDraftPlan || !newDraftPlan.id) {
+          throw new Error('Failed to create draft plan: No plan ID returned');
+        }
+        
+        activePlanId = newDraftPlan.id;
+        console.log('Draft plan created in fund-budget screen:', activePlanId);
+      }
+
+      // Calculate unlock date
+      const unlockDate = calculateUnlockDate(startDate, endDate);
+      
+      // Prepare bucket locks for database function
+      const bucketLocks = bucketsWithAmounts.map(bucket => {
+        // Use database bucket ID if available, otherwise use the state ID
+        const dbBucket = dbBuckets.find(
+          db => db.category_id === bucket.categoryId && db.subcategory_id === bucket.subCategoryId
+        );
+        const bucketId = dbBucket?.id || bucket.id;
+        
+        return {
+          bucket_id: bucketId,
+          locked_amount: parseFloat(bucket.lockedAmount?.replace(/,/g, '') || '0'),
+          unlock_date: unlockDate,
+        };
+      });
+
+      // Lock funds using the database function
+      const result = await lockExpenseFunds(bucketLocks);
+      
+      if (!result || (result as any).success === false) {
+        const errorMsg = (result as any)?.error || (result as any)?.message || 'Failed to lock funds. Please try again.';
+        Alert.alert('Error', errorMsg);
+        return;
+      }
+
+      router.push({
+        pathname: '/expense-planner/create/name-expense',
+        params: {
+          totalBudget: totalBudget.toString(),
+          budgetStructure,
+          buckets: JSON.stringify(bucketStates.map(b => ({
+            id: b.id,
+            categoryId: b.categoryId,
+            subCategoryId: b.subCategoryId,
+            name: b.name,
+            targetAmount: b.targetAmount.replace(/,/g, ''),
+            lockedAmount: b.lockedAmount?.replace(/,/g, '') || '0',
+          }))),
+          planName: params.planName || '',
+          startDate,
+          endDate,
+          totalLocked: totalLocked.toString(),
+          planId: activePlanId,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error locking funds:', error);
+      Alert.alert('Error', error.message || 'Failed to lock funds. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
@@ -194,12 +313,8 @@ export default function FundBudgetScreen() {
         </Pressable>
       </View>
 
-      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.wrapperContent}>
+        <View style={styles.stickySection}>
           <Text style={styles.sectionTitle}>Lock funds for expenses</Text>
           <Text style={styles.sectionDescription}>
             Lock funds from your balance that will be accessible during your budget period
@@ -210,13 +325,22 @@ export default function FundBudgetScreen() {
             <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
           </View>
 
-          <BucketAllocationSummary
-            totalAllocated={totalLocked}
-            totalBudget={totalBudget}
-            budgetStructure={budgetStructure as 'fixed' | 'estimated'}
-            onSwitchToEstimated={handleSwitchToEstimated}
-          />
+          <View style={styles.stickySummaryCard}>
+            <BucketAllocationSummary
+              totalAllocated={totalLocked}
+              totalBudget={totalBudget}
+              budgetStructure={budgetStructure as 'fixed' | 'estimated'}
+              onSwitchToEstimated={handleSwitchToEstimated}
+            />
+          </View>
+        </View>
 
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={true}
+        >
           {bucketStates.length > 0 && (
             <Pressable 
               style={styles.lockAllButton}
@@ -287,7 +411,7 @@ export default function FundBudgetScreen() {
       <FloatingButton
         title="Continue"
         onPress={handleContinue}
-        disabled={totalLocked === 0 || totalLocked > availableBalance}
+        disabled={totalLocked === 0 || totalLocked > availableBalance || isSaving}
         hapticType="medium"
       />
     </SafeAreaView>
@@ -330,6 +454,17 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       justifyContent: 'center',
       alignItems: 'center',
     },
+    wrapperContent: {
+      flex: 1,
+    },
+    stickySection: {
+      padding: 10,
+      paddingBottom: 0,
+      backgroundColor: colors.backgroundSecondary,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      zIndex: 10,
+    },
     scrollView: {
       flex: 1,
     },
@@ -353,9 +488,12 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       backgroundColor: colors.card,
       borderRadius: 16,
       padding: 20,
-      marginBottom: 24,
+      marginBottom: 16,
       borderWidth: 1,
       borderColor: colors.border,
+    },
+    stickySummaryCard: {
+      marginBottom: 10,
     },
     balanceLabel: {
       fontSize: getScaledFontSize(14, textSizeMultiplier),

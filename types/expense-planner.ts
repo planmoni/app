@@ -1,13 +1,17 @@
-export type ExpensePlanStatus = 'active' | 'completed' | 'archived';
+export type ExpensePlanStatus = 'draft' | 'active' | 'completed' | 'archived';
+export type BudgetStructure = 'fixed' | 'estimated';
 
 export interface ExpensePlan {
   id: string;
   user_id: string;
   name: string;
   total_budget: number;
+  budget_structure: BudgetStructure;
+  start_date?: string;
+  end_date?: string;
+  status: ExpensePlanStatus;
   total_spent: number;
   remaining_budget: number;
-  status: ExpensePlanStatus;
   created_at: string;
   updated_at: string;
 }
@@ -15,6 +19,8 @@ export interface ExpensePlan {
 export interface ExpenseBucket {
   id: string;
   expense_plan_id: string;
+  category_id: string;
+  subcategory_id: string;
   name: string;
   target_amount: number;
   amount_spent: number;

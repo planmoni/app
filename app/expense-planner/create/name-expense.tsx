@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -23,7 +23,7 @@ export default function NameExpenseScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const { createExpensePlan } = useExpensePlans();
+  const { finalizeExpensePlan, saveDraftExpensePlan } = useExpensePlans();
   
   const totalBudget = parseFloat((params.totalBudget as string) || '0');
   const buckets: Bucket[] = params.buckets ? JSON.parse(params.buckets as string) : [];
@@ -34,6 +34,43 @@ export default function NameExpenseScreen() {
 
   const [planName, setPlanName] = useState(params.planName as string || '');
   const [isCreating, setIsCreating] = useState(false);
+  const [currentPlanId, setCurrentPlanId] = useState<string | undefined>(params.planId as string | undefined);
+  const initializedRef = useRef(false);
+
+  // Create draft plan on mount if it doesn't exist (fallback)
+  useEffect(() => {
+    const initializeDraftPlan = async () => {
+      if (!currentPlanId && !initializedRef.current && totalBudget > 0) {
+        initializedRef.current = true;
+        try {
+          console.log('No planId found on name-expense screen, creating draft plan...', {
+            totalBudget,
+            budgetStructure: params.budgetStructure,
+            startDate,
+            endDate,
+          });
+          const draftPlan = await saveDraftExpensePlan({
+            total_budget: totalBudget,
+            budget_structure: (params.budgetStructure as 'fixed' | 'estimated') || 'fixed',
+            start_date: startDate || undefined,
+            end_date: endDate || undefined,
+          });
+          if (draftPlan?.id) {
+            console.log('Draft plan created successfully on name-expense screen:', draftPlan.id);
+            setCurrentPlanId(draftPlan.id);
+          } else {
+            console.error('Draft plan created but no ID returned:', draftPlan);
+          }
+        } catch (error) {
+          console.error('Error initializing draft plan on name-expense screen:', error);
+          // Don't show alert here - let handleCreate handle it
+        }
+      }
+    };
+
+    initializeDraftPlan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPlanId, totalBudget]);
 
   const formatDateForDisplay = (dateString: string) => {
     if (!dateString) return '';
@@ -52,20 +89,63 @@ export default function NameExpenseScreen() {
       return;
     }
 
+    // Use currentPlanId if available, otherwise try params
+    let planId = currentPlanId || (params.planId as string | undefined);
+    
     haptics.mediumImpact();
     setIsCreating(true);
     
     try {
-      const plan = await createExpensePlan({
-        name: planName.trim(),
-        total_budget: totalBudget,
-        start_date: startDate,
-        end_date: endDate,
-        buckets: buckets.map((bucket: Bucket) => ({
-          name: bucket.name,
-          target_amount: parseFloat(bucket.targetAmount.replace(/,/g, '') || '0'),
-        })),
-      });
+      // If planId is still missing, create draft plan first with all available data
+      if (!planId) {
+        console.log('No planId found in handleCreate, creating draft plan with all data...');
+        const newDraftPlan = await saveDraftExpensePlan({
+          name: planName.trim(),
+          total_budget: totalBudget,
+          budget_structure: (params.budgetStructure as 'fixed' | 'estimated') || 'fixed',
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+        });
+        
+        if (!newDraftPlan || !newDraftPlan.id) {
+          throw new Error('Failed to create draft plan: No plan ID returned');
+        }
+        
+        planId = newDraftPlan.id;
+        setCurrentPlanId(newDraftPlan.id);
+        console.log('Draft plan created in handleCreate:', planId);
+      } else {
+        // Ensure all plan data is saved before finalizing
+        console.log('Saving all plan data before finalizing...', {
+          planId,
+          name: planName.trim(),
+          totalBudget,
+          budgetStructure: params.budgetStructure,
+          startDate,
+          endDate,
+        });
+        
+        await saveDraftExpensePlan({
+          planId,
+          name: planName.trim(),
+          total_budget: totalBudget,
+          budget_structure: (params.budgetStructure as 'fixed' | 'estimated') || 'fixed',
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+        });
+        
+        console.log('Plan data saved successfully');
+      }
+
+      // Finalize the draft plan (change status to active and ensure name is set)
+      console.log('Finalizing plan...', planId);
+      const plan = await finalizeExpensePlan(planId, planName.trim());
+
+      if (!plan || !plan.id) {
+        throw new Error('Failed to finalize plan: No plan returned');
+      }
+
+      console.log('Plan finalized successfully:', plan.id);
 
       // Navigate to success screen
       router.replace({
@@ -76,9 +156,13 @@ export default function NameExpenseScreen() {
           planId: plan.id,
         },
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating expense plan:', error);
-      Alert.alert('Error', 'Failed to create expense plan. Please try again.');
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to create expense plan. Please try again.',
+        [{ text: 'OK' }]
+      );
     } finally {
       setIsCreating(false);
     }

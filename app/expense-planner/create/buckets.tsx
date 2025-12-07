@@ -10,6 +10,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import BucketAllocationSummary from '@/components/expense-planner/BucketAllocationSummary';
+import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { 
   Plane, Utensils, ShoppingBag, Film, Receipt, Heart, GraduationCap, Car, Home, 
   Sparkles, Bed, Zap, Droplet, Wrench, CreditCard, Target, Fuel, Bus, Baby, 
@@ -478,8 +479,11 @@ export default function BucketsScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
+  const { saveExpenseBuckets, saveDraftExpensePlan } = useExpensePlans();
   const totalBudget = parseFloat((params.totalBudget as string) || '0');
+  const planId = params.planId as string | undefined;
   const [budgetStructure, setBudgetStructure] = useState<string>(params.budgetStructure as string || 'fixed');
+  const [isSaving, setIsSaving] = useState(false);
   
   const selectedSubCategories = useMemo(() => {
     if (!params.subCategories) return {};
@@ -572,12 +576,25 @@ export default function BucketsScreen() {
     setBuckets(buckets.map(bucket => (bucket.id === id ? { ...bucket, targetAmount: formatted } : bucket)));
   };
 
-  const handleSwitchToEstimated = () => {
+  const handleSwitchToEstimated = async () => {
     haptics.selection();
-    setBudgetStructure('estimated');
+    const newStructure = 'estimated';
+    setBudgetStructure(newStructure);
+    
+    // Update draft plan with new budget structure
+    if (planId) {
+      try {
+        await saveDraftExpensePlan({
+          planId,
+          budget_structure: newStructure as 'fixed' | 'estimated',
+        });
+      } catch (error) {
+        console.error('Error updating budget structure:', error);
+      }
+    }
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     const bucketsWithAmounts = buckets.filter(b => b.targetAmount);
     
     if (bucketsWithAmounts.length === 0) {
@@ -597,20 +614,58 @@ export default function BucketsScreen() {
     }
 
     haptics.mediumImpact();
-    router.push({
-      pathname: '/expense-planner/create/review',
-      params: {
-        totalBudget: totalBudget.toString(),
-        budgetStructure,
-        buckets: JSON.stringify(bucketsWithAmounts.map(b => ({
-          id: b.id,
-          categoryId: b.categoryId,
-          subCategoryId: b.subCategoryId,
-          name: b.name,
-          targetAmount: b.targetAmount.replace(/,/g, ''),
-        }))),
-      },
-    });
+    setIsSaving(true);
+
+    try {
+      // If planId is missing, create draft plan first
+      let activePlanId = planId;
+      if (!activePlanId) {
+        console.log('No planId found in buckets screen, creating draft plan...');
+        const newDraftPlan = await saveDraftExpensePlan({
+          total_budget: parseFloat(totalBudget),
+          budget_structure: budgetStructure as 'fixed' | 'estimated',
+        });
+        
+        if (!newDraftPlan || !newDraftPlan.id) {
+          throw new Error('Failed to create draft plan: No plan ID returned');
+        }
+        
+        activePlanId = newDraftPlan.id;
+        console.log('Draft plan created in buckets screen:', activePlanId);
+      }
+
+      // Save buckets to database
+      const bucketsToSave = bucketsWithAmounts.map((b, index) => ({
+        category_id: b.categoryId,
+        subcategory_id: b.subCategoryId,
+        name: b.name,
+        target_amount: parseFloat(b.targetAmount.replace(/,/g, '') || '0'),
+        order_index: index,
+      }));
+
+      await saveExpenseBuckets(activePlanId, bucketsToSave);
+
+      router.push({
+        pathname: '/expense-planner/create/dates',
+        params: {
+          totalBudget: totalBudget.toString(),
+          budgetStructure,
+          buckets: JSON.stringify(bucketsWithAmounts.map(b => ({
+            id: b.id,
+            categoryId: b.categoryId,
+            subCategoryId: b.subCategoryId,
+            name: b.name,
+            targetAmount: b.targetAmount.replace(/,/g, ''),
+          }))),
+          planId: activePlanId,
+        },
+      });
+    } catch (error) {
+      console.error('Error saving buckets:', error);
+      Alert.alert('Error', 'Failed to save buckets. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
@@ -706,7 +761,7 @@ export default function BucketsScreen() {
       <FloatingButton
         title="Continue"
         onPress={handleContinue}
-        disabled={(budgetStructure === 'fixed' && totalAllocated > totalBudget) || totalAllocated === 0}
+        disabled={(budgetStructure === 'fixed' && totalAllocated > totalBudget) || totalAllocated === 0 || isSaving}
         hapticType="medium"
       />
     </SafeAreaView>

@@ -8,6 +8,7 @@ import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import FloatingButton from '@/components/FloatingButton';
+import { useExpensePlans } from '@/hooks/useExpensePlans';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = [
@@ -20,8 +21,10 @@ export default function DatesScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
+  const { saveDraftExpensePlan } = useExpensePlans();
   const totalBudget = params.totalBudget as string;
   const budgetStructure = params.budgetStructure as string;
+  const planId = params.planId as string | undefined;
   const buckets = params.buckets ? JSON.parse(params.buckets as string) : [];
 
   const [startDate, setStartDate] = useState<Date | null>(null);
@@ -29,6 +32,7 @@ export default function DatesScreen() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showYearPicker, setShowYearPicker] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const formatDateForDisplay = (date: Date | null) => {
     if (!date) return 'Select date';
@@ -183,19 +187,54 @@ export default function DatesScreen() {
     }
 
     haptics.mediumImpact();
-    
-    // Navigate to funding choice screen instead of creating plan directly
-    router.push({
-      pathname: '/expense-planner/create/funding-choice',
-      params: {
-        totalBudget,
-        budgetStructure,
-        buckets: JSON.stringify(buckets),
-        planName: params.planName as string || '',
-        startDate: formatDateForStorage(finalStartDate),
-        endDate: formatDateForStorage(finalEndDate),
-      },
-    });
+    setIsSaving(true);
+
+    try {
+      // If planId is missing, create draft plan first
+      let activePlanId = planId;
+      if (!activePlanId) {
+        console.log('No planId found in dates screen, creating draft plan...');
+        const newDraftPlan = await saveDraftExpensePlan({
+          total_budget: parseFloat(totalBudget),
+          budget_structure: budgetStructure as 'fixed' | 'estimated',
+          start_date: formatDateForStorage(finalStartDate),
+          end_date: formatDateForStorage(finalEndDate),
+        });
+        
+        if (!newDraftPlan || !newDraftPlan.id) {
+          throw new Error('Failed to create draft plan: No plan ID returned');
+        }
+        
+        activePlanId = newDraftPlan.id;
+        console.log('Draft plan created in dates screen:', activePlanId);
+      } else {
+        // Save dates to draft plan
+        await saveDraftExpensePlan({
+          planId: activePlanId,
+          start_date: formatDateForStorage(finalStartDate),
+          end_date: formatDateForStorage(finalEndDate),
+        });
+      }
+
+      // Navigate to funding choice screen
+      router.push({
+        pathname: '/expense-planner/create/funding-choice',
+        params: {
+          totalBudget,
+          budgetStructure,
+          buckets: JSON.stringify(buckets),
+          planName: params.planName as string || '',
+          startDate: formatDateForStorage(finalStartDate),
+          endDate: formatDateForStorage(finalEndDate),
+          planId: activePlanId,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error saving dates:', error);
+      Alert.alert('Error', error.message || 'Failed to save dates. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
 
@@ -462,7 +501,7 @@ export default function DatesScreen() {
       <FloatingButton
         title="Continue"
         onPress={handleContinue}
-        disabled={!startDate}
+        disabled={!startDate || isSaving}
         hapticType="medium"
       />
     </SafeAreaView>
