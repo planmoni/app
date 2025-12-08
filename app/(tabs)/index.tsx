@@ -51,6 +51,7 @@ import { usePin } from '@/contexts/PinContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
+import { useExpensePlans } from '@/hooks/useExpensePlans';
 // import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
@@ -94,6 +95,8 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
+  const { expensePlans } = useExpensePlans();
+  const [activeBalanceTab, setActiveBalanceTab] = useState<'home' | 'plans' | 'payouts'>('home');
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
@@ -583,16 +586,20 @@ export default function HomeScreen() {
   }, []);
 
   const getGreeting = () => {
-    const hour = currentDate.getHours();
-    
-    if (hour >= 0 && hour < 12) {
-      return 'Good morning';
-    } else if (hour >= 12 && hour < 17) {
-      return 'Good afternoon';
-    } else {
-      return 'Good evening';
-    }
+    return 'Hi';
   };
+
+  // Calculate expense plans total locked balance
+  const expensePlansBalance = useMemo(() => {
+    if (!expensePlans || expensePlans.length === 0) {
+      return 0;
+    }
+    
+    // Sum total_locked from all expense plans
+    return expensePlans.reduce((total, plan) => {
+      return total + (plan.total_locked || 0);
+    }, 0);
+  }, [expensePlans]);
 
   const buttonOpacity = scrollY.interpolate({
     inputRange: [0, 200],
@@ -941,6 +948,24 @@ export default function HomeScreen() {
                 </View>
               </Pressable>
             )}
+            <View style={styles.greetingInlineContainer}>
+              <View style={styles.greetingInlineRow}>
+                <Text style={styles.greetingInline} numberOfLines={1} ellipsizeMode="tail">
+                  {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
+                </Text>
+                <Text style={styles.subGreetingInline} numberOfLines={1} ellipsizeMode="tail">
+                  It's time to plan your finances
+                </Text>
+              </View>
+              {!isAuthenticated && (
+                <Pressable 
+                  onPress={() => router.push('/(auth)/login')} 
+                  style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
+                >
+                  <Text style={[styles.loginButtonText, {color: isDark ? '#fff' : colors.primary }]}>Login</Text>
+                </Pressable>
+              )}
+            </View>
             <View style={styles.headerActions}>
               <NotificationIcon />
               <Pressable 
@@ -956,150 +981,220 @@ export default function HomeScreen() {
               </Pressable>
             </View>
           </View>
-          <View style={styles.greetingContainer}>
-            <View style={styles.greetingRow}>
-              <Text style={styles.greeting}>
-                {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
-              </Text>
-              {!isAuthenticated && (
-                <Pressable 
-                  onPress={() => router.push('/(auth)/login')} 
-                  style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
-                >
-                  <Text style={[styles.loginButtonText, {color: isDark ? '#fff' : colors.primary }]}>Login</Text>
-                </Pressable>
-              )}
-            </View>
-            <Text style={styles.subGreeting}>It's time to plan your finances</Text>
-          </View>
         </View>
 
-        <ImageBackground 
-          source={require('@/assets/images/background.png')} 
-          style={styles.balanceCard}
-          resizeMode="cover"
-        >
-          <View style={styles.balanceCardContent}>
-            <View style={styles.balanceLabelContainer}>
-              <View style={styles.balanceLabelGroup}>
-                <Text style={styles.balanceLabel}>Your balance</Text>
+        {/* Balance Tabs */}
+        <View style={styles.tabsContainer}>
+          <Pressable
+            onPress={() => {
+              impact();
+              setActiveBalanceTab('home');
+            }}
+          >
+            <Text style={[
+              styles.tabText,
+              activeBalanceTab === 'home' && styles.activeTabText
+            ]}>
+              Home
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              impact();
+              setActiveBalanceTab('plans');
+            }}
+          >
+            <Text style={[
+              styles.tabText,
+              activeBalanceTab === 'plans' && styles.activeTabText
+            ]}>
+              Plans
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              impact();
+              setActiveBalanceTab('payouts');
+            }}
+          >
+            <Text style={[
+              styles.tabText,
+              activeBalanceTab === 'payouts' && styles.activeTabText
+            ]}>
+              Payouts
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Home Tab - Full Balance Card with Buttons */}
+        {activeBalanceTab === 'home' && (
+          <ImageBackground 
+            source={require('@/assets/images/background.png')} 
+            style={styles.balanceCard}
+            resizeMode="cover"
+          >
+            <View style={styles.balanceCardContent}>
+              <View style={styles.balanceLabelContainer}>
+                <View style={styles.balanceLabelGroup}>
+                  <Text style={styles.balanceLabel}>Your balance</Text>
+                  <Pressable 
+                    onPress={toggleBalances}
+                    style={styles.eyeIconButton}
+                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                  >
+                    {showBalances ? (
+                      <EyeOff size={16} color={colors.textSecondary} />
+                    ) : (
+                      <Eye size={16} color={colors.textSecondary} />
+                    )}
+                  </Pressable>
+                </View>
                 <Pressable 
-                  onPress={toggleBalances}
-                  style={styles.eyeIconButton}
-                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                  onPress={handleAddFunds}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  {showBalances ? (
-                    <EyeOff size={16} color={colors.textSecondary} />
-                  ) : (
-                    <Eye size={16} color={colors.textSecondary} />
-                  )}
+                  <Text style={[styles.addFundsLink, { color: colors.primary }]}>+ Add funds</Text>
                 </Pressable>
               </View>
-              <Pressable 
-                onPress={handleAddFunds}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Text style={[styles.addFundsLink, { color: colors.primary }]}>+ Add funds</Text>
-              </Pressable>
-            </View>
-            <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
-            <View style={styles.lockedSection}>
-              <View style={styles.lockedLabelContainer}>
-                <Clock size={16} color={colors.textSecondary} />
-                <Text style={styles.lockedLabel}>{formatBalance(lockedBalance)} in active payout plans</Text>
+              <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
+              <View style={styles.lockedSection}>
+                <View style={styles.lockedLabelContainer}>
+                  <Clock size={16} color={colors.textSecondary} />
+                  <Text style={styles.lockedLabel}>
+                    {formatBalance(lockedBalance)} in active payout plans
+                  </Text>
+                </View>
               </View>
-              {/* <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text> */}
+              <View style={styles.buttonGroup}>
+                <Pressable 
+                  style={styles.addFundsButton} 
+                  onPress={() => {
+                    impact();
+                    router.push('/expense-planner');
+                  }}
+                >
+                  <PieChart size={20} color={isDark ? '#fff' : colors.primary}/>
+                  <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Plan</Text>
+                </Pressable>
+                <Pressable 
+                  style={styles.createButton} 
+                  onPress={handleCreatePayout}
+                >
+                  <CalendarCheck size={22} color={'#fff'} />
+                  <Text style={styles.createButtonText}>Payout</Text>
+                </Pressable>
+              </View>
             </View>
-            <View style={styles.buttonGroup}>
-              <Pressable 
-                style={styles.addFundsButton} 
-                onPress={() => {
-                  impact();
-                  router.push('/expense-planner');
-                }}
-              >
-                
-                <PieChart size={20} color={isDark ? '#fff' : colors.primary}/>
-                <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Plan</Text>
-              </Pressable>
-              <Pressable 
-                style={styles.createButton} 
-                onPress={handleCreatePayout}
-              >
-                <CalendarCheck size={22} color={'#fff'} />
-                <Text style={styles.createButtonText}>Payout</Text>
-              </Pressable>
-              
-            </View>
-          </View>
-        </ImageBackground>
-        
-        {/* On Track Card */}
-        <OnTrackCard payoutPlans={payoutPlans} />
-        {/* AI Suggestion Section - Only show for authenticated users */}
-        {isAuthenticated && (
-          <AISuggestionCard 
-            availableBalance={availableBalance}
-            onSuggestionPress={handleAISuggestionPress}
-          />
+          </ImageBackground>
         )}
-        {/* <IntercomButton /> */}
 
-        {/* KYC Tiers Test Buttons */}
-        {/* <View style={styles.kycTiersContainer}>
-          <Text style={[styles.kycTiersTitle, { color: colors.text }]}>KYC Tiers Test</Text>
-          <View style={styles.kycTiersButtons}>
-            <Pressable
-              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/kyc-tiers/tier-one')}
-            >
-              <Text style={styles.kycTierButtonText}>Tier 1</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/kyc-tiers/tier-two')}
-            >
-              <Text style={styles.kycTierButtonText}>Tier 2</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/kyc-tiers/tier-three')}
-            >
-              <Text style={styles.kycTierButtonText}>Tier 3</Text>
-            </Pressable>
+        {/* Plans Tab - Text Only Balance */}
+        {activeBalanceTab === 'plans' && (
+          <View style={styles.textBalanceContainer}>
+            <Text style={styles.textBalanceLabel}>Your expense plans balance</Text>
+            <Text style={styles.textBalanceAmount}>{formatBalance(expensePlansBalance)}</Text>
+            <View style={styles.textBalanceLocked}>
+              <Clock size={14} color={colors.textSecondary} />
+              <Text style={styles.textBalanceLockedText}>
+                {formatBalance(expensePlansBalance)} in expense plans
+              </Text>
+            </View>
           </View>
-        </View> */}
+        )}
+
+        {/* Payouts Tab - Text Only Balance */}
+        {activeBalanceTab === 'payouts' && (
+          <View style={styles.textBalanceContainer}>
+            <Text style={styles.textBalanceLabel}>Your payout plans balance</Text>
+            <Text style={styles.textBalanceAmount}>{formatBalance(lockedBalance)}</Text>
+            <View style={styles.textBalanceLocked}>
+              <Clock size={14} color={colors.textSecondary} />
+              <Text style={styles.textBalanceLockedText}>
+                {formatBalance(lockedBalance)} in payout plans
+              </Text>
+            </View>
+          </View>
+        )}
         
+        {/* Home Tab Content */}
+        {activeBalanceTab === 'home' && (
+          <>
+            {/* On Track Card */}
+            <OnTrackCard payoutPlans={payoutPlans} />
+            {/* AI Suggestion Section - Only show for authenticated users */}
+            {isAuthenticated && (
+              <AISuggestionCard 
+                availableBalance={availableBalance}
+                onSuggestionPress={handleAISuggestionPress}
+              />
+            )}
+            {/* <IntercomButton /> */}
 
-        <ImageCarousel images={carouselImages} />
-        {isAuthenticated && progress && !(
-          progress.id_face_verified === true || 
-          progress.id_face_verified === 1 ||
-          progress.id_face_verified === 'true'
-        ) && <KYCCard />}
-        <PendingActionsCard />
-        <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
+            {/* KYC Tiers Test Buttons */}
+            {/* <View style={styles.kycTiersContainer}>
+              <Text style={[styles.kycTiersTitle, { color: colors.text }]}>KYC Tiers Test</Text>
+              <View style={styles.kycTiersButtons}>
+                <Pressable
+                  style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+                  onPress={() => router.push('/kyc-tiers/tier-one')}
+                >
+                  <Text style={styles.kycTierButtonText}>Tier 1</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+                  onPress={() => router.push('/kyc-tiers/tier-two')}
+                >
+                  <Text style={styles.kycTierButtonText}>Tier 2</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+                  onPress={() => router.push('/kyc-tiers/tier-three')}
+                >
+                  <Text style={styles.kycTierButtonText}>Tier 3</Text>
+                </Pressable>
+              </View>
+            </View> */}
+            
 
+            <ImageCarousel images={carouselImages} />
+            {isAuthenticated && progress && !(
+              progress.id_face_verified === true || 
+              progress.id_face_verified === 1 ||
+              progress.id_face_verified === 'true'
+            ) && <KYCCard />}
+            <PendingActionsCard />
+            <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
-        {/* Most Recent Payouts Section */}
+            <View style={styles.bottomPadding} />
 
-        {/* Next Payout Section */}
-        <NextPayoutCard nextPayout={nextPayout} />
+            <RatingCard />
+          </>
+        )}
 
+        {/* Plans Tab Content */}
+        {activeBalanceTab === 'plans' && (
+          <>
+            {/* Expense Plans Section */}
+            <ExpensePlansSection />
+            <View style={styles.bottomPadding} />
+          </>
+        )}
 
-        {/* Payout Plans Section */}
-        <PayoutPlansSection 
-          activePlans={activePlans} 
-          onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}
-          onShowHowItWorks={() => setShowHowItWorksModal(true)}
-        />
+        {/* Payouts Tab Content */}
+        {activeBalanceTab === 'payouts' && (
+          <>
+            {/* Next Payout Section */}
+            <NextPayoutCard nextPayout={nextPayout} />
 
-        {/* Expense Plans Section */}
-        <ExpensePlansSection />
-
-        <View style={styles.bottomPadding} />
-
-        <RatingCard />
+            {/* Payout Plans Section */}
+            <PayoutPlansSection 
+              activePlans={activePlans} 
+              onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}
+              onShowHowItWorks={() => setShowHowItWorksModal(true)}
+            />
+            <View style={styles.bottomPadding} />
+          </>
+        )}
 
       </ScrollView>
 
@@ -1304,15 +1399,18 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
+    gap: 12,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexShrink: 0,
   },
   avatarButton: {
     borderRadius: 24,
     overflow: 'visible', // Changed to visible to allow badge to show
+    flexShrink: 0,
   },
   avatarPlaceholder: {
     width: 48,
@@ -1340,6 +1438,28 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     justifyContent: 'center',
     alignItems: 'center',
   },
+  greetingInlineContainer: {
+    flex: 1,
+    flexShrink: 1,
+    marginHorizontal: 12,
+    minWidth: 0,
+  },
+  greetingInlineRow: {
+    flexDirection: 'column',
+    gap: 2,
+  },
+  greetingInline: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.text,
+    flexShrink: 1,
+  },
+  subGreetingInline: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 11, textSizeMultiplier),
+    fontWeight: '400',
+    color: colors.textSecondary,
+    flexShrink: 1,
+  },
   greetingContainer: {
     marginLeft: 0,
   },
@@ -1364,6 +1484,46 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: colors.textSecondary,
     lineHeight: 18,
   },
+  tabsContainer: {
+    flexDirection: 'row',
+    gap: 24,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  tabText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  activeTabText: {
+    color: '#1E3A8A',
+    fontWeight: '600',
+  },
+  textBalanceContainer: {
+    marginBottom: 20,
+    paddingVertical: 16,
+  },
+  textBalanceLabel: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  textBalanceAmount: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 32 : 28, textSizeMultiplier),
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  textBalanceLocked: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  textBalanceLockedText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
+    color: colors.textSecondary,
+  },
   balanceCard: {
     borderRadius: 15,
     borderWidth: 0.5,
@@ -1371,6 +1531,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderColor: colors.border,
     overflow: 'hidden',
     marginBottom: 10,
+    marginTop: 0,
   },
   balanceCardContent: {
     paddingVertical: Platform.OS === 'ios' ? 16 : 15,

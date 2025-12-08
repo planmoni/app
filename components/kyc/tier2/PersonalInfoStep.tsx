@@ -71,8 +71,7 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   
-  // BVN verification status
-  const isBVNVerified = progress?.bvn_verified || false;
+  // BVN data loading state
   const [isLoadingBVNData, setIsLoadingBVNData] = useState(false);
   
   // Refs
