@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, X, Lock, Save } from 'lucide-react-native';
@@ -7,12 +7,15 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useExpensePlans } from '@/hooks/useExpensePlans';
 
 export default function FundingChoiceScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
+  const { saveDraftExpensePlan, saveExpenseBuckets } = useExpensePlans();
+  const [isSaving, setIsSaving] = useState(false);
   
   const totalBudget = params.totalBudget as string;
   const budgetStructure = params.budgetStructure as string;
@@ -20,6 +23,7 @@ export default function FundingChoiceScreen() {
   const planName = params.planName as string;
   const startDate = params.startDate as string;
   const endDate = params.endDate as string;
+  const planId = params.planId as string | undefined;
 
   const handleFundBudget = () => {
     haptics.mediumImpact();
@@ -32,25 +36,76 @@ export default function FundingChoiceScreen() {
         planName: planName || '',
         startDate,
         endDate,
+        planId,
       },
     });
   };
 
   const handleSaveForLater = async () => {
     haptics.mediumImpact();
-    // Navigate to name expense screen with funding skipped
-    router.push({
-      pathname: '/expense-planner/create/name-expense',
-      params: {
-        totalBudget,
-        budgetStructure,
-        buckets: JSON.stringify(buckets),
-        planName: planName || '',
-        startDate,
-        endDate,
-        skipFunding: 'true',
-      },
-    });
+    setIsSaving(true);
+
+    try {
+      // Ensure we have a planId
+      let activePlanId = planId;
+      
+      if (!activePlanId) {
+        // Create draft plan with all current data
+        const draftPlan = await saveDraftExpensePlan({
+          total_budget: parseFloat(totalBudget),
+          budget_structure: budgetStructure as 'fixed' | 'estimated',
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+        });
+        
+        if (!draftPlan || !draftPlan.id) {
+          throw new Error('Failed to create draft plan');
+        }
+        
+        activePlanId = draftPlan.id;
+      } else {
+        // Update existing draft plan with all current data
+        await saveDraftExpensePlan({
+          planId: activePlanId,
+          total_budget: parseFloat(totalBudget),
+          budget_structure: budgetStructure as 'fixed' | 'estimated',
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+        });
+      }
+
+      // Save buckets if they exist
+      if (buckets && buckets.length > 0) {
+        const bucketsToSave = buckets.map((bucket: any) => ({
+          category_id: bucket.categoryId || bucket.category_id,
+          subcategory_id: bucket.subCategoryId || bucket.subcategory_id,
+          name: bucket.name,
+          target_amount: parseFloat(bucket.targetAmount || bucket.target_amount || '0'),
+        }));
+        
+        await saveExpenseBuckets(activePlanId, bucketsToSave);
+      }
+
+      // Navigate to name expense screen with funding skipped
+      router.push({
+        pathname: '/expense-planner/create/name-expense',
+        params: {
+          totalBudget,
+          budgetStructure,
+          buckets: JSON.stringify(buckets),
+          planName: planName || '',
+          startDate,
+          endDate,
+          planId: activePlanId,
+          skipFunding: 'true',
+        },
+      });
+    } catch (error: any) {
+      console.error('Error saving plan for later:', error);
+      Alert.alert('Error', error.message || 'Failed to save plan. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);

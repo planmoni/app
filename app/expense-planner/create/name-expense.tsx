@@ -138,6 +138,7 @@ export default function NameExpenseScreen() {
       }
 
       // Finalize the draft plan (change status to active and ensure name is set)
+      // This changes status from 'draft' to 'active', so it will no longer show as draft
       console.log('Finalizing plan...', planId);
       const plan = await finalizeExpensePlan(planId, planName.trim());
 
@@ -154,15 +155,28 @@ export default function NameExpenseScreen() {
           planName: planName.trim(),
           totalBudget: totalBudget.toString(),
           planId: plan.id,
+          skipFunding: skipFunding ? 'true' : 'false',
         },
       });
     } catch (error: any) {
       console.error('Error creating expense plan:', error);
-      Alert.alert(
-        'Error',
-        error.message || 'Failed to create expense plan. Please try again.',
-        [{ text: 'OK' }]
-      );
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Failed to create expense plan. Please try again.';
+      
+      if (error?.message) {
+        if (error.message.includes('502') || error.message.includes('Bad Gateway') || error.message.includes('temporarily unavailable')) {
+          errorMessage = 'Server temporarily unavailable. Please check your internet connection and try again.';
+        } else if (error.message.includes('network') || error.message.includes('connection')) {
+          errorMessage = 'Network connection issue. Please check your internet and try again.';
+        } else if (error.message.includes('timeout')) {
+          errorMessage = 'Request timed out. Please try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      Alert.alert('Error', errorMessage, [{ text: 'OK' }]);
     } finally {
       setIsCreating(false);
     }

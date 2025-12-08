@@ -216,7 +216,7 @@ export default function DatesScreen() {
         });
       }
 
-      // Navigate to funding choice screen
+      // Navigate to funding choice screen with planId
       router.push({
         pathname: '/expense-planner/create/funding-choice',
         params: {
@@ -231,7 +231,23 @@ export default function DatesScreen() {
       });
     } catch (error: any) {
       console.error('Error saving dates:', error);
-      Alert.alert('Error', error.message || 'Failed to save dates. Please try again.');
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Failed to save dates. Please try again.';
+      
+      if (error?.message) {
+        if (error.message.includes('502') || error.message.includes('Bad Gateway') || error.message.includes('temporarily unavailable')) {
+          errorMessage = 'Server temporarily unavailable. Please check your internet connection and try again.';
+        } else if (error.message.includes('network') || error.message.includes('connection')) {
+          errorMessage = 'Network connection issue. Please check your internet and try again.';
+        } else if (error.message.includes('timeout')) {
+          errorMessage = 'Request timed out. Please try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsSaving(false);
     }

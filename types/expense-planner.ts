@@ -14,6 +14,10 @@ export interface ExpensePlan {
   remaining_budget: number;
   created_at: string;
   updated_at: string;
+  // Enhanced fields for card display
+  buckets?: ExpenseBucket[];
+  total_locked?: number;
+  funding_status?: 'draft' | 'unfunded' | 'partially_funded' | 'funded';
 }
 
 export interface ExpenseBucket {

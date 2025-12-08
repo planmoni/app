@@ -1,70 +1,296 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Platform, Alert } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { ExpensePlan } from '@/types/expense-planner';
+import { getCategoryIcon } from '@/lib/expenseCategories';
+import { 
+  getDaysRemaining, 
+  isBudgetStarted, 
+  formatDateRange, 
+  formatDaysRemaining,
+  getBudgetDuration,
+  getDraftResumeStep,
+  getExpiryHoursRemaining,
+  formatExpiryCountdown
+} from '@/lib/expensePlanUtils';
+import { Trash2 } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { useExpensePlans } from '@/hooks/useExpensePlans';
+import { useHaptics } from '@/hooks/useHaptics';
 
 interface ExpensePlanCardProps {
   plan: ExpensePlan;
   onPress: () => void;
+  onDelete?: () => void;
 }
 
-export default function ExpensePlanCard({ plan, onPress }: ExpensePlanCardProps) {
+export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlanCardProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
+  const { deleteExpensePlan, fetchExpensePlans } = useExpensePlans();
+  const haptics = useHaptics();
+  const [currentTime, setCurrentTime] = useState(new Date());
 
-  const getStatusColor = () => {
-    switch (plan.status) {
-      case 'active':
-        return '#22C55E';
-      case 'completed':
-        return colors.textSecondary;
-      case 'archived':
-        return colors.textTertiary;
+  // Get funding status (default to plan status if not calculated)
+  const fundingStatus = plan.funding_status || (plan.status === 'draft' ? 'draft' : 'unfunded');
+
+  // Get status tag colors and label
+  const getStatusTagStyle = () => {
+    switch (fundingStatus) {
+      case 'draft':
+        return {
+          backgroundColor: isDark ? '#3A3A3A' : '#E5E5E5',
+          textColor: isDark ? '#B0B0B0' : '#6B6B6B',
+          label: 'Draft',
+        };
+      case 'unfunded':
+        return {
+          backgroundColor: isDark ? '#2A3A4A' : '#E8F0F5',
+          textColor: isDark ? '#7FA8C4' : '#5A8AA8',
+          label: 'Unfunded',
+        };
+      case 'partially_funded':
+        return {
+          backgroundColor: isDark ? '#4A3A2A' : '#FFF4E6',
+          textColor: isDark ? '#D4A574' : '#D97706',
+          label: 'Partially Funded',
+        };
+      case 'funded':
+        return {
+          backgroundColor: isDark ? '#1A3A2A' : '#E6F7E6',
+          textColor: isDark ? '#7FC97F' : '#22C55E',
+          label: 'Funded',
+        };
       default:
-        return colors.primary;
+        return {
+          backgroundColor: isDark ? '#3A3A3A' : '#E5E5E5',
+          textColor: isDark ? '#B0B0B0' : '#6B6B6B',
+          label: plan.status,
+        };
     }
   };
 
-  const getStatusLabel = () => {
-    switch (plan.status) {
-      case 'active':
-        return 'Active';
-      case 'completed':
-        return 'Completed';
-      case 'archived':
-        return 'Archived';
-      default:
-        return plan.status;
+  const statusTag = getStatusTagStyle();
+
+  // Get unique category icons (max 3)
+  // This should work for all plans regardless of funding status
+  const getCategoryIcons = () => {
+    if (!plan.buckets || plan.buckets.length === 0) {
+      return [];
     }
+
+    const uniqueCategories = new Set<string>();
+    const icons: Array<{ categoryId: string; Icon: any }> = [];
+
+    for (const bucket of plan.buckets) {
+      if (uniqueCategories.size >= 3) break;
+      
+      if (!uniqueCategories.has(bucket.category_id)) {
+        const Icon = getCategoryIcon(bucket.category_id);
+        if (Icon) {
+          uniqueCategories.add(bucket.category_id);
+          icons.push({ categoryId: bucket.category_id, Icon });
+        }
+      }
+    }
+
+    return icons;
   };
 
+  const categoryIcons = getCategoryIcons();
+
+  // Calculate progress percentage
   const percentageUsed = plan.total_budget > 0 ? (plan.total_spent / plan.total_budget) * 100 : 0;
 
+  // Date calculations
+  const budgetStarted = isBudgetStarted(plan.start_date);
+  const daysRemaining = getDaysRemaining(plan.start_date, plan.end_date);
+  const dateRange = formatDateRange(plan.start_date, plan.end_date);
+  const daysRemainingText = formatDaysRemaining(daysRemaining);
+
+  // Expiry countdown for unfunded plans (24 hours from creation)
+  const isUnfunded = plan.funding_status === 'unfunded' && plan.status !== 'draft';
+  
+  // Recalculate expiry hours based on current time state
+  const expiryHours = isUnfunded ? getExpiryHoursRemaining(plan.created_at, currentTime) : null;
+  const expiryText = formatExpiryCountdown(expiryHours);
+
+  // Update countdown every minute for unfunded plans
+  useEffect(() => {
+    if (isUnfunded) {
+      const interval = setInterval(() => {
+        setCurrentTime(new Date());
+      }, 60000); // Update every minute
+
+      return () => clearInterval(interval);
+    }
+  }, [isUnfunded]);
+
+  // Handle delete for draft plans
+  const handleDelete = async (e: any) => {
+    e.stopPropagation(); // Prevent card press
+    haptics.mediumImpact();
+    
+    Alert.alert(
+      'Delete Draft Plan',
+      `Are you sure you want to delete "${plan.name}"? This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              haptics.mediumImpact();
+              // Delete from database
+              await deleteExpensePlan(plan.id);
+              // Refresh the plans list to reflect the deletion
+              await fetchExpensePlans();
+              haptics.notification();
+              // Call optional callback if provided
+              if (onDelete) {
+                onDelete();
+              }
+            } catch (error: any) {
+              console.error('Error deleting plan:', error);
+              haptics.notification();
+              
+              // Provide user-friendly error message
+              let errorMessage = 'Failed to delete plan. Please try again.';
+              if (error?.message) {
+                if (error.message.includes('not found') || error.message.includes('permission')) {
+                  errorMessage = 'Plan not found or you do not have permission to delete it.';
+                } else if (error.message.includes('network') || error.message.includes('connection')) {
+                  errorMessage = 'Network error. Please check your connection and try again.';
+                } else {
+                  errorMessage = error.message;
+                }
+              }
+              
+              Alert.alert('Error', errorMessage);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Handle press - for draft plans, resume from last step
+  const handlePress = () => {
+    if (plan.status === 'draft') {
+      const resumeStep = getDraftResumeStep(plan);
+      
+      // Build params based on what we have
+      const params: any = {
+        planId: plan.id,
+        totalBudget: plan.total_budget.toString(),
+        budgetStructure: plan.budget_structure,
+      };
+
+      // Add dates if they exist
+      if (plan.start_date) params.startDate = plan.start_date;
+      if (plan.end_date) params.endDate = plan.end_date;
+
+      // Add buckets/subcategories if they exist (needed for buckets and dates screens)
+      if (plan.buckets && plan.buckets.length > 0) {
+        const subCategories: Record<string, string[]> = {};
+        plan.buckets.forEach(bucket => {
+          if (!subCategories[bucket.category_id]) {
+            subCategories[bucket.category_id] = [];
+          }
+          subCategories[bucket.category_id].push(bucket.subcategory_id);
+        });
+        params.subCategories = JSON.stringify(subCategories);
+        
+        // For buckets screen, we need the bucket data
+        if (resumeStep.includes('buckets') || resumeStep.includes('dates') || resumeStep.includes('fund-budget')) {
+          params.buckets = JSON.stringify(plan.buckets.map(b => ({
+            id: b.id,
+            categoryId: b.category_id,
+            subCategoryId: b.subcategory_id,
+            name: b.name,
+            targetAmount: b.target_amount.toString(),
+          })));
+        }
+      }
+
+      haptics.selection();
+      router.push({
+        pathname: resumeStep as any,
+        params,
+      });
+    } else {
+      onPress();
+    }
+  };
+
   const styles = createStyles(colors, isDark, textSizeMultiplier);
+  const isDraft = plan.status === 'draft';
 
   return (
-    <Pressable onPress={onPress} style={styles.card}>
+    <Pressable onPress={handlePress} style={styles.card}>
       <View style={styles.planHeader}>
-        <Text style={styles.planType}>{plan.name}</Text>
-        <View style={styles.activeTag}>
-          <Text style={[styles.activeTagText, { color: getStatusColor() }]}>
-            {getStatusLabel()}
-          </Text>
+        <Text style={styles.planName} numberOfLines={1} ellipsizeMode="tail">
+          {plan.name}
+        </Text>
+        <View style={styles.headerRight}>
+          <View style={styles.statusContainer}>
+            <View style={[styles.statusTag, { backgroundColor: statusTag.backgroundColor }]}>
+              <Text style={[styles.statusTagText, { color: statusTag.textColor }]}>
+                {statusTag.label}
+              </Text>
+            </View>
+            {expiryText && (
+              <Text style={styles.expiryText}>{expiryText}</Text>
+            )}
+          </View>
+          {isDraft && (
+            <Pressable
+              onPress={handleDelete}
+              style={styles.deleteButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Trash2 size={16} color={colors.textSecondary} />
+            </Pressable>
+          )}
         </View>
       </View>
-      <Text style={styles.planAmount}>₦{plan.total_budget.toLocaleString()}</Text>
-      <View style={styles.planDetails}>
-        <Text style={styles.planFrequency}>Remaining</Text>
-        <Text style={styles.planDot}>•</Text>
-        <Text style={[
-          styles.planValue,
-          plan.remaining_budget < 0 && styles.overBudgetAmount,
-        ]}>
-          ₦{Math.abs(plan.remaining_budget).toLocaleString()}
+
+      <View style={styles.amountRow}>
+        <Text style={styles.planAmount}>₦{plan.total_budget.toLocaleString()}</Text>
+        <Text style={styles.budgetStructure}>
+          {plan.budget_structure === 'fixed' ? 'Fixed' : 'Estimated'}
         </Text>
       </View>
+
+      {categoryIcons.length > 0 && (
+        <View style={styles.categoriesRow}>
+          <View style={styles.categoryIconsContainer}>
+            {categoryIcons.map(({ categoryId, Icon }, index) => (
+              <View 
+                key={categoryId} 
+                style={[
+                  styles.categoryIconBadge,
+                  index > 0 && styles.stackedIcon,
+                  { zIndex: index + 1 } // Last icon has highest z-index
+                ]}
+              >
+                <Icon size={14} color={colors.primary} />
+              </View>
+            ))}
+          </View>
+          <Text style={styles.categoryCount}>
+            {plan.buckets?.length || 0} {plan.buckets?.length === 1 ? 'category' : 'categories'}
+          </Text>
+        </View>
+      )}
+
+      {/* Always show progress bar */}
       <View style={styles.progressBar}>
         <View
           style={[
@@ -81,14 +307,28 @@ export default function ExpensePlanCard({ plan, onPress }: ExpensePlanCardProps)
           ]}
         />
       </View>
-      <View style={styles.planProgress}>
-        <Text style={styles.progressText}>
-          ₦{plan.total_spent.toLocaleString()}/₦{plan.total_budget.toLocaleString()}
-        </Text>
-        <Text style={styles.progressCount}>
-          {Math.round(percentageUsed)}%
-        </Text>
-      </View>
+
+      {/* Only show spent amount when budget has started */}
+      {budgetStarted ? (
+        <View style={styles.progressInfo}>
+          <Text style={styles.progressText}>
+            Spent ₦{plan.total_spent.toLocaleString()}/₦{plan.total_budget.toLocaleString()}
+          </Text>
+        </View>
+      ) : (
+        /* Show remaining days when budget hasn't started */
+        daysRemainingText && (
+          <View style={styles.daysRemainingContainer}>
+            <Text style={styles.daysRemaining}>{daysRemainingText}</Text>
+          </View>
+        )
+      )}
+
+      {dateRange && (
+        <View style={styles.dateRow}>
+          <Text style={styles.dateRange}>{dateRange}</Text>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -98,58 +338,93 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     card: {
       backgroundColor: colors.card,
       borderRadius: 16,
-      padding: Platform.OS === 'ios' ? 15 : 10,
-      marginBottom: Platform.OS === 'ios' ? 10 : 5,
+      padding: Platform.OS === 'ios' ? 16 : 12,
+      marginBottom: Platform.OS === 'ios' ? 12 : 8,
       borderWidth: 0.5,
       borderColor: colors.border,
+      minWidth: 280,
     },
     planHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: Platform.OS === 'ios' ? 10 : 5,
+      marginBottom: 12,
     },
-    planType: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
-      color: colors.textSecondary,
-      maxWidth: '75%',
-    },
-    activeTag: {
-      backgroundColor: isDark ? colors.accent : colors.accent,
-      paddingHorizontal: Platform.OS === 'ios' ? 10 : 8,
-      paddingVertical: Platform.OS === 'ios' ? 6 : 4,
-      borderRadius: Platform.OS === 'ios' ? 20 : 16,
-    },
-    activeTagText: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
+    planName: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
       fontWeight: '600',
-    },
-    planAmount: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 22 : 20, textSizeMultiplier),
-      fontWeight: '700',
       color: colors.text,
-      marginBottom: Platform.OS === 'ios' ? 10 : 5,
+      flex: 1,
+      marginRight: 8,
     },
-    planDetails: {
+    headerRight: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      marginBottom: Platform.OS === 'ios' ? 10 : 5,
     },
-    planFrequency: {
+    statusContainer: {
+      alignItems: 'flex-end',
+    },
+    deleteButton: {
+      padding: 4,
+      borderRadius: 8,
+    },
+    expiryText: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 10 : 9, textSizeMultiplier),
+      color: colors.textTertiary,
+      marginTop: 2,
+    },
+    statusTag: {
+      paddingHorizontal: Platform.OS === 'ios' ? 12 : 10,
+      paddingVertical: Platform.OS === 'ios' ? 6 : 4,
+      borderRadius: 16,
+    },
+    statusTagText: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
+      fontWeight: '600',
+    },
+    amountRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      marginBottom: 12,
+      gap: 8,
+    },
+    planAmount: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 24 : 22, textSizeMultiplier),
+      fontWeight: '700',
+      color: colors.text,
+    },
+    budgetStructure: {
       fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
       color: colors.textSecondary,
+      fontWeight: '500',
     },
-    planDot: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+    categoriesRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+      gap: 8,
+    },
+    categoryIconsContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    categoryIconBadge: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.accentBackground,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    stackedIcon: {
+      marginLeft: -14, // Half overlap (50% of 28px width)
+    },
+    categoryCount: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 11, textSizeMultiplier),
       color: colors.textSecondary,
-    },
-    planValue: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
-      color: colors.textSecondary,
-    },
-    overBudgetAmount: {
-      color: '#EF4444',
     },
     progressBar: {
       height: Platform.OS === 'ios' ? 6 : 4,
@@ -161,18 +436,27 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       height: '100%',
       borderRadius: 3,
     },
-    planProgress: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: 10,
+    progressInfo: {
+      marginBottom: 8,
     },
     progressText: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 11, textSizeMultiplier),
       color: colors.textSecondary,
     },
-    progressCount: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    dateRow: {
+      marginBottom: 4,
+    },
+    dateRange: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 11, textSizeMultiplier),
+      color: colors.text,
+      fontWeight: '500',
+    },
+    daysRemainingContainer: {
+      marginBottom: 8,
+    },
+    daysRemaining: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 11, textSizeMultiplier),
       color: colors.textSecondary,
+      fontWeight: '500',
     },
   });
-

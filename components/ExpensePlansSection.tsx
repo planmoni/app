@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Plus } from 'lucide-react-native';
@@ -8,7 +8,6 @@ import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import ExpensePlanCard from '@/components/expense-planner/ExpensePlanCard';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
-import { ExpensePlan } from '@/types/expense-planner';
 
 export default function ExpensePlansSection() {
   const { colors, isDark } = useTheme();
@@ -16,7 +15,8 @@ export default function ExpensePlansSection() {
   const haptics = useHaptics();
   const { expensePlans, isLoading } = useExpensePlans();
 
-  const activePlans = expensePlans.filter(plan => plan.status === 'active').slice(0, 3);
+  // Show all plans (draft, active, etc.) - limit to 5 for home page
+  const displayedPlans = useMemo(() => expensePlans.slice(0, 5), [expensePlans]);
 
   const handleViewAll = () => {
     haptics.selection();
@@ -57,7 +57,7 @@ export default function ExpensePlansSection() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.expensePlansContainer}
         >
-          {activePlans.map(plan => (
+          {displayedPlans.map(plan => (
             <View key={plan.id} style={styles.expensePlanCardWrapper}>
               <ExpensePlanCard
                 plan={plan}
