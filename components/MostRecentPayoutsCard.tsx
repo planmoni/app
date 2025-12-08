@@ -241,12 +241,12 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
 
   return (
     <View style={styles.container}>
-      <View style={styles.sectionHeader}>
+      {/* <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Most Recent</Text>
         <Pressable style={styles.viewAllButton} onPress={handleViewAllTransactions}>
           <Text style={styles.viewAllText}>View all</Text>
         </Pressable>
-      </View>
+      </View> */}
       <View style={styles.cardContainer}>
         <Pressable style={styles.card} onPress={handleCardPress}>
           <Animated.View 
@@ -338,7 +338,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
 
 const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
-    marginTop: Platform.OS === 'ios' ? 20 : 1,
+    marginTop: Platform.OS === 'ios' ? 1 : 1,
     marginBottom: Platform.OS === 'ios' ? 10 : 8,
   },
   sectionHeader: {

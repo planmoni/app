@@ -338,9 +338,8 @@ function AISuggestionCard({
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.titleContainer}>
-          <Sparkles size={14} color={colors.primary} />
           <Text style={[styles.title, { color: colors.text }]}>
-            Suggested plans for you
+            Quick Payouts
           </Text>
           {/* <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Based on your balance</Text> */}
         </View>

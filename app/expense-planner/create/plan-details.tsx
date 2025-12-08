@@ -708,9 +708,11 @@ export default function PlanDetailsScreen() {
   const haptics = useHaptics();
   const params = useLocalSearchParams();
   const { saveDraftExpensePlan } = useExpensePlans();
-  const totalBudget = params.totalBudget as string;
-  const budgetStructure = params.budgetStructure as string;
+  const totalBudget = params.totalBudget as string | undefined;
+  const budgetStructure = params.budgetStructure as string | undefined;
   const planId = params.planId as string | undefined;
+  const subCategories = params.subCategories as string | undefined;
+  const preselectedCategoryId = params.preselectedCategoryId as string | undefined;
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedSubCategories, setSelectedSubCategories] = useState<Record<string, string[]>>({});
@@ -719,7 +721,30 @@ export default function PlanDetailsScreen() {
   const [currentPlanId, setCurrentPlanId] = useState<string | undefined>(planId);
   const initializedRef = useRef(false);
 
-  // Create draft plan on mount if it doesn't exist (fallback)
+  // Preselect category if provided from Quick Plans
+  useEffect(() => {
+    if (preselectedCategoryId && !selectedCategoryId) {
+      // Verify the category exists in CATEGORIES
+      const categoryExists = CATEGORIES.some(c => c.id === preselectedCategoryId);
+      if (categoryExists) {
+        setSelectedCategoryId(preselectedCategoryId);
+      }
+    }
+  }, [preselectedCategoryId]);
+
+  // Load selected subcategories from params if coming from amount page
+  useEffect(() => {
+    if (subCategories) {
+      try {
+        const parsed = JSON.parse(subCategories);
+        setSelectedSubCategories(parsed);
+      } catch (error) {
+        console.error('Error parsing subCategories:', error);
+      }
+    }
+  }, [subCategories]);
+
+  // Create draft plan on mount if it doesn't exist (fallback) - only if we have budget info
   useEffect(() => {
     const initializeDraftPlan = async () => {
       if (!currentPlanId && !initializedRef.current && totalBudget && budgetStructure) {
@@ -835,50 +860,63 @@ export default function PlanDetailsScreen() {
       // Use currentPlanId if available, otherwise use planId from params
       let activePlanId = currentPlanId || planId;
       
-      // If still no planId, create one now
-      if (!activePlanId) {
-        console.log('No planId found, creating draft plan...');
-        const newDraftPlan = await saveDraftExpensePlan({
+      // If we have budget info, save/update draft plan with it
+      if (totalBudget && budgetStructure) {
+        // If still no planId, create one now
+        if (!activePlanId) {
+          console.log('No planId found, creating draft plan...');
+          const newDraftPlan = await saveDraftExpensePlan({
+            total_budget: parseFloat(totalBudget),
+            budget_structure: budgetStructure as 'fixed' | 'estimated',
+          });
+          
+          if (!newDraftPlan || !newDraftPlan.id) {
+            throw new Error('Failed to create draft plan: No plan ID returned');
+          }
+          
+          activePlanId = newDraftPlan.id;
+          setCurrentPlanId(newDraftPlan.id);
+        }
+        
+        // Save or update draft plan
+        const draftPlan = await saveDraftExpensePlan({
+          planId: activePlanId,
           total_budget: parseFloat(totalBudget),
           budget_structure: budgetStructure as 'fixed' | 'estimated',
         });
-        
-        if (!newDraftPlan || !newDraftPlan.id) {
-          throw new Error('Failed to create draft plan: No plan ID returned');
+
+        // Ensure we have a valid plan ID
+        if (!draftPlan || !draftPlan.id) {
+          throw new Error('Failed to save draft plan: No plan ID returned');
         }
-        
-        activePlanId = newDraftPlan.id;
-        setCurrentPlanId(newDraftPlan.id);
+
+        console.log('Draft plan saved successfully:', draftPlan.id);
+
+        // Update currentPlanId if it changed
+        if (draftPlan.id !== activePlanId) {
+          setCurrentPlanId(draftPlan.id);
+        }
+
+        // Navigate to buckets if we have budget info
+        router.push({
+          pathname: '/expense-planner/create/buckets',
+          params: {
+            totalBudget,
+            budgetStructure,
+            subCategories: JSON.stringify(selectedSubCategories),
+            planId: draftPlan.id,
+          },
+        });
+      } else {
+        // No budget info yet - navigate to amount page
+        router.push({
+          pathname: '/expense-planner',
+          params: {
+            subCategories: JSON.stringify(selectedSubCategories),
+            planId: activePlanId,
+          },
+        });
       }
-      
-      // Save or update draft plan
-      const draftPlan = await saveDraftExpensePlan({
-        planId: activePlanId,
-        total_budget: parseFloat(totalBudget),
-        budget_structure: budgetStructure as 'fixed' | 'estimated',
-      });
-
-      // Ensure we have a valid plan ID
-      if (!draftPlan || !draftPlan.id) {
-        throw new Error('Failed to save draft plan: No plan ID returned');
-      }
-
-      console.log('Draft plan saved successfully:', draftPlan.id);
-
-      // Update currentPlanId if it changed
-      if (draftPlan.id !== activePlanId) {
-        setCurrentPlanId(draftPlan.id);
-      }
-
-      router.push({
-        pathname: '/expense-planner/create/buckets',
-        params: {
-          totalBudget,
-          budgetStructure,
-          subCategories: JSON.stringify(selectedSubCategories),
-          planId: draftPlan.id,
-        },
-      });
     } catch (error: any) {
       console.error('Error saving draft plan:', error);
       Alert.alert(
@@ -919,7 +957,7 @@ export default function PlanDetailsScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-          <Text style={styles.title}>What's the budget for?</Text>
+          <Text style={styles.title}>What are you planning for?</Text>
 
           <View style={styles.searchWrapper}>
             <View style={styles.searchContainer}>

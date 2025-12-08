@@ -20,12 +20,12 @@ export default function ExpensePlansSection() {
 
   const handleViewAll = () => {
     haptics.selection();
-    router.push('/expense-planner');
+    router.push('/expense-planner/create/plan-details');
   };
 
   const handleCreatePlan = () => {
     haptics.mediumImpact();
-    router.push('/expense-planner');
+    router.push('/expense-planner/create/plan-details');
   };
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);

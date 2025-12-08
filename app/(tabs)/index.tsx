@@ -66,6 +66,7 @@ import ExpensePlansSection from '@/components/ExpensePlansSection';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
+import QuickPlans from '@/components/QuickPlans';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -1068,10 +1069,10 @@ export default function HomeScreen() {
               <View style={styles.buttonGroup}>
                 <Pressable 
                   style={styles.addFundsButton} 
-                  onPress={() => {
-                    impact();
-                    router.push('/expense-planner');
-                  }}
+                onPress={() => {
+                  impact();
+                  router.push('/expense-planner/create/plan-details');
+                }}
                 >
                   <PieChart size={20} color={isDark ? '#fff' : colors.primary}/>
                   <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Plan</Text>
@@ -1120,6 +1121,8 @@ export default function HomeScreen() {
         {activeBalanceTab === 'home' && (
           <>
             {/* On Track Card */}
+            <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
+
             <OnTrackCard payoutPlans={payoutPlans} />
             {/* AI Suggestion Section - Only show for authenticated users */}
             {isAuthenticated && (
@@ -1154,7 +1157,9 @@ export default function HomeScreen() {
                 </Pressable>
               </View>
             </View> */}
-            
+
+            {/* Quick Plans Section */}
+            <QuickPlans />
 
             <ImageCarousel images={carouselImages} />
             {isAuthenticated && progress && !(
@@ -1163,7 +1168,6 @@ export default function HomeScreen() {
               progress.id_face_verified === 'true'
             ) && <KYCCard />}
             <PendingActionsCard />
-            <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
             <View style={styles.bottomPadding} />
 
@@ -1212,10 +1216,10 @@ export default function HomeScreen() {
       ]}>
         <Pressable 
           style={styles.addFundsButton} 
-          onPress={() => {
-            impact();
-            router.push('/expense-planner');
-          }}
+                onPress={() => {
+                  impact();
+                  router.push('/expense-planner/create/plan-details');
+                }}
         >
           <PieChart size={20} color={isDark ? '#fff' : colors.primary} />
           <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Plan</Text>
@@ -1441,7 +1445,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   greetingInlineContainer: {
     flex: 1,
     flexShrink: 1,
-    marginHorizontal: 12,
+    marginHorizontal: 1,
     minWidth: 0,
   },
   greetingInlineRow: {
@@ -1449,7 +1453,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     gap: 2,
   },
   greetingInline: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     flexShrink: 1,

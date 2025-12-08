@@ -150,6 +150,7 @@ export function formatExpiryCountdown(hours: number | null): string | null {
 
 /**
  * Determine the resume step for a draft plan based on what data exists
+ * New order: plan-details -> amount -> buckets -> dates -> fund-budget -> name-expense
  */
 export function getDraftResumeStep(plan: {
   id: string;
@@ -158,13 +159,19 @@ export function getDraftResumeStep(plan: {
   end_date?: string | null;
   total_locked?: number;
   name?: string;
+  total_budget?: number;
 }): string {
-  // If no buckets, resume at plan-details (category selection)
+  // If no buckets, resume at plan-details (category selection) - FIRST STEP
   if (!plan.buckets || plan.buckets.length === 0) {
     return '/expense-planner/create/plan-details';
   }
 
-  // If buckets exist but no dates, resume at dates
+  // If buckets exist but no budget, resume at amount page - SECOND STEP
+  if (!plan.total_budget || plan.total_budget === 0) {
+    return '/expense-planner';
+  }
+
+  // If buckets and budget exist but no dates, resume at dates
   if (!plan.start_date || !plan.end_date) {
     return '/expense-planner/create/dates';
   }

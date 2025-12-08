@@ -188,9 +188,13 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       // Build params based on what we have
       const params: any = {
         planId: plan.id,
-        totalBudget: plan.total_budget.toString(),
-        budgetStructure: plan.budget_structure,
       };
+
+      // Only add budget info if it exists
+      if (plan.total_budget) {
+        params.totalBudget = plan.total_budget.toString();
+        params.budgetStructure = plan.budget_structure;
+      }
 
       // Add dates if they exist
       if (plan.start_date) params.startDate = plan.start_date;

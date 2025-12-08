@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
@@ -16,7 +16,10 @@ export default function ExpensePlannerScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
+  const params = useLocalSearchParams();
   const { saveDraftExpensePlan } = useExpensePlans();
+  const planId = params.planId as string | undefined;
+  const subCategories = params.subCategories as string | undefined;
   const [amount, setAmount] = useState('');
   const [budgetStructure, setBudgetStructure] = useState<'fixed' | 'estimated' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,24 +91,44 @@ export default function ExpensePlannerScreen() {
     setError(null);
 
     try {
-      // Create draft plan immediately and save to database
-      const draftPlan = await saveDraftExpensePlan({
-        total_budget: numericAmount,
-        budget_structure: budgetStructure,
-      });
+      // Use existing planId if available (from plan-details), otherwise create new
+      let activePlanId = planId;
+      let draftPlan;
+
+      if (activePlanId) {
+        // Update existing draft plan with budget info
+        draftPlan = await saveDraftExpensePlan({
+          planId: activePlanId,
+          total_budget: numericAmount,
+          budget_structure: budgetStructure,
+        });
+      } else {
+        // Create new draft plan
+        draftPlan = await saveDraftExpensePlan({
+          total_budget: numericAmount,
+          budget_structure: budgetStructure,
+        });
+      }
 
       if (!draftPlan || !draftPlan.id) {
         throw new Error('Failed to create draft plan: No plan ID returned');
       }
 
-      // Navigate with planId included
+      // Navigate to buckets with planId and subCategories if available
+      const navigationParams: any = {
+        totalBudget: amount.replace(/,/g, ''),
+        budgetStructure,
+        planId: draftPlan.id,
+      };
+
+      // If we have subCategories from plan-details, pass them along
+      if (subCategories) {
+        navigationParams.subCategories = subCategories;
+      }
+
       router.push({
-        pathname: '/expense-planner/create/plan-details',
-        params: {
-          totalBudget: amount.replace(/,/g, ''),
-          budgetStructure,
-          planId: draftPlan.id,
-        },
+        pathname: '/expense-planner/create/buckets',
+        params: navigationParams,
       });
     } catch (error) {
       console.error('Error creating draft plan:', error);
