@@ -707,7 +707,7 @@ export default function PlanDetailsScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const { saveDraftExpensePlan } = useExpensePlans();
+  const { saveDraftExpensePlan, saveLastStep } = useExpensePlans();
   const totalBudget = params.totalBudget as string | undefined;
   const budgetStructure = params.budgetStructure as string | undefined;
   const planId = params.planId as string | undefined;
@@ -945,8 +945,12 @@ export default function PlanDetailsScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Plan Details</Text>
         <Pressable
-          onPress={() => {
+          onPress={async () => {
             haptics.selection();
+            // Save last step before closing
+            if (currentPlanId || planId) {
+              await saveLastStep(currentPlanId || planId!, '/expense-planner/create/plan-details');
+            }
             router.replace('/(tabs)');
           }}
           style={styles.cancelButton}

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ExpensePlan, ExpenseBucket, ExpenseBucketLockedFunds, BudgetStructure } from '@/types/expense-planner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export function useExpensePlans() {
   const { session } = useAuth();
@@ -254,6 +255,7 @@ export function useExpensePlans() {
     start_date?: string;
     end_date?: string;
     planId?: string;
+    last_step?: string; // Track the last step/page user was on
   }) => {
     if (!session?.user?.id) {
       throw new Error('User not authenticated');
@@ -269,6 +271,22 @@ export function useExpensePlans() {
         if (planData.budget_structure !== undefined) updates.budget_structure = planData.budget_structure;
         if (planData.start_date !== undefined) updates.start_date = planData.start_date;
         if (planData.end_date !== undefined) updates.end_date = planData.end_date;
+        
+        // Update last_step in metadata if provided
+        if (planData.last_step !== undefined) {
+          // Get current metadata and update last_step
+          const { data: currentPlan } = await supabase
+            .from('expense_plans')
+            .select('metadata')
+            .eq('id', planData.planId)
+            .single();
+          
+          const currentMetadata = currentPlan?.metadata || {};
+          updates.metadata = {
+            ...currentMetadata,
+            last_step: planData.last_step,
+          };
+        }
 
         const { data, error: updateError } = await supabase
           .from('expense_plans')
@@ -305,6 +323,7 @@ export function useExpensePlans() {
           start_date: planData.start_date || null,
           end_date: planData.end_date || null,
           status: 'draft',
+          metadata: planData.last_step ? { last_step: planData.last_step } : {},
         })
         .select()
         .single();
@@ -577,8 +596,103 @@ export function useExpensePlans() {
   };
 
   useEffect(() => {
-    fetchExpensePlans();
+    if (!session?.user?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    let channel: RealtimeChannel | null = null;
+    let isMounted = true;
+
+    const setupRealtimeSubscription = async () => {
+      try {
+        // Initial fetch
+        await fetchExpensePlans();
+
+        if (!isMounted) return;
+
+        // Set up real-time subscription for expense plans
+        const channelName = `expense-plans-changes-${session.user.id}`;
+        channel = supabase
+          .channel(channelName)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'expense_plans',
+              filter: `user_id=eq.${session.user.id}`,
+            },
+            async (payload: any) => {
+              if (!isMounted) return;
+              
+              console.log('📡 Expense plan change received:', {
+                event: payload.eventType || payload.event,
+                planId: payload.new?.id || payload.old?.id,
+              });
+
+              // Refetch plans to get updated data with buckets and locked funds
+              // This ensures we have all related data
+              await fetchExpensePlans();
+            }
+          )
+          .subscribe((status: any) => {
+            console.log('Expense plans subscription status:', status);
+          });
+      } catch (err) {
+        console.error('Error setting up expense plans realtime subscription:', err);
+      }
+    };
+
+    setupRealtimeSubscription();
+
+    return () => {
+      isMounted = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, [session?.user?.id]);
+
+  /**
+   * Save the last step/page the user was on before closing
+   */
+  const saveLastStep = async (planId: string, step: string) => {
+    if (!session?.user?.id) {
+      return; // Silently fail if not authenticated
+    }
+
+    try {
+      // Get current metadata
+      const { data: currentPlan } = await supabase
+        .from('expense_plans')
+        .select('metadata')
+        .eq('id', planId)
+        .eq('user_id', session.user.id)
+        .single();
+
+      const currentMetadata = currentPlan?.metadata || {};
+
+      // Update last_step in metadata
+      const { error: updateError } = await supabase
+        .from('expense_plans')
+        .update({
+          metadata: {
+            ...currentMetadata,
+            last_step: step,
+          },
+        })
+        .eq('id', planId)
+        .eq('user_id', session.user.id);
+
+      if (updateError) {
+        console.error('Error saving last step:', updateError);
+      }
+    } catch (err) {
+      console.error('Error saving last step:', err);
+      // Don't throw - this is a non-critical operation
+    }
+  };
 
   return {
     expensePlans,
@@ -593,6 +707,7 @@ export function useExpensePlans() {
     lockExpenseFunds,
     finalizeExpensePlan,
     getExpenseBuckets,
+    saveLastStep,
   };
 }
 

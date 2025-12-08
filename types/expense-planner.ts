@@ -18,6 +18,7 @@ export interface ExpensePlan {
   buckets?: ExpenseBucket[];
   total_locked?: number;
   funding_status?: 'draft' | 'unfunded' | 'partially_funded' | 'funded';
+  metadata?: any; // Store last_step and other metadata
 }
 
 export interface ExpenseBucket {

@@ -379,7 +379,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontWeight: '700',
     color: colors.text,
     marginBottom: -20,
-    marginTop: 10,
+    marginTop: 1,
   },
   titleContainer: {
     flexDirection: 'row',

@@ -14,7 +14,7 @@ export default function FundingChoiceScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const { saveDraftExpensePlan, saveExpenseBuckets } = useExpensePlans();
+  const { saveDraftExpensePlan, saveExpenseBuckets, saveLastStep } = useExpensePlans();
   const [isSaving, setIsSaving] = useState(false);
   
   const totalBudget = params.totalBudget as string;
@@ -118,8 +118,11 @@ export default function FundingChoiceScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Funding Options</Text>
         <Pressable 
-          onPress={() => {
+          onPress={async () => {
             haptics.selection();
+            if (planId) {
+              await saveLastStep(planId, '/expense-planner/create/funding-choice');
+            }
             router.replace('/(tabs)');
           }} 
           style={styles.closeButton}

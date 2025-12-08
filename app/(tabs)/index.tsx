@@ -1140,6 +1140,12 @@ export default function HomeScreen() {
               <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
               <OnTrackCard payoutPlans={payoutPlans} />
+              {isAuthenticated && progress && !(
+                progress.id_face_verified === true || 
+                progress.id_face_verified === 1 ||
+                progress.id_face_verified === 'true'
+              ) && <KYCCard />}
+
               {/* AI Suggestion Section - Only show for authenticated users */}
               {isAuthenticated && (
                 <AISuggestionCard 
@@ -1150,14 +1156,11 @@ export default function HomeScreen() {
 
               {/* Quick Plans Section */}
               <QuickPlans />
+              <PendingActionsCard />
+
 
               <ImageCarousel images={carouselImages} />
-              {isAuthenticated && progress && !(
-                progress.id_face_verified === true || 
-                progress.id_face_verified === 1 ||
-                progress.id_face_verified === 'true'
-              ) && <KYCCard />}
-              <PendingActionsCard />
+              
 
               <View style={styles.bottomPadding} />
 

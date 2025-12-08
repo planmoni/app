@@ -21,7 +21,7 @@ export default function DatesScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const { saveDraftExpensePlan } = useExpensePlans();
+  const { saveDraftExpensePlan, saveLastStep } = useExpensePlans();
   const totalBudget = params.totalBudget as string;
   const budgetStructure = params.budgetStructure as string;
   const planId = params.planId as string | undefined;
@@ -269,8 +269,11 @@ export default function DatesScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Choose Dates</Text>
         <Pressable 
-          onPress={() => {
+          onPress={async () => {
             haptics.selection();
+            if (planId) {
+              await saveLastStep(planId, '/expense-planner/create/dates');
+            }
             router.replace('/(tabs)');
           }} 
           style={styles.closeButton}

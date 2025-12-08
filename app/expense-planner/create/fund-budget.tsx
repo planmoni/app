@@ -59,7 +59,7 @@ export default function FundBudgetScreen() {
   const haptics = useHaptics();
   const params = useLocalSearchParams();
   const { availableBalance } = useRealtimeWallet();
-  const { lockExpenseFunds, getExpenseBuckets, saveDraftExpensePlan } = useExpensePlans();
+  const { lockExpenseFunds, getExpenseBuckets, saveDraftExpensePlan, saveLastStep } = useExpensePlans();
   
   const totalBudget = parseFloat((params.totalBudget as string) || '0');
   const planId = params.planId as string | undefined;
@@ -303,8 +303,11 @@ export default function FundBudgetScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Lock Funds</Text>
         <Pressable 
-          onPress={() => {
+          onPress={async () => {
             haptics.selection();
+            if (planId) {
+              await saveLastStep(planId, '/expense-planner/create/fund-budget');
+            }
             router.replace('/(tabs)');
           }} 
           style={styles.closeButton}

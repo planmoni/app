@@ -200,7 +200,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       if (plan.start_date) params.startDate = plan.start_date;
       if (plan.end_date) params.endDate = plan.end_date;
 
-      // Add buckets/subcategories if they exist (needed for buckets and dates screens)
+      // Add buckets/subcategories if they exist
       if (plan.buckets && plan.buckets.length > 0) {
         const subCategories: Record<string, string[]> = {};
         plan.buckets.forEach(bucket => {
@@ -211,15 +211,24 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
         });
         params.subCategories = JSON.stringify(subCategories);
         
-        // For buckets screen, we need the bucket data
-        if (resumeStep.includes('buckets') || resumeStep.includes('dates') || resumeStep.includes('fund-budget')) {
+        // For buckets screen, we need the bucket data with target amounts
+        if (resumeStep.includes('buckets')) {
           params.buckets = JSON.stringify(plan.buckets.map(b => ({
             id: b.id,
             categoryId: b.category_id,
             subCategoryId: b.subcategory_id,
             name: b.name,
-            targetAmount: b.target_amount.toString(),
+            targetAmount: b.target_amount ? b.target_amount.toString() : '0',
           })));
+        }
+      } else if (resumeStep.includes('buckets') || resumeStep.includes('plan-details')) {
+        // If no buckets but we're going to buckets or plan-details, 
+        // we still need subcategories if dates exist (means categories were selected)
+        // This handles the case where user selected categories but hasn't allocated amounts yet
+        if (plan.start_date && plan.end_date) {
+          // User has dates, so they went through plan-details, but buckets weren't saved yet
+          // We can't recover subcategories, so they'll need to re-select in plan-details
+          // Or go to buckets where they can see the categories from the flow
         }
       }
 

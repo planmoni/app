@@ -23,7 +23,7 @@ export default function NameExpenseScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const { finalizeExpensePlan, saveDraftExpensePlan } = useExpensePlans();
+  const { finalizeExpensePlan, saveDraftExpensePlan, saveLastStep } = useExpensePlans();
   
   const totalBudget = parseFloat((params.totalBudget as string) || '0');
   const buckets: Bucket[] = params.buckets ? JSON.parse(params.buckets as string) : [];
@@ -192,8 +192,11 @@ export default function NameExpenseScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Name Your Plan</Text>
         <Pressable 
-          onPress={() => {
+          onPress={async () => {
             haptics.selection();
+            if (planId) {
+              await saveLastStep(planId, '/expense-planner/create/name-expense');
+            }
             router.replace('/(tabs)');
           }} 
           style={styles.closeButton}

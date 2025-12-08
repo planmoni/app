@@ -17,7 +17,7 @@ export default function ExpensePlannerScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const { saveDraftExpensePlan } = useExpensePlans();
+  const { saveDraftExpensePlan, saveLastStep } = useExpensePlans();
   const planId = params.planId as string | undefined;
   const subCategories = params.subCategories as string | undefined;
   const [amount, setAmount] = useState('');
@@ -155,9 +155,12 @@ export default function ExpensePlannerScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Expense Planner</Text>
         <Pressable
-          onPress={() => {
+          onPress={async () => {
             if (Platform.OS !== 'web') {
               haptics.lightImpact();
+            }
+            if (planId) {
+              await saveLastStep(planId, '/expense-planner');
             }
             router.push('/(tabs)');
           }}

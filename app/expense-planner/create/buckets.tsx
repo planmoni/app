@@ -479,7 +479,7 @@ export default function BucketsScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const { saveExpenseBuckets, saveDraftExpensePlan } = useExpensePlans();
+  const { saveExpenseBuckets, saveDraftExpensePlan, saveLastStep } = useExpensePlans();
   const totalBudget = parseFloat((params.totalBudget as string) || '0');
   const planId = params.planId as string | undefined;
   const [budgetStructure, setBudgetStructure] = useState<string>(params.budgetStructure as string || 'fixed');
@@ -688,8 +688,11 @@ export default function BucketsScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Allocate Budget</Text>
         <Pressable 
-          onPress={() => {
+          onPress={async () => {
             haptics.selection();
+            if (planId) {
+              await saveLastStep(planId, '/expense-planner/create/buckets');
+            }
             router.replace('/(tabs)');
           }} 
           style={styles.closeButton}

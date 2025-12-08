@@ -150,7 +150,9 @@ export function formatExpiryCountdown(hours: number | null): string | null {
 
 /**
  * Determine the resume step for a draft plan based on what data exists
- * New order: plan-details -> amount -> dates -> buckets -> fund-budget -> name-expense
+ * Flow order: plan-details -> amount -> dates -> buckets -> funding-choice -> fund-budget -> name-expense
+ * 
+ * If last_step is saved in metadata, use that. Otherwise, calculate based on plan data.
  */
 export function getDraftResumeStep(plan: {
   id: string;
@@ -160,28 +162,59 @@ export function getDraftResumeStep(plan: {
   total_locked?: number;
   name?: string;
   total_budget?: number;
+  metadata?: any;
 }): string {
-  // If no budget, resume at amount page (expense-planner/index)
+  // First, check if last_step is saved in metadata
+  if (plan.metadata?.last_step) {
+    return plan.metadata.last_step;
+  }
+  // Step 1: If no budget, resume at amount page (expense-planner/index)
   if (!plan.total_budget || plan.total_budget === 0) {
     return '/expense-planner';
   }
 
-  // If no buckets, resume at plan-details (category selection)
-  if (!plan.buckets || plan.buckets.length === 0) {
-    return '/expense-planner/create/plan-details';
-  }
-
-  // If budget and buckets exist but no dates, resume at dates
+  // Step 2: If no dates, check if we need to go to dates or plan-details
+  // If we have budget but no dates, we need dates first
   if (!plan.start_date || !plan.end_date) {
+    // If we have buckets, it means categories were selected, so go to dates
+    // If no buckets, go to plan-details to select categories first
+    if (!plan.buckets || plan.buckets.length === 0) {
+      return '/expense-planner/create/plan-details';
+    }
     return '/expense-planner/create/dates';
   }
 
-  // If dates exist but no locked funds, resume at fund-budget
-  if (!plan.total_locked || plan.total_locked === 0) {
-    return '/expense-planner/create/fund-budget';
+  // Step 3: If dates exist, check buckets
+  // Buckets are only saved when user allocates amounts in buckets screen
+  // If no buckets, user needs to go to buckets to allocate amounts
+  // But buckets screen requires subCategories, which aren't stored in plan
+  // So if no buckets exist, we need to go back to plan-details to re-select categories
+  // OR we could go to buckets and let the user re-select there
+  // For now, if dates exist but no buckets, go to plan-details to re-select categories
+  // (This ensures we have subCategories for the buckets screen)
+  if (!plan.buckets || plan.buckets.length === 0) {
+    // If dates exist, user went through plan-details already, but buckets weren't saved
+    // We need subCategories for buckets screen, so go back to plan-details
+    // The plan-details screen will load with existing budget/dates and allow re-selection
+    return '/expense-planner/create/plan-details';
   }
 
-  // If locked funds but name is missing or "Untitled Plan", resume at name-expense
+  // Check if buckets have been allocated (have target_amount > 0)
+  const hasAllocatedBuckets = plan.buckets.some(bucket => 
+    bucket.target_amount && bucket.target_amount > 0
+  );
+
+  if (!hasAllocatedBuckets) {
+    // Buckets exist but have 0 target_amount, go to buckets to allocate
+    return '/expense-planner/create/buckets';
+  }
+
+  // Step 4: If buckets are allocated but no locked funds, go to funding-choice
+  if (!plan.total_locked || plan.total_locked === 0) {
+    return '/expense-planner/create/funding-choice';
+  }
+
+  // Step 5: If locked funds but name is missing or "Untitled Plan", resume at name-expense
   if (!plan.name || plan.name === 'Untitled Plan') {
     return '/expense-planner/create/name-expense';
   }
