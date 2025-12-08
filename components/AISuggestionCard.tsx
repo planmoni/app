@@ -429,7 +429,8 @@ const createStyles = (textSizeMultiplier: number) => StyleSheet.create({
   suggestionCard: {
     marginRight: CARD_SPACING,
     borderRadius: 12,
-    padding: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 15,
     borderWidth: 0.5,
     borderColor: '#000',
     shadowColor: '#000000',
