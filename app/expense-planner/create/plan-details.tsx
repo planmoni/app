@@ -897,9 +897,9 @@ export default function PlanDetailsScreen() {
           setCurrentPlanId(draftPlan.id);
         }
 
-        // Navigate to buckets if we have budget info
+        // Navigate to dates if we have budget info (dates comes before buckets now)
         router.push({
-          pathname: '/expense-planner/create/buckets',
+          pathname: '/expense-planner/create/dates',
           params: {
             totalBudget,
             budgetStructure,

@@ -622,7 +622,7 @@ export default function BucketsScreen() {
       if (!activePlanId) {
         console.log('No planId found in buckets screen, creating draft plan...');
         const newDraftPlan = await saveDraftExpensePlan({
-          total_budget: parseFloat(totalBudget),
+          total_budget: totalBudget,
           budget_structure: budgetStructure as 'fixed' | 'estimated',
         });
         
@@ -632,6 +632,10 @@ export default function BucketsScreen() {
         
         activePlanId = newDraftPlan.id;
         console.log('Draft plan created in buckets screen:', activePlanId);
+      }
+
+      if (!activePlanId) {
+        throw new Error('Plan ID is required to save buckets');
       }
 
       // Save buckets to database
@@ -645,8 +649,12 @@ export default function BucketsScreen() {
 
       await saveExpenseBuckets(activePlanId, bucketsToSave);
 
+      // Get dates from params if they exist (from dates screen)
+      const startDate = params.startDate as string | undefined;
+      const endDate = params.endDate as string | undefined;
+
       router.push({
-        pathname: '/expense-planner/create/dates',
+        pathname: '/expense-planner/create/funding-choice',
         params: {
           totalBudget: totalBudget.toString(),
           budgetStructure,
@@ -657,6 +665,8 @@ export default function BucketsScreen() {
             name: b.name,
             targetAmount: b.targetAmount.replace(/,/g, ''),
           }))),
+          startDate: startDate || '',
+          endDate: endDate || '',
           planId: activePlanId,
         },
       });
@@ -705,6 +715,8 @@ export default function BucketsScreen() {
             budgetStructure={budgetStructure as 'fixed' | 'estimated'}
             onSwitchToEstimated={handleSwitchToEstimated}
           />
+
+          <Text style={styles.budgetQuestion}>How much will you be spending on the following?</Text>
 
           <View style={styles.bucketsContainer}>
             {buckets.map((bucket) => {
@@ -823,8 +835,14 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       marginBottom: 24,
       lineHeight: 20,
     },
+    budgetQuestion: {
+      fontSize: getScaledFontSize(12, textSizeMultiplier),
+      fontWeight: '500',
+      color: colors.text,
+      marginTop: 15,
+    },
     bucketsContainer: {
-      marginTop: 24,
+      marginTop: 10,
       gap: 16,
     },
     bucketCard: {

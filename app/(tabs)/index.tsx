@@ -1037,7 +1037,7 @@ export default function HomeScreen() {
             <View style={styles.balanceCardContent}>
               <View style={styles.balanceLabelContainer}>
                 <View style={styles.balanceLabelGroup}>
-                  <Text style={styles.balanceLabel}>Your balance</Text>
+                  <Text style={styles.balanceLabel}>Available balance</Text>
                   <Pressable 
                     onPress={toggleBalances}
                     style={styles.eyeIconButton}
@@ -1202,37 +1202,65 @@ export default function HomeScreen() {
 
       </ScrollView>
 
-      <Animated.View style={[
-        styles.stickyButtons,
-        {
-          opacity: buttonOpacity,
-          transform: [{
-            translateY: buttonOpacity.interpolate({
-              inputRange: [0, 1],
-              outputRange: [100, 0],
-            }),
-          }],
-        },
-      ]}>
-        <Pressable 
-          style={styles.addFundsButton} 
-                onPress={() => {
-                  impact();
-                  router.push('/expense-planner/create/plan-details');
-                }}
+      {/* Sticky Buttons - Only show on Home tab */}
+      {activeBalanceTab === 'home' && (
+        <Animated.View style={[
+          styles.stickyButtons,
+          {
+            opacity: buttonOpacity,
+            transform: [{
+              translateY: buttonOpacity.interpolate({
+                inputRange: [0, 1],
+                outputRange: [100, 0],
+              }),
+            }],
+          },
+        ]}>
+          <Pressable 
+            style={styles.addFundsButton} 
+            onPress={() => {
+              impact();
+              router.push('/expense-planner/create/plan-details');
+            }}
+          >
+            <PieChart size={20} color={isDark ? '#fff' : colors.primary} />
+            <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Plan</Text>
+          </Pressable>
+          <Pressable 
+            style={styles.createButton} 
+            onPress={handleCreatePayout}
+          >
+            <CalendarCheck size={22} color={'#fff'} />
+            <Text style={styles.createButtonText}>Payout</Text>
+          </Pressable>
+        </Animated.View>
+      )}
+
+      {/* Floating + Button for Plans Tab */}
+      {activeBalanceTab === 'plans' && (
+        <Pressable
+          style={styles.floatingAddButton}
+          onPress={() => {
+            impact();
+            router.push('/expense-planner/create/plan-details');
+          }}
         >
-          <PieChart size={20} color={isDark ? '#fff' : colors.primary} />
-          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Plan</Text>
+          <Plus size={24} color="#fff" />
         </Pressable>
-        <Pressable 
-          style={styles.createButton} 
-          onPress={handleCreatePayout}
+      )}
+
+      {/* Floating + Button for Payouts Tab */}
+      {activeBalanceTab === 'payouts' && (
+        <Pressable
+          style={styles.floatingAddButton}
+          onPress={() => {
+            impact();
+            handleCreatePayout();
+          }}
         >
-          <CalendarCheck size={22} color={'#fff'} />
-          <Text style={styles.createButtonText}>Payout</Text>
+          <Plus size={24} color="#fff" />
         </Pressable>
-        
-      </Animated.View>
+      )}
 
       {/* Transaction Modal - Lazy loaded */}
       {selectedTransaction && isTransactionModalVisible && TransactionModalComponent && (
@@ -2113,6 +2141,22 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  floatingAddButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   bottomPadding: {
     height: 1,

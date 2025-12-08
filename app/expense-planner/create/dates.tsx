@@ -25,7 +25,7 @@ export default function DatesScreen() {
   const totalBudget = params.totalBudget as string;
   const budgetStructure = params.budgetStructure as string;
   const planId = params.planId as string | undefined;
-  const buckets = params.buckets ? JSON.parse(params.buckets as string) : [];
+  const subCategories = params.subCategories as string | undefined;
 
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -216,18 +216,23 @@ export default function DatesScreen() {
         });
       }
 
-      // Navigate to funding choice screen with planId
+      // Navigate to buckets screen with planId, dates, and subCategories
+      const navigationParams: any = {
+        totalBudget,
+        budgetStructure,
+        startDate: formatDateForStorage(finalStartDate),
+        endDate: formatDateForStorage(finalEndDate),
+        planId: activePlanId,
+      };
+
+      // If we have subCategories from plan-details, pass them along
+      if (subCategories) {
+        navigationParams.subCategories = subCategories;
+      }
+
       router.push({
-        pathname: '/expense-planner/create/funding-choice',
-        params: {
-          totalBudget,
-          budgetStructure,
-          buckets: JSON.stringify(buckets),
-          planName: params.planName as string || '',
-          startDate: formatDateForStorage(finalStartDate),
-          endDate: formatDateForStorage(finalEndDate),
-          planId: activePlanId,
-        },
+        pathname: '/expense-planner/create/buckets',
+        params: navigationParams,
       });
     } catch (error: any) {
       console.error('Error saving dates:', error);

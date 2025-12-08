@@ -114,7 +114,7 @@ export default function ExpensePlannerScreen() {
         throw new Error('Failed to create draft plan: No plan ID returned');
       }
 
-      // Navigate to buckets with planId and subCategories if available
+      // Navigate to dates with planId and subCategories if available
       const navigationParams: any = {
         totalBudget: amount.replace(/,/g, ''),
         budgetStructure,
@@ -127,7 +127,7 @@ export default function ExpensePlannerScreen() {
       }
 
       router.push({
-        pathname: '/expense-planner/create/buckets',
+        pathname: '/expense-planner/create/dates',
         params: navigationParams,
       });
     } catch (error) {
