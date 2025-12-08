@@ -33,7 +33,7 @@ export default function FrequencySelectionScreen() {
 
   const [selectedFrequency, setSelectedFrequency] = useState<string | null>('daily');
   const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false);
-  const [selectionType, setSelectionType] = useState<'custom' | 'automated' | null>('automated');
+  const [activeTab, setActiveTab] = useState<'frequency' | 'custom'>('frequency');
 
   const handleSelectDates = () => {
     if (Platform.OS !== 'web') {
@@ -67,12 +67,18 @@ export default function FrequencySelectionScreen() {
     if (Platform.OS !== 'web') {
       haptics.selection();
     }
-    setSelectionType('automated');
     setSelectedFrequency(frequency);
     setShowFrequencyDropdown(false);
   };
 
   const handleContinue = () => {
+    // For custom tab, navigate directly to schedule
+    if (activeTab === 'custom') {
+      handleSelectDates();
+      return;
+    }
+
+    // For frequency tab, check if frequency is selected
     if (!selectedFrequency) {
       return;
     }
@@ -152,97 +158,134 @@ export default function FrequencySelectionScreen() {
         <View style={styles.content}>
           <Text style={styles.title}>Choose a payment schedule</Text>
 
-          {/* Select payment frequency section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionDescription}>
-              Select how often you want to get paid
-            </Text>
+          {/* Tabs */}
+          <View style={styles.tabsContainer}>
             <Pressable
               style={[
-                styles.selectButton,
-                selectionType === 'automated' && styles.selectButtonSelected
+                styles.tab,
+                activeTab === 'frequency' && styles.activeTab
               ]}
               onPress={() => {
                 if (Platform.OS !== 'web') {
                   haptics.selection();
                 }
-                setShowFrequencyDropdown(!showFrequencyDropdown);
+                setActiveTab('frequency');
               }}
             >
               <Text style={[
-                styles.selectButtonText,
-                selectionType === 'automated' && styles.selectButtonTextSelected
+                styles.tabText,
+                activeTab === 'frequency' && styles.activeTabText
               ]}>
-                {getSelectedFrequencyLabel()}
+                Frequency
               </Text>
-              <ChevronDown size={20} color={selectionType === 'automated' ? '#1E3A8A' : colors.textSecondary} />
             </Pressable>
-
-            {/* Frequency dropdown */}
-            {showFrequencyDropdown && (
-              <View style={styles.dropdownContainer}>
-                {FREQUENCY_OPTIONS.map((option) => (
-                  <Pressable
-                    key={option.value}
-                    style={[
-                      styles.dropdownOption,
-                      selectedFrequency === option.value && styles.dropdownOptionSelected
-                    ]}
-                    onPress={() => handleFrequencySelect(option.value)}
-                  >
-                    <Text style={[
-                      styles.dropdownOptionText,
-                      selectedFrequency === option.value && styles.dropdownOptionTextSelected
-                    ]}>
-                      {option.label}
-                    </Text>
-                    {selectedFrequency === option.value && (
-                      <View style={styles.checkmark}>
-                        <Text style={styles.checkmarkText}>✓</Text>
-                      </View>
-                    )}
-                  </Pressable>
-                ))}
-              </View>
-            )}
-          </View>
-
-          {/* Or divider */}
-          <View style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Select specific dates section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionDescription}>
-              Select the dates you want to get paid
-            </Text>
             <Pressable
               style={[
-                styles.selectButton,
-                selectionType === 'custom' && styles.selectButtonSelected
+                styles.tab,
+                activeTab === 'custom' && styles.activeTab
               ]}
-              onPress={handleSelectDates}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  haptics.selection();
+                }
+                setActiveTab('custom');
+              }}
             >
-              <CalendarDays size={20} color={selectionType === 'custom' ? '#1E3A8A' : colors.text} />
               <Text style={[
-                styles.selectButtonText,
-                selectionType === 'custom' && styles.selectButtonTextSelected
+                styles.tabText,
+                activeTab === 'custom' && styles.activeTabText
               ]}>
-                Select dates
+                Custom dates
               </Text>
-              <ChevronRight size={20} color={selectionType === 'custom' ? '#1E3A8A' : colors.textSecondary} />
             </Pressable>
           </View>
+
+          {/* Frequency Tab Content */}
+          {activeTab === 'frequency' && (
+            <View style={styles.tabContent}>
+              <View style={styles.section}>
+                <Text style={styles.sectionDescription}>
+                  Select how often you want to get paid
+                </Text>
+                <Pressable
+                  style={[
+                    styles.selectButton,
+                    selectedFrequency && selectedFrequency !== 'custom' && styles.selectButtonSelected
+                  ]}
+                  onPress={() => {
+                    if (Platform.OS !== 'web') {
+                      haptics.selection();
+                    }
+                    setShowFrequencyDropdown(!showFrequencyDropdown);
+                  }}
+                >
+                  <Text style={[
+                    styles.selectButtonText,
+                    selectedFrequency && selectedFrequency !== 'custom' && styles.selectButtonTextSelected
+                  ]}>
+                    {getSelectedFrequencyLabel()}
+                  </Text>
+                  <ChevronDown size={20} color={selectedFrequency && selectedFrequency !== 'custom' ? '#1E3A8A' : colors.textSecondary} />
+                </Pressable>
+
+                {/* Frequency dropdown */}
+                {showFrequencyDropdown && (
+                  <View style={styles.dropdownContainer}>
+                    {FREQUENCY_OPTIONS.map((option) => (
+                      <Pressable
+                        key={option.value}
+                        style={[
+                          styles.dropdownOption,
+                          selectedFrequency === option.value && styles.dropdownOptionSelected
+                        ]}
+                        onPress={() => handleFrequencySelect(option.value)}
+                      >
+                        <Text style={[
+                          styles.dropdownOptionText,
+                          selectedFrequency === option.value && styles.dropdownOptionTextSelected
+                        ]}>
+                          {option.label}
+                        </Text>
+                        {selectedFrequency === option.value && (
+                          <View style={styles.checkmark}>
+                            <Text style={styles.checkmarkText}>✓</Text>
+                          </View>
+                        )}
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Custom Dates Tab Content */}
+          {activeTab === 'custom' && (
+            <View style={styles.tabContent}>
+              <View style={styles.section}>
+                <Text style={styles.sectionDescription}>
+                  Select the dates you want to get paid
+                </Text>
+                <Pressable
+                  style={[styles.selectButton, styles.selectButtonSelected]}
+                  onPress={handleSelectDates}
+                >
+                  <CalendarDays size={20} color="#1E3A8A" />
+                  <Text style={[styles.selectButtonText, styles.selectButtonTextSelected]}>
+                    Select dates
+                  </Text>
+                  <ChevronRight size={20} color="#1E3A8A" />
+                </Pressable>
+              </View>
+            </View>
+          )}
         </View>
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
         title="Continue"
         onPress={handleContinue}
-        disabled={!selectedFrequency}
+        disabled={activeTab === 'frequency' && !selectedFrequency}
         hapticType="medium"
       />
     </SafeAreaView>
@@ -358,21 +401,35 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   selectButtonTextSelected: {
     color: '#1E3A8A',
   },
-  dividerContainer: {
+  tabsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
   },
-  dividerLine: {
+  tab: {
     flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    fontSize: 14,
-    color: colors.textSecondary,
+    paddingVertical: 12,
     paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeTab: {
+    backgroundColor: colors.surface,
+  },
+  tabText: {
+    fontSize: 16,
     fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  activeTabText: {
+    color: '#1E3A8A',
+    fontWeight: '600',
+  },
+  tabContent: {
+    marginTop: 0,
   },
   dropdownContainer: {
     marginTop: 8,
@@ -415,4 +472,3 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     fontWeight: '600',
   },
 });
-

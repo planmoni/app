@@ -35,6 +35,18 @@ export default function LastNameScreen() {
     setIsButtonEnabled(lastName.trim().length > 0);
   }, [lastName]);
 
+  // Filter input to only allow letters (no spaces, numbers, or special characters)
+  const filterLettersOnly = (text: string): string => {
+    // Remove all non-letter characters (keeps only A-Z, a-z, including accented characters)
+    return text.replace(/[^a-zA-ZÀ-ÿ]/g, '');
+  };
+
+  const handleTextChange = (text: string) => {
+    const filteredText = filterLettersOnly(text);
+    setLastName(filteredText);
+    setError(null);
+  };
+
   const handleContinue = () => {
     if (!lastName.trim()) {
       setError('Please enter your last name');

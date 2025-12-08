@@ -185,6 +185,10 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
   };
 
   const handleDateSelect = (date: Date) => {
+    // Prevent selecting today or past dates
+    if (isTodayOrPastDate(date)) {
+      return;
+    }
     const dateString = formatDate(date);
     // Toggle date selection - parent will handle add/remove
     onSelect(dateString);
@@ -205,6 +209,14 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return date < today;
+  };
+
+  const isTodayOrPastDate = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+    return checkDate <= today; // Includes today and past dates
   };
 
   const styles = createDatePickerStyles(colors, isSmallScreen);
@@ -251,7 +263,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
               
               {Array.from({ length: getDaysInMonth(currentDate) }).map((_, index) => {
                 const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), index + 1);
-                const isDisabled = isPastDate(date);
+                const isDisabled = isTodayOrPastDate(date);
                 const isDateAlreadySelected = isDateSelected(date);
                 const isTodayDate = isToday(date);
 
@@ -261,7 +273,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
                     style={[
                       styles.dayCell,
                       isDateAlreadySelected && styles.selectedDay,
-                      isTodayDate && !isDateAlreadySelected && styles.todayDay,
+                      isTodayDate && !isDateAlreadySelected && !isDisabled && styles.todayDay,
                       isDisabled && styles.disabledDay,
                     ]}
                     onPress={() => !isDisabled && handleDateSelect(date)}
@@ -270,7 +282,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
                     <Text style={[
                       styles.dayText,
                       isDateAlreadySelected && styles.selectedDayText,
-                      isTodayDate && !isDateAlreadySelected && styles.todayDayText,
+                      isTodayDate && !isDateAlreadySelected && !isDisabled && styles.todayDayText,
                       isDisabled && styles.disabledDayText,
                     ]}>
                       {index + 1}
@@ -871,6 +883,16 @@ export default function ScheduleScreen() {
   };
 
   const handleDateSelect = (date: string) => {
+    // Prevent selecting today or past dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(date);
+    selectedDate.setHours(0, 0, 0, 0);
+    
+    if (selectedDate <= today) {
+      return; // Don't allow today or past dates
+    }
+
     // Toggle date selection - add if not present, remove if present
     let newDates: string[];
     if (customDates.includes(date)) {
