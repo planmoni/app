@@ -247,7 +247,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
             <View style={[styles.statusTag, { backgroundColor: statusTag.backgroundColor }]}>
               <Text style={[styles.statusTagText, { color: statusTag.textColor }]}>
                 {statusTag.label}
-              </Text>
+          </Text>
             </View>
             {expiryText && (
               <Text style={styles.expiryText}>{expiryText}</Text>
@@ -266,7 +266,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       </View>
 
       <View style={styles.amountRow}>
-        <Text style={styles.planAmount}>₦{plan.total_budget.toLocaleString()}</Text>
+      <Text style={styles.planAmount}>₦{plan.total_budget.toLocaleString()}</Text>
         <Text style={styles.budgetStructure}>
           {plan.budget_structure === 'fixed' ? 'Fixed' : 'Estimated'}
         </Text>
@@ -315,10 +315,10 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       {/* Only show spent amount when budget has started */}
       {budgetStarted ? (
         <View style={styles.progressInfo}>
-          <Text style={styles.progressText}>
+        <Text style={styles.progressText}>
             Spent ₦{plan.total_spent.toLocaleString()}/₦{plan.total_budget.toLocaleString()}
-          </Text>
-        </View>
+        </Text>
+      </View>
       ) : (
         /* Show remaining days when budget hasn't started */
         daysRemainingText && (

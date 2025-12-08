@@ -86,20 +86,20 @@ export default function FundingChoiceScreen() {
         await saveExpenseBuckets(activePlanId, bucketsToSave);
       }
 
-      // Navigate to name expense screen with funding skipped
-      router.push({
-        pathname: '/expense-planner/create/name-expense',
-        params: {
-          totalBudget,
-          budgetStructure,
-          buckets: JSON.stringify(buckets),
-          planName: planName || '',
-          startDate,
-          endDate,
+    // Navigate to name expense screen with funding skipped
+    router.push({
+      pathname: '/expense-planner/create/name-expense',
+      params: {
+        totalBudget,
+        budgetStructure,
+        buckets: JSON.stringify(buckets),
+        planName: planName || '',
+        startDate,
+        endDate,
           planId: activePlanId,
-          skipFunding: 'true',
-        },
-      });
+        skipFunding: 'true',
+      },
+    });
     } catch (error: any) {
       console.error('Error saving plan for later:', error);
       Alert.alert('Error', error.message || 'Failed to save plan. Please try again.');

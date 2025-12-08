@@ -203,80 +203,80 @@ export default function FrequencySelectionScreen() {
           {/* Frequency Tab Content */}
           {activeTab === 'frequency' && (
             <View style={styles.tabContent}>
-              <View style={styles.section}>
-                <Text style={styles.sectionDescription}>
-                  Select how often you want to get paid
-                </Text>
-                <Pressable
-                  style={[
-                    styles.selectButton,
+          <View style={styles.section}>
+            <Text style={styles.sectionDescription}>
+              Select how often you want to get paid
+            </Text>
+            <Pressable
+              style={[
+                styles.selectButton,
                     selectedFrequency && selectedFrequency !== 'custom' && styles.selectButtonSelected
-                  ]}
-                  onPress={() => {
-                    if (Platform.OS !== 'web') {
-                      haptics.selection();
-                    }
-                    setShowFrequencyDropdown(!showFrequencyDropdown);
-                  }}
-                >
-                  <Text style={[
-                    styles.selectButtonText,
+              ]}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  haptics.selection();
+                }
+                setShowFrequencyDropdown(!showFrequencyDropdown);
+              }}
+            >
+              <Text style={[
+                styles.selectButtonText,
                     selectedFrequency && selectedFrequency !== 'custom' && styles.selectButtonTextSelected
-                  ]}>
-                    {getSelectedFrequencyLabel()}
-                  </Text>
+              ]}>
+                {getSelectedFrequencyLabel()}
+              </Text>
                   <ChevronDown size={20} color={selectedFrequency && selectedFrequency !== 'custom' ? '#1E3A8A' : colors.textSecondary} />
-                </Pressable>
+            </Pressable>
 
-                {/* Frequency dropdown */}
-                {showFrequencyDropdown && (
-                  <View style={styles.dropdownContainer}>
-                    {FREQUENCY_OPTIONS.map((option) => (
-                      <Pressable
-                        key={option.value}
-                        style={[
-                          styles.dropdownOption,
-                          selectedFrequency === option.value && styles.dropdownOptionSelected
-                        ]}
-                        onPress={() => handleFrequencySelect(option.value)}
-                      >
-                        <Text style={[
-                          styles.dropdownOptionText,
-                          selectedFrequency === option.value && styles.dropdownOptionTextSelected
-                        ]}>
-                          {option.label}
-                        </Text>
-                        {selectedFrequency === option.value && (
-                          <View style={styles.checkmark}>
-                            <Text style={styles.checkmarkText}>✓</Text>
-                          </View>
-                        )}
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
+            {/* Frequency dropdown */}
+            {showFrequencyDropdown && (
+              <View style={styles.dropdownContainer}>
+                {FREQUENCY_OPTIONS.map((option) => (
+                  <Pressable
+                    key={option.value}
+                    style={[
+                      styles.dropdownOption,
+                      selectedFrequency === option.value && styles.dropdownOptionSelected
+                    ]}
+                    onPress={() => handleFrequencySelect(option.value)}
+                  >
+                    <Text style={[
+                      styles.dropdownOptionText,
+                      selectedFrequency === option.value && styles.dropdownOptionTextSelected
+                    ]}>
+                      {option.label}
+                    </Text>
+                    {selectedFrequency === option.value && (
+                      <View style={styles.checkmark}>
+                        <Text style={styles.checkmarkText}>✓</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                ))}
               </View>
-            </View>
+            )}
+          </View>
+          </View>
           )}
 
           {/* Custom Dates Tab Content */}
           {activeTab === 'custom' && (
             <View style={styles.tabContent}>
-              <View style={styles.section}>
-                <Text style={styles.sectionDescription}>
-                  Select the dates you want to get paid
-                </Text>
-                <Pressable
+          <View style={styles.section}>
+            <Text style={styles.sectionDescription}>
+              Select the dates you want to get paid
+            </Text>
+            <Pressable
                   style={[styles.selectButton, styles.selectButtonSelected]}
-                  onPress={handleSelectDates}
-                >
+              onPress={handleSelectDates}
+            >
                   <CalendarDays size={20} color="#1E3A8A" />
                   <Text style={[styles.selectButtonText, styles.selectButtonTextSelected]}>
-                    Select dates
-                  </Text>
+                Select dates
+              </Text>
                   <ChevronRight size={20} color="#1E3A8A" />
-                </Pressable>
-              </View>
+            </Pressable>
+          </View>
             </View>
           )}
         </View>

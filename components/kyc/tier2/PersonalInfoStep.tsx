@@ -196,12 +196,12 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
       maxDate.setHours(23, 59, 59, 999);
       
       if (existingDate >= minDate && existingDate <= maxDate) {
-        setSelectedDate(existingDate);
-        setCurrentMonth(existingDate);
-      } else {
+      setSelectedDate(existingDate);
+      setCurrentMonth(existingDate);
+    } else {
         // If existing date is out of range, set to a valid default (12 years ago)
         const defaultDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
-        setSelectedDate(null);
+      setSelectedDate(null);
         setCurrentMonth(defaultDate);
       }
     } else {
@@ -232,7 +232,7 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
     
     // Only allow selection if date is within valid range
     if (date >= minDate && date <= maxDate) {
-      setSelectedDate(date);
+    setSelectedDate(date);
     }
   };
 
@@ -245,8 +245,8 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
       
       // Validate date is within range before confirming
       if (selectedDate >= minDate && selectedDate <= maxDate) {
-        setDateOfBirth(formatDateForDisplay(selectedDate));
-        setErrors(prev => ({ ...prev, dateOfBirth: '' }));
+      setDateOfBirth(formatDateForDisplay(selectedDate));
+      setErrors(prev => ({ ...prev, dateOfBirth: '' }));
       } else {
         showToast('Please select a valid date of birth (minimum age: 12 years)', 'error');
         return;
@@ -530,8 +530,8 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
                   value={firstName}
                   onChangeText={(text) => {
                     if (!isBVNVerified) {
-                      setFirstName(text);
-                      setErrors(prev => ({ ...prev, firstName: '' }));
+                    setFirstName(text);
+                    setErrors(prev => ({ ...prev, firstName: '' }));
                     }
                   }}
                   autoCapitalize="words"
@@ -558,8 +558,8 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
                   value={lastName}
                   onChangeText={(text) => {
                     if (!isBVNVerified) {
-                      setLastName(text);
-                      setErrors(prev => ({ ...prev, lastName: '' }));
+                    setLastName(text);
+                    setErrors(prev => ({ ...prev, lastName: '' }));
                     }
                   }}
                   autoCapitalize="words"

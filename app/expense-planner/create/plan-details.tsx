@@ -878,12 +878,12 @@ export default function PlanDetailsScreen() {
           setCurrentPlanId(newDraftPlan.id);
         }
         
-        // Save or update draft plan
-        const draftPlan = await saveDraftExpensePlan({
+      // Save or update draft plan
+      const draftPlan = await saveDraftExpensePlan({
           planId: activePlanId,
-          total_budget: parseFloat(totalBudget),
-          budget_structure: budgetStructure as 'fixed' | 'estimated',
-        });
+        total_budget: parseFloat(totalBudget),
+        budget_structure: budgetStructure as 'fixed' | 'estimated',
+      });
 
         // Ensure we have a valid plan ID
         if (!draftPlan || !draftPlan.id) {
@@ -898,15 +898,15 @@ export default function PlanDetailsScreen() {
         }
 
         // Navigate to dates if we have budget info (dates comes before buckets now)
-        router.push({
+      router.push({
           pathname: '/expense-planner/create/dates',
-          params: {
-            totalBudget,
-            budgetStructure,
-            subCategories: JSON.stringify(selectedSubCategories),
-            planId: draftPlan.id,
-          },
-        });
+        params: {
+          totalBudget,
+          budgetStructure,
+          subCategories: JSON.stringify(selectedSubCategories),
+          planId: draftPlan.id,
+        },
+      });
       } else {
         // No budget info yet - navigate to amount page
         router.push({

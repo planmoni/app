@@ -261,22 +261,22 @@ export function useExpensePlans() {
 
     try {
       return await retryWithBackoff(async () => {
-        // If planId exists, update existing draft
-        if (planData.planId) {
-          const updates: any = {};
-          if (planData.name !== undefined) updates.name = planData.name;
-          if (planData.total_budget !== undefined) updates.total_budget = planData.total_budget;
-          if (planData.budget_structure !== undefined) updates.budget_structure = planData.budget_structure;
-          if (planData.start_date !== undefined) updates.start_date = planData.start_date;
-          if (planData.end_date !== undefined) updates.end_date = planData.end_date;
+      // If planId exists, update existing draft
+      if (planData.planId) {
+        const updates: any = {};
+        if (planData.name !== undefined) updates.name = planData.name;
+        if (planData.total_budget !== undefined) updates.total_budget = planData.total_budget;
+        if (planData.budget_structure !== undefined) updates.budget_structure = planData.budget_structure;
+        if (planData.start_date !== undefined) updates.start_date = planData.start_date;
+        if (planData.end_date !== undefined) updates.end_date = planData.end_date;
 
-          const { data, error: updateError } = await supabase
-            .from('expense_plans')
-            .update(updates)
-            .eq('id', planData.planId)
-            .eq('user_id', session.user.id)
-            .select()
-            .single();
+        const { data, error: updateError } = await supabase
+          .from('expense_plans')
+          .update(updates)
+          .eq('id', planData.planId)
+          .eq('user_id', session.user.id)
+          .select()
+          .single();
 
           if (updateError) {
             // Enhance error message for 502 errors
@@ -287,27 +287,27 @@ export function useExpensePlans() {
             }
             throw updateError;
           }
-          return data;
-        }
+        return data;
+      }
 
-        // Create new draft plan
-        if (!planData.total_budget || !planData.budget_structure) {
-          throw new Error('total_budget and budget_structure are required to create a draft plan');
-        }
+      // Create new draft plan
+      if (!planData.total_budget || !planData.budget_structure) {
+        throw new Error('total_budget and budget_structure are required to create a draft plan');
+      }
 
-        const { data, error: insertError } = await supabase
-          .from('expense_plans')
-          .insert({
-            user_id: session.user.id,
-            name: planData.name || 'Untitled Plan',
-            total_budget: planData.total_budget,
-            budget_structure: planData.budget_structure,
-            start_date: planData.start_date || null,
-            end_date: planData.end_date || null,
-            status: 'draft',
-          })
-          .select()
-          .single();
+      const { data, error: insertError } = await supabase
+        .from('expense_plans')
+        .insert({
+          user_id: session.user.id,
+          name: planData.name || 'Untitled Plan',
+          total_budget: planData.total_budget,
+          budget_structure: planData.budget_structure,
+          start_date: planData.start_date || null,
+          end_date: planData.end_date || null,
+          status: 'draft',
+        })
+        .select()
+        .single();
 
         if (insertError) {
           // Enhance error message for 502 errors
@@ -318,7 +318,7 @@ export function useExpensePlans() {
           }
           throw insertError;
         }
-        return data;
+      return data;
       });
     } catch (err) {
       console.error('Error saving draft expense plan:', err);

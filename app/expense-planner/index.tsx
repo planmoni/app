@@ -129,7 +129,7 @@ export default function ExpensePlannerScreen() {
       router.push({
         pathname: '/expense-planner/create/dates',
         params: navigationParams,
-      });
+    });
     } catch (error) {
       console.error('Error creating draft plan:', error);
       setError('Failed to create plan. Please try again.');

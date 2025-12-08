@@ -39,6 +39,7 @@ import {
   Platform,
   BackHandler,
   InteractionManager,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -98,8 +99,46 @@ export default function HomeScreen() {
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
   const { expensePlans } = useExpensePlans();
   const [activeBalanceTab, setActiveBalanceTab] = useState<'home' | 'plans' | 'payouts'>('home');
+  const { width: screenWidth } = useWindowDimensions();
+  const tabScrollViewRef = useRef<ScrollView>(null);
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification } = useHaptics();
+  
+  // Handle tab change with scroll
+  const handleTabChange = useCallback((tab: 'home' | 'plans' | 'payouts') => {
+    impact();
+    setActiveBalanceTab(tab);
+    const tabIndex = tab === 'home' ? 0 : tab === 'plans' ? 1 : 2;
+    // Use requestAnimationFrame to ensure ref is ready
+    requestAnimationFrame(() => {
+      tabScrollViewRef.current?.scrollTo({
+        x: tabIndex * screenWidth,
+        animated: true,
+      });
+    });
+  }, [screenWidth, impact]);
+
+  // Handle scroll end to update active tab
+  const handleScrollEnd = useCallback((event: any) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const tabIndex = Math.round(offsetX / screenWidth);
+    const newTab = tabIndex === 0 ? 'home' : tabIndex === 1 ? 'plans' : 'payouts';
+    if (newTab !== activeBalanceTab) {
+      setActiveBalanceTab(newTab);
+    }
+  }, [screenWidth, activeBalanceTab]);
+
+  // Sync scroll position on mount or screen width change only
+  useEffect(() => {
+    if (tabScrollViewRef.current) {
+      const tabIndex = activeBalanceTab === 'home' ? 0 : activeBalanceTab === 'plans' ? 1 : 2;
+      tabScrollViewRef.current.scrollTo({
+        x: tabIndex * screenWidth,
+        animated: false,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenWidth]); // Only sync on screen width change, not on tab change
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -987,10 +1026,7 @@ export default function HomeScreen() {
         {/* Balance Tabs */}
         <View style={styles.tabsContainer}>
           <Pressable
-            onPress={() => {
-              impact();
-              setActiveBalanceTab('home');
-            }}
+            onPress={() => handleTabChange('home')}
           >
             <Text style={[
               styles.tabText,
@@ -1000,10 +1036,7 @@ export default function HomeScreen() {
             </Text>
           </Pressable>
           <Pressable
-            onPress={() => {
-              impact();
-              setActiveBalanceTab('plans');
-            }}
+            onPress={() => handleTabChange('plans')}
           >
             <Text style={[
               styles.tabText,
@@ -1013,10 +1046,7 @@ export default function HomeScreen() {
             </Text>
           </Pressable>
           <Pressable
-            onPress={() => {
-              impact();
-              setActiveBalanceTab('payouts');
-            }}
+            onPress={() => handleTabChange('payouts')}
           >
             <Text style={[
               styles.tabText,
@@ -1027,166 +1057,147 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Home Tab - Full Balance Card with Buttons */}
-        {activeBalanceTab === 'home' && (
-          <ImageBackground 
-            source={require('@/assets/images/background.png')} 
-            style={styles.balanceCard}
-            resizeMode="cover"
+        {/* Swipeable Tab Content */}
+        <View style={styles.tabContentWrapper}>
+          <ScrollView
+            ref={tabScrollViewRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={handleScrollEnd}
+            scrollEventThrottle={16}
+            decelerationRate="fast"
+            snapToInterval={screenWidth}
+            snapToAlignment="start"
+            style={[styles.tabContentScrollView, { width: screenWidth }]}
+            contentContainerStyle={{ width: screenWidth * 3 }}
           >
-            <View style={styles.balanceCardContent}>
-              <View style={styles.balanceLabelContainer}>
-                <View style={styles.balanceLabelGroup}>
-                  <Text style={styles.balanceLabel}>Available balance</Text>
+          {/* Home Tab Content */}
+          <View style={[styles.tabPage, { width: screenWidth }]}>
+            {/* Home Tab - Full Balance Card with Buttons */}
+            <ImageBackground 
+              source={require('@/assets/images/background.png')} 
+              style={styles.balanceCard}
+              resizeMode="cover"
+            >
+              <View style={styles.balanceCardContent}>
+                <View style={styles.balanceLabelContainer}>
+                  <View style={styles.balanceLabelGroup}>
+                    <Text style={styles.balanceLabel}>Available balance</Text>
+                    <Pressable 
+                      onPress={toggleBalances}
+                      style={styles.eyeIconButton}
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                    >
+                      {showBalances ? (
+                        <EyeOff size={16} color={colors.textSecondary} />
+                      ) : (
+                        <Eye size={16} color={colors.textSecondary} />
+                      )}
+                    </Pressable>
+                  </View>
                   <Pressable 
-                    onPress={toggleBalances}
-                    style={styles.eyeIconButton}
-                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                    onPress={handleAddFunds}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    {showBalances ? (
-                      <EyeOff size={16} color={colors.textSecondary} />
-                    ) : (
-                      <Eye size={16} color={colors.textSecondary} />
-                    )}
+                    <Text style={[styles.addFundsLink, { color: colors.primary }]}>+ Add funds</Text>
                   </Pressable>
                 </View>
-                <Pressable 
-                  onPress={handleAddFunds}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Text style={[styles.addFundsLink, { color: colors.primary }]}>+ Add funds</Text>
-                </Pressable>
-              </View>
-              <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
-              <View style={styles.lockedSection}>
-                <View style={styles.lockedLabelContainer}>
-                  <Clock size={16} color={colors.textSecondary} />
-                  <Text style={styles.lockedLabel}>
-                    {formatBalance(lockedBalance)} in active payout plans
-                  </Text>
+                <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
+                <View style={styles.lockedSection}>
+                  <View style={styles.lockedLabelContainer}>
+                    <Clock size={16} color={colors.textSecondary} />
+                    <Text style={styles.lockedLabel}>
+                      {formatBalance(lockedBalance)} in active payout plans
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.buttonGroup}>
+                  <Pressable 
+                    style={styles.addFundsButton} 
+                  onPress={() => {
+                    impact();
+                    router.push('/expense-planner/create/plan-details');
+                  }}
+                  >
+                    <PieChart size={20} color={isDark ? '#fff' : colors.primary}/>
+                    <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Plan</Text>
+                  </Pressable>
+                  <Pressable 
+                    style={styles.createButton} 
+                    onPress={handleCreatePayout}
+                  >
+                    <CalendarCheck size={22} color={'#fff'} />
+                    <Text style={styles.createButtonText}>Payout</Text>
+                  </Pressable>
                 </View>
               </View>
-              <View style={styles.buttonGroup}>
-                <Pressable 
-                  style={styles.addFundsButton} 
-                onPress={() => {
-                  impact();
-                  router.push('/expense-planner/create/plan-details');
-                }}
-                >
-                  <PieChart size={20} color={isDark ? '#fff' : colors.primary}/>
-                  <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Plan</Text>
-                </Pressable>
-                <Pressable 
-                  style={styles.createButton} 
-                  onPress={handleCreatePayout}
-                >
-                  <CalendarCheck size={22} color={'#fff'} />
-                  <Text style={styles.createButtonText}>Payout</Text>
-                </Pressable>
+            </ImageBackground>
+            
+            {/* Home Tab Content */}
+            <>
+              {/* On Track Card */}
+              <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
+
+              <OnTrackCard payoutPlans={payoutPlans} />
+              {/* AI Suggestion Section - Only show for authenticated users */}
+              {isAuthenticated && (
+                <AISuggestionCard 
+                  availableBalance={availableBalance}
+                  onSuggestionPress={handleAISuggestionPress}
+                />
+              )}
+
+              {/* Quick Plans Section */}
+              <QuickPlans />
+
+              <ImageCarousel images={carouselImages} />
+              {isAuthenticated && progress && !(
+                progress.id_face_verified === true || 
+                progress.id_face_verified === 1 ||
+                progress.id_face_verified === 'true'
+              ) && <KYCCard />}
+              <PendingActionsCard />
+
+              <View style={styles.bottomPadding} />
+
+              <RatingCard />
+            </>
+          </View>
+
+          {/* Plans Tab Content */}
+          <View style={[styles.tabPage, { width: screenWidth }]}>
+            {/* Plans Tab - Text Only Balance */}
+            <View style={styles.textBalanceContainer}>
+              <Text style={styles.textBalanceLabel}>Your expense plans balance</Text>
+              <Text style={styles.textBalanceAmount}>{formatBalance(expensePlansBalance)}</Text>
+              <View style={styles.textBalanceLocked}>
+                <Clock size={14} color={colors.textSecondary} />
+                <Text style={styles.textBalanceLockedText}>
+                  {formatBalance(expensePlansBalance)} in expense plans
+                </Text>
               </View>
             </View>
-          </ImageBackground>
-        )}
-
-        {/* Plans Tab - Text Only Balance */}
-        {activeBalanceTab === 'plans' && (
-          <View style={styles.textBalanceContainer}>
-            <Text style={styles.textBalanceLabel}>Your expense plans balance</Text>
-            <Text style={styles.textBalanceAmount}>{formatBalance(expensePlansBalance)}</Text>
-            <View style={styles.textBalanceLocked}>
-              <Clock size={14} color={colors.textSecondary} />
-              <Text style={styles.textBalanceLockedText}>
-                {formatBalance(expensePlansBalance)} in expense plans
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Payouts Tab - Text Only Balance */}
-        {activeBalanceTab === 'payouts' && (
-          <View style={styles.textBalanceContainer}>
-            <Text style={styles.textBalanceLabel}>Your payout plans balance</Text>
-            <Text style={styles.textBalanceAmount}>{formatBalance(lockedBalance)}</Text>
-            <View style={styles.textBalanceLocked}>
-              <Clock size={14} color={colors.textSecondary} />
-              <Text style={styles.textBalanceLockedText}>
-                {formatBalance(lockedBalance)} in payout plans
-              </Text>
-            </View>
-          </View>
-        )}
-        
-        {/* Home Tab Content */}
-        {activeBalanceTab === 'home' && (
-          <>
-            {/* On Track Card */}
-            <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
-
-            <OnTrackCard payoutPlans={payoutPlans} />
-            {/* AI Suggestion Section - Only show for authenticated users */}
-            {isAuthenticated && (
-              <AISuggestionCard 
-                availableBalance={availableBalance}
-                onSuggestionPress={handleAISuggestionPress}
-              />
-            )}
-            {/* <IntercomButton /> */}
-
-            {/* KYC Tiers Test Buttons */}
-            {/* <View style={styles.kycTiersContainer}>
-              <Text style={[styles.kycTiersTitle, { color: colors.text }]}>KYC Tiers Test</Text>
-              <View style={styles.kycTiersButtons}>
-                <Pressable
-                  style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
-                  onPress={() => router.push('/kyc-tiers/tier-one')}
-                >
-                  <Text style={styles.kycTierButtonText}>Tier 1</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
-                  onPress={() => router.push('/kyc-tiers/tier-two')}
-                >
-                  <Text style={styles.kycTierButtonText}>Tier 2</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
-                  onPress={() => router.push('/kyc-tiers/tier-three')}
-                >
-                  <Text style={styles.kycTierButtonText}>Tier 3</Text>
-                </Pressable>
-              </View>
-            </View> */}
-
-            {/* Quick Plans Section */}
-            <QuickPlans />
-
-            <ImageCarousel images={carouselImages} />
-            {isAuthenticated && progress && !(
-              progress.id_face_verified === true || 
-              progress.id_face_verified === 1 ||
-              progress.id_face_verified === 'true'
-            ) && <KYCCard />}
-            <PendingActionsCard />
-
-            <View style={styles.bottomPadding} />
-
-            <RatingCard />
-          </>
-        )}
-
-        {/* Plans Tab Content */}
-        {activeBalanceTab === 'plans' && (
-          <>
+            
             {/* Expense Plans Section */}
             <ExpensePlansSection />
             <View style={styles.bottomPadding} />
-          </>
-        )}
+          </View>
 
-        {/* Payouts Tab Content */}
-        {activeBalanceTab === 'payouts' && (
-          <>
+          {/* Payouts Tab Content */}
+          <View style={[styles.tabPage, { width: screenWidth }]}>
+            {/* Payouts Tab - Text Only Balance */}
+            <View style={styles.textBalanceContainer}>
+              <Text style={styles.textBalanceLabel}>Your payout plans balance</Text>
+              <Text style={styles.textBalanceAmount}>{formatBalance(lockedBalance)}</Text>
+              <View style={styles.textBalanceLocked}>
+                <Clock size={14} color={colors.textSecondary} />
+                <Text style={styles.textBalanceLockedText}>
+                  {formatBalance(lockedBalance)} in payout plans
+                </Text>
+              </View>
+            </View>
+            
             {/* Next Payout Section */}
             <NextPayoutCard nextPayout={nextPayout} />
 
@@ -1197,8 +1208,9 @@ export default function HomeScreen() {
               onShowHowItWorks={() => setShowHowItWorksModal(true)}
             />
             <View style={styles.bottomPadding} />
-          </>
-        )}
+          </View>
+          </ScrollView>
+        </View>
 
       </ScrollView>
 
@@ -2157,6 +2169,18 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  tabContentWrapper: {
+    marginHorizontal: -16, // Extend beyond parent padding
+    height: '100%', // Take full available height
+  },
+  tabContentScrollView: {
+    // Width will be set inline
+  },
+  tabPage: {
+    paddingHorizontal: 16, // Add padding back to each page
+    flexShrink: 0,
+    minHeight: '100%', // Ensure full height
   },
   bottomPadding: {
     height: 1,

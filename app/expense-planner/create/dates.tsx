@@ -197,10 +197,10 @@ export default function DatesScreen() {
         const newDraftPlan = await saveDraftExpensePlan({
           total_budget: parseFloat(totalBudget),
           budget_structure: budgetStructure as 'fixed' | 'estimated',
-          start_date: formatDateForStorage(finalStartDate),
-          end_date: formatDateForStorage(finalEndDate),
-        });
-        
+        start_date: formatDateForStorage(finalStartDate),
+        end_date: formatDateForStorage(finalEndDate),
+      });
+
         if (!newDraftPlan || !newDraftPlan.id) {
           throw new Error('Failed to create draft plan: No plan ID returned');
         }
@@ -218,10 +218,10 @@ export default function DatesScreen() {
 
       // Navigate to buckets screen with planId, dates, and subCategories
       const navigationParams: any = {
-        totalBudget,
-        budgetStructure,
-        startDate: formatDateForStorage(finalStartDate),
-        endDate: formatDateForStorage(finalEndDate),
+          totalBudget,
+          budgetStructure,
+          startDate: formatDateForStorage(finalStartDate),
+          endDate: formatDateForStorage(finalEndDate),
         planId: activePlanId,
       };
 

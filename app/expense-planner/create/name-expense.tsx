@@ -91,7 +91,7 @@ export default function NameExpenseScreen() {
 
     // Use currentPlanId if available, otherwise try params
     let planId = currentPlanId || (params.planId as string | undefined);
-    
+
     haptics.mediumImpact();
     setIsCreating(true);
     
