@@ -185,6 +185,10 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
   };
 
   const handleDateSelect = (date: Date) => {
+    // Prevent selecting today or past dates
+    if (isTodayOrPastDate(date)) {
+      return;
+    }
     const dateString = formatDate(date);
     // Toggle date selection - parent will handle add/remove
     onSelect(dateString);
@@ -207,6 +211,14 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
     return date < today;
   };
 
+  const isTodayOrPastDate = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+    return checkDate <= today; // Includes today and past dates
+  };
+
   const styles = createDatePickerStyles(colors, isSmallScreen);
 
   return (
@@ -219,7 +231,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.calendarHeader}>
-            <Text style={styles.calendarTitle}>Select Dates</Text>
+            <Text style={styles.calendarTitle}>Select one or more dates</Text>
             <View style={styles.monthNavigation}>
               <Pressable style={styles.navigationButton} onPress={handlePrevMonth}>
                 <ChevronLeft size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
@@ -251,7 +263,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
               
               {Array.from({ length: getDaysInMonth(currentDate) }).map((_, index) => {
                 const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), index + 1);
-                const isDisabled = isPastDate(date);
+                const isDisabled = isTodayOrPastDate(date);
                 const isDateAlreadySelected = isDateSelected(date);
                 const isTodayDate = isToday(date);
 
@@ -261,7 +273,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
                     style={[
                       styles.dayCell,
                       isDateAlreadySelected && styles.selectedDay,
-                      isTodayDate && !isDateAlreadySelected && styles.todayDay,
+                      isTodayDate && !isDateAlreadySelected && !isDisabled && styles.todayDay,
                       isDisabled && styles.disabledDay,
                     ]}
                     onPress={() => !isDisabled && handleDateSelect(date)}
@@ -270,7 +282,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
                     <Text style={[
                       styles.dayText,
                       isDateAlreadySelected && styles.selectedDayText,
-                      isTodayDate && !isDateAlreadySelected && styles.todayDayText,
+                      isTodayDate && !isDateAlreadySelected && !isDisabled && styles.todayDayText,
                       isDisabled && styles.disabledDayText,
                     ]}>
                       {index + 1}
@@ -416,13 +428,6 @@ export default function ScheduleScreen() {
       const frequency = params.frequency as string;
       setSelectedSchedule(frequency);
       lastSelectedScheduleRef.current = frequency;
-      
-      // If custom, automatically show date picker
-      if (frequency === 'custom') {
-        setTimeout(() => {
-          setShowDatePicker(true);
-        }, 300);
-      }
       
       // If weekly_specific, show day of week picker
       if (frequency === 'weekly_specific') {
@@ -878,6 +883,16 @@ export default function ScheduleScreen() {
   };
 
   const handleDateSelect = (date: string) => {
+    // Prevent selecting today or past dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(date);
+    selectedDate.setHours(0, 0, 0, 0);
+    
+    if (selectedDate <= today) {
+      return; // Don't allow today or past dates
+    }
+
     // Toggle date selection - add if not present, remove if present
     let newDates: string[];
     if (customDates.includes(date)) {
@@ -1028,15 +1043,15 @@ export default function ScheduleScreen() {
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '60%' }]} />
+          <View style={[styles.progressFill, { width: '75%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 3 of 5</Text>
+        <Text style={styles.stepText}>Step 3 of 4</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          {/* Show title when coming from frequency-selection step */}
-          {params.frequency && !params.duration && (
+          {/* Show title when coming from frequency-selection step, but hide for custom */}
+          {params.frequency && !params.duration && selectedSchedule !== 'custom' && (
             <Text style={styles.title}>
               Select the time and duration for your {getFrequencyDisplayLabel(selectedSchedule || params.frequency as string)}
             </Text>
@@ -1090,7 +1105,7 @@ export default function ScheduleScreen() {
               <Text style={[
                 styles.optionText,
                 selectedSchedule === 'weekly_specific' && styles.selectedOptionText
-              ]}>Specific Day</Text>
+              ]}>Weekly</Text>
             </Pressable>
 
             <Pressable 
