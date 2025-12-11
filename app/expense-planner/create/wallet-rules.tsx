@@ -25,8 +25,6 @@ export default function WalletRulesScreen() {
   const planId = params.planId as string | undefined;
   const planName = params.planName as string;
   const targetAmount = params.targetAmount as string;
-  const budgetStructure = params.budgetStructure as string;
-  const priority = params.priority as string;
   const startDateStr = params.startDate as string;
   const endDateStr = params.endDate as string;
   const dateType = params.dateType as string;
@@ -81,8 +79,6 @@ export default function WalletRulesScreen() {
         params: {
           planName,
           targetAmount,
-          budgetStructure,
-          priority,
           startDate: startDateStr,
           endDate: endDateStr || '',
           dateType,

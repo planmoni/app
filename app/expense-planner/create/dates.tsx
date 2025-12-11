@@ -24,8 +24,6 @@ export default function DatesScreen() {
   const { saveDraftExpensePlan, saveLastStep } = useExpensePlans();
   const planName = params.planName as string;
   const targetAmount = params.targetAmount as string;
-  const budgetStructure = params.budgetStructure as 'fixed' | 'estimated';
-  const priority = params.priority as 'high' | 'medium' | 'low';
   const planId = params.planId as string | undefined;
   const subCategories = params.subCategories as string | undefined;
   const planTypesParam = params.planTypes as string | undefined;
@@ -200,8 +198,6 @@ export default function DatesScreen() {
           planId: activePlanId,
           name: planName,
           total_budget: parseFloat(targetAmount),
-          budget_structure: budgetStructure,
-          priority: priority,
           start_date: formatDateForStorage(finalStartDate),
           end_date: formatDateForStorage(finalEndDate),
         });
@@ -213,8 +209,6 @@ export default function DatesScreen() {
         params: {
           planName,
           targetAmount,
-          budgetStructure,
-          priority,
           startDate: formatDateForStorage(finalStartDate),
           endDate: formatDateForStorage(finalEndDate),
           planId: activePlanId || '',

@@ -18,7 +18,7 @@ export default function FundingChoiceScreen() {
   const [isSaving, setIsSaving] = useState(false);
   
   const totalBudget = params.totalBudget as string;
-  const budgetStructure = params.budgetStructure as string;
+  const budgetStructure: 'fixed' = 'fixed';
   const buckets = params.buckets ? JSON.parse(params.buckets as string) : [];
   const planName = params.planName as string;
   const startDate = params.startDate as string;
@@ -31,7 +31,6 @@ export default function FundingChoiceScreen() {
       pathname: '/expense-planner/create/fund-budget',
       params: {
         totalBudget,
-        budgetStructure,
         buckets: JSON.stringify(buckets),
         planName: planName || '',
         startDate,
@@ -53,7 +52,7 @@ export default function FundingChoiceScreen() {
         // Create draft plan with all current data
         const draftPlan = await saveDraftExpensePlan({
           total_budget: parseFloat(totalBudget),
-          budget_structure: budgetStructure as 'fixed' | 'estimated',
+          budget_structure: budgetStructure,
           start_date: startDate || undefined,
           end_date: endDate || undefined,
         });
@@ -68,7 +67,7 @@ export default function FundingChoiceScreen() {
         await saveDraftExpensePlan({
           planId: activePlanId,
           total_budget: parseFloat(totalBudget),
-          budget_structure: budgetStructure as 'fixed' | 'estimated',
+          budget_structure: budgetStructure,
           start_date: startDate || undefined,
           end_date: endDate || undefined,
         });
@@ -91,7 +90,6 @@ export default function FundingChoiceScreen() {
       pathname: '/expense-planner/create/name-expense',
       params: {
         totalBudget,
-        budgetStructure,
         buckets: JSON.stringify(buckets),
         planName: planName || '',
         startDate,

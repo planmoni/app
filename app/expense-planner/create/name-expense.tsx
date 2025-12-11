@@ -26,6 +26,7 @@ export default function NameExpenseScreen() {
   const { finalizeExpensePlan, saveDraftExpensePlan, saveLastStep } = useExpensePlans();
   
   const totalBudget = parseFloat((params.totalBudget as string) || '0');
+  const budgetStructure = (params.budgetStructure as 'fixed' | 'estimated') || 'fixed';
   const buckets: Bucket[] = params.buckets ? JSON.parse(params.buckets as string) : [];
   const startDate = params.startDate as string;
   const endDate = params.endDate as string;
@@ -45,13 +46,13 @@ export default function NameExpenseScreen() {
         try {
           console.log('No planId found on name-expense screen, creating draft plan...', {
             totalBudget,
-            budgetStructure: params.budgetStructure,
+            budgetStructure,
             startDate,
             endDate,
           });
           const draftPlan = await saveDraftExpensePlan({
             total_budget: totalBudget,
-            budget_structure: (params.budgetStructure as 'fixed' | 'estimated') || 'fixed',
+            budget_structure: budgetStructure,
             start_date: startDate || undefined,
             end_date: endDate || undefined,
           });
@@ -102,7 +103,7 @@ export default function NameExpenseScreen() {
         const newDraftPlan = await saveDraftExpensePlan({
           name: planName.trim(),
           total_budget: totalBudget,
-          budget_structure: (params.budgetStructure as 'fixed' | 'estimated') || 'fixed',
+          budget_structure: budgetStructure,
           start_date: startDate || undefined,
           end_date: endDate || undefined,
         });
@@ -120,7 +121,7 @@ export default function NameExpenseScreen() {
           planId,
           name: planName.trim(),
           totalBudget,
-          budgetStructure: params.budgetStructure,
+          budgetStructure,
           startDate,
           endDate,
         });
@@ -129,7 +130,7 @@ export default function NameExpenseScreen() {
           planId,
           name: planName.trim(),
           total_budget: totalBudget,
-          budget_structure: (params.budgetStructure as 'fixed' | 'estimated') || 'fixed',
+          budget_structure: budgetStructure,
           start_date: startDate || undefined,
           end_date: endDate || undefined,
         });

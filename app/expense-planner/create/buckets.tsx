@@ -482,7 +482,7 @@ export default function BucketsScreen() {
   const { saveExpenseBuckets, saveDraftExpensePlan, saveLastStep } = useExpensePlans();
   const totalBudget = parseFloat((params.totalBudget as string) || '0');
   const planId = params.planId as string | undefined;
-  const [budgetStructure, setBudgetStructure] = useState<string>(params.budgetStructure as string || 'fixed');
+  const budgetStructure: 'fixed' = 'fixed';
   const [isSaving, setIsSaving] = useState(false);
   
   const selectedSubCategories = useMemo(() => {
@@ -574,24 +574,6 @@ export default function BucketsScreen() {
     }
     
     setBuckets(buckets.map(bucket => (bucket.id === id ? { ...bucket, targetAmount: formatted } : bucket)));
-  };
-
-  const handleSwitchToEstimated = async () => {
-    haptics.selection();
-    const newStructure = 'estimated';
-    setBudgetStructure(newStructure);
-    
-    // Update draft plan with new budget structure
-    if (planId) {
-      try {
-        await saveDraftExpensePlan({
-          planId,
-          budget_structure: newStructure as 'fixed' | 'estimated',
-        });
-      } catch (error) {
-        console.error('Error updating budget structure:', error);
-      }
-    }
   };
 
   const handleContinue = async () => {
@@ -715,8 +697,6 @@ export default function BucketsScreen() {
           <BucketAllocationSummary
             totalAllocated={totalAllocated}
             totalBudget={totalBudget}
-            budgetStructure={budgetStructure as 'fixed' | 'estimated'}
-            onSwitchToEstimated={handleSwitchToEstimated}
           />
 
           <Text style={styles.budgetQuestion}>How much will you be spending on the following?</Text>

@@ -83,7 +83,7 @@ export default function TargetAmountScreen() {
 
     haptics.mediumImpact();
     router.push({
-      pathname: '/expense-planner/create/budget-structure',
+      pathname: '/expense-planner/create/dates',
       params: {
         planName,
         targetAmount: targetAmount.replace(/,/g, ''),

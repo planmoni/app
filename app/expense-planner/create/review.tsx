@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, X, Bell, Check } from 'lucide-react-native';
+import { ArrowLeft, X, Bell, Check, Landmark } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -11,6 +11,7 @@ import FloatingButton from '@/components/FloatingButton';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { PlanType } from '@/lib/planTypeMapping';
 import { CATEGORIES } from './plan-details';
+import { getBankIconLogo } from '@/lib/bankIcons';
 
 interface Bucket {
   id: string;
@@ -27,15 +28,16 @@ export default function ReviewScreen() {
   
   const planName = params.planName as string;
   const targetAmount = parseFloat((params.targetAmount as string) || '0');
-  const budgetStructure = params.budgetStructure as 'fixed' | 'estimated';
-  const priority = params.priority as 'high' | 'medium' | 'low';
   const startDateStr = params.startDate as string;
   const endDateStr = params.endDate as string;
   const dateType = params.dateType as 'range' | 'one_time' | 'ongoing';
   const payoutSchedule = params.payoutSchedule as string;
   const requiredPerCycle = params.requiredPerCycle as string;
-  const fundingMethod = params.fundingMethod as 'auto' | 'manual' | 'hybrid';
-  const autoFundMinimum = params.autoFundMinimum as string | undefined;
+  const fundingMethod = params.fundingMethod as 'auto' | 'manual';
+  const startAction = (params.startAction as 'wallet' | 'auto_payout') || 'wallet';
+  const payoutAccountId = (params.payoutAccountId as string) || '';
+  const payoutAccountLabel = (params.payoutAccountLabel as string) || '';
+  const payoutAccountBankName = (params.payoutAccountBankName as string) || '';
   const planId = params.planId as string | undefined;
   const subCategories = params.subCategories as string | undefined;
   const planTypesParam = params.planTypes as string | undefined;
@@ -51,18 +53,19 @@ export default function ReviewScreen() {
   const [isCreating, setIsCreating] = useState(false);
 
   const getFundingMethodLabel = () => {
-    switch (fundingMethod) {
-      case 'auto':
-        return 'Auto refresh';
-      case 'hybrid':
-        if (!autoFundMinimum) return 'Hybrid';
-        const minValue = parseFloat(autoFundMinimum);
-        if (Number.isNaN(minValue)) return 'Hybrid';
-        return `Hybrid (min ₦${minValue.toLocaleString('en-US')})`;
-      default:
-        return 'Manual';
-    }
+    return fundingMethod === 'auto' ? 'Auto top-up' : 'Manual';
   };
+
+  const getStartActionLabel = () => {
+    if (startAction === 'auto_payout') {
+      return payoutAccountLabel ? `Auto payout to ${payoutAccountLabel}` : 'Auto payout to bank';
+    }
+    return 'Move to available balance';
+  };
+
+  const bankIcon = payoutAccountBankName ? getBankIconLogo(payoutAccountBankName) : {};
+  const SvgLogo = bankIcon.logoSvg as any;
+  const PngLogo = bankIcon.logo as any;
 
   const getLockTypeLabel = () => {
     switch (lockType) {
@@ -145,11 +148,9 @@ export default function ReviewScreen() {
         plan_name: planName,
         name: planName, // Keep name for backward compatibility
         total_budget: targetAmount,
-        budget_structure: budgetStructure,
         start_date: startDateStr || null,
         end_date: endDateStr || null,
         plan_type: planType,
-        priority: priority,
         funding_method: fundingMethod,
         payout_schedule: payoutSchedule as any,
         required_per_cycle: requiredPerCycleNumber,
@@ -160,6 +161,12 @@ export default function ReviewScreen() {
         alert_at_70_percent: alertAt70Percent,
         alert_risk_failure: alertRiskFailure,
         alert_weekly_progress: alertWeeklyProgress,
+        metadata: {
+          start_action: startAction,
+          payout_account_id: payoutAccountId || null,
+          payout_account_label: payoutAccountLabel || null,
+          payout_account_bank_name: payoutAccountBankName || null,
+        },
         buckets: bucketsToCreate,
       });
 
@@ -243,16 +250,6 @@ export default function ReviewScreen() {
 
         {/* Required Contribution */}
 
-        {/* Priority */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Priority Level</Text>
-          </View>
-          <Text style={styles.sectionValue}>
-            {priority ? priority.charAt(0).toUpperCase() + priority.slice(1) : 'Not set'}
-          </Text>
-        </View>
-
         {/* Funding Rule */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -261,22 +258,35 @@ export default function ReviewScreen() {
           <Text style={styles.sectionValue}>{getFundingMethodLabel()}</Text>
         </View>
 
-        {/* Wallet Lock Rule */}
+        {/* Budget Start Action */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Wallet Lock Rule</Text>
+            <Text style={styles.sectionTitle}>When plan starts</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Spending Permission</Text>
-            <Text style={styles.infoValue}>
-              {spendingPermission === 'open' ? 'Open' : 'Restricted'}
-            </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Lock Type</Text>
-            <Text style={styles.infoValue}>{getLockTypeLabel()}</Text>
-          </View>
+          {startAction === 'auto_payout' ? (
+            <View style={styles.payoutAccountRow}>
+              <View style={styles.bankLogoContainer}>
+                {SvgLogo ? (
+                  React.createElement(SvgLogo.default || SvgLogo, { width: 28, height: 28 })
+                ) : PngLogo ? (
+                  <Image source={PngLogo} style={styles.bankLogoImage} resizeMode="contain" />
+                ) : (
+                  <Landmark size={20} color={colors.primary} />
+                )}
+              </View>
+              <View style={styles.payoutAccountTextContainer}>
+                <Text style={styles.sectionValue}>Auto payout to bank</Text>
+                <Text style={styles.payoutAccountMeta}>
+                  {payoutAccountLabel || 'Selected payout account'}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.sectionValue}>Move to available balance</Text>
+          )}
         </View>
+
+        {/* Wallet Lock Rule */}
 
         {/* Alerts */}
         {(alertAt70Percent || alertRiskFailure || alertWeeklyProgress) && (
@@ -480,5 +490,32 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
       fontStyle: 'italic',
       alignSelf: 'center',
       paddingVertical: 6,
+    },
+    payoutAccountRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    bankLogoContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    bankLogoImage: {
+      width: 28,
+      height: 28,
+    },
+    payoutAccountTextContainer: {
+      flex: 1,
+    },
+    payoutAccountMeta: {
+      fontSize: getScaledFontSize(13, textSizeMultiplier),
+      color: colors.textSecondary,
+      marginTop: 2,
     },
   });

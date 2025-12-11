@@ -1,39 +1,25 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { AlertTriangle } from 'lucide-react-native';
-import { useHaptics } from '@/hooks/useHaptics';
 
 interface BucketAllocationSummaryProps {
   totalAllocated: number;
   totalBudget: number;
-  budgetStructure?: 'fixed' | 'estimated';
-  onSwitchToEstimated?: () => void;
 }
 
 export default function BucketAllocationSummary({
   totalAllocated,
   totalBudget,
-  budgetStructure = 'fixed',
-  onSwitchToEstimated,
 }: BucketAllocationSummaryProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
-  const haptics = useHaptics();
 
   const remaining = totalBudget - totalAllocated;
-  const percentage = totalBudget > 0 ? (totalAllocated / totalBudget) * 100 : 0;
-  // Only show over-budget warnings for fixed budgets
-  const isOverBudget = budgetStructure === 'fixed' && totalAllocated > totalBudget;
-  // Show "hit the limit" message only when remaining is exactly ₦0
-  const isAtBudgetLimit = budgetStructure === 'fixed' && remaining === 0 && !isOverBudget;
-
-  const handleSwitchToEstimated = () => {
-    haptics.selection();
-    onSwitchToEstimated?.();
-  };
+  const isOverBudget = totalAllocated > totalBudget;
+  const isAtBudgetLimit = remaining === 0 && !isOverBudget;
 
   const styles = createStyles(colors, isDark, textSizeMultiplier, isOverBudget, isAtBudgetLimit);
 
@@ -60,11 +46,6 @@ export default function BucketAllocationSummary({
                 ? `You've exceeded your budget by ₦${Math.abs(remaining).toLocaleString()}`
                 : 'You\'ve hit the budget limit for this fixed budget'}
             </Text>
-            {isAtBudgetLimit && (
-              <Pressable onPress={handleSwitchToEstimated}>
-                <Text style={styles.switchLink}>Switch to estimated budget</Text>
-              </Pressable>
-            )}
           </View>
         </View>
       )}
@@ -126,12 +107,6 @@ const createStyles = (
     },
     overBudgetText: {
       color: '#EF4444',
-    },
-    switchLink: {
-      fontSize: getScaledFontSize(13, textSizeMultiplier),
-      fontWeight: '600',
-      color: colors.primary,
-      textDecorationLine: 'underline',
     },
   });
 

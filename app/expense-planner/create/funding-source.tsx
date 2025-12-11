@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, X, Zap, Hand, Settings, TrendingUp } from 'lucide-react-native';
+import { ArrowLeft, X, Zap, Hand, TrendingUp } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -13,7 +13,7 @@ import { Platform } from 'react-native';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { PayoutSchedule } from '@/lib/engines/contributionCalculator';
 
-type FundingMethod = 'auto' | 'manual' | 'hybrid';
+type FundingMethod = 'auto' | 'manual';
 
 export default function FundingSourceScreen() {
   const { colors } = useTheme();
@@ -25,8 +25,6 @@ export default function FundingSourceScreen() {
   const planId = params.planId as string | undefined;
   const planName = params.planName as string;
   const targetAmount = parseFloat((params.targetAmount as string) || '0');
-  const budgetStructure = params.budgetStructure as 'fixed' | 'estimated';
-  const priority = params.priority as string;
   const startDateStr = params.startDate as string;
   const endDateStr = params.endDate as string;
   const dateType = params.dateType as 'range' | 'one_time' | 'ongoing';
@@ -37,38 +35,12 @@ export default function FundingSourceScreen() {
 
   // Default to manual since budgets are considered funded upfront
   const [fundingMethod, setFundingMethod] = useState<FundingMethod>('manual');
-  const [autoFundMinimum, setAutoFundMinimum] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-
-  const formatAmount = (value: string) => {
-    let cleanValue = value.replace(/[^0-9.]/g, '');
-    const parts = cleanValue.split('.');
-    if (parts.length > 2) {
-      const integerPart = parts[0];
-      const decimalPart = parts.slice(1).join('');
-      cleanValue = integerPart + '.' + decimalPart;
-    }
-    if (parts.length === 2 && parts[1].length > 2) {
-      cleanValue = parts[0] + '.' + parts[1].substring(0, 2);
-    }
-    const numericValue = parseFloat(cleanValue);
-    if (!isNaN(numericValue)) {
-      return numericValue.toLocaleString('en-US', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-      });
-    }
-    return cleanValue;
-  };
-
-  const handleAutoFundMinimumChange = (value: string) => {
-    const formatted = formatAmount(value);
-    setAutoFundMinimum(formatted);
-  };
+  // Hybrid option removed; budgets are either auto or manual
 
   // Allocation preview derived from budget window
   const allocationPreview = useMemo(() => {
-    if (fundingMethod !== 'auto' && fundingMethod !== 'hybrid') return null;
+    if (fundingMethod !== 'auto') return null;
 
     const start = startDateStr ? new Date(startDateStr) : new Date();
     const end = endDateStr ? new Date(endDateStr) : start;
@@ -96,20 +68,6 @@ export default function FundingSourceScreen() {
   }, [fundingMethod, startDateStr, endDateStr, targetAmount]);
 
   const handleContinue = async () => {
-    if (fundingMethod === 'hybrid') {
-      const minAmount = parseFloat(autoFundMinimum.replace(/,/g, ''));
-      if (isNaN(minAmount) || minAmount < 0) {
-        Alert.alert('Invalid Amount', 'Please enter a valid minimum auto-fund amount');
-        haptics.notification();
-        return;
-      }
-      if (minAmount > requiredPerCycle) {
-        Alert.alert('Invalid Amount', 'Minimum auto-fund cannot exceed required per cycle');
-        haptics.notification();
-        return;
-      }
-    }
-
     haptics.mediumImpact();
     setIsSaving(true);
 
@@ -123,21 +81,18 @@ export default function FundingSourceScreen() {
         });
       }
 
-      // Navigate to wallet rules
+      // Navigate to start action selection
       router.push({
-        pathname: '/expense-planner/create/review',
+        pathname: '/expense-planner/create/start-action',
         params: {
           planName,
           targetAmount: targetAmount.toString(),
-          budgetStructure,
-          priority,
           startDate: startDateStr,
           endDate: endDateStr || '',
           dateType,
           payoutSchedule,
           requiredPerCycle: requiredPerCycle.toString(),
           fundingMethod,
-          autoFundMinimum: fundingMethod === 'hybrid' ? autoFundMinimum : '',
           planId: planId || '',
           ...(subCategories && { subCategories }),
           ...(planTypesParam && { planTypes: planTypesParam }),
@@ -184,7 +139,7 @@ export default function FundingSourceScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-          <Text style={styles.title}>How should this budget refresh?</Text>
+          <Text style={styles.title}>How should this budget be funded?</Text>
           <Text style={styles.subtitle}>
             Budget is funded upfront. You can still set a light auto refresh or keep it manual. Extra top-ups become extra to spend without changing the budget.
           </Text>
@@ -208,8 +163,8 @@ export default function FundingSourceScreen() {
                 <Zap size={24} color={fundingMethod === 'auto' ? colors.primary : colors.text} />
               </View>
               <View style={styles.optionHeaderText}>
-                <Text style={styles.optionTitle}>Auto refresh (optional)</Text>
-                <Text style={styles.optionSubtitle}>Automatic top-up on your cadence. Extra stays as spendable buffer.</Text>
+                <Text style={styles.optionTitle}>Auto top-up</Text>
+                <Text style={styles.optionSubtitle}>Automatic top-up on your budget's cadence. Extra stays as spendable buffer.</Text>
               </View>
               <View style={[
                 styles.radio,
@@ -253,7 +208,7 @@ export default function FundingSourceScreen() {
                   </View>
                 )}
                 <Text style={styles.previewNote}>
-                  Budget is already funded. Auto refresh just keeps it topped up; any extra you add stays as spendable buffer.
+                 Auto top-up keeps the budget topped up; any extra you add stays as spendable buffer.
                 </Text>
               </View>
             )}
@@ -297,86 +252,13 @@ export default function FundingSourceScreen() {
             )}
           </Pressable>
 
-          {/* Hybrid Fund */}
-          <Pressable
-            style={[
-              styles.optionCard,
-              fundingMethod === 'hybrid' && styles.optionCardSelected,
-            ]}
-            onPress={() => {
-              haptics.selection();
-              setFundingMethod('hybrid');
-            }}
-          >
-            <View style={styles.optionHeader}>
-              <View style={[
-                styles.optionIconContainer,
-                fundingMethod === 'hybrid' && styles.optionIconContainerSelected,
-              ]}>
-                <Settings size={24} color={fundingMethod === 'hybrid' ? colors.primary : colors.text} />
-              </View>
-              <View style={styles.optionHeaderText}>
-                <Text style={styles.optionTitle}>Auto + manual</Text>
-                <Text style={styles.optionSubtitle}>Small auto refresh plus your manual top-ups. Extra stays available to spend.</Text>
-              </View>
-              <View style={[
-                styles.radio,
-                fundingMethod === 'hybrid' && styles.radioSelected,
-              ]}>
-                {fundingMethod === 'hybrid' && <View style={styles.radioInner} />}
-              </View>
-            </View>
-            {fundingMethod === 'hybrid' && (
-              <View style={styles.previewContainer}>
-                {allocationPreview && (
-                  <>
-                    <View style={styles.previewHeader}>
-                      <TrendingUp size={16} color={colors.primary} />
-                      <Text style={styles.previewTitle}>Allocation Preview</Text>
-                    </View>
-                    <View style={styles.previewRow}>
-                      <Text style={styles.previewLabel}>Total allocation</Text>
-                      <Text style={styles.previewValue}>
-                        ₦{allocationPreview.totalAllocation.toLocaleString('en-US')}
-                      </Text>
-                    </View>
-                    {allocationPreview.days <= 7 && (
-                      <View style={styles.previewRow}>
-                        <Text style={styles.previewLabel}>Per day</Text>
-                        <Text style={styles.previewValue}>
-                          ₦{Number(allocationPreview.perDay.toFixed(2)).toLocaleString('en-US')}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={styles.previewRow}>
-                      <Text style={styles.previewLabel}>Per week</Text>
-                      <Text style={styles.previewValue}>
-                        ₦{Number(allocationPreview.perWeek.toFixed(2)).toLocaleString('en-US')}
-                      </Text>
-                    </View>
-                    {allocationPreview.days > 30 && (
-                      <View style={styles.previewRow}>
-                        <Text style={styles.previewLabel}>Per month</Text>
-                        <Text style={styles.previewValue}>
-                          ₦{Number(allocationPreview.perMonth.toFixed(2)).toLocaleString('en-US')}
-                        </Text>
-                      </View>
-                    )}
-                  </>
-                )}
-                <Text style={styles.previewNote}>
-                  Budget is funded upfront. Auto refresh is optional; manual top-ups remain as extra to spend.
-                </Text>
-              </View>
-            )}
-          </Pressable>
         </ScrollView>
       </KeyboardAvoidingWrapper>
 
       <FloatingButton
         title="Continue"
         onPress={handleContinue}
-        disabled={!fundingMethod || (fundingMethod === 'hybrid' && !autoFundMinimum) || isSaving}
+        disabled={isSaving}
         hapticType="medium"
       />
     </SafeAreaView>

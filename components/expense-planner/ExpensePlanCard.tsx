@@ -204,7 +204,6 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       // Only add budget info if it exists
       if (plan.total_budget) {
         params.totalBudget = plan.total_budget.toString();
-        params.budgetStructure = plan.budget_structure;
       }
 
       // Add dates if they exist
@@ -288,9 +287,6 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       <View style={styles.amountRow}>
         <View style={styles.amountColumn}>
           <Text style={styles.planAmount}>₦{plan.total_budget.toLocaleString()}</Text>
-          <Text style={styles.budgetStructure}>
-            {plan.budget_structure === 'fixed' ? 'Fixed' : 'Estimated'}
-          </Text>
         </View>
         {currentBalance > 0 && (
           <View style={styles.balanceColumn}>
@@ -461,11 +457,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       fontWeight: '700',
       color: colors.text,
       marginBottom: 4,
-    },
-    budgetStructure: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
-      color: colors.textSecondary,
-      fontWeight: '500',
     },
     balanceColumn: {
       alignItems: 'flex-end',

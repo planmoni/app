@@ -63,7 +63,7 @@ export default function FundBudgetScreen() {
   
   const totalBudget = parseFloat((params.totalBudget as string) || '0');
   const planId = params.planId as string | undefined;
-  const [budgetStructure, setBudgetStructure] = useState<string>(params.budgetStructure as string || 'fixed');
+  const budgetStructure: 'fixed' = 'fixed';
   const startDate = params.startDate as string;
   const endDate = params.endDate as string;
 
@@ -175,11 +175,6 @@ export default function FundBudgetScreen() {
       ...bucket,
       lockedAmount: formatAmount(bucket.targetAmount.replace(/,/g, '')),
     })));
-  };
-
-  const handleSwitchToEstimated = () => {
-    haptics.selection();
-    setBudgetStructure('estimated');
   };
 
   const calculateUnlockDate = (startDateStr: string, endDateStr: string): string => {

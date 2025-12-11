@@ -14,13 +14,12 @@ export default function CreateExpensePlanLayout() {
       <Stack.Screen name="plan-type" />
       <Stack.Screen name="plan-name" />
       <Stack.Screen name="target-amount" />
-      <Stack.Screen name="budget-structure" />
-      <Stack.Screen name="priority-level" />
       <Stack.Screen name="dates" />
       {/* Legacy/basic combined screen kept for backward compatibility */}
       <Stack.Screen name="basic-setup" />
       <Stack.Screen name="contribution-calculation" />
       <Stack.Screen name="funding-source" />
+      <Stack.Screen name="start-action" />
       <Stack.Screen name="buckets" />
       <Stack.Screen name="review" />
       <Stack.Screen name="funding-choice" />

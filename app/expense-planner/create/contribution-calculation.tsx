@@ -27,8 +27,6 @@ export default function ContributionCalculationScreen() {
   const planId = params.planId as string | undefined;
   const planName = params.planName as string;
   const [targetAmount, setTargetAmount] = useState(parseFloat((params.targetAmount as string) || '0'));
-  const budgetStructure = params.budgetStructure as 'fixed' | 'estimated';
-  const priority = params.priority as string;
   const startDateStr = params.startDate as string;
   const endDateStr = params.endDate as string;
   const dateTypeParam = params.dateType as 'range' | 'one_time' | 'ongoing';
@@ -155,8 +153,6 @@ export default function ContributionCalculationScreen() {
         params: {
           planName,
           targetAmount: finalAmount.toString(),
-          budgetStructure,
-          priority,
           startDate: startDateStr,
           endDate: endDateStr || '',
           dateType,

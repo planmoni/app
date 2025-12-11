@@ -719,7 +719,7 @@ export function useExpensePlans() {
     plan_name: string;
     name: string;
     total_budget: number;
-    budget_structure: BudgetStructure;
+    budget_structure?: BudgetStructure;
     start_date: string | null;
     end_date: string | null;
     plan_type?: 'recurring' | 'one_time' | 'long_term';
@@ -734,6 +734,7 @@ export function useExpensePlans() {
     alert_at_70_percent?: boolean;
     alert_risk_failure?: boolean;
     alert_weekly_progress?: boolean;
+    metadata?: Record<string, any>;
     buckets?: Array<{
       category_id: string;
       subcategory_id: string;
@@ -755,18 +756,15 @@ export function useExpensePlans() {
           name: planData.name,
           plan_name: planData.plan_name,
           total_budget: planData.total_budget,
-          budget_structure: planData.budget_structure,
+          budget_structure: planData.budget_structure || 'fixed',
           start_date: planData.start_date,
           end_date: planData.end_date,
           plan_type: planData.plan_type || 'one_time',
           priority: planData.priority || 'medium',
-          funding_method: planData.funding_method || 'manual',
           payout_schedule: planData.payout_schedule || 'weekly',
           required_per_cycle: planData.required_per_cycle || 0,
           required_per_day: planData.required_per_day || 0,
-          current_balance: 0,
-          health_status: 'on_track',
-          is_paused: false,
+          metadata: planData.metadata || {},
           status: 'active',
         })
         .select()
