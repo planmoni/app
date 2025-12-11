@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -11,7 +11,7 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { Platform } from 'react-native';
 import { CATEGORIES } from './plan-details';
-import { getCategoriesForPlanType, PLAN_TYPE_INFO, PlanType } from '@/lib/planTypeMapping';
+import { getCategoriesForPlanType, PLAN_TYPE_INFO, PlanType, getPlanTypeForCategory } from '@/lib/planTypeMapping';
 
 export default function PlanTypeScreen() {
   const { colors, isDark } = useTheme();
@@ -19,6 +19,7 @@ export default function PlanTypeScreen() {
   const haptics = useHaptics();
   const params = useLocalSearchParams();
   const planId = params.planId as string | undefined;
+  const quickCategory = params.quickCategory as string | undefined;
 
   const [selectedPlanTypes, setSelectedPlanTypes] = useState<PlanType[]>([]);
   const [searchQueries, setSearchQueries] = useState<Record<PlanType, string>>({
@@ -34,6 +35,28 @@ export default function PlanTypeScreen() {
   });
 
   const planTypes: PlanType[] = ['recurring', 'one_time', 'long_term'];
+
+  // If coming from Quick Plans, pre-select the plan type and expand that category
+  useEffect(() => {
+    if (!quickCategory) return;
+
+    const inferredPlanType = getPlanTypeForCategory(quickCategory);
+
+    // Pre-select plan type
+    setSelectedPlanTypes(prev => {
+      if (prev.includes(inferredPlanType)) return prev;
+      return [...prev, inferredPlanType];
+    });
+
+    // Expand the specific category so its subcategories are visible
+    setExpandedCategories(prev => {
+      const next = { ...prev };
+      const set = new Set(prev[inferredPlanType]);
+      set.add(quickCategory);
+      next[inferredPlanType] = set;
+      return next;
+    });
+  }, [quickCategory]);
 
   const handlePlanTypeToggle = (planType: PlanType) => {
     haptics.selection();
@@ -352,11 +375,13 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     planTypeIconContainer: {
       width: 48,
       height: 48,
-      borderRadius: 24,
-      backgroundColor: colors.backgroundTertiary,
+      borderRadius: 12,
+      backgroundColor: colors.accentBackground,
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     planTypeIconContainerSelected: {
       backgroundColor: colors.primary + '20',

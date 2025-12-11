@@ -49,7 +49,7 @@ export default function CreateNewScreen() {
           </View>
           <View style={styles.cardText}>
             <Text style={styles.cardTitle}>New Spending Plan</Text>
-            <Text style={styles.cardSubtitle}>Set up a budget and wallet rules.</Text>
+            <Text style={styles.cardSubtitle}>Set up a spending plan before you start spending to ensure you don't overspend.</Text>
           </View>
         </Pressable>
 
@@ -59,7 +59,7 @@ export default function CreateNewScreen() {
           </View>
           <View style={styles.cardText}>
             <Text style={styles.cardTitle}>New Payout Schedule</Text>
-            <Text style={styles.cardSubtitle}>Create a payout rule for your funds.</Text>
+            <Text style={styles.cardSubtitle}>Setup up daily, weekly, monthly or yearly payout schedules or choose specific dates to receive your funds.</Text>
           </View>
         </Pressable>
       </ScrollView>
@@ -116,7 +116,8 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
     card: {
       flexDirection: 'row',
       alignItems: 'center',
-      padding: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 50,
       borderRadius: 16,
       backgroundColor: colors.card,
       borderWidth: 1,
@@ -127,15 +128,17 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
       width: 44,
       height: 44,
       borderRadius: 12,
-      backgroundColor: colors.backgroundTertiary,
+      backgroundColor: colors.accentBackground,
       alignItems: 'center',
       justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     cardText: {
       flex: 1,
     },
     cardTitle: {
-      fontSize: getScaledFontSize(16, textSizeMultiplier),
+      fontSize: getScaledFontSize(20, textSizeMultiplier),
       fontWeight: '700',
       color: colors.text,
     },

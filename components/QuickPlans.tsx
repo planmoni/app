@@ -40,6 +40,9 @@ export default function QuickPlans() {
                   haptics.impact();
                   router.push({
                     pathname: '/expense-planner/create/plan-type',
+                    params: {
+                      quickCategory: category.id,
+                    },
                   });
                 }}
               >
@@ -96,7 +99,7 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
     iconContainer: {
       width: 56,
       height: 56,
-      borderRadius: 28,
+      borderRadius: 12,
       backgroundColor: colors.accentBackground,
       justifyContent: 'center',
       alignItems: 'center',

@@ -484,7 +484,7 @@ export default function SettingsScreen() {
           
           <View style={styles.card}>
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Eye size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -507,7 +507,7 @@ export default function SettingsScreen() {
 
 
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Moon size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -556,7 +556,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('open_text_size_settings');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Sliders size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -585,7 +585,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_account_statement');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Terms size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -601,7 +601,7 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleViewTransactionHistory}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <History size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -636,7 +636,7 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleViewPayoutAccounts}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Wallet size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -652,7 +652,7 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleTransactionLimits}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <ClockAlert size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -696,7 +696,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_security_center');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <ScanFace size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -712,7 +712,7 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleChangePassword}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Lock size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -769,7 +769,7 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleLoginHistory}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <History size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -788,7 +788,7 @@ export default function SettingsScreen() {
             
             <View style={styles.card}>
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Bell size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -806,7 +806,7 @@ export default function SettingsScreen() {
             <View style={styles.divider} />
 
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <AlertTriangle size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -824,7 +824,7 @@ export default function SettingsScreen() {
             <View style={styles.divider} />
 
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Clock size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -851,7 +851,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_notification_settings');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Sliders size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -878,7 +878,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_help_center');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <MessageSquare size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -922,7 +922,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_terms');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Terms size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -947,7 +947,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('check_for_updates_manual');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Info size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -1219,9 +1219,12 @@ const createStyles = (colors: any, textSizeMultiplier: number) => StyleSheet.cre
     width: Platform.OS === 'ios' ? 40 : 32,
     height: Platform.OS === 'ios' ? 40 : 32,
     borderRadius: 12,
+    backgroundColor: colors.accentBackground,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Platform.OS === 'ios' ? 16 : 10,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   settingContent: {
     flex: 1,
