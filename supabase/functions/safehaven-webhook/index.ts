@@ -158,8 +158,12 @@ interface SafeHavenAccountDebitData {
   account: string;
   debitAccountName: string;
   debitAccountNumber: string;
+  paymentReference?: string;
+  sessionId?: string;
   reference: string;
-  type: 'Debit' | string;
+  reversalReference?: string;
+  isReversed: boolean;
+  type: 'Debit' | 'Outwards' | string;
   provider: string;
   providerChannel: string;
   narration: string;
@@ -167,6 +171,9 @@ interface SafeHavenAccountDebitData {
   fees: number;
   vat: number;
   stampDuty: number;
+  responseCode: string;
+  responseMessage: string;
+  status: 'Pending' | 'Completed' | 'Failed' | 'Reversed';
   createdAt: string;
   updatedAt: string;
 }
