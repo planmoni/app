@@ -39,8 +39,7 @@ export default function QuickPlans() {
                 onPress={() => {
                   haptics.impact();
                   router.push({
-                    pathname: '/expense-planner/create/plan-details',
-                    params: { preselectedCategoryId: category.id },
+                    pathname: '/expense-planner/create/plan-type',
                   });
                 }}
               >

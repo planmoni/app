@@ -157,6 +157,7 @@ function TabLayoutContent() {
         // tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
         tabBarLabelStyle: styles.tabBarLabel,
         headerShown: false,
+        swipeEnabled: false,
       }}>
       <Tabs.Screen
         name="index"

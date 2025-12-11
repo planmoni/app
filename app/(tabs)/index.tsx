@@ -23,7 +23,8 @@ import {
   PieChart,
   CalendarCheck,
   Clock,
-  MoreHorizontal,
+  MoreVertical,
+  ArrowDown,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -40,6 +41,8 @@ import {
   BackHandler,
   InteractionManager,
   useWindowDimensions,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -68,6 +71,7 @@ import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
 import QuickPlans from '@/components/QuickPlans';
+import DailySpendGuidance from '@/components/DailySpendGuidance';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -82,6 +86,159 @@ interface Banner {
   link_url?: string | null;
   order_index?: number;
   is_active?: boolean;
+}
+
+interface BalanceActionsModalProps {
+  isVisible: boolean;
+  onClose: () => void;
+  onAddFunds: () => void;
+  onWithdraw: () => void;
+  colors: any;
+  isDark: boolean;
+  textSizeMultiplier: number;
+}
+
+function BalanceActionsModal({
+  isVisible,
+  onClose,
+  onAddFunds,
+  onWithdraw,
+  colors,
+  isDark,
+  textSizeMultiplier,
+}: BalanceActionsModalProps) {
+  const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [modalVisible, setModalVisible] = useState(false);
+
+  useEffect(() => {
+    if (isVisible) {
+      setModalVisible(true);
+      slideAnim.setValue(Dimensions.get('window').height);
+      fadeAnim.setValue(0);
+      
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else if (modalVisible) {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: Dimensions.get('window').height,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setModalVisible(false);
+      });
+    }
+  }, [isVisible, modalVisible]);
+
+  if (!modalVisible) return null;
+
+  const modalStyles = StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalContainer: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingTop: 20,
+      paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+      paddingHorizontal: 20,
+      maxHeight: Dimensions.get('window').height * 0.4,
+    },
+    handle: {
+      width: 40,
+      height: 4,
+      backgroundColor: colors.border,
+      borderRadius: 2,
+      alignSelf: 'center',
+      marginBottom: 20,
+    },
+    option: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 16,
+      paddingHorizontal: 4,
+      gap: 16,
+    },
+    optionIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    optionText: {
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+      flex: 1,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 4,
+    },
+  });
+
+  return (
+    <Modal
+      visible={modalVisible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+    >
+      <View style={modalStyles.overlay}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+        <Animated.View
+          style={[
+            modalStyles.modalContainer,
+            {
+              transform: [{ translateY: slideAnim }],
+              opacity: fadeAnim,
+            },
+          ]}
+        >
+          <View style={modalStyles.handle} />
+          
+          <Pressable style={modalStyles.option} onPress={onAddFunds}>
+            <View style={modalStyles.optionIcon}>
+              <Plus size={20} color={colors.primary} />
+            </View>
+            <Text style={modalStyles.optionText}>Add funds</Text>
+          </Pressable>
+
+          <View style={modalStyles.divider} />
+
+          <Pressable style={modalStyles.option} onPress={onWithdraw}>
+            <View style={modalStyles.optionIcon}>
+              <ArrowDown size={20} color={colors.primary} />
+            </View>
+            <Text style={modalStyles.optionText}>Withdraw</Text>
+          </Pressable>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
 }
 
 export default function HomeScreen() {
@@ -165,6 +322,7 @@ export default function HomeScreen() {
   const [showIdentityVerificationModal, setShowIdentityVerificationModal] = useState(false);
   const [showKYCVerificationModal, setShowKYCVerificationModal] = useState(false);
   const [hasShownKYCModalThisSession, setHasShownKYCModalThisSession] = useState(false);
+  const [showBalanceActionsModal, setShowBalanceActionsModal] = useState(false);
   const { hasAppLockPin } = usePin();
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
@@ -663,6 +821,9 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
+    // Close the balance actions modal first
+    setShowBalanceActionsModal(false);
+    
     // For unauthenticated users, show ClaimAccountModal
     if (!isAuthenticated) {
       setShowClaimAccountModal(true);
@@ -707,6 +868,14 @@ export default function HomeScreen() {
     // The modal will handle navigation if account exists after checking
     setShowClaimAccountModal(true);
     logAnalyticsEvent('add_funds_click_claim_modal');
+  };
+
+  const handleWithdraw = () => {
+    impact();
+    setShowBalanceActionsModal(false);
+    // TODO: Navigate to withdraw screen or show withdraw modal
+    Alert.alert('Withdraw', 'Withdraw functionality coming soon');
+    logAnalyticsEvent('withdraw_click');
   };
 
   const handleCreatePayout = () => {
@@ -984,7 +1153,7 @@ export default function HomeScreen() {
             ) : (
               <Pressable style={styles.avatarButton}>
                 <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
-                  <MoreHorizontal size={24} color={'#fff'} />
+                  <MoreVertical size={34} color={'#fff'} />
                 </View>
               </Pressable>
             )}
@@ -1069,6 +1238,7 @@ export default function HomeScreen() {
             decelerationRate="fast"
             snapToInterval={screenWidth}
             snapToAlignment="start"
+            scrollEnabled={false}
             style={[styles.tabContentScrollView, { width: screenWidth }]}
             contentContainerStyle={{ width: screenWidth * 3 }}
           >
@@ -1097,10 +1267,14 @@ export default function HomeScreen() {
                     </Pressable>
                   </View>
                   <Pressable 
-                    onPress={handleAddFunds}
+                    onPress={() => {
+                      impact();
+                      setShowBalanceActionsModal(true);
+                    }}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={styles.eyeIconButton}
                   >
-                    <Text style={[styles.addFundsLink, { color: colors.primary }]}>+ Add funds</Text>
+                    <MoreVertical size={20} color={colors.textSecondary} />
                   </Pressable>
                 </View>
                 <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
@@ -1117,7 +1291,7 @@ export default function HomeScreen() {
                     style={styles.addFundsButton} 
                   onPress={() => {
                     impact();
-                    router.push('/expense-planner/create/plan-details');
+                    router.push('/expense-planner/create/plan-type');
                   }}
                   >
                     <PieChart size={20} color={isDark ? '#fff' : colors.primary}/>
@@ -1181,6 +1355,9 @@ export default function HomeScreen() {
                 </Text>
               </View>
             </View>
+            
+            {/* Daily Spend Guidance */}
+            <DailySpendGuidance />
             
             {/* Expense Plans Section */}
             <ExpensePlansSection />
@@ -1285,6 +1462,17 @@ export default function HomeScreen() {
           transaction={selectedTransaction}
         />
       )}
+
+      {/* Balance Actions Modal */}
+      <BalanceActionsModal
+        isVisible={showBalanceActionsModal}
+        onClose={() => setShowBalanceActionsModal(false)}
+        onAddFunds={handleAddFunds}
+        onWithdraw={handleWithdraw}
+        colors={colors}
+        isDark={isDark}
+        textSizeMultiplier={textSizeMultiplier}
+      />
       
       {/* NewPlanInfoModal - available for both authenticated and unauthenticated users */}
       <NewPlanInfoModal

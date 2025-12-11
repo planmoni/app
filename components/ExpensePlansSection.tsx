@@ -20,12 +20,12 @@ export default function ExpensePlansSection() {
 
   const handleViewAll = () => {
     haptics.selection();
-    router.push('/expense-planner/create/plan-details');
+    router.push('/expense-planner');
   };
 
   const handleCreatePlan = () => {
     haptics.mediumImpact();
-    router.push('/expense-planner/create/plan-details');
+    router.push('/expense-planner/create/plan-type');
   };
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
@@ -37,7 +37,7 @@ export default function ExpensePlansSection() {
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Your Expense Plans</Text>
+        <Text style={styles.sectionTitle}>Your spending plans</Text>
         <Pressable onPress={handleViewAll} style={styles.viewAllButton}>
           <Text style={styles.viewAllText}>View All</Text>
         </Pressable>
@@ -45,10 +45,10 @@ export default function ExpensePlansSection() {
 
       {expensePlans.length === 0 ? (
         <View style={styles.emptyExpensePlansContainer}>
-          <Text style={styles.emptyExpensePlansText}>No expense plans yet</Text>
+          <Text style={styles.emptyExpensePlansText}>No spending plans yet</Text>
           <Pressable onPress={handleCreatePlan} style={styles.createFirstExpensePlanButton}>
             <Plus size={20} color={colors.text} />
-            <Text style={styles.createFirstExpensePlanText}>Create Your First Plan</Text>
+            <Text style={styles.createFirstExpensePlanText}>Create your first spending plan</Text>
           </Pressable>
         </View>
       ) : (
@@ -70,9 +70,9 @@ export default function ExpensePlansSection() {
           ))}
           <Pressable onPress={handleCreatePlan} style={styles.addExpensePlanCard}>
             <Plus size={24} color={colors.text} />
-            <Text style={styles.addExpensePlanText}>Create New Plan</Text>
+            <Text style={styles.addExpensePlanText}>Create spending plan</Text>
             <Text style={styles.addExpensePlanDescription}>
-              Set up a new expense plan
+              Set up a category budget with guardrails
             </Text>
           </Pressable>
         </ScrollView>

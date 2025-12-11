@@ -17,15 +17,18 @@ const MONTHS = [
 ];
 
 export default function DatesScreen() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
   const { saveDraftExpensePlan, saveLastStep } = useExpensePlans();
-  const totalBudget = params.totalBudget as string;
-  const budgetStructure = params.budgetStructure as string;
+  const planName = params.planName as string;
+  const targetAmount = params.targetAmount as string;
+  const budgetStructure = params.budgetStructure as 'fixed' | 'estimated';
+  const priority = params.priority as 'high' | 'medium' | 'low';
   const planId = params.planId as string | undefined;
   const subCategories = params.subCategories as string | undefined;
+  const planTypesParam = params.planTypes as string | undefined;
 
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -190,76 +193,45 @@ export default function DatesScreen() {
     setIsSaving(true);
 
     try {
-      // If planId is missing, create draft plan first
+      // Save dates to draft plan if planId exists
       let activePlanId = planId;
-      if (!activePlanId) {
-        console.log('No planId found in dates screen, creating draft plan...');
-        const newDraftPlan = await saveDraftExpensePlan({
-          total_budget: parseFloat(totalBudget),
-          budget_structure: budgetStructure as 'fixed' | 'estimated',
-        start_date: formatDateForStorage(finalStartDate),
-        end_date: formatDateForStorage(finalEndDate),
-      });
-
-        if (!newDraftPlan || !newDraftPlan.id) {
-          throw new Error('Failed to create draft plan: No plan ID returned');
-        }
-        
-        activePlanId = newDraftPlan.id;
-        console.log('Draft plan created in dates screen:', activePlanId);
-      } else {
-        // Save dates to draft plan
+      if (activePlanId) {
         await saveDraftExpensePlan({
           planId: activePlanId,
+          name: planName,
+          total_budget: parseFloat(targetAmount),
+          budget_structure: budgetStructure,
+          priority: priority,
           start_date: formatDateForStorage(finalStartDate),
           end_date: formatDateForStorage(finalEndDate),
         });
       }
 
-      // Navigate to buckets screen with planId, dates, and subCategories
-      const navigationParams: any = {
-          totalBudget,
+      // Navigate to contribution calculation
+      router.push({
+        pathname: '/expense-planner/create/contribution-calculation',
+        params: {
+          planName,
+          targetAmount,
           budgetStructure,
+          priority,
           startDate: formatDateForStorage(finalStartDate),
           endDate: formatDateForStorage(finalEndDate),
-        planId: activePlanId,
-      };
-
-      // If we have subCategories from plan-details, pass them along
-      if (subCategories) {
-        navigationParams.subCategories = subCategories;
-      }
-
-      router.push({
-        pathname: '/expense-planner/create/buckets',
-        params: navigationParams,
+          planId: activePlanId || '',
+          ...(subCategories && { subCategories }),
+          ...(planTypesParam && { planTypes: planTypesParam }),
+        },
       });
     } catch (error: any) {
       console.error('Error saving dates:', error);
-      
-      // Provide user-friendly error messages
-      let errorMessage = 'Failed to save dates. Please try again.';
-      
-      if (error?.message) {
-        if (error.message.includes('502') || error.message.includes('Bad Gateway') || error.message.includes('temporarily unavailable')) {
-          errorMessage = 'Server temporarily unavailable. Please check your internet connection and try again.';
-        } else if (error.message.includes('network') || error.message.includes('connection')) {
-          errorMessage = 'Network connection issue. Please check your internet and try again.';
-        } else if (error.message.includes('timeout')) {
-          errorMessage = 'Request timed out. Please try again.';
-        } else {
-          errorMessage = error.message;
-        }
-      }
-      
-      Alert.alert('Error', errorMessage);
+      Alert.alert('Error', 'Failed to save dates. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
 
 
-  const styles = createStyles(colors, isDark, textSizeMultiplier);
+  const styles = createStyles(colors, textSizeMultiplier);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -283,9 +255,9 @@ export default function DatesScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>When is the budget valid?</Text>
+        <Text style={styles.title}>Set the budget window</Text>
         <Text style={styles.description}>
-          Select a date or choose a range of dates for your budget
+          Pick the start and end dates for this spending budget (or keep it to a single day).
         </Text>
 
         {/* Selected Dates Display */}
@@ -532,7 +504,7 @@ export default function DatesScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) =>
+const createStyles = (colors: any, textSizeMultiplier: number) =>
   StyleSheet.create({
     container: {
       flex: 1,

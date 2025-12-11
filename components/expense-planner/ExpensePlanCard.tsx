@@ -103,12 +103,23 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
 
   // Calculate progress percentage
   const percentageUsed = plan.total_budget > 0 ? (plan.total_spent / plan.total_budget) * 100 : 0;
+  
+  // Calculate percentage funded (current_balance / total_budget)
+  const currentBalance = (plan as any).current_balance || 0;
+  const percentageFunded = plan.total_budget > 0 ? (currentBalance / plan.total_budget) * 100 : 0;
 
   // Date calculations
   const budgetStarted = isBudgetStarted(plan.start_date);
   const daysRemaining = getDaysRemaining(plan.start_date, plan.end_date);
   const dateRange = formatDateRange(plan.start_date, plan.end_date);
   const daysRemainingText = formatDaysRemaining(daysRemaining);
+  
+  // Get required per cycle
+  const requiredPerCycle = (plan as any).required_per_cycle || 0;
+  const payoutSchedule = (plan as any).payout_schedule || 'weekly';
+  
+  // Get health status
+  const healthStatus = (plan as any).health_status || 'on_track';
 
   // Expiry countdown for unfunded plans (24 hours from creation)
   const isUnfunded = plan.funding_status === 'unfunded' && plan.status !== 'draft';
@@ -275,11 +286,44 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       </View>
 
       <View style={styles.amountRow}>
-      <Text style={styles.planAmount}>₦{plan.total_budget.toLocaleString()}</Text>
-        <Text style={styles.budgetStructure}>
-          {plan.budget_structure === 'fixed' ? 'Fixed' : 'Estimated'}
-        </Text>
+        <View style={styles.amountColumn}>
+          <Text style={styles.planAmount}>₦{plan.total_budget.toLocaleString()}</Text>
+          <Text style={styles.budgetStructure}>
+            {plan.budget_structure === 'fixed' ? 'Fixed' : 'Estimated'}
+          </Text>
+        </View>
+        {currentBalance > 0 && (
+          <View style={styles.balanceColumn}>
+            <Text style={styles.balanceLabel}>Current Balance</Text>
+            <Text style={styles.balanceAmount}>₦{currentBalance.toLocaleString()}</Text>
+            <Text style={styles.percentageFunded}>{Math.round(percentageFunded)}% funded</Text>
+          </View>
+        )}
       </View>
+      
+      {/* Required per cycle */}
+      {requiredPerCycle > 0 && (
+        <View style={styles.requiredRow}>
+          <Text style={styles.requiredLabel}>Required per {payoutSchedule === 'daily' ? 'day' : payoutSchedule === 'weekly' ? 'week' : payoutSchedule === 'biweekly' ? '2 weeks' : 'month'}</Text>
+          <Text style={styles.requiredAmount}>₦{requiredPerCycle.toLocaleString()}</Text>
+        </View>
+      )}
+      
+      {/* Health Status */}
+      {healthStatus !== 'on_track' && (
+        <View style={[
+          styles.healthBadge,
+          healthStatus === 'slightly_behind' && styles.healthBadgeWarning,
+          healthStatus === 'at_risk' && styles.healthBadgeDanger,
+          healthStatus === 'unachievable' && styles.healthBadgeCritical,
+        ]}>
+          <Text style={styles.healthBadgeText}>
+            {healthStatus === 'slightly_behind' ? 'Slightly Behind' :
+             healthStatus === 'at_risk' ? 'At Risk' :
+             'Unachievable'}
+          </Text>
+        </View>
+      )}
 
       {categoryIcons.length > 0 && (
         <View style={styles.categoriesRow}>
@@ -337,11 +381,17 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
         )
       )}
 
-      {dateRange && (
-        <View style={styles.dateRow}>
+      <View style={styles.footerRow}>
+        {dateRange && (
           <Text style={styles.dateRange}>{dateRange}</Text>
-        </View>
-      )}
+        )}
+        {daysRemainingText && budgetStarted && (
+          <>
+            {dateRange && <Text style={styles.separator}>•</Text>}
+            <Text style={styles.daysRemaining}>{daysRemainingText}</Text>
+          </>
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -398,19 +448,82 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     },
     amountRow: {
       flexDirection: 'row',
-      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
       marginBottom: 12,
-      gap: 8,
+      gap: 12,
+    },
+    amountColumn: {
+      flex: 1,
     },
     planAmount: {
       fontSize: getScaledFontSize(Platform.OS === 'ios' ? 24 : 22, textSizeMultiplier),
       fontWeight: '700',
       color: colors.text,
+      marginBottom: 4,
     },
     budgetStructure: {
       fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
       color: colors.textSecondary,
       fontWeight: '500',
+    },
+    balanceColumn: {
+      alignItems: 'flex-end',
+    },
+    balanceLabel: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 11 : 10, textSizeMultiplier),
+      color: colors.textSecondary,
+      marginBottom: 2,
+    },
+    balanceAmount: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 2,
+    },
+    percentageFunded: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 11 : 10, textSizeMultiplier),
+      color: colors.primary,
+      fontWeight: '500',
+    },
+    requiredRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    requiredLabel: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 11, textSizeMultiplier),
+      color: colors.textSecondary,
+    },
+    requiredAmount: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    healthBadge: {
+      alignSelf: 'flex-start',
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+      marginBottom: 8,
+    },
+    healthBadgeWarning: {
+      backgroundColor: '#FEF3C7',
+    },
+    healthBadgeDanger: {
+      backgroundColor: '#FEE2E2',
+    },
+    healthBadgeCritical: {
+      backgroundColor: '#FEE2E2',
+    },
+    healthBadgeText: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 11 : 10, textSizeMultiplier),
+      fontWeight: '600',
+      color: '#D97706',
     },
     categoriesRow: {
       flexDirection: 'row',
@@ -456,13 +569,20 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 11, textSizeMultiplier),
       color: colors.textSecondary,
     },
-    dateRow: {
-      marginBottom: 4,
+    footerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 4,
     },
     dateRange: {
       fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 11, textSizeMultiplier),
       color: colors.text,
       fontWeight: '500',
+    },
+    separator: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 11, textSizeMultiplier),
+      color: colors.textSecondary,
+      marginHorizontal: 6,
     },
     daysRemainingContainer: {
       marginBottom: 8,

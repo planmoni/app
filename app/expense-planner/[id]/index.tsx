@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Plus, Lock, Calendar, ArrowRight, Tag, Wallet } from 'lucide-react-native';
+import { ArrowLeft, Plus, Lock, Calendar, ArrowRight, Tag, Wallet, ShoppingCart } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -11,11 +11,16 @@ import ExpenseBucketCard from '@/components/expense-planner/ExpenseBucketCard';
 import PieChart from '@/components/expense-planner/PieChart';
 import BarChart from '@/components/expense-planner/BarChart';
 import ExpensePlanDetails from '@/components/expense-planner/ExpensePlanDetails';
+import PlanProgress from '@/components/expense-planner/PlanProgress';
+import PlanActivity from '@/components/expense-planner/PlanActivity';
+import PlanHealthIndicator from '@/components/expense-planner/PlanHealthIndicator';
+import PlanControls from '@/components/expense-planner/PlanControls';
 import { ExpensePlan, ExpenseBucket } from '@/types/expense-planner';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { useExpenseBuckets } from '@/hooks/useExpenseBuckets';
 import { getCategoryIcon } from '@/lib/expenseCategories';
 import { isBudgetStarted } from '@/lib/expensePlanUtils';
+import { supabase } from '@/lib/supabase';
 
 const CATEGORY_COLORS: Record<string, string> = {
   travel: '#3B82F6',
@@ -36,10 +41,59 @@ export default function PlanDetailScreen() {
   const haptics = useHaptics();
   const { id } = useLocalSearchParams();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [planWallet, setPlanWallet] = useState<any>(null);
+  const [planHealth, setPlanHealth] = useState<any>(null);
   const { expensePlans, fetchExpensePlans } = useExpensePlans();
   const { buckets, fetchBuckets } = useExpenseBuckets(id as string);
 
   const plan = expensePlans.find(p => p.id === id) || null;
+  const currentBalance = (plan as any)?.current_balance || 0;
+  const allowancePerDay = (plan as any)?.required_per_day || 0;
+  const allowancePerWeek = Math.ceil((plan as any)?.required_per_day ? (plan as any).required_per_day * 7 : 0);
+
+  // Fetch plan wallet, transactions, and health
+  React.useEffect(() => {
+    if (!id) return;
+
+    const fetchPlanData = async () => {
+      try {
+        // Fetch wallet
+        const { data: wallet } = await supabase
+          .from('plan_wallets')
+          .select('*')
+          .eq('plan_id', id)
+          .single();
+
+        if (wallet) setPlanWallet(wallet);
+
+        // Fetch transactions
+        const { data: txns } = await supabase
+          .from('plan_transactions')
+          .select('*')
+          .eq('plan_id', id)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (txns) setTransactions(txns);
+
+        // Fetch latest health record
+        const { data: health } = await supabase
+          .from('plan_health')
+          .select('*')
+          .eq('plan_id', id)
+          .order('calculated_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (health) setPlanHealth(health);
+      } catch (error) {
+        console.error('Error fetching plan data:', error);
+      }
+    };
+
+    fetchPlanData();
+  }, [id]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -58,6 +112,22 @@ export default function PlanDetailScreen() {
     router.push({
       pathname: '/expense-planner/log-expense',
       params: { planId: id as string },
+    });
+  };
+
+  const handleSpendFromPlan = () => {
+    haptics.mediumImpact();
+    router.push({
+      pathname: '/expense-planner/[id]/spend',
+      params: { id: id as string },
+    });
+  };
+
+  const handleAdjustBudget = () => {
+    haptics.mediumImpact();
+    router.push({
+      pathname: '/expense-planner/[id]/edit',
+      params: { id: id as string },
     });
   };
 
@@ -222,11 +292,53 @@ export default function PlanDetailScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />}
       >
-        {/* Plan Header Card */}
-        
+        <View style={styles.allowanceCard}>
+          <View style={styles.allowanceHeader}>
+            <Text style={styles.allowanceTitle}>Available to spend</Text>
+            <Text style={styles.allowanceValue}>₦{currentBalance.toLocaleString('en-US')}</Text>
+          </View>
+          <View style={styles.allowanceRow}>
+            <Text style={styles.allowanceLabel}>Daily pace</Text>
+            <Text style={styles.allowanceLabelValue}>₦{allowancePerDay.toLocaleString('en-US')}</Text>
+          </View>
+          <View style={styles.allowanceRow}>
+            <Text style={styles.allowanceLabel}>Weekly pace</Text>
+            <Text style={styles.allowanceLabelValue}>₦{allowancePerWeek.toLocaleString('en-US')}</Text>
+          </View>
+          <Text style={styles.allowanceNote}>
+            Stay within this pace to keep other categories protected. If you spend faster, adjust this budget or shift dates.
+          </Text>
+        </View>
+        <View style={styles.quickActions}>
+          <Pressable style={[styles.quickActionButton, styles.logAction]} onPress={handleSpendFromPlan}>
+            <Text style={styles.quickActionText}>Log spend</Text>
+          </Pressable>
+          <Pressable style={[styles.quickActionButton, styles.adjustAction]} onPress={handleAdjustBudget}>
+            <Text style={[styles.quickActionText, styles.quickActionTextSecondary]}>Adjust budget</Text>
+          </Pressable>
+        </View>
 
-        {/* Summary Card */}
-        
+        {/* Progress Section */}
+        <PlanProgress plan={plan} />
+
+        {/* Activity Section */}
+        <PlanActivity transactions={transactions} />
+
+        {/* Health Indicator */}
+        <PlanHealthIndicator
+          planId={plan.id}
+          healthStatus={(plan as any).health_status || planHealth?.status || 'on_track'}
+          percentageBehind={planHealth?.percentage_behind || 0}
+          recommendedAction={planHealth?.recommended_action}
+          requiredAdjustment={planHealth?.required_adjustment}
+        />
+
+        {/* Controls */}
+        <PlanControls
+          planId={plan.id}
+          isPaused={(plan as any).is_paused || false}
+          isLocked={planWallet?.lock_type !== 'none'}
+        />
 
         {/* Plan Details Card */}
         <ExpensePlanDetails plan={plan} buckets={buckets} />
@@ -297,43 +409,74 @@ export default function PlanDetailScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        {(() => {
-          const isUnfunded = plan.funding_status === 'unfunded' || plan.funding_status === 'partially_funded';
-          const isFunded = plan.funding_status === 'funded';
-          const budgetStarted = isBudgetStarted(plan.start_date);
-          const isDisabled = !budgetStarted && isFunded;
+        <View style={styles.footerButtons}>
+          {(() => {
+            const currentBalance = (plan as any).current_balance || 0;
+            const hasBalance = currentBalance > 0;
+            const isUnfunded = plan.funding_status === 'unfunded' || plan.funding_status === 'partially_funded';
+            const isFunded = plan.funding_status === 'funded';
+            const budgetStarted = isBudgetStarted(plan.start_date);
 
-          let buttonText = 'Log New Expense';
-          let ButtonIcon = Plus;
-          let onPress = handleLogExpense;
+            // Show spend button if wallet has balance
+            if (hasBalance && budgetStarted) {
+              return (
+                <Pressable 
+                  onPress={handleSpendFromPlan} 
+                  style={[styles.footerButton, styles.spendButton]}
+                >
+                  <ShoppingCart size={20} color="#fff" />
+                  <Text style={styles.footerButtonText}>Spend from Plan</Text>
+                </Pressable>
+              );
+            }
 
-          if (isUnfunded) {
-            buttonText = 'Fund Plan';
-            ButtonIcon = Wallet;
-            onPress = handleFundPlan;
-          } else if (isFunded && budgetStarted) {
-            buttonText = 'Payout';
-            ButtonIcon = ArrowRight;
-            onPress = handlePayout;
-          } else if (isFunded && !budgetStarted) {
-            buttonText = 'Payout';
-            ButtonIcon = ArrowRight;
-            onPress = () => {}; // Disabled
-          }
+            // Show fund button if unfunded
+            if (isUnfunded) {
+              return (
+                <Pressable 
+                  onPress={handleFundPlan} 
+                  style={[styles.footerButton, styles.fundButton]}
+                >
+                  <Wallet size={20} color="#fff" />
+                  <Text style={styles.footerButtonText}>Fund Plan</Text>
+                </Pressable>
+              );
+            }
 
-          return (
-            <Pressable 
-              onPress={onPress} 
-              style={[styles.logButton, isDisabled && styles.logButtonDisabled]}
-              disabled={isDisabled}
-            >
-              <ButtonIcon size={20} color={isDisabled ? colors.textSecondary : "#fff"} />
-              <Text style={[styles.logButtonText, isDisabled && styles.logButtonTextDisabled]}>
-                {buttonText}
-              </Text>
-            </Pressable>
-          );
-        })()}
+            // Show payout or log expense
+            if (isFunded && budgetStarted) {
+              return (
+                <>
+                  <Pressable 
+                    onPress={handlePayout} 
+                    style={[styles.footerButton, styles.payoutButton]}
+                  >
+                    <ArrowRight size={20} color="#fff" />
+                    <Text style={styles.footerButtonText}>Payout</Text>
+                  </Pressable>
+                  <Pressable 
+                    onPress={handleLogExpense} 
+                    style={[styles.footerButton, styles.logButton]}
+                  >
+                    <Plus size={20} color="#fff" />
+                    <Text style={styles.footerButtonText}>Log Expense</Text>
+                  </Pressable>
+                </>
+              );
+            }
+
+            // Default: Log expense
+            return (
+              <Pressable 
+                onPress={handleLogExpense} 
+                style={[styles.footerButton, styles.logButton]}
+              >
+                <Plus size={20} color="#fff" />
+                <Text style={styles.footerButtonText}>Log Expense</Text>
+              </Pressable>
+            );
+          })()}
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -372,6 +515,80 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     },
     scrollContent: {
       padding: 16,
+    },
+    allowanceCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 16,
+    },
+    allowanceHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      marginBottom: 12,
+    },
+    allowanceTitle: {
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
+      fontWeight: '700',
+      color: colors.text,
+    },
+    allowanceValue: {
+      fontSize: getScaledFontSize(20, textSizeMultiplier),
+      fontWeight: '700',
+      color: colors.primary,
+    },
+    allowanceRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    allowanceLabel: {
+      fontSize: getScaledFontSize(13, textSizeMultiplier),
+      color: colors.textSecondary,
+    },
+    allowanceLabelValue: {
+      fontSize: getScaledFontSize(15, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+    },
+    allowanceNote: {
+      marginTop: 10,
+      fontSize: getScaledFontSize(13, textSizeMultiplier),
+      lineHeight: 18,
+      color: colors.textSecondary,
+    },
+    quickActions: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 16,
+    },
+    quickActionButton: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+    },
+    logAction: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    adjustAction: {
+      backgroundColor: colors.backgroundSecondary,
+      borderColor: colors.border,
+    },
+    quickActionText: {
+      fontSize: getScaledFontSize(15, textSizeMultiplier),
+      fontWeight: '700',
+      color: '#fff',
+    },
+    quickActionTextSecondary: {
+      color: colors.text,
     },
     summaryCard: {
       backgroundColor: colors.card,
@@ -528,26 +745,35 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       borderTopColor: colors.border,
       backgroundColor: colors.backgroundSecondary,
     },
-    logButton: {
+    footerButtons: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    footerButton: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
-      backgroundColor: colors.primary,
       paddingVertical: 16,
       borderRadius: 20,
     },
-    logButtonText: {
+    spendButton: {
+      backgroundColor: '#22C55E',
+    },
+    fundButton: {
+      backgroundColor: colors.primary,
+    },
+    payoutButton: {
+      backgroundColor: '#F59E0B',
+    },
+    logButton: {
+      backgroundColor: colors.primary,
+    },
+    footerButtonText: {
       fontSize: getScaledFontSize(16, textSizeMultiplier),
       fontWeight: '600',
       color: '#fff',
-    },
-    logButtonDisabled: {
-      backgroundColor: colors.backgroundTertiary,
-      opacity: 0.6,
-    },
-    logButtonTextDisabled: {
-      color: colors.textSecondary,
     },
     lockedFundsCard: {
       backgroundColor: colors.card,

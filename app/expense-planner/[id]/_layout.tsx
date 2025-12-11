@@ -13,6 +13,8 @@ export default function ExpensePlanDetailLayout() {
       }}
     >
       <Stack.Screen name="index" />
+      <Stack.Screen name="spend" />
+      <Stack.Screen name="edit" />
       <Stack.Screen name="withdraw" />
       <Stack.Screen name="schedule-withdrawal" />
     </Stack>

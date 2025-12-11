@@ -250,10 +250,17 @@ export function useExpensePlans() {
 
   const saveDraftExpensePlan = async (planData: {
     name?: string;
+    plan_name?: string;
     total_budget?: number;
     budget_structure?: BudgetStructure;
     start_date?: string;
     end_date?: string;
+    plan_type?: 'recurring' | 'one_time' | 'long_term';
+    priority?: 'high' | 'medium' | 'low';
+    funding_method?: 'auto' | 'manual' | 'hybrid';
+    payout_schedule?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
+    required_per_cycle?: number;
+    required_per_day?: number;
     planId?: string;
     last_step?: string; // Track the last step/page user was on
   }) => {
@@ -267,10 +274,17 @@ export function useExpensePlans() {
       if (planData.planId) {
         const updates: any = {};
         if (planData.name !== undefined) updates.name = planData.name;
+        if (planData.plan_name !== undefined) updates.plan_name = planData.plan_name;
         if (planData.total_budget !== undefined) updates.total_budget = planData.total_budget;
         if (planData.budget_structure !== undefined) updates.budget_structure = planData.budget_structure;
         if (planData.start_date !== undefined) updates.start_date = planData.start_date;
         if (planData.end_date !== undefined) updates.end_date = planData.end_date;
+        if (planData.plan_type !== undefined) updates.plan_type = planData.plan_type;
+        if (planData.priority !== undefined) updates.priority = planData.priority;
+        if (planData.funding_method !== undefined) updates.funding_method = planData.funding_method;
+        if (planData.payout_schedule !== undefined) updates.payout_schedule = planData.payout_schedule;
+        if (planData.required_per_cycle !== undefined) updates.required_per_cycle = planData.required_per_cycle;
+        if (planData.required_per_day !== undefined) updates.required_per_day = planData.required_per_day;
         
         // Update last_step in metadata if provided
         if (planData.last_step !== undefined) {
@@ -317,11 +331,18 @@ export function useExpensePlans() {
         .from('expense_plans')
         .insert({
           user_id: session.user.id,
-          name: planData.name || 'Untitled Plan',
+          name: planData.name || planData.plan_name || 'Untitled Plan',
+          plan_name: planData.plan_name || planData.name || 'Untitled Plan',
           total_budget: planData.total_budget,
           budget_structure: planData.budget_structure,
           start_date: planData.start_date || null,
           end_date: planData.end_date || null,
+          plan_type: planData.plan_type || 'one_time',
+          priority: planData.priority || 'medium',
+          funding_method: planData.funding_method || 'manual',
+          payout_schedule: planData.payout_schedule || 'weekly',
+          required_per_cycle: planData.required_per_cycle || 0,
+          required_per_day: planData.required_per_day || 0,
           status: 'draft',
           metadata: planData.last_step ? { last_step: planData.last_step } : {},
         })
@@ -694,12 +715,152 @@ export function useExpensePlans() {
     }
   };
 
+  const createCompletePlan = async (planData: {
+    plan_name: string;
+    name: string;
+    total_budget: number;
+    budget_structure: BudgetStructure;
+    start_date: string | null;
+    end_date: string | null;
+    plan_type?: 'recurring' | 'one_time' | 'long_term';
+    priority?: 'high' | 'medium' | 'low';
+    funding_method?: 'auto' | 'manual' | 'hybrid';
+    payout_schedule?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
+    required_per_cycle?: number;
+    required_per_day?: number;
+    spending_permission?: 'open' | 'restricted';
+    lock_type?: 'none' | 'instant' | '24h_delay' | 'pin_required';
+    pin_hash?: string | null;
+    alert_at_70_percent?: boolean;
+    alert_risk_failure?: boolean;
+    alert_weekly_progress?: boolean;
+    buckets?: Array<{
+      category_id: string;
+      subcategory_id: string;
+      name: string;
+      target_amount: number;
+    }>;
+  }) => {
+    if (!session?.user?.id) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      return await retryWithBackoff(async () => {
+        // Create expense plan with all new fields
+      const { data: plan, error: planError } = await supabase
+        .from('expense_plans')
+        .insert({
+          user_id: session.user.id,
+          name: planData.name,
+          plan_name: planData.plan_name,
+          total_budget: planData.total_budget,
+          budget_structure: planData.budget_structure,
+          start_date: planData.start_date,
+          end_date: planData.end_date,
+          plan_type: planData.plan_type || 'one_time',
+          priority: planData.priority || 'medium',
+          funding_method: planData.funding_method || 'manual',
+          payout_schedule: planData.payout_schedule || 'weekly',
+          required_per_cycle: planData.required_per_cycle || 0,
+          required_per_day: planData.required_per_day || 0,
+          current_balance: 0,
+          health_status: 'on_track',
+          is_paused: false,
+          status: 'active',
+        })
+        .select()
+        .single();
+
+        if (planError) throw planError;
+        if (!plan) throw new Error('Failed to create plan');
+
+        // Plan wallet and rules are created automatically by triggers
+        // But we need to update them with user settings
+        const { data: wallet, error: walletError } = await supabase
+          .from('plan_wallets')
+          .update({
+            spending_permission: planData.spending_permission || 'open',
+            lock_type: planData.lock_type || 'none',
+            pin_hash: planData.pin_hash || null,
+          })
+          .eq('plan_id', plan.id)
+          .select()
+          .single();
+
+        if (walletError) {
+          console.error('Error updating plan wallet:', walletError);
+          // Continue anyway - wallet was created by trigger
+        }
+
+        const { data: rules, error: rulesError } = await supabase
+          .from('plan_rules')
+          .update({
+            alert_at_70_percent: planData.alert_at_70_percent || false,
+            alert_risk_failure: planData.alert_risk_failure || false,
+            alert_weekly_progress: planData.alert_weekly_progress || false,
+          })
+          .eq('plan_id', plan.id)
+          .select()
+          .single();
+
+        if (rulesError) {
+          console.error('Error updating plan rules:', rulesError);
+          // Continue anyway - rules were created by trigger
+        }
+
+        // Create buckets if provided
+        if (planData.buckets && planData.buckets.length > 0) {
+          const bucketsToInsert = planData.buckets.map((bucket, index) => ({
+            expense_plan_id: plan.id,
+            category_id: bucket.category_id,
+            subcategory_id: bucket.subcategory_id,
+            name: bucket.name,
+            target_amount: bucket.target_amount,
+            order_index: index,
+          }));
+
+          const { error: bucketsError } = await supabase
+            .from('expense_buckets')
+            .insert(bucketsToInsert);
+
+          if (bucketsError) {
+            console.error('Error creating buckets:', bucketsError);
+            // Continue anyway
+          }
+        }
+
+        // Create initial plan health record
+        const { error: healthError } = await supabase
+          .from('plan_health')
+          .insert({
+            plan_id: plan.id,
+            status: 'on_track',
+            percentage_behind: 0,
+            recommended_action: 'Plan is on track',
+            required_adjustment: {},
+          });
+
+        if (healthError) {
+          console.error('Error creating plan health:', healthError);
+          // Continue anyway
+        }
+
+        return plan;
+      });
+    } catch (err) {
+      console.error('Error creating complete plan:', err);
+      throw err;
+    }
+  };
+
   return {
     expensePlans,
     isLoading,
     error,
     fetchExpensePlans,
     createExpensePlan,
+    createCompletePlan,
     updateExpensePlan,
     deleteExpensePlan,
     saveDraftExpensePlan,

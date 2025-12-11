@@ -19,6 +19,7 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { Platform } from 'react-native';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
+import { getPlanTypeForCategory, PlanType } from '@/lib/planTypeMapping';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PADDING = 20;
@@ -65,7 +66,7 @@ interface Category {
   note?: string;
 }
 
-const CATEGORIES: Category[] = [
+export const CATEGORIES: Category[] = [
   { 
     id: 'air_travel', 
     name: 'Air & Travel', 
@@ -713,6 +714,7 @@ export default function PlanDetailsScreen() {
   const planId = params.planId as string | undefined;
   const subCategories = params.subCategories as string | undefined;
   const preselectedCategoryId = params.preselectedCategoryId as string | undefined;
+  const planTypesParam = params.planTypes as string | undefined;
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedSubCategories, setSelectedSubCategories] = useState<Record<string, string[]>>({});
@@ -776,13 +778,41 @@ export default function PlanDetailsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPlanId, totalBudget, budgetStructure]);
 
-  const filteredCategories = CATEGORIES.filter(category => {
-    const categoryNameMatch = category.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const subCategoryMatch = category.subCategories.some(subCategory =>
-      subCategory.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    return categoryNameMatch || subCategoryMatch;
-  });
+  // Parse selected plan types from params
+  const selectedPlanTypes = useMemo<PlanType[]>(() => {
+    if (!planTypesParam) return [];
+    try {
+      return JSON.parse(planTypesParam);
+    } catch {
+      return [];
+    }
+  }, [planTypesParam]);
+
+  const filteredCategories = useMemo(() => {
+    let categories = CATEGORIES;
+
+    // Filter by plan type if plan types are provided
+    if (selectedPlanTypes.length > 0) {
+      categories = categories.filter(category => {
+        const categoryPlanType = getPlanTypeForCategory(category.id);
+        return selectedPlanTypes.includes(categoryPlanType);
+      });
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      categories = categories.filter(category => {
+        const categoryNameMatch = category.name.toLowerCase().includes(query);
+        const subCategoryMatch = category.subCategories.some(subCategory =>
+          subCategory.name.toLowerCase().includes(query)
+        );
+        return categoryNameMatch || subCategoryMatch;
+      });
+    }
+
+    return categories;
+  }, [selectedPlanTypes, searchQuery]);
 
   // Generate suggestions for dropdown
   const suggestions = useMemo(() => {
@@ -791,7 +821,7 @@ export default function PlanDetailsScreen() {
     const query = searchQuery.toLowerCase();
     const results: Array<{ categoryId: string; categoryName: string; subCategoryId: string; subCategoryName: string }> = [];
     
-    CATEGORIES.forEach(category => {
+    filteredCategories.forEach(category => {
       category.subCategories.forEach(subCategory => {
         if (subCategory.name.toLowerCase().includes(query)) {
           results.push({
@@ -805,7 +835,7 @@ export default function PlanDetailsScreen() {
     });
     
     return results.slice(0, 5); // Limit to 5 suggestions
-  }, [searchQuery]);
+  }, [searchQuery, filteredCategories]);
 
   const selectedCategory = selectedCategoryId ? CATEGORIES.find(c => c.id === selectedCategoryId) : null;
 
@@ -897,23 +927,23 @@ export default function PlanDetailsScreen() {
           setCurrentPlanId(draftPlan.id);
         }
 
-        // Navigate to dates if we have budget info (dates comes before buckets now)
+        // Navigate to plan-name
       router.push({
-          pathname: '/expense-planner/create/dates',
+          pathname: '/expense-planner/create/plan-name',
         params: {
-          totalBudget,
-          budgetStructure,
           subCategories: JSON.stringify(selectedSubCategories),
           planId: draftPlan.id,
+          ...(planTypesParam && { planTypes: planTypesParam }),
         },
       });
       } else {
-        // No budget info yet - navigate to amount page
+        // No budget info yet - navigate to plan-name
         router.push({
-          pathname: '/expense-planner',
+          pathname: '/expense-planner/create/plan-name',
           params: {
             subCategories: JSON.stringify(selectedSubCategories),
             planId: activePlanId,
+            ...(planTypesParam && { planTypes: planTypesParam }),
           },
         });
       }
