@@ -203,7 +203,7 @@ export default function ContributionCalculationScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Budget Cadence</Text>
+        <Text style={styles.headerTitle}>Budget Amount</Text>
         <Pressable
           onPress={async () => {
             if (Platform.OS !== 'web') {
@@ -222,15 +222,6 @@ export default function ContributionCalculationScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-          <View style={styles.iconContainer}>
-            <Calculator size={48} color={colors.primary} />
-          </View>
-          
-          <Text style={styles.title}>Budget pacing</Text>
-          <Text style={styles.subtitle}>
-            Based on your budget and dates, here’s the planned spend per cadence. Overspending here affects the rest of your categories.
-          </Text>
-
           {/* Target Amount - Editable */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -278,7 +269,6 @@ export default function ContributionCalculationScreen() {
 
           {/* Payout Schedule Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Budget cadence</Text>
             {primaryPlanType === 'recurring' ? (
               <>
                 <Pressable

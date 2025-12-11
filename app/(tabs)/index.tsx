@@ -882,22 +882,9 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // For authenticated users, only show modal if user has never created a payout plan before
-    if (isAuthenticated) {
-      if (hasCreatedPayoutPlan) {
-        // User has created a payout plan before - navigate directly to create payout
-        router.push('/create-payout/amount');
-        logAnalyticsEvent('create_payout_click_direct');
-      } else {
-        // User has never created a payout plan - show info modal
-        setShowNewPlanInfoModal(true);
-        logAnalyticsEvent('create_payout_click_modal');
-      }
-    } else {
-      // Unauthenticated users - show modal
-      setShowNewPlanInfoModal(true);
-      logAnalyticsEvent('create_payout_click_modal');
-    }
+    // Route to unified create chooser
+    router.push('/create-new');
+    logAnalyticsEvent('create_payout_click_start');
   };
 
   const handleAISuggestionPress = (suggestion: any) => {
@@ -1291,18 +1278,18 @@ export default function HomeScreen() {
                     style={styles.addFundsButton} 
                   onPress={() => {
                     impact();
-                    router.push('/expense-planner/create/plan-type');
+                    router.push('/add-funds');
                   }}
                   >
-                    <PieChart size={20} color={isDark ? '#fff' : colors.primary}/>
-                    <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Plan</Text>
+                    <ArrowDown size={20} color={isDark ? '#fff' : colors.primary}/>
+                    <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
                   </Pressable>
                   <Pressable 
                     style={styles.createButton} 
                     onPress={handleCreatePayout}
                   >
                     <CalendarCheck size={22} color={'#fff'} />
-                    <Text style={styles.createButtonText}>Payout</Text>
+                    <Text style={styles.createButtonText}>New Plan</Text>
                   </Pressable>
                 </View>
               </View>
@@ -1412,18 +1399,18 @@ export default function HomeScreen() {
             style={styles.addFundsButton} 
             onPress={() => {
               impact();
-              router.push('/expense-planner/create/plan-details');
+              router.push('/add-funds');
             }}
           >
-            <PieChart size={20} color={isDark ? '#fff' : colors.primary} />
-            <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Plan</Text>
+            <ArrowDown size={20} color={isDark ? '#fff' : colors.primary} />
+            <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
           </Pressable>
           <Pressable 
             style={styles.createButton} 
             onPress={handleCreatePayout}
           >
             <CalendarCheck size={22} color={'#fff'} />
-            <Text style={styles.createButtonText}>Payout</Text>
+            <Text style={styles.createButtonText}>New Plan</Text>
           </Pressable>
         </Animated.View>
       )}

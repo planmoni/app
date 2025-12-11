@@ -754,16 +754,11 @@ export function useExpensePlans() {
         .insert({
           user_id: session.user.id,
           name: planData.name,
-          plan_name: planData.plan_name,
           total_budget: planData.total_budget,
           budget_structure: planData.budget_structure || 'fixed',
           start_date: planData.start_date,
           end_date: planData.end_date,
-          plan_type: planData.plan_type || 'one_time',
-          priority: planData.priority || 'medium',
           payout_schedule: planData.payout_schedule || 'weekly',
-          required_per_cycle: planData.required_per_cycle || 0,
-          required_per_day: planData.required_per_day || 0,
           metadata: planData.metadata || {},
           status: 'active',
         })
@@ -772,40 +767,6 @@ export function useExpensePlans() {
 
         if (planError) throw planError;
         if (!plan) throw new Error('Failed to create plan');
-
-        // Plan wallet and rules are created automatically by triggers
-        // But we need to update them with user settings
-        const { data: wallet, error: walletError } = await supabase
-          .from('plan_wallets')
-          .update({
-            spending_permission: planData.spending_permission || 'open',
-            lock_type: planData.lock_type || 'none',
-            pin_hash: planData.pin_hash || null,
-          })
-          .eq('plan_id', plan.id)
-          .select()
-          .single();
-
-        if (walletError) {
-          console.error('Error updating plan wallet:', walletError);
-          // Continue anyway - wallet was created by trigger
-        }
-
-        const { data: rules, error: rulesError } = await supabase
-          .from('plan_rules')
-          .update({
-            alert_at_70_percent: planData.alert_at_70_percent || false,
-            alert_risk_failure: planData.alert_risk_failure || false,
-            alert_weekly_progress: planData.alert_weekly_progress || false,
-          })
-          .eq('plan_id', plan.id)
-          .select()
-          .single();
-
-        if (rulesError) {
-          console.error('Error updating plan rules:', rulesError);
-          // Continue anyway - rules were created by trigger
-        }
 
         // Create buckets if provided
         if (planData.buckets && planData.buckets.length > 0) {
@@ -826,22 +787,6 @@ export function useExpensePlans() {
             console.error('Error creating buckets:', bucketsError);
             // Continue anyway
           }
-        }
-
-        // Create initial plan health record
-        const { error: healthError } = await supabase
-          .from('plan_health')
-          .insert({
-            plan_id: plan.id,
-            status: 'on_track',
-            percentage_behind: 0,
-            recommended_action: 'Plan is on track',
-            required_adjustment: {},
-          });
-
-        if (healthError) {
-          console.error('Error creating plan health:', healthError);
-          // Continue anyway
         }
 
         return plan;

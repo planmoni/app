@@ -176,6 +176,7 @@ export default function ReviewScreen() {
         params: {
           planId: plan.id,
           planName: planName,
+          totalBudget: targetAmount.toString(),
         },
       });
     } catch (error: any) {
