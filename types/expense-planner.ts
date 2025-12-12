@@ -19,6 +19,20 @@ export interface ExpensePlan {
   total_locked?: number;
   funding_status?: 'draft' | 'unfunded' | 'partially_funded' | 'funded';
   metadata?: any; // Store last_step and other metadata
+  // Additional fields from database
+  plan_type?: 'recurring' | 'one_time' | 'long_term';
+  funding_method?: 'auto' | 'manual' | 'hybrid';
+  current_balance?: number;
+  required_per_cycle?: number;
+  required_per_day?: number;
+  payout_schedule?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
+  health_status?: 'on_track' | 'slightly_behind' | 'at_risk' | 'unachievable';
+  is_paused?: boolean;
+  // Metadata fields
+  start_action?: 'wallet' | 'auto_payout';
+  payout_account_id?: string;
+  payout_account_label?: string;
+  payout_account_bank_name?: string;
 }
 
 export interface ExpenseBucket {

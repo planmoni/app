@@ -1344,7 +1344,7 @@ export default function HomeScreen() {
             </View>
             
             {/* Daily Spend Guidance */}
-            <DailySpendGuidance />
+            {/* <DailySpendGuidance /> */}
             
             {/* Expense Plans Section */}
             <ExpensePlansSection />

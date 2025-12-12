@@ -133,11 +133,21 @@ export function useExpensePlans() {
           totalLocked += lockedFundsMap.get(bucket.id) || 0;
         }
 
+        // Extract metadata fields
+        const metadata = plan.metadata || {};
+        
         return {
           ...plan,
           buckets: planBuckets,
           total_locked: totalLocked,
           funding_status: fundingStatus,
+          // Extract metadata fields to top level for easier access
+          start_action: metadata.start_action || plan.start_action,
+          payout_account_id: metadata.payout_account_id || plan.payout_account_id,
+          payout_account_label: metadata.payout_account_label || plan.payout_account_label,
+          payout_account_bank_name: metadata.payout_account_bank_name || plan.payout_account_bank_name,
+          // Keep metadata for backward compatibility
+          metadata,
         };
       });
 

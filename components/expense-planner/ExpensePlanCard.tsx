@@ -15,7 +15,7 @@ import {
   getExpiryHoursRemaining,
   formatExpiryCountdown
 } from '@/lib/expensePlanUtils';
-import { Trash2 } from 'lucide-react-native';
+import { Trash2, Clock, Calendar } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -107,16 +107,56 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
   // Calculate percentage funded (current_balance / total_budget)
   const currentBalance = (plan as any).current_balance || 0;
   const percentageFunded = plan.total_budget > 0 ? (currentBalance / plan.total_budget) * 100 : 0;
+  
+  // Calculate remaining amount to add
+  const remainingToAdd = Math.max(0, plan.total_budget - currentBalance);
+  
+  // Calculate extra funds (over-funded)
+  const extraFunds = Math.max(0, currentBalance - plan.total_budget);
+  
+  // Calculate next funding countdown for auto plans
+  const fundingMethod = plan.funding_method || 'manual';
+  const payoutSchedule = (plan as any).payout_schedule || 'weekly';
+  const requiredPerCycle = (plan as any).required_per_cycle || 0;
+  
+  // Calculate next funding date for auto plans
+  const getNextFundingCountdown = () => {
+    if (fundingMethod !== 'auto' || !plan.start_date || budgetStarted) return null;
+    
+    // For auto plans, calculate next funding date based on schedule
+    const startDate = new Date(plan.start_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    startDate.setHours(0, 0, 0, 0);
+    
+    if (today < startDate) {
+      // Plan hasn't started yet, first funding is on start date
+      const daysUntil = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+    }
+    
+    // Plan has started, calculate next cycle
+    const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    let cycleDays = 7; // default weekly
+    if (payoutSchedule === 'daily') cycleDays = 1;
+    else if (payoutSchedule === 'biweekly') cycleDays = 14;
+    else if (payoutSchedule === 'monthly') cycleDays = 30;
+    
+    const cyclesCompleted = Math.floor(daysSinceStart / cycleDays);
+    const nextCycleDate = new Date(startDate);
+    nextCycleDate.setDate(startDate.getDate() + (cyclesCompleted + 1) * cycleDays);
+    
+    const daysUntil = Math.ceil((nextCycleDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+  };
+  
+  const nextFundingCountdown = getNextFundingCountdown();
 
   // Date calculations
   const budgetStarted = isBudgetStarted(plan.start_date);
   const daysRemaining = getDaysRemaining(plan.start_date, plan.end_date);
   const dateRange = formatDateRange(plan.start_date, plan.end_date);
   const daysRemainingText = formatDaysRemaining(daysRemaining);
-  
-  // Get required per cycle
-  const requiredPerCycle = (plan as any).required_per_cycle || 0;
-  const payoutSchedule = (plan as any).payout_schedule || 'weekly';
   
   // Get health status
   const healthStatus = (plan as any).health_status || 'on_track';
@@ -343,49 +383,86 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
         </View>
       )}
 
-      {/* Always show progress bar */}
+      {/* Show dates */}
+      {dateRange && (
+        <View style={styles.datesRow}>
+          <Calendar size={14} color={colors.textSecondary} />
+          <Text style={styles.datesText}>{dateRange}</Text>
+        </View>
+      )}
+
+      {/* Show amount remaining to add or extra funds */}
+      {!budgetStarted && remainingToAdd > 0 && (
+        <View style={styles.remainingRow}>
+          <Text style={styles.remainingLabel}>Remaining to add</Text>
+          <Text style={styles.remainingAmount}>₦{remainingToAdd.toLocaleString()}</Text>
+        </View>
+      )}
+
+      {extraFunds > 0 && (
+        <View style={styles.extraFundsRow}>
+          <Text style={styles.extraFundsLabel}>Extra funds</Text>
+          <Text style={styles.extraFundsAmount}>+₦{extraFunds.toLocaleString()}</Text>
+        </View>
+      )}
+
+      {/* Show auto-fund countdown */}
+      {nextFundingCountdown && (
+        <View style={styles.fundingCountdownRow}>
+          <Clock size={14} color={colors.textSecondary} />
+          <Text style={styles.fundingCountdownText}>
+            Next funding: {nextFundingCountdown}
+          </Text>
+        </View>
+      )}
+
+      {/* Progress bar - show funding progress before start, spending progress after */}
       <View style={styles.progressBar}>
         <View
           style={[
             styles.progressFill,
             {
-              width: `${Math.min(Math.max(percentageUsed, 0), 100)}%`,
-              backgroundColor:
-                percentageUsed > 100
-                  ? '#EF4444'
-                  : percentageUsed > 75
-                  ? '#F97316'
-                  : colors.primary,
+              width: `${Math.min(Math.max(budgetStarted ? percentageUsed : percentageFunded, 0), 100)}%`,
+              backgroundColor: budgetStarted
+                ? (percentageUsed > 100
+                    ? '#EF4444'
+                    : percentageUsed > 75
+                    ? '#F97316'
+                    : percentageUsed > 50
+                    ? '#F59E0B'
+                    : '#22C55E')
+                : (percentageFunded >= 100
+                    ? '#22C55E'
+                    : percentageFunded >= 75
+                    ? '#10B981'
+                    : percentageFunded >= 50
+                    ? '#F59E0B'
+                    : percentageFunded >= 25
+                    ? '#F97316'
+                    : '#EF4444'),
             },
           ]}
         />
       </View>
 
-      {/* Only show spent amount when budget has started */}
+      {/* Show progress info */}
       {budgetStarted ? (
         <View style={styles.progressInfo}>
-        <Text style={styles.progressText}>
+          <Text style={styles.progressText}>
             Spent ₦{plan.total_spent.toLocaleString()}/₦{plan.total_budget.toLocaleString()}
-        </Text>
-      </View>
+          </Text>
+        </View>
       ) : (
-        /* Show remaining days when budget hasn't started */
-        daysRemainingText && (
-          <View style={styles.daysRemainingContainer}>
-            <Text style={styles.daysRemaining}>{daysRemainingText}</Text>
-          </View>
-        )
+        <View style={styles.progressInfo}>
+          <Text style={styles.progressText}>
+            Funded {Math.round(percentageFunded)}% • ₦{currentBalance.toLocaleString()}/₦{plan.total_budget.toLocaleString()}
+          </Text>
+        </View>
       )}
 
       <View style={styles.footerRow}>
-        {dateRange && (
-          <Text style={styles.dateRange}>{dateRange}</Text>
-        )}
-        {daysRemainingText && budgetStarted && (
-          <>
-            {dateRange && <Text style={styles.separator}>•</Text>}
-            <Text style={styles.daysRemaining}>{daysRemainingText}</Text>
-          </>
+        {daysRemainingText && (
+          <Text style={styles.daysRemaining}>{daysRemainingText}</Text>
         )}
       </View>
     </Pressable>
@@ -541,6 +618,65 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     },
     categoryCount: {
       fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 11, textSizeMultiplier),
+      color: colors.textSecondary,
+    },
+    datesRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 8,
+    },
+    datesText: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 11, textSizeMultiplier),
+      color: colors.textSecondary,
+    },
+    remainingRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    remainingLabel: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 11, textSizeMultiplier),
+      color: colors.textSecondary,
+    },
+    remainingAmount: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    extraFundsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    extraFundsLabel: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 11, textSizeMultiplier),
+      color: colors.textSecondary,
+    },
+    extraFundsAmount: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+      fontWeight: '600',
+      color: '#22C55E',
+    },
+    fundingCountdownRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 8,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    fundingCountdownText: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 11, textSizeMultiplier),
       color: colors.textSecondary,
     },
     progressBar: {

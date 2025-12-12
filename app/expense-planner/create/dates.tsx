@@ -65,7 +65,9 @@ export default function DatesScreen() {
   const isPastDate = (date: Date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return date < today;
+    const normalizedDate = normalizeDate(date);
+    // Treat today as unavailable; start date must be from the next day
+    return normalizedDate <= today;
   };
 
   const normalizeDate = (date: Date): Date => {
@@ -117,9 +119,10 @@ export default function DatesScreen() {
     // If only start date is set
     const normalizedStart = normalizeDate(startDate);
     
-    // If same date as start, set both to same date (single day selection)
+    // Prevent same-day start/end selection
     if (normalizedDate.getTime() === normalizedStart.getTime()) {
-      setEndDate(normalizedDate);
+      Alert.alert('Invalid selection', 'End date must be after start date.');
+      haptics.notification();
       return;
     }
 
@@ -171,18 +174,17 @@ export default function DatesScreen() {
   };
 
   const handleContinue = async () => {
-    // If only start date is selected, use it as both start and end (single day)
     const finalStartDate = startDate;
-    const finalEndDate = endDate || startDate;
+    const finalEndDate = endDate;
 
     if (!finalStartDate || !finalEndDate) {
-      Alert.alert('Missing Dates', 'Please select at least one date');
+      Alert.alert('Missing Dates', 'Please select a start date and an end date.');
       haptics.notification();
       return;
     }
 
-    if (finalEndDate < finalStartDate) {
-      Alert.alert('Invalid Dates', 'End date must be after or equal to start date');
+    if (finalEndDate <= finalStartDate) {
+      Alert.alert('Invalid Dates', 'End date must be after start date.');
       haptics.notification();
       return;
     }
@@ -478,11 +480,11 @@ export default function DatesScreen() {
           )}
         </View>
 
-        {(startDate && (endDate || startDate)) && (
+        {startDate && endDate && (
           <View style={styles.durationCard}>
             <Text style={styles.durationLabel}>Budget Duration</Text>
             <Text style={styles.durationValue}>
-              {Math.ceil(((endDate || startDate).getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1} day{(endDate && endDate.getTime() !== startDate.getTime()) ? 's' : ''}
+              {Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1} days
             </Text>
           </View>
         )}
@@ -491,7 +493,7 @@ export default function DatesScreen() {
       <FloatingButton
         title="Continue"
         onPress={handleContinue}
-        disabled={!startDate || isSaving}
+        disabled={!startDate || !endDate || isSaving}
         hapticType="medium"
       />
     </SafeAreaView>
