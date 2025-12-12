@@ -1,42 +1,59 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
-import { router } from 'expo-router';
-import { ArrowLeft, ArrowRight } from 'lucide-react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ArrowLeft, ArrowRight, Wallet, CreditCard } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useToast } from '@/contexts/ToastContext';
+import { useRealtimeWallet } from '@/hooks/useRealtimeWallet';
 import PaystackLogo from '@/assets/banks/paystack.svg';
-import SafeHavenLogo from '@/assets/banks/safe_haven_bank.svg';
 
-export default function AddFundsScreen() {
+export default function FundPlanScreen() {
   const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const haptics = useHaptics();
-  const { showToast } = useToast();
+  const { availableBalance } = useRealtimeWallet();
+  const params = useLocalSearchParams();
   const isSmallScreen = screenWidth < 380;
 
-  const styles = createStyles(colors, isDark, isSmallScreen);
+  const planId = params.planId as string;
+  const planName = params.planName as string;
+  const totalBudget = params.totalBudget as string;
+
+  const styles = createStyles(colors, isDark, isSmallScreen, textSizeMultiplier);
 
   const handleBack = () => {
     haptics.lightImpact();
     router.back();
   };
 
-  const handleBankTransfer = () => {
+  const handleFundFromWallet = () => {
     haptics.mediumImpact();
-    router.push('/bank-transfer');
+    router.push({
+      pathname: '/expense-planner/create/fund-budget',
+      params: {
+        planId,
+        planName,
+        totalBudget,
+      },
+    });
   };
 
-  const handleCards = () => {
+  const handleFundWithPaystack = () => {
     haptics.mediumImpact();
-    router.push('/paystack-payment');
-  };
-
-  const handleLinkBank = () => {
-    haptics.mediumImpact();
-    showToast('This feature is coming soon', 'info');
+    router.push({
+      pathname: '/paystack-payment',
+      params: {
+        returnTo: '/expense-planner/create/fund-plan',
+        planId,
+        planName,
+        totalBudget,
+      },
+    });
   };
 
   return (
@@ -45,7 +62,8 @@ export default function AddFundsScreen() {
         <Pressable onPress={handleBack} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Add funds</Text>
+        <Text style={styles.headerTitle}>Fund Plan</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView
@@ -57,47 +75,55 @@ export default function AddFundsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          <Text style={styles.title}>Choose how you want to add funds</Text>
+          <Text style={styles.title}>Choose how to fund your plan</Text>
           <Text style={styles.subtitle}>
-            Select a payment method to add money to your wallet
+            Select a payment method to add money to your expense plan
           </Text>
 
+          {planName && (
+            <View style={styles.planInfoCard}>
+              <Text style={styles.planInfoLabel}>Plan</Text>
+              <Text style={styles.planInfoName}>{planName}</Text>
+              <Text style={styles.planInfoAmount}>
+                ₦{parseFloat(totalBudget || '0').toLocaleString()}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.optionsContainer}>
-            {/* Bank Transfer Option */}
+            {/* Fund from Wallet Balance Option */}
             <Pressable
               style={styles.optionCard}
-              onPress={handleBankTransfer}
+              onPress={handleFundFromWallet}
             >
               <View style={styles.optionIconContainer}>
-                <SafeHavenLogo width={24} height={24} />
+                <Wallet size={24} color={colors.primary} />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>Your Account Details</Text>
+                <Text style={styles.optionTitle}>Fund from wallet balance</Text>
                 <Text style={styles.optionDescription}>
-                  Transfer money directly from your bank account
+                  Use your available balance of ₦{availableBalance.toLocaleString()}
                 </Text>
               </View>
               <ArrowRight size={20} color={colors.textSecondary} />
             </Pressable>
 
-            {/* Cards Option */}
+            {/* Fund with Paystack Option */}
             <Pressable
               style={styles.optionCard}
-              onPress={handleCards}
+              onPress={handleFundWithPaystack}
             >
               <View style={styles.optionIconContainer}>
                 <PaystackLogo width={24} height={24} />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>Continue with Paystack</Text>
+                <Text style={styles.optionTitle}>Fund with Paystack</Text>
                 <Text style={styles.optionDescription}>
                   Add funds with Credit/Debit cards, Transfers, Direct Debit, USSD, and more.
                 </Text>
               </View>
               <ArrowRight size={20} color={colors.textSecondary} />
             </Pressable>
-
-            {/* Link Bank Option */}
           </View>
         </View>
       </ScrollView>
@@ -105,7 +131,12 @@ export default function AddFundsScreen() {
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => StyleSheet.create({
+const createStyles = (
+  colors: any,
+  isDark: boolean,
+  isSmallScreen: boolean,
+  textSizeMultiplier: number
+) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -113,6 +144,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: isSmallScreen ? 12 : 16,
     paddingVertical: isSmallScreen ? 12 : 16,
     backgroundColor: colors.surface,
@@ -127,9 +159,14 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     marginRight: 8,
   },
   headerTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+    fontSize: getScaledFontSize(isSmallScreen ? 16 : 18, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 40,
   },
   scrollView: {
     flex: 1,
@@ -141,16 +178,42 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     padding: isSmallScreen ? 16 : 20,
   },
   title: {
-    fontSize: isSmallScreen ? 20 : 24,
+    fontSize: getScaledFontSize(isSmallScreen ? 20 : 24, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: isSmallScreen ? 14 : 16,
+    fontSize: getScaledFontSize(isSmallScreen ? 14 : 16, textSizeMultiplier),
     color: colors.textSecondary,
     marginBottom: 24,
     lineHeight: 22,
+  },
+  planInfoCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: isSmallScreen ? 16 : 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  planInfoLabel: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    color: colors.textSecondary,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  planInfoName: {
+    fontSize: getScaledFontSize(isSmallScreen ? 18 : 20, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  planInfoAmount: {
+    fontSize: getScaledFontSize(isSmallScreen ? 24 : 28, textSizeMultiplier),
+    fontWeight: '700',
+    color: colors.primary,
   },
   optionsContainer: {
     gap: 16,
@@ -164,60 +227,30 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     borderRadius: 16,
     padding: isSmallScreen ? 16 : 20,
     gap: 16,
-    position: 'relative',
-    overflow: 'visible',
   },
   optionIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: colors.accentBackground,
+    backgroundColor: colors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.primary + '30',
   },
   optionContent: {
     flex: 1,
   },
   optionTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+    fontSize: getScaledFontSize(isSmallScreen ? 16 : 18, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   optionDescription: {
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: getScaledFontSize(isSmallScreen ? 13 : 14, textSizeMultiplier),
     color: colors.textSecondary,
     lineHeight: 20,
   },
-  comingSoonTag: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: colors.backgroundTertiary,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    zIndex: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  comingSoonText: {
-    fontSize: isSmallScreen ? 10 : 11,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  optionCardDisabled: {
-    opacity: 0.5,
-  },
-  optionIconContainerDisabled: {
-    opacity: 0.6,
-  },
-  optionTitleDisabled: {
-    opacity: 0.7,
-  },
-  optionDescriptionDisabled: {
-    opacity: 0.7,
-  },
 });
+

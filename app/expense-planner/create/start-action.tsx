@@ -100,7 +100,7 @@ export default function StartActionScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-          <Text style={styles.title}>What happens when the plan starts?</Text>
+          <Text style={styles.title}>What happens when the budget is due?</Text>
           <Text style={styles.subtitle}>Choose how the budget amount should be handled on start.</Text>
 
           <Pressable
@@ -176,7 +176,14 @@ export default function StartActionScreen() {
                   const label = `${account.bank_name} ••••${account.account_number.slice(-4)}`;
                   const selected = payoutAccountId === account.id;
                   const bankIcon = getBankIcon(account.bank_name || '');
-                  const SvgLogo = bankIcon.logoSvg as any;
+                  const SvgLogo = bankIcon.logoSvg;
+                  
+                  // Check if SvgLogo is a valid component (function or class)
+                  const isValidComponent = SvgLogo && 
+                    (typeof SvgLogo === 'function' || 
+                     (typeof SvgLogo === 'object' && SvgLogo !== null && 
+                      (typeof SvgLogo.default === 'function' || typeof SvgLogo === 'function')));
+                  
                   return (
                     <Pressable
                       key={account.id}
@@ -193,11 +200,14 @@ export default function StartActionScreen() {
                     >
                       <View style={styles.payoutAccountInfo}>
                         <View style={styles.bankLogoContainer}>
-                          {SvgLogo ? (
-                            React.createElement(SvgLogo.default || SvgLogo, {
-                              width: 24,
-                              height: 24,
-                            })
+                          {isValidComponent ? (
+                            React.createElement(
+                              (SvgLogo as any).default || SvgLogo, 
+                              {
+                                width: 24,
+                                height: 24,
+                              }
+                            )
                           ) : (
                             <Landmark size={18} color={colors.primary} />
                           )}

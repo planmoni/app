@@ -15,7 +15,8 @@ import { AppVersionProvider } from '@/contexts/AppVersionContext';
 import UpdateAppModal from '@/components/UpdateAppModal';
 import { UserActivityTracker } from '@/hooks/useUserActivityTracking';
 import { NotificationProvider } from '@/contexts/NotificationContext';
-
+import { PaystackProvider } from 'react-native-paystack-webview';
+import Constants from 'expo-constants';
 
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
@@ -454,6 +455,18 @@ function RootLayoutNav() {
           }} 
         />
         <Stack.Screen 
+          name="paystack-payment" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="paystack-payment/success" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="paystack-payment/failure" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
           name="all-payouts" 
           options={{ headerShown: false, gestureEnabled: false }} 
         />
@@ -550,6 +563,34 @@ function RootLayoutNav() {
 export default function RootLayout() {
   useFrameworkReady();
 
+  // Get Paystack public key - try multiple sources (check both LIVE and regular keys)
+  const paystackPublicKey = 
+    Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
+    Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ||
+    Constants.expoConfig?.extra?.extra?.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
+    Constants.expoConfig?.extra?.extra?.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ||
+    process.env.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
+    process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
+  
+  // Log if public key is missing (only in dev)
+  if (__DEV__) {
+    console.log('🔍 Paystack Key Debug:', {
+      liveKeyFromConstants: Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ? 'found' : 'not found',
+      regularKeyFromConstants: Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ? 'found' : 'not found',
+      liveKeyFromEnv: process.env.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ? 'found' : 'not found',
+      regularKeyFromEnv: process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ? 'found' : 'not found',
+      finalKey: paystackPublicKey ? `${paystackPublicKey.substring(0, 10)}...` : 'EMPTY',
+    });
+    
+    if (!paystackPublicKey) {
+      console.error('❌ Paystack public key is missing! Payment will not work.');
+      console.error('   Please set EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY or EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY in your .env file');
+      console.error('   Then restart the app with: npm start -- --clear');
+    } else {
+      console.log('✅ Paystack public key loaded:', paystackPublicKey.substring(0, 15) + '...');
+    }
+  }
+
   // Initialize expo-system-ui and navigation bar for edge-to-edge display
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -576,25 +617,32 @@ export default function RootLayout() {
       <ThemeProvider>
         <TextSizeProvider>
           <ToastProvider>
-            <AuthProvider>
-              <AppVersionProvider>
-                <PinProvider>
-                  <AppLockProvider>
-                    <NotificationProvider>
-                      <BalanceProvider>
-                        <BottomNavProvider>
-                          <AppBlur>
-                            <UserActivityTracker>
-                              <RootLayoutNav />
-                            </UserActivityTracker>
-                          </AppBlur>
-                        </BottomNavProvider>
-                      </BalanceProvider>
-                    </NotificationProvider>
-                  </AppLockProvider>
-                </PinProvider>
-              </AppVersionProvider>
-            </AuthProvider>
+            <PaystackProvider 
+              publicKey={paystackPublicKey || 'pk_test_placeholder'} // Use placeholder if key is missing
+              currency="NGN"
+              defaultChannels={['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer']}
+              debug={__DEV__}
+            >
+              <AuthProvider>
+                <AppVersionProvider>
+                  <PinProvider>
+                    <AppLockProvider>
+                      <NotificationProvider>
+                        <BalanceProvider>
+                          <BottomNavProvider>
+                            <AppBlur>
+                              <UserActivityTracker>
+                                <RootLayoutNav />
+                              </UserActivityTracker>
+                            </AppBlur>
+                          </BottomNavProvider>
+                        </BalanceProvider>
+                      </NotificationProvider>
+                    </AppLockProvider>
+                  </PinProvider>
+                </AppVersionProvider>
+              </AuthProvider>
+            </PaystackProvider>
           </ToastProvider>
         </TextSizeProvider>
       </ThemeProvider>

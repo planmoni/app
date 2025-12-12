@@ -92,7 +92,7 @@ android {
         applicationId 'com.planmoni.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4
+        versionCode 1
         versionName "1.2.5"
     }
     signingConfigs {

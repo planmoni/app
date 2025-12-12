@@ -39,13 +39,16 @@ export default function ExpensePlanSuccessScreen() {
     return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
-  const handleViewPlan = () => {
+  const handleFundPlan = () => {
     haptics.mediumImpact();
-    if (planId) {
-      router.replace(`/expense-planner/${planId}`);
-    } else {
-      router.replace('/expense-planner');
-    }
+    router.push({
+      pathname: '/expense-planner/create/fund-plan',
+      params: {
+        planId,
+        planName,
+        totalBudget,
+      },
+    });
   };
 
   const handleBackToDashboard = () => {
@@ -94,8 +97,8 @@ export default function ExpensePlanSuccessScreen() {
 
       <View style={styles.footer}>
         <Button 
-          title="View Plan"
-          onPress={handleViewPlan}
+          title="Fund Plan"
+          onPress={handleFundPlan}
           style={styles.viewPlanButton}
           hapticType="medium"
         />

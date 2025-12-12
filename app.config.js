@@ -84,6 +84,8 @@ module.exports = {
         process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
       EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY:
         process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY || "",
+      EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY:
+        process.env.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY || "",
       EXPO_PUBLIC_MONO_PUBLIC_KEY:
         process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || "",
       EXPO_PUBLIC_MONO_SECRET_KEY:
