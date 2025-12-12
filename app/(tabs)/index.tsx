@@ -22,9 +22,11 @@ import {
   Plus,
   PieChart,
   CalendarCheck,
+  Calendar,
   Clock,
   MoreVertical,
   ArrowDown,
+  ArrowRight,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -93,6 +95,7 @@ interface BalanceActionsModalProps {
   onClose: () => void;
   onAddFunds: () => void;
   onWithdraw: () => void;
+  onViewTransactionHistory: () => void;
   colors: any;
   isDark: boolean;
   textSizeMultiplier: number;
@@ -103,6 +106,7 @@ function BalanceActionsModal({
   onClose,
   onAddFunds,
   onWithdraw,
+  onViewTransactionHistory,
   colors,
   isDark,
   textSizeMultiplier,
@@ -234,6 +238,15 @@ function BalanceActionsModal({
               <ArrowDown size={20} color={colors.primary} />
             </View>
             <Text style={modalStyles.optionText}>Withdraw</Text>
+          </Pressable>
+
+          <View style={modalStyles.divider} />
+
+          <Pressable style={modalStyles.option} onPress={onViewTransactionHistory}>
+            <View style={modalStyles.optionIcon}>
+              <Clock size={20} color={colors.primary} />
+            </View>
+            <Text style={modalStyles.optionText}>Transaction History</Text>
           </Pressable>
         </Animated.View>
       </View>
@@ -799,6 +812,29 @@ export default function HomeScreen() {
     }, 0);
   }, [expensePlans]);
 
+  // Find next maturing budget
+  const nextMaturingBudget = useMemo(() => {
+    if (!expensePlans || expensePlans.length === 0) return null;
+    
+    const activePlans = expensePlans.filter(p => p.status === 'active' && p.end_date);
+    if (activePlans.length === 0) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const upcomingPlans = activePlans
+      .map(plan => {
+        const endDate = new Date(plan.end_date!);
+        endDate.setHours(0, 0, 0, 0);
+        const daysUntil = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return { plan, daysUntil, endDate };
+      })
+      .filter(({ daysUntil }) => daysUntil >= 0)
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+
+    return upcomingPlans.length > 0 ? upcomingPlans[0] : null;
+  }, [expensePlans]);
+
   const buttonOpacity = scrollY.interpolate({
     inputRange: [0, 200],
     outputRange: [0, 1],
@@ -876,6 +912,13 @@ export default function HomeScreen() {
     // TODO: Navigate to withdraw screen or show withdraw modal
     Alert.alert('Withdraw', 'Withdraw functionality coming soon');
     logAnalyticsEvent('withdraw_click');
+  };
+
+  const handleViewTransactionHistory = () => {
+    impact();
+    setShowBalanceActionsModal(false);
+    router.push('/transactions');
+    logAnalyticsEvent('view_transaction_history', { source: 'balance_card' });
   };
 
   const handleCreatePayout = () => {
@@ -1333,15 +1376,55 @@ export default function HomeScreen() {
           <View style={[styles.tabPage, { width: screenWidth }]}>
             {/* Plans Tab - Text Only Balance */}
             <View style={styles.textBalanceContainer}>
-              <Text style={styles.textBalanceLabel}>Your expense plans balance</Text>
+              <Text style={styles.textBalanceLabel}>Available to spend</Text>
               <Text style={styles.textBalanceAmount}>{formatBalance(expensePlansBalance)}</Text>
               <View style={styles.textBalanceLocked}>
                 <Clock size={14} color={colors.textSecondary} />
                 <Text style={styles.textBalanceLockedText}>
-                  {formatBalance(expensePlansBalance)} in expense plans
+                  {formatBalance(expensePlans.reduce((sum, plan) => sum + ((plan as any).current_balance || 0), 0))} Total in funded plans
                 </Text>
               </View>
             </View>
+
+            {/* Up Next Section */}
+            {nextMaturingBudget && (
+              <>
+                <View style={styles.upNextSectionHeader}>
+                  <Text style={styles.upNextSectionTitle}>Up next</Text>
+                </View>
+                <Pressable
+                  style={styles.upNextCard}
+                  onPress={() => {
+                    impact();
+                    router.push(`/expense-planner/${nextMaturingBudget.plan.id}`);
+                  }}
+                >
+                  <Text style={styles.upNextTitle}>Next maturing budget</Text>
+                <Text style={styles.upNextPlanName} numberOfLines={1}>
+                  {nextMaturingBudget.plan.name}
+                </Text>
+                <Text style={styles.upNextBudgetAmount}>
+                  {formatBalance(nextMaturingBudget.plan.total_budget)}
+                </Text>
+                <View style={styles.upNextInfo}>
+                  <Calendar size={14} color={colors.textSecondary} />
+                  <Text style={styles.upNextDate}>
+                    {(() => {
+                      const date = new Date(nextMaturingBudget.plan.end_date!);
+                      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      const formattedDate = `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+                      const daysText = nextMaturingBudget.daysUntil === 0 
+                        ? 'Today' 
+                        : nextMaturingBudget.daysUntil === 1 
+                        ? 'Tomorrow' 
+                        : `in ${nextMaturingBudget.daysUntil} days`;
+                      return `${formattedDate} • ${daysText}`;
+                    })()}
+                  </Text>
+                </View>
+                </Pressable>
+              </>
+            )}
             
             {/* Daily Spend Guidance */}
             {/* <DailySpendGuidance /> */}
@@ -1456,6 +1539,7 @@ export default function HomeScreen() {
         onClose={() => setShowBalanceActionsModal(false)}
         onAddFunds={handleAddFunds}
         onWithdraw={handleWithdraw}
+        onViewTransactionHistory={handleViewTransactionHistory}
         colors={colors}
         isDark={isDark}
         textSizeMultiplier={textSizeMultiplier}
@@ -1744,6 +1828,52 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   textBalanceLockedText: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
+    color: colors.textSecondary,
+  },
+  upNextSectionHeader: {
+    paddingHorizontal: 5,
+    marginBottom: 12,
+  },
+  upNextSectionTitle: {
+    fontSize: getScaledFontSize(17, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.text,
+  },
+  upNextCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 5,
+    paddingVertical: 30,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  upNextTitle: {
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  upNextPlanName: {
+    fontSize: getScaledFontSize(18, textSizeMultiplier),
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  upNextBudgetAmount: {
+    fontSize: getScaledFontSize(20, textSizeMultiplier),
+    fontWeight: '700',
+    color: colors.primary,
+    marginBottom: 8,
+  },
+  upNextInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  upNextDate: {
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
     color: colors.textSecondary,
   },
   balanceCard: {
