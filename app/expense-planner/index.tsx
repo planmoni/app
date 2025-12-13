@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Plus, Search } from 'lucide-react-native';
+import { Plus, Search, ArrowLeft } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -36,9 +36,17 @@ export default function ExpensePlannerOverviewScreen() {
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
+  const handleBack = () => {
+    haptics.selection();
+    router.back();
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
+        <Pressable onPress={handleBack} style={styles.backButton}>
+          <ArrowLeft size={24} color={colors.text} />
+        </Pressable>
         <Text style={styles.headerTitle}>Expense Plans</Text>
         <Pressable
           onPress={handleCreatePlan}
@@ -57,7 +65,7 @@ export default function ExpensePlannerOverviewScreen() {
       >
         {isLoading ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Loading plans...</Text>
+            <Text style={styles.emptyTitle}>Loading plans...</Text>
           </View>
         ) : expensePlans.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -111,10 +119,16 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
+    backButton: {
+      padding: 8,
+      marginLeft: -8,
+    },
     headerTitle: {
       fontSize: getScaledFontSize(24, textSizeMultiplier),
       fontWeight: '700',
       color: colors.text,
+      flex: 1,
+      textAlign: 'center',
     },
     createButton: {
       width: 40,

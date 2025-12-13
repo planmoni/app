@@ -27,6 +27,7 @@ import {
   MoreVertical,
   ArrowDown,
   ArrowRight,
+  Send,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -1379,17 +1380,28 @@ export default function HomeScreen() {
 
           {/* Plans Tab Content */}
           <View style={[styles.tabPage, { width: screenWidth }]}>
-            {/* Plans Tab - Text Only Balance */}
-            <View style={styles.textBalanceContainer}>
-              <Text style={styles.textBalanceLabel}>Available to spend</Text>
-              <Text style={styles.textBalanceAmount}>{formatBalance(expensePlansBalance)}</Text>
-              <View style={styles.textBalanceLocked}>
-                <Clock size={14} color={colors.textSecondary} />
-                <Text style={styles.textBalanceLockedText}>
-                  {formatBalance(expensePlans.reduce((sum, plan) => sum + ((plan as any).current_balance || 0), 0))} Total in funded plans
-                </Text>
+            {/* Plans Tab - Available to Spend Balance Card */}
+            <Pressable
+              style={styles.availableToSpendCard}
+              onPress={() => {
+                impact();
+                router.push('/spend');
+              }}
+            >
+              <View style={styles.availableToSpendContent}>
+                <View style={styles.availableToSpendInfo}>
+                  <Text style={styles.availableToSpendLabel}>Available to spend</Text>
+                  <Text style={styles.availableToSpendAmount}>{formatBalance(expensePlansBalance)}</Text>
+                  <View style={styles.availableToSpendSubtext}>
+                    <Clock size={14} color={colors.textSecondary} />
+                    <Text style={styles.availableToSpendSubtextText}>
+                      {formatBalance(expensePlans.reduce((sum, plan) => sum + ((plan as any).current_balance || 0), 0))} Total in funded plans
+                    </Text>
+                  </View>
+                </View>
+                <ArrowRight size={20} color={colors.textSecondary} />
               </View>
-            </View>
+            </Pressable>
 
             {/* Up Next Section */}
             {nextMaturingBudget && (
@@ -1404,29 +1416,46 @@ export default function HomeScreen() {
                     router.push(`/expense-planner/${nextMaturingBudget.plan.id}`);
                   }}
                 >
-                  <Text style={styles.upNextTitle}>Next maturing budget</Text>
-                <Text style={styles.upNextPlanName} numberOfLines={1}>
-                  {nextMaturingBudget.plan.name}
-                </Text>
-                <Text style={styles.upNextBudgetAmount}>
-                  {formatBalance(nextMaturingBudget.plan.total_budget)}
-                </Text>
-                <View style={styles.upNextInfo}>
-                  <Calendar size={14} color={colors.textSecondary} />
-                  <Text style={styles.upNextDate}>
-                    {(() => {
-                      const date = new Date(nextMaturingBudget.plan.end_date!);
-                      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                      const formattedDate = `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-                      const daysText = nextMaturingBudget.daysUntil === 0 
-                        ? 'Today' 
-                        : nextMaturingBudget.daysUntil === 1 
-                        ? 'Tomorrow' 
-                        : `in ${nextMaturingBudget.daysUntil} days`;
-                      return `${formattedDate} • ${daysText}`;
-                    })()}
-                  </Text>
-                </View>
+                  <View style={styles.upNextCardHeader}>
+                    
+                    <View style={styles.upNextHeaderContent}>
+                      <Text style={styles.upNextLabel}>Next maturing budget</Text>
+                      <Text style={styles.upNextPlanName} numberOfLines={1}>
+                        {nextMaturingBudget.plan.name}
+                      </Text>
+                    </View>
+                    <ArrowRight size={20} color={colors.textSecondary} />
+                  </View>
+                  
+                  <View style={styles.upNextCardBody}>
+                    <View style={styles.upNextAmountRow}>
+                      <Text style={styles.upNextBudgetAmount}>
+                        {formatBalance(nextMaturingBudget.plan.total_budget)}
+                      </Text>
+                      <View style={styles.upNextDaysBadge}>
+                        <Clock size={12} color={colors.primary} />
+                        <Text style={styles.upNextDaysText}>
+                          {(() => {
+                            const daysText = nextMaturingBudget.daysUntil === 0 
+                              ? 'Today' 
+                              : nextMaturingBudget.daysUntil === 1 
+                              ? 'Tomorrow' 
+                              : `${nextMaturingBudget.daysUntil} days`;
+                            return daysText;
+                          })()}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.upNextDateRow}>
+                      <Text style={styles.upNextDate}>
+                        {(() => {
+                          const date = new Date(nextMaturingBudget.plan.end_date!);
+                          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                          return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+                        })()}
+                      </Text>
+                    </View>
+                  </View>
                 </Pressable>
               </>
             )}
@@ -1441,15 +1470,26 @@ export default function HomeScreen() {
 
           {/* Payouts Tab Content */}
           <View style={[styles.tabPage, { width: screenWidth }]}>
-            {/* Payouts Tab - Text Only Balance */}
-            <View style={styles.textBalanceContainer}>
-              <Text style={styles.textBalanceLabel}>Your payout plans balance</Text>
-              <Text style={styles.textBalanceAmount}>{formatBalance(lockedBalance)}</Text>
-              <View style={styles.textBalanceLocked}>
-                <Clock size={14} color={colors.textSecondary} />
-                <Text style={styles.textBalanceLockedText}>
-                  {formatBalance(lockedBalance)} in payout plans
-                </Text>
+            {/* Payouts Tab - Balance Card */}
+            <View style={styles.payoutsBalanceCard}>
+              <View style={styles.payoutsBalanceContent}>
+                <View style={styles.payoutsBalanceInfo}>
+                  <Text style={styles.payoutsBalanceLabel}>Payout plans balance</Text>
+                  <Text style={styles.payoutsBalanceAmount}>{formatBalance(lockedBalance)}</Text>
+                  <View style={styles.payoutsBalanceSubtext}>
+                    <Clock size={14} color={colors.textSecondary} />
+                    <Text style={styles.payoutsBalanceSubtextText}>
+                      {formatBalance(lockedBalance)} locked in payout plans
+                    </Text>
+                  </View>
+                </View>
+                {/* <Pressable
+                  style={styles.createPayoutButton}
+                  onPress={handleCreatePayout}
+                >
+                  <Plus size={18} color={colors.primary} />
+                  <Text style={styles.createPayoutButtonText}>New Plan</Text>
+                </Pressable> */}
               </View>
             </View>
             
@@ -1835,6 +1875,121 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
     color: colors.textSecondary,
   },
+  availableToSpendCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+
+  },
+  availableToSpendContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  availableToSpendInfo: {
+    flex: 1,
+    gap: 8,
+  },
+  availableToSpendLabel: {
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  availableToSpendAmount: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 32 : 28, textSizeMultiplier),
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  availableToSpendSubtext: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  availableToSpendSubtextText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
+    color: colors.textSecondary,
+  },
+  spendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.primary + '15',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+    minWidth: 90,
+  },
+  spendButtonText: {
+    fontSize: getScaledFontSize(15, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  payoutsBalanceCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  payoutsBalanceContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  payoutsBalanceInfo: {
+    flex: 1,
+    gap: 8,
+  },
+  payoutsBalanceLabel: {
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  payoutsBalanceAmount: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 32 : 28, textSizeMultiplier),
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  payoutsBalanceSubtext: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  payoutsBalanceSubtextText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
+    color: colors.textSecondary,
+  },
+  createPayoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.primary + '15',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+    minWidth: 100,
+  },
+  createPayoutButtonText: {
+    fontSize: getScaledFontSize(15, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.primary,
+  },
   upNextSectionHeader: {
     paddingHorizontal: 5,
     marginBottom: 12,
@@ -1847,32 +2002,76 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   upNextCard: {
     backgroundColor: colors.card,
     borderRadius: 16,
-    padding: 16,
+    padding: 20,
     marginHorizontal: 5,
-    paddingVertical: 30,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
+
   },
-  upNextTitle: {
-    fontSize: getScaledFontSize(16, textSizeMultiplier),
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
+  upNextCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    gap: 12,
+  },
+  upNextIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+  upNextHeaderContent: {
+    flex: 1,
+    gap: 4,
+  },
+  upNextLabel: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    fontWeight: '500',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   upNextPlanName: {
     fontSize: getScaledFontSize(18, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
+  },
+  upNextCardBody: {
+    gap: 8,
+  },
+  upNextAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
   },
   upNextBudgetAmount: {
-    fontSize: getScaledFontSize(20, textSizeMultiplier),
+    fontSize: getScaledFontSize(24, textSizeMultiplier),
     fontWeight: '700',
     color: colors.primary,
-    marginBottom: 8,
   },
-  upNextInfo: {
+  upNextDaysBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary + '10',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary + '20',
+  },
+  upNextDaysText: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  upNextDateRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,

@@ -454,10 +454,20 @@ export default function ScheduleScreen() {
     }
   }, [params.frequency, params.duration, totalAmount, isYearlySplit, calculatePayoutAmount]);
 
-  // Initialize from params when editing (coming from review page)
+  // Initialize from params when editing (coming from review page) or plan extra funds
   useEffect(() => {
     if (hasInitializedRef.current) {
       return; // Only initialize once
+    }
+    
+    // Handle plan extra funds context
+    if (params.source === 'plan_extra_funds' && params.amount) {
+      isInitializingRef.current = true;
+      const amount = params.amount as string;
+      setTotalAmount(amount);
+      hasInitializedRef.current = true;
+      isInitializingRef.current = false;
+      return;
     }
     
     if (params.frequency && params.duration && params.payoutAmount) {

@@ -1,0 +1,389 @@
+import React from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { ArrowRight, Clock, Calendar } from 'lucide-react-native';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
+import { ExpensePlan } from '@/types/expense-planner';
+import { getCategoryIcon } from '@/lib/expenseCategories';
+import { getBudgetDuration } from '@/lib/expensePlanUtils';
+
+interface PlanDetailsInfoProps {
+  plan: ExpensePlan;
+  currentBalance: number;
+  onViewBalance?: () => void;
+}
+
+export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }: PlanDetailsInfoProps) {
+  const { colors, isDark } = useTheme();
+  const { textSizeMultiplier } = useTextSize();
+
+  // Get all subcategory icons
+  const getAllSubcategoryIcons = () => {
+    if (!plan?.buckets || plan.buckets.length === 0) {
+      return [];
+    }
+
+    return plan.buckets.map(bucket => {
+      const Icon = getCategoryIcon(bucket.category_id);
+      return { bucket, Icon };
+    }).filter(item => item.Icon);
+  };
+
+  const subcategoryIcons = getAllSubcategoryIcons();
+
+  // Calculate funding progress
+  const totalBudget = plan?.total_budget || 0;
+  const percentageFunded = totalBudget > 0 
+    ? ((currentBalance / totalBudget) * 100) 
+    : 0;
+  const remainingToAdd = Math.max(0, totalBudget - currentBalance);
+  const extraFunds = Math.max(0, currentBalance - totalBudget);
+
+  // Calculate budget duration
+  const budgetDuration = plan?.start_date && plan?.end_date 
+    ? getBudgetDuration(plan.start_date, plan.end_date) 
+    : null;
+
+  // Get funding method
+  const fundingMethod = plan?.funding_method || 'manual';
+
+  // Get start action
+  const startAction = plan?.metadata?.start_action || plan?.start_action || 'wallet';
+  const payoutAccountLabel = plan?.metadata?.payout_account_label || plan?.payout_account_label;
+  const payoutAccountBankName = plan?.metadata?.payout_account_bank_name || plan?.payout_account_bank_name;
+
+  // Calculate next funding countdown for auto plans
+  const getNextFundingCountdown = () => {
+    if (fundingMethod !== 'auto' || !plan?.start_date) return null;
+    
+    const startDate = new Date(plan.start_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const budgetStarted = today >= startDate;
+    if (budgetStarted) return null;
+    
+    if (today < startDate) {
+      const daysUntil = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+    }
+    
+    const payoutSchedule = (plan as any).payout_schedule || 'weekly';
+    const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    let cycleDays = 7;
+    if (payoutSchedule === 'daily') cycleDays = 1;
+    else if (payoutSchedule === 'biweekly') cycleDays = 14;
+    else if (payoutSchedule === 'monthly') cycleDays = 30;
+    
+    const cyclesCompleted = Math.floor(daysSinceStart / cycleDays);
+    const nextCycleDate = new Date(startDate);
+    nextCycleDate.setDate(startDate.getDate() + (cyclesCompleted + 1) * cycleDays);
+    
+    const daysUntil = Math.ceil((nextCycleDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+  };
+
+  const nextFundingCountdown = getNextFundingCountdown();
+
+  const formatBalance = (amount: number) => {
+    if (!amount) return '₦0';
+    return `₦${amount.toLocaleString('en-NG')}`;
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+  };
+
+  const styles = createStyles(colors, isDark, textSizeMultiplier);
+
+  return (
+    <>
+      {/* Subcategories with Icons */}
+      {subcategoryIcons.length > 0 && (
+        <View style={styles.subcategoriesCard}>
+          <Text style={styles.sectionLabel}>Categories</Text>
+          <View style={styles.subcategoriesGrid}>
+            {subcategoryIcons.map(({ bucket, Icon }, index) => (
+              <View key={bucket.id} style={styles.subcategoryItem}>
+                <View style={styles.subcategoryIconContainer}>
+                  <Icon size={20} color={colors.primary} />
+                </View>
+                <Text style={styles.subcategoryName} numberOfLines={1}>
+                  {bucket.name}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Budget Amount */}
+      <View style={styles.infoCard}>
+        <Text style={styles.infoLabel}>Budget Amount</Text>
+        <Text style={styles.infoValue}>{formatBalance(plan.total_budget)}</Text>
+      </View>
+
+      {/* Start Date - End Date */}
+      {plan.start_date && plan.end_date && (
+        <View style={styles.infoCard}>
+          <Text style={styles.infoLabel}>Budget Period</Text>
+          <Text style={styles.infoValue}>
+            {formatDate(plan.start_date)} - {formatDate(plan.end_date)}
+          </Text>
+        </View>
+      )}
+
+      {/* Budget Duration */}
+      {budgetDuration && (
+        <View style={styles.infoCard}>
+          <Text style={styles.infoLabel}>Duration</Text>
+          <Text style={styles.infoValue}>
+            {budgetDuration} {budgetDuration === 1 ? 'day' : 'days'}
+          </Text>
+        </View>
+      )}
+
+      {/* Funding Method */}
+      <View style={styles.infoCard}>
+        <Text style={styles.infoLabel}>Funding Method</Text>
+        <Text style={styles.infoValue}>
+          {fundingMethod === 'auto' ? 'Auto' : 'Manual'}
+        </Text>
+      </View>
+
+      {/* Start Rule */}
+      <View style={styles.infoCard}>
+        <Text style={styles.infoLabel}>Plan Start Rule</Text>
+        {startAction === 'wallet' ? (
+          <View>
+            <Text style={styles.infoValue}>Move to available balance</Text>
+            {onViewBalance && (
+              <Pressable 
+                style={styles.availableBalanceLink}
+                onPress={onViewBalance}
+              >
+                <Text style={styles.availableBalanceText}>
+                  View available balance
+                </Text>
+                <ArrowRight size={16} color={colors.primary} />
+              </Pressable>
+            )}
+          </View>
+        ) : (
+          <View>
+            <Text style={styles.infoValue}>Auto payout to bank</Text>
+            {payoutAccountLabel && (
+              <Text style={styles.payoutAccountText}>
+                {payoutAccountBankName} ••••{payoutAccountLabel.split('••••')[1] || ''}
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* Funding Progress */}
+      <View style={styles.progressCard}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressTitle}>Funding Progress</Text>
+          <Text style={styles.progressPercentage}>
+            {Math.round(percentageFunded)}%
+          </Text>
+        </View>
+        <View style={styles.progressBar}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${Math.min(Math.max(percentageFunded, 0), 100)}%`,
+                backgroundColor:
+                  percentageFunded >= 100
+                    ? colors.primary
+                    : percentageFunded >= 75
+                    ? '#10B981'
+                    : percentageFunded >= 50
+                    ? '#F59E0B'
+                    : percentageFunded >= 25
+                    ? '#F97316'
+                    : '#EF4444',
+              },
+            ]}
+          />
+        </View>
+        <View style={styles.progressInfo}>
+          <Text style={styles.progressText}>
+            Funded: {formatBalance(currentBalance)} / {formatBalance(plan.total_budget)}
+          </Text>
+          {remainingToAdd > 0 && (
+            <Text style={styles.remainingText}>
+              {formatBalance(remainingToAdd)} remaining to add
+            </Text>
+          )}
+          {extraFunds > 0 && (
+            <Text style={styles.extraFundsText}>
+              +{formatBalance(extraFunds)} extra funds
+            </Text>
+          )}
+        </View>
+      </View>
+
+      {/* Next Funding Countdown (Auto plans) */}
+      {nextFundingCountdown && (
+        <View style={styles.countdownCard}>
+          <Clock size={16} color={colors.textSecondary} />
+          <Text style={styles.countdownText}>
+            Next funding: {nextFundingCountdown}
+          </Text>
+        </View>
+      )}
+    </>
+  );
+}
+
+const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) =>
+  StyleSheet.create({
+    subcategoriesCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    sectionLabel: {
+      fontSize: getScaledFontSize(13, textSizeMultiplier),
+      color: colors.textSecondary,
+      marginBottom: 12,
+      fontWeight: '600',
+    },
+    subcategoriesGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+    },
+    subcategoryItem: {
+      alignItems: 'center',
+      minWidth: 80,
+    },
+    subcategoryIconContainer: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.primary + '15',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: colors.primary + '30',
+    },
+    subcategoryName: {
+      fontSize: getScaledFontSize(12, textSizeMultiplier),
+      color: colors.text,
+      textAlign: 'center',
+    },
+    infoCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    infoLabel: {
+      fontSize: getScaledFontSize(13, textSizeMultiplier),
+      color: colors.textSecondary,
+      marginBottom: 6,
+    },
+    infoValue: {
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+    },
+    payoutAccountText: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      color: colors.textSecondary,
+      marginTop: 4,
+    },
+    availableBalanceLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 8,
+      gap: 4,
+    },
+    availableBalanceText: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      color: colors.primary,
+      fontWeight: '500',
+    },
+    progressCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    progressHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    progressTitle: {
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+    },
+    progressPercentage: {
+      fontSize: getScaledFontSize(18, textSizeMultiplier),
+      fontWeight: '700',
+      color: colors.primary,
+    },
+    progressBar: {
+      height: 8,
+      backgroundColor: colors.backgroundTertiary,
+      borderRadius: 4,
+      overflow: 'hidden',
+      marginBottom: 12,
+    },
+    progressFill: {
+      height: '100%',
+      borderRadius: 4,
+    },
+    progressInfo: {
+      gap: 4,
+    },
+    progressText: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      color: colors.text,
+      fontWeight: '500',
+    },
+    remainingText: {
+      fontSize: getScaledFontSize(13, textSizeMultiplier),
+      color: colors.primary,
+    },
+    extraFundsText: {
+      fontSize: getScaledFontSize(13, textSizeMultiplier),
+      color: '#22C55E',
+    },
+    countdownCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    countdownText: {
+      fontSize: getScaledFontSize(13, textSizeMultiplier),
+      color: colors.textSecondary,
+    },
+  });
+

@@ -59,8 +59,8 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
         };
       case 'funded':
         return {
-          backgroundColor: isDark ? '#1A3A2A' : '#E6F7E6',
-          textColor: isDark ? '#7FC97F' : '#22C55E',
+          backgroundColor: colors.backgroundTertiary,
+          textColor: colors.primary,
           label: 'Funded',
         };
       default:
@@ -165,6 +165,45 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
   const daysRemaining = getDaysRemaining(plan.start_date, plan.end_date);
   const dateRange = formatDateRange(plan.start_date, plan.end_date);
   const daysRemainingText = formatDaysRemaining(daysRemaining);
+  
+  // Calculate days until start date for better messaging
+  const getDaysUntilStart = () => {
+    if (!plan.start_date) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(plan.start_date);
+    startDate.setHours(0, 0, 0, 0);
+    const diffTime = startDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+  
+  const daysUntilStart = getDaysUntilStart();
+  
+  // Get status message based on budget state
+  const getBudgetStatusMessage = () => {
+    if (!plan.start_date) return daysRemainingText;
+    
+    if (daysUntilStart === null) return daysRemainingText;
+    
+    if (daysUntilStart > 1) {
+      return `Starts in ${daysUntilStart} days`;
+    } else if (daysUntilStart === 1) {
+      return 'Starts Tomorrow';
+    } else if (daysUntilStart === 0) {
+      return 'Budget started';
+    } else {
+      // Budget has started
+      const daysSinceStart = Math.abs(daysUntilStart);
+      if (daysSinceStart === 1) {
+        return 'Budget spend ongoing';
+      } else {
+        return daysRemainingText; // Use the regular days remaining text
+      }
+    }
+  };
+  
+  const budgetStatusMessage = getBudgetStatusMessage();
   
   // Get health status
   const healthStatus = (plan as any).health_status || 'on_track';
@@ -434,7 +473,9 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
           style={[
             styles.progressFill,
             {
-              width: `${Math.min(Math.max(budgetStarted ? percentageUsed : percentageFunded, 0), 100)}%`,
+              width: budgetStarted
+                ? `${Math.min(Math.max(100 - percentageUsed, 0), 100)}%` // Show remaining budget (100% to 0%)
+                : `${Math.min(Math.max(percentageFunded, 0), 100)}%`, // Show funding progress (0% to 100%)
               backgroundColor: budgetStarted
                 ? (percentageUsed > 100
                     ? '#EF4444'
@@ -444,7 +485,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
                     ? '#F59E0B'
                     : '#22C55E')
                 : (percentageFunded >= 100
-                    ? '#22C55E'
+                    ? colors.primary
                     : percentageFunded >= 75
                     ? '#10B981'
                     : percentageFunded >= 50
@@ -461,7 +502,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       {budgetStarted ? (
         <View style={styles.progressInfo}>
           <Text style={styles.progressText}>
-            Spent ₦{plan.total_spent.toLocaleString()}/₦{plan.total_budget.toLocaleString()}
+            Spending • ₦{plan.total_spent.toLocaleString()}/₦{plan.total_budget.toLocaleString()}
           </Text>
         </View>
       ) : (
@@ -473,8 +514,8 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       )}
 
       <View style={styles.footerRow}>
-        {daysRemainingText && (
-          <Text style={styles.daysRemaining}>{daysRemainingText}</Text>
+        {budgetStatusMessage && (
+          <Text style={styles.daysRemaining}>{budgetStatusMessage}</Text>
         )}
       </View>
     </Pressable>
@@ -496,11 +537,11 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 12,
+      // marginBottom: 12,
     },
     planName: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
-      fontWeight: '600',
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 14, textSizeMultiplier),
+      fontWeight: '500',
       color: colors.text,
       flex: 1,
       marginRight: 8,
@@ -535,7 +576,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'flex-start',
-      marginBottom: 12,
+      // marginBottom: 12,
       gap: 12,
     },
     amountColumn: {

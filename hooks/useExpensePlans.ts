@@ -11,46 +11,30 @@ export function useExpensePlans() {
   const [error, setError] = useState<Error | null>(null);
 
   /**
-   * Calculate funding status for a plan based on buckets and locked funds
+   * Calculate funding status for a plan based on current_balance and total_budget
    */
   const getPlanFundingStatus = (
     status: string,
-    buckets: ExpenseBucket[],
-    lockedFundsMap: Map<string, number>
+    currentBalance: number,
+    totalBudget: number
   ): 'draft' | 'unfunded' | 'partially_funded' | 'funded' => {
     // Draft plans are always 'draft'
     if (status === 'draft') {
       return 'draft';
     }
 
-    // If no buckets, consider unfunded
-    if (!buckets || buckets.length === 0) {
+    // If no budget set, consider unfunded
+    if (!totalBudget || totalBudget <= 0) {
       return 'unfunded';
     }
 
-    let totalTarget = 0;
-    let totalLocked = 0;
-    let fullyFundedBuckets = 0;
-
-    // Calculate funding for each bucket
-    for (const bucket of buckets) {
-      totalTarget += bucket.target_amount;
-      const lockedAmount = lockedFundsMap.get(bucket.id) || 0;
-      totalLocked += lockedAmount;
-
-      // Check if bucket is fully funded (locked amount >= target amount)
-      if (lockedAmount >= bucket.target_amount) {
-        fullyFundedBuckets++;
-      }
-    }
-
-    // If no locked funds at all, it's unfunded
-    if (totalLocked === 0) {
+    // If no current balance, it's unfunded
+    if (!currentBalance || currentBalance <= 0) {
       return 'unfunded';
     }
 
-    // If all buckets are fully funded, it's funded
-    if (fullyFundedBuckets === buckets.length) {
+    // If current balance >= total budget, it's fully funded
+    if (currentBalance >= totalBudget) {
       return 'funded';
     }
 
@@ -125,9 +109,15 @@ export function useExpensePlans() {
       // Enhance plans with buckets, locked funds, and funding status
       const enhancedPlans: ExpensePlan[] = plans.map(plan => {
         const planBuckets = bucketsByPlan.get(plan.id) || [];
-        const fundingStatus = getPlanFundingStatus(plan.status, planBuckets, lockedFundsMap);
         
-        // Calculate total locked for this plan
+        // Get current_balance from plan (from plan_wallets via trigger)
+        const currentBalance = (plan as any).current_balance || 0;
+        const totalBudget = plan.total_budget || 0;
+        
+        // Calculate funding status based on current_balance and total_budget
+        const fundingStatus = getPlanFundingStatus(plan.status, currentBalance, totalBudget);
+        
+        // Calculate total locked for this plan (for backward compatibility)
         let totalLocked = 0;
         for (const bucket of planBuckets) {
           totalLocked += lockedFundsMap.get(bucket.id) || 0;
