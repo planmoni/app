@@ -93,17 +93,17 @@ export function getCategoriesForPlanType(
  */
 export const PLAN_TYPE_INFO: Record<PlanType, { label: string; description: string; examples: string[] }> = {
   recurring: {
-    label: 'Recurring Spending',
+    label: 'Recurring',
     description: 'Weekly/monthly budget guardrails for everyday categories',
     examples: ['Groceries', 'Transport', 'Eating out'],
   },
   one_time: {
-    label: 'One-Time Spending',
+    label: 'One-Time',
     description: 'Single purchases or events you want to budget for upfront',
     examples: ['Travel', 'New phone', 'Events'],
   },
   long_term: {
-    label: 'Long-Term Spending',
+    label: 'Long-Term',
     description: 'Large or phased spending that needs a longer runway',
     examples: ['Major project', 'New car', 'Home upgrade'],
   },

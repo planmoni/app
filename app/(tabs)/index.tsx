@@ -75,6 +75,7 @@ import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
 import QuickPlans from '@/components/QuickPlans';
 import DailySpendGuidance from '@/components/DailySpendGuidance';
+import { getCategoryIcon, getCategoryById } from '@/lib/expenseCategories';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -841,6 +842,55 @@ export default function HomeScreen() {
     return upcomingPlans.length > 0 ? upcomingPlans[0] : null;
   }, [expensePlans]);
 
+  // Get category icons and selected subcategories for next maturing budget
+  const getNextMaturingBudgetCategoryIcons = useMemo(() => {
+    if (!nextMaturingBudget?.plan?.buckets || nextMaturingBudget.plan.buckets.length === 0) {
+      return [];
+    }
+
+    const uniqueCategories = new Set<string>();
+    const icons: Array<{ categoryId: string; Icon: any }> = [];
+
+    for (const bucket of nextMaturingBudget.plan.buckets) {
+      if (uniqueCategories.size >= 3) break;
+      
+      if (!uniqueCategories.has(bucket.category_id)) {
+        const Icon = getCategoryIcon(bucket.category_id);
+        if (Icon) {
+          uniqueCategories.add(bucket.category_id);
+          icons.push({ categoryId: bucket.category_id, Icon });
+        }
+      }
+    }
+
+    return icons;
+  }, [nextMaturingBudget]);
+
+  // Get selected subcategories for next maturing budget
+  const getNextMaturingBudgetSubcategories = useMemo(() => {
+    if (!nextMaturingBudget?.plan?.buckets || nextMaturingBudget.plan.buckets.length === 0) {
+      return [];
+    }
+
+    const subcategories: Array<{ categoryId: string; subcategoryId: string; subcategoryName: string }> = [];
+
+    for (const bucket of nextMaturingBudget.plan.buckets) {
+      const category = getCategoryById(bucket.category_id);
+      if (category) {
+        const subcategory = category.subCategories.find(sub => sub.id === bucket.subcategory_id);
+        if (subcategory) {
+          subcategories.push({
+            categoryId: bucket.category_id,
+            subcategoryId: bucket.subcategory_id,
+            subcategoryName: subcategory.name
+          });
+        }
+      }
+    }
+
+    return subcategories;
+  }, [nextMaturingBudget]);
+
   const buttonOpacity = scrollY.interpolate({
     inputRange: [0, 200],
     outputRange: [0, 1],
@@ -1417,12 +1467,43 @@ export default function HomeScreen() {
                   }}
                 >
                   <View style={styles.upNextCardHeader}>
-                    
                     <View style={styles.upNextHeaderContent}>
                       <Text style={styles.upNextLabel}>Next maturing budget</Text>
                       <Text style={styles.upNextPlanName} numberOfLines={1}>
                         {nextMaturingBudget.plan.name}
                       </Text>
+                      {getNextMaturingBudgetCategoryIcons.length > 0 && (
+                        <View style={styles.upNextCategoriesRow}>
+                          <View style={styles.upNextCategoryIconsContainer}>
+                            {getNextMaturingBudgetCategoryIcons.map(({ categoryId, Icon }, index) => (
+                              <View 
+                                key={categoryId} 
+                                style={[
+                                  styles.upNextCategoryIconBadge,
+                                  index > 0 && styles.upNextStackedIcon,
+                                  { zIndex: index + 1 }
+                                ]}
+                              >
+                                <Icon size={14} color={colors.primary} />
+                              </View>
+                            ))}
+                          </View>
+                          {getNextMaturingBudgetSubcategories.length > 0 && (
+                            <View style={styles.upNextSelectedCategoriesContainer}>
+                              {getNextMaturingBudgetSubcategories.slice(0, 2).map((sub, index) => (
+                                <Text key={`${sub.categoryId}-${sub.subcategoryId}`} style={styles.upNextSelectedCategoryText} numberOfLines={1}>
+                                  {sub.subcategoryName}{index < Math.min(getNextMaturingBudgetSubcategories.length, 2) - 1 ? ', ' : ''}
+                                </Text>
+                              ))}
+                              {getNextMaturingBudgetSubcategories.length > 2 && (
+                                <Text style={styles.upNextSelectedCategoryText}>
+                                  +{getNextMaturingBudgetSubcategories.length - 2} more
+                                </Text>
+                              )}
+                            </View>
+                          )}
+                        </View>
+                      )}
                     </View>
                     <ArrowRight size={20} color={colors.textSecondary} />
                   </View>
@@ -1549,7 +1630,7 @@ export default function HomeScreen() {
           style={styles.floatingAddButton}
           onPress={() => {
             impact();
-            router.push('/expense-planner/create/plan-details');
+            router.push('/expense-planner/create/plan-type');
           }}
         >
           <Plus size={24} color="#fff" />
@@ -2012,7 +2093,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   upNextCardHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    // marginBottom: 16,
     gap: 12,
   },
   upNextIconContainer: {
@@ -2030,16 +2111,49 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     gap: 4,
   },
   upNextLabel: {
-    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   upNextPlanName: {
-    fontSize: getScaledFontSize(18, textSizeMultiplier),
-    fontWeight: '700',
+    fontSize: getScaledFontSize(20, textSizeMultiplier),
+    fontWeight: '600',
     color: colors.text,
+  },
+  upNextCategoriesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
+  },
+  upNextCategoryIconsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  upNextCategoryIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.accentBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  upNextStackedIcon: {
+    marginLeft: -14, // Half overlap (50% of 28px width)
+  },
+  upNextSelectedCategoriesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    flex: 1,
+  },
+  upNextSelectedCategoryText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 11, textSizeMultiplier),
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
   upNextCardBody: {
     gap: 8,
@@ -2051,7 +2165,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     gap: 12,
   },
   upNextBudgetAmount: {
-    fontSize: getScaledFontSize(24, textSizeMultiplier),
+    fontSize: getScaledFontSize(30, textSizeMultiplier),
     fontWeight: '700',
     color: colors.primary,
   },

@@ -16,6 +16,10 @@ interface Bucket {
   name: string;
   targetAmount: string;
   lockedAmount?: string;
+  categoryId?: string;
+  subCategoryId?: string;
+  category_id?: string;
+  subcategory_id?: string;
 }
 
 export default function NameExpenseScreen() {
@@ -23,7 +27,7 @@ export default function NameExpenseScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const { finalizeExpensePlan, saveDraftExpensePlan, saveLastStep } = useExpensePlans();
+  const { finalizeExpensePlan, saveDraftExpensePlan, saveLastStep, saveExpenseBuckets } = useExpensePlans();
   
   const totalBudget = parseFloat((params.totalBudget as string) || '0');
   const budgetStructure = (params.budgetStructure as 'fixed' | 'estimated') || 'fixed';
@@ -138,8 +142,51 @@ export default function NameExpenseScreen() {
         console.log('Plan data saved successfully');
       }
 
+      // Save buckets if they exist (buckets should have been saved earlier, but ensure they're saved)
+      if (buckets && buckets.length > 0 && planId) {
+        console.log('Saving buckets before finalizing plan...', buckets.length);
+        try {
+          // Extract category_id and subcategory_id from bucket
+          // Bucket id format is "categoryId_subCategoryId" or we use categoryId/subCategoryId directly
+          const bucketsToSave = buckets.map((bucket: Bucket, index: number) => {
+            // Try multiple ways to get category and subcategory IDs
+            let categoryId = bucket.categoryId || bucket.category_id;
+            let subCategoryId = bucket.subCategoryId || bucket.subcategory_id;
+            
+            // If not found, try to extract from id format: "categoryId_subCategoryId"
+            if (!categoryId || !subCategoryId) {
+              const parts = bucket.id ? bucket.id.split('_') : [];
+              categoryId = categoryId || parts[0] || '';
+              subCategoryId = subCategoryId || parts[1] || '';
+            }
+            
+            return {
+              category_id: categoryId,
+              subcategory_id: subCategoryId,
+              name: bucket.name || '',
+              target_amount: parseFloat((bucket.targetAmount || '0').toString().replace(/,/g, '')),
+              order_index: index,
+            };
+          }).filter(b => b.category_id && b.subcategory_id); // Only save buckets with valid IDs
+
+          if (bucketsToSave.length > 0 && planId) {
+            await saveExpenseBuckets(planId, bucketsToSave);
+            console.log('Buckets saved successfully:', bucketsToSave.length);
+          } else {
+            console.warn('No valid buckets to save - all buckets missing category_id or subcategory_id');
+          }
+        } catch (bucketError) {
+          console.error('Error saving buckets during finalization:', bucketError);
+          // Don't throw - buckets might already be saved
+        }
+      }
+
       // Finalize the draft plan (change status to active and ensure name is set)
       // This changes status from 'draft' to 'active', so it will no longer show as draft
+      if (!planId) {
+        throw new Error('Plan ID is required to finalize plan');
+      }
+      
       console.log('Finalizing plan...', planId);
       const plan = await finalizeExpensePlan(planId, planName.trim());
 
@@ -195,8 +242,9 @@ export default function NameExpenseScreen() {
         <Pressable 
           onPress={async () => {
             haptics.selection();
-            if (planId) {
-              await saveLastStep(planId, '/expense-planner/create/name-expense');
+            const planIdToSave = currentPlanId || (params.planId as string | undefined);
+            if (planIdToSave) {
+              await saveLastStep(planIdToSave, '/expense-planner/create/name-expense');
             }
             router.replace('/(tabs)');
           }} 

@@ -791,15 +791,7 @@ export default function PlanDetailsScreen() {
   const filteredCategories = useMemo(() => {
     let categories = CATEGORIES;
 
-    // Filter by plan type if plan types are provided
-    if (selectedPlanTypes.length > 0) {
-      categories = categories.filter(category => {
-        const categoryPlanType = getPlanTypeForCategory(category.id);
-        return selectedPlanTypes.includes(categoryPlanType);
-      });
-    }
-
-    // Filter by search query
+    // Filter by search query only (no longer filter by plan type)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       categories = categories.filter(category => {
@@ -812,7 +804,7 @@ export default function PlanDetailsScreen() {
     }
 
     return categories;
-  }, [selectedPlanTypes, searchQuery]);
+  }, [searchQuery]);
 
   // Generate suggestions for dropdown
   const suggestions = useMemo(() => {

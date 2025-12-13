@@ -4,7 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { ExpensePlan } from '@/types/expense-planner';
-import { getCategoryIcon } from '@/lib/expenseCategories';
+import { getCategoryIcon, getCategoryById, CATEGORIES } from '@/lib/expenseCategories';
 import { 
   getDaysRemaining, 
   isBudgetStarted, 
@@ -32,6 +32,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
   const { deleteExpensePlan, fetchExpensePlans } = useExpensePlans();
   const haptics = useHaptics();
   const [currentTime, setCurrentTime] = useState(new Date());
+
 
   // Get funding status (default to plan status if not calculated)
   const fundingStatus = plan.funding_status || (plan.status === 'draft' ? 'draft' : 'unfunded');
@@ -82,7 +83,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
     return statusTag.label;
   };
 
-  // Get unique category icons (max 3)
+  // Get unique category icons and names (max 3)
   // This should work for all plans regardless of funding status
   const getCategoryIcons = () => {
     if (!plan.buckets || plan.buckets.length === 0) {
@@ -90,16 +91,26 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
     }
 
     const uniqueCategories = new Set<string>();
-    const icons: Array<{ categoryId: string; Icon: any }> = [];
+    const icons: Array<{ categoryId: string; Icon: any; categoryName: string }> = [];
 
     for (const bucket of plan.buckets) {
       if (uniqueCategories.size >= 3) break;
       
+      // Ensure bucket has category_id
+      if (!bucket.category_id) {
+        continue;
+      }
+      
       if (!uniqueCategories.has(bucket.category_id)) {
         const Icon = getCategoryIcon(bucket.category_id);
-        if (Icon) {
+        const category = getCategoryById(bucket.category_id);
+        if (Icon && category) {
           uniqueCategories.add(bucket.category_id);
-          icons.push({ categoryId: bucket.category_id, Icon });
+          icons.push({ 
+            categoryId: bucket.category_id, 
+            Icon,
+            categoryName: category.name
+          });
         }
       }
     }
@@ -107,7 +118,39 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
     return icons;
   };
 
+  // Get selected subcategories with their names
+  const getSelectedSubcategories = () => {
+    if (!plan.buckets || plan.buckets.length === 0) {
+      return [];
+    }
+
+    const subcategories: Array<{ categoryId: string; subcategoryId: string; subcategoryName: string; categoryName: string }> = [];
+
+    for (const bucket of plan.buckets) {
+      // Ensure bucket has required fields
+      if (!bucket.category_id || !bucket.subcategory_id) {
+        continue;
+      }
+      
+      const category = getCategoryById(bucket.category_id);
+      if (category) {
+        const subcategory = category.subCategories.find(sub => sub.id === bucket.subcategory_id);
+        if (subcategory) {
+          subcategories.push({
+            categoryId: bucket.category_id,
+            subcategoryId: bucket.subcategory_id,
+            subcategoryName: subcategory.name,
+            categoryName: category.name
+          });
+        }
+      }
+    }
+
+    return subcategories;
+  };
+
   const categoryIcons = getCategoryIcons();
+  const selectedSubcategories = getSelectedSubcategories();
 
   // Calculate progress percentage
   const percentageUsed = plan.total_budget > 0 ? (plan.total_spent / plan.total_budget) * 100 : 0;
@@ -412,25 +455,38 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
         </View>
       )}
 
-      {categoryIcons.length > 0 && (
+      {(categoryIcons.length > 0 || selectedSubcategories.length > 0) && (
         <View style={styles.categoriesRow}>
-          <View style={styles.categoryIconsContainer}>
-            {categoryIcons.map(({ categoryId, Icon }, index) => (
-              <View 
-                key={categoryId} 
-                style={[
-                  styles.categoryIconBadge,
-                  index > 0 && styles.stackedIcon,
-                  { zIndex: index + 1 } // Last icon has highest z-index
-                ]}
-              >
-                <Icon size={14} color={colors.primary} />
-              </View>
-            ))}
-          </View>
-          <Text style={styles.categoryCount}>
-            {plan.buckets?.length || 0} {plan.buckets?.length === 1 ? 'category' : 'categories'}
-          </Text>
+          {categoryIcons.length > 0 && (
+            <View style={styles.categoryIconsContainer}>
+              {categoryIcons.map(({ categoryId, Icon }, index) => (
+                <View 
+                  key={categoryId} 
+                  style={[
+                    styles.categoryIconBadge,
+                    index > 0 && styles.stackedIcon,
+                    { zIndex: index + 1 } // Last icon has highest z-index
+                  ]}
+                >
+                  <Icon size={14} color={colors.primary} />
+                </View>
+              ))}
+            </View>
+          )}
+          {selectedSubcategories.length > 0 && (
+            <View style={styles.selectedCategoriesContainer}>
+              {selectedSubcategories.slice(0, 2).map((sub, index) => (
+                <Text key={`${sub.categoryId}-${sub.subcategoryId}`} style={styles.selectedCategoryText} numberOfLines={1}>
+                  {sub.subcategoryName}{index < Math.min(selectedSubcategories.length, 2) - 1 ? ', ' : ''}
+                </Text>
+              ))}
+              {selectedSubcategories.length > 2 && (
+                <Text style={styles.selectedCategoryText}>
+                  +{selectedSubcategories.length - 2} more
+                </Text>
+              )}
+            </View>
+          )}
         </View>
       )}
 
@@ -672,6 +728,18 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     categoryCount: {
       fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 11, textSizeMultiplier),
       color: colors.textSecondary,
+    },
+    selectedCategoriesContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      flex: 1,
+      marginLeft: 8,
+    },
+    selectedCategoryText: {
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 11, textSizeMultiplier),
+      color: colors.textSecondary,
+      fontWeight: '500',
     },
     datesRow: {
       flexDirection: 'row',
