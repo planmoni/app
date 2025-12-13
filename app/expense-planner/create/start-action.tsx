@@ -33,6 +33,14 @@ export default function StartActionScreen() {
   const fundingMethod = params.fundingMethod as 'auto' | 'manual';
   const subCategories = params.subCategories as string | undefined;
   const planTypesParam = params.planTypes as string | undefined;
+  // Auto top-up parameters
+  const autoTopupEnabled = params.autoTopupEnabled as string | undefined;
+  const autoTopupFrequency = params.autoTopupFrequency as string | undefined;
+  const autoTopupAmount = params.autoTopupAmount as string | undefined;
+  const autoTopupStartDate = params.autoTopupStartDate as string | undefined;
+  const autoTopupEndDate = params.autoTopupEndDate as string | undefined;
+  const autoTopupNextDate = params.autoTopupNextDate as string | undefined;
+  const autoTopupTotalCycles = params.autoTopupTotalCycles as string | undefined;
 
   const [startAction, setStartAction] = useState<StartAction>('wallet');
   const [payoutAccountId, setPayoutAccountId] = useState<string>('');
@@ -68,6 +76,14 @@ export default function StartActionScreen() {
         planId: planId || '',
         ...(subCategories && { subCategories }),
         ...(planTypesParam && { planTypes: planTypesParam }),
+        // Auto top-up parameters
+        ...(autoTopupEnabled && { autoTopupEnabled }),
+        ...(autoTopupFrequency && { autoTopupFrequency }),
+        ...(autoTopupAmount && { autoTopupAmount }),
+        ...(autoTopupStartDate && { autoTopupStartDate }),
+        ...(autoTopupEndDate && { autoTopupEndDate }),
+        ...(autoTopupNextDate && { autoTopupNextDate }),
+        ...(autoTopupTotalCycles && { autoTopupTotalCycles }),
       },
     });
   };

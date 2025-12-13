@@ -753,6 +753,10 @@ export function useExpensePlans() {
 
     try {
       return await retryWithBackoff(async () => {
+        // Extract auto top-up config from metadata
+        const metadata = planData.metadata || {};
+        const autoTopupEnabled = metadata.auto_topup_enabled === true;
+        
         // Create expense plan with all new fields
       const { data: plan, error: planError } = await supabase
         .from('expense_plans')
@@ -764,7 +768,19 @@ export function useExpensePlans() {
           start_date: planData.start_date,
           end_date: planData.end_date,
           payout_schedule: planData.payout_schedule || 'weekly',
-          metadata: planData.metadata || {},
+          plan_type: planData.plan_type || 'one_time',
+          funding_method: planData.funding_method || 'manual',
+          required_per_cycle: planData.required_per_cycle || 0,
+          required_per_day: planData.required_per_day || 0,
+          // Auto top-up fields
+          auto_topup_enabled: autoTopupEnabled,
+          auto_topup_frequency: autoTopupEnabled ? (metadata.auto_topup_frequency as string) : null,
+          auto_topup_amount: autoTopupEnabled ? (metadata.auto_topup_amount as number) : null,
+          auto_topup_start_date: autoTopupEnabled ? (metadata.auto_topup_start_date as string) : null,
+          auto_topup_end_date: autoTopupEnabled ? (metadata.auto_topup_end_date as string) : null,
+          auto_topup_next_date: autoTopupEnabled ? (metadata.auto_topup_next_date as string) : null,
+          auto_topup_total_cycles: autoTopupEnabled ? (metadata.auto_topup_total_cycles as number) : null,
+          metadata: metadata,
           status: 'active',
         })
         .select()

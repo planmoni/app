@@ -31,7 +31,7 @@ export default function FundingSourceScreen() {
   const payoutSchedule = (params.payoutSchedule as PayoutSchedule) || 'weekly';
   const requiredPerCycle = parseFloat((params.requiredPerCycle as string) || '0');
   const subCategories = params.subCategories as string | undefined;
-  const planTypesParam = params.planTypesParam as string | undefined;
+  const planTypesParam = (params.planTypesParam || params.planTypes) as string | undefined;
 
   // Default to manual since budgets are considered funded upfront
   const [fundingMethod, setFundingMethod] = useState<FundingMethod>('manual');
@@ -81,23 +81,40 @@ export default function FundingSourceScreen() {
         });
       }
 
-      // Navigate to start action selection
-      router.push({
-        pathname: '/expense-planner/create/start-action',
-        params: {
-          planName,
-          targetAmount: targetAmount.toString(),
-          startDate: startDateStr,
-          endDate: endDateStr || '',
-          dateType,
-          payoutSchedule,
-          requiredPerCycle: requiredPerCycle.toString(),
-          fundingMethod,
-          planId: planId || '',
-          ...(subCategories && { subCategories }),
-          ...(planTypesParam && { planTypes: planTypesParam }),
-        },
-      });
+      // Navigate based on funding method
+      if (fundingMethod === 'auto') {
+        // Navigate to auto top-up configuration
+        router.push({
+          pathname: '/expense-planner/create/auto-topup-config',
+          params: {
+            planName,
+            targetAmount: targetAmount.toString(),
+            startDate: startDateStr,
+            endDate: endDateStr || '',
+            planId: planId || '',
+            ...(subCategories && { subCategories }),
+            ...(planTypesParam && { planTypes: planTypesParam }),
+          },
+        });
+      } else {
+        // Navigate directly to start action for manual funding
+        router.push({
+          pathname: '/expense-planner/create/start-action',
+          params: {
+            planName,
+            targetAmount: targetAmount.toString(),
+            startDate: startDateStr,
+            endDate: endDateStr || '',
+            dateType,
+            payoutSchedule,
+            requiredPerCycle: requiredPerCycle.toString(),
+            fundingMethod,
+            planId: planId || '',
+            ...(subCategories && { subCategories }),
+            ...(planTypesParam && { planTypes: planTypesParam }),
+          },
+        });
+      }
     } catch (error) {
       console.error('Error saving funding source:', error);
       Alert.alert('Error', 'Failed to save plan. Please try again.');
@@ -173,45 +190,7 @@ export default function FundingSourceScreen() {
                 {fundingMethod === 'auto' && <View style={styles.radioInner} />}
               </View>
             </View>
-            {fundingMethod === 'auto' && allocationPreview && (
-              <View style={styles.previewContainer}>
-                <View style={styles.previewHeader}>
-                  <TrendingUp size={16} color={colors.primary} />
-                  <Text style={styles.previewTitle}>Allocation Preview</Text>
-                </View>
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Total allocation</Text>
-                  <Text style={styles.previewValue}>
-                    ₦{allocationPreview.totalAllocation.toLocaleString('en-US')}
-                  </Text>
-                </View>
-                {allocationPreview.days <= 7 && (
-                  <View style={styles.previewRow}>
-                    <Text style={styles.previewLabel}>Per day</Text>
-                    <Text style={styles.previewValue}>
-                      ₦{Number(allocationPreview.perDay.toFixed(2)).toLocaleString('en-US')}
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Per week</Text>
-                  <Text style={styles.previewValue}>
-                    ₦{Number(allocationPreview.perWeek.toFixed(2)).toLocaleString('en-US')}
-                  </Text>
-                </View>
-                {allocationPreview.days > 30 && (
-                  <View style={styles.previewRow}>
-                    <Text style={styles.previewLabel}>Per month</Text>
-                    <Text style={styles.previewValue}>
-                      ₦{Number(allocationPreview.perMonth.toFixed(2)).toLocaleString('en-US')}
-                    </Text>
-                  </View>
-                )}
-                <Text style={styles.previewNote}>
-                 Auto top-up keeps the budget topped up; any extra you add stays as spendable buffer.
-                </Text>
-              </View>
-            )}
+            
           </Pressable>
 
           {/* Manual Fund */}
@@ -233,8 +212,8 @@ export default function FundingSourceScreen() {
                 <Hand size={24} color={fundingMethod === 'manual' ? colors.primary : colors.text} />
               </View>
               <View style={styles.optionHeaderText}>
-                <Text style={styles.optionTitle}>Manual only</Text>
-                <Text style={styles.optionSubtitle}>Keep it as-is; top up anytime. Extra is just extra to spend.</Text>
+                <Text style={styles.optionTitle}>Manual top-up</Text>
+                <Text style={styles.optionSubtitle}>Top up manually anytime. Extra is just extra to spend.</Text>
               </View>
               <View style={[
                 styles.radio,
@@ -243,13 +222,6 @@ export default function FundingSourceScreen() {
                 {fundingMethod === 'manual' && <View style={styles.radioInner} />}
               </View>
             </View>
-            {fundingMethod === 'manual' && (
-              <View style={styles.previewContainer}>
-                <Text style={styles.previewNote}>
-                  You'll manually add money to this plan whenever you want. No automatic allocations will be made.
-                </Text>
-              </View>
-            )}
           </Pressable>
 
         </ScrollView>

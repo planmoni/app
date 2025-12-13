@@ -21,7 +21,12 @@ export default function CreateNewScreen() {
 
   const startSpendingPlan = () => {
     haptics.mediumImpact();
-    router.push('/expense-planner/create/plan-type');
+    router.push({
+      pathname: '/expense-planner/create/plan-details',
+      params: {
+        planTypes: JSON.stringify(['one_time']),
+      },
+    });
   };
 
   const startPayoutSchedule = () => {

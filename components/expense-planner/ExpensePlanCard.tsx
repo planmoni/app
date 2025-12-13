@@ -102,15 +102,18 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       }
       
       if (!uniqueCategories.has(bucket.category_id)) {
-        const Icon = getCategoryIcon(bucket.category_id);
         const category = getCategoryById(bucket.category_id);
-        if (Icon && category) {
-          uniqueCategories.add(bucket.category_id);
-          icons.push({ 
-            categoryId: bucket.category_id, 
-            Icon,
-            categoryName: category.name
-          });
+        if (category && category.icon) {
+          const Icon = category.icon;
+          // Verify icon is a valid component (function or React component)
+          if (Icon && (typeof Icon === 'function' || typeof Icon === 'object')) {
+            uniqueCategories.add(bucket.category_id);
+            icons.push({ 
+              categoryId: bucket.category_id, 
+              Icon,
+              categoryName: category.name
+            });
+          }
         }
       }
     }
@@ -459,18 +462,28 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
         <View style={styles.categoriesRow}>
           {categoryIcons.length > 0 && (
             <View style={styles.categoryIconsContainer}>
-              {categoryIcons.map(({ categoryId, Icon }, index) => (
-                <View 
-                  key={categoryId} 
-                  style={[
-                    styles.categoryIconBadge,
-                    index > 0 && styles.stackedIcon,
-                    { zIndex: index + 1 } // Last icon has highest z-index
-                  ]}
-                >
-                  <Icon size={14} color={colors.primary} />
-                </View>
-              ))}
+              {categoryIcons.map(({ categoryId, Icon }, index) => {
+                // Handle both lucide icons and icon wrapper components
+                const IconComponent = Icon;
+                return (
+                  <View 
+                    key={categoryId} 
+                    style={[
+                      styles.categoryIconBadge,
+                      index > 0 && styles.stackedIcon,
+                      { zIndex: index + 1 } // Last icon (rightmost) has highest z-index for proper stacking
+                    ]}
+                  >
+                    {IconComponent && (
+                      <IconComponent 
+                        size={14} 
+                        color={colors.primary}
+                        strokeWidth={1.5}
+                      />
+                    )}
+                  </View>
+                );
+              })}
             </View>
           )}
           {selectedSubcategories.length > 0 && (
@@ -711,6 +724,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     categoryIconsContainer: {
       flexDirection: 'row',
       alignItems: 'center',
+      overflow: 'visible', // Allow icons to overlap
     },
     categoryIconBadge: {
       width: 28,

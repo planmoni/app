@@ -269,9 +269,9 @@ export default function BasicSetupScreen() {
         throw new Error('Failed to create draft plan: No plan ID returned');
       }
 
-      // Navigate to contribution calculation
+      // Navigate to funding source (skipping contribution-calculation)
       router.push({
-        pathname: '/expense-planner/create/contribution-calculation',
+        pathname: '/expense-planner/create/funding-source',
         params: {
           planName: planName.trim(),
           targetAmount: targetAmount.replace(/,/g, ''),
@@ -283,6 +283,9 @@ export default function BasicSetupScreen() {
           planId: draftPlan.id,
           ...(subCategories && { subCategories }),
           ...(planTypesParam && { planTypes: planTypesParam }),
+          // Default to daily payout schedule for one_time plans
+          payoutSchedule: 'daily',
+          requiredPerCycle: '0',
         },
       });
     } catch (error) {

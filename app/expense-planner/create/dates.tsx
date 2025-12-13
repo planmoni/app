@@ -205,9 +205,9 @@ export default function DatesScreen() {
         });
       }
 
-      // Navigate to contribution calculation
+      // Navigate to funding source (skipping contribution-calculation)
       router.push({
-        pathname: '/expense-planner/create/contribution-calculation',
+        pathname: '/expense-planner/create/funding-source',
         params: {
           planName,
           targetAmount,
@@ -216,6 +216,9 @@ export default function DatesScreen() {
           planId: activePlanId || '',
           ...(subCategories && { subCategories }),
           ...(planTypesParam && { planTypes: planTypesParam }),
+          // Default to daily payout schedule for one_time plans
+          payoutSchedule: 'daily',
+          requiredPerCycle: '0',
         },
       });
     } catch (error: any) {

@@ -39,9 +39,10 @@ export default function QuickPlans() {
                 onPress={() => {
                   haptics.impact();
                   router.push({
-                    pathname: '/expense-planner/create/plan-type',
+                    pathname: '/expense-planner/create/plan-details',
                     params: {
-                      quickCategory: category.id,
+                      planTypes: JSON.stringify(['one_time']),
+                      preselectedCategoryId: category.id,
                     },
                   });
                 }}

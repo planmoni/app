@@ -48,6 +48,14 @@ export default function ReviewScreen() {
   const alertRiskFailure = (params.alertRiskFailure as string) === 'true';
   const alertWeeklyProgress = (params.alertWeeklyProgress as string) === 'true';
   const requiredPerCycleNumber = parseFloat(requiredPerCycle || '0');
+  // Auto top-up parameters
+  const autoTopupEnabled = (params.autoTopupEnabled as string) === 'true';
+  const autoTopupFrequency = params.autoTopupFrequency as string | undefined;
+  const autoTopupAmount = params.autoTopupAmount as string | undefined;
+  const autoTopupStartDate = params.autoTopupStartDate as string | undefined;
+  const autoTopupEndDate = params.autoTopupEndDate as string | undefined;
+  const autoTopupNextDate = params.autoTopupNextDate as string | undefined;
+  const autoTopupTotalCycles = params.autoTopupTotalCycles as string | undefined;
   
   const buckets: Bucket[] = params.buckets ? JSON.parse(params.buckets as string) : [];
   const [isCreating, setIsCreating] = useState(false);
@@ -166,6 +174,14 @@ export default function ReviewScreen() {
           payout_account_id: payoutAccountId || null,
           payout_account_label: payoutAccountLabel || null,
           payout_account_bank_name: payoutAccountBankName || null,
+          // Auto top-up configuration
+          auto_topup_enabled: autoTopupEnabled,
+          auto_topup_frequency: autoTopupFrequency || null,
+          auto_topup_amount: autoTopupAmount ? parseFloat(autoTopupAmount) : null,
+          auto_topup_start_date: autoTopupStartDate || null,
+          auto_topup_end_date: autoTopupEndDate || null,
+          auto_topup_next_date: autoTopupNextDate || null,
+          auto_topup_total_cycles: autoTopupTotalCycles ? parseInt(autoTopupTotalCycles) : null,
         },
         buckets: bucketsToCreate,
       });
@@ -257,6 +273,28 @@ export default function ReviewScreen() {
             <Text style={styles.sectionTitle}>Funding Rule</Text>
           </View>
           <Text style={styles.sectionValue}>{getFundingMethodLabel()}</Text>
+          {autoTopupEnabled && autoTopupFrequency && autoTopupAmount && (
+            <View style={styles.autoTopupInfo}>
+              <Text style={styles.autoTopupLabel}>Top-up frequency:</Text>
+              <Text style={styles.autoTopupValue}>
+                ₦{parseFloat(autoTopupAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per {autoTopupFrequency === 'daily' ? 'day' : autoTopupFrequency === 'weekly' ? 'week' : autoTopupFrequency === 'biweekly' ? '2 weeks' : autoTopupFrequency === 'monthly' ? 'month' : autoTopupFrequency === 'quarterly' ? 'quarter' : 'year'}
+              </Text>
+              {autoTopupStartDate && autoTopupEndDate && (
+                <>
+                  <Text style={styles.autoTopupLabel}>Top-up period:</Text>
+                  <Text style={styles.autoTopupValue}>
+                    {formatDate(autoTopupStartDate)} to {formatDate(autoTopupEndDate)}
+                  </Text>
+                </>
+              )}
+              {autoTopupTotalCycles && (
+                <>
+                  <Text style={styles.autoTopupLabel}>Total cycles:</Text>
+                  <Text style={styles.autoTopupValue}>{autoTopupTotalCycles}</Text>
+                </>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Budget Start Action */}
@@ -489,6 +527,24 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
       fontSize: getScaledFontSize(12, textSizeMultiplier),
       color: colors.textSecondary,
       fontStyle: 'italic',
+    },
+    autoTopupInfo: {
+      marginTop: 12,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      gap: 8,
+    },
+    autoTopupLabel: {
+      fontSize: getScaledFontSize(13, textSizeMultiplier),
+      color: colors.textSecondary,
+      marginTop: 4,
+    },
+    autoTopupValue: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 4,
       alignSelf: 'center',
       paddingVertical: 6,
     },

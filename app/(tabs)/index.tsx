@@ -1630,7 +1630,12 @@ export default function HomeScreen() {
           style={styles.floatingAddButton}
           onPress={() => {
             impact();
-            router.push('/expense-planner/create/plan-type');
+            router.push({
+              pathname: '/expense-planner/create/plan-details',
+              params: {
+                planTypes: JSON.stringify(['one_time']),
+              },
+            });
           }}
         >
           <Plus size={24} color="#fff" />
