@@ -73,6 +73,14 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
   };
 
   const statusTag = getStatusTagStyle();
+  
+  // If plan is unfunded but has some funds, show percentage funded instead
+  const getStatusLabel = () => {
+    if (fundingStatus === 'unfunded' && currentBalance > 0) {
+      return `${Math.round(percentageFunded)}% funded`;
+    }
+    return statusTag.label;
+  };
 
   // Get unique category icons (max 3)
   // This should work for all plans regardless of funding status
@@ -162,9 +170,13 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
   const healthStatus = (plan as any).health_status || 'on_track';
 
   // Expiry countdown for unfunded plans (24 hours from creation)
-  const isUnfunded = plan.funding_status === 'unfunded' && plan.status !== 'draft';
+  // Only show expiry if plan has NO funds (current_balance = 0)
+  // Plans with any funds (current_balance > 0) should never expire
+  const hasFunds = currentBalance > 0;
+  const isUnfunded = plan.funding_status === 'unfunded' && plan.status !== 'draft' && !hasFunds;
   
   // Recalculate expiry hours based on current time state
+  // Only show expiry if plan has no funds
   const expiryHours = isUnfunded ? getExpiryHoursRemaining(plan.created_at, currentTime) : null;
   const expiryText = formatExpiryCountdown(expiryHours);
 
@@ -305,7 +317,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
           <View style={styles.statusContainer}>
             <View style={[styles.statusTag, { backgroundColor: statusTag.backgroundColor }]}>
               <Text style={[styles.statusTagText, { color: statusTag.textColor }]}>
-                {statusTag.label}
+                {getStatusLabel()}
           </Text>
             </View>
             {expiryText && (
@@ -330,9 +342,9 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
         </View>
         {currentBalance > 0 && (
           <View style={styles.balanceColumn}>
-            <Text style={styles.balanceLabel}>Current Balance</Text>
-            <Text style={styles.balanceAmount}>₦{currentBalance.toLocaleString()}</Text>
-            <Text style={styles.percentageFunded}>{Math.round(percentageFunded)}% funded</Text>
+            {/* <Text style={styles.balanceLabel}>Current Balance</Text> */}
+            {/* <Text style={styles.balanceAmount}>₦{currentBalance.toLocaleString()}</Text> */}
+            {/* <Text style={styles.percentageFunded}>{Math.round(percentageFunded)}% funded</Text> */}
           </View>
         )}
       </View>
@@ -530,7 +542,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       flex: 1,
     },
     planAmount: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 24 : 22, textSizeMultiplier),
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 25 : 24, textSizeMultiplier),
       fontWeight: '700',
       color: colors.text,
       marginBottom: 4,

@@ -800,15 +800,20 @@ export default function HomeScreen() {
     return 'Hi';
   };
 
-  // Calculate expense plans total locked balance
+  // Calculate expense plans "Available to spend" balance
+  // This shows excess funds from over-funded plans
   const expensePlansBalance = useMemo(() => {
     if (!expensePlans || expensePlans.length === 0) {
       return 0;
     }
     
-    // Sum total_locked from all expense plans
+    // Sum excess funds from all over-funded plans
+    // Excess = current_balance - total_budget (when current_balance > total_budget)
     return expensePlans.reduce((total, plan) => {
-      return total + (plan.total_locked || 0);
+      const currentBalance = (plan as any).current_balance || 0;
+      const totalBudget = plan.total_budget || 0;
+      const excess = Math.max(0, currentBalance - totalBudget);
+      return total + excess;
     }, 0);
   }, [expensePlans]);
 
@@ -1797,7 +1802,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     paddingHorizontal: 4,
   },
   tabText: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 16, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
   },

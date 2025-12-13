@@ -21,10 +21,26 @@ export default function PaystackPaymentSuccessScreen() {
   const amount = params.amount as string;
   const reference = params.reference as string;
   const email = params.email as string;
+  const planId = params.planId as string | undefined;
+  const planName = params.planName as string | undefined;
+
+  const isPlanFunding = !!planId;
 
   const handleBackToDashboard = () => {
     haptics.mediumImpact();
-    router.replace('/(tabs)');
+    if (isPlanFunding && planId) {
+      // Navigate to plan details page
+      router.replace(`/expense-planner/${planId}`);
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
+
+  const handleViewPlan = () => {
+    haptics.mediumImpact();
+    if (planId) {
+      router.push(`/expense-planner/${planId}`);
+    }
   };
 
   const handleViewTransaction = () => {
@@ -71,7 +87,9 @@ export default function PaystackPaymentSuccessScreen() {
 
         <Text style={styles.title}>Payment Successful!</Text>
         <Text style={styles.subtitle}>
-          Your funds have been added to your wallet
+          {isPlanFunding 
+            ? `Your funds have been added to ${planName || 'your plan'}`
+            : 'Your funds have been added to your wallet'}
         </Text>
 
         <View style={styles.summaryCard}>
@@ -80,8 +98,17 @@ export default function PaystackPaymentSuccessScreen() {
             <Text style={styles.amount}>{amount ? parseFloat(amount).toLocaleString('en-NG') : '0'}</Text>
           </View>
           <Text style={styles.description}>
-            has been added to your{'\n'}
-            <Text style={styles.highlight}>Planmoni Wallet</Text>
+            has been added to {isPlanFunding ? (
+              <>
+                your{'\n'}
+                <Text style={styles.highlight}>{planName || 'Plan'}</Text>
+              </>
+            ) : (
+              <>
+                your{'\n'}
+                <Text style={styles.highlight}>Planmoni Wallet</Text>
+              </>
+            )}
           </Text>
 
           <View style={styles.detailsContainer}>
@@ -113,27 +140,53 @@ export default function PaystackPaymentSuccessScreen() {
             <View style={styles.infoIconContainer}>
               <CheckCircle size={20} color={colors.success} />
             </View>
-            <Text style={styles.infoTitle}>Wallet Updated</Text>
+            <Text style={styles.infoTitle}>
+              {isPlanFunding ? 'Plan Funded' : 'Wallet Updated'}
+            </Text>
           </View>
           <Text style={styles.infoText}>
-            Your wallet balance has been updated and is ready to use. You can now use these funds for your expense plans and other transactions.
+            {isPlanFunding
+              ? `Your plan has been funded successfully. The funds are now available in your plan wallet and ready to use.`
+              : 'Your wallet balance has been updated and is ready to use. You can now use these funds for your expense plans and other transactions.'}
           </Text>
         </View>
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(16, insets.bottom) }]}>
-        <Button
-          title="Back to Dashboard"
-          onPress={handleBackToDashboard}
-          style={styles.dashboardButton}
-          icon={Home}
-        />
-        <Button
-          title="View Transaction"
-          onPress={handleViewTransaction}
-          variant="outline"
-          style={styles.transactionButton}
-        />
+        {isPlanFunding ? (
+          <>
+            <Button
+              title={`View ${planName || 'Plan'}`}
+              onPress={handleViewPlan}
+              style={styles.dashboardButton}
+              icon={Home}
+            />
+            <Button
+              title="Back to Dashboard"
+              onPress={() => {
+                haptics.mediumImpact();
+                router.replace('/(tabs)');
+              }}
+              variant="outline"
+              style={styles.transactionButton}
+            />
+          </>
+        ) : (
+          <>
+            <Button
+              title="Back to Dashboard"
+              onPress={handleBackToDashboard}
+              style={styles.dashboardButton}
+              icon={Home}
+            />
+            <Button
+              title="View Transaction"
+              onPress={handleViewTransaction}
+              variant="outline"
+              style={styles.transactionButton}
+            />
+          </>
+        )}
       </View>
 
       <SafeFooter />

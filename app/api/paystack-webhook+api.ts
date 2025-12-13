@@ -247,21 +247,62 @@ async function handleChargeSuccess(data: any) {
       return;
     }
 
-    // Process deposit - this function handles wallet update, transaction creation, events, and notifications
-    const depositResult = await addFundsToWallet(
-      userId, 
-      amountInNaira, 
-      reference, 
-      data.authorization?.account_number,
-      data
-    );
+    // Check if this is a plan funding payment (from metadata)
+    const planId = metadata?.planId || metadata?.plan_id;
+    
+    if (planId) {
+      // Process plan deposit
+      console.log(`Processing plan deposit via webhook: ₦${amountInNaira} for plan ${planId}, user ${userId}, reference: ${reference}`);
+      
+      const { data: result, error: processError } = await supabase.rpc('process_paystack_plan_deposit', {
+        arg_user_id: userId,
+        arg_plan_id: planId,
+        arg_amount: amountInNaira,
+        arg_reference: reference,
+        arg_paystack_data: {
+          paystack_transaction_id: data.id,
+          paystack_reference: reference,
+          account_number: data.authorization?.account_number,
+          processed_by: 'paystack_webhook',
+          processed_at: new Date().toISOString(),
+          paystack_data: data,
+        },
+      });
 
-    if (depositResult.already_processed) {
-      console.log(`Transaction ${reference} was already processed, skipping duplicate notification`);
-      return;
+      if (processError) {
+        console.error('Error processing plan deposit via webhook:', processError);
+        return;
+      }
+
+      if (result && result.success) {
+        if (result.already_processed) {
+          console.log(`Plan transaction ${reference} was already processed, skipping duplicate notification`);
+          return;
+        }
+        console.log(`Successfully processed plan deposit via webhook: ₦${amountInNaira} for plan ${planId}`);
+        return;
+      } else {
+        console.error('Failed to process plan deposit via webhook:', result);
+        return;
+      }
+    } else {
+      // Process wallet deposit (existing flow)
+      // Process deposit - this function handles wallet update, transaction creation, events, and notifications
+      const depositResult = await addFundsToWallet(
+        userId, 
+        amountInNaira, 
+        reference, 
+        data.authorization?.account_number,
+        data
+      );
+
+      if (depositResult.already_processed) {
+        console.log(`Transaction ${reference} was already processed, skipping duplicate notification`);
+        return;
+      }
+
+      console.log(`Successfully processed charge.success for user ${userId}`);
     }
-
-    console.log(`Successfully processed charge.success for user ${userId}`);
 
   } catch (error) {
     console.error('Error handling charge.success:', error);

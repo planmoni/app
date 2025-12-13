@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, CreditCard, Shield, Lock } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -27,9 +27,13 @@ export default function PaystackPaymentScreen() {
   const haptics = useHaptics();
   const { showToast } = useToast();
   const { refreshWallet } = useBalance();
+  const params = useLocalSearchParams();
   
   // Get Paystack hook - provider is always rendered (with placeholder key if needed)
   const { popup } = usePaystack();
+  
+  // Extract planId if this is a plan funding payment
+  const planId = params.planId as string | undefined;
 
   const isSmallScreen = screenWidth < 380;
   const styles = createStyles(colors, isDark, isSmallScreen);
@@ -154,8 +158,8 @@ export default function PaystackPaymentScreen() {
           console.log('✅ Payment successful:', res);
           setIsProcessing(true);
           
-          // Verify payment
-          verifyPayment(reference, profile.email);
+          // Verify payment (pass planId if available)
+          verifyPayment(reference, profile.email, planId);
         },
         onCancel: () => {
           console.log('⚠️ Payment cancelled by user');
@@ -192,7 +196,7 @@ export default function PaystackPaymentScreen() {
     }
   };
 
-  const verifyPayment = async (reference: string, email: string) => {
+  const verifyPayment = async (reference: string, email: string, planId?: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -205,6 +209,7 @@ export default function PaystackPaymentScreen() {
             reference: reference,
             errorType: 'verification',
             error: 'Session expired. Please log in again',
+            ...(planId && { planId }),
           },
         });
         return;
@@ -221,6 +226,7 @@ export default function PaystackPaymentScreen() {
           },
           body: JSON.stringify({
             reference: reference,
+            planId: planId || null,
           }),
         }
       );
@@ -228,8 +234,10 @@ export default function PaystackPaymentScreen() {
       const data = await response.json();
 
       if (data.success) {
-        // Refresh wallet balance
-        await refreshWallet();
+        // Refresh wallet balance only if not a plan payment
+        if (!planId) {
+          await refreshWallet();
+        }
 
         haptics.success();
 
@@ -240,6 +248,8 @@ export default function PaystackPaymentScreen() {
             amount: getNumericAmount().toString(),
             reference: reference,
             email: email,
+            ...(planId && { planId }),
+            ...(planId && params.planName && { planName: params.planName as string }),
           },
         });
       } else {
@@ -252,6 +262,7 @@ export default function PaystackPaymentScreen() {
             reference: reference,
             errorType: 'verification',
             error: errorMessage,
+            ...(planId && { planId }),
           },
         });
       }
@@ -266,6 +277,7 @@ export default function PaystackPaymentScreen() {
           reference: reference,
           errorType: 'verification',
           error: errorMessage,
+          ...(planId && { planId }),
         },
       });
     } finally {

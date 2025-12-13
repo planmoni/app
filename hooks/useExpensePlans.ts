@@ -152,16 +152,21 @@ export function useExpensePlans() {
       });
 
       // Auto-delete unfunded plans older than 24 hours
+      // Only delete if plan has NO funds (current_balance = 0)
       const now = new Date();
       const plansToDelete: string[] = [];
       
       for (const plan of enhancedPlans) {
         // Check if plan is unfunded (not draft, and no locked funds)
-        if (plan.funding_status === 'unfunded' && plan.status !== 'draft') {
+        // Also check that current_balance is 0 or null (no funds added)
+        const currentBalance = (plan as any).current_balance || 0;
+        const hasFunds = currentBalance > 0;
+        
+        if (plan.funding_status === 'unfunded' && plan.status !== 'draft' && !hasFunds) {
           const createdAt = new Date(plan.created_at);
           const hoursSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
           
-          // If plan is older than 24 hours, mark for deletion
+          // If plan is older than 24 hours AND has no funds, mark for deletion
           if (hoursSinceCreation >= 24) {
             plansToDelete.push(plan.id);
           }
