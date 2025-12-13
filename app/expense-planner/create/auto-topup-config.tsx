@@ -246,10 +246,6 @@ export default function AutoTopUpConfigScreen() {
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
           <View style={styles.section}>
-            <View style={styles.iconContainer}>
-              <TrendingUp size={32} color={colors.primary} />
-            </View>
-            <Text style={styles.sectionTitle}>Automatic Top-Up Schedule</Text>
             <Text style={styles.sectionDescription}>
               We'll automatically transfer money from your main balance to this plan based on the schedule below.
             </Text>

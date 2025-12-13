@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, Alert } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
@@ -11,9 +11,7 @@ import {
   formatDateRange, 
   formatDaysRemaining,
   getBudgetDuration,
-  getDraftResumeStep,
-  getExpiryHoursRemaining,
-  formatExpiryCountdown
+  getDraftResumeStep
 } from '@/lib/expensePlanUtils';
 import { Trash2, Clock, Calendar } from 'lucide-react-native';
 import { router } from 'expo-router';
@@ -31,7 +29,6 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
   const { textSizeMultiplier } = useTextSize();
   const { deleteExpensePlan, fetchExpensePlans } = useExpensePlans();
   const haptics = useHaptics();
-  const [currentTime, setCurrentTime] = useState(new Date());
 
 
   // Get funding status (default to plan status if not calculated)
@@ -254,28 +251,6 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
   // Get health status
   const healthStatus = (plan as any).health_status || 'on_track';
 
-  // Expiry countdown for unfunded plans (24 hours from creation)
-  // Only show expiry if plan has NO funds (current_balance = 0)
-  // Plans with any funds (current_balance > 0) should never expire
-  const hasFunds = currentBalance > 0;
-  const isUnfunded = plan.funding_status === 'unfunded' && plan.status !== 'draft' && !hasFunds;
-  
-  // Recalculate expiry hours based on current time state
-  // Only show expiry if plan has no funds
-  const expiryHours = isUnfunded ? getExpiryHoursRemaining(plan.created_at, currentTime) : null;
-  const expiryText = formatExpiryCountdown(expiryHours);
-
-  // Update countdown every minute for unfunded plans
-  useEffect(() => {
-    if (isUnfunded) {
-      const interval = setInterval(() => {
-        setCurrentTime(new Date());
-      }, 60000); // Update every minute
-
-      return () => clearInterval(interval);
-    }
-  }, [isUnfunded]);
-
   // Handle delete for draft plans
   const handleDelete = async (e: any) => {
     e.stopPropagation(); // Prevent card press
@@ -405,9 +380,6 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
                 {getStatusLabel()}
           </Text>
             </View>
-            {expiryText && (
-              <Text style={styles.expiryText}>{expiryText}</Text>
-            )}
           </View>
           {isDraft && (
             <Pressable
@@ -626,11 +598,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     deleteButton: {
       padding: 4,
       borderRadius: 8,
-    },
-    expiryText: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 10 : 9, textSizeMultiplier),
-      color: colors.textTertiary,
-      marginTop: 2,
     },
     statusTag: {
       paddingHorizontal: Platform.OS === 'ios' ? 12 : 10,

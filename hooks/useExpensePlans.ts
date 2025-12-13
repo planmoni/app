@@ -141,53 +141,8 @@ export function useExpensePlans() {
         };
       });
 
-      // Auto-delete unfunded plans older than 24 hours
-      // Only delete if plan has NO funds (current_balance = 0)
-      const now = new Date();
-      const plansToDelete: string[] = [];
-      
-      for (const plan of enhancedPlans) {
-        // Check if plan is unfunded (not draft, and no locked funds)
-        // Also check that current_balance is 0 or null (no funds added)
-        const currentBalance = (plan as any).current_balance || 0;
-        const hasFunds = currentBalance > 0;
-        
-        if (plan.funding_status === 'unfunded' && plan.status !== 'draft' && !hasFunds) {
-          const createdAt = new Date(plan.created_at);
-          const hoursSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
-          
-          // If plan is older than 24 hours AND has no funds, mark for deletion
-          if (hoursSinceCreation >= 24) {
-            plansToDelete.push(plan.id);
-          }
-        }
-      }
-
-      // Delete expired unfunded plans
-      if (plansToDelete.length > 0) {
-        console.log(`Auto-deleting ${plansToDelete.length} expired unfunded plan(s)`);
-        try {
-          const { error: deleteError } = await supabase
-            .from('expense_plans')
-            .delete()
-            .in('id', plansToDelete)
-            .eq('user_id', session.user.id);
-
-          if (deleteError) {
-            console.error('Error auto-deleting expired plans:', deleteError);
-          } else {
-            console.log('Successfully auto-deleted expired unfunded plans');
-          }
-        } catch (err) {
-          console.error('Error during auto-deletion of expired plans:', err);
-        }
-
-        // Filter out deleted plans from the list
-        const filteredPlans = enhancedPlans.filter(plan => !plansToDelete.includes(plan.id));
-        setExpensePlans(filteredPlans);
-      } else {
-        setExpensePlans(enhancedPlans);
-      }
+      // Set expense plans (all plans stay, no expiry)
+      setExpensePlans(enhancedPlans);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch expense plans'));
       console.error('Error fetching expense plans:', err);
@@ -757,34 +712,101 @@ export function useExpensePlans() {
         const metadata = planData.metadata || {};
         const autoTopupEnabled = metadata.auto_topup_enabled === true;
         
-        // Create expense plan with all new fields
-      const { data: plan, error: planError } = await supabase
-        .from('expense_plans')
-        .insert({
+        // Store funding_method in metadata as fallback in case column doesn't exist
+        if (planData.funding_method && !metadata.funding_method) {
+          metadata.funding_method = planData.funding_method;
+        }
+        
+        // Build insert object with only fields that exist
+        // Start with required/base fields
+        const insertData: any = {
           user_id: session.user.id,
           name: planData.name,
           total_budget: planData.total_budget,
           budget_structure: planData.budget_structure || 'fixed',
           start_date: planData.start_date,
           end_date: planData.end_date,
-          payout_schedule: planData.payout_schedule || 'weekly',
-          plan_type: planData.plan_type || 'one_time',
-          funding_method: planData.funding_method || 'manual',
-          required_per_cycle: planData.required_per_cycle || 0,
-          required_per_day: planData.required_per_day || 0,
-          // Auto top-up fields
-          auto_topup_enabled: autoTopupEnabled,
-          auto_topup_frequency: autoTopupEnabled ? (metadata.auto_topup_frequency as string) : null,
-          auto_topup_amount: autoTopupEnabled ? (metadata.auto_topup_amount as number) : null,
-          auto_topup_start_date: autoTopupEnabled ? (metadata.auto_topup_start_date as string) : null,
-          auto_topup_end_date: autoTopupEnabled ? (metadata.auto_topup_end_date as string) : null,
-          auto_topup_next_date: autoTopupEnabled ? (metadata.auto_topup_next_date as string) : null,
-          auto_topup_total_cycles: autoTopupEnabled ? (metadata.auto_topup_total_cycles as number) : null,
-          metadata: metadata,
           status: 'active',
-        })
-        .select()
-        .single();
+          metadata: metadata,
+        };
+
+        // Add optional fields if they exist in schema (using conditional spread)
+        // These fields may not exist if migrations haven't been run
+        if (planData.payout_schedule) {
+          insertData.payout_schedule = planData.payout_schedule;
+        }
+        if (planData.plan_type) {
+          insertData.plan_type = planData.plan_type;
+        }
+        // Try to add funding_method, but it may not exist in schema
+        // If it fails, it's already stored in metadata as fallback
+        if (planData.funding_method) {
+          insertData.funding_method = planData.funding_method;
+        }
+        if (planData.required_per_cycle !== undefined) {
+          insertData.required_per_cycle = planData.required_per_cycle;
+        }
+        if (planData.required_per_day !== undefined) {
+          insertData.required_per_day = planData.required_per_day;
+        }
+
+        // Add auto top-up fields if enabled
+        if (autoTopupEnabled) {
+          insertData.auto_topup_enabled = true;
+          if (metadata.auto_topup_frequency) {
+            insertData.auto_topup_frequency = metadata.auto_topup_frequency as string;
+          }
+          if (metadata.auto_topup_amount) {
+            insertData.auto_topup_amount = metadata.auto_topup_amount as number;
+          }
+          if (metadata.auto_topup_start_date) {
+            insertData.auto_topup_start_date = metadata.auto_topup_start_date as string;
+          }
+          if (metadata.auto_topup_end_date) {
+            insertData.auto_topup_end_date = metadata.auto_topup_end_date as string;
+          }
+          if (metadata.auto_topup_next_date) {
+            insertData.auto_topup_next_date = metadata.auto_topup_next_date as string;
+          }
+          if (metadata.auto_topup_total_cycles) {
+            insertData.auto_topup_total_cycles = metadata.auto_topup_total_cycles as number;
+          }
+        }
+        
+        // Try to create expense plan with all fields
+        // If it fails due to missing columns, retry without optional columns
+        let { data: plan, error: planError } = await supabase
+          .from('expense_plans')
+          .insert(insertData)
+          .select()
+          .single();
+
+        // If error is about missing column, retry without optional columns
+        if (planError && (planError.code === 'PGRST204' || planError.message?.includes('column'))) {
+          console.warn('Column not found, retrying without optional columns:', planError.message);
+          
+          // Remove potentially missing columns and retry
+          const fallbackData: any = {
+            user_id: session.user.id,
+            name: planData.name,
+            total_budget: planData.total_budget,
+            budget_structure: planData.budget_structure || 'fixed',
+            start_date: planData.start_date,
+            end_date: planData.end_date,
+            status: 'active',
+            metadata: metadata, // All optional data stored in metadata
+          };
+          
+          // Only add fields that definitely exist in base schema
+          const retryResult = await supabase
+            .from('expense_plans')
+            .insert(fallbackData)
+            .select()
+            .single();
+            
+          plan = retryResult.data;
+          planError = retryResult.error;
+        }
 
         if (planError) throw planError;
         if (!plan) throw new Error('Failed to create plan');
