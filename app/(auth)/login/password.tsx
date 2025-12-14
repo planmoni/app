@@ -62,8 +62,20 @@ export default function LoginPasswordScreen() {
         router.replace('/(tabs)');
       } else {
         haptics.notification(Haptics.NotificationFeedbackType.Error);
-        setError(result.error || 'Failed to sign in');
-        showToast(result.error || 'Failed to sign in', 'error');
+        const errorMessage = result.error || 'Failed to sign in';
+        
+        // Check if this is the single-device login error - show only as toast
+        const isSingleDeviceError = errorMessage.includes('already logged in');
+        
+        if (isSingleDeviceError) {
+          // Only show toast for single-device error, don't show inline
+          showToast(errorMessage, 'error');
+        } else {
+          // Show both inline and toast for other errors
+          setError(errorMessage);
+          showToast(errorMessage, 'error');
+        }
+        
         setSubmitting(false);
       }
     } catch (error) {

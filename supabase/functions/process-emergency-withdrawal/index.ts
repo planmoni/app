@@ -68,7 +68,63 @@ serve(async (req: Request) => {
       )
     }
 
-    // Get the emergency withdrawal record
+    // SECURITY: First, check if this withdrawal has already been processed (completed/failed)
+    // This prevents duplicate processing even if someone tries with different accounts
+    const { data: existingCheck, error: existingError } = await supabase
+      .from("emergency_withdrawals")
+      .select("id, status, user_id, payout_plan_id, transferred_at")
+      .eq("id", emergencyWithdrawalId)
+      .single()
+
+    if (existingError || !existingCheck) {
+      return new Response(
+        JSON.stringify({ error: "Emergency withdrawal not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // SECURITY: Verify the withdrawal belongs to the authenticated user
+    if (existingCheck.user_id !== userId) {
+      console.error(`🚨 SECURITY ALERT: User ${userId} attempted to access withdrawal ${emergencyWithdrawalId} belonging to user ${existingCheck.user_id}`)
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: This withdrawal does not belong to you" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // SECURITY: Check if withdrawal has already been processed
+    if (existingCheck.status === "completed" || existingCheck.status === "failed" || existingCheck.status === "processing") {
+      console.error(`🚨 SECURITY ALERT: Attempted duplicate processing of withdrawal ${emergencyWithdrawalId} with status ${existingCheck.status}`)
+      return new Response(
+        JSON.stringify({ 
+          error: "This withdrawal has already been processed",
+          status: existingCheck.status,
+          transferred_at: existingCheck.transferred_at
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // SECURITY: Check if there's already a completed emergency withdrawal for this payout plan
+    const { data: existingWithdrawal, error: planCheckError } = await supabase
+      .from("emergency_withdrawals")
+      .select("id, status")
+      .eq("payout_plan_id", existingCheck.payout_plan_id)
+      .eq("status", "completed")
+      .limit(1)
+      .maybeSingle()
+
+    if (existingWithdrawal && existingWithdrawal.id !== emergencyWithdrawalId) {
+      console.error(`🚨 SECURITY ALERT: Attempted multiple emergency withdrawals for plan ${existingCheck.payout_plan_id}. Existing completed withdrawal: ${existingWithdrawal.id}`)
+      return new Response(
+        JSON.stringify({ 
+          error: "An emergency withdrawal for this payout plan has already been completed. Only one emergency withdrawal is allowed per plan."
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // Get the emergency withdrawal record with full details
     // Allow both "pending" (new withdrawals) and "scheduled" (ready to process) statuses
     const { data: withdrawal, error: withdrawalError } = await supabase
       .from("emergency_withdrawals")
@@ -122,17 +178,31 @@ serve(async (req: Request) => {
       new Date(withdrawal.scheduled_processing_time) <= new Date()
 
     // If withdrawal is scheduled and ready, update status to processing before proceeding
+    // SECURITY: Use atomic update with status check to prevent race conditions
     if (isScheduledAndReady) {
       const scheduledTime = withdrawal.scheduled_processing_time ? new Date(withdrawal.scheduled_processing_time) : null
       
-      // Update status to processing before proceeding
-      await supabase
+      // SECURITY: Atomic update - only update if status is still "scheduled" (prevents race conditions)
+      const { data: updateResult, error: updateStatusError } = await supabase
         .from("emergency_withdrawals")
         .update({ 
           status: "processing",
           processed_at: new Date().toISOString()
         })
         .eq("id", emergencyWithdrawalId)
+        .eq("status", "scheduled") // Only update if still scheduled (atomic check)
+        .select()
+        .single()
+      
+      if (updateStatusError || !updateResult) {
+        console.error(`🚨 SECURITY ALERT: Failed to atomically update withdrawal ${emergencyWithdrawalId} - may have been processed by another request`)
+        return new Response(
+          JSON.stringify({ 
+            error: "This withdrawal is already being processed or has been processed by another request"
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
       
       console.log(`Processing scheduled withdrawal ${emergencyWithdrawalId} that was scheduled for ${scheduledTime?.toISOString()}`)
     } else if (withdrawal.status === "scheduled") {
@@ -173,13 +243,31 @@ serve(async (req: Request) => {
     console.log(`Current time: ${now.toISOString()}`)
     console.log(`Time elapsed: ${timeElapsedHours.toFixed(2)} hours (${timeElapsedDays.toFixed(2)} days)`)
 
+    // SECURITY: Prevent emergency withdrawals on the same day the plan was created
+    // This prevents users from creating a plan and immediately withdrawing all funds
+    if (timeElapsedHours < 24) {
+      const hoursRemaining = (24 - timeElapsedHours).toFixed(1)
+      console.error(`🚨 SECURITY ALERT: User ${userId} attempted emergency withdrawal ${emergencyWithdrawalId} on the same day plan was created. Time elapsed: ${timeElapsedHours.toFixed(2)} hours`)
+      return new Response(
+        JSON.stringify({ 
+          error: "Emergency withdrawals are not allowed on the same day a payout plan was created. Please wait at least 24 hours after plan creation.",
+          time_elapsed_hours: timeElapsedHours.toFixed(2),
+          hours_remaining: hoursRemaining,
+          earliest_withdrawal_time: new Date(planCreatedAt.getTime() + 24 * 60 * 60 * 1000).toISOString()
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
     // Determine the correct withdrawal type based on time elapsed
+    // NOTE: At this point, we know timeElapsedHours >= 24 (enforced by security check above)
     // For scheduled withdrawals that are ready to process, use the existing withdrawal_type
     let correctWithdrawalType = ""
     let feePercentage = 0
 
     if (isScheduledAndReady) {
       // For scheduled withdrawals being processed, use the existing withdrawal_type and fee_amount
+      // SECURITY: Even scheduled withdrawals must wait 24 hours (already checked above)
       correctWithdrawalType = withdrawal.withdrawal_type || "instant"
       // Use existing fee_amount if available, otherwise calculate
       if (withdrawal.fee_amount && withdrawal.fee_amount > 0) {
@@ -197,11 +285,7 @@ serve(async (req: Request) => {
         }
       }
       console.log(`Using existing withdrawal type ${correctWithdrawalType} and fee ${feePercentage}% for scheduled withdrawal`)
-    } else if (timeElapsedHours < 24) {
-      // Less than 24 hours - only instant withdrawal allowed
-      correctWithdrawalType = "instant"
-      feePercentage = 12.00
-    } else if (timeElapsedHours < 72) {
+    } else if (timeElapsedHours >= 24 && timeElapsedHours < 72) {
       // Between 24-72 hours - 24hrs or instant withdrawal allowed
       if (withdrawal.withdrawal_type === "instant") {
         correctWithdrawalType = "instant"
@@ -324,26 +408,89 @@ serve(async (req: Request) => {
     }
 
     // Update withdrawal status and scheduled time
-    const { error: updateError } = await supabase
-      .from("emergency_withdrawals")
-      .update({ 
-        status: status,
-        processed_at: status === "processing" ? new Date().toISOString() : null,
-        scheduled_processing_time: scheduledProcessingTime.toISOString()
-      })
-      .eq("id", emergencyWithdrawalId)
+    // SECURITY: For instant withdrawals, use atomic update to prevent race conditions
+    if (shouldProcessNow && !isScheduledAndReady) {
+      // For instant withdrawals, atomically update from "pending" to "processing"
+      const { data: atomicUpdate, error: atomicError } = await supabase
+        .from("emergency_withdrawals")
+        .update({ 
+          status: "processing",
+          processed_at: new Date().toISOString(),
+          scheduled_processing_time: scheduledProcessingTime.toISOString()
+        })
+        .eq("id", emergencyWithdrawalId)
+        .eq("status", "pending") // Only update if still pending (atomic check)
+        .select()
+        .single()
 
-    if (updateError) {
-      console.error("Error updating withdrawal status:", updateError)
-      return new Response(
-        JSON.stringify({ error: "Failed to update withdrawal status" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
+      if (atomicError || !atomicUpdate) {
+        console.error(`🚨 SECURITY ALERT: Failed to atomically update instant withdrawal ${emergencyWithdrawalId} - may have been processed by another request`)
+        return new Response(
+          JSON.stringify({ 
+            error: "This withdrawal is already being processed or has been processed by another request"
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
+    } else {
+      // For scheduled withdrawals, regular update is fine
+      const { error: updateError } = await supabase
+        .from("emergency_withdrawals")
+        .update({ 
+          status: status,
+          processed_at: status === "processing" ? new Date().toISOString() : null,
+          scheduled_processing_time: scheduledProcessingTime.toISOString()
+        })
+        .eq("id", emergencyWithdrawalId)
+
+      if (updateError) {
+        console.error("Error updating withdrawal status:", updateError)
+        return new Response(
+          JSON.stringify({ error: "Failed to update withdrawal status" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
     }
 
     // Process immediately for instant withdrawals or scheduled withdrawals that are ready
     if (shouldProcessNow) {
       try {
+        // SECURITY: Log the withdrawal attempt for monitoring
+        console.log(`🔐 Processing emergency withdrawal ${emergencyWithdrawalId} for user ${userId}, plan ${withdrawal.payout_plan_id}, amount: ₦${netAmount.toLocaleString()}`)
+
+        // SECURITY: Verify wallet has sufficient locked balance before processing
+        // For emergency withdrawals, funds should be in locked_balance (from the payout plan)
+        // For scheduled withdrawals, funds were already debited when scheduling
+        const { data: wallet, error: walletError } = await supabase
+          .from("wallets")
+          .select("balance, locked_balance")
+          .eq("user_id", userId)
+          .single()
+
+        if (walletError || !wallet) {
+          throw new Error("Wallet not found")
+        }
+
+        if (isScheduledAndReady) {
+          // For scheduled withdrawals, funds were already debited when scheduling
+          // Just verify wallet exists and has some balance (the debit already happened)
+          const currentBalance = Number(wallet.balance || 0) + Number(wallet.locked_balance || 0)
+          if (currentBalance < 0) {
+            console.error(`🚨 SECURITY ALERT: Negative balance detected for scheduled withdrawal ${emergencyWithdrawalId}. User ${userId} has ₦${currentBalance.toLocaleString()}`)
+            throw new Error(`Invalid wallet state. Balance: ₦${currentBalance.toLocaleString()}`)
+          }
+          console.log(`✅ Scheduled withdrawal ${emergencyWithdrawalId} - funds were already debited when scheduling`)
+        } else {
+          // For instant withdrawals, verify locked_balance has sufficient funds
+          // Emergency withdrawal withdraws from locked_balance (payout plan funds)
+          const lockedBalance = Number(wallet.locked_balance || 0)
+          if (lockedBalance < withdrawal.withdrawal_amount) {
+            console.error(`🚨 SECURITY ALERT: Insufficient locked balance for withdrawal ${emergencyWithdrawalId}. User ${userId} has ₦${lockedBalance.toLocaleString()} locked, requested ₦${withdrawal.withdrawal_amount.toLocaleString()}`)
+            throw new Error(`Insufficient locked balance. Locked: ₦${lockedBalance.toLocaleString()}, Required: ₦${withdrawal.withdrawal_amount.toLocaleString()}. The payout plan may have been modified or funds may have been withdrawn.`)
+          }
+          console.log(`✅ Verified locked balance: ₦${lockedBalance.toLocaleString()} >= ₦${withdrawal.withdrawal_amount.toLocaleString()}`)
+        }
+
         // Validate SafeHaven credentials
         if (!safeHavenClientId || !safeHavenClientAssertion) {
           throw new Error("SafeHaven credentials not configured")
@@ -447,7 +594,26 @@ serve(async (req: Request) => {
 
         const transferMetadata = buildTransferMetadata(transferResult);
 
-        // Update withdrawal status to completed
+        // SECURITY: Re-verify withdrawal hasn't been tampered with before marking as completed
+        const { data: finalCheck, error: finalCheckError } = await supabase
+          .from("emergency_withdrawals")
+          .select("id, status, withdrawal_amount, user_id")
+          .eq("id", emergencyWithdrawalId)
+          .eq("status", "processing") // Only update if still processing
+          .single()
+
+        if (finalCheckError || !finalCheck || finalCheck.user_id !== userId) {
+          console.error(`🚨 SECURITY ALERT: Withdrawal ${emergencyWithdrawalId} was modified or already completed during processing`)
+          throw new Error("Withdrawal was modified during processing. Transfer initiated but withdrawal record is invalid.")
+        }
+
+        // SECURITY: Verify withdrawal amount matches
+        if (finalCheck.withdrawal_amount !== withdrawal.withdrawal_amount) {
+          console.error(`🚨 SECURITY ALERT: Withdrawal amount mismatch for ${emergencyWithdrawalId}. Original: ₦${withdrawal.withdrawal_amount}, Current: ₦${finalCheck.withdrawal_amount}`)
+          throw new Error("Withdrawal amount was modified during processing")
+        }
+
+        // Update withdrawal status to completed (atomic update)
         const { error: completeError } = await supabase
           .from("emergency_withdrawals")
           .update({ 
@@ -456,10 +622,13 @@ serve(async (req: Request) => {
             transferred_at: new Date().toISOString(),
             metadata: {
               transfer_success: true,
+              processed_by_user: userId,
+              processed_at: new Date().toISOString(),
               ...transferMetadata
             }
           })
           .eq("id", emergencyWithdrawalId)
+          .eq("status", "processing") // Only update if still processing (atomic)
 
         if (completeError) {
           console.error("Error updating withdrawal to completed:", completeError)
@@ -522,6 +691,9 @@ serve(async (req: Request) => {
       } else {
         console.log(`Successfully updated plan ${withdrawal.payout_plan_id} status to cancelled`)
       }
+
+      // SECURITY: Log successful withdrawal for audit trail
+      console.log(`✅ Successfully processed emergency withdrawal ${emergencyWithdrawalId} for user ${userId}. Amount: ₦${netAmount.toLocaleString()}, Fee: ₦${feeAmount.toLocaleString()}, Transfer: ${transferResult.reference || transferResult.paymentReference}`)
 
       // Create success notification
       await supabase
@@ -1121,7 +1293,7 @@ async function initiatePaystackEmergencyTransfer(
       source: "balance",
       amount: Math.round(netAmount * 100),
       recipient: recipientCode,
-      reason: `Emergency withdrawal: ${withdrawal.payout_plans?.name || "Plan"}`,
+      reason: `Emergency withdrawal: ${planName}`,
       reference: withdrawal.reference
     })
   });

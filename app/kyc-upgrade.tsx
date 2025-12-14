@@ -1893,53 +1893,16 @@ export default function KYCUpgradeScreen() {
         // Don't throw error - proceed with verification using identity data
       }
 
-      // Extract names from account name
-      const names = accountName ? accountName.split(' ') : [];
-      const ninFirstName = names[0] || '';
-      const ninLastName = names[names.length - 1] || '';
-      const ninMiddleName = names.length > 2 ? names.slice(1, -1).join(' ') : '';
-      
-      // Get names from user's saved data
-      const userFirstName = firstName || '';
-      const userLastName = lastName || '';
-      const userMiddleName = middleName || '';
-      
-      // TODO: Name mismatch check temporarily commented out
-      // console.log('NIN name comparison:', {
-      //   nin: { firstName: ninFirstName, lastName: ninLastName, middleName: ninMiddleName },
-      //   user: { firstName: userFirstName, lastName: userLastName, middleName: userMiddleName }
-      // });
-      
-      // // Check if any name matches (considering possible swaps)
-      // const allNinNames = [ninFirstName, ninLastName, ninMiddleName].filter(Boolean);
-      // const allUserNames = [userFirstName, userLastName, userMiddleName].filter(Boolean);
-      
-      // let nameMatches = 0;
-      // let totalNames = Math.max(allNinNames.length, allUserNames.length);
-      
-      // // Check for matches (including swapped positions)
-      // for (const ninName of allNinNames) {
-      //   for (const userName of allUserNames) {
-      //     if (isNameMatch(ninName, userName)) {
-      //       nameMatches++;
-      //       break;
-      //     }
-      //   }
-      // }
-      
-      // const matchPercentage = totalNames > 0 ? (nameMatches / totalNames) * 100 : 0;
-      // console.log(`NIN name match percentage: ${matchPercentage}% (${nameMatches}/${totalNames})`);
-      
-      // // Consider it a match if at least 60% of names match
-      // if (matchPercentage >= 60) {
-      
-      // Proceed with verification without name matching check
-      setDocumentsVerified(true);
-      
-      // Create a display name from NIN data
-      const displayName = [ninFirstName, ninMiddleName, ninLastName]
+      // SECURITY: Do NOT extract names from accountName as it may contain incorrect data
+      // Account names from SafeHaven may include bank names (e.g., "PLANMONI") or other metadata
+      // Names should only come from user input in the KYC form, not from account creation
+      // Use user's saved names from the form instead
+      const displayName = [firstName, middleName, lastName]
         .filter(Boolean)
-        .join(' ');
+        .join(' ') || accountName || 'Verified Account';
+      
+      // Proceed with verification
+      setDocumentsVerified(true);
 
       // Account is already stored by the service, no need to store again
 
@@ -2191,21 +2154,18 @@ export default function KYCUpgradeScreen() {
 
       // Extract account information
       const accountNumber = verificationData.account_number;
-      const accountName = verificationData.account_name || `${verificationData.first_name} ${verificationData.last_name}`.trim();
+      const accountName = verificationData.account_name || 'BVN Account';
       
-      // Extract names from account name
-      const names = accountName ? accountName.split(' ') : [];
-      const bvnFirstName = names[0] || '';
-      const bvnLastName = names[names.length - 1] || '';
-      const bvnMiddleName = names.length > 2 ? names.slice(1, -1).join(' ') : '';
+      // SECURITY: Do NOT extract names from accountName as it may contain incorrect data
+      // Account names from SafeHaven may include bank names (e.g., "PLANMONI") or other metadata
+      // Names should only come from user input in the KYC form, not from account creation
+      // Use user's saved names from the form instead
+      const displayName = [firstName, middleName, lastName]
+        .filter(Boolean)
+        .join(' ') || accountName || 'Verified Account';
       
       // Proceed with verification
       setDocumentsVerified(true);
-      
-      // Create a display name from BVN data
-      const displayName = [bvnFirstName, bvnMiddleName, bvnLastName]
-        .filter(Boolean)
-        .join(' ');
 
       // Show success message
       if (accountNumber) {

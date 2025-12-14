@@ -1110,12 +1110,15 @@ class SafeHavenService {
       }
 
       // Extract names if available
-      if (accountName) {
-        const names = accountName.split(' ');
-        verificationData.first_name = names[0] || '';
-        verificationData.last_name = names[names.length - 1] || '';
-        verificationData.middle_name = names.length > 2 ? names.slice(1, -1).join(' ') : '';
-      }
+      // SECURITY: Do NOT extract names from accountName as it may contain incorrect data
+      // Account names from SafeHaven may include bank names or other metadata
+      // Names should only be saved from user input in the KYC form, not from account creation
+      // if (accountName) {
+      //   const names = accountName.split(' ');
+      //   verificationData.first_name = names[0] || '';
+      //   verificationData.last_name = names[names.length - 1] || '';
+      //   verificationData.middle_name = names.length > 2 ? names.slice(1, -1).join(' ') : '';
+      // }
 
       // Update KYC audit log with success
       if (kycAuditLogId?.data) {
@@ -1634,11 +1637,16 @@ class SafeHavenService {
       }
 
       // Extract names if available
+      // SECURITY: Do NOT extract names from accountName as it may contain incorrect data
+      // Account names from SafeHaven may include bank names or other metadata
+      // Names should only be saved from user input in the KYC form, not from account creation
+      // if (accountName) {
+      //   const names = accountName.split(' ');
+      //   verificationData.first_name = names[0] || '';
+      //   verificationData.last_name = names[names.length - 1] || '';
+      //   verificationData.middle_name = names.length > 2 ? names.slice(1, -1).join(' ') : '';
+      // }
       if (accountName) {
-        const names = accountName.split(' ');
-        verificationData.first_name = names[0] || '';
-        verificationData.last_name = names[names.length - 1] || '';
-        verificationData.middle_name = names.length > 2 ? names.slice(1, -1).join(' ') : '';
         verificationData.account_name = accountName;
       }
 

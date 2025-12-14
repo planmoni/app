@@ -172,6 +172,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Enhanced signIn function that sends login notification and tracks login sessions
   const signIn = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
+      // First, sign in to get the session and userId
       const result = await supabaseSignIn(email, password);
 
       if (result.success) {
@@ -180,10 +181,52 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { data: { session: currentSession } } = await supabase.auth.getSession();
 
         if (currentSession?.user?.id) {
+          // Generate device fingerprint for this login attempt
+          const { DeviceInfoService } = await import('@/lib/device-info');
+          const { ActiveSessionService } = await import('@/lib/active-session-service');
+          
+          const deviceFingerprint = await DeviceInfoService.generateDeviceFingerprint();
+          
+          // Check if user has an active session on another device
+          const sessionCheck = await ActiveSessionService.checkActiveSession(
+            currentSession.user.id,
+            deviceFingerprint
+          );
+
+          // If there's an active session on a different device, sign out and return error
+          if (sessionCheck.hasActiveSession && !sessionCheck.isSameDevice) {
+            console.log('⚠️ Active session found on different device, signing out...');
+            
+            // Sign out the current session
+            await supabaseSignOut();
+            
+            // Get device info for error message
+            const deviceInfo = sessionCheck.activeSessionInfo?.deviceInfo;
+            const deviceDescription = deviceInfo
+              ? `${deviceInfo.device_manufacturer} ${deviceInfo.device_model} (${deviceInfo.os_name})`
+              : 'another device';
+            
+            return {
+              success: false,
+              error: `You are already logged in on ${deviceDescription}. Please log out from that device first.`,
+            };
+          }
+
           // Track login session with device and location info
+          // This will create the session record with device fingerprint
           try {
-            const { DeviceInfoService } = await import('@/lib/device-info');
-            await DeviceInfoService.createLoginSession(currentSession.user.id, currentSession.access_token);
+            const loginSession = await DeviceInfoService.createLoginSession(
+              currentSession.user.id,
+              currentSession.access_token
+            );
+            
+            // Activate this session (will deactivate others automatically)
+            if (loginSession?.id) {
+              await ActiveSessionService.activateSession(
+                loginSession.id,
+                currentSession.user.id
+              );
+            }
           } catch (error) {
             console.error('Failed to track login session:', error);
           }
@@ -239,25 +282,49 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Enhanced signOut function that clears profile snapshots
   // NOTE: PIN and biometric settings are NOT cleared on logout - they persist per user account
   const signOut = useCallback(async (): Promise<void> => {
-    try {
-      const userId = session?.user?.id;
-      
-      // Clear profile snapshots for current user
-      if (userId) {
-        await ProfileSnapshotManager.clearProfileSnapshot(userId);
+    const userId = session?.user?.id;
+    const sessionId = session?.access_token;
+    
+    // Deactivate the session before signing out (fail silently if it doesn't work)
+    if (sessionId && userId) {
+      try {
+        const { ActiveSessionService } = await import('@/lib/active-session-service');
+        await ActiveSessionService.deactivateSession(sessionId, userId);
+      } catch (error) {
+        // Silently fail - session might already be invalid
+        console.log('Note: Could not deactivate session (may already be invalid)');
       }
-      
-      // NOTE: We intentionally do NOT clear PIN/biometric settings on logout
-      // These are user-specific security preferences that should persist across sessions
-      // They are stored in user-scoped secure storage and will be available when the user logs back in
-      
-      // Sign out from Supabase
+    }
+    
+    // Clear profile snapshots for current user (fail silently)
+    if (userId) {
+      try {
+        await ProfileSnapshotManager.clearProfileSnapshot(userId);
+      } catch (error) {
+        // Silently fail - not critical
+        console.log('Note: Could not clear profile snapshot');
+      }
+    }
+    
+    // NOTE: We intentionally do NOT clear PIN/biometric settings on logout
+    // These are user-specific security preferences that should persist across sessions
+    // They are stored in user-scoped secure storage and will be available when the user logs back in
+    
+    // Sign out from Supabase (handle missing session gracefully)
+    try {
       await supabaseSignOut();
     } catch (error) {
-      console.error('Sign-out error:', error);
-      throw error;
+      // If session is already missing/invalid, that's fine - user is already logged out
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMessage.includes('session missing') || errorMessage.includes('AuthSessionMissingError')) {
+        console.log('Note: Session already invalid, user is effectively logged out');
+        // Don't throw - user is already logged out
+        return;
+      }
+      // For other errors, log but don't throw to avoid console error screens
+      console.warn('Sign-out warning:', errorMessage);
     }
-  }, [session?.user?.id, supabaseSignOut]);
+  }, [session?.user?.id, session?.access_token, supabaseSignOut]);
 
   const handleSessionExpiredModalClose = useCallback(() => {
     setShowSessionExpiredModal(false);

@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Clock, Zap, Check, TriangleAlert as AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEmergencyWithdrawal } from '@/hooks/useEmergencyWithdrawal';
-import { useEmergencyWithdrawalOptions } from '@/hooks/useEmergencyWithdrawalOptions';
+import { EmergencyWithdrawalOption, useEmergencyWithdrawalOptions } from '@/hooks/useEmergencyWithdrawalOptions';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -42,9 +42,16 @@ export default function EmergencyWithdrawalScreen() {
   }, [planId, payoutPlans]);
 
   // Calculate time elapsed and available options
-  const { timeElapsedHours, availableOptions, defaultOption } = useMemo(() => {
+  const { timeElapsedHours, availableOptions, defaultOption, isWithdrawalDisabled, hoursRemaining, earliestWithdrawalTime } = useMemo(() => {
     if (!plan || !withdrawalOptions.length) {
-      return { timeElapsedHours: 0, availableOptions: [], defaultOption: null };
+      return { 
+        timeElapsedHours: 0, 
+        availableOptions: [], 
+        defaultOption: null,
+        isWithdrawalDisabled: true,
+        hoursRemaining: 24,
+        earliestWithdrawalTime: null
+      };
     }
 
     const planCreatedAt = new Date(plan.created_at);
@@ -52,14 +59,21 @@ export default function EmergencyWithdrawalScreen() {
     const timeElapsedMs = now.getTime() - planCreatedAt.getTime();
     const timeElapsedHours = timeElapsedMs / (1000 * 60 * 60);
 
+    // SECURITY: Block all withdrawals if less than 24 hours have passed
+    const isWithdrawalDisabled = timeElapsedHours < 24;
+    const hoursRemaining = isWithdrawalDisabled ? (24 - timeElapsedHours) : 0;
+    const earliestWithdrawalTime = isWithdrawalDisabled 
+      ? new Date(planCreatedAt.getTime() + 24 * 60 * 60 * 1000)
+      : null;
+
     // Determine available options based on time elapsed
-    let availableOptions = [];
+    let availableOptions: any[] = [];
     let defaultOption = null;
 
-    if (timeElapsedHours < 24) {
-      // Less than 24 hours - only instant withdrawal allowed
-      availableOptions = withdrawalOptions.filter(option => option.type === 'instant');
-      defaultOption = 'instant';
+    if (isWithdrawalDisabled) {
+      // SECURITY: Less than 24 hours - NO withdrawals allowed
+      availableOptions = [];
+      defaultOption = null;
     } else if (timeElapsedHours < 72) {
       // Between 24-72 hours - instant and 24hrs allowed
       availableOptions = withdrawalOptions.filter(option => 
@@ -72,15 +86,25 @@ export default function EmergencyWithdrawalScreen() {
       defaultOption = '72hrs'; // Default to 72hrs for best fee
     }
 
-    return { timeElapsedHours, availableOptions, defaultOption };
+    return { 
+      timeElapsedHours, 
+      availableOptions, 
+      defaultOption,
+      isWithdrawalDisabled,
+      hoursRemaining,
+      earliestWithdrawalTime
+    };
   }, [plan, withdrawalOptions]);
 
   // Set default option when available options change
   useEffect(() => {
-    if (defaultOption && !selectedOption) {
+    if (isWithdrawalDisabled) {
+      // Clear selection if withdrawals are disabled
+      setSelectedOption(null);
+    } else if (defaultOption && !selectedOption) {
       setSelectedOption(defaultOption as 'instant' | '24hrs' | '72hrs');
     }
-  }, [defaultOption, selectedOption]);
+  }, [defaultOption, selectedOption, isWithdrawalDisabled]);
 
   useEffect(() => {
     checkBiometrics();
@@ -326,13 +350,45 @@ export default function EmergencyWithdrawalScreen() {
       
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
         
-        
+        {/* SECURITY: Show warning if withdrawals are disabled (less than 24 hours) */}
+        {isWithdrawalDisabled && (
+          <View style={styles.warningCard}>
+            <AlertTriangle size={24} color={isDark ? '#FCD34D' : '#9A3412'} />
+            <View style={styles.warningContent}>
+              <Text style={styles.warningTitle}>Emergency Withdrawals Not Available Yet</Text>
+              <Text style={styles.warningText}>
+                Emergency withdrawals are not allowed on the same day a payout plan was created. 
+                Please wait at least 24 hours after plan creation for security reasons.
+              </Text>
+              <View style={styles.waitTimeInfo}>
+                <Text style={styles.waitTimeLabel}>Time remaining:</Text>
+                <Text style={styles.waitTimeValue}>
+                  {hoursRemaining >= 1 
+                    ? `${Math.floor(hoursRemaining)} hours ${Math.round((hoursRemaining % 1) * 60)} minutes`
+                    : `${Math.round(hoursRemaining * 60)} minutes`
+                  }
+                </Text>
+              </View>
+              {earliestWithdrawalTime && (
+                <Text style={styles.earliestTimeText}>
+                  Earliest withdrawal time: {earliestWithdrawalTime.toLocaleString()}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
         
         <Text style={styles.sectionTitle}>Select Withdrawal Option</Text>
         
         {optionsLoading ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Loading withdrawal options...</Text>
+          </View>
+        ) : isWithdrawalDisabled ? (
+          <View style={styles.disabledContainer}>
+            <Text style={styles.disabledText}>
+              Withdrawal options will be available after 24 hours from plan creation.
+            </Text>
           </View>
         ) : (
           <View style={styles.optionsContainer}>
@@ -384,7 +440,7 @@ export default function EmergencyWithdrawalScreen() {
           </View>
         )}
         
-        {timeElapsedHours > 0 && (
+        {timeElapsedHours > 0 && !isWithdrawalDisabled && (
           <View style={styles.timeInfoCard}>
             <Text style={styles.timeInfoText}>
               Plan created {timeElapsedHours < 24 
@@ -395,17 +451,15 @@ export default function EmergencyWithdrawalScreen() {
               }
             </Text>
             <Text style={styles.timeInfoSubtext}>
-              {timeElapsedHours < 24 
-                ? "Only instant withdrawal is available for plans less than 24 hours old"
-                : timeElapsedHours < 72 
-                  ? "Instant and 24-hour withdrawals are available"
-                  : "All withdrawal options are available"
+              {timeElapsedHours < 72 
+                ? "Instant and 24-hour withdrawals are available"
+                : "All withdrawal options are available"
               }
             </Text>
           </View>
         )}
         
-        {selectedOption && (
+        {selectedOption && !isWithdrawalDisabled && (
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>Withdrawal Summary</Text>
             
@@ -429,10 +483,18 @@ export default function EmergencyWithdrawalScreen() {
       
       <View style={styles.footer}>
         <Button
-          title={isLoading ? "Processing..." : isBiometricAuthenticating ? "Authenticating..." : "Confirm Withdrawal"}
+          title={
+            isWithdrawalDisabled 
+              ? `Wait ${Math.floor(hoursRemaining)}h ${Math.round((hoursRemaining % 1) * 60)}m`
+              : isLoading 
+                ? "Processing..." 
+                : isBiometricAuthenticating 
+                  ? "Authenticating..." 
+                  : "Confirm Withdrawal"
+          }
           onPress={handleConfirm}
           style={styles.confirmButton}
-          disabled={!selectedOption || isLoading || isBiometricAuthenticating}
+          disabled={isWithdrawalDisabled || !selectedOption || isLoading || isBiometricAuthenticating}
           isLoading={isLoading || isBiometricAuthenticating}
           hapticType="medium"
         />
@@ -535,10 +597,58 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: isDark ? '#F97316' : '#F97316',
   },
-  warningText: {
+  warningContent: {
     flex: 1,
+  },
+  warningTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: isDark ? '#FCD34D' : '#9A3412',
+    marginBottom: 8,
+  },
+  warningText: {
     fontSize: 14,
     color: isDark ? '#FCD34D' : '#9A3412',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  waitTimeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: isDark ? 'rgba(249, 115, 22, 0.3)' : '#FFEDD5',
+  },
+  waitTimeLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: isDark ? '#FCD34D' : '#9A3412',
+  },
+  waitTimeValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: isDark ? '#FCD34D' : '#9A3412',
+  },
+  earliestTimeText: {
+    fontSize: 12,
+    color: isDark ? 'rgba(252, 211, 77, 0.8)' : '#92400E',
+    marginTop: 4,
+  },
+  disabledContainer: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 24,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  disabledText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
     lineHeight: 20,
   },
   planInfoCard: {
