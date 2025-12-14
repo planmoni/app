@@ -129,6 +129,39 @@ export class DeviceInfoService {
     return 'Unknown';
   }
 
+  /**
+   * Generate a unique device fingerprint based on device characteristics
+   * This is used to identify if a login attempt is from the same device
+   */
+  static async generateDeviceFingerprint(): Promise<string> {
+    try {
+      const deviceInfo = await this.getDeviceInfo();
+      
+      // Create fingerprint from device model, OS, OS version, and screen resolution
+      // This combination should uniquely identify a device
+      const fingerprintParts = [
+        deviceInfo.device_model,
+        deviceInfo.os_name,
+        deviceInfo.os_version,
+        deviceInfo.screen_resolution
+      ];
+      
+      // Join parts with a separator and create a hash-like string
+      // For better uniqueness, we can also include manufacturer
+      const fullFingerprint = [
+        deviceInfo.device_manufacturer,
+        ...fingerprintParts
+      ].join('|');
+      
+      // Return the fingerprint (could be hashed if needed, but plain text is fine for now)
+      return fullFingerprint;
+    } catch (error) {
+      console.error('Error generating device fingerprint:', error);
+      // Return a fallback fingerprint
+      return `Unknown|${Platform.OS}|Unknown|Unknown`;
+    }
+  }
+
   static async getLocationInfo(): Promise<LocationInfo> {
     const defaultLocationInfo: LocationInfo = {
       ip_address: 'Unknown',
@@ -195,6 +228,7 @@ export class DeviceInfoService {
     try {
       const deviceInfo = await this.getDeviceInfo();
       const locationInfo = await this.getLocationInfo();
+      const deviceFingerprint = await this.generateDeviceFingerprint();
 
       const { supabase } = await import('@/lib/supabase');
 
@@ -203,6 +237,8 @@ export class DeviceInfoService {
         .insert({
           user_id: userId,
           session_id: sessionId,
+          device_fingerprint: deviceFingerprint,
+          is_active: false, // Will be set to true after activation
           ...deviceInfo,
           ...locationInfo,
           login_timestamp: new Date().toISOString()

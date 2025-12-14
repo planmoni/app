@@ -414,9 +414,23 @@ export function useSupabaseAuth() {
       setIsLoading(true);
       setError(null);
 
+      const userId = session?.user?.id;
+      const sessionId = session?.access_token;
+
+      // Deactivate the session before signing out
+      if (sessionId && userId) {
+        try {
+          const { ActiveSessionService } = await import('@/lib/active-session-service');
+          await ActiveSessionService.deactivateSession(sessionId, userId);
+        } catch (error) {
+          console.error('Failed to deactivate session:', error);
+          // Continue with sign out even if deactivation fails
+        }
+      }
+
       // Clear profile snapshots before signing out
-      if (session?.user?.id) {
-        await ProfileSnapshotManager.clearProfileSnapshot(session.user.id);
+      if (userId) {
+        await ProfileSnapshotManager.clearProfileSnapshot(userId);
       }
 
       const { error } = await supabase.auth.signOut();
