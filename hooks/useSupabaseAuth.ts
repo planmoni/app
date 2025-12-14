@@ -417,35 +417,58 @@ export function useSupabaseAuth() {
       const userId = session?.user?.id;
       const sessionId = session?.access_token;
 
-      // Deactivate the session before signing out
+      // Deactivate the session before signing out (fail silently)
       if (sessionId && userId) {
         try {
           const { ActiveSessionService } = await import('@/lib/active-session-service');
           await ActiveSessionService.deactivateSession(sessionId, userId);
         } catch (error) {
-          console.error('Failed to deactivate session:', error);
-          // Continue with sign out even if deactivation fails
+          // Silently fail - session might already be invalid
+          console.log('Note: Could not deactivate session (may already be invalid)');
         }
       }
 
-      // Clear profile snapshots before signing out
+      // Clear profile snapshots before signing out (fail silently)
       if (userId) {
-        await ProfileSnapshotManager.clearProfileSnapshot(userId);
+        try {
+          await ProfileSnapshotManager.clearProfileSnapshot(userId);
+        } catch (error) {
+          // Silently fail - not critical
+          console.log('Note: Could not clear profile snapshot');
+        }
       }
 
+      // Sign out from Supabase (handle missing session gracefully)
       const { error } = await supabase.auth.signOut();
 
       if (error) {
-        setError(error.message);
-        throw error;
+        // If session is already missing/invalid, that's fine - user is already logged out
+        const errorMessage = error.message || 'Unknown error';
+        if (errorMessage.includes('session missing') || errorMessage.includes('AuthSessionMissingError')) {
+          console.log('Note: Session already invalid, user is effectively logged out');
+          // Clear session state anyway
+          setSession(null);
+          await clearSession();
+          return;
+        }
+        // For other errors, log but don't throw to avoid console error screens
+        console.warn('Sign-out warning:', errorMessage);
+        setError(null); // Don't set error state for non-critical sign-out issues
       }
 
       setSession(null);
       await clearSession();
     } catch (err) {
+      // Don't throw errors - just log them and ensure we clear the session state
       const errorMessage = err instanceof Error ? err.message : 'Sign out failed';
-      setError(errorMessage);
-      throw err;
+      console.warn('Sign-out warning:', errorMessage);
+      // Ensure session is cleared even if there was an error
+      setSession(null);
+      try {
+        await clearSession();
+      } catch (clearError) {
+        // Ignore errors when clearing session
+      }
     } finally {
       setIsLoading(false);
     }

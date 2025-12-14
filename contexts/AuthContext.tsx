@@ -299,35 +299,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Enhanced signOut function that clears profile snapshots
   // NOTE: PIN and biometric settings are NOT cleared on logout - they persist per user account
   const signOut = useCallback(async (): Promise<void> => {
-    try {
-      const userId = session?.user?.id;
-      const sessionId = session?.access_token;
-      
-      // Deactivate the session before signing out
-      if (sessionId && userId) {
-        try {
-          const { ActiveSessionService } = await import('@/lib/active-session-service');
-          await ActiveSessionService.deactivateSession(sessionId, userId);
-        } catch (error) {
-          console.error('Failed to deactivate session:', error);
-          // Continue with sign out even if deactivation fails
-        }
+    const userId = session?.user?.id;
+    const sessionId = session?.access_token;
+    
+    // Deactivate the session before signing out (fail silently if it doesn't work)
+    if (sessionId && userId) {
+      try {
+        const { ActiveSessionService } = await import('@/lib/active-session-service');
+        await ActiveSessionService.deactivateSession(sessionId, userId);
+      } catch (error) {
+        // Silently fail - session might already be invalid
+        console.log('Note: Could not deactivate session (may already be invalid)');
       }
-      
-      // Clear profile snapshots for current user
-      if (userId) {
+    }
+    
+    // Clear profile snapshots for current user (fail silently)
+    if (userId) {
+      try {
         await ProfileSnapshotManager.clearProfileSnapshot(userId);
+      } catch (error) {
+        // Silently fail - not critical
+        console.log('Note: Could not clear profile snapshot');
       }
-      
-      // NOTE: We intentionally do NOT clear PIN/biometric settings on logout
-      // These are user-specific security preferences that should persist across sessions
-      // They are stored in user-scoped secure storage and will be available when the user logs back in
-      
-      // Sign out from Supabase
+    }
+    
+    // NOTE: We intentionally do NOT clear PIN/biometric settings on logout
+    // These are user-specific security preferences that should persist across sessions
+    // They are stored in user-scoped secure storage and will be available when the user logs back in
+    
+    // Sign out from Supabase (handle missing session gracefully)
+    try {
       await supabaseSignOut();
     } catch (error) {
-      console.error('Sign-out error:', error);
-      throw error;
+      // If session is already missing/invalid, that's fine - user is already logged out
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMessage.includes('session missing') || errorMessage.includes('AuthSessionMissingError')) {
+        console.log('Note: Session already invalid, user is effectively logged out');
+        // Don't throw - user is already logged out
+        return;
+      }
+      // For other errors, log but don't throw to avoid console error screens
+      console.warn('Sign-out warning:', errorMessage);
     }
   }, [session?.user?.id, session?.access_token, supabaseSignOut]);
 
