@@ -137,40 +137,8 @@ export function useCreatePayout() {
         payoutMinute: payoutMinute
       };
 
-      // ➕ Insert payout plan into DB
-      const { data: payoutPlan, error: payoutError } = await supabase
-        .from("payout_plans")
-        .insert({
-          user_id: session.user.id,
-          name,
-          description: enhancedDescription,
-          total_amount: totalAmount,
-          payout_amount: payoutAmount,
-          frequency: dbFrequency, // Use the mapped frequency value
-          duration,
-          start_date: startDate,
-          bank_account_id: bankAccountId || null,
-          payout_account_id: payoutAccountId || null,
-          status: "active",
-          completed_payouts: 0,
-          emergency_withdrawal_enabled: emergencyWithdrawalEnabled,
-          next_payout_date:
-            dbFrequency === "custom" && customDates?.length
-              ? customDates[0]
-              : nextPayoutDateStr,
-          metadata: metadata, // Store additional frequency metadata
-        })
-        .select()
-        .single();
-
-      if (payoutError) {
-        console.error('Error creating payout plan:', payoutError);
-        throw payoutError;
-      }
-
-      console.log('Payout plan created:', payoutPlan.id);
-
-      // 🔒 Lock funds via RPC with unambiguous parameter names
+      // 🔒 SECURITY: Lock funds FIRST before creating plan to prevent race conditions
+      // This ensures only one device can successfully lock funds, preventing duplicate plans
       const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
         arg_user_id: session.user.id,
         arg_amount: totalAmount
@@ -179,11 +147,9 @@ export function useCreatePayout() {
       if (lockError) {
         console.error("Error locking funds:", lockError);
 
-        // Clean up payout plan on failure
-        await supabase.from("payout_plans").delete().eq("id", payoutPlan.id);
-
         // Check for specific constraint violation and provide user-friendly message
-        if (lockError.message?.includes("wallets_available_balance_check")) {
+        if (lockError.message?.includes("wallets_available_balance_check") || 
+            lockError.message?.includes("Insufficient available balance")) {
           throw new Error(
             "Insufficient available balance. Your wallet balance may have changed. Please refresh and try again."
           );
@@ -196,11 +162,9 @@ export function useCreatePayout() {
       if (lockResult && !lockResult.success) {
         console.error("Lock funds failed:", lockResult.error);
 
-        // Clean up payout plan on failure
-        await supabase.from("payout_plans").delete().eq("id", payoutPlan.id);
-
         // Check for specific constraint violation and provide user-friendly message
-        if (lockResult.error?.includes("wallets_available_balance_check")) {
+        if (lockResult.error?.includes("wallets_available_balance_check") ||
+            lockResult.error?.includes("Insufficient available balance")) {
           throw new Error(
             "Insufficient available balance. Your wallet balance may have changed. Please refresh and try again."
           );
@@ -209,7 +173,64 @@ export function useCreatePayout() {
         throw new Error(lockResult.error || "Failed to lock funds");
       }
 
-      console.log("Funds locked successfully.");
+      console.log("Funds locked successfully. Available balance after lock:", lockResult?.available_balance);
+
+      // ➕ SECURITY: Now create payout plan AFTER funds are locked
+      // If this fails, we'll unlock the funds in the catch block
+      let payoutPlan: any = null;
+      try {
+        const { data: planData, error: payoutError } = await supabase
+          .from("payout_plans")
+          .insert({
+            user_id: session.user.id,
+            name,
+            description: enhancedDescription,
+            total_amount: totalAmount,
+            payout_amount: payoutAmount,
+            frequency: dbFrequency, // Use the mapped frequency value
+            duration,
+            start_date: startDate,
+            bank_account_id: bankAccountId || null,
+            payout_account_id: payoutAccountId || null,
+            status: "active",
+            completed_payouts: 0,
+            emergency_withdrawal_enabled: emergencyWithdrawalEnabled,
+            next_payout_date:
+              dbFrequency === "custom" && customDates?.length
+                ? customDates[0]
+                : nextPayoutDateStr,
+            metadata: metadata, // Store additional frequency metadata
+          })
+          .select()
+          .single();
+
+        if (payoutError) {
+          console.error('Error creating payout plan:', payoutError);
+          
+          // SECURITY: Unlock funds if plan creation fails
+          await supabase.rpc('unlock_funds', {
+            arg_user_id: session.user.id,
+            arg_amount: totalAmount
+          }).catch((unlockErr: any) => {
+            console.error('Error unlocking funds after plan creation failure:', unlockErr);
+          });
+          
+          throw payoutError;
+        }
+
+        payoutPlan = planData;
+        console.log('Payout plan created:', payoutPlan.id);
+      } catch (planError) {
+        // SECURITY: Ensure funds are unlocked if plan creation fails
+        await supabase.rpc('unlock_funds', {
+          arg_user_id: session.user.id,
+          arg_amount: totalAmount
+        }).catch((unlockErr: any) => {
+          console.error('Error unlocking funds after plan creation failure:', unlockErr);
+        });
+        
+        throw planError;
+      }
 
       // 📆 Insert custom dates if needed
       if (dbFrequency === "custom" && customDates?.length) {

@@ -71,6 +71,12 @@ export default function ReviewScreen() {
   }, []);
 
   const handleConfirmPayout = useCallback(async () => {
+    // SECURITY: Prevent multiple simultaneous submissions
+    if (isLoading) {
+      console.warn('Payout creation already in progress, ignoring duplicate request');
+      return;
+    }
+
     try {
       console.log('Creating payout plan with the following parameters:');
       console.log('- Name:', `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`);
@@ -111,7 +117,7 @@ export default function ReviewScreen() {
         haptics.error();
       }
     }
-  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, emergencyWithdrawal, haptics, createPayout]);
+  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, emergencyWithdrawal, haptics, createPayout, isLoading]);
 
   const handleStartPlan = useCallback(async () => {
     if (hasInsufficientBalance) {
