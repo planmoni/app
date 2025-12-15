@@ -101,7 +101,7 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
       width: 56,
       height: 56,
       borderRadius: 12,
-      backgroundColor: colors.accentBackground,
+      backgroundColor: colors.card,
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: 8,

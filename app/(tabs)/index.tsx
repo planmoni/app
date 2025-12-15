@@ -1278,15 +1278,16 @@ export default function HomeScreen() {
             </Pressable>
           )}
           <View style={styles.greetingInlineContainer}>
-            <View style={styles.greetingInlineRow}>
-              <Text style={styles.greetingInline} numberOfLines={1} ellipsizeMode="tail">
-                {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
-              </Text>
-              <Text style={styles.subGreetingInline} numberOfLines={1} ellipsizeMode="tail">
-                It's time to plan your finances
-              </Text>
-            </View>
-            {!isAuthenticated && (
+            {isAuthenticated ? (
+              <View style={styles.greetingInlineRow}>
+                <Text style={styles.greetingInline} numberOfLines={1} ellipsizeMode="tail">
+                  {getGreeting()}, {firstName}.
+                </Text>
+                <Text style={styles.subGreetingInline} numberOfLines={1} ellipsizeMode="tail">
+                  It's time to plan your finances
+                </Text>
+              </View>
+            ) : (
               <Pressable 
                 onPress={() => router.push('/(auth)/login')} 
                 style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
@@ -1384,7 +1385,7 @@ export default function HomeScreen() {
             >
             {/* Home Tab - Full Balance Card with Buttons */}
             <ImageBackground 
-              source={require('@/assets/images/background.png')} 
+              // source={require('@/assets/images/background.png')} 
               style={styles.balanceCard}
               resizeMode="cover"
             >
@@ -1745,6 +1746,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     shadowOpacity: 0.09,
     shadowRadius: 9,
     paddingLeft: 16,
+    paddingTop: Platform.OS === 'ios' ? 0 : 10,
   },
   tabScrollView: {
     flex: 1,
@@ -1786,8 +1788,10 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   loginButton: {
     paddingHorizontal: 20,
+    width: '60%',
     paddingVertical: 10,
-    borderRadius: 20,
+    alignItems: 'center',
+    borderRadius: 14,
     borderWidth: 1.5,
     backgroundColor: 'transparent',
   },
@@ -2128,7 +2132,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   upNextBudgetAmount: {
     fontSize: getScaledFontSize(30, textSizeMultiplier),
     fontWeight: '700',
-    color: colors.primary,
+    color: colors.text,
   },
   upNextDaysBadge: {
     flexDirection: 'row',
@@ -2181,8 +2185,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   balanceCard: {
     borderRadius: 15,
-    borderWidth: 0.5,
-    backgroundColor: colors.accentBackground,
+    borderWidth: 1,
+    backgroundColor: colors.card,
     borderColor: colors.border,
     overflow: 'hidden',
     marginBottom: 10,
