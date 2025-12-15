@@ -156,9 +156,9 @@ export default function FundingSourceScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-          <Text style={styles.title}>How should this budget be funded?</Text>
+          <Text style={styles.title}>How should this plan be funded?</Text>
           <Text style={styles.subtitle}>
-            Budget is funded upfront. You can still set a light auto refresh or keep it manual. Extra top-ups become extra to spend without changing the budget.
+            Budget is funded upfront. Choose how you want to add funds to your plan. Extra top-ups become extra to spend without changing the budget.
           </Text>
 
           {/* Auto Fund */}
@@ -181,7 +181,7 @@ export default function FundingSourceScreen() {
               </View>
               <View style={styles.optionHeaderText}>
                 <Text style={styles.optionTitle}>Auto top-up</Text>
-                <Text style={styles.optionSubtitle}>Automatic top-up on your budget's cadence. Extra stays as spendable buffer.</Text>
+                <Text style={styles.optionSubtitle}>Automatically top-up your budget plan from your available balance little by little.</Text>
               </View>
               <View style={[
                 styles.radio,

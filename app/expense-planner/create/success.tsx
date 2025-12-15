@@ -85,7 +85,7 @@ export default function ExpensePlanSuccessScreen() {
       >
         <SuccessAnimation />
 
-        <Text style={styles.title}>Expense Plan Created!</Text>
+        <Text style={styles.title}>Budget Plan Created!</Text>
         <Text style={styles.subtitle}>Your budget plan has been set up successfully</Text>
 
         <View style={styles.summaryCard}>

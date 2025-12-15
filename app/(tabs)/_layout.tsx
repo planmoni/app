@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Bell, Calendar, Home as Home, ChartPie as PieChart, BarChart, Settings, Sparkles } from 'lucide-react-native'; //Do not change the Home to Chrome
+import { Bell, Calendar, Home as Home, PieChart, Settings, Sparkles } from 'lucide-react-native'; //Do not change the Home to Chrome
 // import CustomAppLayout from '@/components/CustomAppLayout'; //Do not change the Home to Chrome
 import { StyleSheet, View, Platform} from 'react-native';
 import { useTheme, ThemeContext } from '@/contexts/ThemeContext';
@@ -183,7 +183,7 @@ function TabLayoutContent() {
         name="insights"
         options={{
           title: 'Insights',
-          tabBarIcon: ({ color, size }) => <BarChart size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <PieChart size={size} color={color} />,
         }}
       />
       <Tabs.Screen

@@ -76,10 +76,13 @@ import OnTrackCard from '@/components/OnTrackCard';
 import QuickPlans from '@/components/QuickPlans';
 import DailySpendGuidance from '@/components/DailySpendGuidance';
 import { getCategoryIcon, getCategoryById } from '@/lib/expenseCategories';
+import { getBudgetDuration, isBudgetStarted } from '@/lib/expensePlanUtils';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 // import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
+import PlansTabContent from '@/components/PlansTabContent';
+import PayoutsTabContent from '@/components/PayoutsTabContent';
 
 interface Banner {
   id: string;
@@ -833,11 +836,22 @@ export default function HomeScreen() {
       .map(plan => {
         const endDate = new Date(plan.end_date!);
         endDate.setHours(0, 0, 0, 0);
-        const daysUntil = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        return { plan, daysUntil, endDate };
+        const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Calculate days until start date
+        let daysUntilStart: number | null = null;
+        if (plan.start_date) {
+          const startDate = new Date(plan.start_date);
+          startDate.setHours(0, 0, 0, 0);
+          daysUntilStart = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        const duration = getBudgetDuration(plan.start_date, plan.end_date);
+        const hasStarted = isBudgetStarted(plan.start_date);
+        return { plan, daysUntilEnd, daysUntilStart, endDate, duration, hasStarted };
       })
-      .filter(({ daysUntil }) => daysUntil >= 0)
-      .sort((a, b) => a.daysUntil - b.daysUntil);
+      .filter(({ daysUntilEnd }) => daysUntilEnd >= 0)
+      .sort((a, b) => a.daysUntilEnd - b.daysUntilEnd);
 
     return upcomingPlans.length > 0 ? upcomingPlans[0] : null;
   }, [expensePlans]);
@@ -1203,133 +1217,135 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView 
-        style={styles.scrollView} 
-        contentContainerStyle={styles.scrollContent}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
-        onScrollBeginDrag={() => updateLastActiveOnInteraction()}
-        onTouchStart={() => updateLastActiveOnInteraction()}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-          />
-        }
-      >
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            {isAuthenticated ? (
-              <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
-                <InitialsAvatar 
-                  firstName={firstName} 
-                  lastName={lastName} 
-                  size={48}
-                  fontSize={typeof textSizeMultiplier === 'number' && !isNaN(textSizeMultiplier) 
-                    ? getScaledFontSize(18, textSizeMultiplier) 
-                    : 18}
-                  kycTier={typeof currentTier === 'number' && !isNaN(currentTier) ? currentTier : 0}
-                  hasAccount={hasAccount}
-                  tier1Complete={checkTierCompletion().tier1}
-                />
-              </Pressable>
-            ) : (
-              <Pressable style={styles.avatarButton}>
-                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
-                  <MoreVertical size={34} color={'#fff'} />
-                </View>
+      {/* Sticky Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          {isAuthenticated ? (
+            <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
+              <InitialsAvatar 
+                firstName={firstName} 
+                lastName={lastName} 
+                size={48}
+                fontSize={typeof textSizeMultiplier === 'number' && !isNaN(textSizeMultiplier) 
+                  ? getScaledFontSize(18, textSizeMultiplier) 
+                  : 18}
+                kycTier={typeof currentTier === 'number' && !isNaN(currentTier) ? currentTier : 0}
+                hasAccount={hasAccount}
+                tier1Complete={checkTierCompletion().tier1}
+              />
+            </Pressable>
+          ) : (
+            <Pressable style={styles.avatarButton}>
+              <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
+                <MoreVertical size={34} color={'#fff'} />
+              </View>
+            </Pressable>
+          )}
+          <View style={styles.greetingInlineContainer}>
+            <View style={styles.greetingInlineRow}>
+              <Text style={styles.greetingInline} numberOfLines={1} ellipsizeMode="tail">
+                {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
+              </Text>
+              <Text style={styles.subGreetingInline} numberOfLines={1} ellipsizeMode="tail">
+                It's time to plan your finances
+              </Text>
+            </View>
+            {!isAuthenticated && (
+              <Pressable 
+                onPress={() => router.push('/(auth)/login')} 
+                style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
+              >
+                <Text style={[styles.loginButtonText, {color: isDark ? '#fff' : colors.primary }]}>Login</Text>
               </Pressable>
             )}
-            <View style={styles.greetingInlineContainer}>
-              <View style={styles.greetingInlineRow}>
-                <Text style={styles.greetingInline} numberOfLines={1} ellipsizeMode="tail">
-                  {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
-                </Text>
-                <Text style={styles.subGreetingInline} numberOfLines={1} ellipsizeMode="tail">
-                  It's time to plan your finances
-                </Text>
-              </View>
-              {!isAuthenticated && (
-                <Pressable 
-                  onPress={() => router.push('/(auth)/login')} 
-                  style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
-                >
-                  <Text style={[styles.loginButtonText, {color: isDark ? '#fff' : colors.primary }]}>Login</Text>
-                </Pressable>
+          </View>
+          <View style={styles.headerActions}>
+            <NotificationIcon />
+            <Pressable 
+              onPress={handleHelpPress} 
+              style={styles.helpButton}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <PlanmoniLoader size="small" />
+              ) : (
+                <HelpCircleIcon size={24} color={colors.text} />
               )}
-            </View>
-            <View style={styles.headerActions}>
-              <NotificationIcon />
-              <Pressable 
-                onPress={handleHelpPress} 
-                style={styles.helpButton}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <PlanmoniLoader size="small" />
-                ) : (
-                  <HelpCircleIcon size={24} color={colors.text} />
-                )}
-              </Pressable>
-            </View>
+            </Pressable>
           </View>
         </View>
+      </View>
 
-        {/* Balance Tabs */}
-        <View style={styles.tabsContainer}>
-          <Pressable
-            onPress={() => handleTabChange('home')}
-          >
-            <Text style={[
-              styles.tabText,
-              activeBalanceTab === 'home' && styles.activeTabText
-            ]}>
-              Home
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleTabChange('plans')}
-          >
-            <Text style={[
-              styles.tabText,
-              activeBalanceTab === 'plans' && styles.activeTabText
-            ]}>
-              Plans
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleTabChange('payouts')}
-          >
-            <Text style={[
-              styles.tabText,
-              activeBalanceTab === 'payouts' && styles.activeTabText
-            ]}>
-              Payouts
-            </Text>
-          </Pressable>
-        </View>
+      {/* Sticky Balance Tabs */}
+      <View style={styles.tabsContainer}>
+        <Pressable
+          onPress={() => handleTabChange('home')}
+        >
+          <Text style={[
+            styles.tabText,
+            activeBalanceTab === 'home' && styles.activeTabText
+          ]}>
+            Home
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => handleTabChange('plans')}
+        >
+          <Text style={[
+            styles.tabText,
+            activeBalanceTab === 'plans' && styles.activeTabText
+          ]}>
+            Plans
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => handleTabChange('payouts')}
+        >
+          <Text style={[
+            styles.tabText,
+            activeBalanceTab === 'payouts' && styles.activeTabText
+          ]}>
+            Payouts
+          </Text>
+        </Pressable>
+      </View>
 
-        {/* Swipeable Tab Content */}
-        <View style={styles.tabContentWrapper}>
-          <ScrollView
-            ref={tabScrollViewRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={handleScrollEnd}
-            scrollEventThrottle={16}
-            decelerationRate="fast"
-            snapToInterval={screenWidth}
-            snapToAlignment="start"
-            scrollEnabled={false}
-            style={[styles.tabContentScrollView, { width: screenWidth }]}
-            contentContainerStyle={{ width: screenWidth * 3 }}
-          >
+      {/* Swipeable Tab Content */}
+      <View style={styles.tabContentWrapper}>
+        <ScrollView
+          ref={tabScrollViewRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleScrollEnd}
+          scrollEventThrottle={16}
+          decelerationRate="fast"
+          snapToInterval={screenWidth}
+          snapToAlignment="start"
+          scrollEnabled={false}
+          style={[styles.tabContentScrollView, { width: screenWidth }]}
+          contentContainerStyle={{ width: screenWidth * 3 }}
+        >
           {/* Home Tab Content */}
           <View style={[styles.tabPage, { width: screenWidth }]}>
+            <ScrollView
+              style={styles.tabScrollView}
+              contentContainerStyle={styles.tabScrollContent}
+              showsVerticalScrollIndicator={false}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                { useNativeDriver: false }
+              )}
+              onScrollBeginDrag={() => updateLastActiveOnInteraction()}
+              onTouchStart={() => updateLastActiveOnInteraction()}
+              scrollEventThrottle={16}
+              refreshControl={
+                <RefreshControl
+                  refreshing={isRefreshing}
+                  onRefresh={handleRefresh}
+                />
+              }
+            >
             {/* Home Tab - Full Balance Card with Buttons */}
             <ImageBackground 
               source={require('@/assets/images/background.png')} 
@@ -1422,173 +1438,45 @@ export default function HomeScreen() {
               <ImageCarousel images={carouselImages} />
               
 
-              <View style={styles.bottomPadding} />
+                <View style={styles.bottomPadding} />
 
-              <RatingCard />
-            </>
+                <RatingCard />
+              </>
+            </ScrollView>
           </View>
 
           {/* Plans Tab Content */}
-          <View style={[styles.tabPage, { width: screenWidth }]}>
-            {/* Plans Tab - Available to Spend Balance Card */}
-            <Pressable
-              style={styles.availableToSpendCard}
-              onPress={() => {
-                impact();
-                router.push('/spend');
-              }}
-            >
-              <View style={styles.availableToSpendContent}>
-                <View style={styles.availableToSpendInfo}>
-                  <Text style={styles.availableToSpendLabel}>Available to spend</Text>
-                  <Text style={styles.availableToSpendAmount}>{formatBalance(expensePlansBalance)}</Text>
-                  <View style={styles.availableToSpendSubtext}>
-                    <Clock size={14} color={colors.textSecondary} />
-                    <Text style={styles.availableToSpendSubtextText}>
-                      {formatBalance(expensePlans.reduce((sum, plan) => sum + ((plan as any).current_balance || 0), 0))} Total in funded plans
-                    </Text>
-                  </View>
-                </View>
-                <ArrowRight size={20} color={colors.textSecondary} />
-              </View>
-            </Pressable>
-
-            {/* Up Next Section */}
-            {nextMaturingBudget && (
-              <>
-                <View style={styles.upNextSectionHeader}>
-                  <Text style={styles.upNextSectionTitle}>Up next</Text>
-                </View>
-                <Pressable
-                  style={styles.upNextCard}
-                  onPress={() => {
-                    impact();
-                    router.push(`/expense-planner/${nextMaturingBudget.plan.id}`);
-                  }}
-                >
-                  <View style={styles.upNextCardHeader}>
-                    <View style={styles.upNextHeaderContent}>
-                      <Text style={styles.upNextLabel}>Next maturing budget</Text>
-                      <Text style={styles.upNextPlanName} numberOfLines={1}>
-                        {nextMaturingBudget.plan.name}
-                      </Text>
-                      {getNextMaturingBudgetCategoryIcons.length > 0 && (
-                        <View style={styles.upNextCategoriesRow}>
-                          <View style={styles.upNextCategoryIconsContainer}>
-                            {getNextMaturingBudgetCategoryIcons.map(({ categoryId, Icon }, index) => (
-                              <View 
-                                key={categoryId} 
-                                style={[
-                                  styles.upNextCategoryIconBadge,
-                                  index > 0 && styles.upNextStackedIcon,
-                                  { zIndex: index + 1 }
-                                ]}
-                              >
-                                <Icon size={14} color={colors.primary} />
-                              </View>
-                            ))}
-                          </View>
-                          {getNextMaturingBudgetSubcategories.length > 0 && (
-                            <View style={styles.upNextSelectedCategoriesContainer}>
-                              {getNextMaturingBudgetSubcategories.slice(0, 2).map((sub, index) => (
-                                <Text key={`${sub.categoryId}-${sub.subcategoryId}`} style={styles.upNextSelectedCategoryText} numberOfLines={1}>
-                                  {sub.subcategoryName}{index < Math.min(getNextMaturingBudgetSubcategories.length, 2) - 1 ? ', ' : ''}
-                                </Text>
-                              ))}
-                              {getNextMaturingBudgetSubcategories.length > 2 && (
-                                <Text style={styles.upNextSelectedCategoryText}>
-                                  +{getNextMaturingBudgetSubcategories.length - 2} more
-                                </Text>
-                              )}
-                            </View>
-                          )}
-                        </View>
-                      )}
-                    </View>
-                    <ArrowRight size={20} color={colors.textSecondary} />
-                  </View>
-                  
-                  <View style={styles.upNextCardBody}>
-                    <View style={styles.upNextAmountRow}>
-                      <Text style={styles.upNextBudgetAmount}>
-                        {formatBalance(nextMaturingBudget.plan.total_budget)}
-                      </Text>
-                      <View style={styles.upNextDaysBadge}>
-                        <Clock size={12} color={colors.primary} />
-                        <Text style={styles.upNextDaysText}>
-                          {(() => {
-                            const daysText = nextMaturingBudget.daysUntil === 0 
-                              ? 'Today' 
-                              : nextMaturingBudget.daysUntil === 1 
-                              ? 'Tomorrow' 
-                              : `${nextMaturingBudget.daysUntil} days`;
-                            return daysText;
-                          })()}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.upNextDateRow}>
-                      <Text style={styles.upNextDate}>
-                        {(() => {
-                          const date = new Date(nextMaturingBudget.plan.end_date!);
-                          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                          return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-                        })()}
-                      </Text>
-                    </View>
-                  </View>
-                </Pressable>
-              </>
-            )}
-            
-            {/* Daily Spend Guidance */}
-            {/* <DailySpendGuidance /> */}
-            
-            {/* Expense Plans Section */}
-            <ExpensePlansSection />
-            <View style={styles.bottomPadding} />
-          </View>
+          <PlansTabContent
+            screenWidth={screenWidth}
+            styles={styles}
+            colors={colors}
+            impact={impact}
+            router={router}
+            formatBalance={formatBalance}
+            expensePlansBalance={expensePlansBalance}
+            expensePlans={expensePlans}
+            nextMaturingBudget={nextMaturingBudget}
+            getNextMaturingBudgetCategoryIcons={getNextMaturingBudgetCategoryIcons}
+            isRefreshing={isRefreshing}
+            onRefresh={handleRefresh}
+          />
 
           {/* Payouts Tab Content */}
-          <View style={[styles.tabPage, { width: screenWidth }]}>
-            {/* Payouts Tab - Balance Card */}
-            <View style={styles.payoutsBalanceCard}>
-              <View style={styles.payoutsBalanceContent}>
-                <View style={styles.payoutsBalanceInfo}>
-                  <Text style={styles.payoutsBalanceLabel}>Payout plans balance</Text>
-                  <Text style={styles.payoutsBalanceAmount}>{formatBalance(lockedBalance)}</Text>
-                  <View style={styles.payoutsBalanceSubtext}>
-                    <Clock size={14} color={colors.textSecondary} />
-                    <Text style={styles.payoutsBalanceSubtextText}>
-                      {formatBalance(lockedBalance)} locked in payout plans
-                    </Text>
-                  </View>
-                </View>
-                {/* <Pressable
-                  style={styles.createPayoutButton}
-                  onPress={handleCreatePayout}
-                >
-                  <Plus size={18} color={colors.primary} />
-                  <Text style={styles.createPayoutButtonText}>New Plan</Text>
-                </Pressable> */}
-              </View>
-            </View>
-            
-            {/* Next Payout Section */}
-            <NextPayoutCard nextPayout={nextPayout} />
-
-            {/* Payout Plans Section */}
-            <PayoutPlansSection 
-              activePlans={activePlans} 
-              onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}
-              onShowHowItWorks={() => setShowHowItWorksModal(true)}
-            />
-            <View style={styles.bottomPadding} />
-          </View>
-          </ScrollView>
-        </View>
-
-      </ScrollView>
+          <PayoutsTabContent
+            screenWidth={screenWidth}
+            styles={styles}
+            colors={colors}
+            formatBalance={formatBalance}
+            lockedBalance={lockedBalance}
+            nextPayout={nextPayout}
+            activePlans={activePlans}
+            setShowNewPlanInfoModal={setShowNewPlanInfoModal}
+            setShowHowItWorksModal={setShowHowItWorksModal}
+            isRefreshing={isRefreshing}
+            onRefresh={handleRefresh}
+          />
+        </ScrollView>
+      </View>
 
       {/* Sticky Buttons - Only show on Home tab */}
       {activeBalanceTab === 'home' && (
@@ -1820,16 +1708,20 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     shadowOffset: { width: 1, height: 6},
     shadowOpacity: 0.09,
     shadowRadius: 9,
+    paddingLeft: 16,
   },
-  scrollView: {
+  tabScrollView: {
     flex: 1,
   },
-  scrollContent: {
-    padding: 16,
+  tabScrollContent: {
     paddingBottom: 80,
   },
   header: {
     marginBottom: Platform.OS === 'ios' ? 20 : 10,
+    backgroundColor: colors.backgroundSecondary,
+    paddingHorizontal: 5,
+    paddingTop: 0,
+    zIndex: 10,
   },
   headerTop: {
     flexDirection: 'row',
@@ -1925,7 +1817,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flexDirection: 'row',
     gap: 24,
     marginBottom: 16,
-    paddingHorizontal: 4,
+    paddingHorizontal: 20,
+    backgroundColor: colors.backgroundSecondary,
+    zIndex: 10,
   },
   tabText: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 16, textSizeMultiplier),
@@ -2098,7 +1992,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   upNextCardHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    // marginBottom: 16,
     gap: 12,
   },
   upNextIconContainer: {
@@ -2113,28 +2006,57 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   upNextHeaderContent: {
     flex: 1,
-    gap: 4,
+    gap: 6,
+  },
+  upNextLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 2,
   },
   upNextLabel: {
     fontSize: getScaledFontSize(13, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
     letterSpacing: 0.5,
+    flex: 1,
+  },
+  upNextReadyTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  upNextReadyTagReady: {
+    backgroundColor: colors.success + '15',
+    borderColor: colors.success + '40',
+  },
+  upNextReadyTagNotReady: {
+    backgroundColor: colors.warning + '15',
+    borderColor: colors.warning + '40',
+  },
+  upNextReadyTagText: {
+    fontSize: getScaledFontSize(11, textSizeMultiplier),
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  upNextReadyTagTextReady: {
+    color: colors.success || '#10B981',
+  },
+  upNextReadyTagTextNotReady: {
+    color: colors.warning || '#F59E0B',
   },
   upNextPlanName: {
     fontSize: getScaledFontSize(20, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
-  },
-  upNextCategoriesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 8,
+    marginBottom: -8,
   },
   upNextCategoryIconsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 4,
   },
   upNextCategoryIconBadge: {
     width: 28,
@@ -2161,13 +2083,11 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontWeight: '500',
   },
   upNextCardBody: {
-    gap: 8,
+    marginTop: 16,
+    gap: 5,
   },
   upNextAmountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
+    marginBottom: 4,
   },
   upNextBudgetAmount: {
     fontSize: getScaledFontSize(30, textSizeMultiplier),
@@ -2178,7 +2098,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.primary + '10',
+    width: '45%',
+    backgroundColor: colors.accentBackground,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,
@@ -2190,14 +2111,37 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontWeight: '600',
     color: colors.primary,
   },
-  upNextDateRow: {
+  upNextDate: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  upNextProgressContainer: {
+    gap: 8,
+  },
+  upNextProgressHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
   },
-  upNextDate: {
-    fontSize: getScaledFontSize(13, textSizeMultiplier),
+  upNextProgressLabel: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    fontWeight: '600',
     color: colors.textSecondary,
+  },
+  upNextProgressBarContainer: {
+    width: '100%',
+  },
+  upNextProgressBarBackground: {
+    height: 6,
+    backgroundColor: colors.border || colors.surface,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  upNextProgressBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 3,
   },
   balanceCard: {
     borderRadius: 15,
@@ -2802,16 +2746,17 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     elevation: 8,
   },
   tabContentWrapper: {
+    flex: 1,
     marginHorizontal: -16, // Extend beyond parent padding
-    height: '100%', // Take full available height
   },
   tabContentScrollView: {
+    flex: 1,
     // Width will be set inline
   },
   tabPage: {
+    flex: 1,
     paddingHorizontal: 16, // Add padding back to each page
     flexShrink: 0,
-    minHeight: '100%', // Ensure full height
   },
   bottomPadding: {
     height: 1,

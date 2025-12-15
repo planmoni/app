@@ -134,9 +134,9 @@ export default function TargetAmountScreen() {
           )}
 
           <View style={styles.section}>
-          <Text style={styles.sectionTitle}>What's your budget for this spend?</Text>
+          <Text style={styles.sectionTitle}>What's your total budget for this plan?</Text>
           <Text style={styles.sectionDescription}>
-            Enter how much you want to allow for this category or purchase.
+            Enter how much you want to allow for this plan.
           </Text>
             <View
               style={[

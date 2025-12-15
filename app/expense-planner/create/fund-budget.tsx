@@ -327,8 +327,6 @@ export default function FundBudgetScreen() {
             <BucketAllocationSummary
               totalAllocated={totalLocked}
               totalBudget={totalBudget}
-              budgetStructure={budgetStructure as 'fixed' | 'estimated'}
-              onSwitchToEstimated={handleSwitchToEstimated}
             />
           </View>
         </View>

@@ -92,9 +92,9 @@ export default function PlanNameScreen() {
           )}
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Name this spending plan</Text>
+            <Text style={styles.sectionTitle}>Name this budget plan</Text>
             <Text style={styles.sectionDescription}>
-              Give it a clear name so you can track and control spending by category.
+              Give it a clear name so you can track and control your budget.
             </Text>
             <TextInput
               ref={nameInputRef}

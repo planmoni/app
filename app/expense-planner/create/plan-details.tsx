@@ -965,7 +965,7 @@ export default function PlanDetailsScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Plan Details</Text>
+        <Text style={styles.headerTitle}>Budget Plan</Text>
         <Pressable
           onPress={async () => {
             haptics.selection();
@@ -983,7 +983,7 @@ export default function PlanDetailsScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-          <Text style={styles.title}>What are you planning for?</Text>
+          <Text style={styles.title}>What are you budgeting for?</Text>
 
           <View style={styles.searchWrapper}>
             <View style={styles.searchContainer}>
