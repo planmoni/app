@@ -42,7 +42,7 @@ export default function ExpensePlansSection() {
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Your spending plans</Text>
+        <Text style={styles.sectionTitle}>Your budget plans</Text>
         <Pressable onPress={handleViewAll} style={styles.viewAllButton}>
           <Text style={styles.viewAllText}>View All</Text>
         </Pressable>

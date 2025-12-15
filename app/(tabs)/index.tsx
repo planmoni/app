@@ -318,6 +318,8 @@ export default function HomeScreen() {
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRefreshTimeRef = useRef<number>(0);
   const [carouselImages, setCarouselImages] = useState<any[]>([]);
   const [imagesReady, setImagesReady] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -682,7 +684,7 @@ export default function HomeScreen() {
     });
   }, []);
 
-  // Fetch carousel images from Supabase
+  // Fetch carousel images from Supabase (non-blocking, lazy load images)
   const fetchCarouselImages = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -696,29 +698,31 @@ export default function HomeScreen() {
       }
 
       if (data && data.length > 0) {
-        // Pre-load all images to ensure they're available
-        const preloadedImages = await Promise.all(
-          data.map(async (banner: Banner) => {
-            try {
-              // Use React Native's Image.getSize to preload the image
-              await new Promise<void>((resolve, reject) => {
-                Image.getSize(
-                  banner.image_url,
-                  () => resolve(),
-                  (error) => reject(error)
-                );
-              });
-              return banner;
-            } catch (error) {
-              return banner; // Return banner even if image fails to load
-            }
-          })
-        );
-
-        setCarouselImages(preloadedImages);
+        // Set images immediately without blocking preload
+        // Images will load lazily when displayed in the carousel component
+        setCarouselImages(data);
         setImagesReady(true);
+
+        // Preload images in background (non-blocking, deferred)
+        // Use InteractionManager to defer until after interactions complete
+        InteractionManager.runAfterInteractions(() => {
+          data.forEach((banner: Banner) => {
+            // Preload images asynchronously without blocking the UI
+            // Use Image.getSize in a non-blocking way
+            Image.getSize(
+              banner.image_url,
+              () => {
+                // Image loaded successfully - no action needed
+              },
+              () => {
+                // Image failed to load - will load when displayed
+              }
+            );
+          });
+        });
       }
     } catch (error) {
+      // Silently fail - carousel is non-critical
     }
   }, []);
 
@@ -739,10 +743,31 @@ export default function HomeScreen() {
 
   // Handle pull-to-refresh - refresh all page data
   const handleRefresh = useCallback(async () => {
+    // Debounce: prevent multiple rapid refreshes (minimum 1 second between refreshes)
+    const now = Date.now();
+    if (now - lastRefreshTimeRef.current < 1000) {
+      return;
+    }
+    lastRefreshTimeRef.current = now;
+
+    // Clear any existing timeout
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
+
     setIsRefreshing(true);
+
+    // Set a timeout to ensure refresh state doesn't get stuck (max 10 seconds)
+    refreshTimeoutRef.current = setTimeout(() => {
+      setIsRefreshing(false);
+      refreshTimeoutRef.current = null;
+    }, 10000);
+
     try {
-      // Refresh all data in parallel for better performance
-      await Promise.all([
+      // Refresh critical data in parallel (excluding carousel images which are non-critical)
+      // Use Promise.allSettled to prevent one failure from blocking others
+      const results = await Promise.allSettled([
         // Refresh wallet balance
         refreshWallet(),
         // Refresh payout plans
@@ -751,18 +776,29 @@ export default function HomeScreen() {
         fetchTransactions(),
         // Refresh KYC progress
         loadProgress(),
-        // Refresh carousel images
-        fetchCarouselImages(),
       ]);
-      
+
+      // Log any failures but don't block the refresh
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const operationNames = ['wallet', 'payout plans', 'transactions', 'KYC progress'];
+          console.warn(`Refresh failed for ${operationNames[index]}:`, result.reason);
+        }
+      });
+
       // Add haptic feedback for successful refresh
       impact();
     } catch (error) {
       console.error('Error refreshing page data:', error);
     } finally {
+      // Clear timeout and reset refresh state
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
       setIsRefreshing(false);
     }
-  }, [refreshWallet, fetchPayoutPlans, fetchTransactions, loadProgress, impact, fetchCarouselImages]);
+  }, [refreshWallet, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
 
   const handleHelpPress = useCallback(async () => {
     try {
@@ -1418,8 +1454,8 @@ export default function HomeScreen() {
               <OnTrackCard payoutPlans={payoutPlans} />
               {isAuthenticated && progress && !(
                 progress.id_face_verified === true || 
-                progress.id_face_verified === 1 ||
-                progress.id_face_verified === 'true'
+                String(progress.id_face_verified) === '1' ||
+                String(progress.id_face_verified) === 'true'
               ) && <KYCCard />}
 
               {/* AI Suggestion Section - Only show for authenticated users */}
