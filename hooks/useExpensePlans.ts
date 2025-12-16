@@ -561,6 +561,34 @@ export function useExpensePlans() {
     }
   };
 
+  const transferPlanToWallet = async (planId: string, amount: number) => {
+    if (!session?.user?.id) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('transfer_plan_to_wallet', {
+        p_user_id: session.user.id,
+        p_plan_id: planId,
+        p_amount: amount,
+      });
+
+      if (error) throw error;
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to transfer funds');
+      }
+
+      // Refresh plans to get updated balances
+      await fetchExpensePlans();
+
+      return data;
+    } catch (err) {
+      console.error('Error transferring plan to wallet:', err);
+      throw err;
+    }
+  };
+
   const getExpenseBuckets = async (planId: string): Promise<ExpenseBucket[]> => {
     try {
       const { data, error: fetchError } = await supabase
@@ -901,6 +929,7 @@ export function useExpensePlans() {
     getExpenseBuckets,
     saveLastStep,
     addFundsToPlan,
+    transferPlanToWallet,
   };
 }
 
