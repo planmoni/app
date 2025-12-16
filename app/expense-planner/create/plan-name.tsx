@@ -66,7 +66,7 @@ export default function PlanNameScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Spending Plan Name</Text>
+        <Text style={styles.headerTitle}>Plan Name</Text>
         <Pressable
           onPress={async () => {
             if (Platform.OS !== 'web') {
@@ -92,14 +92,14 @@ export default function PlanNameScreen() {
           )}
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Name this budget plan</Text>
+            <Text style={styles.sectionTitle}>Let's give your plan a name</Text>
             <Text style={styles.sectionDescription}>
               Give it a clear name so you can track and control your budget.
             </Text>
             <TextInput
               ref={nameInputRef}
               style={styles.textInput}
-              placeholder="e.g., Vacation Fund, New Phone"
+              placeholder="e.g., Dubai Holiday, Shopping spree, etc."
               placeholderTextColor={colors.textTertiary}
               value={planName}
               onChangeText={(text) => {

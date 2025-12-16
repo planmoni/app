@@ -43,7 +43,7 @@ serve(async (req) => {
     // Get user's wallet
     const { data: wallet, error: walletError } = await supabase
       .from('wallets')
-      .select('balance')
+      .select('available_balance, balance')
       .eq('user_id', user_id)
       .single();
 
@@ -54,15 +54,15 @@ serve(async (req) => {
       );
     }
 
-    const currentBalance = wallet.balance as number;
+    const availableBalance = (wallet as any).available_balance || 0;
 
-    // Check if user has sufficient balance
-    if (currentBalance < amount) {
+    // Check if user has sufficient available balance
+    if (availableBalance < amount) {
       return new Response(
         JSON.stringify({
           error: 'Insufficient funds',
           required: amount,
-          available: currentBalance,
+          available: availableBalance,
         }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );

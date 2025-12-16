@@ -45,17 +45,35 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
     ? getBudgetDuration(plan.start_date, plan.end_date) 
     : null;
 
-  // Get funding method
-  const fundingMethod = plan?.funding_method || 'manual';
+  // Get funding method (check both direct field and metadata)
+  const fundingMethod = plan?.funding_method || plan?.metadata?.funding_method || 'manual';
+  
+  // Get auto top-up details
+  const autoTopupAmount = (plan as any)?.auto_topup_amount || (plan as any)?.metadata?.auto_topup_amount;
+  const autoTopupFrequency = (plan as any)?.auto_topup_frequency || (plan as any)?.metadata?.auto_topup_frequency;
+  
+  // Get frequency label
+  const getFrequencyLabel = (frequency: string) => {
+    switch (frequency) {
+      case 'daily': return 'Daily';
+      case 'weekly': return 'Weekly';
+      case 'monthly': return 'Monthly';
+      default: return frequency?.charAt(0).toUpperCase() + frequency?.slice(1) || '';
+    }
+  };
 
   // Get start action
   const startAction = plan?.metadata?.start_action || plan?.start_action || 'wallet';
   const payoutAccountLabel = plan?.metadata?.payout_account_label || plan?.payout_account_label;
   const payoutAccountBankName = plan?.metadata?.payout_account_bank_name || plan?.payout_account_bank_name;
 
-  // Calculate next funding countdown for auto plans
+  // Calculate next funding countdown for auto plans (returns date string and amount)
   const getNextFundingCountdown = () => {
-    if (fundingMethod !== 'auto' || !plan?.start_date) return null;
+    // Check if auto top-up is enabled
+    const autoTopupEnabled = (plan as any)?.auto_topup_enabled === true || 
+                             (plan as any)?.metadata?.auto_topup_enabled === true;
+    
+    if (fundingMethod !== 'auto' || !autoTopupEnabled || !plan?.start_date) return null;
     
     const startDate = new Date(plan.start_date);
     const today = new Date();
@@ -65,27 +83,91 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
     const budgetStarted = today >= startDate;
     if (budgetStarted) return null;
     
-    if (today < startDate) {
-      const daysUntil = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+    const todayForCalc = new Date();
+    todayForCalc.setHours(0, 0, 0, 0);
+    
+    // Use auto_topup_next_date if available (most accurate)
+    const autoTopupNextDate = (plan as any)?.auto_topup_next_date || 
+                              (plan as any)?.metadata?.auto_topup_next_date;
+    
+    let nextDate: Date | null = null;
+    let dateString: string | null = null;
+    
+    if (autoTopupNextDate) {
+      nextDate = new Date(autoTopupNextDate);
+      nextDate.setHours(0, 0, 0, 0);
+      
+      // Don't show if next date is today or in the past
+      if (nextDate <= todayForCalc) return null;
+      
+      const daysUntil = Math.ceil((nextDate.getTime() - todayForCalc.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysUntil <= 0) return null;
+      dateString = daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+    } else {
+      // Fallback: calculate next funding date based on auto_topup_start_date and frequency
+      const autoTopupStartDate = (plan as any)?.auto_topup_start_date || 
+                                  (plan as any)?.metadata?.auto_topup_start_date;
+      const autoTopupEndDate = (plan as any)?.auto_topup_end_date || 
+                               (plan as any)?.metadata?.auto_topup_end_date;
+      
+      if (autoTopupStartDate) {
+        const topupStart = new Date(autoTopupStartDate);
+        topupStart.setHours(0, 0, 0, 0);
+        
+        // If start date is in the future, that's the next funding date
+        if (topupStart > todayForCalc) {
+          nextDate = topupStart;
+          const endDate = autoTopupEndDate ? new Date(autoTopupEndDate) : null;
+          if (endDate && topupStart > endDate) return null;
+          const daysUntil = Math.ceil((topupStart.getTime() - todayForCalc.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysUntil <= 0) return null;
+          dateString = daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+        } else {
+          // Calculate next date based on frequency
+          nextDate = new Date(topupStart);
+          const endDate = autoTopupEndDate ? new Date(autoTopupEndDate) : null;
+          
+          // Get frequency for calculation
+          const calcFrequency = (plan as any)?.auto_topup_frequency || 
+                                 (plan as any)?.metadata?.auto_topup_frequency || 
+                                 'weekly';
+          
+          // Find the next funding date that hasn't passed yet
+          while (nextDate <= todayForCalc && (!endDate || nextDate <= endDate)) {
+            if (calcFrequency === 'daily') {
+              nextDate.setDate(nextDate.getDate() + 1);
+            } else if (calcFrequency === 'weekly') {
+              nextDate.setDate(nextDate.getDate() + 7);
+            } else if (calcFrequency === 'monthly') {
+              nextDate.setMonth(nextDate.getMonth() + 1);
+            } else {
+              // Default to weekly
+              nextDate.setDate(nextDate.getDate() + 7);
+            }
+          }
+          
+          // Don't show if next date is past end date or today
+          if (endDate && nextDate > endDate) return null;
+          if (nextDate <= todayForCalc) return null;
+          
+          const daysUntil = Math.ceil((nextDate.getTime() - todayForCalc.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysUntil <= 0) return null;
+          dateString = daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+        }
+      } else {
+        // No auto top-up dates available
+        return null;
+      }
     }
     
-    const payoutSchedule = (plan as any).payout_schedule || 'weekly';
-    const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    let cycleDays = 7;
-    if (payoutSchedule === 'daily') cycleDays = 1;
-    else if (payoutSchedule === 'biweekly') cycleDays = 14;
-    else if (payoutSchedule === 'monthly') cycleDays = 30;
-    
-    const cyclesCompleted = Math.floor(daysSinceStart / cycleDays);
-    const nextCycleDate = new Date(startDate);
-    nextCycleDate.setDate(startDate.getDate() + (cyclesCompleted + 1) * cycleDays);
-    
-    const daysUntil = Math.ceil((nextCycleDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+    // Return object with date string and amount
+    return {
+      dateString,
+      amount: autoTopupAmount || 0,
+    };
   };
 
-  const nextFundingCountdown = getNextFundingCountdown();
+  const nextFundingInfo = getNextFundingCountdown();
 
   const formatBalance = (amount: number) => {
     if (!amount) return '₦0';
@@ -152,7 +234,11 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
       <View style={styles.infoCard}>
         <Text style={styles.infoLabel}>Funding Method</Text>
         <Text style={styles.infoValue}>
-          {fundingMethod === 'auto' ? 'Auto' : 'Manual'}
+          {fundingMethod === 'auto' && autoTopupAmount && autoTopupFrequency
+            ? `Auto - ${formatBalance(autoTopupAmount)} ${getFrequencyLabel(autoTopupFrequency)}`
+            : fundingMethod === 'auto' 
+            ? 'Auto' 
+            : 'Manual'}
         </Text>
       </View>
 
@@ -161,14 +247,14 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
         <Text style={styles.infoLabel}>Plan Start Rule</Text>
         {startAction === 'wallet' ? (
           <View>
-            <Text style={styles.infoValue}>Move to available balance</Text>
+            <Text style={styles.infoValue}>Move to wallet balance</Text>
             {onViewBalance && (
               <Pressable 
                 style={styles.availableBalanceLink}
                 onPress={onViewBalance}
               >
                 <Text style={styles.availableBalanceText}>
-                  View available balance
+                  View wallet balance
                 </Text>
                 <ArrowRight size={16} color={colors.primary} />
               </Pressable>
@@ -232,11 +318,12 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
       </View>
 
       {/* Next Funding Countdown (Auto plans) */}
-      {nextFundingCountdown && (
+      {nextFundingInfo && (
         <View style={styles.countdownCard}>
           <Clock size={16} color={colors.textSecondary} />
           <Text style={styles.countdownText}>
-            Next funding: {nextFundingCountdown}
+            Next funding: {nextFundingInfo.dateString}
+            {nextFundingInfo.amount > 0 && ` - ${formatBalance(nextFundingInfo.amount)}`}
           </Text>
         </View>
       )}

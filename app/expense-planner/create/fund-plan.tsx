@@ -34,11 +34,12 @@ export default function FundPlanScreen() {
   const handleFundFromWallet = () => {
     haptics.mediumImpact();
     router.push({
-      pathname: '/expense-planner/create/fund-budget',
+      pathname: '/expense-planner/create/fund-amount',
       params: {
         planId,
         planName,
         totalBudget,
+        currentBalance: params.currentBalance || '0',
       },
     });
   };

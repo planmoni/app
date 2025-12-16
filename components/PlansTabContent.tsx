@@ -65,17 +65,8 @@ export default function PlansTabContent({
       >
         <View style={styles.availableToSpendContent}>
           <View style={styles.availableToSpendInfo}>
-            <Text style={styles.availableToSpendLabel}>Available to spend</Text>
+            <Text style={styles.availableToSpendLabel}>Total in funded plans</Text>
             <Text style={styles.availableToSpendAmount}>{formatBalance(expensePlansBalance)}</Text>
-            <View style={styles.availableToSpendSubtext}>
-              <Clock size={14} color={colors.textSecondary} />
-              <Text style={styles.availableToSpendSubtextText}>
-                {formatBalance(
-                  expensePlans.reduce((sum, plan) => sum + ((plan as any).current_balance || 0), 0),
-                )}{' '}
-                Total in funded plans
-              </Text>
-            </View>
           </View>
           <ArrowRight size={20} color={colors.textSecondary} />
         </View>
@@ -99,9 +90,8 @@ export default function PlansTabContent({
                   <Text style={styles.upNextLabel}>Next maturing budget</Text>
                   {(() => {
                     const totalBudget = nextMaturingBudget.plan.total_budget || 0;
-                    const totalLocked = nextMaturingBudget.plan.total_locked || 0;
-                    const fundingPercentage = totalBudget > 0 ? (totalLocked / totalBudget) * 100 : 0;
-                    const isReady = fundingPercentage >= 100;
+                    const currentBalance = (nextMaturingBudget.plan as any).current_balance || 0;
+                    const isReady = totalBudget > 0 && currentBalance >= totalBudget;
 
                     return (
                       <View

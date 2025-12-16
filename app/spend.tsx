@@ -15,24 +15,7 @@ export default function SpendScreen() {
   const haptics = useHaptics();
   const { expensePlans, isLoading } = useExpensePlans();
 
-  // Calculate available to spend (extra funds from budgets)
-  // This is the sum of excess funds from all over-funded plans
-  const availableToSpend = useMemo(() => {
-    if (!expensePlans || expensePlans.length === 0) {
-      return 0;
-    }
-    
-    // Sum excess funds from all over-funded plans
-    // Excess = current_balance - total_budget (when current_balance > total_budget)
-    return expensePlans.reduce((total, plan) => {
-      const currentBalance = (plan as any).current_balance || 0;
-      const totalBudget = plan.total_budget || 0;
-      const excess = Math.max(0, currentBalance - totalBudget);
-      return total + excess;
-    }, 0);
-  }, [expensePlans]);
-
-  // Filter budgets that have started (regardless of extra funds)
+  // Filter budgets that have started
   const startedBudgets = useMemo(() => {
     if (!expensePlans || expensePlans.length === 0) return [];
     
@@ -50,17 +33,6 @@ export default function SpendScreen() {
   const handleBack = () => {
     haptics.selection();
     router.back();
-  };
-
-  const handleSpendAvailable = () => {
-    haptics.mediumImpact();
-    // Navigate to a page where user can spend the available to spend balance
-    // For now, we'll show an alert or navigate to a spend page
-    // TODO: Create a page for spending available to spend balance
-    router.push({
-      pathname: '/spend/available',
-      params: { amount: availableToSpend.toString() },
-    });
   };
 
   const handleSpend = (planId: string) => {
@@ -90,33 +62,6 @@ export default function SpendScreen() {
           </View>
         ) : (
           <>
-            {/* Extra funds from Available to spend section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Extra funds from the Available to spend</Text>
-              <View style={styles.availableToSpendCard}>
-                <View style={styles.availableToSpendContent}>
-                  <View style={styles.availableToSpendInfo}>
-                    <Text style={styles.availableToSpendAmount}>
-                      {formatBalance(availableToSpend)}
-                    </Text>
-                    <Text style={styles.availableToSpendLabel}>
-                      Available to spend
-                    </Text>
-                  </View>
-                  <Pressable
-                    style={[styles.spendButton, availableToSpend <= 0 && styles.spendButtonDisabled]}
-                    onPress={handleSpendAvailable}
-                    disabled={availableToSpend <= 0}
-                  >
-                    <Send size={18} color={availableToSpend > 0 ? colors.primary : colors.textTertiary} />
-                    <Text style={[styles.spendButtonText, availableToSpend <= 0 && styles.spendButtonTextDisabled]}>
-                      Spend
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-
             {/* Started budgets section */}
             {startedBudgets.length > 0 ? (
               <View style={styles.section}>

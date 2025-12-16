@@ -119,3 +119,30 @@ export function formatPayoutDateTime(dateString: string): string {
   
   return `${dateFormatted} at ${timeFormatted}`;
 }
+
+/**
+ * Formats a transaction type into a user-friendly string
+ * 
+ * @param type The transaction type from the database
+ * @returns A formatted string describing the transaction type
+ */
+export function formatTransactionType(type: string): string {
+  switch (type) {
+    case 'deposit':
+      return 'Deposit';
+    case 'payout':
+      return 'Payout';
+    case 'withdrawal':
+      return 'Withdrawal';
+    case 'expense_plan_topup':
+      return 'Budget Top-Up';
+    case 'referral_bonus':
+      return 'Referral Bonus';
+    default:
+      // Fallback: capitalize first letter and replace underscores with spaces
+      return type
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+  }
+}

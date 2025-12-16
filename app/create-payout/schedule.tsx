@@ -32,19 +32,25 @@ type TimePickerProps = {
   onClose: () => void;
   onSelect: (hour: number, minute: number) => void;
   selectedHour: number;
-  selectedMinute: number;
 };
 
-function TimePicker({ isVisible, onClose, onSelect, selectedHour, selectedMinute }: TimePickerProps) {
+function TimePicker({ isVisible, onClose, onSelect, selectedHour }: TimePickerProps) {
   const { colors } = useTheme();
-  const [hour, setHour] = useState(selectedHour);
-  const [minute, setMinute] = useState(selectedMinute);
+  // Clamp hour to valid range (6-22) if outside
+  const validHour = selectedHour < 6 ? 6 : selectedHour > 22 ? 22 : selectedHour;
+  const [hour, setHour] = useState(validHour);
   
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-  const minutes = Array.from({ length: 60 }, (_, i) => i);
+  // Hours from 6 AM (6) to 10 PM (22)
+  const hours = Array.from({ length: 17 }, (_, i) => i + 6);
+  
+  // Update hour state when selectedHour prop changes
+  useEffect(() => {
+    const validHour = selectedHour < 6 ? 6 : selectedHour > 22 ? 22 : selectedHour;
+    setHour(validHour);
+  }, [selectedHour]);
   
   const handleConfirm = () => {
-    onSelect(hour, minute);
+    onSelect(hour, 0); // Always set minute to 0
     onClose();
   };
   
@@ -75,47 +81,24 @@ function TimePicker({ isVisible, onClose, onSelect, selectedHour, selectedMinute
                 nestedScrollEnabled={Platform.OS === 'android'}
                 bounces={Platform.OS === 'ios'}
               >
-                {hours.map((h) => (
-                  <Pressable
-                    key={h}
-                    style={[styles.timeOption, hour === h && styles.selectedTimeOption]}
-                    onPress={() => setHour(h)}
-                  >
-                    <Text style={[
-                      styles.timeOptionText,
-                      hour === h && styles.selectedTimeOptionText
-                    ]}>
-                      {h.toString().padStart(2, '0')}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-            
-            <Text style={styles.timeSeparator}>:</Text>
-            
-            <View style={styles.timeSection}>
-              <Text style={styles.timeLabel}>Minute</Text>
-              <ScrollView 
-                style={styles.timeScroll} 
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled={Platform.OS === 'android'}
-                bounces={Platform.OS === 'ios'}
-              >
-                {minutes.filter(m => m % 5 === 0).map((m) => (
-                  <Pressable
-                    key={m}
-                    style={[styles.timeOption, minute === m && styles.selectedTimeOption]}
-                    onPress={() => setMinute(m)}
-                  >
-                    <Text style={[
-                      styles.timeOptionText,
-                      minute === m && styles.selectedTimeOptionText
-                    ]}>
-                      {m.toString().padStart(2, '0')}
-                    </Text>
-                  </Pressable>
-                ))}
+                {hours.map((h) => {
+                  const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                  const period = h >= 12 ? 'PM' : 'AM';
+                  return (
+                    <Pressable
+                      key={h}
+                      style={[styles.timeOption, hour === h && styles.selectedTimeOption]}
+                      onPress={() => setHour(h)}
+                    >
+                      <Text style={[
+                        styles.timeOptionText,
+                        hour === h && styles.selectedTimeOptionText
+                      ]}>
+                        {displayHour} {period}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </ScrollView>
             </View>
           </View>
@@ -214,9 +197,11 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
   const isTodayOrPastDate = (date: Date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const twoWeeksFromNow = new Date(today);
+    twoWeeksFromNow.setDate(today.getDate() + 14);
     const checkDate = new Date(date);
     checkDate.setHours(0, 0, 0, 0);
-    return checkDate <= today; // Includes today and past dates
+    return checkDate < twoWeeksFromNow; // Disable dates before 2 weeks from now
   };
 
   const styles = createDatePickerStyles(colors, isSmallScreen);
@@ -346,9 +331,8 @@ export default function ScheduleScreen() {
   });
   const [showDurationPicker, setShowDurationPicker] = useState(false);
   
-  // New state for time selection
+  // New state for time selection (default to 12 PM, within 6AM-10PM range)
   const [selectedHour, setSelectedHour] = useState(12);
-  const [selectedMinute, setSelectedMinute] = useState(0);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
   // Responsive styles based on screen width
@@ -364,7 +348,6 @@ export default function ScheduleScreen() {
     switch (frequency) {
       case 'daily':
         return [
-          { value: 7, label: '1 Week', description: '7 daily payments' },
           { value: 30, label: '1 Month', description: '30 daily payments' },
           { value: 90, label: '3 Months', description: '90 daily payments' }
         ];
@@ -497,9 +480,7 @@ export default function ScheduleScreen() {
       if (params.payoutHour) {
         setSelectedHour(parseInt(params.payoutHour as string));
       }
-      if (params.payoutMinute) {
-        setSelectedMinute(parseInt(params.payoutMinute as string));
-      }
+      // Minute is always 0, no need to set from params
       
       // Set custom dates if provided
       if (params.customDates) {
@@ -836,11 +817,9 @@ export default function ScheduleScreen() {
   };
   
   const getTimeDisplay = () => {
-    const hourStr = selectedHour.toString().padStart(2, '0');
-    const minuteStr = selectedMinute.toString().padStart(2, '0');
     const period = selectedHour >= 12 ? 'PM' : 'AM';
     const displayHour = selectedHour === 0 ? 12 : selectedHour > 12 ? selectedHour - 12 : selectedHour;
-    return `${displayHour.toString().padStart(2, '0')}:${minuteStr} ${period}`;
+    return `${displayHour} ${period}`;
   };
 
   const handleScheduleSelect = (schedule: string) => {
@@ -893,14 +872,16 @@ export default function ScheduleScreen() {
   };
 
   const handleDateSelect = (date: string) => {
-    // Prevent selecting today or past dates
+    // Prevent selecting dates within 2 weeks from today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const twoWeeksFromNow = new Date(today);
+    twoWeeksFromNow.setDate(today.getDate() + 14);
     const selectedDate = new Date(date);
     selectedDate.setHours(0, 0, 0, 0);
     
-    if (selectedDate <= today) {
-      return; // Don't allow today or past dates
+    if (selectedDate < twoWeeksFromNow) {
+      return; // Don't allow dates before 2 weeks from now
     }
 
     // Toggle date selection - add if not present, remove if present
@@ -965,7 +946,7 @@ export default function ScheduleScreen() {
       haptics.selection();
     }
     setSelectedHour(hour);
-    setSelectedMinute(minute);
+    // Minute is always 0, but we keep the parameter for compatibility
   };
 
   const handleContinue = () => {
@@ -995,7 +976,7 @@ export default function ScheduleScreen() {
       // For daily, start tomorrow at the selected time
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(selectedHour, selectedMinute, 0, 0);
+      tomorrow.setHours(selectedHour, 0, 0, 0);
       startDate = tomorrow.toISOString().split('T')[0];
     } else {
       startDate = new Date().toISOString().split('T')[0];
@@ -1016,7 +997,7 @@ export default function ScheduleScreen() {
         customDates: JSON.stringify(customDates),
         dayOfWeek: selectedDayOfWeek !== null ? selectedDayOfWeek.toString() : undefined,
         payoutHour: selectedHour.toString(),
-        payoutMinute: selectedMinute.toString()
+        payoutMinute: '0'
       }
     });
   };
@@ -1583,7 +1564,6 @@ export default function ScheduleScreen() {
         onClose={() => setShowTimePicker(false)}
         onSelect={handleTimeSelect}
         selectedHour={selectedHour}
-        selectedMinute={selectedMinute}
       />
     </SafeAreaView>
   );

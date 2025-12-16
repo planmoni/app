@@ -71,11 +71,8 @@ export function TextSizeProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Don't render until text size is loaded to prevent flash
-  if (isLoading) {
-    return null;
-  }
-
+  // Always render the provider to ensure context is available
+  // Use default value during loading to prevent breaking the provider chain
   return (
     <TextSizeContext.Provider value={{ textSizeMultiplier, setTextSizeMultiplier }}>
       {children}

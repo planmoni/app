@@ -14,7 +14,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface RecentTransaction {
   id: string;
-  type: 'payout' | 'deposit' | 'withdrawal';
+  type: 'payout' | 'deposit' | 'withdrawal' | 'expense_plan_topup' | 'referral_bonus';
   planName?: string;
   amount: number;
   bankName: string;
@@ -39,14 +39,15 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
   const slideAnimation = useRef(new Animated.Value(0)).current;
   const autoSlideTimer = useRef<number | null>(null);
 
-  // Process transactions to get recent payouts, deposits, and withdrawals
+  // Process transactions to get recent payouts, deposits, withdrawals, and budget top-ups
   useEffect(() => {
-    // Get all relevant transactions (payouts, deposits, withdrawals)
+    // Get all relevant transactions (payouts, deposits, withdrawals, expense_plan_topup)
     const relevantTransactions = transactions
       .filter(tx => 
         (tx.type === 'payout' && tx.status === 'completed') ||
         (tx.type === 'deposit' && tx.status === 'completed') ||
-        (tx.type === 'withdrawal' && tx.status === 'completed')
+        (tx.type === 'withdrawal' && tx.status === 'completed') ||
+        (tx.type === 'expense_plan_topup' && tx.status === 'completed')
       )
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 5); // Get max 5 recent transactions
@@ -126,6 +127,19 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
         
         // Update description to include the masked account info
         description = `Emergency withdrawal processed to ${bankName} ${accountNumber}`;
+      } else if (tx.type === 'expense_plan_topup') {
+        // For budget top-ups, get plan name from source or destination
+        planName = 'Budget Top-Up';
+        description = 'Funds deducted from wallet to budget plan';
+        bankName = 'Planmoni Wallet';
+        accountNumber = '';
+        
+        // Try to get plan name from source or destination if available
+        if (tx.source && tx.source !== 'wallet' && tx.source !== 'Wallet') {
+          planName = tx.source;
+        } else if (tx.destination && tx.destination !== 'wallet' && tx.destination !== 'Wallet') {
+          planName = tx.destination;
+        }
       }
       
       const date = new Date(tx.created_at);
@@ -271,14 +285,14 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
                 <Text style={[
                   styles.amount,
                   { 
-                    color: currentTransaction.type === 'deposit' 
-                      ? colors.text // Green for deposits
+                    color: currentTransaction.type === 'deposit' || currentTransaction.type === 'expense_plan_topup'
+                      ? colors.text // Green for deposits and budget top-ups
                       : currentTransaction.type === 'withdrawal'
                       ? '#F97316' // Orange for withdrawals  
                       : colors.text // Default for payouts
                   }
                 ]}>
-                  {currentTransaction.type === 'deposit' ? '+' : currentTransaction.type === 'withdrawal' ? '-' : ''}
+                  {currentTransaction.type === 'deposit' || currentTransaction.type === 'expense_plan_topup' ? '' : currentTransaction.type === 'withdrawal' ? '-' : ''}
                   {formatCurrency(currentTransaction.amount)}
                 </Text>
                 <Text style={styles.dateTime}>
@@ -290,7 +304,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
             <View style={styles.paymentRow}>
               <View style={styles.paymentInfo}>
                 <Text style={styles.paymentLabel}>{currentTransaction.description}</Text>
-                {currentTransaction.type !== 'deposit' && currentTransaction.type !== 'withdrawal' && (
+                {currentTransaction.type !== 'deposit' && currentTransaction.type !== 'withdrawal' && currentTransaction.type !== 'expense_plan_topup' && (
                   <View style={styles.bankInfo}>
                     <View style={styles.bankLogo}>
                       {(() => {

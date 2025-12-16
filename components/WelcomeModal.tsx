@@ -384,7 +384,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   modalContainer: {
     height: responsive.modalHeight,
-    backgroundColor: colors.accentBackground,
+    backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     overflow: 'hidden',

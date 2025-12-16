@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { 
   ArrowLeft, 
   Plus, 
@@ -107,6 +107,17 @@ export default function PlanDetailScreen() {
     fetchPlanData();
   }, [id]);
 
+  // Refresh plan data when screen comes into focus (e.g., after funding)
+  useFocusEffect(
+    useCallback(() => {
+      if (id) {
+        fetchExpensePlans();
+        fetchBuckets();
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id])
+  );
+
   // Update time for countdowns
   useEffect(() => {
     const interval = setInterval(() => {
@@ -163,6 +174,7 @@ export default function PlanDetailScreen() {
         planId: plan.id,
         planName: plan.name,
         totalBudget: plan.total_budget.toString(),
+        currentBalance: currentBalance.toString(),
       },
     });
   };

@@ -68,7 +68,7 @@ export default function ReviewScreen() {
     if (startAction === 'auto_payout') {
       return payoutAccountLabel ? `Auto payout to ${payoutAccountLabel}` : 'Auto payout to bank';
     }
-    return 'Move to available balance';
+    return 'Move it to wallet balance';
   };
 
   const bankIcon = payoutAccountBankName ? getBankIconLogo(payoutAccountBankName) : {};
@@ -193,6 +193,7 @@ export default function ReviewScreen() {
           planId: plan.id,
           planName: planName,
           totalBudget: targetAmount.toString(),
+          fundingMethod: fundingMethod || 'manual',
         },
       });
     } catch (error: any) {

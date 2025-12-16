@@ -32,6 +32,7 @@ interface ExpensePlan {
 }
 
 interface UserWallet {
+  available_balance: number;
   balance: number;
 }
 
@@ -72,10 +73,10 @@ serve(async (req) => {
     // Process each plan
     for (const plan of plansToTopUp as ExpensePlan[]) {
       try {
-        // Get user's main wallet balance
+        // Get user's main wallet available balance
         const { data: wallet, error: walletError } = await supabase
           .from('wallets')
-          .select('balance')
+          .select('available_balance, balance')
           .eq('user_id', plan.user_id)
           .single();
 
@@ -86,11 +87,11 @@ serve(async (req) => {
           continue;
         }
 
-        const userBalance = (wallet as UserWallet).balance;
+        const userAvailableBalance = (wallet as any).available_balance || 0;
 
-        // Check if user has sufficient balance
-        if (userBalance < plan.auto_topup_amount) {
-          console.warn(`Insufficient funds for plan ${plan.id}. Required: ${plan.auto_topup_amount}, Available: ${userBalance}`);
+        // Check if user has sufficient available balance
+        if (userAvailableBalance < plan.auto_topup_amount) {
+          console.warn(`Insufficient funds for plan ${plan.id}. Required: ${plan.auto_topup_amount}, Available: ${userAvailableBalance}`);
           results.insufficient_funds++;
           
           // Send notification to user about insufficient funds
@@ -100,12 +101,12 @@ serve(async (req) => {
               user_id: plan.user_id,
               type: 'auto_topup_failed',
               title: 'Auto Top-Up Failed',
-              message: `Insufficient funds for automatic top-up of ${plan.name}. Required: ₦${plan.auto_topup_amount.toLocaleString()}, Available: ₦${userBalance.toLocaleString()}`,
+              message: `Insufficient funds for automatic top-up of ${plan.name}. Required: ₦${plan.auto_topup_amount.toLocaleString()}, Available: ₦${userAvailableBalance.toLocaleString()}`,
               metadata: {
                 plan_id: plan.id,
                 plan_name: plan.name,
                 required_amount: plan.auto_topup_amount,
-                available_balance: userBalance,
+                available_balance: userAvailableBalance,
               },
             });
 

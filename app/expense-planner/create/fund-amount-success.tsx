@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { X } from 'lucide-react-native';
+import { X, CheckCircle2 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -10,16 +10,19 @@ import { useHaptics } from '@/hooks/useHaptics';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import Button from '@/components/Button';
 
-export default function ExpensePlanSuccessScreen() {
+export default function FundAmountSuccessScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
+  const { width: screenWidth } = useWindowDimensions();
+  const isSmallScreen = screenWidth < 380;
   
-  const planName = params.planName as string;
-  const totalBudget = params.totalBudget as string;
   const planId = params.planId as string;
-  const fundingMethod = params.fundingMethod as 'auto' | 'manual' | undefined;
+  const planName = params.planName as string;
+  const amountAdded = parseFloat((params.amountAdded as string) || '0');
+  const newBalance = parseFloat((params.newBalance as string) || '0');
+  const totalBudget = parseFloat((params.totalBudget as string) || '0');
 
   // Trigger success haptic feedback when the screen loads
   useEffect(() => {
@@ -29,28 +32,6 @@ export default function ExpensePlanSuccessScreen() {
     
     return () => clearTimeout(timer);
   }, []);
-
-  const formatDateForDisplay = (dateString: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-  };
-
-  const handleFundPlan = () => {
-    haptics.mediumImpact();
-    router.push({
-      pathname: '/expense-planner/create/fund-plan',
-      params: {
-        planId,
-        planName,
-        totalBudget,
-      },
-    });
-  };
 
   const handleViewPlan = () => {
     haptics.mediumImpact();
@@ -62,23 +43,21 @@ export default function ExpensePlanSuccessScreen() {
     router.replace('/(tabs)');
   };
 
-  const { width: screenWidth } = Dimensions.get('window');
-  const isSmallScreen = screenWidth < 375;
-  const isMediumScreen = screenWidth >= 375 && screenWidth < 768;
+  const handleClose = () => {
+    haptics.lightImpact();
+    router.replace(`/expense-planner/${planId}`);
+  };
 
-  const styles = createStyles(colors, isDark, textSizeMultiplier, isSmallScreen, isMediumScreen);
+  const styles = createStyles(colors, isDark, textSizeMultiplier, isSmallScreen);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
-        <Text style={styles.headerTitle}>Plan Created</Text>
+        <Text style={styles.headerTitle}>Funds Added</Text>
         <Pressable 
-          onPress={() => {
-            haptics.lightImpact();
-            router.replace('/(tabs)');
-          }} 
-          style={styles.cancelButton}
+          onPress={handleClose} 
+          style={styles.closeButton}
         >
           <X size={24} color={colors.text} />
         </Pressable>
@@ -91,32 +70,58 @@ export default function ExpensePlanSuccessScreen() {
       >
         <SuccessAnimation />
 
-        <Text style={styles.title}>Budget Plan Created!</Text>
-        <Text style={styles.subtitle}>Your budget plan has been set up successfully</Text>
+        <Text style={styles.title}>Funds Added Successfully!</Text>
+        <Text style={styles.subtitle}>
+          Your funds have been transferred to your plan
+        </Text>
 
         <View style={styles.summaryCard}>
-          <Text style={styles.planName}>{planName || 'Untitled Plan'}</Text>
-          <Text style={styles.amount}>₦{parseFloat(totalBudget || '0').toLocaleString()}</Text>
-          <Text style={styles.description}>Total Budget</Text>
+          {planName && (
+            <Text style={styles.planName}>{planName}</Text>
+          )}
+          
+          <View style={styles.amountSection}>
+            <Text style={styles.amountLabel}>Amount Added</Text>
+            <Text style={styles.amountValue}>
+              ₦{amountAdded.toLocaleString()}
+            </Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.balanceRow}>
+            <View style={styles.balanceItem}>
+              <Text style={styles.balanceLabel}>New Plan Balance</Text>
+              <Text style={styles.balanceAmount}>
+                ₦{newBalance.toLocaleString()}
+              </Text>
+            </View>
+            <View style={styles.balanceItem}>
+              <Text style={styles.balanceLabel}>Total Budget</Text>
+              <Text style={styles.balanceAmount}>
+                ₦{totalBudget.toLocaleString()}
+              </Text>
+            </View>
+          </View>
+
+          {newBalance > totalBudget && (
+            <View style={styles.overFundedBadge}>
+              <CheckCircle2 size={16} color={colors.primary} />
+              <Text style={styles.overFundedText}>
+                Over-funded by ₦{(newBalance - totalBudget).toLocaleString()}
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        {fundingMethod === 'auto' ? (
-          <Button 
-            title="View Plan"
-            onPress={handleViewPlan}
-            style={styles.viewPlanButton}
-            hapticType="medium"
-          />
-        ) : (
-          <Button 
-            title="Fund Plan"
-            onPress={handleFundPlan}
-            style={styles.viewPlanButton}
-            hapticType="medium"
-          />
-        )}
+        <Button 
+          title="View Plan"
+          onPress={handleViewPlan}
+          style={styles.viewPlanButton}
+          hapticType="medium"
+        />
         <Button 
           title="Back to Dashboard"
           onPress={handleBackToDashboard}
@@ -133,8 +138,7 @@ const createStyles = (
   colors: any,
   isDark: boolean,
   textSizeMultiplier: number,
-  isSmallScreen: boolean,
-  isMediumScreen: boolean
+  isSmallScreen: boolean
 ) => StyleSheet.create({
   container: {
     flex: 1,
@@ -144,8 +148,8 @@ const createStyles = (
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: isSmallScreen ? 12 : 16,
+    paddingVertical: isSmallScreen ? 12 : 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -154,13 +158,13 @@ const createStyles = (
     width: 40,
   },
   headerTitle: {
-    fontSize: getScaledFontSize(18, textSizeMultiplier),
+    fontSize: getScaledFontSize(isSmallScreen ? 16 : 18, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     flex: 1,
     textAlign: 'center',
   },
-  cancelButton: {
+  closeButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
@@ -175,7 +179,7 @@ const createStyles = (
     paddingBottom: 32,
   },
   title: {
-    fontSize: getScaledFontSize(isSmallScreen ? 20 : isMediumScreen ? 24 : 28, textSizeMultiplier),
+    fontSize: getScaledFontSize(isSmallScreen ? 22 : 26, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -205,20 +209,70 @@ const createStyles = (
     fontSize: getScaledFontSize(isSmallScreen ? 18 : 20, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 12,
+    marginBottom: 20,
     textAlign: 'center',
   },
-  amount: {
-    fontSize: getScaledFontSize(isSmallScreen ? 28 : isMediumScreen ? 32 : 36, textSizeMultiplier),
+  amountSection: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  amountLabel: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    color: colors.textSecondary,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  amountValue: {
+    fontSize: getScaledFontSize(isSmallScreen ? 32 : 36, textSizeMultiplier),
     fontWeight: '700',
     color: colors.primary,
-    marginBottom: 8,
     textAlign: 'center',
   },
-  description: {
-    fontSize: getScaledFontSize(isSmallScreen ? 14 : 16, textSizeMultiplier),
+  divider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: colors.border,
+    marginBottom: 20,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 16,
+  },
+  balanceItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  balanceLabel: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  balanceAmount: {
+    fontSize: getScaledFontSize(isSmallScreen ? 18 : 20, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.text,
     textAlign: 'center',
+  },
+  overFundedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.primary + '15',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+  overFundedText: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    color: colors.primary,
+    fontWeight: '600',
   },
   footer: {
     padding: isSmallScreen ? 16 : 24,

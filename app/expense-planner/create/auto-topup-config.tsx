@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, X, Calendar, TrendingUp, Repeat } from 'lucide-react-native';
+import { ArrowLeft, X, Calendar, TrendingUp, Repeat, ChevronDown, Check } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -12,11 +12,17 @@ import FloatingButton from '@/components/FloatingButton';
 import { Platform } from 'react-native';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 
-type TopUpFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
+type TopUpFrequency = 'daily' | 'weekly' | 'monthly';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+const FREQUENCY_OPTIONS: { value: TopUpFrequency; label: string }[] = [
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
 ];
 
 export default function AutoTopUpConfigScreen() {
@@ -34,7 +40,39 @@ export default function AutoTopUpConfigScreen() {
   const subCategories = params.subCategories as string | undefined;
   const planTypesParam = (params.planTypesParam || params.planTypes) as string | undefined;
 
-  // Calculate top-up configuration
+  // Calculate days until start and auto-select frequency
+  const { daysUntilStart, defaultFrequency } = useMemo(() => {
+    if (!startDateStr) return { daysUntilStart: 0, defaultFrequency: 'weekly' as TopUpFrequency };
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const startDate = new Date(startDateStr);
+    startDate.setHours(0, 0, 0, 0);
+
+    const daysUntil = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Auto-select frequency based on days until start
+    let frequency: TopUpFrequency;
+    if (daysUntil < 7) {
+      frequency = 'daily';
+    } else if (daysUntil < 14) {
+      frequency = 'daily'; // User said: if more than 1 week but not up to 2 weeks, Daily
+    } else if (daysUntil < 30) {
+      frequency = 'weekly';
+    } else {
+      frequency = 'monthly';
+    }
+
+    return { daysUntilStart: daysUntil, defaultFrequency: frequency };
+  }, [startDateStr]);
+
+  // State for selected frequency
+  const [selectedFrequency, setSelectedFrequency] = useState<TopUpFrequency>(defaultFrequency);
+  const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false);
+  const [showAllDates, setShowAllDates] = useState(false);
+
+  // Calculate top-up configuration based on selected frequency
   const topUpConfig = useMemo(() => {
     if (!startDateStr || !targetAmount) return null;
 
@@ -43,28 +81,6 @@ export default function AutoTopUpConfigScreen() {
     
     const startDate = new Date(startDateStr);
     startDate.setHours(0, 0, 0, 0);
-
-    // Calculate days until start (including start date)
-    // Example: Budget starts Dec 19, today is Dec 13
-    // Days until start: 6 (Dec 13->14, 14->15, 15->16, 16->17, 17->18, 18->19)
-    // Top-ups should be: Dec 14, 15, 16, 17, 18 (5 days before start, but we use daysUntilStart for calculation)
-    const daysUntilStart = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    
-    // Determine frequency based on days until start
-    let frequency: TopUpFrequency;
-    if (daysUntilStart < 7) {
-      frequency = 'daily';
-    } else if (daysUntilStart < 14) {
-      frequency = 'weekly';
-    } else if (daysUntilStart < 31) {
-      frequency = 'biweekly';
-    } else if (daysUntilStart < 91) {
-      frequency = 'monthly';
-    } else if (daysUntilStart < 365) {
-      frequency = 'quarterly';
-    } else {
-      frequency = 'yearly';
-    }
 
     // Calculate top-up start date (tomorrow)
     const topUpStartDate = new Date(today);
@@ -76,49 +92,57 @@ export default function AutoTopUpConfigScreen() {
     topUpEndDate.setDate(startDate.getDate() - 1);
     topUpEndDate.setHours(0, 0, 0, 0);
 
-    // Calculate number of cycles
-    // For daily: count days from tomorrow to day before start (inclusive)
-    // Example: Budget starts Dec 19, today is Dec 13
-    // Top-ups: Dec 14, 15, 16, 17, 18 (5 days)
-    // But to reach 100%, we need enough cycles - use daysUntilStart for calculation
-    const daysForTopups = daysUntilStart; // Days from today to start date
+    // Calculate number of cycles based on frequency
+    const daysForTopups = Math.max(0, daysUntilStart - 1); // Days from tomorrow to day before start
     
     let cycles = 1;
-    if (frequency === 'daily') {
-      // For daily, use the number of days until start
-      // This ensures we have enough cycles to reach 100% before start
-      cycles = daysForTopups;
-    } else if (frequency === 'weekly') {
-      cycles = Math.ceil(daysForTopups / 7);
-    } else if (frequency === 'biweekly') {
-      cycles = Math.ceil(daysForTopups / 14);
-    } else if (frequency === 'monthly') {
-      cycles = Math.ceil(daysForTopups / 30);
-    } else if (frequency === 'quarterly') {
-      cycles = Math.ceil(daysForTopups / 90);
-    } else if (frequency === 'yearly') {
-      cycles = Math.ceil(daysForTopups / 365);
+    let cycleDays = 1;
+    
+    if (selectedFrequency === 'daily') {
+      cycles = Math.max(1, daysForTopups);
+      cycleDays = 1;
+    } else if (selectedFrequency === 'weekly') {
+      cycles = Math.max(1, Math.ceil(daysForTopups / 7));
+      cycleDays = 7;
+    } else if (selectedFrequency === 'monthly') {
+      cycles = Math.max(1, Math.ceil(daysForTopups / 30));
+      cycleDays = 30;
     }
-
-    // Ensure at least 1 cycle
-    cycles = Math.max(1, cycles);
 
     // Calculate amount per cycle
     const amountPerCycle = targetAmount / cycles;
 
-    // Next top-up date (tomorrow)
-    const nextTopUpDate = new Date(topUpStartDate);
+    // Calculate all funding dates
+    const fundingDates: Date[] = [];
+    let currentDate = new Date(topUpStartDate);
+    
+    while (currentDate <= topUpEndDate && fundingDates.length < cycles) {
+      fundingDates.push(new Date(currentDate));
+      
+      // Move to next cycle date
+      if (selectedFrequency === 'daily') {
+        currentDate.setDate(currentDate.getDate() + 1);
+      } else if (selectedFrequency === 'weekly') {
+        currentDate.setDate(currentDate.getDate() + 7);
+      } else if (selectedFrequency === 'monthly') {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+      }
+    }
+
+    // Next top-up date (first date in the list)
+    const nextTopUpDate = fundingDates.length > 0 ? fundingDates[0] : topUpStartDate;
 
     return {
-      frequency,
+      frequency: selectedFrequency,
       amountPerCycle,
       cycles,
       topUpStartDate,
       topUpEndDate,
       nextTopUpDate,
       daysUntilStart,
+      fundingDates,
     };
-  }, [startDateStr, targetAmount]);
+  }, [startDateStr, targetAmount, selectedFrequency, daysUntilStart]);
 
   const formatDateForDisplay = (date: Date) => {
     return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
@@ -131,15 +155,30 @@ export default function AutoTopUpConfigScreen() {
     return `${year}-${month}-${day}`;
   };
 
+  const formatDateShort = (date: Date) => {
+    return `${MONTHS[date.getMonth()].substring(0, 3)} ${date.getDate()}`;
+  };
+
   const getFrequencyLabel = (frequency: TopUpFrequency) => {
     switch (frequency) {
       case 'daily': return 'Daily';
       case 'weekly': return 'Weekly';
-      case 'biweekly': return 'Bi-weekly';
       case 'monthly': return 'Monthly';
-      case 'quarterly': return 'Quarterly';
-      case 'yearly': return 'Yearly';
     }
+  };
+
+  const getFrequencyPeriod = (frequency: TopUpFrequency) => {
+    switch (frequency) {
+      case 'daily': return 'day';
+      case 'weekly': return 'week';
+      case 'monthly': return 'month';
+    }
+  };
+
+  const handleFrequencySelect = (frequency: TopUpFrequency) => {
+    haptics.selection();
+    setSelectedFrequency(frequency);
+    setShowFrequencyDropdown(false);
   };
 
   const handleContinue = async () => {
@@ -156,8 +195,6 @@ export default function AutoTopUpConfigScreen() {
       if (planId) {
         await saveDraftExpensePlan({
           planId,
-          // Store auto top-up config in metadata for now
-          // Will be moved to proper fields after database migration
         });
       }
 
@@ -247,46 +284,124 @@ export default function AutoTopUpConfigScreen() {
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
           <View style={styles.section}>
             <Text style={styles.sectionDescription}>
-              We'll automatically transfer money from your main balance to this plan based on the schedule below.
+              We'll automatically transfer money from your available balance to this plan based on the schedule below.
             </Text>
           </View>
 
+          {/* Frequency Dropdown */}
           <View style={styles.configCard}>
-            <View style={styles.configRow}>
-              <View style={styles.configLabelContainer}>
-                <Repeat size={20} color={colors.textSecondary} />
-                <Text style={styles.configLabel}>Frequency</Text>
+            <Text style={styles.configSectionTitle}>Funding Frequency</Text>
+            <Pressable
+              style={styles.dropdownButton}
+              onPress={() => {
+                haptics.selection();
+                setShowFrequencyDropdown(!showFrequencyDropdown);
+              }}
+            >
+              <View style={styles.dropdownButtonContent}>
+                <Repeat size={20} color={colors.primary} />
+                <Text style={styles.dropdownButtonText}>
+                  {getFrequencyLabel(selectedFrequency)}
+                </Text>
               </View>
-              <Text style={styles.configValue}>{getFrequencyLabel(topUpConfig.frequency)}</Text>
-            </View>
+              <ChevronDown 
+                size={20} 
+                color={colors.textSecondary}
+                style={[
+                  styles.dropdownChevron,
+                  showFrequencyDropdown && styles.dropdownChevronOpen
+                ]}
+              />
+            </Pressable>
 
-            <View style={styles.configRow}>
-              <View style={styles.configLabelContainer}>
-                <TrendingUp size={20} color={colors.textSecondary} />
-                <Text style={styles.configLabel}>Amount per {topUpConfig.frequency === 'daily' ? 'day' : topUpConfig.frequency === 'weekly' ? 'week' : topUpConfig.frequency === 'biweekly' ? '2 weeks' : topUpConfig.frequency === 'monthly' ? 'month' : topUpConfig.frequency === 'quarterly' ? 'quarter' : 'year'}</Text>
+            {/* Dropdown Options */}
+            {showFrequencyDropdown && (
+              <View style={styles.dropdownContainer}>
+                {FREQUENCY_OPTIONS.map((option) => (
+                  <Pressable
+                    key={option.value}
+                    style={[
+                      styles.dropdownOption,
+                      selectedFrequency === option.value && styles.dropdownOptionSelected
+                    ]}
+                    onPress={() => handleFrequencySelect(option.value)}
+                  >
+                    <Text style={[
+                      styles.dropdownOptionText,
+                      selectedFrequency === option.value && styles.dropdownOptionTextSelected
+                    ]}>
+                      {option.label}
+                    </Text>
+                    {selectedFrequency === option.value && (
+                      <Check size={18} color={colors.primary} />
+                    )}
+                  </Pressable>
+                ))}
               </View>
-              <Text style={styles.configValue}>₦{topUpConfig.amountPerCycle.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
-            </View>
+            )}
 
-            <View style={styles.configRow}>
-              <View style={styles.configLabelContainer}>
-                <Calendar size={20} color={colors.textSecondary} />
-                <Text style={styles.configLabel}>Total cycles</Text>
-              </View>
-              <Text style={styles.configValue}>{topUpConfig.cycles}</Text>
+            {/* Amount Breakdown */}
+            <View style={styles.breakdownCard}>
+              <Text style={styles.breakdownTitle}>
+                ₦{Math.ceil(topUpConfig.amountPerCycle).toLocaleString('en-US')} {getFrequencyLabel(selectedFrequency)} top-up
+              </Text>
+              <Text style={styles.breakdownSubtext}>
+                {topUpConfig.cycles} {getFrequencyPeriod(selectedFrequency)}{topUpConfig.cycles !== 1 ? 's' : ''} × ₦{Math.ceil(topUpConfig.amountPerCycle).toLocaleString('en-US')} = ₦{targetAmount.toLocaleString('en-US')}
+              </Text>
             </View>
           </View>
+
+          {/* Funding Dates */}
+          {topUpConfig.fundingDates.length > 0 && (
+            <View style={styles.datesCard}>
+              <Text style={styles.datesTitle}>Auto Funding Dates</Text>
+              <View style={styles.datesList}>
+                {(showAllDates ? topUpConfig.fundingDates : topUpConfig.fundingDates.slice(0, 5)).map((date, index) => (
+                  <View key={index} style={styles.dateItem}>
+                    <Calendar size={16} color={colors.textSecondary} />
+                    <Text style={styles.dateText}>
+                      {formatDateForDisplay(date)}
+                    </Text>
+                    <Text style={styles.dateAmount}>
+                      ₦{Math.ceil(topUpConfig.amountPerCycle).toLocaleString('en-US')}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              {topUpConfig.fundingDates.length > 5 && (
+                <Pressable
+                  style={styles.seeAllButton}
+                  onPress={() => {
+                    haptics.selection();
+                    setShowAllDates(!showAllDates);
+                  }}
+                >
+                  <Text style={styles.seeAllButtonText}>
+                    {showAllDates ? 'Show Less' : `See All (${topUpConfig.fundingDates.length} dates)`}
+                  </Text>
+                  <ChevronDown 
+                    size={16} 
+                    color={colors.primary}
+                    style={[
+                      styles.seeAllChevron,
+                      showAllDates && styles.seeAllChevronOpen
+                    ]}
+                  />
+                </Pressable>
+              )}
+            </View>
+          )}
 
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>Summary</Text>
             <Text style={styles.summaryText}>
-              ₦{topUpConfig.amountPerCycle.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per {topUpConfig.frequency === 'daily' ? 'day' : topUpConfig.frequency === 'weekly' ? 'week' : topUpConfig.frequency === 'biweekly' ? '2 weeks' : topUpConfig.frequency === 'monthly' ? 'month' : topUpConfig.frequency === 'quarterly' ? 'quarter' : 'year'}
-            </Text>
-            <Text style={styles.summaryText}>
               Starting {formatDateForDisplay(topUpConfig.topUpStartDate)} until {formatDateForDisplay(topUpConfig.topUpEndDate)}
             </Text>
+            <Text style={styles.summaryText}>
+              Total: ₦{targetAmount.toLocaleString('en-US')} over {topUpConfig.cycles} {getFrequencyPeriod(selectedFrequency)}{topUpConfig.cycles !== 1 ? 's' : ''}
+            </Text>
             <Text style={styles.summaryNote}>
-              Top-ups will automatically transfer from your main available balance to this plan.
+              Top-ups will automatically transfer from your available balance to this plan.
             </Text>
           </View>
         </ScrollView>
@@ -350,24 +465,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       marginBottom: 24,
       alignItems: 'center',
     },
-    iconContainer: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: colors.accentBackground,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 16,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    sectionTitle: {
-      fontSize: getScaledFontSize(24, textSizeMultiplier),
-      fontWeight: '700',
-      color: colors.text,
-      marginBottom: 8,
-      textAlign: 'center',
-    },
     sectionDescription: {
       fontSize: getScaledFontSize(14, textSizeMultiplier),
       color: colors.textSecondary,
@@ -382,29 +479,138 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       borderWidth: 1,
       borderColor: colors.border,
     },
-    configRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    configLabelContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      flex: 1,
-    },
-    configLabel: {
-      fontSize: getScaledFontSize(14, textSizeMultiplier),
-      color: colors.textSecondary,
-      flex: 1,
-    },
-    configValue: {
+    configSectionTitle: {
       fontSize: getScaledFontSize(16, textSizeMultiplier),
       fontWeight: '600',
       color: colors.text,
+      marginBottom: 16,
+    },
+    dropdownButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 16,
+      backgroundColor: colors.backgroundTertiary,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 16,
+    },
+    dropdownButtonContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      flex: 1,
+    },
+    dropdownButtonText: {
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+    },
+    dropdownChevron: {
+      transform: [{ rotate: '0deg' }],
+    },
+    dropdownChevronOpen: {
+      transform: [{ rotate: '180deg' }],
+    },
+    dropdownContainer: {
+      marginTop: 8,
+      backgroundColor: colors.backgroundTertiary,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+    },
+    dropdownOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    dropdownOptionSelected: {
+      backgroundColor: colors.accentBackground,
+    },
+    dropdownOptionText: {
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
+      color: colors.text,
+    },
+    dropdownOptionTextSelected: {
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    breakdownCard: {
+      backgroundColor: colors.accentBackground,
+      borderRadius: 12,
+      padding: 16,
+      marginTop: 16,
+    },
+    breakdownTitle: {
+      fontSize: getScaledFontSize(20, textSizeMultiplier),
+      fontWeight: '700',
+      color: colors.primary,
+      marginBottom: 4,
+    },
+    breakdownSubtext: {
+      fontSize: getScaledFontSize(13, textSizeMultiplier),
+      color: colors.textSecondary,
+    },
+    datesCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    datesTitle: {
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 16,
+    },
+    datesList: {
+      gap: 12,
+    },
+    dateItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    dateText: {
+      flex: 1,
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      color: colors.text,
+    },
+    dateAmount: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    seeAllButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 12,
+      marginTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    seeAllButtonText: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    seeAllChevron: {
+      transform: [{ rotate: '0deg' }],
+    },
+    seeAllChevronOpen: {
+      transform: [{ rotate: '180deg' }],
     },
     summaryCard: {
       backgroundColor: colors.accentBackground,
@@ -443,4 +649,3 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       textAlign: 'center',
     },
   });
-

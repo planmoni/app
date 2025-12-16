@@ -136,6 +136,7 @@ export function useExpensePlans() {
           payout_account_id: metadata.payout_account_id || plan.payout_account_id,
           payout_account_label: metadata.payout_account_label || plan.payout_account_label,
           payout_account_bank_name: metadata.payout_account_bank_name || plan.payout_account_bank_name,
+          funding_method: plan.funding_method || metadata.funding_method || 'manual',
           // Keep metadata for backward compatibility
           metadata,
         };
@@ -840,6 +841,50 @@ export function useExpensePlans() {
     }
   };
 
+  const addFundsToPlan = async (planId: string, amount: number) => {
+    if (!session?.user?.id) {
+      throw new Error('User not authenticated');
+    }
+
+    if (!planId) {
+      throw new Error('Plan ID is required');
+    }
+
+    if (!amount || amount <= 0) {
+      throw new Error('Amount must be greater than zero');
+    }
+
+    try {
+      const { data, error: rpcError } = await supabase.rpc('transfer_wallet_to_plan', {
+        p_user_id: session.user.id,
+        p_plan_id: planId,
+        p_amount: amount,
+      });
+
+      if (rpcError) {
+        throw new Error(rpcError.message || 'Failed to transfer funds');
+      }
+
+      if (!data || (data as any).success === false) {
+        const errorMsg = (data as any)?.error || 'Failed to transfer funds';
+        throw new Error(errorMsg);
+      }
+
+      // Refresh expense plans to get updated balance
+      await fetchExpensePlans();
+
+      return {
+        success: true,
+        new_wallet_balance: (data as any).new_wallet_balance,
+        new_plan_balance: (data as any).new_plan_balance,
+        amount: (data as any).amount,
+      };
+    } catch (error: any) {
+      console.error('Error adding funds to plan:', error);
+      throw error;
+    }
+  };
+
   return {
     expensePlans,
     isLoading,
@@ -855,6 +900,7 @@ export function useExpensePlans() {
     finalizeExpensePlan,
     getExpenseBuckets,
     saveLastStep,
+    addFundsToPlan,
   };
 }
 

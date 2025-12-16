@@ -166,39 +166,88 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
   const extraFunds = Math.max(0, currentBalance - plan.total_budget);
   
   // Calculate next funding countdown for auto plans
-  const fundingMethod = plan.funding_method || 'manual';
+  const fundingMethod = plan.funding_method || (plan as any).metadata?.funding_method || 'manual';
   const payoutSchedule = (plan as any).payout_schedule || 'weekly';
   const requiredPerCycle = (plan as any).required_per_cycle || 0;
   
   // Calculate next funding date for auto plans
   const getNextFundingCountdown = () => {
-    if (fundingMethod !== 'auto' || !plan.start_date || budgetStarted) return null;
+    // Check if auto top-up is enabled
+    const autoTopupEnabled = (plan as any).auto_topup_enabled === true || 
+                             (plan as any).metadata?.auto_topup_enabled === true;
     
-    // For auto plans, calculate next funding date based on schedule
-    const startDate = new Date(plan.start_date);
+    if (fundingMethod !== 'auto' || !autoTopupEnabled || !plan.start_date || budgetStarted) return null;
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    startDate.setHours(0, 0, 0, 0);
     
-    if (today < startDate) {
-      // Plan hasn't started yet, first funding is on start date
-      const daysUntil = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+    // Use auto_topup_next_date if available (most accurate - should be tomorrow for first funding)
+    const autoTopupNextDate = (plan as any).auto_topup_next_date || 
+                               (plan as any).metadata?.auto_topup_next_date;
+    if (autoTopupNextDate) {
+      const nextDate = new Date(autoTopupNextDate);
+      nextDate.setHours(0, 0, 0, 0);
+      
+      // Don't show if next date is today or in the past
+      if (nextDate <= today) return null;
+      
+      const daysUntil = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysUntil <= 0) return null;
+      return daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
     }
     
-    // Plan has started, calculate next cycle
-    const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    let cycleDays = 7; // default weekly
-    if (payoutSchedule === 'daily') cycleDays = 1;
-    else if (payoutSchedule === 'biweekly') cycleDays = 14;
-    else if (payoutSchedule === 'monthly') cycleDays = 30;
+    // Fallback: use auto_topup_start_date (should be tomorrow for first funding)
+    const autoTopupStartDate = (plan as any).auto_topup_start_date || 
+                                (plan as any).metadata?.auto_topup_start_date;
+    const autoTopupFrequency = (plan as any).auto_topup_frequency || 
+                                (plan as any).metadata?.auto_topup_frequency || 
+                                'weekly';
+    const autoTopupEndDate = (plan as any).auto_topup_end_date || 
+                             (plan as any).metadata?.auto_topup_end_date;
     
-    const cyclesCompleted = Math.floor(daysSinceStart / cycleDays);
-    const nextCycleDate = new Date(startDate);
-    nextCycleDate.setDate(startDate.getDate() + (cyclesCompleted + 1) * cycleDays);
+    if (autoTopupStartDate) {
+      const startDate = new Date(autoTopupStartDate);
+      startDate.setHours(0, 0, 0, 0);
+      
+      // If start date is in the future, that's the next funding date
+      if (startDate > today) {
+        const endDate = autoTopupEndDate ? new Date(autoTopupEndDate) : null;
+        // Check if it's before end date
+        if (endDate && startDate > endDate) return null;
+        const daysUntil = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysUntil <= 0) return null;
+        return daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+      }
+      
+      // Calculate next date based on frequency from start date
+      let nextDate = new Date(startDate);
+      const endDate = autoTopupEndDate ? new Date(autoTopupEndDate) : null;
+      
+      // Find the next funding date that hasn't passed yet
+      while (nextDate <= today && (!endDate || nextDate <= endDate)) {
+        if (autoTopupFrequency === 'daily') {
+          nextDate.setDate(nextDate.getDate() + 1);
+        } else if (autoTopupFrequency === 'weekly') {
+          nextDate.setDate(nextDate.getDate() + 7);
+        } else if (autoTopupFrequency === 'monthly') {
+          nextDate.setMonth(nextDate.getMonth() + 1);
+        } else {
+          // Default to weekly
+          nextDate.setDate(nextDate.getDate() + 7);
+        }
+      }
+      
+      // Don't show if next date is past end date or today
+      if (endDate && nextDate > endDate) return null;
+      if (nextDate <= today) return null;
+      
+      const daysUntil = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysUntil <= 0) return null;
+      return daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+    }
     
-    const daysUntil = Math.ceil((nextCycleDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil} days`;
+    // No auto top-up dates available - don't show next funding
+    return null;
   };
   
   const nextFundingCountdown = getNextFundingCountdown();

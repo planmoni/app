@@ -77,6 +77,7 @@ import QuickPlans from '@/components/QuickPlans';
 import DailySpendGuidance from '@/components/DailySpendGuidance';
 import { getCategoryIcon, getCategoryById } from '@/lib/expenseCategories';
 import { getBudgetDuration, isBudgetStarted } from '@/lib/expensePlanUtils';
+import { formatTransactionType } from '@/lib/formatters';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -709,16 +710,16 @@ export default function HomeScreen() {
           data.forEach((banner: Banner) => {
             // Preload images asynchronously without blocking the UI
             // Use Image.getSize in a non-blocking way
-            Image.getSize(
-              banner.image_url,
+                Image.getSize(
+                  banner.image_url,
               () => {
                 // Image loaded successfully - no action needed
               },
               () => {
                 // Image failed to load - will load when displayed
               }
-            );
-          });
+                );
+              });
         });
       }
     } catch (error) {
@@ -785,7 +786,7 @@ export default function HomeScreen() {
           console.warn(`Refresh failed for ${operationNames[index]}:`, result.reason);
         }
       });
-
+      
       // Add haptic feedback for successful refresh
       impact();
     } catch (error) {
@@ -841,20 +842,25 @@ export default function HomeScreen() {
     return 'Hi';
   };
 
-  // Calculate expense plans "Available to spend" balance
-  // This shows excess funds from over-funded plans
+  // Calculate expense plans "Total in funded plans" balance
+  // This shows the total balance in all fully funded plans (current_balance >= total_budget)
   const expensePlansBalance = useMemo(() => {
     if (!expensePlans || expensePlans.length === 0) {
       return 0;
     }
     
-    // Sum excess funds from all over-funded plans
-    // Excess = current_balance - total_budget (when current_balance > total_budget)
+    // Sum current_balance from all fully funded plans
+    // A plan is considered funded when current_balance >= total_budget
     return expensePlans.reduce((total, plan) => {
       const currentBalance = (plan as any).current_balance || 0;
       const totalBudget = plan.total_budget || 0;
-      const excess = Math.max(0, currentBalance - totalBudget);
-      return total + excess;
+      
+      // Only include plans that are fully funded
+      if (totalBudget > 0 && currentBalance >= totalBudget) {
+        return total + currentBalance;
+      }
+      
+      return total;
     }, 0);
   }, [expensePlans]);
 
@@ -1168,7 +1174,7 @@ export default function HomeScreen() {
       status: displayStatus,
       date: new Date(transaction.created_at).toLocaleDateString(),
       time: new Date(transaction.created_at).toLocaleTimeString(),
-      type: transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1),
+      type: formatTransactionType(transaction.type),
       source: plan?.name || transaction.source,
       destination: `${bankName} •••• ${accountNumber.slice(-4)}`, // Use actual bank name
       transactionId: transaction.id,
@@ -1279,14 +1285,14 @@ export default function HomeScreen() {
           )}
           <View style={styles.greetingInlineContainer}>
             {isAuthenticated ? (
-              <View style={styles.greetingInlineRow}>
-                <Text style={styles.greetingInline} numberOfLines={1} ellipsizeMode="tail">
+            <View style={styles.greetingInlineRow}>
+              <Text style={styles.greetingInline} numberOfLines={1} ellipsizeMode="tail">
                   {getGreeting()}, {firstName}.
-                </Text>
-                <Text style={styles.subGreetingInline} numberOfLines={1} ellipsizeMode="tail">
-                  It's time to plan your finances
-                </Text>
-              </View>
+              </Text>
+              <Text style={styles.subGreetingInline} numberOfLines={1} ellipsizeMode="tail">
+                It's time to plan your finances
+              </Text>
+            </View>
             ) : (
               <Pressable 
                 onPress={() => router.push('/(auth)/login')} 
@@ -1413,13 +1419,13 @@ export default function HomeScreen() {
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     style={styles.eyeIconButton}
                   >
-                    <MoreVertical size={20} color={colors.textSecondary} />
+                    <MoreVertical size={20} color={'#fff'} />
                   </Pressable>
                 </View>
                 <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
                 <View style={styles.lockedSection}>
                   <View style={styles.lockedLabelContainer}>
-                    <Clock size={16} color={colors.textSecondary} />
+                    <Clock size={16} color={colors.textTertiary} />
                     <Text style={styles.lockedLabel}>
                       {formatBalance(lockedBalance)} in active payout plans
                     </Text>
@@ -1427,21 +1433,21 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.buttonGroup}>
                   <Pressable 
-                    style={styles.addFundsButton} 
+                    style={styles.addFundsButtonBalance} 
                   onPress={() => {
                     impact();
                     router.push('/add-funds');
                   }}
                   >
-                    <ArrowDown size={20} color={isDark ? '#fff' : colors.primary}/>
-                    <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
+                    <ArrowDown size={20} color={'#fff'}/>
+                    <Text style={[styles.addFundsTextBalance]}>Add funds</Text>
                   </Pressable>
                   <Pressable 
-                    style={styles.createButton} 
+                    style={styles.createButtonBalance} 
                     onPress={handleCreatePayout}
                   >
-                    <CalendarCheck size={22} color={'#fff'} />
-                    <Text style={styles.createButtonText}>New Plan</Text>
+                    <CalendarCheck size={22} color={colors.primary} />
+                    <Text style={styles.createButtonTextBalance}>New Plan</Text>
                   </Pressable>
                 </View>
               </View>
@@ -2186,7 +2192,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   balanceCard: {
     borderRadius: 15,
     borderWidth: 1,
-    backgroundColor: colors.card,
+    backgroundColor: colors.balanceBackground,
     borderColor: colors.border,
     overflow: 'hidden',
     marginBottom: 10,
@@ -2210,7 +2216,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   balanceLabel: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
     fontWeight: '600',
-    color: colors.text,
+    color: colors.textTertiary,
   },
   historyButton: {
     padding: 4,
@@ -2225,7 +2231,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   balanceAmount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 35 : 30, textSizeMultiplier),
     fontWeight: '700',
-    color: colors.text,
+    color: '#fff',
     marginBottom: Platform.OS === 'ios' ? 5 : -1,
   },
   lockedSection: {
@@ -2242,12 +2248,12 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   lockedLabel: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
-    color: colors.textSecondary,
+    color: colors.textTertiary,
   },
   lockedAmount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
-    color: colors.text,
+    color: '#fff',
   },
   buttonGroup: {
     flexDirection: 'row',
@@ -2264,8 +2270,24 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     justifyContent: 'center',
     gap: 5,
   },
+  createButtonBalance: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    padding: Platform.OS === 'ios' ? 14 : 10,
+    borderRadius: Platform.OS === 'ios' ? 20 : 15,
+    height: Platform.OS === 'ios' ? 55 : 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
   createButtonText: {
     color: '#fff',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
+    fontWeight: '600',
+  },
+  createButtonTextBalance: {
+    color: colors.primary,
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
     fontWeight: '600',
   },
@@ -2282,8 +2304,29 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     justifyContent: 'center',
     gap: 8,
   },
+  addFundsButtonBalance: {
+    flex: 1,
+    flexDirection: 'row',
+    borderWidth: 2,
+    borderColor: '#fff',
+    // backgroundColor: '#1E3A8A',
+    padding: Platform.OS === 'ios' ? 14 : 10,
+    borderRadius: Platform.OS === 'ios' ? 20 : 15,
+    height: Platform.OS === 'ios' ? 55 : 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
   addFundsText: {
     color: colors.primary,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
+    fontWeight: '600',
+    textAlign: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addFundsTextBalance: {
+    color: '#fff',
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
     fontWeight: '600',
     textAlign: 'center',

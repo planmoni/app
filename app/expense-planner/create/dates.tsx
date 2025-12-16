@@ -254,7 +254,7 @@ export default function DatesScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Set the budget window</Text>
+        <Text style={styles.title}>When is the plan valid for?</Text>
         <Text style={styles.description}>
           Pick the start and end dates for this spending budget (or keep it to a single day).
         </Text>

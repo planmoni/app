@@ -983,7 +983,7 @@ export default function PlanDetailsScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-          <Text style={styles.title}>What are you budgeting for?</Text>
+          <Text style={styles.title}>What are you planning for?</Text>
 
           <View style={styles.searchWrapper}>
             <View style={styles.searchContainer}>

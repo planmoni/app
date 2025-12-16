@@ -96,7 +96,6 @@ function AISuggestionCard({
     switch (frequency) {
       case 'daily':
         return [
-          { value: 7, label: '1 Week', description: '7 daily payments' },
           { value: 30, label: '1 Month', description: '30 daily payments' },
           { value: 90, label: '3 Months', description: '90 daily payments' }
         ];
@@ -150,14 +149,6 @@ function AISuggestionCard({
         icon: <TrendingUp size={20} color="#8B5CF6" />,
       },
       {
-        id: 'daily-7-suggestion',
-        title: 'Daily Plan',
-        description: '7 daily payments',
-        frequency: 'daily' as const,
-        color: '#7C3AED',
-        icon: <TrendingUp size={20} color="#7C3AED" />,
-      },
-      {
         id: 'weekly-suggestion',
         title: 'Weekly Plan',
         description: 'Regular weekly savings',
@@ -207,9 +198,6 @@ function AISuggestionCard({
       } else if (suggestion.id === 'daily-30-suggestion') {
         // Special case for daily-30-suggestion - always use 30 payouts
         selectedDuration = { value: 30, label: '1 Month', description: '30 daily payments' };
-      } else if (suggestion.id === 'daily-7-suggestion') {
-        // Special case for daily-7-suggestion - always use 7 payouts
-        selectedDuration = { value: 7, label: '1 Week', description: '7 daily payments' };
       } else if (userPatterns.totalPlans > 0 && suggestion.frequency === userPatterns.mostCommonFrequency) {
         // For user's preferred frequency, use a longer duration
         selectedDuration = durationOptions[durationOptions.length - 1]; // Use the longest duration

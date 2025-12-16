@@ -154,13 +154,13 @@ BEGIN
     );
   END IF;
 
-  -- Check if user has sufficient balance
-  IF (SELECT balance FROM wallets WHERE id = v_wallet_id) < p_amount THEN
+  -- Check if user has sufficient available balance
+  IF (SELECT available_balance FROM wallets WHERE id = v_wallet_id) < p_amount THEN
     RETURN jsonb_build_object(
       'success', false,
       'error', 'Insufficient funds',
       'required', p_amount,
-      'available', (SELECT balance FROM wallets WHERE id = v_wallet_id)
+      'available', (SELECT available_balance FROM wallets WHERE id = v_wallet_id)
     );
   END IF;
 
