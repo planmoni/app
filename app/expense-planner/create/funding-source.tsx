@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -37,6 +37,29 @@ export default function FundingSourceScreen() {
   const [fundingMethod, setFundingMethod] = useState<FundingMethod>('manual');
   const [isSaving, setIsSaving] = useState(false);
   // Hybrid option removed; budgets are either auto or manual
+
+  // Check if start date is less than 1 week away
+  const isAutoTopUpDisabled = useMemo(() => {
+    if (!startDateStr) return false;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const startDate = new Date(startDateStr);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const daysUntil = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Disable if less than 7 days away
+    return daysUntil < 7;
+  }, [startDateStr]);
+
+  // If auto is selected but becomes disabled, switch to manual
+  useEffect(() => {
+    if (isAutoTopUpDisabled && fundingMethod === 'auto') {
+      setFundingMethod('manual');
+    }
+  }, [isAutoTopUpDisabled, fundingMethod]);
 
   // Allocation preview derived from budget window
   const allocationPreview = useMemo(() => {
@@ -137,7 +160,7 @@ export default function FundingSourceScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Budget refresh</Text>
+        <Text style={styles.headerTitle}>Budget funding</Text>
         <Pressable
           onPress={async () => {
             if (Platform.OS !== 'web') {
@@ -166,28 +189,62 @@ export default function FundingSourceScreen() {
             style={[
               styles.optionCard,
               fundingMethod === 'auto' && styles.optionCardSelected,
+              isAutoTopUpDisabled && styles.optionCardDisabled,
             ]}
             onPress={() => {
+              if (isAutoTopUpDisabled) {
+                haptics.notification();
+                Alert.alert(
+                  'Auto Top-Up Unavailable',
+                  'Auto top-up is only available when the budget start date is at least 1 week away. Please select manual top-up instead.',
+                  [{ text: 'OK' }]
+                );
+                return;
+              }
               haptics.selection();
               setFundingMethod('auto');
             }}
+            disabled={isAutoTopUpDisabled}
           >
             <View style={styles.optionHeader}>
               <View style={[
                 styles.optionIconContainer,
                 fundingMethod === 'auto' && styles.optionIconContainerSelected,
+                isAutoTopUpDisabled && styles.optionIconContainerDisabled,
               ]}>
-                <Zap size={24} color={fundingMethod === 'auto' ? colors.primary : colors.text} />
+                <Zap 
+                  size={24} 
+                  color={
+                    isAutoTopUpDisabled 
+                      ? colors.textTertiary 
+                      : fundingMethod === 'auto' 
+                        ? colors.primary 
+                        : colors.text
+                  } 
+                />
               </View>
               <View style={styles.optionHeaderText}>
-                <Text style={styles.optionTitle}>Auto top-up</Text>
-                <Text style={styles.optionSubtitle}>Automatically top-up your budget plan from your available balance little by little.</Text>
+                <Text style={[
+                  styles.optionTitle,
+                  isAutoTopUpDisabled && styles.optionTitleDisabled
+                ]}>
+                  Auto top-up
+                </Text>
+                <Text style={[
+                  styles.optionSubtitle,
+                  isAutoTopUpDisabled && styles.optionSubtitleDisabled
+                ]}>
+                  {isAutoTopUpDisabled 
+                    ? 'Auto top-up requires the budget start date to be at least 1 week away.'
+                    : 'Automatically top-up your budget plan from your available balance little by little.'}
+                </Text>
               </View>
               <View style={[
                 styles.radio,
                 fundingMethod === 'auto' && styles.radioSelected,
+                isAutoTopUpDisabled && styles.radioDisabled,
               ]}>
-                {fundingMethod === 'auto' && <View style={styles.radioInner} />}
+                {fundingMethod === 'auto' && !isAutoTopUpDisabled && <View style={styles.radioInner} />}
               </View>
             </View>
             
@@ -307,6 +364,11 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
       borderColor: colors.primary,
       backgroundColor: colors.primary + '10',
     },
+    optionCardDisabled: {
+      opacity: 0.5,
+      borderColor: colors.border,
+      backgroundColor: colors.backgroundSecondary,
+    },
     optionHeader: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -324,6 +386,10 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
     optionIconContainerSelected: {
       backgroundColor: colors.primary + '20',
     },
+    optionIconContainerDisabled: {
+      backgroundColor: colors.backgroundTertiary,
+      opacity: 0.5,
+    },
     optionHeaderText: {
       flex: 1,
     },
@@ -337,6 +403,12 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
       fontSize: getScaledFontSize(13, textSizeMultiplier),
       color: colors.textSecondary,
     },
+    optionTitleDisabled: {
+      color: colors.textTertiary,
+    },
+    optionSubtitleDisabled: {
+      color: colors.textTertiary,
+    },
     radio: {
       width: 24,
       height: 24,
@@ -349,6 +421,10 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
     },
     radioSelected: {
       borderColor: colors.primary,
+    },
+    radioDisabled: {
+      borderColor: colors.border,
+      opacity: 0.5,
     },
     radioInner: {
       width: 12,

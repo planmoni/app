@@ -39,6 +39,58 @@ interface UserWallet {
 serve(async (req) => {
   try {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+
+    // Delete unfunded budgets that have started (not draft plans)
+    const { data: unfundedPlans, error: unfundedError } = await supabase
+      .from('expense_plans')
+      .select('id, user_id, name, start_date, current_balance, status')
+      .not('status', 'eq', 'draft')
+      .lte('start_date', today);
+
+    if (!unfundedError && unfundedPlans) {
+      const plansToDelete = unfundedPlans.filter((plan: any) => {
+        // Check if budget has started and is unfunded
+        const startDate = new Date(plan.start_date);
+        startDate.setHours(0, 0, 0, 0);
+        const currentBalance = plan.current_balance || 0;
+        return startDate <= todayDate && currentBalance === 0;
+      });
+
+      if (plansToDelete.length > 0) {
+        const deleteResults = {
+          deleted: 0,
+          failed: 0,
+          errors: [] as string[],
+        };
+
+        for (const plan of plansToDelete) {
+          try {
+            const { error: deleteError } = await supabase
+              .from('expense_plans')
+              .delete()
+              .eq('id', plan.id)
+              .eq('user_id', plan.user_id);
+
+            if (deleteError) {
+              console.error(`Error deleting unfunded plan ${plan.id}:`, deleteError);
+              deleteResults.failed++;
+              deleteResults.errors.push(`Plan ${plan.id}: ${deleteError.message}`);
+            } else {
+              console.log(`Deleted unfunded plan ${plan.id} (${plan.name})`);
+              deleteResults.deleted++;
+            }
+          } catch (error: any) {
+            console.error(`Error deleting plan ${plan.id}:`, error);
+            deleteResults.failed++;
+            deleteResults.errors.push(`Plan ${plan.id}: ${error.message}`);
+          }
+        }
+
+        console.log(`Deleted ${deleteResults.deleted} unfunded budgets that have started`);
+      }
+    }
 
     // Find all expense plans that need top-ups today
     const { data: plansToTopUp, error: fetchError } = await supabase

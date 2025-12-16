@@ -1279,7 +1279,11 @@ export default function HomeScreen() {
           ) : (
             <Pressable style={styles.avatarButton}>
               <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
-                <MoreVertical size={34} color={'#fff'} />
+                <Image 
+                  source={require('@/assets/images/Icon-planmoni.png')}
+                  style={styles.planmoniIcon}
+                  resizeMode="contain"
+                />
               </View>
             </Pressable>
           )}
@@ -1391,7 +1395,7 @@ export default function HomeScreen() {
             >
             {/* Home Tab - Full Balance Card with Buttons */}
             <ImageBackground 
-              // source={require('@/assets/images/background.png')} 
+              source={require('@/assets/images/background.png')} 
               style={styles.balanceCard}
               resizeMode="cover"
             >
@@ -1424,12 +1428,12 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
                 <View style={styles.lockedSection}>
-                  <View style={styles.lockedLabelContainer}>
+                  {/* <View style={styles.lockedLabelContainer}>
                     <Clock size={16} color={colors.textTertiary} />
                     <Text style={styles.lockedLabel}>
                       {formatBalance(lockedBalance)} in active payout plans
                     </Text>
-                  </View>
+                  </View> */}
                 </View>
                 <View style={styles.buttonGroup}>
                   <Pressable 
@@ -1458,7 +1462,10 @@ export default function HomeScreen() {
               {/* On Track Card */}
               <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
-              <OnTrackCard payoutPlans={payoutPlans} />
+              <OnTrackCard 
+                payoutPlans={payoutPlans} 
+                onPress={() => handleTabChange('payouts')}
+              />
               {isAuthenticated && progress && !(
                 progress.id_face_verified === true || 
                 String(progress.id_face_verified) === '1' ||
@@ -1792,6 +1799,10 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     justifyContent: 'center',
     alignItems: 'center',
   },
+  planmoniIcon: {
+    width: 28,
+    height: 28,
+  },
   loginButton: {
     paddingHorizontal: 20,
     width: '60%',
@@ -1887,7 +1898,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginBottom: 8,
   },
   textBalanceAmount: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 32 : 28, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 36 : 28, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
@@ -2192,7 +2203,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   balanceCard: {
     borderRadius: 15,
     borderWidth: 1,
-    backgroundColor: colors.balanceBackground,
+    // backgroundColor: colors.balanceBackground,
     borderColor: colors.border,
     overflow: 'hidden',
     marginBottom: 10,
@@ -2229,10 +2240,10 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontWeight: '600',
   },
   balanceAmount: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 35 : 30, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 40 : 38, textSizeMultiplier),
     fontWeight: '700',
     color: '#fff',
-    marginBottom: Platform.OS === 'ios' ? 5 : -1,
+    marginBottom: Platform.OS === 'ios' ? -10 : -10,
   },
   lockedSection: {
     flexDirection: 'row',

@@ -322,7 +322,7 @@ export default function ReviewScreen() {
               </View>
             </View>
           ) : (
-            <Text style={styles.sectionValue}>Move to available balance</Text>
+            <Text style={styles.sectionValue}>Keep balance in Plan</Text>
           )}
         </View>
 

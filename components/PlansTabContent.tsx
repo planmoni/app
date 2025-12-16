@@ -65,7 +65,7 @@ export default function PlansTabContent({
       >
         <View style={styles.availableToSpendContent}>
           <View style={styles.availableToSpendInfo}>
-            <Text style={styles.availableToSpendLabel}>Total in funded plans</Text>
+            <Text style={styles.availableToSpendLabel}>Total Budgets</Text>
             <Text style={styles.availableToSpendAmount}>{formatBalance(expensePlansBalance)}</Text>
           </View>
           <ArrowRight size={20} color={colors.textSecondary} />
@@ -87,7 +87,7 @@ export default function PlansTabContent({
             <View style={styles.upNextCardHeader}>
               <View style={styles.upNextHeaderContent}>
                 <View style={styles.upNextLabelRow}>
-                  <Text style={styles.upNextLabel}>Next maturing budget</Text>
+                  <Text style={styles.upNextLabel}>Next budget</Text>
                   {(() => {
                     const totalBudget = nextMaturingBudget.plan.total_budget || 0;
                     const currentBalance = (nextMaturingBudget.plan as any).current_balance || 0;

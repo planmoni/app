@@ -118,6 +118,27 @@ export default function PlanDetailScreen() {
     }, [id])
   );
 
+  // Check if plan should be deleted (unfunded and started)
+  useEffect(() => {
+    if (!plan || !id) return;
+    
+    // Check if budget has started and is unfunded (not draft)
+    if (budgetStarted && currentBalance === 0 && plan.status !== 'draft') {
+      const deleteUnfundedPlan = async () => {
+        try {
+          await deleteExpensePlan(id as string);
+          haptics.notification();
+          // Redirect to home after deletion
+          router.replace('/(tabs)');
+        } catch (error) {
+          console.error('Error deleting unfunded plan:', error);
+        }
+      };
+      
+      deleteUnfundedPlan();
+    }
+  }, [plan, budgetStarted, currentBalance, id, deleteExpensePlan]);
+
   // Update time for countdowns
   useEffect(() => {
     const interval = setInterval(() => {
@@ -152,6 +173,14 @@ export default function PlanDetailScreen() {
     router.push({
       pathname: '/expense-planner/[id]/spend',
       params: { id: id as string },
+    });
+  };
+
+  const handleSpend = () => {
+    haptics.mediumImpact();
+    router.push({
+      pathname: '/spend/[planId]',
+      params: { planId: id as string },
     });
   };
 
@@ -377,10 +406,7 @@ export default function PlanDetailScreen() {
           <View style={styles.availableBalanceCard}>
             <View style={styles.availableBalanceHeader}>
               <Text style={styles.availableBalanceLabel}>Available to Spend</Text>
-              <Pressable onPress={handleViewBalance} style={styles.viewBalanceLink}>
-                <Text style={styles.viewBalanceLinkText}>View Balance</Text>
-                <ArrowRight size={16} color={colors.primary} />
-              </Pressable>
+              
             </View>
             <Text style={styles.availableBalanceAmount}>
               {formatBalance(availableToSpend)}
@@ -406,51 +432,66 @@ export default function PlanDetailScreen() {
 
         {/* Action Buttons */}
         <View style={styles.actionsCard}>
-          {/* Add Funds Button - Only for Manual plans that are not fully funded */}
-          {fundingMethod === 'manual' && currentBalance < totalBudget ? (
+          {/* For partially funded budgets that have started, show only Spend button */}
+          {budgetStarted && currentBalance > 0 && currentBalance < totalBudget ? (
             <Pressable 
               style={styles.actionButton}
-              onPress={handleFundPlan}
+              onPress={handleSpend}
             >
-              <CreditCard size={20} color={colors.primary} />
-              <Text style={styles.actionButtonText}>Add Funds</Text>
+              <ShoppingCart size={20} color={colors.primary} />
+              <Text style={styles.actionButtonText}>Spend</Text>
             </Pressable>
-          ) : fundingMethod === 'manual' && currentBalance >= totalBudget ? (
-            // Plan is fully funded, don't show button
-            null
           ) : (
-            <View style={styles.disabledActionButton}>
-              <CreditCard size={20} color={colors.textTertiary} />
-              <View style={styles.disabledActionButtonContent}>
-                <Text style={styles.disabledActionButtonText}>Add Funds</Text>
-                <Text style={styles.disabledActionButtonReason}>
-                  Auto-funded plans are funded automatically
+            <>
+              {/* Add Funds Button - Only for Manual plans that are not fully funded */}
+              {fundingMethod === 'manual' && currentBalance < totalBudget ? (
+                <Pressable 
+                  style={styles.actionButton}
+                  onPress={handleFundPlan}
+                >
+                  <CreditCard size={20} color={colors.primary} />
+                  <Text style={styles.actionButtonText}>Add Funds</Text>
+                </Pressable>
+              ) : fundingMethod === 'manual' && currentBalance >= totalBudget ? (
+                // Plan is fully funded, don't show button
+                null
+              ) : (
+                <View style={styles.disabledActionButton}>
+                  <CreditCard size={20} color={colors.textTertiary} />
+                  <View style={styles.disabledActionButtonContent}>
+                    <Text style={styles.disabledActionButtonText}>Add Funds</Text>
+                    <Text style={styles.disabledActionButtonReason}>
+                      Auto-funded plans are funded automatically
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Adjust Budget Button - Only show if budget hasn't started */}
+              {!budgetStarted && (
+                <Pressable 
+                  style={[styles.actionButton, styles.actionButtonSecondary]}
+                  onPress={handleAdjustBudget}
+                >
+                  <Settings size={20} color={colors.text} />
+                  <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>
+                    Adjust Budget
+                  </Text>
+                </Pressable>
+              )}
+
+              {/* Close Budget Button */}
+              <Pressable 
+                style={[styles.actionButton, styles.actionButtonDanger]}
+                onPress={handleCloseBudget}
+              >
+                <X size={20} color="#EF4444" />
+                <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
+                  Close Budget
                 </Text>
-              </View>
-            </View>
+              </Pressable>
+            </>
           )}
-
-          {/* Adjust Budget Button */}
-          <Pressable 
-            style={[styles.actionButton, styles.actionButtonSecondary]}
-            onPress={handleAdjustBudget}
-          >
-            <Settings size={20} color={colors.text} />
-            <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>
-              Adjust Budget
-            </Text>
-          </Pressable>
-
-          {/* Close Budget Button */}
-          <Pressable 
-            style={[styles.actionButton, styles.actionButtonDanger]}
-            onPress={handleCloseBudget}
-          >
-            <X size={20} color="#EF4444" />
-            <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
-              Close Budget
-            </Text>
-          </Pressable>
         </View>
 
         {/* Activity Section */}

@@ -10,14 +10,15 @@ import { getScaledFontSize } from '@/lib/textSize';
 
 interface OnTrackCardProps {
   payoutPlans: PayoutPlan[];
+  onPress?: () => void;
 }
 
 const ON_TRACK_CALCULATION_KEY = 'on_track_calculation_hash';
 const ON_TRACK_CARD_DISMISSED_KEY = 'on_track_card_dismissed';
 
-function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
+function OnTrackCard({ payoutPlans, onPress }: OnTrackCardProps) {
   const { colors, isDark } = useTheme();
-  const { lightImpact } = useHaptics();
+  const { lightImpact, mediumImpact } = useHaptics();
   const { textSizeMultiplier } = useTextSize();
   const [isDismissed, setIsDismissed] = useState(false);
   const [shouldShow, setShouldShow] = useState(false);
@@ -171,7 +172,8 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     checkShouldShow();
   }, [calculation, isDismissed]);
 
-  const handleClose = useCallback(async () => {
+  const handleClose = useCallback(async (e: any) => {
+    e?.stopPropagation(); // Prevent card press when closing
     lightImpact();
     setIsDismissed(true);
     setShouldShow(false);
@@ -184,6 +186,13 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
       }
     }
   }, [calculation, lightImpact]);
+
+  const handleCardPress = useCallback(() => {
+    if (onPress) {
+      mediumImpact();
+      onPress();
+    }
+  }, [onPress, mediumImpact]);
 
   const formatAmount = useCallback((amount: number) => {
     if (amount >= 1000000) {
@@ -202,7 +211,11 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
+      <Pressable 
+        style={styles.card}
+        onPress={handleCardPress}
+        disabled={!onPress}
+      >
         <View style={styles.header}>
           <View style={styles.iconContainer}>
             {/* <Lightbulb size={16} color={colors.text} /> */}
@@ -212,14 +225,14 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
         <Text style={styles.message}>
         🎯 You're on track to receive{' '}
           <Text style={styles.bold}>{formatAmount(calculation.totalPayout)}</Text>
-          {' '}over the next{' '}
+          {' '}in payouts over the next{' '}
           <Text style={styles.bold}>{calculation.timeValue}</Text>
           {' '}{calculation.timeUnit}{calculation.timeValue !== 1 ? 's' : ''}.
         </Text>
         <Pressable style={styles.closeButton} onPress={handleClose}>
           <X size={16} color={colors.text} />
         </Pressable>
-      </View>
+      </Pressable>
     </View>
   );
 }

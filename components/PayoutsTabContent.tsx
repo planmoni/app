@@ -46,14 +46,9 @@ export default function PayoutsTabContent({
       <View style={styles.payoutsBalanceCard}>
         <View style={styles.payoutsBalanceContent}>
           <View style={styles.payoutsBalanceInfo}>
-            <Text style={styles.payoutsBalanceLabel}>Payout plans balance</Text>
+            <Text style={styles.payoutsBalanceLabel}>Total amount in payout plans</Text>
             <Text style={styles.payoutsBalanceAmount}>{formatBalance(lockedBalance)}</Text>
-            <View style={styles.payoutsBalanceSubtext}>
-              <Clock size={14} color={colors.textSecondary} />
-              <Text style={styles.payoutsBalanceSubtextText}>
-                {formatBalance(lockedBalance)} locked in payout plans
-              </Text>
-            </View>
+            
           </View>
         </View>
       </View>

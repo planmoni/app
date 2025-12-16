@@ -6,7 +6,7 @@ import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { ExpensePlan } from '@/types/expense-planner';
 import { getCategoryIcon } from '@/lib/expenseCategories';
-import { getBudgetDuration } from '@/lib/expensePlanUtils';
+import { getBudgetDuration, isBudgetStarted } from '@/lib/expensePlanUtils';
 
 interface PlanDetailsInfoProps {
   plan: ExpensePlan;
@@ -66,6 +66,9 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
   const startAction = plan?.metadata?.start_action || plan?.start_action || 'wallet';
   const payoutAccountLabel = plan?.metadata?.payout_account_label || plan?.payout_account_label;
   const payoutAccountBankName = plan?.metadata?.payout_account_bank_name || plan?.payout_account_bank_name;
+  
+  // Check if budget has started
+  const budgetStarted = plan?.start_date ? isBudgetStarted(plan.start_date) : false;
 
   // Calculate next funding countdown for auto plans (returns date string and amount)
   const getNextFundingCountdown = () => {
@@ -247,8 +250,10 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
         <Text style={styles.infoLabel}>Plan Start Rule</Text>
         {startAction === 'wallet' ? (
           <View>
-            <Text style={styles.infoValue}>Move to wallet balance</Text>
-            {onViewBalance && (
+            <Text style={styles.infoValue}>
+              {budgetStarted ? 'Keep balance in Plan' : 'Move to wallet balance'}
+            </Text>
+            {/* {onViewBalance && (
               <Pressable 
                 style={styles.availableBalanceLink}
                 onPress={onViewBalance}
@@ -258,7 +263,7 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
                 </Text>
                 <ArrowRight size={16} color={colors.primary} />
               </Pressable>
-            )}
+            )} */}
           </View>
         ) : (
           <View>

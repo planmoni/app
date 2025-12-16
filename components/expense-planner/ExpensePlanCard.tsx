@@ -533,7 +533,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       )}
 
       {/* Show amount remaining to add or extra funds */}
-      {!budgetStarted && remainingToAdd > 0 && (
+      {/* {!budgetStarted && remainingToAdd > 0 && (
         <View style={styles.remainingRow}>
           <Text style={styles.remainingLabel}>Remaining to add</Text>
           <Text style={styles.remainingAmount}>₦{remainingToAdd.toLocaleString()}</Text>
@@ -545,17 +545,17 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
           <Text style={styles.extraFundsLabel}>Extra funds</Text>
           <Text style={styles.extraFundsAmount}>+₦{extraFunds.toLocaleString()}</Text>
         </View>
-      )}
+      )} */}
 
       {/* Show auto-fund countdown */}
-      {nextFundingCountdown && (
+      {/* {nextFundingCountdown && (
         <View style={styles.fundingCountdownRow}>
           <Clock size={14} color={colors.textSecondary} />
           <Text style={styles.fundingCountdownText}>
             Next funding: {nextFundingCountdown}
           </Text>
         </View>
-      )}
+      )} */}
 
       {/* Progress bar - show funding progress before start, spending progress after */}
       <View style={styles.progressBar}>
