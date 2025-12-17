@@ -39,6 +39,10 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
     ? ((totalSpent / totalBudget) * 100) 
     : 0;
   const remainingBudget = Math.max(0, totalBudget - totalSpent);
+  const percentageFunded = totalBudget > 0
+    ? ((currentBalance / totalBudget) * 100)
+    : 0;
+  const remainingToFund = Math.max(0, totalBudget - currentBalance);
 
   // Calculate budget duration
   const budgetDuration = plan?.start_date && plan?.end_date 
@@ -206,11 +210,14 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
           </View>
         </View>
       )}
-       <View style={styles.progressCard}>
+
+      <View style={styles.progressCard}>
         <View style={styles.progressHeader}>
-          <Text style={styles.progressTitle}>Spending Progress</Text>
+          <Text style={styles.progressTitle}>
+            {budgetStarted ? 'Spending Progress' : 'Funding Progress'}
+          </Text>
           <Text style={styles.progressPercentage}>
-            {Math.round(percentageSpent)}%
+            {Math.round(budgetStarted ? percentageSpent : percentageFunded)}%
           </Text>
         </View>
         <View style={styles.progressBar}>
@@ -218,15 +225,18 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
             style={[
               styles.progressFill,
               {
-                width: `${Math.min(Math.max(percentageSpent, 0), 100)}%`,
+                width: `${Math.min(
+                  Math.max(budgetStarted ? percentageSpent : percentageFunded, 0),
+                  100
+                )}%`,
                 backgroundColor:
-                  percentageSpent >= 100
+                  (budgetStarted ? percentageSpent : percentageFunded) >= 100
                     ? colors.primary
-                    : percentageSpent >= 75
+                    : (budgetStarted ? percentageSpent : percentageFunded) >= 75
                     ? '#10B981'
-                    : percentageSpent >= 50
+                    : (budgetStarted ? percentageSpent : percentageFunded) >= 50
                     ? '#F59E0B'
-                    : percentageSpent >= 25
+                    : (budgetStarted ? percentageSpent : percentageFunded) >= 25
                     ? '#F97316'
                     : '#EF4444',
               },
@@ -234,12 +244,29 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
           />
         </View>
         <View style={styles.progressInfo}>
-          <Text style={styles.progressText}>
-            Spent: {formatBalance(totalSpent)} / {formatBalance(plan.total_budget)}
-          </Text>
-          <Text style={styles.remainingText}>
-            {formatBalance(remainingBudget)} remaining in budget
-          </Text>
+          {budgetStarted ? (
+            <>
+              <Text style={styles.progressText}>
+                Spent: {formatBalance(totalSpent)} / {formatBalance(plan.total_budget)}
+              </Text>
+              <Text style={styles.remainingText}>
+                {remainingBudget > 0
+                  ? `${formatBalance(remainingBudget)} remaining in budget`
+                  : 'Budget fully spent'}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.progressText}>
+                Funded: {formatBalance(currentBalance)} / {formatBalance(plan.total_budget)}
+              </Text>
+              <Text style={styles.remainingText}>
+                {remainingToFund > 0
+                  ? `${formatBalance(remainingToFund)} remaining to fund`
+                  : 'Budget fully funded'}
+              </Text>
+            </>
+          )}
         </View>
       </View>
 

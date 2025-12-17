@@ -130,6 +130,7 @@ const DAYS_OF_WEEK: DayOfWeekOption[] = [
 function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerProps) {
   const { colors } = useTheme();
   const [currentDate, setCurrentDate] = useState(new Date());
+  const hasAutoSelectedRef = useRef(false);
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 380;
 
@@ -203,6 +204,43 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
     checkDate.setHours(0, 0, 0, 0);
     return checkDate < twoWeeksFromNow; // Disable dates before 2 weeks from now
   };
+
+  // Auto-focus and preselect the first available date (>= 2 weeks out) when opening
+  useEffect(() => {
+    if (!isVisible) {
+      hasAutoSelectedRef.current = false;
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const minSelectable = new Date(today);
+    minSelectable.setDate(today.getDate() + 14);
+
+    const parsedSelected = selectedDates
+      .map(d => new Date(d))
+      .filter(d => !Number.isNaN(d.getTime()) && !isTodayOrPastDate(d))
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    const initialFocusDate = parsedSelected[0] || minSelectable;
+
+    if (initialFocusDate) {
+      const focusMonth = new Date(initialFocusDate);
+      focusMonth.setDate(1);
+      setCurrentDate(focusMonth);
+
+      if (
+        !hasAutoSelectedRef.current &&
+        parsedSelected.length === 0 &&
+        !isTodayOrPastDate(initialFocusDate)
+      ) {
+        hasAutoSelectedRef.current = true;
+        onSelect(formatDate(initialFocusDate));
+      }
+    }
+    // Run only when opening the modal; do not re-run on subsequent selections
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVisible]);
 
   const styles = createDatePickerStyles(colors, isSmallScreen);
 
