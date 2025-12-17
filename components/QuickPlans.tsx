@@ -7,7 +7,11 @@ import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import { getCategoryIcon } from '@/lib/expenseCategories';
 
-export default function QuickPlans() {
+type QuickPlansProps = {
+  onRequireAuth?: () => boolean;
+};
+
+export default function QuickPlans({ onRequireAuth }: QuickPlansProps) {
   const { colors } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
@@ -37,6 +41,7 @@ export default function QuickPlans() {
                 key={category.id}
                 style={styles.item}
                 onPress={() => {
+                  if (onRequireAuth && !onRequireAuth()) return;
                   haptics.impact();
                   router.push({
                     pathname: '/expense-planner/create/plan-details',

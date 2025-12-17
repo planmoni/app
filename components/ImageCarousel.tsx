@@ -39,6 +39,7 @@ interface ImageCarouselProps {
   height?: number;
   images?: Banner[];
   showDimensions?: boolean; // New prop to show/hide dimensions
+  onRequireAuth?: () => boolean;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -54,6 +55,7 @@ export default function ImageCarousel({
   height = Platform.OS === 'android' ? 140 : 150,
   images: propImages,
   showDimensions = false, // Default to false for production
+  onRequireAuth,
 }: ImageCarouselProps) {
   const { colors, isDark } = useTheme();
   const [images, setImages] = useState<Banner[]>(propImages || []);
@@ -209,10 +211,11 @@ export default function ImageCarousel({
   });
 
   const handleImagePress = useCallback((banner: Banner) => {
+    if (onRequireAuth && !onRequireAuth()) return;
     if (banner.link_url) {
       router.push(banner.link_url);
     }
-  }, []);
+  }, [onRequireAuth]);
 
   // Calculate dynamic height based on image dimensions
   const calculateDynamicHeight = useCallback(() => {

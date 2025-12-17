@@ -29,6 +29,7 @@ type PlansTabContentProps = {
   getNextMaturingBudgetCategoryIcons: CategoryIcon[];
   isRefreshing?: boolean;
   onRefresh?: () => void;
+  onRequireAuth?: () => boolean;
 };
 
 export default function PlansTabContent({
@@ -45,6 +46,7 @@ export default function PlansTabContent({
   getNextMaturingBudgetCategoryIcons,
   isRefreshing = false,
   onRefresh,
+  onRequireAuth,
 }: PlansTabContentProps) {
   const totalCreatedBudget = expensePlans?.reduce((sum, plan) => {
     const amount = plan?.total_budget || 0;
@@ -70,6 +72,7 @@ export default function PlansTabContent({
         style={styles.availableToSpendCard}
         onPress={() => {
           impact();
+          if (onRequireAuth && !onRequireAuth()) return;
           router.push('/spend');
         }}
       >
@@ -183,7 +186,7 @@ export default function PlansTabContent({
         </>
       )}
 
-        <ExpensePlansSection />
+        <ExpensePlansSection onRequireAuth={onRequireAuth} />
         <View style={styles.bottomPadding} />
       </ScrollView>
     </View>

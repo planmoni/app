@@ -14,6 +14,7 @@ type PayoutsTabContentProps = {
   activePlans: any[];
   payoutsTotalPaid: number;
   payoutsTotalAmount: number;
+  onRequireAuth?: () => boolean;
   setShowNewPlanInfoModal: (value: boolean) => void;
   setShowHowItWorksModal: (value: boolean) => void;
   isRefreshing?: boolean;
@@ -30,6 +31,7 @@ export default function PayoutsTabContent({
   activePlans,
   payoutsTotalPaid,
   payoutsTotalAmount,
+  onRequireAuth,
   setShowNewPlanInfoModal,
   setShowHowItWorksModal,
   isRefreshing = false,
@@ -77,6 +79,7 @@ export default function PayoutsTabContent({
 
         <PayoutPlansSection
           activePlans={activePlans}
+          onRequireAuth={onRequireAuth}
           onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}
           onShowHowItWorks={() => setShowHowItWorksModal(true)}
         />

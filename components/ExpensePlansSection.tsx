@@ -9,7 +9,11 @@ import { useHaptics } from '@/hooks/useHaptics';
 import ExpensePlanCard from '@/components/expense-planner/ExpensePlanCard';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 
-export default function ExpensePlansSection() {
+type ExpensePlansSectionProps = {
+  onRequireAuth?: () => boolean;
+};
+
+export default function ExpensePlansSection({ onRequireAuth }: ExpensePlansSectionProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
@@ -19,11 +23,13 @@ export default function ExpensePlansSection() {
   const displayedPlans = useMemo(() => expensePlans.slice(0, 5), [expensePlans]);
 
   const handleViewAll = () => {
+    if (onRequireAuth && !onRequireAuth()) return;
     haptics.selection();
     router.push('/expense-planner');
   };
 
   const handleCreatePlan = () => {
+    if (onRequireAuth && !onRequireAuth()) return;
     haptics.mediumImpact();
     router.push({
       pathname: '/expense-planner/create/plan-details',
@@ -67,6 +73,7 @@ export default function ExpensePlansSection() {
               <ExpensePlanCard
                 plan={plan}
                 onPress={() => {
+                  if (onRequireAuth && !onRequireAuth()) return;
                   haptics.selection();
                   router.push(`/expense-planner/${plan.id}`);
                 }}

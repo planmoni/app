@@ -350,6 +350,14 @@ export default function HomeScreen() {
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
 
+  const ensureAuthenticatedOrWelcome = useCallback(() => {
+    if (!isAuthenticated) {
+      setShowWelcomeModal(true);
+      return false;
+    }
+    return true;
+  }, [isAuthenticated]);
+
   // Lazy load heavy modals
   const [TransactionModalComponent, setTransactionModalComponent] = useState<React.ComponentType<any> | null>(null);
   const [ClaimAccountModalComponent, setClaimAccountModalComponent] = useState<React.ComponentType<any> | null>(null);
@@ -373,14 +381,18 @@ export default function HomeScreen() {
     }
   }, [showClaimAccountModal, ClaimAccountModalComponent]);
 
-  // Load WelcomeModal when needed
+  // Load WelcomeModal when needed (how-it-works or explicit welcome)
   useEffect(() => {
-    if (showHowItWorksModal && !WelcomeModalComponent) {
-      import('@/components/WelcomeModal').then(module => {
-        setWelcomeModalComponent(() => module.default);
-      });
+    if ((showHowItWorksModal || showWelcomeModal) && !WelcomeModalComponent) {
+      import('@/components/WelcomeModal')
+        .then(module => {
+          setWelcomeModalComponent(() => module.default);
+        })
+        .catch(error => {
+          console.error('Error loading WelcomeModal:', error);
+        });
     }
-  }, [showHowItWorksModal, WelcomeModalComponent]);
+  }, [showHowItWorksModal, showWelcomeModal, WelcomeModalComponent]);
 
   // Prevent navigation back to welcome page when authenticated
   useEffect(() => {
@@ -1023,18 +1035,16 @@ export default function HomeScreen() {
       return;
     }
 
+    if (!ensureAuthenticatedOrWelcome()) {
+      setShowBalanceActionsModal(false);
+      return;
+    }
+
     // Trigger medium impact haptic feedback
     impact();
     
     // Close the balance actions modal first
     setShowBalanceActionsModal(false);
-    
-    // For unauthenticated users, show ClaimAccountModal
-    if (!isAuthenticated) {
-      setShowClaimAccountModal(true);
-      logAnalyticsEvent('add_funds_click_unauthenticated_modal');
-      return;
-    }
     
     // Check if user has completed Tier 1
     const tierCompletion = checkTierCompletion();
@@ -1094,6 +1104,10 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
+    if (!ensureAuthenticatedOrWelcome()) {
+      return;
+    }
+
     // Route to unified create chooser
     router.push('/create-new');
     logAnalyticsEvent('create_payout_click_start');
@@ -1496,8 +1510,7 @@ export default function HomeScreen() {
                   <Pressable 
                     style={styles.addFundsButtonBalance} 
                   onPress={() => {
-                    impact();
-                    router.push('/add-funds');
+                    handleAddFunds();
                   }}
                   >
                     <ArrowDown size={20} color={'#fff'}/>
@@ -1546,11 +1559,11 @@ export default function HomeScreen() {
               )}
 
               {/* Quick Plans Section */}
-              <QuickPlans />
+              <QuickPlans onRequireAuth={ensureAuthenticatedOrWelcome} />
               <PendingActionsCard />
 
 
-              <ImageCarousel images={carouselImages} />
+              <ImageCarousel images={carouselImages} onRequireAuth={ensureAuthenticatedOrWelcome} />
               
 
                 <View style={styles.bottomPadding} />
@@ -1575,6 +1588,7 @@ export default function HomeScreen() {
             getNextMaturingBudgetCategoryIcons={getNextMaturingBudgetCategoryIcons}
             isRefreshing={isRefreshing}
             onRefresh={handleRefresh}
+            onRequireAuth={ensureAuthenticatedOrWelcome}
           />
 
           {/* Payouts Tab Content */}
@@ -1588,6 +1602,7 @@ export default function HomeScreen() {
             activePlans={activePlans}
             payoutsTotalPaid={payoutsTotalPaid}
             payoutsTotalAmount={payoutsTotalAmount}
+            onRequireAuth={ensureAuthenticatedOrWelcome}
             setShowNewPlanInfoModal={setShowNewPlanInfoModal}
             setShowHowItWorksModal={setShowHowItWorksModal}
             isRefreshing={isRefreshing}
@@ -1613,8 +1628,7 @@ export default function HomeScreen() {
           <Pressable 
             style={styles.addFundsButton} 
             onPress={() => {
-              impact();
-              router.push('/add-funds');
+              handleAddFunds();
             }}
           >
             <ArrowDown size={20} color={isDark ? '#fff' : colors.primary} />
@@ -1635,6 +1649,7 @@ export default function HomeScreen() {
         <Pressable
           style={styles.floatingAddButton}
           onPress={() => {
+            if (!ensureAuthenticatedOrWelcome()) return;
             impact();
             router.push({
               pathname: '/expense-planner/create/plan-details',
@@ -1804,6 +1819,18 @@ export default function HomeScreen() {
         isVisible={showLivenessTest}
         onClose={() => setShowLivenessTest(false)}
       /> */}
+
+      {/* Welcome Modal - unauthenticated gating */}
+      {showWelcomeModal && WelcomeModalComponent && (
+        <WelcomeModalComponent
+          isVisible={showWelcomeModal}
+          onClose={() => {
+            setShowWelcomeModal(false);
+            setHasShownWelcomeModal(true);
+          }}
+          showButtons
+        />
+      )}
 
       {/* How it Works Modal - Lazy loaded */}
       {showHowItWorksModal && WelcomeModalComponent && (
