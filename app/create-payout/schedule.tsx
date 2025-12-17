@@ -85,18 +85,18 @@ function TimePicker({ isVisible, onClose, onSelect, selectedHour }: TimePickerPr
                   const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
                   const period = h >= 12 ? 'PM' : 'AM';
                   return (
-                    <Pressable
-                      key={h}
-                      style={[styles.timeOption, hour === h && styles.selectedTimeOption]}
-                      onPress={() => setHour(h)}
-                    >
-                      <Text style={[
-                        styles.timeOptionText,
-                        hour === h && styles.selectedTimeOptionText
-                      ]}>
+                  <Pressable
+                    key={h}
+                    style={[styles.timeOption, hour === h && styles.selectedTimeOption]}
+                    onPress={() => setHour(h)}
+                  >
+                    <Text style={[
+                      styles.timeOptionText,
+                      hour === h && styles.selectedTimeOptionText
+                    ]}>
                         {displayHour} {period}
-                      </Text>
-                    </Pressable>
+                    </Text>
+                  </Pressable>
                   );
                 })}
               </ScrollView>

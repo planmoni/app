@@ -110,12 +110,12 @@ export default function ExpensePlanSuccessScreen() {
             hapticType="medium"
           />
         ) : (
-          <Button 
-            title="Fund Plan"
-            onPress={handleFundPlan}
-            style={styles.viewPlanButton}
-            hapticType="medium"
-          />
+        <Button 
+          title="Fund Plan"
+          onPress={handleFundPlan}
+          style={styles.viewPlanButton}
+          hapticType="medium"
+        />
         )}
         <Button 
           title="Back to Dashboard"

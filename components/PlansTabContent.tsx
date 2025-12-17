@@ -65,8 +65,11 @@ export default function PlansTabContent({
       >
         <View style={styles.availableToSpendContent}>
           <View style={styles.availableToSpendInfo}>
-            <Text style={styles.availableToSpendLabel}>Total Budgets</Text>
+            <Text style={styles.availableToSpendLabel}>Available to spend</Text>
             <Text style={styles.availableToSpendAmount}>{formatBalance(expensePlansBalance)}</Text>
+            <Text style={styles.availableToSpendSubtext}>
+               {formatBalance(expensePlansBalance)} in funded budgets
+            </Text>
           </View>
           <ArrowRight size={20} color={colors.textSecondary} />
         </View>

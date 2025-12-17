@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, X, Check, Plus, Calendar } from 'lucide-react-native';
@@ -11,13 +11,8 @@ import FloatingButton from '@/components/FloatingButton';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
+import { getBankIconLogo } from '@/lib/bankIcons';
 import { useExpenseBuckets } from '@/hooks/useExpenseBuckets';
-
-const FREQUENCY_OPTIONS = [
-  { value: 'once', label: 'Once' },
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-];
 
 export default function ScheduleWithdrawalScreen() {
   const { colors, isDark } = useTheme();
@@ -33,7 +28,7 @@ export default function ScheduleWithdrawalScreen() {
   const plan = expensePlans.find(p => p.id === planId);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [selectedBuckets, setSelectedBuckets] = useState<Set<string>>(new Set());
-  const [selectedFrequency, setSelectedFrequency] = useState<string>('once');
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -102,6 +97,32 @@ export default function ScheduleWithdrawalScreen() {
       return;
     }
 
+    if (!selectedDate || !plan?.start_date || !plan?.end_date) {
+      Alert.alert('Date Required', 'Please select a payout date within the budget window');
+      haptics.notification();
+      return;
+    }
+
+    const startDate = new Date(plan.start_date);
+    const endDate = new Date(plan.end_date);
+    const today = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
+    const isOutsideWindow = selectedDate < startDate || selectedDate > endDate;
+    const isToday = selectedDate.getTime() === today.getTime();
+    if (isOutsideWindow) {
+      Alert.alert('Invalid Date', 'Selected date is outside the budget window');
+      haptics.notification();
+      return;
+    }
+    if (isToday) {
+      Alert.alert('Invalid Date', 'Same day payouts are not allowed. Please pick a later date.');
+      haptics.notification();
+      return;
+    }
+
     haptics.mediumImpact();
     setIsProcessing(true);
 
@@ -131,8 +152,40 @@ export default function ScheduleWithdrawalScreen() {
 
   const selectedAccount = payoutAccounts.find(acc => acc.id === selectedAccountId);
   const totalAmount = calculateTotalAmount();
-  const budgetStartDate = plan ? new Date(plan.created_at) : null; // TODO: Get actual start_date
-  const budgetEndDate = plan ? new Date(plan.created_at) : null; // TODO: Get actual end_date
+  const budgetStartDate = plan?.start_date ? new Date(plan.start_date) : null;
+  const budgetEndDate = plan?.end_date ? new Date(plan.end_date) : null;
+
+  const dateOptions = useMemo(() => {
+    if (!budgetStartDate || !budgetEndDate) return [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const start = new Date(budgetStartDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(budgetEndDate);
+    end.setHours(0, 0, 0, 0);
+
+    // First selectable date is the later of start date or tomorrow
+    const firstSelectable = new Date(Math.max(start.getTime(), today.getTime() + 24 * 60 * 60 * 1000));
+    if (firstSelectable > end) return [];
+
+    const dates: { date: Date }[] = [];
+    for (let d = new Date(firstSelectable); d <= end; d.setDate(d.getDate() + 1)) {
+      const day = new Date(d);
+      day.setHours(0, 0, 0, 0);
+      dates.push({ date: day });
+    }
+    return dates;
+  }, [budgetStartDate, budgetEndDate]);
+
+  useEffect(() => {
+    if (!plan) return;
+    // Auto-select only when nothing is selected yet
+    if (selectedDate) return;
+    const firstDate = dateOptions.length > 0 ? dateOptions[0].date : null;
+    if (!firstDate) return;
+    setSelectedDate(firstDate);
+  }, [plan, dateOptions, selectedDate]);
 
   const formatDate = (date: Date | null) => {
     if (!date) return 'N/A';
@@ -181,15 +234,49 @@ export default function ScheduleWithdrawalScreen() {
           </View>
         )}
 
+        {budgetStartDate && budgetEndDate && dateOptions.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Select payout date</Text>
+            <Text style={styles.sectionDescription}>
+              Dates outside the budget window are disabled
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateList}>
+              {dateOptions.map(({ date }) => {
+                const isSelected = selectedDate ? date.toDateString() === selectedDate.toDateString() : false;
+                return (
+                  <Pressable
+                    key={date.toISOString()}
+                    style={[
+                      styles.dateChip,
+                      isSelected && styles.dateChipSelected,
+                    ]}
+                    onPress={() => setSelectedDate(date)}
+                  >
+                    <Text style={[
+                      styles.dateChipText,
+                      isSelected && styles.dateChipTextSelected,
+                    ]}>
+                      {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Select payout account</Text>
           <View style={styles.accountsContainer}>
-            {payoutAccounts.map(account => (
+              {payoutAccounts.map(account => {
+                const bankIcon = getBankIconLogo(account.bank_name);
+                const isSelected = selectedAccountId === account.id;
+                return (
               <Pressable
                 key={account.id}
                 style={[
                   styles.accountCard,
-                  selectedAccountId === account.id && styles.accountCardSelected,
+                      isSelected && styles.accountCardSelected,
                 ]}
                 onPress={() => {
                   haptics.selection();
@@ -198,9 +285,26 @@ export default function ScheduleWithdrawalScreen() {
               >
                 <View style={styles.accountInfo}>
                   <View style={styles.accountIcon}>
+                        {(() => {
+                          if (bankIcon.logoSvg) {
+                            const SvgLogo = bankIcon.logoSvg.default || bankIcon.logoSvg;
+                            return <SvgLogo width={28} height={28} />;
+                          }
+                          if (bankIcon.logo) {
+                            return (
+                              <Image
+                                source={bankIcon.logo}
+                                style={styles.bankIconImage}
+                                resizeMode="contain"
+                              />
+                            );
+                          }
+                          return (
                     <Text style={styles.accountIconText}>
                       {account.bank_name.charAt(0).toUpperCase()}
                     </Text>
+                          );
+                        })()}
                   </View>
                   <View style={styles.accountDetails}>
                     <Text style={styles.accountName}>{account.account_name}</Text>
@@ -210,13 +314,15 @@ export default function ScheduleWithdrawalScreen() {
                     <Text style={styles.bankName}>{account.bank_name}</Text>
                   </View>
                 </View>
-                {selectedAccountId === account.id && (
-                  <View style={styles.checkIcon}>
-                    <Check size={20} color={colors.primary} />
+                    <View style={[
+                      styles.checkCircle,
+                      isSelected && styles.checkCircleSelected,
+                    ]}>
+                      {isSelected && <Check size={16} color={'#fff'} />}
                   </View>
-                )}
               </Pressable>
-            ))}
+                );
+              })}
           </View>
 
           <Pressable
@@ -231,83 +337,6 @@ export default function ScheduleWithdrawalScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select buckets</Text>
-          <View style={styles.bucketsHeader}>
-            <Text style={styles.sectionDescription}>
-              Choose which expense buckets to include in the schedule
-            </Text>
-            <Pressable onPress={handleSelectAll}>
-              <Text style={styles.selectAllText}>
-                {selectedBuckets.size === buckets.length ? 'Deselect All' : 'Select All'}
-              </Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.bucketsContainer}>
-            {buckets.map(bucket => {
-              const isSelected = selectedBuckets.has(bucket.id);
-              const lockedAmount = bucket.target_amount; // TODO: Use actual locked amount
-              
-              return (
-                <Pressable
-                  key={bucket.id}
-                  style={[
-                    styles.bucketCard,
-                    isSelected && styles.bucketCardSelected,
-                  ]}
-                  onPress={() => handleBucketToggle(bucket.id)}
-                >
-                  <View style={styles.bucketInfo}>
-                    <Text style={styles.bucketName}>{bucket.name}</Text>
-                    <Text style={styles.bucketAmount}>
-                      ₦{lockedAmount.toLocaleString()} available
-                    </Text>
-                  </View>
-                  {isSelected && (
-                    <View style={styles.bucketCheck}>
-                      <Check size={20} color={colors.primary} />
-                    </View>
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Frequency</Text>
-          <Text style={styles.sectionDescription}>
-            How often should funds be withdrawn?
-          </Text>
-          <View style={styles.frequencyContainer}>
-            {FREQUENCY_OPTIONS.map(option => (
-              <Pressable
-                key={option.value}
-                style={[
-                  styles.frequencyCard,
-                  selectedFrequency === option.value && styles.frequencyCardSelected,
-                ]}
-                onPress={() => {
-                  haptics.selection();
-                  setSelectedFrequency(option.value);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.frequencyText,
-                    selectedFrequency === option.value && styles.frequencyTextSelected,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-                {selectedFrequency === option.value && (
-                  <Check size={16} color={colors.primary} />
-                )}
-              </Pressable>
-            ))}
-          </View>
-        </View>
 
         {totalAmount > 0 && (
           <View style={styles.summaryCard}>
@@ -421,6 +450,41 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       fontWeight: '600',
       color: colors.text,
     },
+    dateList: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+    },
+    dateChip: {
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      marginRight: 8,
+    },
+    dateChipSelected: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primary + '15',
+    },
+    dateChipDisabled: {
+      opacity: 0.5,
+      backgroundColor: colors.backgroundTertiary,
+    },
+    dateChipText: {
+      fontSize: getScaledFontSize(13, textSizeMultiplier),
+      color: colors.text,
+      fontWeight: '600',
+    },
+    dateChipTextSelected: {
+      color: colors.primary,
+    },
+    dateChipTextDisabled: {
+      color: colors.textSecondary,
+    },
     accountsContainer: {
       gap: 12,
       marginBottom: 16,
@@ -438,6 +502,11 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     accountCardSelected: {
       borderColor: colors.primary,
       backgroundColor: colors.primary + '10',
+    },
+    bankIconImage: {
+      width: 28,
+      height: 28,
+      borderRadius: 6,
     },
     accountInfo: {
       flexDirection: 'row',
@@ -476,13 +545,19 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       fontSize: getScaledFontSize(12, textSizeMultiplier),
       color: colors.textTertiary,
     },
-    checkIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: colors.primary,
+    checkCircle: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      borderWidth: 2,
+      borderColor: colors.border,
       justifyContent: 'center',
       alignItems: 'center',
+      backgroundColor: colors.backgroundSecondary,
+    },
+    checkCircleSelected: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primary,
     },
     addAccountButton: {
       flexDirection: 'row',
@@ -548,36 +623,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       backgroundColor: colors.primary,
       justifyContent: 'center',
       alignItems: 'center',
-    },
-    frequencyContainer: {
-      flexDirection: 'row',
-      gap: 12,
-      flexWrap: 'wrap',
-    },
-    frequencyCard: {
-      flex: 1,
-      minWidth: '30%',
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: 16,
-      borderWidth: 2,
-      borderColor: colors.border,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-    },
-    frequencyCardSelected: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primary + '10',
-    },
-    frequencyText: {
-      fontSize: getScaledFontSize(14, textSizeMultiplier),
-      fontWeight: '600',
-      color: colors.text,
-    },
-    frequencyTextSelected: {
-      color: colors.primary,
     },
     summaryCard: {
       backgroundColor: colors.card,

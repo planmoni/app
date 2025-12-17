@@ -144,14 +144,10 @@ export default function PayoutAccountsScreen() {
                     <View style={styles.bankIcon}>
                       {(() => {
                         const bankIcon = getBankIconLogo(account.bank_name);
-                        
-                        if (bankIcon.logoSvg) {
-                          // Handle SVG components
-                          return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
-                            width: 24,
-                            height: 24,
-                            fill: colors.primary
-                          });
+                        const SvgLogo = bankIcon.logoSvg ? (bankIcon.logoSvg as any).default || bankIcon.logoSvg : null;
+
+                        if (SvgLogo && typeof SvgLogo === 'function') {
+                          return <SvgLogo width={24} height={24} fill={colors.primary} />;
                         } else if (bankIcon.logo) {
                           return (
                             <Image 

@@ -32,13 +32,13 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
 
   const subcategoryIcons = getAllSubcategoryIcons();
 
-  // Calculate funding progress
+  // Calculate spending progress
   const totalBudget = plan?.total_budget || 0;
-  const percentageFunded = totalBudget > 0 
-    ? ((currentBalance / totalBudget) * 100) 
+  const totalSpent = plan?.total_spent || 0;
+  const percentageSpent = totalBudget > 0 
+    ? ((totalSpent / totalBudget) * 100) 
     : 0;
-  const remainingToAdd = Math.max(0, totalBudget - currentBalance);
-  const extraFunds = Math.max(0, currentBalance - totalBudget);
+  const remainingBudget = Math.max(0, totalBudget - totalSpent);
 
   // Calculate budget duration
   const budgetDuration = plan?.start_date && plan?.end_date 
@@ -206,12 +206,50 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
           </View>
         </View>
       )}
-
-      {/* Budget Amount */}
-      <View style={styles.infoCard}>
-        <Text style={styles.infoLabel}>Budget Amount</Text>
-        <Text style={styles.infoValue}>{formatBalance(plan.total_budget)}</Text>
+       <View style={styles.progressCard}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressTitle}>Spending Progress</Text>
+          <Text style={styles.progressPercentage}>
+            {Math.round(percentageSpent)}%
+          </Text>
+        </View>
+        <View style={styles.progressBar}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${Math.min(Math.max(percentageSpent, 0), 100)}%`,
+                backgroundColor:
+                  percentageSpent >= 100
+                    ? colors.primary
+                    : percentageSpent >= 75
+                    ? '#10B981'
+                    : percentageSpent >= 50
+                    ? '#F59E0B'
+                    : percentageSpent >= 25
+                    ? '#F97316'
+                    : '#EF4444',
+              },
+            ]}
+          />
+        </View>
+        <View style={styles.progressInfo}>
+          <Text style={styles.progressText}>
+            Spent: {formatBalance(totalSpent)} / {formatBalance(plan.total_budget)}
+          </Text>
+          <Text style={styles.remainingText}>
+            {formatBalance(remainingBudget)} remaining in budget
+          </Text>
+        </View>
       </View>
+
+      {/* Budget Amount (hidden when started) */}
+      {!budgetStarted && (
+        <View style={styles.infoCard}>
+          <Text style={styles.infoLabel}>Budget Amount</Text>
+          <Text style={styles.infoValue}>{formatBalance(plan.total_budget)}</Text>
+        </View>
+      )}
 
       {/* Start Date - End Date */}
       {plan.start_date && plan.end_date && (
@@ -233,94 +271,44 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
         </View>
       )}
 
-      {/* Funding Method */}
-      <View style={styles.infoCard}>
-        <Text style={styles.infoLabel}>Funding Method</Text>
-        <Text style={styles.infoValue}>
-          {fundingMethod === 'auto' && autoTopupAmount && autoTopupFrequency
-            ? `Auto - ${formatBalance(autoTopupAmount)} ${getFrequencyLabel(autoTopupFrequency)}`
-            : fundingMethod === 'auto' 
-            ? 'Auto' 
-            : 'Manual'}
-        </Text>
-      </View>
-
-      {/* Start Rule */}
-      <View style={styles.infoCard}>
-        <Text style={styles.infoLabel}>Plan Start Rule</Text>
-        {startAction === 'wallet' ? (
-          <View>
+      {/* Funding Method & Start Rule (hidden when started) */}
+      {!budgetStarted && (
+        <>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoLabel}>Funding Method</Text>
             <Text style={styles.infoValue}>
-              {budgetStarted ? 'Keep balance in Plan' : 'Move to wallet balance'}
+              {fundingMethod === 'auto' && autoTopupAmount && autoTopupFrequency
+                ? `Auto - ${formatBalance(autoTopupAmount)} ${getFrequencyLabel(autoTopupFrequency)}`
+                : fundingMethod === 'auto' 
+                ? 'Auto' 
+                : 'Manual'}
             </Text>
-            {/* {onViewBalance && (
-              <Pressable 
-                style={styles.availableBalanceLink}
-                onPress={onViewBalance}
-              >
-                <Text style={styles.availableBalanceText}>
-                  View wallet balance
-                </Text>
-                <ArrowRight size={16} color={colors.primary} />
-              </Pressable>
-            )} */}
           </View>
-        ) : (
-          <View>
-            <Text style={styles.infoValue}>Auto payout to bank</Text>
-            {payoutAccountLabel && (
-              <Text style={styles.payoutAccountText}>
-                {payoutAccountBankName} ••••{payoutAccountLabel.split('••••')[1] || ''}
-              </Text>
+
+          <View style={styles.infoCard}>
+            <Text style={styles.infoLabel}>Plan Start Rule</Text>
+            {startAction === 'wallet' ? (
+              <View>
+                <Text style={styles.infoValue}>
+                  {budgetStarted ? 'Keep balance in Plan' : 'Move to wallet balance'}
+                </Text>
+              </View>
+            ) : (
+              <View>
+                <Text style={styles.infoValue}>Auto payout to bank</Text>
+                {payoutAccountLabel && (
+                  <Text style={styles.payoutAccountText}>
+                    {payoutAccountBankName} ••••{payoutAccountLabel.split('••••')[1] || ''}
+                  </Text>
+                )}
+              </View>
             )}
           </View>
-        )}
-      </View>
+        </>
+      )}
 
-      {/* Funding Progress */}
-      <View style={styles.progressCard}>
-        <View style={styles.progressHeader}>
-          <Text style={styles.progressTitle}>Funding Progress</Text>
-          <Text style={styles.progressPercentage}>
-            {Math.round(percentageFunded)}%
-          </Text>
-        </View>
-        <View style={styles.progressBar}>
-          <View
-            style={[
-              styles.progressFill,
-              {
-                width: `${Math.min(Math.max(percentageFunded, 0), 100)}%`,
-                backgroundColor:
-                  percentageFunded >= 100
-                    ? colors.primary
-                    : percentageFunded >= 75
-                    ? '#10B981'
-                    : percentageFunded >= 50
-                    ? '#F59E0B'
-                    : percentageFunded >= 25
-                    ? '#F97316'
-                    : '#EF4444',
-              },
-            ]}
-          />
-        </View>
-        <View style={styles.progressInfo}>
-          <Text style={styles.progressText}>
-            Funded: {formatBalance(currentBalance)} / {formatBalance(plan.total_budget)}
-          </Text>
-          {remainingToAdd > 0 && (
-            <Text style={styles.remainingText}>
-              {formatBalance(remainingToAdd)} remaining to add
-            </Text>
-          )}
-          {extraFunds > 0 && (
-            <Text style={styles.extraFundsText}>
-              +{formatBalance(extraFunds)} extra funds
-            </Text>
-          )}
-        </View>
-      </View>
+      {/* Spending Progress */}
+     
 
       {/* Next Funding Countdown (Auto plans) */}
       {nextFundingInfo && (

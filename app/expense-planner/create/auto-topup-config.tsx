@@ -349,7 +349,7 @@ export default function AutoTopUpConfigScreen() {
                 {topUpConfig.cycles} {getFrequencyPeriod(selectedFrequency)}{topUpConfig.cycles !== 1 ? 's' : ''} × ₦{Math.ceil(topUpConfig.amountPerCycle).toLocaleString('en-US')} = ₦{targetAmount.toLocaleString('en-US')}
               </Text>
             </View>
-          </View>
+            </View>
 
           {/* Funding Dates */}
           {topUpConfig.fundingDates.length > 0 && (

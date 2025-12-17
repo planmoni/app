@@ -47,6 +47,7 @@ export default function DestinationScreen() {
   // Combine loading and error states
   const isLoading = payoutAccountsLoading || bankAccountsLoading;
   const error = payoutAccountsError || bankAccountsError;
+  const isMaxPayoutAccounts = payoutAccounts.length >= 3;
 
   // Refresh accounts when screen comes into focus
   useFocusEffect(
@@ -372,18 +373,27 @@ export default function DestinationScreen() {
               )
             )}
 
-            <Pressable
-              style={styles.addAccountButton}
-              onPress={() => {
-                haptics.mediumImpact();
-                setShowAddAccount(true);
-              }}
-            >
-              <Plus size={20} color={colors.primary} />
-              <Text style={styles.addAccountText}>
-                Add New {accountType === 'payout' ? 'Payout' : 'Bank'} Account
-              </Text>
-            </Pressable>
+            {!(accountType === 'payout' && isMaxPayoutAccounts) && (
+              <Pressable
+                style={styles.addAccountButton}
+                onPress={() => {
+                  haptics.mediumImpact();
+                  setShowAddAccount(true);
+                }}
+              >
+                <Plus size={20} color={colors.primary} />
+                <Text style={styles.addAccountText}>
+                  Add New {accountType === 'payout' ? 'Payout' : 'Bank'} Account
+                </Text>
+              </Pressable>
+            )}
+            {(accountType === 'payout' && isMaxPayoutAccounts) && (
+              <View style={styles.limitNotice}>
+                <Text style={styles.limitNoticeText}>
+                  You can only add up to 3 payout accounts. Remove one to add another.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </KeyboardAvoidingWrapper>
@@ -673,6 +683,18 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     fontSize: 14,
     color: colors.text,
     fontWeight: '500',
+  },
+  limitNotice: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    marginTop: 8,
+  },
+  limitNoticeText: {
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   notice: {
     flexDirection: 'row',

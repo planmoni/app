@@ -28,7 +28,7 @@ export default function SpendBalanceScreen() {
   const plan = expensePlans.find(p => p.id === planId);
   const currentBalance = (plan as any)?.current_balance || 0;
   const totalBudget = plan?.total_budget || 0;
-  const extraFunds = Math.max(0, currentBalance - totalBudget);
+  const spendableBalance = currentBalance;
 
   useEffect(() => {
     fetchPayoutAccounts();
@@ -47,19 +47,14 @@ export default function SpendBalanceScreen() {
   const handleSchedule = () => {
     haptics.mediumImpact();
     router.push({
-      pathname: '/create-payout/schedule',
-      params: {
-        planId: planId,
-        amount: extraFunds.toString(),
-        source: 'plan_extra_funds',
-        planName: plan?.name || 'Budget',
-      },
+      pathname: '/expense-planner/[id]/schedule-withdrawal',
+      params: { id: planId },
     });
   };
 
   const handleWithdraw = async () => {
-    if (extraFunds <= 0) {
-      Alert.alert('No Extra Funds', 'This budget has no extra funds to withdraw.');
+    if (spendableBalance <= 0) {
+      Alert.alert('No Funds', 'This budget has no spendable funds available.');
       haptics.notification();
       return;
     }
@@ -80,8 +75,8 @@ export default function SpendBalanceScreen() {
     const defaultAccount = payoutAccounts.find(acc => acc.is_default) || payoutAccounts[0];
     
     Alert.alert(
-      'Withdraw Extra Funds',
-      `Withdraw ${formatBalance(extraFunds)} from "${plan?.name}" to ${defaultAccount.bank_name} ••••${defaultAccount.account_number.slice(-4)}?`,
+      'Withdraw Funds',
+      `Withdraw ${formatBalance(spendableBalance)} from "${plan?.name}" to ${defaultAccount.bank_name} ••••${defaultAccount.account_number.slice(-4)}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -111,7 +106,7 @@ export default function SpendBalanceScreen() {
                   },
                   body: JSON.stringify({
                     planId: planId,
-                    amount: extraFunds,
+                    amount: spendableBalance,
                     accountId: defaultAccount.id,
                   }),
                 }
@@ -129,7 +124,7 @@ export default function SpendBalanceScreen() {
               haptics.notification();
               Alert.alert(
                 'Withdrawal Successful',
-                `${formatBalance(extraFunds)} has been transferred to your account.`,
+                `${formatBalance(spendableBalance)} has been transferred to your account.`,
                 [
                   {
                     text: 'OK',
@@ -184,8 +179,8 @@ export default function SpendBalanceScreen() {
       >
         {/* Balance Card */}
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Extra Funds Available</Text>
-          <Text style={styles.balanceAmount}>{formatBalance(extraFunds)}</Text>
+          <Text style={styles.balanceLabel}>Spendable Balance</Text>
+          <Text style={styles.balanceAmount}>{formatBalance(spendableBalance)}</Text>
           <Text style={styles.balanceSubtext}>
             From budget of {formatBalance(totalBudget)}
           </Text>
@@ -207,7 +202,7 @@ export default function SpendBalanceScreen() {
           <Pressable
             style={[styles.actionButton, styles.withdrawButton]}
             onPress={handleWithdraw}
-            disabled={isProcessing || extraFunds <= 0}
+            disabled={isProcessing || spendableBalance <= 0}
           >
             <Send size={20} color={colors.primary} />
             <Text style={[styles.actionButtonText, styles.withdrawButtonText]}>

@@ -73,6 +73,7 @@ import ExpensePlansSection from '@/components/ExpensePlansSection';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
+import ActiveBudgetsCard from '@/components/ActiveBudgetsCard';
 import QuickPlans from '@/components/QuickPlans';
 import DailySpendGuidance from '@/components/DailySpendGuidance';
 import { getCategoryIcon, getCategoryById } from '@/lib/expenseCategories';
@@ -864,23 +865,55 @@ export default function HomeScreen() {
     }, 0);
   }, [expensePlans]);
 
-  // Find next maturing budget
-  const nextMaturingBudget = useMemo(() => {
-    if (!expensePlans || expensePlans.length === 0) return null;
-    
-    const activePlans = expensePlans.filter(p => p.status === 'active' && p.end_date);
-    if (activePlans.length === 0) return null;
+  // Active (started) budgets with spendable balance
+  const activeSpendableBudgets = useMemo(() => {
+    if (!expensePlans || expensePlans.length === 0) return { count: 0, total: 0, minDays: null as number | null };
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const upcomingPlans = activePlans
+    let count = 0;
+    let total = 0;
+    let minDays: number | null = null;
+
+    expensePlans.forEach(plan => {
+      if (plan.status !== 'active') return;
+      if (!isBudgetStarted(plan.start_date)) return;
+      const balance = (plan as any)?.current_balance || 0;
+      if (balance <= 0) return;
+
+      count += 1;
+      total += balance;
+
+      if (plan.end_date) {
+        const endDate = new Date(plan.end_date);
+        endDate.setHours(0, 0, 0, 0);
+        const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysUntilEnd >= 0) {
+          if (minDays === null || daysUntilEnd < minDays) {
+            minDays = daysUntilEnd;
+          }
+        }
+      }
+    });
+
+    return { count, total, minDays };
+  }, [expensePlans]);
+
+  // Find next maturing budget
+  const nextMaturingBudget = useMemo(() => {
+    if (!expensePlans || expensePlans.length === 0) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const upcomingPlans = expensePlans
+      .filter(p => p.status === 'active' && p.end_date)
       .map(plan => {
         const endDate = new Date(plan.end_date!);
         endDate.setHours(0, 0, 0, 0);
         const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         
-        // Calculate days until start date
         let daysUntilStart: number | null = null;
         if (plan.start_date) {
           const startDate = new Date(plan.start_date);
@@ -892,8 +925,14 @@ export default function HomeScreen() {
         const hasStarted = isBudgetStarted(plan.start_date);
         return { plan, daysUntilEnd, daysUntilStart, endDate, duration, hasStarted };
       })
-      .filter(({ daysUntilEnd }) => daysUntilEnd >= 0)
-      .sort((a, b) => a.daysUntilEnd - b.daysUntilEnd);
+      // Up next should be budgets that haven't started
+      .filter(({ hasStarted, daysUntilStart, daysUntilEnd }) => !hasStarted && (daysUntilStart ?? 0) >= 0 && daysUntilEnd >= 0)
+      .sort((a, b) => {
+        const aStart = a.daysUntilStart ?? Number.MAX_SAFE_INTEGER;
+        const bStart = b.daysUntilStart ?? Number.MAX_SAFE_INTEGER;
+        if (aStart === bStart) return a.daysUntilEnd - b.daysUntilEnd;
+        return aStart - bStart;
+      });
 
     return upcomingPlans.length > 0 ? upcomingPlans[0] : null;
   }, [expensePlans]);
@@ -1466,6 +1505,14 @@ export default function HomeScreen() {
                 payoutPlans={payoutPlans} 
                 onPress={() => handleTabChange('payouts')}
               />
+              {activeSpendableBudgets.count > 0 && (
+                <ActiveBudgetsCard 
+                  count={activeSpendableBudgets.count}
+                  totalAmount={activeSpendableBudgets.total}
+                  daysRemaining={activeSpendableBudgets.minDays}
+                  onPress={() => handleTabChange('plans')}
+                />
+              )}
               {isAuthenticated && progress && !(
                 progress.id_face_verified === true || 
                 String(progress.id_face_verified) === '1' ||
@@ -1913,7 +1960,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: colors.textSecondary,
   },
   availableToSpendCard: {
-    backgroundColor: colors.card,
+    backgroundColor: '#1E3A8A',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
@@ -1934,17 +1981,18 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   availableToSpendLabel: {
     fontSize: getScaledFontSize(13, textSizeMultiplier),
     fontWeight: '500',
-    color: colors.textSecondary,
+    color: colors.textTertiary,
     marginBottom: 4,
   },
   availableToSpendAmount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 32 : 28, textSizeMultiplier),
     fontWeight: '700',
-    color: colors.text,
+    color: '#fff',
     marginBottom: 4,
   },
   availableToSpendSubtext: {
     flexDirection: 'row',
+    color: colors.accentBackground,
     alignItems: 'center',
     gap: 6,
   },
@@ -1971,7 +2019,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: colors.primary,
   },
   payoutsBalanceCard: {
-    backgroundColor: colors.card,
+    backgroundColor: '#1E3A8A',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
@@ -1991,13 +2039,13 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   payoutsBalanceLabel: {
     fontSize: getScaledFontSize(13, textSizeMultiplier),
     fontWeight: '500',
-    color: colors.textSecondary,
+    color: colors.textTertiary,
     marginBottom: 4,
   },
   payoutsBalanceAmount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 32 : 28, textSizeMultiplier),
     fontWeight: '700',
-    color: colors.text,
+    color: '#fff',
     marginBottom: 4,
   },
   payoutsBalanceSubtext: {
