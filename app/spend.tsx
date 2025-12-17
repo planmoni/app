@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, Send } from 'lucide-react-native';
+import { ArrowLeft, Send, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -35,6 +35,11 @@ export default function SpendScreen() {
     router.back();
   };
 
+  const handleClose = () => {
+    haptics.selection();
+    router.replace('/(tabs)');
+  };
+
   const handleSpend = (planId: string) => {
     haptics.mediumImpact();
     router.push(`/spend/${planId}`);
@@ -49,7 +54,9 @@ export default function SpendScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Budget Spend</Text>
-        <View style={styles.placeholder} />
+        <Pressable onPress={handleClose} style={styles.closeButton}>
+          <X size={20} color={colors.text} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -129,15 +136,16 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       padding: 8,
       marginLeft: -8,
     },
+    closeButton: {
+      padding: 8,
+      marginRight: -8,
+    },
     headerTitle: {
       fontSize: getScaledFontSize(20, textSizeMultiplier),
       fontWeight: '700',
       color: colors.text,
       flex: 1,
       textAlign: 'center',
-    },
-    placeholder: {
-      width: 40,
     },
     scrollView: {
       flex: 1,

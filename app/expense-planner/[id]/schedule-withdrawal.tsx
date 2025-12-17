@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Image, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, X, Check, Plus, Calendar } from 'lucide-react-native';
@@ -24,6 +24,9 @@ export default function ScheduleWithdrawalScreen() {
   const { expensePlans } = useExpensePlans();
   const { buckets } = useExpenseBuckets(planId);
   const { payoutAccounts, fetchPayoutAccounts } = usePayoutAccounts();
+  const isMaxPayoutAccounts = payoutAccounts.length >= 3;
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState<Date | null>(null);
   
   const plan = expensePlans.find(p => p.id === planId);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -31,6 +34,8 @@ export default function ScheduleWithdrawalScreen() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const budgetStartDate = plan?.start_date ? new Date(plan.start_date) : null;
+  const budgetEndDate = plan?.end_date ? new Date(plan.end_date) : null;
 
   useEffect(() => {
     if (payoutAccounts.length > 0 && !selectedAccountId) {
@@ -38,6 +43,14 @@ export default function ScheduleWithdrawalScreen() {
       setSelectedAccountId(defaultAccount.id);
     }
   }, [payoutAccounts]);
+
+  useEffect(() => {
+    if (budgetStartDate) {
+      const startMonth = new Date(budgetStartDate);
+      startMonth.setDate(1);
+      setCalendarMonth(startMonth);
+    }
+  }, [planId, budgetStartDate?.toISOString?.()]);
 
   const handleBucketToggle = (bucketId: string) => {
     haptics.selection();
@@ -152,8 +165,6 @@ export default function ScheduleWithdrawalScreen() {
 
   const selectedAccount = payoutAccounts.find(acc => acc.id === selectedAccountId);
   const totalAmount = calculateTotalAmount();
-  const budgetStartDate = plan?.start_date ? new Date(plan.start_date) : null;
-  const budgetEndDate = plan?.end_date ? new Date(plan.end_date) : null;
 
   const dateOptions = useMemo(() => {
     if (!budgetStartDate || !budgetEndDate) return [];
@@ -178,6 +189,8 @@ export default function ScheduleWithdrawalScreen() {
     return dates;
   }, [budgetStartDate, budgetEndDate]);
 
+  const displayedDates = useMemo(() => dateOptions.slice(0, 20), [dateOptions]);
+
   useEffect(() => {
     if (!plan) return;
     // Auto-select only when nothing is selected yet
@@ -186,6 +199,82 @@ export default function ScheduleWithdrawalScreen() {
     if (!firstDate) return;
     setSelectedDate(firstDate);
   }, [plan, dateOptions, selectedDate]);
+
+  const minSelectableDate = useMemo(() => {
+    if (!budgetStartDate) return null;
+    const start = new Date(budgetStartDate);
+    start.setHours(0, 0, 0, 0);
+    const tomorrow = new Date();
+    tomorrow.setHours(0, 0, 0, 0);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const minDate = new Date(Math.max(start.getTime(), tomorrow.getTime()));
+    return minDate;
+  }, [budgetStartDate]);
+
+  const calendarMonthSafe = useMemo(() => {
+    if (calendarMonth) return calendarMonth;
+    if (budgetStartDate) {
+      const d = new Date(budgetStartDate);
+      d.setDate(1);
+      return d;
+    }
+    return null;
+  }, [calendarMonth, budgetStartDate]);
+
+  const calendarDays = useMemo(() => {
+    if (!calendarMonthSafe || !budgetStartDate || !budgetEndDate) return [];
+    const days: { key: string; date: Date | null; selectable: boolean; withinWindow: boolean }[] = [];
+    const startOfMonth = new Date(calendarMonthSafe);
+    startOfMonth.setDate(1);
+    const year = startOfMonth.getFullYear();
+    const month = startOfMonth.getMonth();
+    const firstDayOffset = startOfMonth.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    for (let i = 0; i < firstDayOffset; i++) {
+      days.push({ key: `blank-${i}`, date: null, selectable: false, withinWindow: false });
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      date.setHours(0, 0, 0, 0);
+      const withinWindow = date >= budgetStartDate && date <= budgetEndDate;
+      const selectable = withinWindow && (!!minSelectableDate ? date >= minSelectableDate : true);
+      days.push({
+        key: `day-${year}-${month}-${day}`,
+        date,
+        selectable,
+        withinWindow,
+      });
+    }
+    return days;
+  }, [calendarMonthSafe, budgetStartDate, budgetEndDate, minSelectableDate]);
+
+  const getMonthLabel = (date: Date | null) => {
+    if (!date) return '';
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return `${months[date.getMonth()]} ${date.getFullYear()}`;
+  };
+
+  const handleMonthChange = (direction: 1 | -1) => {
+    if (!calendarMonthSafe || !budgetStartDate || !budgetEndDate) return;
+    const newMonth = new Date(calendarMonthSafe);
+    newMonth.setMonth(newMonth.getMonth() + direction);
+    newMonth.setDate(1);
+
+    const startLimit = new Date(budgetStartDate);
+    startLimit.setDate(1);
+    const endLimit = new Date(budgetEndDate);
+    endLimit.setDate(1);
+
+    if (newMonth < startLimit || newMonth > endLimit) return;
+    setCalendarMonth(newMonth);
+  };
+
+  const handleCalendarSelect = (date: Date) => {
+    setSelectedDate(date);
+    setShowCalendarModal(false);
+  };
 
   const formatDate = (date: Date | null) => {
     if (!date) return 'N/A';
@@ -236,12 +325,21 @@ export default function ScheduleWithdrawalScreen() {
 
         {budgetStartDate && budgetEndDate && dateOptions.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Select payout date</Text>
+            <View style={styles.dateHeader}>
+              <Text style={styles.sectionTitle}>Select payout date</Text>
+              <Pressable
+                onPress={() => setShowCalendarModal(true)}
+                hitSlop={8}
+                style={styles.calendarIconButton}
+              >
+                <Calendar size={20} color={colors.text} />
+              </Pressable>
+            </View>
             <Text style={styles.sectionDescription}>
               Dates outside the budget window are disabled
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateList}>
-              {dateOptions.map(({ date }) => {
+              {displayedDates.map(({ date }) => {
                 const isSelected = selectedDate ? date.toDateString() === selectedDate.toDateString() : false;
                 return (
                   <Pressable
@@ -325,16 +423,18 @@ export default function ScheduleWithdrawalScreen() {
               })}
           </View>
 
-          <Pressable
-            style={styles.addAccountButton}
-            onPress={() => {
-              haptics.selection();
-              setShowAddAccount(true);
-            }}
-          >
-            <Plus size={20} color={colors.primary} />
-            <Text style={styles.addAccountText}>Add New Account</Text>
-          </Pressable>
+          {!isMaxPayoutAccounts && (
+            <Pressable
+              style={styles.addAccountButton}
+              onPress={() => {
+                haptics.selection();
+                setShowAddAccount(true);
+              }}
+            >
+              <Plus size={20} color={colors.primary} />
+              <Text style={styles.addAccountText}>Add New Account</Text>
+            </Pressable>
+          )}
         </View>
 
 
@@ -345,6 +445,97 @@ export default function ScheduleWithdrawalScreen() {
           </View>
         )}
       </ScrollView>
+
+      {calendarMonthSafe && (
+        <Modal
+          visible={showCalendarModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowCalendarModal(false)}
+        >
+          <View style={styles.calendarOverlay}>
+            <View style={styles.calendarContainer}>
+              <View style={styles.calendarHeader}>
+                <Text style={styles.calendarTitle}>Select payout date</Text>
+                <Pressable
+                  onPress={() => setShowCalendarModal(false)}
+                  style={styles.calendarClose}
+                  hitSlop={8}
+                >
+                  <X size={20} color={colors.text} />
+                </Pressable>
+              </View>
+
+              <View style={styles.calendarNav}>
+                <Pressable
+                  onPress={() => handleMonthChange(-1)}
+                  disabled={
+                    !!budgetStartDate &&
+                    calendarMonthSafe &&
+                    new Date(calendarMonthSafe.getFullYear(), calendarMonthSafe.getMonth(), 1) <=
+                      new Date(budgetStartDate.getFullYear(), budgetStartDate.getMonth(), 1)
+                  }
+                  style={styles.navButton}
+                >
+                  <Text style={styles.navButtonText}>{'<'}</Text>
+                </Pressable>
+                <Text style={styles.monthLabel}>{getMonthLabel(calendarMonthSafe)}</Text>
+                <Pressable
+                  onPress={() => handleMonthChange(1)}
+                  disabled={
+                    !!budgetEndDate &&
+                    calendarMonthSafe &&
+                    new Date(calendarMonthSafe.getFullYear(), calendarMonthSafe.getMonth(), 1) >=
+                      new Date(budgetEndDate.getFullYear(), budgetEndDate.getMonth(), 1)
+                  }
+                  style={styles.navButton}
+                >
+                  <Text style={styles.navButtonText}>{'>'}</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.weekDaysRow}>
+                {['S','M','T','W','T','F','S'].map((day, idx) => (
+                  <Text key={`${day}-${idx}`} style={styles.weekDay}>
+                    {day}
+                  </Text>
+                ))}
+              </View>
+
+              <View style={styles.calendarGrid}>
+                {calendarDays.map(({ key, date, selectable, withinWindow }) => {
+                  if (!date) {
+                    return <View key={key} style={styles.dayCellEmpty} />;
+                  }
+                  const isSelected = selectedDate ? date.toDateString() === selectedDate.toDateString() : false;
+                  return (
+                    <Pressable
+                      key={key}
+                      style={[
+                        styles.dayCell,
+                        isSelected && styles.dayCellSelected,
+                        (!selectable || !withinWindow) && styles.dayCellDisabled,
+                      ]}
+                      onPress={() => selectable && withinWindow && handleCalendarSelect(date)}
+                      disabled={!selectable || !withinWindow}
+                    >
+                      <Text
+                        style={[
+                          styles.dayText,
+                          isSelected && styles.dayTextSelected,
+                          (!selectable || !withinWindow) && styles.dayTextDisabled,
+                        ]}
+                      >
+                        {date.getDate()}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       <FloatingButton
         title="Schedule Withdrawal"
@@ -426,6 +617,17 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     section: {
       marginBottom: 32,
     },
+    dateHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    calendarIconButton: {
+      padding: 8,
+      borderRadius: 8,
+      backgroundColor: colors.backgroundTertiary,
+    },
     budgetWindowCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -483,6 +685,112 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       color: colors.primary,
     },
     dateChipTextDisabled: {
+      color: colors.textSecondary,
+    },
+    calendarOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 16,
+    },
+    calendarContainer: {
+      width: '100%',
+      maxWidth: 420,
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 16,
+    },
+    calendarHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 12,
+    },
+    calendarTitle: {
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
+      fontWeight: '700',
+      color: colors.text,
+    },
+    calendarClose: {
+      padding: 6,
+      borderRadius: 8,
+      backgroundColor: colors.backgroundTertiary,
+    },
+    calendarNav: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 12,
+    },
+    navButton: {
+      padding: 8,
+      borderRadius: 8,
+      backgroundColor: colors.backgroundTertiary,
+      minWidth: 44,
+      alignItems: 'center',
+    },
+    navButtonText: {
+      fontSize: 16,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    monthLabel: {
+      fontSize: getScaledFontSize(15, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+    },
+    weekDaysRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+      paddingHorizontal: 4,
+    },
+    weekDay: {
+      width: `${100 / 7}%`,
+      textAlign: 'center',
+      fontSize: getScaledFontSize(12, textSizeMultiplier),
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    calendarGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      rowGap: 8,
+    },
+    dayCell: {
+      width: `${100 / 7 - 1}%`,
+      aspectRatio: 1,
+      borderRadius: 10,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dayCellSelected: {
+      backgroundColor: colors.primary + '15',
+      borderColor: colors.primary,
+    },
+    dayCellDisabled: {
+      backgroundColor: colors.backgroundTertiary,
+      borderColor: colors.border,
+      opacity: 0.6,
+    },
+    dayCellEmpty: {
+      width: `${100 / 7 - 1}%`,
+      aspectRatio: 1,
+    },
+    dayText: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      color: colors.text,
+      fontWeight: '600',
+    },
+    dayTextSelected: {
+      color: colors.primary,
+    },
+    dayTextDisabled: {
       color: colors.textSecondary,
     },
     accountsContainer: {
