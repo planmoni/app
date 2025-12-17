@@ -573,7 +573,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
                     ? '#1E3A8A'
                     : percentageUsed > 50
                     ? '#1E3A8A'
-                    : '#22C55E')
+                    : '#C3F57E')
                 : (percentageFunded >= 100
                     ? colors.primary
                     : percentageFunded >= 75

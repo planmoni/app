@@ -2034,7 +2034,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   availableToSpendProgressFill: {
     height: '100%',
     borderRadius: 8,
-    backgroundColor: '#fff',
+    backgroundColor: colors.accent,
   },
   availableToSpendProgressText: {
     fontSize: getScaledFontSize(12, textSizeMultiplier),
@@ -2111,7 +2111,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   payoutsBalanceProgressFill: {
     height: '100%',
     borderRadius: 8,
-    backgroundColor: '#fff',
+    backgroundColor: colors.accent,
   },
   payoutsBalanceProgressText: {
     fontSize: getScaledFontSize(12, textSizeMultiplier),
@@ -2351,7 +2351,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   balanceAmount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 40 : 38, textSizeMultiplier),
     fontWeight: '700',
-    color: '#fff',
+    color: colors.accent,
     marginBottom: Platform.OS === 'ios' ? -10 : -10,
   },
   lockedSection: {
