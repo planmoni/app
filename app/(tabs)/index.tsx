@@ -339,6 +339,7 @@ export default function HomeScreen() {
   const [lastShownDepositId, setLastShownDepositId] = useState<string | null>(null);
   const [shownDepositIds, setShownDepositIds] = useState<Set<string>>(new Set());
   const [hasDismissedDepositModal, setHasDismissedDepositModal] = useState(false);
+  const DEPOSIT_MODAL_DISABLED = true;
   const [showAppLockModal, setShowAppLockModal] = useState(false);
   const [hasShownAppLockModal, setHasShownAppLockModal] = useState(false);
   const [showIdentityVerificationModal, setShowIdentityVerificationModal] = useState(false);
@@ -613,6 +614,7 @@ export default function HomeScreen() {
 
   // Detect new deposits and show PlanCreationModal
   useEffect(() => {
+    if (DEPOSIT_MODAL_DISABLED) return;
     if (!session?.user?.id || transactions.length === 0 || hasDismissedDepositModal) return;
 
     const depositTransactions = transactions.filter(
@@ -2193,12 +2195,12 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderWidth: 1,
   },
   upNextReadyTagReady: {
-    backgroundColor: colors.success + '15',
-    borderColor: colors.success + '40',
+    backgroundColor: colors.accent + '15',
+    borderColor: colors.accent + '40',
   },
   upNextReadyTagNotReady: {
-    backgroundColor: colors.warning + '15',
-    borderColor: colors.warning + '40',
+    backgroundColor: '#6F7E93' + '15',
+    borderColor: '#6F7E93' + '40',
   },
   upNextReadyTagText: {
     fontSize: getScaledFontSize(11, textSizeMultiplier),
@@ -2206,10 +2208,10 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     letterSpacing: 0.3,
   },
   upNextReadyTagTextReady: {
-    color: colors.success || '#10B981',
+    color: colors.accent,
   },
   upNextReadyTagTextNotReady: {
-    color: colors.warning || '#F59E0B',
+    color: '#6F7E93',
   },
   upNextPlanName: {
     fontSize: getScaledFontSize(20, textSizeMultiplier),

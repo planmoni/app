@@ -431,7 +431,7 @@ export default function PlanDetailScreen() {
       case 'partially_funded':
         return { bgColor: '#DBEAFE', textColor: '#2563EB', label: 'Partially Funded' };
       case 'funded':
-        return { bgColor: colors.backgroundTertiary, textColor: colors.primary, label: 'Funded' };
+        return { bgColor: colors.accent, textColor: colors.primary, label: 'Funded' };
       default:
         return { bgColor: colors.backgroundTertiary, textColor: colors.textSecondary, label: 'Active' };
     }

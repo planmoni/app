@@ -231,14 +231,14 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
                 )}%`,
                 backgroundColor:
                   (budgetStarted ? percentageSpent : percentageFunded) >= 100
-                    ? colors.primary
+                    ? '#1E3A8A'
                     : (budgetStarted ? percentageSpent : percentageFunded) >= 75
-                    ? '#10B981'
+                    ? '#1E3A8A'
                     : (budgetStarted ? percentageSpent : percentageFunded) >= 50
-                    ? '#F59E0B'
+                    ? '#1E3A8A'
                     : (budgetStarted ? percentageSpent : percentageFunded) >= 25
-                    ? '#F97316'
-                    : '#EF4444',
+                    ? '#1E3A8A'
+                    : '#1E3A8A',
               },
             ]}
           />

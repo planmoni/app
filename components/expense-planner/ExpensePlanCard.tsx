@@ -51,13 +51,13 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
         };
       case 'partially_funded':
         return {
-          backgroundColor: isDark ? '#4A3A2A' : '#FFF4E6',
-          textColor: isDark ? '#D4A574' : '#D97706',
+          backgroundColor: '#6F7E93',
+          textColor: '#fff',
           label: 'Partially Funded',
         };
       case 'funded':
         return {
-          backgroundColor: colors.backgroundTertiary,
+          backgroundColor: colors.accent,
           textColor: colors.primary,
           label: 'Funded',
         };
@@ -568,20 +568,20 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
                 : `${Math.min(Math.max(percentageFunded, 0), 100)}%`, // Show funding progress (0% to 100%)
               backgroundColor: budgetStarted
                 ? (percentageUsed > 100
-                    ? '#EF4444'
+                    ? '#1E3A8A'
                     : percentageUsed > 75
-                    ? '#F97316'
+                    ? '#1E3A8A'
                     : percentageUsed > 50
-                    ? '#F59E0B'
+                    ? '#1E3A8A'
                     : '#22C55E')
                 : (percentageFunded >= 100
                     ? colors.primary
                     : percentageFunded >= 75
-                    ? '#10B981'
+                    ? '#1E3A8A'
                     : percentageFunded >= 50
-                    ? '#F59E0B'
+                    ? '#1E3A8A'
                     : percentageFunded >= 25
-                    ? '#F97316'
+                    ? '#1E3A8A'
                     : '#EF4444'),
             },
           ]}
