@@ -242,6 +242,26 @@ export default function StartActionScreen() {
                     </Pressable>
                   );
                 })}
+                {/* Add new bank account */}
+                {!payoutAccountsLoading && (
+                  <Pressable
+                    style={styles.addBankCard}
+                    onPress={() => {
+                      haptics.selection();
+                      router.push('/payout-accounts');
+                    }}
+                  >
+                    <View style={styles.payoutAccountInfo}>
+                      <View style={[styles.bankLogoContainer, styles.addBankIconContainer]}>
+                        <Text style={styles.addBankIcon}>+</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.payoutAccountName}>Add new bank account</Text>
+                        <Text style={styles.payoutAccountMeta}>Create a new payout destination</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                )}
               </View>
             )}
           </Pressable>
@@ -400,6 +420,14 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
       borderColor: colors.primary,
       backgroundColor: colors.backgroundTertiary,
     },
+  addBankCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 14,
+    backgroundColor: colors.backgroundSecondary,
+    marginTop: 10,
+  },
     payoutAccountInfo: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -416,6 +444,16 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
       borderWidth: 1,
       borderColor: colors.border,
     },
+  addBankIconContainer: {
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  addBankIcon: {
+    fontSize: 18,
+    color: colors.text,
+    fontWeight: '600',
+  },
     payoutAccountName: {
       color: colors.text,
       fontSize: getScaledFontSize(15, textSizeMultiplier),
