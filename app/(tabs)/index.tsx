@@ -843,25 +843,23 @@ export default function HomeScreen() {
     return 'Hi';
   };
 
-  // Calculate expense plans "Total in funded plans" balance
-  // This shows the total balance in all fully funded plans (current_balance >= total_budget)
-  const expensePlansBalance = useMemo(() => {
-    if (!expensePlans || expensePlans.length === 0) {
-      return 0;
-    }
-    
-    // Sum current_balance from all fully funded plans
-    // A plan is considered funded when current_balance >= total_budget
+  // Sum of all plan balances (funded progress reference)
+  const expensePlansFundedBalance = useMemo(() => {
+    if (!expensePlans || expensePlans.length === 0) return 0;
     return expensePlans.reduce((total, plan) => {
       const currentBalance = (plan as any).current_balance || 0;
-      const totalBudget = plan.total_budget || 0;
-      
-      // Only include plans that are fully funded
-      if (totalBudget > 0 && currentBalance >= totalBudget) {
-        return total + currentBalance;
-      }
-      
-      return total;
+      return total + currentBalance;
+    }, 0);
+  }, [expensePlans]);
+
+  // Spendable balance = started plans only
+  const expensePlansSpendableBalance = useMemo(() => {
+    if (!expensePlans || expensePlans.length === 0) return 0;
+    return expensePlans.reduce((total, plan) => {
+      const started = plan.start_date ? isBudgetStarted(plan.start_date) : false;
+      if (!started) return total;
+      const currentBalance = (plan as any).current_balance || 0;
+      return total + currentBalance;
     }, 0);
   }, [expensePlans]);
 
@@ -1550,7 +1548,8 @@ export default function HomeScreen() {
             impact={impact}
             router={router}
             formatBalance={formatBalance}
-            expensePlansBalance={expensePlansBalance}
+            expensePlansBalance={expensePlansSpendableBalance}
+            expensePlansFundedBalance={expensePlansFundedBalance}
             expensePlans={expensePlans}
             nextMaturingBudget={nextMaturingBudget}
             getNextMaturingBudgetCategoryIcons={getNextMaturingBudgetCategoryIcons}
@@ -1999,6 +1998,26 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   availableToSpendSubtextText: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
     color: colors.textSecondary,
+  },
+  availableToSpendProgress: {
+    marginTop: 8,
+    gap: 6,
+  },
+  availableToSpendProgressTrack: {
+    height: 8,
+    borderRadius: 8,
+    backgroundColor: '#ffffff33',
+    overflow: 'hidden',
+  },
+  availableToSpendProgressFill: {
+    height: '100%',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+  },
+  availableToSpendProgressText: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    color: '#E2E8F0',
+    fontWeight: '600',
   },
   spendButton: {
     flexDirection: 'row',

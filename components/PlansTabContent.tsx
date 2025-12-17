@@ -23,6 +23,7 @@ type PlansTabContentProps = {
   router: any;
   formatBalance: (amount: number) => string;
   expensePlansBalance: number;
+  expensePlansFundedBalance?: number;
   expensePlans: any[];
   nextMaturingBudget: NextMaturingBudget | null;
   getNextMaturingBudgetCategoryIcons: CategoryIcon[];
@@ -38,12 +39,21 @@ export default function PlansTabContent({
   router,
   formatBalance,
   expensePlansBalance,
+  expensePlansFundedBalance = 0,
   expensePlans,
   nextMaturingBudget,
   getNextMaturingBudgetCategoryIcons,
   isRefreshing = false,
   onRefresh,
 }: PlansTabContentProps) {
+  const totalCreatedBudget = expensePlans?.reduce((sum, plan) => {
+    const amount = plan?.total_budget || 0;
+    return sum + (typeof amount === 'number' ? amount : 0);
+  }, 0) ?? 0;
+
+  const fundedPercentage =
+    totalCreatedBudget > 0 ? (expensePlansFundedBalance / totalCreatedBudget) * 100 : 0;
+
   return (
     <View style={[styles.tabPage, { width: screenWidth }]}>
       <ScrollView
@@ -67,9 +77,20 @@ export default function PlansTabContent({
           <View style={styles.availableToSpendInfo}>
             <Text style={styles.availableToSpendLabel}>Available to spend</Text>
             <Text style={styles.availableToSpendAmount}>{formatBalance(expensePlansBalance)}</Text>
-            <Text style={styles.availableToSpendSubtext}>
-               {formatBalance(expensePlansBalance)} in funded budgets
-            </Text>
+           
+            <View style={styles.availableToSpendProgress}>
+              <View style={styles.availableToSpendProgressTrack}>
+                <View
+                  style={[
+                    styles.availableToSpendProgressFill,
+                    { width: `${Math.min(Math.max(fundedPercentage, 0), 100)}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.availableToSpendProgressText}>
+                 Funded {formatBalance(expensePlansFundedBalance)} / {formatBalance(totalCreatedBudget)} Total Budget
+              </Text>
+            </View>
           </View>
           <ArrowRight size={20} color={colors.textSecondary} />
         </View>
