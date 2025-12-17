@@ -738,6 +738,24 @@ export default function HomeScreen() {
     return payoutPlans.filter(plan => plan.status === 'active');
   }, [payoutPlans]);
 
+  const payoutsTotalAmount = useMemo(() => {
+    if (!activePlans || activePlans.length === 0) return 0;
+    return activePlans.reduce((sum, plan) => {
+      const totalAmount = Number((plan as any)?.total_amount) || 0;
+      return sum + totalAmount;
+    }, 0);
+  }, [activePlans]);
+
+  const payoutsTotalPaid = useMemo(() => {
+    if (!activePlans || activePlans.length === 0) return 0;
+    return activePlans.reduce((sum, plan) => {
+      const completedPayouts = Number((plan as any)?.completed_payouts) || 0;
+      const payoutAmount = Number((plan as any)?.payout_amount) || 0;
+      const completedAmount = completedPayouts * payoutAmount;
+      return sum + completedAmount;
+    }, 0);
+  }, [activePlans]);
+
   const handleProfilePress = useCallback(() => {
     router.push('/profile');
     logAnalyticsEvent('profile_click');
@@ -1566,6 +1584,8 @@ export default function HomeScreen() {
             lockedBalance={lockedBalance}
             nextPayout={nextPayout}
             activePlans={activePlans}
+            payoutsTotalPaid={payoutsTotalPaid}
+            payoutsTotalAmount={payoutsTotalAmount}
             setShowNewPlanInfoModal={setShowNewPlanInfoModal}
             setShowHowItWorksModal={setShowHowItWorksModal}
             isRefreshing={isRefreshing}
@@ -2000,7 +2020,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: colors.textSecondary,
   },
   availableToSpendProgress: {
-    marginTop: 8,
+    marginTop: 1,
     gap: 6,
   },
   availableToSpendProgressTrack: {
@@ -2075,6 +2095,26 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   payoutsBalanceSubtextText: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
     color: colors.textSecondary,
+  },
+  payoutsBalanceProgress: {
+    marginTop: 8,
+    gap: 6,
+  },
+  payoutsBalanceProgressTrack: {
+    height: 8,
+    borderRadius: 8,
+    backgroundColor: '#ffffff33',
+    overflow: 'hidden',
+  },
+  payoutsBalanceProgressFill: {
+    height: '100%',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+  },
+  payoutsBalanceProgressText: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    color: '#E2E8F0',
+    fontWeight: '600',
   },
   createPayoutButton: {
     flexDirection: 'row',

@@ -12,6 +12,8 @@ type PayoutsTabContentProps = {
   lockedBalance: number;
   nextPayout: any;
   activePlans: any[];
+  payoutsTotalPaid: number;
+  payoutsTotalAmount: number;
   setShowNewPlanInfoModal: (value: boolean) => void;
   setShowHowItWorksModal: (value: boolean) => void;
   isRefreshing?: boolean;
@@ -26,11 +28,17 @@ export default function PayoutsTabContent({
   lockedBalance,
   nextPayout,
   activePlans,
+  payoutsTotalPaid,
+  payoutsTotalAmount,
   setShowNewPlanInfoModal,
   setShowHowItWorksModal,
   isRefreshing = false,
   onRefresh,
 }: PayoutsTabContentProps) {
+  const payoutProgress = payoutsTotalAmount > 0
+    ? (payoutsTotalPaid / payoutsTotalAmount) * 100
+    : 0;
+
   return (
     <View style={[styles.tabPage, { width: screenWidth }]}>
       <ScrollView
@@ -48,7 +56,19 @@ export default function PayoutsTabContent({
           <View style={styles.payoutsBalanceInfo}>
             <Text style={styles.payoutsBalanceLabel}>Total amount in payout plans</Text>
             <Text style={styles.payoutsBalanceAmount}>{formatBalance(lockedBalance)}</Text>
-            
+            <View style={styles.payoutsBalanceProgress}>
+              <View style={styles.payoutsBalanceProgressTrack}>
+                <View
+                  style={[
+                    styles.payoutsBalanceProgressFill,
+                    { width: `${Math.min(Math.max(payoutProgress, 0), 100)}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.payoutsBalanceProgressText}>
+                Total paid out {formatBalance(payoutsTotalPaid)} / {formatBalance(payoutsTotalAmount)}
+              </Text>
+            </View>
           </View>
         </View>
       </View>
